@@ -208,6 +208,11 @@ function renderPlayerAverages(playerMatches, leagueConfig, columns) {
     }, 0);
     const avgPointsVal = (totalPoints / n).toFixed(2);
 
+    // Build stat line for the last column: "X games" + stat value
+    const statLine = leagueConfig.playerResultMode === 'points'
+        ? `${n} games<br>${avgPointsVal} avg pts`
+        : `${n} games<br>${winRate}% wins`;
+
     let html = `<tr class="avg-row">`;
     for (const col of columns) {
         switch (col.key) {
@@ -215,11 +220,7 @@ function renderPlayerAverages(playerMatches, leagueConfig, columns) {
                 html += `<td><b>AVERAGES</b></td>`;
                 break;
             case 'scoreSelf':
-                if (leagueConfig.playerResultMode === 'points') {
-                    html += `<td colspan="2">${avgPointsVal} avg pts</td>`;
-                } else {
-                    html += `<td colspan="2">${winRate}% wins</td>`;
-                }
+                html += `<td colspan="2"></td>`;
                 break;
             case 'scoreOpp':
                 // Consumed by colspan above
@@ -234,10 +235,8 @@ function renderPlayerAverages(playerMatches, leagueConfig, columns) {
                 html += `<td>${formatNumber(avgLuckDiff)}</td>`;
                 break;
             case 'result':
-                html += `<td>${played.length} games</td>`;
-                break;
             case 'matchPoints':
-                html += `<td>${played.length} games</td>`;
+                html += `<td>${statLine}</td>`;
                 break;
         }
     }

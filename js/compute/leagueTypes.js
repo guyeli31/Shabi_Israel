@@ -22,9 +22,9 @@ const REGULAR_CONFIG = {
     type: 'regular',
     showPR: false,
     showLuck: false,
-    showWinRate: false,
+    showWinRate: true,
     showPRWins: false,
-    ranking: { primary: 'wins', primaryDir: 'desc', secondary: 'player', secondaryDir: 'asc' },
+    ranking: { primary: 'winRate', primaryDir: 'desc', secondary: 'wins', secondaryDir: 'desc' },
     playerResultMode: 'winloss'
 };
 

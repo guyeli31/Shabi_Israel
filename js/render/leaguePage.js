@@ -35,6 +35,11 @@ export async function renderLeaguePage() {
         // Show last updated below title
         renderLastUpdated(lastModified);
 
+        // Widen container for league types with many columns (e.g. UBC has 11)
+        if (leagueConfig.type === 'ubc') {
+            document.querySelector('.page-container').classList.add('wide-table');
+        }
+
         const statsMap = computeAllStats(matches, allPlayers);
         const rankings = buildRankings(statsMap, leagueConfig);
         const averages = computeAverages(rankings, leagueConfig);

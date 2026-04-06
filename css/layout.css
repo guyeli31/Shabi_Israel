@@ -25,6 +25,10 @@ body {
     padding: var(--space-lg) var(--space-md);
 }
 
+.page-container.wide-table {
+    max-width: 1400px;
+}
+
 .page-header {
     text-align: center;
     padding: var(--space-xl) 0 var(--space-lg);
