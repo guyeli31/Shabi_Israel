@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="he" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player — Shabi Israel</title>
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/theme.css">
+</head>
+<body>
+    <div class="page-container">
+        <a href="index.html" id="back-link" class="back-link">Back to League</a>
+        <div class="page-header">
+            <h1 id="page-title">Loading...</h1>
+            <p class="subtitle" id="league-subtitle"></p>
+        </div>
+        <div id="content">
+            <div class="loading">Loading player data...</div>
+        </div>
+    </div>
+    <script type="module">
+        import { renderPlayerPage } from './js/render/playerPage.js';
+        renderPlayerPage();
+    </script>
+</body>
+</html>

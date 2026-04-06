@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="he" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shabi Israel</title>
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/theme.css">
+</head>
+<body>
+    <div class="page-container">
+        <div class="page-header">
+            <img class="logo" src="assets/logo/logo.png" alt="Shabi Israel">
+            <h1>Shabi Israel</h1>
+            <p class="subtitle">By Marcel Dana and Avshalom Yaish</p>
+        </div>
+        <div id="content">
+            <div class="loading">Loading leagues...</div>
+        </div>
+    </div>
+    <script type="module">
+        import { renderLandingPage } from './js/render/landingPage.js';
+        renderLandingPage();
+    </script>
+</body>
+</html>

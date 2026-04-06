@@ -1,0 +1,215 @@
+/* components.css — Tables, badges, medals, flags, pills */
+
+/* ---- Data Table ---- */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.93rem;
+}
+
+thead th {
+    background: var(--header-bg);
+    color: var(--header-text);
+    padding: var(--space-sm) var(--space-md);
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+}
+
+thead th:hover {
+    background: #334155;
+}
+
+thead th .sort-icon {
+    margin-left: 4px;
+    font-size: 0.75em;
+    opacity: 0.5;
+}
+
+thead th.sorted .sort-icon {
+    opacity: 1;
+}
+
+tbody td {
+    padding: var(--space-sm) var(--space-md);
+    text-align: center;
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+}
+
+tbody tr:hover {
+    background: var(--color-hover);
+    transition: background 0.1s;
+}
+
+tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Player name cell */
+td.player-cell {
+    text-align: left;
+    font-weight: 600;
+}
+
+td.player-cell a {
+    color: var(--color-text);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+td.player-cell a:hover {
+    color: var(--color-accent);
+}
+
+/* ---- Flags ---- */
+.flag {
+    height: 16px;
+    width: auto;
+    border-radius: 2px;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+.flag-title {
+    height: 24px;
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+/* ---- Medal badges ---- */
+.medal {
+    display: inline-block;
+    width: 22px;
+    height: 22px;
+    line-height: 22px;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.medal-gold {
+    background: var(--color-gold);
+    color: #78350f;
+}
+
+.medal-silver {
+    background: var(--color-silver);
+    color: #1f2937;
+}
+
+.medal-bronze {
+    background: var(--color-bronze);
+    color: #fff;
+}
+
+/* Row medal highlights */
+tr.rank-gold { background: var(--color-gold-bg); }
+tr.rank-silver { background: var(--color-silver-bg); }
+tr.rank-bronze { background: rgba(217, 119, 6, 0.08); }
+
+tr.rank-gold:hover { background: #fde68a; }
+tr.rank-silver:hover { background: #e5e7eb; }
+tr.rank-bronze:hover { background: rgba(217, 119, 6, 0.14); }
+
+/* ---- Status pills ---- */
+.status-pill {
+    display: inline-block;
+    padding: 2px 12px;
+    border-radius: var(--radius-full);
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+.status-running {
+    background: var(--color-running-bg);
+    color: var(--color-running);
+}
+
+.status-completed {
+    background: var(--color-completed-bg);
+    color: var(--color-completed);
+}
+
+/* ---- Average / Stats rows ---- */
+tr.avg-row {
+    background: var(--color-avg-bg) !important;
+    font-weight: 700;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+}
+
+tr.avg-row td {
+    border-top: 2px solid var(--color-avg-border);
+    border-bottom: none;
+    padding: var(--space-sm) var(--space-md);
+}
+
+tr.stat-row {
+    background: var(--color-surface) !important;
+}
+
+tr.stat-row td {
+    padding: var(--space-sm) var(--space-md);
+    color: var(--color-text-secondary);
+    font-size: 0.88rem;
+    border-bottom: none;
+}
+
+/* ---- Result badges ---- */
+.result-win {
+    color: var(--color-win);
+    font-weight: 700;
+}
+
+.result-loss {
+    color: var(--color-loss);
+    font-weight: 700;
+}
+
+.result-draw {
+    color: var(--color-draw);
+    font-weight: 600;
+}
+
+/* Unplayed match row */
+tr.unplayed {
+    color: var(--color-text-muted);
+    background: #fafafa;
+}
+
+tr.unplayed td {
+    font-style: italic;
+}
+
+/* ---- Landing table specific ---- */
+.landing-table td {
+    padding: var(--space-sm) var(--space-lg);
+}
+
+.landing-table a {
+    color: var(--color-text);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.15s;
+}
+
+.landing-table a:hover {
+    color: var(--color-accent);
+}
+
+/* ---- Level cell ---- */
+.level-cell {
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}

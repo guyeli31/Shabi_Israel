@@ -1,0 +1,15 @@
+/* theme.css — Data-driven color styling for stats, levels, results */
+
+/* Bold markers for min/max values */
+.val-best {
+    font-weight: 700;
+}
+
+.val-worst {
+    font-weight: 700;
+}
+
+/* Player page: bold the better value in head-to-head comparisons */
+.val-better {
+    font-weight: 700;
+}

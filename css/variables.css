@@ -1,0 +1,64 @@
+/* variables.css — Design tokens */
+
+:root {
+    /* Colors */
+    --color-bg: #f0f2f5;
+    --color-surface: #ffffff;
+    --color-text: #1a1a2e;
+    --color-text-secondary: #555770;
+    --color-text-muted: #8888a0;
+    --color-border: #e2e4e9;
+    --color-hover: #f5f6f8;
+    --color-accent: #2563eb;
+    --color-accent-light: #dbeafe;
+
+    /* Medal colors */
+    --color-gold: #fbbf24;
+    --color-gold-bg: #fef3c7;
+    --color-silver: #9ca3af;
+    --color-silver-bg: #f3f4f6;
+    --color-bronze: #d97706;
+    --color-bronze-bg: #fef3c7;
+
+    /* Status */
+    --color-running: #059669;
+    --color-running-bg: #d1fae5;
+    --color-completed: #6b7280;
+    --color-completed-bg: #f3f4f6;
+
+    /* Results */
+    --color-win: #059669;
+    --color-loss: #dc2626;
+    --color-draw: #6b7280;
+
+    /* Average row */
+    --color-avg-bg: #ecfdf5;
+    --color-avg-border: #a7f3d0;
+
+    /* Typography */
+    --font-main: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
+
+    /* Spacing */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 40px;
+    --space-2xl: 64px;
+
+    /* Borders */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-full: 9999px;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
+
+    /* Table */
+    --header-bg: #1e293b;
+    --header-text: #f8fafc;
+}
