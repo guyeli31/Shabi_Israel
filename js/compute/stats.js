@@ -63,19 +63,32 @@ function computePlayerStats(matches, playerName) {
             continue;
         }
 
+        // Technical match: PR/Luck are null — count games/wins/losses but not PR/Luck averages
+        const isTechnical = prSelf === null || prOpp === null;
+
         games++;
         const matchWin = scoreSelf > scoreOpp;
-        if (matchWin) wins++;
-        else if (scoreSelf < scoreOpp) losses++;
+        if (m._draw) {
+            // Technical draw: neither win nor loss
+        } else if (matchWin) {
+            wins++;
+        } else if (scoreSelf < scoreOpp) {
+            losses++;
+        }
 
-        const prWin = prSelf < prOpp;
-        if (prWin) prWins++;
-        points += (matchWin ? 1 : 0) + (prWin ? 1 : 0);
+        if (!isTechnical) {
+            const prWin = prSelf < prOpp;
+            if (prWin) prWins++;
+            points += (matchWin ? 1 : 0) + (prWin ? 1 : 0);
 
-        prValues.push(prSelf);
-        oppPrValues.push(prOpp);
-        luckValues.push(luckSelf);
-        oppLuckValues.push(luckOpp);
+            prValues.push(prSelf);
+            oppPrValues.push(prOpp);
+            luckValues.push(luckSelf);
+            oppLuckValues.push(luckOpp);
+        } else {
+            // Technical win/loss: award points for match win only, no PR win possible
+            points += (matchWin ? 1 : 0);
+        }
     }
 
     const meanPR = games > 0 ? mean(prValues) : 0;

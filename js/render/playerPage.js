@@ -28,9 +28,14 @@ export async function renderPlayerPage() {
         const title = params.LeagueTitle || leagueId;
         const flagCode = getFlagCode(playerName, params.CustomFlags);
 
+        // Check if player is retired
+        const retiredPlayers = params.RetiredPlayers || [];
+        const isRetired = retiredPlayers.includes(playerName);
+        const retiredBadge = isRetired ? ' <span class="retired-badge">Retired</span>' : '';
+
         // Update page header
         document.getElementById('page-title').innerHTML =
-            `<img class="flag-title" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerName}`;
+            `<img class="flag-title" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerName}${retiredBadge}`;
         document.getElementById('league-subtitle').textContent = title;
         document.title = `${playerName} — ${title}`;
 
@@ -125,8 +130,11 @@ function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns)
         }
 
         // Determine result
+        const isTechnical = m._technical || false;
         let resultClass, resultText;
-        if (m.scoreSelf > m.scoreOpp) {
+        if (m._draw) {
+            resultClass = 'result-draw'; resultText = 'DRAW';
+        } else if (m.scoreSelf > m.scoreOpp) {
             resultClass = 'result-win'; resultText = 'WIN';
         } else if (m.scoreSelf < m.scoreOpp) {
             resultClass = 'result-loss'; resultText = 'LOSS';
@@ -136,15 +144,15 @@ function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns)
 
         // Compute match points for UBC mode
         const matchWin = m.scoreSelf > m.scoreOpp ? 1 : 0;
-        const prWin = m.prSelf < m.prOpp ? 1 : 0;
+        const prWin = (!isTechnical && m.prSelf < m.prOpp) ? 1 : 0;
         const matchPoints = matchWin + prWin;
 
         // Bold the better value in head-to-head
         const boldScore = (v, other) => v > other ? `<b>${v}</b>` : v;
         const boldPR = (v, other) => v < other ? `<b>${formatNumber(v)}</b>` : formatNumber(v);
 
-        const luckDiff = m.luckSelf - m.luckOpp;
-        const luckHtml = luckDiff > 0 ? `<b>${formatNumber(luckDiff)}</b>` : formatNumber(luckDiff);
+        const luckDiff = isTechnical ? 0 : (m.luckSelf - m.luckOpp);
+        const luckHtml = isTechnical ? '—' : (luckDiff > 0 ? `<b>${formatNumber(luckDiff)}</b>` : formatNumber(luckDiff));
 
         html += `
                     <tr>`;
@@ -157,22 +165,22 @@ function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns)
                         </td>`;
                     break;
                 case 'scoreSelf':
-                    html += `<td>${boldScore(m.scoreSelf, m.scoreOpp)}</td>`;
+                    html += `<td>${isTechnical ? '—' : boldScore(m.scoreSelf, m.scoreOpp)}</td>`;
                     break;
                 case 'scoreOpp':
-                    html += `<td>${boldScore(m.scoreOpp, m.scoreSelf)}</td>`;
+                    html += `<td>${isTechnical ? '—' : boldScore(m.scoreOpp, m.scoreSelf)}</td>`;
                     break;
                 case 'prSelf':
-                    html += `<td>${boldPR(m.prSelf, m.prOpp)}</td>`;
+                    html += `<td>${isTechnical ? '—' : boldPR(m.prSelf, m.prOpp)}</td>`;
                     break;
                 case 'prOpp':
-                    html += `<td>${boldPR(m.prOpp, m.prSelf)}</td>`;
+                    html += `<td>${isTechnical ? '—' : boldPR(m.prOpp, m.prSelf)}</td>`;
                     break;
                 case 'luckDiff':
                     html += `<td>${luckHtml}</td>`;
                     break;
                 case 'result':
-                    html += `<td class="${resultClass}">${resultText}</td>`;
+                    html += `<td class="${resultClass}">${resultText}${isTechnical ? ' <small>(T)</small>' : ''}</td>`;
                     break;
                 case 'matchPoints': {
                     const ptClass = matchPoints === 2 ? 'result-win' : matchPoints === 0 ? 'result-loss' : '';

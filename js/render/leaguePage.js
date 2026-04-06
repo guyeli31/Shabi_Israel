@@ -110,6 +110,8 @@ function getColumnExtents(rankings, columns) {
 function renderSummaryTable(container, rankings, averages, matchStats, params, leagueId, leagueConfig) {
     const columns = getColumns(leagueConfig);
     const extents = getColumnExtents(rankings, columns);
+    const goldCount = params.GoldCount || 1;
+    const silverCount = params.SilverCount || 1;
     const bronzeCount = params.BronzeCount || 4;
 
     const headerCells = columns.map((col, i) =>
@@ -127,7 +129,7 @@ function renderSummaryTable(container, rankings, averages, matchStats, params, l
                 </thead>
                 <tbody id="leagueBody">`;
 
-    html += renderDataRows(rankings, extents, params, leagueId, bronzeCount, columns, leagueConfig);
+    html += renderDataRows(rankings, extents, params, leagueId, goldCount, silverCount, bronzeCount, columns, leagueConfig);
     html += renderAverageRow(averages, columns, leagueConfig);
     html += renderStatRow(matchStats, columns.length);
 
@@ -140,17 +142,17 @@ function renderSummaryTable(container, rankings, averages, matchStats, params, l
     container.innerHTML = html;
 }
 
-function getRankClass(rank, bronzeCount) {
-    if (rank === 1) return 'rank-gold';
-    if (rank === 2) return 'rank-silver';
-    if (rank >= 3 && rank <= 2 + bronzeCount) return 'rank-bronze';
+function getRankClass(rank, goldCount, silverCount, bronzeCount) {
+    if (rank >= 1 && rank <= goldCount) return 'rank-gold';
+    if (rank > goldCount && rank <= goldCount + silverCount) return 'rank-silver';
+    if (rank > goldCount + silverCount && rank <= goldCount + silverCount + bronzeCount) return 'rank-bronze';
     return '';
 }
 
-function getMedalHtml(rank, bronzeCount) {
-    if (rank === 1) return `<span class="medal medal-gold">${rank}</span>`;
-    if (rank === 2) return `<span class="medal medal-silver">${rank}</span>`;
-    if (rank >= 3 && rank <= 2 + bronzeCount) return `<span class="medal medal-bronze">${rank}</span>`;
+function getMedalHtml(rank, goldCount, silverCount, bronzeCount) {
+    if (rank >= 1 && rank <= goldCount) return `<span class="medal medal-gold">${rank}</span>`;
+    if (rank > goldCount && rank <= goldCount + silverCount) return `<span class="medal medal-silver">${rank}</span>`;
+    if (rank > goldCount + silverCount && rank <= goldCount + silverCount + bronzeCount) return `<span class="medal medal-bronze">${rank}</span>`;
     return rank;
 }
 
@@ -182,7 +184,8 @@ function formatCell(key, value) {
     }
 }
 
-function renderDataRows(rankings, extents, params, leagueId, bronzeCount, columns, leagueConfig) {
+function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCount, bronzeCount, columns, leagueConfig) {
+    const retiredPlayers = params.RetiredPlayers || [];
     // Determine best/worst for bold highlighting
     const boldKeys = ['winRate', 'meanPR', 'luck', 'avgPoints'];
     const bestWorst = {};
@@ -197,7 +200,9 @@ function renderDataRows(rankings, extents, params, leagueId, bronzeCount, column
     let html = '';
     for (const r of rankings) {
         const isUnplayed = r.winRate === null;
-        const rankClass = isUnplayed ? 'unplayed' : getRankClass(r.originalRank, bronzeCount);
+        const isRetired = retiredPlayers.includes(r.player);
+        const rankClass = (isUnplayed ? 'unplayed' : getRankClass(r.originalRank, goldCount, silverCount, bronzeCount))
+            + (isRetired ? ' retired' : '');
         const flagCode = getFlagCode(r.player, params.CustomFlags);
         const pUrl = playerUrl(leagueId, r.player);
 
@@ -208,9 +213,10 @@ function renderDataRows(rankings, extents, params, leagueId, bronzeCount, column
                 if (col.key === 'rank') {
                     html += `<td>${r.originalRank}</td>`;
                 } else if (col.key === 'player') {
+                    const retiredMark = isRetired ? ' <span class="retired-mark" title="Retired">&#x1F6AA;</span>' : '';
                     html += `<td class="player-cell" data-name="${r.player}">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
-                            <a href="${pUrl}">${r.player}</a>
+                            <a href="${pUrl}">${r.player}</a>${retiredMark}
                         </td>`;
                 } else if (col.key === 'games' || col.key === 'wins' || col.key === 'losses' || col.key === 'prWins') {
                     html += `<td>0</td>`;
@@ -228,11 +234,12 @@ function renderDataRows(rankings, extents, params, leagueId, bronzeCount, column
                     <tr class="${rankClass}" data-wr="${r.winRate}" data-pr="${r.meanPR}">`;
         for (const col of columns) {
             if (col.key === 'rank') {
-                html += `<td>${getMedalHtml(r.originalRank, bronzeCount)}</td>`;
+                html += `<td>${getMedalHtml(r.originalRank, goldCount, silverCount, bronzeCount)}</td>`;
             } else if (col.key === 'player') {
+                const retiredMark = isRetired ? ' <span class="retired-mark" title="Retired">&#x1F6AA;</span>' : '';
                 html += `<td class="player-cell" data-name="${r.player}">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
-                            <a href="${pUrl}">${r.player}</a>
+                            <a href="${pUrl}">${r.player}</a>${retiredMark}
                         </td>`;
             } else if (col.key === 'level') {
                 const levelColor = colorForLevel(r.level);
@@ -331,10 +338,12 @@ function sortAndRerender(rankings, averages, matchStats, params, leagueId, col, 
     // Reassign display ranks
     sorted.forEach((r, i) => r.rank = i + 1);
 
+    const goldCount = params.GoldCount || 1;
+    const silverCount = params.SilverCount || 1;
     const bronzeCount = params.BronzeCount || 4;
     const extents = getColumnExtents(sorted, columns);
     const body = document.getElementById('leagueBody');
-    body.innerHTML = renderDataRows(sorted, extents, params, leagueId, bronzeCount, columns, leagueConfig)
+    body.innerHTML = renderDataRows(sorted, extents, params, leagueId, goldCount, silverCount, bronzeCount, columns, leagueConfig)
         + renderAverageRow(averages, columns, leagueConfig)
         + renderStatRow(matchStats, columns.length);
 }

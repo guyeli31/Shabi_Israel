@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin — Shabi Israel</title>
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/admin.css">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <div class="loading">Loading...</div>
+    </div>
+    <script type="module">
+        import { initAdminPage, navigateTo, refreshBadge } from './js/admin/render/adminPage.js';
+
+        // Lazy-load league manager when navigating to "leagues"
+        let leagueManagerModule = null;
+
+        initAdminPage(async (view, container) => {
+            if (view === 'leagues') {
+                if (!leagueManagerModule) {
+                    leagueManagerModule = await import('./js/admin/leagueManager.js');
+                }
+                leagueManagerModule.renderLeagueAdmin(container, refreshBadge);
+            }
+        });
+    </script>
+</body>
+</html>

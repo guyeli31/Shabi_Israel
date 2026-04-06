@@ -29,11 +29,21 @@
             <div class="loading">Loading league data...</div>
         </div>
     </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script type="module">
         import { renderLeaguePage } from './js/render/leaguePage.js';
         import { initThemePicker } from './js/render/themePicker.js';
-        renderLeaguePage();
+        import { addRemainingReportButton } from './js/admin/remainingReport.js';
+        import { getQueryParam } from './js/utils/helpers.js';
+
+        await renderLeaguePage();
         initThemePicker();
+
+        // Add remaining report button after the table
+        const leagueId = getQueryParam('league');
+        if (leagueId) {
+            addRemainingReportButton(document.getElementById('content'), leagueId);
+        }
     </script>
 </body>
 </html>

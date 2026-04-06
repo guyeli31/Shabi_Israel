@@ -205,6 +205,29 @@ tr.unplayed td.player-cell {
     font-style: normal;
 }
 
+/* ---- Retired players ---- */
+tr.retired {
+    opacity: 0.6;
+}
+
+.retired-mark {
+    font-size: 0.85rem;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.retired-badge {
+    display: inline-block;
+    background: var(--color-completed-bg);
+    color: var(--color-completed);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
 /* ---- Landing table specific ---- */
 .landing-table td {
     padding: var(--space-sm) var(--space-lg);

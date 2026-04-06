@@ -107,7 +107,9 @@ export function getPlayerMatches(matches, playerName, allPlayersSet) {
                 prOpp: m.prB,
                 luckSelf: m.luckA,
                 luckOpp: m.luckB,
-                played: true
+                played: true,
+                _technical: m._technical || false,
+                _draw: m._draw || false
             });
         } else if (m.playerB === playerName) {
             matchMap.set(m.playerA, {
@@ -118,7 +120,9 @@ export function getPlayerMatches(matches, playerName, allPlayersSet) {
                 prOpp: m.prA,
                 luckSelf: m.luckB,
                 luckOpp: m.luckA,
-                played: true
+                played: true,
+                _technical: m._technical || false,
+                _draw: m._draw || false
             });
         }
     }

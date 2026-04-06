@@ -43,14 +43,93 @@ export async function loadLeagueMatches(leagueId) {
 }
 
 /**
- * Load everything for a single league: params + matches.
+ * Load manual overrides for a league (if they exist).
+ * Returns the overrides array, or empty array if no file.
+ */
+export async function loadOverrides(leagueId) {
+    const encoded = encodeURIComponent(leagueId);
+    try {
+        const resp = await fetch(`${LEAGUES_BASE}/${encoded}/manual_overrides.json`);
+        if (!resp.ok) return [];
+        const data = await resp.json();
+        return data.overrides || [];
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Load everything for a single league: params + matches + overrides applied.
  */
 export async function loadLeague(leagueId) {
-    const [params, matchData] = await Promise.all([
+    const [params, matchData, overrides] = await Promise.all([
         loadLeagueParams(leagueId),
-        loadLeagueMatches(leagueId)
+        loadLeagueMatches(leagueId),
+        loadOverrides(leagueId)
     ]);
-    return { id: leagueId, params, matches: matchData.matches, lastModified: matchData.lastModified, totalPlayers: matchData.totalPlayers, allPlayers: matchData.allPlayers };
+
+    // Apply overrides to matches
+    const mergedMatches = applyOverrides(matchData.matches, overrides);
+
+    return { id: leagueId, params, matches: mergedMatches, lastModified: matchData.lastModified, totalPlayers: matchData.totalPlayers, allPlayers: matchData.allPlayers };
+}
+
+/**
+ * Apply manual overrides on top of CSV-parsed matches.
+ * Each override replaces or adds a match by playerA+playerB key.
+ */
+function applyOverrides(matches, overrides) {
+    if (!overrides || overrides.length === 0) return matches;
+
+    const result = [...matches];
+
+    for (const o of overrides) {
+        const key = [o.playerA, o.playerB].sort().join('|');
+
+        // Find existing match
+        const idx = result.findIndex(m => {
+            const mKey = [m.playerA, m.playerB].sort().join('|');
+            return mKey === key;
+        });
+
+        let newMatch;
+        if (o.type === 'result') {
+            newMatch = {
+                playerA: o.playerA, playerB: o.playerB,
+                scoreA: o.scoreA, scoreB: o.scoreB,
+                prA: o.prA, prB: o.prB,
+                luckA: o.luckA, luckB: o.luckB,
+                _overridden: true
+            };
+        } else if (o.type === 'technical_win') {
+            const aWins = o.winner === o.playerA;
+            newMatch = {
+                playerA: o.playerA, playerB: o.playerB,
+                scoreA: aWins ? 1 : 0, scoreB: aWins ? 0 : 1,
+                prA: null, prB: null,
+                luckA: null, luckB: null,
+                _overridden: true, _technical: true
+            };
+        } else if (o.type === 'technical_draw') {
+            newMatch = {
+                playerA: o.playerA, playerB: o.playerB,
+                scoreA: 0, scoreB: 0,
+                prA: null, prB: null,
+                luckA: null, luckB: null,
+                _overridden: true, _technical: true, _draw: true
+            };
+        }
+
+        if (newMatch) {
+            if (idx !== -1) {
+                result[idx] = newMatch;
+            } else {
+                result.push(newMatch);
+            }
+        }
+    }
+
+    return result;
 }
 
 /**
