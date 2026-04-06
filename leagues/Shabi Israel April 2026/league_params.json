@@ -1,0 +1,15 @@
+{
+  "LeagueTitle": "Shabi Israel - April 2026",
+  "LeagueType": "doubling",
+  "BronzeCount": 4,
+  "PR": true,
+  "UBC": true,
+  "Running": true,
+  "CustomFlags": {
+    "Danny_kondrea": "UN",
+    "Moriarty": "TZ"
+  },
+  "RetiredPlayers": [
+    "Moriarty"
+  ]
+}
