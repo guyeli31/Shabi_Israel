@@ -41,6 +41,40 @@ export function parseCSV(csvText) {
 }
 
 /**
+ * Get all unique player names from raw CSV text, including those with no played matches.
+ * Unlike getAllPlayers(), this does NOT filter out unplayed rows (all-zero scores/PRs).
+ * Returns a Set<string>.
+ */
+export function getAllPlayersFromCSV(csvText) {
+    const lines = csvText.split(/\r?\n/);
+    const players = new Set();
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (trimmed.toLowerCase().startsWith('player')) continue;
+
+        const parts = trimmed.split(',');
+        if (parts.length < 8) continue;
+
+        const playerA = parts[0].trim();
+        const playerB = parts[4].trim();
+
+        if (playerA && playerA !== 'Bye') players.add(playerA);
+        if (playerB && playerB !== 'Bye') players.add(playerB);
+    }
+
+    return players;
+}
+
+/**
+ * Count all unique players from raw CSV text, including those with no played matches.
+ */
+export function countAllPlayers(csvText) {
+    return getAllPlayersFromCSV(csvText).size;
+}
+
+/**
  * Get list of all unique player names from matches.
  */
 export function getAllPlayers(matches) {
@@ -54,11 +88,12 @@ export function getAllPlayers(matches) {
 
 /**
  * Get all matches for a specific player, normalized so the player is always "self".
+ * If allPlayersSet is provided, uses it to include all league players (even those with no matches).
  * Returns array of: { opponent, scoreSelf, scoreOpp, prSelf, prOpp, luckSelf, luckOpp, played }
  */
-export function getPlayerMatches(matches, playerName) {
-    const allPlayers = getAllPlayers(matches);
-    const opponents = allPlayers.filter(p => p !== playerName);
+export function getPlayerMatches(matches, playerName, allPlayersSet) {
+    const playerList = allPlayersSet ? [...allPlayersSet].sort() : getAllPlayers(matches);
+    const opponents = playerList.filter(p => p !== playerName);
     const matchMap = new Map();
 
     // Collect all played matches for this player

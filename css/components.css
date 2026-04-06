@@ -23,7 +23,7 @@ thead th {
 }
 
 thead th:hover {
-    background: #334155;
+    background: var(--header-bg-hover);
 }
 
 thead th .sort-icon {
@@ -98,12 +98,12 @@ td.player-cell a:hover {
 
 .medal-gold {
     background: var(--color-gold);
-    color: #78350f;
+    color: var(--color-gold-text);
 }
 
 .medal-silver {
     background: var(--color-silver);
-    color: #1f2937;
+    color: var(--color-silver-text);
 }
 
 .medal-bronze {
@@ -116,9 +116,9 @@ tr.rank-gold { background: var(--color-gold-bg); }
 tr.rank-silver { background: var(--color-silver-bg); }
 tr.rank-bronze { background: rgba(217, 119, 6, 0.08); }
 
-tr.rank-gold:hover { background: #fde68a; }
-tr.rank-silver:hover { background: #e5e7eb; }
-tr.rank-bronze:hover { background: rgba(217, 119, 6, 0.14); }
+tr.rank-gold:hover { background: var(--color-gold-bg-hover); }
+tr.rank-silver:hover { background: var(--color-silver-bg-hover); }
+tr.rank-bronze:hover { background: var(--color-bronze-bg-hover); }
 
 /* ---- Status pills ---- */
 .status-pill {
@@ -145,7 +145,7 @@ tr.avg-row {
     background: var(--color-avg-bg) !important;
     font-weight: 700;
     position: sticky;
-    bottom: 0;
+    bottom: 30px;
     z-index: 2;
 }
 
@@ -157,6 +157,9 @@ tr.avg-row td {
 
 tr.stat-row {
     background: var(--color-surface) !important;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
 }
 
 tr.stat-row td {
@@ -164,6 +167,12 @@ tr.stat-row td {
     color: var(--color-text-secondary);
     font-size: 0.88rem;
     border-bottom: none;
+}
+
+.last-updated {
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+    margin-top: var(--space-xs);
 }
 
 /* ---- Result badges ---- */
@@ -182,14 +191,18 @@ tr.stat-row td {
     font-weight: 600;
 }
 
-/* Unplayed match row */
+/* Unplayed rows (league table: no games; player table: not yet played) */
 tr.unplayed {
     color: var(--color-text-muted);
-    background: #fafafa;
+    background: var(--color-unplayed-bg);
 }
 
 tr.unplayed td {
     font-style: italic;
+}
+
+tr.unplayed td.player-cell {
+    font-style: normal;
 }
 
 /* ---- Landing table specific ---- */
@@ -212,4 +225,9 @@ tr.unplayed td {
 .level-cell {
     font-weight: 700;
     letter-spacing: 0.3px;
+}
+
+/* ---- Color scale filter (theme adaptation for inline colors) ---- */
+.color-scaled {
+    filter: var(--color-scale-filter);
 }

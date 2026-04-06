@@ -19,7 +19,7 @@ No build step — pure vanilla HTML/CSS/JS running in the browser. Deployed on G
 | Layer | Files | Purpose |
 |-------|-------|---------|
 | Data | `data/csvParser.js`, `data/leagueLoader.js` | Parse CSV, fetch league data |
-| Compute | `compute/stats.js`, `compute/rankings.js`, `compute/colorScale.js` | Statistics, sorting/ranking, color gradients |
+| Compute | `compute/stats.js`, `compute/rankings.js`, `compute/colorScale.js`, `compute/leagueTypes.js` | Statistics, sorting/ranking, color gradients, league type config |
 | Render | `render/landingPage.js`, `render/leaguePage.js`, `render/playerPage.js` | DOM rendering for each page |
 | Utils | `utils/helpers.js` | URL params, formatting, flag paths |
 
@@ -47,4 +47,5 @@ No build, no dependencies, no package.json. All JS uses ES modules (`type="modul
 - League IDs in URLs = folder names under `leagues/` (e.g., "Shabi Israel April 2026")
 - `leagues_order.json` titles use " - " (dash), folder names use " " (space) — `landingPage.js` handles the mapping
 - Default flag is IL (Israel); custom flags per player are in `league_params.json` → `CustomFlags`
-- Rankings sort: WinRate descending, then MeanPR ascending
+- League types (`LeagueType` in `league_params.json`): `"doubling"` (default — WinRate ranking), `"regular"` (wins-only, no PR/Luck), `"ubc"` (PR Wins + Points system). Config logic lives in `compute/leagueTypes.js`
+- Rankings sort varies by league type: Doubling = WinRate DESC then MeanPR ASC; Regular = Wins DESC; UBC = Avg Points DESC then MeanPR ASC

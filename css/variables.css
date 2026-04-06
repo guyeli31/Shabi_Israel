@@ -61,4 +61,20 @@
     /* Table */
     --header-bg: #1e293b;
     --header-text: #f8fafc;
+    --header-bg-hover: #334155;
+
+    /* Medal text */
+    --color-gold-text: #78350f;
+    --color-silver-text: #1f2937;
+
+    /* Medal hover */
+    --color-gold-bg-hover: #fde68a;
+    --color-silver-bg-hover: #e5e7eb;
+    --color-bronze-bg-hover: rgba(217, 119, 6, 0.14);
+
+    /* Unplayed */
+    --color-unplayed-bg: #fafafa;
+
+    /* Color scale filter (for theme adaptation of inline colors) */
+    --color-scale-filter: none;
 }

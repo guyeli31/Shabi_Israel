@@ -2,7 +2,7 @@
  * leagueLoader.js — Fetch league data (CSV + JSON config) and leagues order.
  */
 
-import { parseCSV } from './csvParser.js';
+import { parseCSV, countAllPlayers, getAllPlayersFromCSV } from './csvParser.js';
 
 const LEAGUES_BASE = 'leagues';
 
@@ -36,18 +36,21 @@ export async function loadLeagueMatches(leagueId) {
     const resp = await fetch(`${LEAGUES_BASE}/${encoded}/leaguedata.csv`);
     if (!resp.ok) throw new Error(`Failed to load CSV for "${leagueId}"`);
     const text = await resp.text();
-    return parseCSV(text);
+    const lastModified = resp.headers.get('Last-Modified') || null;
+    const allPlayers = getAllPlayersFromCSV(text);
+    const totalPlayers = allPlayers.size;
+    return { matches: parseCSV(text), lastModified, totalPlayers, allPlayers };
 }
 
 /**
  * Load everything for a single league: params + matches.
  */
 export async function loadLeague(leagueId) {
-    const [params, matches] = await Promise.all([
+    const [params, matchData] = await Promise.all([
         loadLeagueParams(leagueId),
         loadLeagueMatches(leagueId)
     ]);
-    return { id: leagueId, params, matches };
+    return { id: leagueId, params, matches: matchData.matches, lastModified: matchData.lastModified, totalPlayers: matchData.totalPlayers, allPlayers: matchData.allPlayers };
 }
 
 /**

@@ -5,6 +5,7 @@
 import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches } from '../data/leagueLoader.js';
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings } from '../compute/rankings.js';
+import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { leagueUrl, flagUrl, getFlagCode } from '../utils/helpers.js';
 
 export async function renderLandingPage() {
@@ -30,9 +31,10 @@ export async function renderLandingPage() {
         const leaguesWithLeaders = await Promise.all(
             leaguesData.map(async ({ id, params }) => {
                 try {
-                    const matches = await loadLeagueMatches(id);
-                    const statsMap = computeAllStats(matches);
-                    const rankings = buildRankings(statsMap);
+                    const { matches, allPlayers } = await loadLeagueMatches(id);
+                    const leagueConfig = getLeagueConfig(params);
+                    const statsMap = computeAllStats(matches, allPlayers);
+                    const rankings = buildRankings(statsMap, leagueConfig);
                     const leader = rankings.length > 0 ? rankings[0] : null;
                     return { id, params, leader };
                 } catch {
