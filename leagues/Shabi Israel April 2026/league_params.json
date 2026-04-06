@@ -6,10 +6,8 @@
   "UBC": true,
   "Running": true,
   "CustomFlags": {
+    "Avi": "BE",
     "Danny_kondrea": "UN",
     "Moriarty": "TZ"
-  },
-  "RetiredPlayers": [
-    "Moriarty"
-  ]
+  }
 }
