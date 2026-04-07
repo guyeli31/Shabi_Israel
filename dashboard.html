@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Player — Shabi Israel</title>
+    <title>Dashboard — Shabi Israel</title>
     <link rel="stylesheet" href="css/variables.css">
     <link rel="stylesheet" href="css/layout.css">
     <link rel="stylesheet" href="css/components.css">
@@ -23,23 +23,24 @@
 </head>
 <body>
     <div class="page-container">
-        <a href="index.html" id="back-link" class="back-link">Back to League</a>
+        <a href="index.html" class="back-link">Back to All Leagues</a>
         <div class="page-header">
             <h1 id="page-title">Loading...</h1>
-            <p class="subtitle" id="league-subtitle"></p>
+            <a id="league-link" class="back-link" href="#">View league table &rsaquo;</a>
         </div>
         <div id="content">
-            <div class="loading">Loading player data...</div>
+            <div class="loading">Loading dashboard...</div>
         </div>
     </div>
     <script type="module">
         import { isPreviewMode, installPreviewInterceptor } from './js/admin/previewMode.js';
         if (isPreviewMode()) installPreviewInterceptor();
 
-        import { renderPlayerPage } from './js/render/playerPage.js';
+        import { renderDashboardPage } from './js/render/dashboardPage.js';
         import { initThemePicker } from './js/render/themePicker.js';
         import { initAdminButton } from './js/render/adminButton.js';
-        renderPlayerPage();
+
+        await renderDashboardPage();
         initThemePicker();
         initAdminButton();
     </script>

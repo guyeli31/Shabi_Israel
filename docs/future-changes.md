@@ -342,7 +342,20 @@ css/admin.css                       — סגנונות ייחודיים לדף a
 
 ---
 
-### Phase F — League Dashboard
+### Phase F — League Dashboard ✅ IMPLEMENTED
+
+> **Status:** Shipped. Dashboard is now the default landing target when clicking a league on the index page. See [dashboardPage.js](../js/render/dashboardPage.js), [dashboard.html](../dashboard.html), [matchHistory.js](../js/compute/matchHistory.js), [playerBarChart.js](../js/render/playerBarChart.js), [playerNameInteraction.js](../js/render/playerNameInteraction.js).
+>
+> **Design decisions:**
+> - **F2 historical view** uses per-match `updatedAt` stamps stored in `match_history.json` (no CSV snapshots). The history is reconciled on every admin publish: CSV uploads stamp only matches that are new or unchanged; manual edits always restamp with the publish time.
+> - **F3 rounds** are inferred from `Player,…` header rows in the CSV (each header opens a new round). Includes unplayed matches with a "Played" column showing the most recent update timestamp.
+> - **F1 start date** is written to `league_params.json` (`StartDate`) when a league is created via Admin. Existing leagues fall back to "N/A".
+> - **F4 bar chart** is a vanilla Canvas implementation (no Chart.js): fixed-length X axis (n−1 slots), interactive hover with tooltip (opponent / score / PR / luck / date), grid major every 5 + minor every 1, moving average line that stops at the last played match. Multiple charts can be added side by side via "+ Add chart" for comparison.
+> - **Cosmetic add-ons:** prev/next league navigation arrows in the header (filtered to the current `LeagueType` only, chronological order), distinct medal row colors in the historical table (gold/silver/bronze), left-aligned Player column for flag stacking, right-click context menu on player names (left click is reserved for the future general player card from Phase G), and a `League Type` summary card.
+>
+> **Cleanup:** Removed dead `PR` / `UBC` boolean fields from all `league_params.json` files — these were MATLAB-era leftovers replaced by `LeagueType`.
+
+### Phase F — League Dashboard (original spec)
 
 #### F1. דף Dashboard לכל ליגה
 דף חדש לכל ליגה עם סטטיסטיקות כלליות:

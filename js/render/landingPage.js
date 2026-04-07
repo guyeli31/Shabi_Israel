@@ -6,7 +6,7 @@ import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches } from '../data
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { leagueUrl, flagUrl, getFlagCode } from '../utils/helpers.js';
+import { leagueUrl, dashboardUrl, flagUrl, getFlagCode } from '../utils/helpers.js';
 import { isLoggedIn } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
 
@@ -85,7 +85,7 @@ function renderTable(container, leagues) {
 
         html += `
                     <tr>
-                        <td><a href="${leagueUrl(id)}">${title}</a></td>
+                        <td><a href="${dashboardUrl(id)}">${title}</a></td>
                         <td><span class="status-pill ${statusClass}">${statusText}</span></td>
                         <td>${leaderHtml}</td>
                     </tr>`;

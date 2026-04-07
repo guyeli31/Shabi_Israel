@@ -7,7 +7,7 @@ import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { colorForValue, colorForValueInverted, colorForGames, colorForLevel } from '../compute/colorScale.js';
-import { getQueryParam, formatPercent, formatNumber, flagUrl, getFlagCode, playerUrl } from '../utils/helpers.js';
+import { getQueryParam, formatPercent, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl } from '../utils/helpers.js';
 
 let currentSortCol = -1;
 let currentSortDir = 'desc';
@@ -34,6 +34,13 @@ export async function renderLeaguePage() {
 
         // Show last updated below title
         renderLastUpdated(lastModified);
+
+        // Dashboard link
+        const dashLink = document.createElement('a');
+        dashLink.className = 'back-link';
+        dashLink.href = dashboardUrl(leagueId);
+        dashLink.textContent = 'Open Dashboard \u203A';
+        document.querySelector('.page-header').appendChild(dashLink);
 
         // Widen container for league types with many columns (e.g. UBC has 11)
         if (leagueConfig.type === 'ubc') {
@@ -216,7 +223,7 @@ function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCo
                     const retiredMark = isRetired ? ' <span class="retired-mark" title="Retired">&#x1F6AA;</span>' : '';
                     html += `<td class="player-cell" data-name="${r.player}">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
-                            <a href="${pUrl}">${r.player}</a>${retiredMark}
+                            <a href="${pUrl}" title="Open ${r.player}'s card for this league">${r.player}</a>${retiredMark}
                         </td>`;
                 } else if (col.key === 'games' || col.key === 'wins' || col.key === 'losses' || col.key === 'prWins') {
                     html += `<td>0</td>`;
@@ -239,7 +246,7 @@ function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCo
                 const retiredMark = isRetired ? ' <span class="retired-mark" title="Retired">&#x1F6AA;</span>' : '';
                 html += `<td class="player-cell" data-name="${r.player}">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
-                            <a href="${pUrl}">${r.player}</a>${retiredMark}
+                            <a href="${pUrl}" title="Open ${r.player}'s card for this league">${r.player}</a>${retiredMark}
                         </td>`;
             } else if (col.key === 'level') {
                 const levelColor = colorForLevel(r.level);

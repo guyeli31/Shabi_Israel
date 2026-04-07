@@ -41,6 +41,87 @@ export function parseCSV(csvText) {
 }
 
 /**
+ * Parse CSV and assign each match a `round` number based on header rows.
+ * Each `Player,...` header row begins a new round (round 1 starts after the first header).
+ * Returns { matches, roundCount }.
+ */
+export function parseCSVWithRounds(csvText) {
+    const lines = csvText.split(/\r?\n/);
+    const matches = [];
+    let round = 0;
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        if (trimmed.toLowerCase().startsWith('player')) {
+            round += 1;
+            continue;
+        }
+
+        const parts = trimmed.split(',');
+        if (parts.length < 8) continue;
+
+        const playerA = parts[0].trim();
+        const prA = parseFloat(parts[1]) || 0;
+        const luckA = parseFloat(parts[2]) || 0;
+        const scoreA = parseFloat(parts[3]) || 0;
+        const playerB = parts[4].trim();
+        const prB = parseFloat(parts[5]) || 0;
+        const luckB = parseFloat(parts[6]) || 0;
+        const scoreB = parseFloat(parts[7]) || 0;
+
+        if (playerA === 'Bye' || playerB === 'Bye') continue;
+        if (scoreA === 0 && scoreB === 0 && prA === 0 && prB === 0) continue;
+
+        matches.push({
+            playerA, prA, luckA, scoreA,
+            playerB, prB, luckB, scoreB,
+            round: round || 1
+        });
+    }
+
+    return { matches, roundCount: Math.max(round, 1) };
+}
+
+/**
+ * Same as parseCSVWithRounds, but includes unplayed rows (zero scores/PRs).
+ */
+export function parseCSVAllWithRounds(csvText) {
+    const lines = csvText.split(/\r?\n/);
+    const matches = [];
+    let round = 0;
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (trimmed.toLowerCase().startsWith('player')) { round += 1; continue; }
+
+        const parts = trimmed.split(',');
+        if (parts.length < 8) continue;
+
+        const playerA = parts[0].trim();
+        const prA = parseFloat(parts[1]) || 0;
+        const luckA = parseFloat(parts[2]) || 0;
+        const scoreA = parseFloat(parts[3]) || 0;
+        const playerB = parts[4].trim();
+        const prB = parseFloat(parts[5]) || 0;
+        const luckB = parseFloat(parts[6]) || 0;
+        const scoreB = parseFloat(parts[7]) || 0;
+
+        if (playerA === 'Bye' || playerB === 'Bye') continue;
+
+        matches.push({
+            playerA, prA, luckA, scoreA,
+            playerB, prB, luckB, scoreB,
+            round: round || 1,
+            played: !(scoreA === 0 && scoreB === 0 && prA === 0 && prB === 0)
+        });
+    }
+    return { matches, roundCount: Math.max(round, 1) };
+}
+
+/**
  * Parse CSV including unplayed rows (all-zero scores/PRs).
  * Same as parseCSV but without the zero-row filter.
  */

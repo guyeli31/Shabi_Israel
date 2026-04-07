@@ -3,6 +3,7 @@
  */
 
 import { parseCSV, parseCSVAll, countAllPlayers, getAllPlayersFromCSV } from './csvParser.js';
+import { loadMatchHistory, mergeHistoryIntoMatches } from '../compute/matchHistory.js';
 
 const LEAGUES_BASE = 'leagues';
 
@@ -74,16 +75,26 @@ export async function loadOverrides(leagueId) {
  * Load everything for a single league: params + matches + overrides applied.
  */
 export async function loadLeague(leagueId) {
-    const [params, matchData, overrides] = await Promise.all([
+    const [params, matchData, overrides, history] = await Promise.all([
         loadLeagueParams(leagueId),
         loadLeagueMatches(leagueId),
-        loadOverrides(leagueId)
+        loadOverrides(leagueId),
+        loadMatchHistory(leagueId)
     ]);
 
-    // Apply overrides to matches
-    const mergedMatches = applyOverrides(matchData.matches, overrides);
+    // Apply overrides, then merge in history (history wins on conflict)
+    const withOverrides = applyOverrides(matchData.matches, overrides);
+    const mergedMatches = mergeHistoryIntoMatches(withOverrides, history.matches);
 
-    return { id: leagueId, params, matches: mergedMatches, lastModified: matchData.lastModified, totalPlayers: matchData.totalPlayers, allPlayers: matchData.allPlayers };
+    return {
+        id: leagueId,
+        params,
+        matches: mergedMatches,
+        lastModified: matchData.lastModified,
+        totalPlayers: matchData.totalPlayers,
+        allPlayers: matchData.allPlayers,
+        history
+    };
 }
 
 /**

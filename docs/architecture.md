@@ -5,7 +5,8 @@
 ```
 /
 ├── index.html                   Landing page (league list)
-├── league.html                  League summary (ranked player table)
+├── dashboard.html               League Dashboard (Phase F — default entry from index)
+├── league.html                  League summary (ranked player table — full view)
 ├── player.html                  Player detail (match history)
 ├── start.bat                    Windows launcher (server + browser)
 │
@@ -13,18 +14,23 @@
 │   ├── variables.css            Design tokens (colors, spacing, fonts)
 │   ├── layout.css               Page structure, containers, responsive
 │   ├── components.css           Tables, badges, medals, flags, pills
+│   ├── dashboard.css            Dashboard cards, controls, charts, context menu
 │   └── theme.css                Data-driven color utility classes
 │
 ├── js/
 │   ├── data/
-│   │   ├── csvParser.js         Parse CSV → match objects
-│   │   └── leagueLoader.js     Fetch league data (CSV + JSON)
+│   │   ├── csvParser.js         Parse CSV → match objects (incl. round tagging)
+│   │   └── leagueLoader.js     Fetch league data (CSV + JSON + match history)
 │   ├── compute/
 │   │   ├── stats.js             Per-player statistics
 │   │   ├── rankings.js          Sorting, ranks, skill levels
+│   │   ├── matchHistory.js      Per-match timeline (load/merge/asOf/dates)
 │   │   └── colorScale.js        Color gradient calculations
 │   ├── render/
 │   │   ├── landingPage.js       Render league list on index.html
+│   │   ├── dashboardPage.js     Render League Dashboard (F1–F4)
+│   │   ├── playerBarChart.js    Interactive Canvas bar chart with tooltips
+│   │   ├── playerNameInteraction.js  Player name left/right click + context menu
 │   │   ├── leaguePage.js        Render league table on league.html
 │   │   └── playerPage.js        Render match history on player.html
 │   └── utils/
@@ -34,7 +40,9 @@
 │   ├── leagues_order.json       Display order of leagues (source of truth)
 │   └── <League Name>/
 │       ├── leaguedata.csv       Match data
-│       └── league_params.json   League configuration
+│       ├── league_params.json   League configuration (incl. StartDate, LeagueType)
+│       ├── manual_overrides.json (optional) Admin manual edits
+│       └── match_history.json   (optional) Per-match timeline (Phase F)
 │
 └── assets/
     ├── flags/                   Country flag PNGs (IL, TZ, RU, BE, UN)
@@ -47,8 +55,9 @@ The app uses 3 static HTML files with **URL query parameters** for routing — n
 
 | Page | URL Pattern | Purpose |
 |------|------------|---------|
-| `index.html` | `/` | Lists all leagues with status and leader |
-| `league.html` | `?league=Shabi Israel April 2026` | Ranked player table for one league |
+| `index.html` | `/` | Lists all leagues with status and leader. Clicking a league opens its **Dashboard**. |
+| `dashboard.html` | `?league=Shabi Israel April 2026` | League Dashboard — summary cards, historical view, rounds, player insights (Phase F) |
+| `league.html` | `?league=Shabi Israel April 2026` | Full ranked player table for one league (reached via "Open full table" from dashboard) |
 | `player.html` | `?league=...&player=Idan1986` | Head-to-head match history for one player |
 
 Each HTML file loads a single JS module (`type="module"`) that reads the query params, fetches data, computes stats, and renders the DOM.

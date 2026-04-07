@@ -6,6 +6,8 @@
  */
 
 import { getFile, putFile, deleteFile, putBinaryFile } from './githubApi.js';
+import { parseCSVWithRounds } from '../data/csvParser.js';
+import { matchKey } from '../compute/matchHistory.js';
 
 const STORAGE_KEY = 'shabi-admin-staging';
 
@@ -200,12 +202,17 @@ export async function publishAll(onProgress) {
         }
     }
 
-    // Save history snapshots for affected leagues
+    // Save history snapshots + per-match history for affected leagues
     for (const leagueId of leagueDataChanges) {
         try {
             await saveSnapshot(leagueId);
         } catch (err) {
             errors.push(`Snapshot for "${leagueId}": ${err.message}`);
+        }
+        try {
+            await updateMatchHistory(leagueId);
+        } catch (err) {
+            errors.push(`Match history for "${leagueId}": ${err.message}`);
         }
     }
 
@@ -250,4 +257,102 @@ async function saveSnapshot(leagueId) {
             `Update LastUpdated: ${leagueId}`
         );
     }
+}
+
+/**
+ * Reconcile match_history.json against the current CSV + manual_overrides for a league.
+ *
+ * Per-match logic:
+ *   - Each CSV match is converted to a record. If history already has the same match
+ *     with identical numeric fields, keep its existing updatedAt + source. Otherwise,
+ *     stamp with `now` and source = "csv".
+ *   - Each manual override stamps the matching record with `now` and source = "manual"
+ *     (always — manual edits are explicit timeline events).
+ */
+async function updateMatchHistory(leagueId) {
+    const encoded = encodeURIComponent(leagueId);
+    const now = new Date().toISOString();
+
+    const csvFile = await getFile(`leagues/${encoded}/leaguedata.csv`);
+    if (!csvFile) return;
+    const overridesFile = await getFile(`leagues/${encoded}/manual_overrides.json`);
+    const historyFile = await getFile(`leagues/${encoded}/match_history.json`);
+
+    const { matches: csvMatches } = parseCSVWithRounds(csvFile.content);
+    const overrides = overridesFile ? (JSON.parse(overridesFile.content).overrides || []) : [];
+    const previous = historyFile ? (JSON.parse(historyFile.content).matches || []) : [];
+    const prevByKey = new Map(previous.map(m => [matchKey(m.playerA, m.playerB), m]));
+
+    const next = [];
+    const seen = new Set();
+
+    function sameNumericFields(a, b) {
+        return a.scoreA === b.scoreA && a.scoreB === b.scoreB
+            && a.prA === b.prA && a.prB === b.prB
+            && a.luckA === b.luckA && a.luckB === b.luckB;
+    }
+
+    for (const m of csvMatches) {
+        const key = matchKey(m.playerA, m.playerB);
+        seen.add(key);
+        const prev = prevByKey.get(key);
+        if (prev && sameNumericFields(prev, m) && prev.source !== 'manual') {
+            next.push({ ...prev, round: m.round });
+        } else if (prev && prev.source === 'manual') {
+            // Manual edits take precedence over CSV — keep prev as-is
+            next.push({ ...prev, round: m.round });
+        } else {
+            next.push({
+                playerA: m.playerA, playerB: m.playerB,
+                scoreA: m.scoreA, scoreB: m.scoreB,
+                prA: m.prA, prB: m.prB,
+                luckA: m.luckA, luckB: m.luckB,
+                round: m.round,
+                updatedAt: now,
+                source: 'csv'
+            });
+        }
+    }
+
+    // Manual overrides — always stamp `now` and mark source = "manual"
+    for (const o of overrides) {
+        const key = matchKey(o.playerA, o.playerB);
+        seen.add(key);
+        let record;
+        if (o.type === 'result') {
+            record = {
+                playerA: o.playerA, playerB: o.playerB,
+                scoreA: o.scoreA, scoreB: o.scoreB,
+                prA: o.prA, prB: o.prB,
+                luckA: o.luckA, luckB: o.luckB
+            };
+        } else if (o.type === 'technical_win') {
+            const aWins = o.winner === o.playerA;
+            record = {
+                playerA: o.playerA, playerB: o.playerB,
+                scoreA: aWins ? 1 : 0, scoreB: aWins ? 0 : 1,
+                prA: null, prB: null, luckA: null, luckB: null
+            };
+        } else if (o.type === 'technical_draw') {
+            record = {
+                playerA: o.playerA, playerB: o.playerB,
+                scoreA: 0, scoreB: 0,
+                prA: null, prB: null, luckA: null, luckB: null
+            };
+        } else continue;
+
+        // Replace or append (overrides win)
+        const idx = next.findIndex(x => matchKey(x.playerA, x.playerB) === key);
+        const stamped = { ...record, round: idx >= 0 ? next[idx].round : null, updatedAt: now, source: 'manual' };
+        if (idx >= 0) next[idx] = stamped;
+        else next.push(stamped);
+    }
+
+    const out = { matches: next };
+    await putFile(
+        `leagues/${encoded}/match_history.json`,
+        JSON.stringify(out, null, 2),
+        historyFile ? historyFile.sha : null,
+        `Update match history: ${leagueId}`
+    );
 }

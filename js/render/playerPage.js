@@ -33,9 +33,12 @@ export async function renderPlayerPage() {
         const isRetired = retiredPlayers.includes(playerName);
         const retiredBadge = isRetired ? ' <span class="retired-badge">Retired</span>' : '';
 
-        // Update page header
+        // Update page header — name links to general player card (not yet built)
         document.getElementById('page-title').innerHTML =
-            `<img class="flag-title" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerName}${retiredBadge}`;
+            `<img class="flag-title" src="${flagUrl(flagCode)}" alt="${flagCode}"> `
+            + `<a class="player-name-link disabled-link" href="#" title="General player card — coming soon">${playerName}</a>${retiredBadge}`;
+        const titleLink = document.querySelector('#page-title .player-name-link');
+        if (titleLink) titleLink.addEventListener('click', e => e.preventDefault());
         document.getElementById('league-subtitle').textContent = title;
         document.title = `${playerName} — ${title}`;
 
@@ -118,7 +121,7 @@ function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns)
                     <tr class="unplayed">
                         <td class="player-cell">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
-                            <a href="${oppUrl}">${m.opponent}</a>
+                            <a href="${oppUrl}" title="Open ${m.opponent}'s card for this league">${m.opponent}</a>
                         </td>`;
             // Empty cells for all columns except opponent and last (result/points)
             for (let i = 1; i < columns.length - 1; i++) {
@@ -161,7 +164,7 @@ function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns)
                 case 'opponent':
                     html += `<td class="player-cell">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
-                            <a href="${oppUrl}">${m.opponent}</a>
+                            <a href="${oppUrl}" title="Open ${m.opponent}'s card for this league">${m.opponent}</a>
                         </td>`;
                     break;
                 case 'scoreSelf':

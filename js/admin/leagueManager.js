@@ -163,6 +163,7 @@ function stageAddLeague(name, type, displayOrder) {
         LeagueType: type,
         BronzeCount: 4,
         Running: true,
+        StartDate: new Date().toISOString(),
         CustomFlags: {}
     };
 

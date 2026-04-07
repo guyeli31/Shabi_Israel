@@ -23,6 +23,10 @@ export function leagueUrl(leagueId) {
     return `league.html?league=${encodeURIComponent(leagueId)}`;
 }
 
+export function dashboardUrl(leagueId) {
+    return `dashboard.html?league=${encodeURIComponent(leagueId)}`;
+}
+
 export function playerUrl(leagueId, playerName) {
     return `player.html?league=${encodeURIComponent(leagueId)}&player=${encodeURIComponent(playerName)}`;
 }
