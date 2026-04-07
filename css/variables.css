@@ -75,6 +75,9 @@
     /* Unplayed */
     --color-unplayed-bg: #fafafa;
 
+    /* Navigation */
+    --nav-height: 48px;
+
     /* Color scale filter (for theme adaptation of inline colors) */
     --color-scale-filter: none;
 }

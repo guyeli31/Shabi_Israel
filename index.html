@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="css/themes.css">
     <link rel="stylesheet" href="css/theme-picker.css">
     <link rel="stylesheet" href="css/admin-button.css">
+    <link rel="stylesheet" href="css/navigation.css">
     <script>
       (function(){
         var t=localStorage.getItem('shabi-theme');
@@ -38,9 +39,12 @@
         import { renderLandingPage } from './js/render/landingPage.js';
         import { initThemePicker } from './js/render/themePicker.js';
         import { initAdminButton } from './js/render/adminButton.js';
+        import { initNavBar, initKeyboardShortcuts } from './js/render/navigation.js';
+        await initNavBar();
         renderLandingPage();
         initThemePicker();
         initAdminButton();
+        initKeyboardShortcuts();
     </script>
 </body>
 </html>

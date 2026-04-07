@@ -8,6 +8,7 @@ import { buildRankings, computeAverages, computeMatchStats } from '../compute/ra
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { colorForValue, colorForValueInverted, colorForGames, colorForLevel } from '../compute/colorScale.js';
 import { getQueryParam, formatPercent, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl } from '../utils/helpers.js';
+import { renderBreadcrumbs } from './navigation.js';
 
 let currentSortCol = -1;
 let currentSortDir = 'desc';
@@ -32,15 +33,15 @@ export async function renderLeaguePage() {
         document.getElementById('page-title').textContent = title;
         document.title = title + ' — Shabi Israel';
 
+        // Breadcrumbs
+        renderBreadcrumbs([
+            { label: 'Home', url: 'index.html' },
+            { label: title, url: dashboardUrl(leagueId) },
+            { label: 'League Table' }
+        ]);
+
         // Show last updated below title
         renderLastUpdated(lastModified);
-
-        // Dashboard link
-        const dashLink = document.createElement('a');
-        dashLink.className = 'back-link';
-        dashLink.href = dashboardUrl(leagueId);
-        dashLink.textContent = 'Open Dashboard \u203A';
-        document.querySelector('.page-header').appendChild(dashLink);
 
         // Widen container for league types with many columns (e.g. UBC has 11)
         if (leagueConfig.type === 'ubc') {

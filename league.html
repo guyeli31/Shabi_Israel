@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="css/themes.css">
     <link rel="stylesheet" href="css/theme-picker.css">
     <link rel="stylesheet" href="css/admin-button.css">
+    <link rel="stylesheet" href="css/navigation.css">
     <script>
       (function(){
         var t=localStorage.getItem('shabi-theme');
@@ -22,7 +23,6 @@
 </head>
 <body>
     <div class="page-container">
-        <a href="index.html" class="back-link">Back to All Leagues</a>
         <div class="page-header">
             <h1 id="page-title">Loading...</h1>
         </div>
@@ -37,10 +37,13 @@
         import { renderLeaguePage } from './js/render/leaguePage.js';
         import { initThemePicker } from './js/render/themePicker.js';
         import { initAdminButton } from './js/render/adminButton.js';
+        import { initNavBar, initKeyboardShortcuts } from './js/render/navigation.js';
 
+        await initNavBar();
         await renderLeaguePage();
         initThemePicker();
         initAdminButton();
+        initKeyboardShortcuts();
     </script>
 </body>
 </html>

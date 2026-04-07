@@ -1,5 +1,18 @@
 /* dashboard.css — League Dashboard page */
 
+/* Forward link (e.g. "Open player card ›") */
+.forward-link {
+    display: inline-block;
+    color: var(--color-accent);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: color 0.15s;
+}
+.forward-link:hover {
+    color: var(--color-text);
+}
+
 /* League nav arrows in header */
 .league-nav {
     display: inline-flex;

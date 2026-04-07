@@ -5,7 +5,8 @@
 import { loadLeague } from '../data/leagueLoader.js';
 import { getPlayerMatches } from '../data/csvParser.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { getQueryParam, formatNumber, flagUrl, getFlagCode, playerUrl } from '../utils/helpers.js';
+import { getQueryParam, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl } from '../utils/helpers.js';
+import { renderBreadcrumbs, ensurePlayerIndex } from './navigation.js';
 
 let currentSortCol = -1;
 let currentSortDir = 'asc';
@@ -42,13 +43,19 @@ export async function renderPlayerPage() {
         document.getElementById('league-subtitle').textContent = title;
         document.title = `${playerName} — ${title}`;
 
-        // Update back link
-        document.getElementById('back-link').href =
-            `league.html?league=${encodeURIComponent(leagueId)}`;
+        // Breadcrumbs
+        renderBreadcrumbs([
+            { label: 'Home', url: 'index.html' },
+            { label: title, url: dashboardUrl(leagueId) },
+            { label: playerName }
+        ]);
 
         const playerMatches = getPlayerMatches(matches, playerName, allPlayers);
         renderMatchTable(container, playerMatches, params, leagueId, playerName, leagueConfig);
         setupSorting(playerMatches, params, leagueId, playerName, leagueConfig);
+
+        // "Also plays in" — load cross-league index
+        renderAlsoPlaysIn(container, playerName, leagueId);
     } catch (err) {
         container.innerHTML = `<div class="error">Failed to load player data: ${err.message}</div>`;
     }
@@ -319,4 +326,36 @@ function sortAndRerender(playerMatches, params, leagueId, col, dir, leagueConfig
     const body = document.getElementById('playerBody');
     body.innerHTML = renderMatchRows(sorted, params, leagueId, leagueConfig, columns)
         + renderPlayerAverages(sorted, leagueConfig, columns);
+}
+
+// ---- E6: Also plays in ----
+
+async function renderAlsoPlaysIn(container, playerName, currentLeagueId) {
+    try {
+        const index = await ensurePlayerIndex();
+        const leagues = index.get(playerName) || [];
+        const otherLeagues = leagues.filter(l => l.leagueId !== currentLeagueId);
+
+        if (otherLeagues.length === 0) return;
+
+        const div = document.createElement('div');
+        div.className = 'also-plays-in';
+        div.innerHTML = `
+            <h3>Also plays in</h3>
+            <div class="also-plays-links">
+                ${otherLeagues.map(l =>
+                    `<a href="${playerUrl(l.leagueId, playerName)}">${escapeHtml(l.title)}</a>`
+                ).join('')}
+            </div>
+        `;
+        container.appendChild(div);
+    } catch {
+        // Silently fail — non-critical feature
+    }
+}
+
+function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s || '';
+    return div.innerHTML;
 }

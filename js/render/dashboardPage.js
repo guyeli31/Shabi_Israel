@@ -16,6 +16,7 @@ import { buildRankings, computeAverages, computeMatchStats } from '../compute/ra
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { getQueryParam, formatPercent, formatNumber, leagueUrl, playerUrl, dashboardUrl, flagUrl, getFlagCode } from '../utils/helpers.js';
 import { drawPlayerBarChart } from './playerBarChart.js';
+import { renderBreadcrumbs } from './navigation.js';
 
 export async function renderDashboardPage() {
     const container = document.getElementById('content');
@@ -50,8 +51,12 @@ export async function renderDashboardPage() {
         const title = params.LeagueTitle || leagueId;
         document.getElementById('page-title').textContent = `${title}`;
         document.title = `${title} — Dashboard`;
-        const link = document.getElementById('league-link');
-        if (link) { link.style.display = 'none'; } // moved into Historical section
+
+        // Breadcrumbs
+        renderBreadcrumbs([
+            { label: 'Home', url: 'index.html' },
+            { label: title }
+        ]);
 
         installLeagueNavArrows(leagueId, allParams, params.LeagueType || 'doubling');
 
@@ -353,7 +358,7 @@ function renderPlayerSection(ctx) {
                     <option value="pr">PR</option>
                     <option value="luck">Luck</option>
                 </select>
-                <a class="back-link player-card-link" href="#" title="Open full player card">Open player card &rsaquo;</a>
+                <a class="forward-link player-card-link" href="#" title="Open full player card">Open player card &rsaquo;</a>
                 <button class="remove-chart" title="Remove this chart" style="margin-left:auto">&times;</button>
             </div>
             <div class="chart-host"></div>

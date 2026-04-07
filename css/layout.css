@@ -55,24 +55,6 @@ body {
     border-radius: var(--radius-md);
 }
 
-.back-link {
-    display: inline-block;
-    margin-bottom: var(--space-lg);
-    color: var(--color-accent);
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 0.95rem;
-    transition: color 0.15s;
-}
-
-.back-link:hover {
-    color: var(--color-text);
-}
-
-.back-link::before {
-    content: '\2190\00a0';
-}
-
 .table-wrapper {
     background: var(--color-surface);
     border-radius: var(--radius-lg);
