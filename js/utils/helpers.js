@@ -31,6 +31,10 @@ export function playerUrl(leagueId, playerName) {
     return `player.html?league=${encodeURIComponent(leagueId)}&player=${encodeURIComponent(playerName)}`;
 }
 
+export function playerGeneralUrl(playerName) {
+    return `player_general.html?player=${encodeURIComponent(playerName)}`;
+}
+
 export function getFlagCode(playerName, customFlags) {
     if (customFlags && customFlags[playerName]) {
         return customFlags[playerName];

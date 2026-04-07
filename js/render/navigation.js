@@ -4,7 +4,7 @@
  */
 
 import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches } from '../data/leagueLoader.js';
-import { dashboardUrl, playerUrl } from '../utils/helpers.js';
+import { dashboardUrl, playerUrl, playerGeneralUrl } from '../utils/helpers.js';
 
 // ---- Breadcrumbs ----
 
@@ -249,7 +249,7 @@ function setupPlayerSearch(nav) {
             const firstLeague = m.leagues[0];
             const leagueCount = m.leagues.length;
             const hint = leagueCount === 1 ? firstLeague.title : `${leagueCount} leagues`;
-            return `<li><a href="${playerUrl(firstLeague.leagueId, m.name)}">
+            return `<li><a href="${playerGeneralUrl(m.name)}">
                 <span class="search-player-name">${escapeHtml(m.name)}</span>
                 <span class="search-league-hint">${escapeHtml(hint)}</span>
             </a></li>`;

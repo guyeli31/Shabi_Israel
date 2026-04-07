@@ -2,40 +2,33 @@
  * playerNameInteraction.js — Shared helpers for player name click behavior
  * in the dashboard and player-page header.
  *
- * Left click  → general player card (NOT YET BUILT — disabled with tooltip)
+ * Left click  → general player card (player_general.html)
  * Right click → context menu:
  *                 1. "Open league player card" (links to player.html)
- *                 2. "Open general player card" (disabled)
+ *                 2. "Open general player card" (player_general.html)
  */
 
-import { playerUrl } from '../utils/helpers.js';
-
-const TOOLTIP_GENERAL = 'General player card — coming soon';
+import { playerUrl, playerGeneralUrl } from '../utils/helpers.js';
 
 /**
- * Render an HTML <a> for a player name where left-click is disabled
- * (placeholder for general card) and a custom contextmenu is wired separately.
- *
- * Usage: insert returned HTML; then call attachContextMenus(rootEl, leagueId).
+ * Render an HTML <a> for a player name. Left click navigates to the
+ * general (cross-league) player card; right click opens a context menu
+ * for choosing the league-specific card instead.
  */
 export function playerNameLink(playerName) {
-    return `<a class="player-name-link disabled-link"
+    return `<a class="player-name-link"
               data-player="${escapeAttr(playerName)}"
-              href="#"
-              title="${TOOLTIP_GENERAL}">${escapeHtml(playerName)}</a>`;
+              href="${playerGeneralUrl(playerName)}"
+              title="Open general player card">${escapeHtml(playerName)}</a>`;
 }
 
 /**
- * Attach context menu + disabled left-click handlers to all .player-name-link
- * elements within rootEl, scoped to a leagueId.
+ * Attach context menu handlers to all .player-name-link elements within
+ * rootEl, scoped to a leagueId. Left click follows the anchor (general card).
  */
 export function attachPlayerNameInteractions(rootEl, leagueId) {
     const links = rootEl.querySelectorAll('.player-name-link');
     links.forEach(a => {
-        a.addEventListener('click', (e) => {
-            e.preventDefault();
-            // Left click currently inert (general card not built)
-        });
         a.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             const player = a.dataset.player;
@@ -56,13 +49,12 @@ function showContextMenu(x, y, leagueId, playerName) {
         <a class="cm-item"
            href="${playerUrl(leagueId, playerName)}"
            title="Open this player's card for this league">Open league player card</a>
-        <a class="cm-item disabled"
-           title="${TOOLTIP_GENERAL}">Open general player card</a>
+        <a class="cm-item"
+           href="${playerGeneralUrl(playerName)}"
+           title="Open cross-league player profile">Open general player card</a>
     `;
     document.body.appendChild(menu);
     activeMenu = menu;
-
-    menu.querySelector('.cm-item.disabled').addEventListener('click', e => e.preventDefault());
 
     setTimeout(() => {
         document.addEventListener('click', closeMenu, { once: true });

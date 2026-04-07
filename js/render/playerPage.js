@@ -5,7 +5,7 @@
 import { loadLeague } from '../data/leagueLoader.js';
 import { getPlayerMatches } from '../data/csvParser.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { getQueryParam, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl } from '../utils/helpers.js';
+import { getQueryParam, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl, playerGeneralUrl } from '../utils/helpers.js';
 import { renderBreadcrumbs, ensurePlayerIndex } from './navigation.js';
 
 let currentSortCol = -1;
@@ -34,12 +34,10 @@ export async function renderPlayerPage() {
         const isRetired = retiredPlayers.includes(playerName);
         const retiredBadge = isRetired ? ' <span class="retired-badge">Retired</span>' : '';
 
-        // Update page header — name links to general player card (not yet built)
+        // Update page header — name links to general (cross-league) player card
         document.getElementById('page-title').innerHTML =
             `<img class="flag-title" src="${flagUrl(flagCode)}" alt="${flagCode}"> `
-            + `<a class="player-name-link disabled-link" href="#" title="General player card — coming soon">${playerName}</a>${retiredBadge}`;
-        const titleLink = document.querySelector('#page-title .player-name-link');
-        if (titleLink) titleLink.addEventListener('click', e => e.preventDefault());
+            + `<a class="player-name-link" href="${playerGeneralUrl(playerName)}" title="Open general player card">${playerName}</a>${retiredBadge}`;
         document.getElementById('league-subtitle').textContent = title;
         document.title = `${playerName} — ${title}`;
 

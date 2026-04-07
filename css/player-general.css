@@ -1,0 +1,206 @@
+/* player-general.css — Phase G cross-league player profile */
+
+.pg-section {
+    margin: 24px 0;
+}
+.pg-section h2 {
+    margin: 0 0 12px;
+    font-size: 1.25rem;
+    border-bottom: 1px solid var(--border-color, #ddd);
+    padding-bottom: 6px;
+}
+.pg-note {
+    color: #666;
+    font-style: italic;
+    padding: 8px 0;
+}
+
+/* Header */
+.pg-player-name {
+    vertical-align: middle;
+}
+.pg-active-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #2ecc40;
+    box-shadow: 0 0 6px rgba(46,204,64,0.7);
+    vertical-align: middle;
+    margin: 0 6px;
+}
+
+/* G3 — PR cards */
+.pg-pr-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 16px;
+}
+.pg-pr-card {
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: 8px;
+    padding: 14px 16px;
+    background: var(--card-bg, #fafafa);
+}
+.pg-pr-type {
+    font-weight: 700;
+    font-size: 0.9rem;
+    letter-spacing: 0.06em;
+    color: #555;
+    margin-bottom: 10px;
+}
+.pg-pr-row {
+    display: flex;
+    gap: 20px;
+}
+.pg-pr-metric {
+    flex: 1;
+    min-width: 0;
+}
+.pg-pr-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: #777;
+}
+.pg-pr-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin: 2px 0 4px;
+}
+.pg-level-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.pg-pr-rank {
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: #555;
+}
+.pg-rank-dim {
+    color: #999;
+    font-style: italic;
+}
+
+/* G6 — Achievements */
+.pg-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border-color, #ddd);
+    margin-bottom: 12px;
+}
+.pg-tab {
+    background: none;
+    border: none;
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #777;
+    border-bottom: 2px solid transparent;
+}
+.pg-tab.active {
+    color: var(--accent-color, #1c4e80);
+    border-bottom-color: var(--accent-color, #1c4e80);
+}
+.pg-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+}
+.pg-tile {
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: 8px;
+    padding: 12px 14px;
+    background: var(--card-bg, #fafafa);
+}
+.pg-tile-title {
+    font-size: 0.85rem;
+    color: #555;
+    font-weight: 600;
+}
+.pg-tile-rank {
+    color: #888;
+    font-weight: 400;
+    font-size: 0.75rem;
+}
+.pg-tile-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-top: 4px;
+}
+.pg-tile-sub {
+    font-size: 0.75rem;
+    color: #777;
+}
+
+/* G4 — Leagues table */
+.pg-leagues-table,
+.pg-matches-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+.pg-leagues-table th,
+.pg-leagues-table td,
+.pg-matches-table th,
+.pg-matches-table td {
+    border: 1px solid var(--border-color, #e0e0e0);
+    padding: 6px 10px;
+    text-align: left;
+}
+.pg-leagues-table th,
+.pg-matches-table th {
+    background: var(--header-bg, #f2f2f2);
+    cursor: pointer;
+    user-select: none;
+}
+
+/* G5 — Matches */
+.pg-filters {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+.pg-filter {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.8rem;
+    color: #555;
+    font-weight: 600;
+}
+.pg-filter select {
+    margin-top: 2px;
+    padding: 4px 8px;
+    font-size: 0.9rem;
+}
+.pg-chart-host {
+    margin: 12px 0;
+    max-width: 900px;
+}
+.pg-matches-table .na {
+    color: #999;
+    font-style: italic;
+}
+.pg-matches-table .result-win { color: #2e7d32; font-weight: 600; }
+.pg-matches-table .result-loss { color: #c62828; font-weight: 600; }
+.pg-matches-table .result-draw { color: #777; font-weight: 600; }
+
+.status-pill.running {
+    background: #2ecc40;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+}
+.status-pill.completed {
+    background: #aaa;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+}
