@@ -5,7 +5,8 @@
       "Bash(cp -r /tmp/Shabi-Israel/leagues/* leagues/)",
       "Bash(cp /tmp/Shabi-Israel/leagues_order.json leagues/)",
       "Bash(cp /tmp/Shabi-Israel/flags/* assets/flags/)",
-      "Bash(cp /tmp/Shabi-Israel/logo/* assets/logo/)"
+      "Bash(cp /tmp/Shabi-Israel/logo/* assets/logo/)",
+      "Read(//c/Users/User/.claude/plans/**)"
     ]
   }
 }

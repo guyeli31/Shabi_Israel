@@ -466,3 +466,138 @@
     .scroll-arrow-left { left: -12px; }
     .scroll-arrow-right { right: -12px; }
 }
+
+/* ── Image export controls (Chunk 3 / NEW-1) ────────── */
+.img-export-group {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.img-export-label {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.img-export-rows {
+    width: 56px;
+    padding: 4px 6px;
+    font-size: 0.85rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.img-export-btn {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: var(--color-primary, #1e293b);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.img-export-btn:hover { filter: brightness(1.1); }
+
+/* ── Completed leagues row tinting (Chunk 3 / OLD-5) ── */
+/* Neutral placeholder tints — final palette in Chunk 8 themes session. */
+.completed-leagues-table tr.row-type-doubling { background: rgba(59, 130, 246, 0.06); }
+.completed-leagues-table tr.row-type-regular  { background: rgba(16, 185, 129, 0.06); }
+.completed-leagues-table tr.row-type-ubc      { background: rgba(245, 158, 11, 0.06); }
+
+/* ── Achievements + PR Leaders (Chunk 3 / NEW-4) ────── */
+.achievements-section,
+.pr-leaders-section {
+    margin-top: var(--space-lg);
+}
+
+.achv-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+}
+
+.achv-tab {
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.achv-tab:hover { background: var(--color-bg-alt, #f1f5f9); }
+
+.achv-tab.active {
+    background: var(--color-primary, #1e293b);
+    color: #fff;
+    border-color: var(--color-primary, #1e293b);
+}
+
+.achv-panel.hidden { display: none; }
+
+.achv-tables-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--space-md);
+}
+
+.achv-table-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+}
+
+.achv-table-card h3 {
+    margin: 0 0 var(--space-sm) 0;
+    font-size: 1rem;
+    color: var(--color-text);
+}
+
+.achv-table-wrapper {
+    max-height: 360px;
+    overflow-y: auto;
+}
+
+.achv-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.achv-table th,
+.achv-table td {
+    padding: 6px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.achv-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--color-surface);
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+.achv-table .player-name-link {
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.achv-tables-loading {
+    color: var(--color-text-muted);
+    font-style: italic;
+    padding: var(--space-md);
+}

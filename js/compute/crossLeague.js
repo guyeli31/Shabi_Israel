@@ -259,7 +259,11 @@ export async function rankWithinYear(playerName, leagueType, year, metric) {
  */
 export async function collectMedalsByType(playerName, leagueType) {
     const leagues = await loadAllLeagues();
-    const typeLeagues = leagues.filter(l => l.leagueType === leagueType);
+    // Exclude leagues that are still running — placements aren't final yet,
+    // so no achievements (medals / avg-rank) should accrue for them.
+    const typeLeagues = leagues.filter(l =>
+        l.leagueType === leagueType && l.params.Running !== true
+    );
     if (typeLeagues.length === 0) return null;
 
     // Per-player tallies

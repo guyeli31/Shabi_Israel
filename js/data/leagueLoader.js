@@ -25,7 +25,20 @@ export async function loadLeagueParams(leagueId) {
     const encoded = encodeURIComponent(leagueId);
     const resp = await fetch(`${LEAGUES_BASE}/${encoded}/league_params.json`);
     if (!resp.ok) throw new Error(`Failed to load params for "${leagueId}"`);
-    return resp.json();
+    const raw = await resp.json();
+    return normalizeParams(raw);
+}
+
+/**
+ * Apply defaults for newer params fields so consumers see a uniform shape.
+ */
+function normalizeParams(p) {
+    return {
+        ...p,
+        IssueDate: p.IssueDate ?? null,
+        EntryFee: p.EntryFee ?? 0,
+        Prizes: p.Prizes ?? { Gold: 0, Silver: 0, Bronze: 0 }
+    };
 }
 
 /**

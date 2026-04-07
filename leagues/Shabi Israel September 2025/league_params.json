@@ -1,6 +1,9 @@
 {
   "LeagueTitle": "Shabi Israel - September 2025",
   "LeagueType": "doubling",
+  "IssueDate": "2025-09-01",
+  "EntryFee": 180,
+  "Prizes": { "Gold": 2200, "Silver": 800, "Bronze": 180 },
 
   "BronzeCount": 4,
 

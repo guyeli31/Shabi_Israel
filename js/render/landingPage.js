@@ -9,9 +9,9 @@
  */
 
 import { loadAllLeagues } from '../compute/crossLeague.js';
-import { dashboardUrl, flagUrl, getFlagCode, playerGeneralUrl, formatPercent, formatNumber } from '../utils/helpers.js';
+import { buildAllTimeRankings } from '../compute/allTimeRankings.js';
+import { dashboardUrl, flagUrl, getFlagCode, formatPercent, formatNumber } from '../utils/helpers.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
-import { ensurePlayerIndex } from './navigation.js';
 import { isLoggedIn } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
 
@@ -93,10 +93,14 @@ export async function renderLandingPage() {
         container.innerHTML = '';
 
         renderInfoCards(container, activePlayers.size, allPlayers.size, leagues.length, latestModified);
-        renderPlayerSearch(container);
         renderActiveLeagues(container, running);
         if (completed.length > 0) renderCompletedLeagues(container, completed);
         renderLeaderboards(container, leaderboards);
+
+        // Discover league types present in the dataset for Achievements + PR Leaders.
+        const presentTypes = [...new Set(leagues.map(l => l.leagueType))];
+        renderAchievementsSection(container, presentTypes);
+        renderPRLeadersSection(container, presentTypes);
     } catch (err) {
         container.innerHTML = `<div class="error">Failed to load leagues: ${err.message}</div>`;
     }
@@ -132,59 +136,6 @@ function renderInfoCards(container, activePlayers, totalPlayers, totalLeagues, l
         </div>`;
 
     container.appendChild(section);
-}
-
-/* ── H3 — Player search ──────────────────────────────── */
-
-function renderPlayerSearch(container) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'index-search';
-    wrapper.innerHTML = `
-        <span class="index-search-icon">&#128269;</span>
-        <input class="index-search-input" type="text"
-               placeholder="Search player..." autocomplete="off">
-        <ul class="index-search-results" hidden></ul>`;
-
-    container.appendChild(wrapper);
-
-    const input = wrapper.querySelector('.index-search-input');
-    const results = wrapper.querySelector('.index-search-results');
-
-    input.addEventListener('focus', () => { ensurePlayerIndex(); }, { once: true });
-
-    input.addEventListener('input', async () => {
-        const query = input.value.trim().toLowerCase();
-        if (query.length < 2) { results.hidden = true; return; }
-
-        const index = await ensurePlayerIndex();
-        const matches = [];
-        for (const [name, leagues] of index) {
-            if (name.toLowerCase().includes(query)) {
-                matches.push({ name, leagues });
-                if (matches.length >= 10) break;
-            }
-        }
-
-        if (matches.length === 0) {
-            results.innerHTML = '<li class="search-empty">No players found</li>';
-            results.hidden = false;
-            return;
-        }
-
-        results.innerHTML = matches.map(m => {
-            const hint = m.leagues.length === 1 ? m.leagues[0].title : `${m.leagues.length} leagues`;
-            return `<li><a href="${playerGeneralUrl(m.name)}">
-                <span class="search-player-name">${escapeHtml(m.name)}</span>
-                <span class="search-league-hint">${escapeHtml(hint)}</span>
-            </a></li>`;
-        }).join('');
-        results.hidden = false;
-    });
-
-    // Close on click outside
-    document.addEventListener('click', e => {
-        if (!wrapper.contains(e.target)) results.hidden = true;
-    });
 }
 
 /* ── H1 — Active leagues ─────────────────────────────── */
@@ -271,14 +222,26 @@ function renderCompletedLeagues(container, completed) {
     const section = document.createElement('div');
     section.className = 'dash-section';
 
-    // Parse dates and sort chronologically (newest first)
+    // Parse dates and sort chronologically (newest first).
+    // Prefer explicit IssueDate from params; fall back to folder-name parsing.
     const withDates = completed.map(l => {
-        const { year, monthIndex, monthShort } = parseLeagueDate(l.id);
-        return { ...l, year, monthIndex, monthShort };
+        let year, monthIndex, monthShort, day;
+        if (l.params.IssueDate) {
+            const d = new Date(l.params.IssueDate);
+            year = d.getUTCFullYear();
+            monthIndex = d.getUTCMonth();
+            monthShort = MONTH_SHORT[monthIndex];
+            day = d.getUTCDate();
+        } else {
+            ({ year, monthIndex, monthShort } = parseLeagueDate(l.id));
+            day = 1;
+        }
+        return { ...l, year, monthIndex, monthShort, day };
     });
     withDates.sort((a, b) => {
         if (a.year !== b.year) return b.year - a.year;
-        return b.monthIndex - a.monthIndex;
+        if (a.monthIndex !== b.monthIndex) return b.monthIndex - a.monthIndex;
+        return b.day - a.day;
     });
 
     // Determine default open state: open if any league is from current year (2026+)
@@ -288,16 +251,21 @@ function renderCompletedLeagues(container, completed) {
 
     let rowsHtml = '';
     for (const l of withDates) {
-        const dateStr = `${l.monthShort} ${l.year}`;
+        const dateStr = l.params.IssueDate
+            ? `${l.day} ${l.monthShort} ${l.year}`
+            : `${l.monthShort} ${l.year}`;
         let leaderHtml = '—';
         if (l.leader) {
             const flagCode = getFlagCode(l.leader.player, l.params.CustomFlags);
             leaderHtml = `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(l.leader.player)}`;
         }
+        const typeLabel = TYPE_LABELS[l.leagueType] || l.leagueType;
+        const typeCell = `<span class="league-type-pill type-${l.leagueType}">${typeLabel}</span>`;
         rowsHtml += `
-            <tr data-league-id="${escapeHtml(l.id)}">
+            <tr class="row-type-${l.leagueType}" data-league-id="${escapeHtml(l.id)}">
                 <td>${dateStr}</td>
                 <td><a href="${dashboardUrl(l.id)}">${escapeHtml(l.title)}</a></td>
+                <td>${typeCell}</td>
                 <td>${leaderHtml}</td>
             </tr>`;
     }
@@ -308,7 +276,7 @@ function renderCompletedLeagues(container, completed) {
             <div class="collapsible-body">
                 <div class="completed-table-wrapper">
                     <table class="completed-leagues-table">
-                        <thead><tr><th>Date</th><th>League</th><th>Winner</th></tr></thead>
+                        <thead><tr><th>Date</th><th>League</th><th>Type</th><th>Winner</th></tr></thead>
                         <tbody>${rowsHtml}</tbody>
                     </table>
                 </div>
@@ -519,13 +487,17 @@ function renderLeaderboards(container, leaderboards) {
 
         const title = `${lb.year} ${lb.typeName} Leaderboard`;
 
+        const defaultRows = Math.min(10, lb.rows.length);
         section.innerHTML = `
             <div class="collapsible-section${collapsed}">
                 <div class="leaderboard-header-row">
                     <h2 class="collapsible-header">${title}</h2>
-                    <div class="pdf-export-group">
-                        <button class="pdf-export-btn" data-mode="full">Export PDF</button>
-                        <button class="pdf-export-btn pdf-export-top" data-mode="top10">Top 10</button>
+                    <div class="img-export-group">
+                        <label class="img-export-label">Top
+                            <input class="img-export-rows" type="number"
+                                   min="1" max="${lb.rows.length}" value="${defaultRows}">
+                        </label>
+                        <button class="img-export-btn">Export Image</button>
                     </div>
                 </div>
                 <div class="collapsible-body">
@@ -551,66 +523,286 @@ function renderLeaderboards(container, leaderboards) {
             header.closest('.collapsible-section').classList.toggle('collapsed');
         });
 
-        // PDF export buttons
-        section.querySelectorAll('.pdf-export-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const mode = btn.dataset.mode;
-                const maxRows = mode === 'top10' ? 10 : lb.rows.length;
-                exportLeaderboardPDF(lb, title, maxRows);
-            });
+        // Image export
+        const exportBtn = section.querySelector('.img-export-btn');
+        const rowsInput = section.querySelector('.img-export-rows');
+        exportBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            let maxRows = parseInt(rowsInput.value, 10);
+            if (!Number.isFinite(maxRows) || maxRows < 1) maxRows = 1;
+            if (maxRows > lb.rows.length) maxRows = lb.rows.length;
+            exportLeaderboardImage(lb, title, maxRows);
         });
+        // Don't toggle collapsible when interacting with the export controls.
+        section.querySelector('.img-export-group').addEventListener('click', e => e.stopPropagation());
 
         container.appendChild(section);
     }
 }
 
-function exportLeaderboardPDF(lb, title, maxRows) {
-    if (typeof window.jspdf === 'undefined') {
-        alert('PDF library not loaded. Please try again.');
+async function exportLeaderboardImage(lb, title, maxRows) {
+    if (typeof html2canvas === 'undefined') {
+        alert('html2canvas library not loaded.');
         return;
     }
-
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-
-    doc.setFontSize(14);
-    doc.text(title, 14, 15);
 
     const showWinRate = !lb.isUBC;
     const showAvgPoints = lb.isUBC;
 
     // Build header
-    const headers = ['#', 'Player', ...lb.months, 'Total'];
-    if (showWinRate) headers.push('Win Rate');
-    if (showAvgPoints) headers.push('Avg Pts');
-    headers.push('Mean PR');
+    let thMonths = lb.months.map(m => `<th class="month-col">${m}</th>`).join('');
+    let thExtra = `<th class="total-col">Total</th>`;
+    if (showWinRate) thExtra += `<th>Win Rate</th>`;
+    if (showAvgPoints) thExtra += `<th>Avg Pts</th>`;
+    thExtra += `<th>Mean PR</th>`;
 
     // Build body
-    const body = [];
+    let bodyHtml = '';
     const rows = lb.rows.slice(0, maxRows);
     for (const row of rows) {
-        const cells = [
-            row.rank,
-            row.player,
-            ...lb.months.map(m => row.monthly[m] != null ? row.monthly[m] : '–'),
-            row.total
-        ];
-        if (showWinRate) cells.push(formatPercent(row.winRate));
-        if (showAvgPoints) cells.push(formatNumber(row.avgPoints));
-        cells.push(row.meanPR !== null ? formatNumber(row.meanPR) : 'N/A');
-        body.push(cells);
+        let rankClass = '';
+        if (row.rank === 1) rankClass = 'rank-gold';
+        else if (row.rank === 2) rankClass = 'rank-silver';
+        else if (row.rank === 3) rankClass = 'rank-bronze';
+
+        const monthCells = lb.months.map(m => {
+            const val = row.monthly[m];
+            return `<td class="month-col">${val != null ? val : '–'}</td>`;
+        }).join('');
+
+        let extraCells = `<td class="total-col">${row.total}</td>`;
+        if (showWinRate) extraCells += `<td>${formatPercent(row.winRate)}</td>`;
+        if (showAvgPoints) extraCells += `<td>${formatNumber(row.avgPoints)}</td>`;
+        extraCells += `<td>${row.meanPR !== null ? formatNumber(row.meanPR) : 'N/A'}</td>`;
+
+        bodyHtml += `
+            <tr class="${rankClass}">
+                <td>${row.rank}</td>
+                <td class="player-cell">
+                    <img class="flag" src="${flagUrl(row.flagCode)}" alt="${row.flagCode}">
+                    ${escapeHtml(row.player)}
+                </td>
+                ${monthCells}
+                ${extraCells}
+            </tr>`;
     }
 
-    doc.autoTable({
-        head: [headers],
-        body,
-        startY: 22,
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold' },
-        columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 30 } }
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:fixed;left:-10000px;top:0;background:#ffffff;padding:24px;font-family:sans-serif;';
+    wrap.innerHTML = `
+        <h3 style="margin:0 0 12px 0;font-size:20px;color:#1e293b;">${escapeHtml(title)}</h3>
+        <div class="leaderboard-table-wrapper">
+            <table class="leaderboard-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th class="player-col">Player</th>
+                        ${thMonths}
+                        ${thExtra}
+                    </tr>
+                </thead>
+                <tbody>${bodyHtml}</tbody>
+            </table>
+        </div>`;
+    document.body.appendChild(wrap);
+
+    try {
+        const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: '#ffffff' });
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${title.replace(/\s+/g, '_')}_Top${maxRows}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } finally {
+        wrap.remove();
+    }
+}
+
+/* ── Achievements (all-time per league type) ─────────── */
+
+const TYPE_ORDER = ['doubling', 'regular', 'ubc'];
+const ACHIEVEMENT_METRICS = [
+    { key: 'gold',    label: 'Gold',     fmt: v => v },
+    { key: 'silver',  label: 'Silver',   fmt: v => v },
+    { key: 'bronze',  label: 'Bronze',   fmt: v => v },
+    { key: 'avgRank', label: 'Avg Rank', fmt: v => formatNumber(v) }
+];
+
+function sortPresentTypes(types) {
+    return [...types].sort((a, b) => {
+        const ai = TYPE_ORDER.indexOf(a);
+        const bi = TYPE_ORDER.indexOf(b);
+        return (ai < 0 ? 9 : ai) - (bi < 0 ? 9 : bi);
+    });
+}
+
+function renderAchievementsSection(container, presentTypes) {
+    const types = sortPresentTypes(presentTypes);
+    if (types.length === 0) return;
+
+    const section = document.createElement('div');
+    section.className = 'dash-section achievements-section';
+
+    const tabsHtml = types.map((t, i) => {
+        const label = TYPE_LABELS[t] || t;
+        return `<button class="achv-tab${i === 0 ? ' active' : ''}" data-type="${t}">${label}</button>`;
+    }).join('');
+
+    const panelsHtml = types.map((t, i) => `
+        <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${t}">
+            <div class="achv-tables-loading">Loading…</div>
+        </div>
+    `).join('');
+
+    section.innerHTML = `
+        <div class="collapsible-section">
+            <h2 class="collapsible-header">Achievements</h2>
+            <div class="collapsible-body">
+                <div class="achv-tabs">${tabsHtml}</div>
+                <div class="achv-panels">${panelsHtml}</div>
+            </div>
+        </div>`;
+
+    // Collapsible toggle
+    const header = section.querySelector('.collapsible-header');
+    header.addEventListener('click', () => {
+        header.closest('.collapsible-section').classList.toggle('collapsed');
     });
 
-    const fileName = title.replace(/\s+/g, '_') + (maxRows < lb.rows.length ? `_Top${maxRows}` : '') + '.pdf';
-    doc.save(fileName);
+    // Tab switching
+    section.querySelectorAll('.achv-tab').forEach(tab => {
+        tab.addEventListener('click', e => {
+            e.stopPropagation();
+            const type = tab.dataset.type;
+            section.querySelectorAll('.achv-tab').forEach(b => b.classList.toggle('active', b === tab));
+            section.querySelectorAll('.achv-panel').forEach(p => {
+                p.classList.toggle('hidden', p.dataset.type !== type);
+            });
+        });
+    });
+
+    container.appendChild(section);
+
+    // Populate panels lazily — fire all in parallel.
+    types.forEach(async (t) => {
+        const panel = section.querySelector(`.achv-panel[data-type="${t}"]`);
+        try {
+            const data = await buildAllTimeRankings(t);
+            panel.innerHTML = renderAchievementTables(data);
+        } catch (err) {
+            panel.innerHTML = `<div class="error">Failed to load: ${escapeHtml(err.message)}</div>`;
+        }
+    });
+}
+
+function renderAchievementTables(data) {
+    return `<div class="achv-tables-grid">${ACHIEVEMENT_METRICS.map(m => {
+        const rows = data.rankings[m.key] || [];
+        const rowsHtml = rows.map(r => `
+            <tr>
+                <td>${r.rank}</td>
+                <td>${playerNameLink(r.name)}</td>
+                <td>${m.fmt(r.value)}</td>
+            </tr>
+        `).join('');
+        return `
+            <div class="achv-table-card">
+                <h3>${m.label}</h3>
+                <div class="achv-table-wrapper">
+                    <table class="achv-table">
+                        <thead><tr><th>#</th><th>Player</th><th>${m.label}</th></tr></thead>
+                        <tbody>${rowsHtml || '<tr><td colspan="3">No data</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>`;
+    }).join('')}</div>`;
+}
+
+/* ── PR Leaders (Total PR + Last 300 PR) ───────────── */
+
+const PR_METRICS = [
+    { key: 'totalPR',   label: 'Total PR' },
+    { key: 'last300PR', label: 'Last 300 PR' }
+];
+
+function renderPRLeadersSection(container, presentTypes) {
+    // Only league types with PR (doubling, ubc).
+    const types = sortPresentTypes(presentTypes).filter(t => t === 'doubling' || t === 'ubc');
+    if (types.length === 0) return;
+
+    const section = document.createElement('div');
+    section.className = 'dash-section pr-leaders-section';
+
+    const tabsHtml = types.map((t, i) => {
+        const label = TYPE_LABELS[t] || t;
+        return `<button class="achv-tab${i === 0 ? ' active' : ''}" data-type="${t}">${label}</button>`;
+    }).join('');
+
+    const panelsHtml = types.map((t, i) => `
+        <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${t}">
+            <div class="achv-tables-loading">Loading…</div>
+        </div>
+    `).join('');
+
+    section.innerHTML = `
+        <div class="collapsible-section">
+            <h2 class="collapsible-header">PR Leaders</h2>
+            <div class="collapsible-body">
+                <div class="achv-tabs">${tabsHtml}</div>
+                <div class="achv-panels">${panelsHtml}</div>
+            </div>
+        </div>`;
+
+    const header = section.querySelector('.collapsible-header');
+    header.addEventListener('click', () => {
+        header.closest('.collapsible-section').classList.toggle('collapsed');
+    });
+
+    section.querySelectorAll('.achv-tab').forEach(tab => {
+        tab.addEventListener('click', e => {
+            e.stopPropagation();
+            const type = tab.dataset.type;
+            section.querySelectorAll('.achv-tab').forEach(b => b.classList.toggle('active', b === tab));
+            section.querySelectorAll('.achv-panel').forEach(p => {
+                p.classList.toggle('hidden', p.dataset.type !== type);
+            });
+        });
+    });
+
+    container.appendChild(section);
+
+    types.forEach(async (t) => {
+        const panel = section.querySelector(`.achv-panel[data-type="${t}"]`);
+        try {
+            const data = await buildAllTimeRankings(t);
+            panel.innerHTML = renderPRTables(data);
+        } catch (err) {
+            panel.innerHTML = `<div class="error">Failed to load: ${escapeHtml(err.message)}</div>`;
+        }
+    });
+}
+
+function renderPRTables(data) {
+    return `<div class="achv-tables-grid">${PR_METRICS.map(m => {
+        const rows = data.rankings[m.key] || [];
+        const rowsHtml = rows.map(r => `
+            <tr>
+                <td>${r.rank}</td>
+                <td>${playerNameLink(r.name)}</td>
+                <td>${formatNumber(r.value)}</td>
+            </tr>
+        `).join('');
+        return `
+            <div class="achv-table-card">
+                <h3>${m.label}</h3>
+                <div class="achv-table-wrapper">
+                    <table class="achv-table">
+                        <thead><tr><th>#</th><th>Player</th><th>PR</th></tr></thead>
+                        <tbody>${rowsHtml || '<tr><td colspan="3">No data</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>`;
+    }).join('')}</div>`;
 }
