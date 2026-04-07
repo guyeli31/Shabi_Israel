@@ -2,7 +2,7 @@
  * leagueLoader.js — Fetch league data (CSV + JSON config) and leagues order.
  */
 
-import { parseCSV, countAllPlayers, getAllPlayersFromCSV } from './csvParser.js';
+import { parseCSV, parseCSVAll, countAllPlayers, getAllPlayersFromCSV } from './csvParser.js';
 
 const LEAGUES_BASE = 'leagues';
 
@@ -40,6 +40,18 @@ export async function loadLeagueMatches(leagueId) {
     const allPlayers = getAllPlayersFromCSV(text);
     const totalPlayers = allPlayers.size;
     return { matches: parseCSV(text), lastModified, totalPlayers, allPlayers };
+}
+
+/**
+ * Load a league's match data including unplayed rows (for admin editor).
+ */
+export async function loadLeagueMatchesAll(leagueId) {
+    const encoded = encodeURIComponent(leagueId);
+    const resp = await fetch(`${LEAGUES_BASE}/${encoded}/leaguedata.csv`);
+    if (!resp.ok) throw new Error(`Failed to load CSV for "${leagueId}"`);
+    const text = await resp.text();
+    const allPlayers = getAllPlayersFromCSV(text);
+    return { matches: parseCSVAll(text), allPlayers };
 }
 
 /**

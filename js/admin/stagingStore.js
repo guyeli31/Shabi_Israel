@@ -39,7 +39,12 @@ export function addChange(change) {
     // If a change for the same path already exists, replace it
     const existing = changes.findIndex(c => c.path === change.path);
     if (existing !== -1) {
-        changes[existing] = { ...change, timestamp: new Date().toISOString() };
+        const updated = { ...change, timestamp: new Date().toISOString() };
+        // Mark as updated if replacing an earlier change
+        if (!updated.description.includes('(updated)')) {
+            updated.description = updated.description + ' (updated)';
+        }
+        changes[existing] = updated;
     } else {
         changes.push({ ...change, timestamp: new Date().toISOString() });
     }
@@ -65,6 +70,14 @@ export function removeChange(index) {
 }
 
 /**
+ * Remove all changes belonging to a group.
+ */
+export function removeGroup(groupId) {
+    const changes = load().filter(c => c.group !== groupId);
+    save(changes);
+}
+
+/**
  * Clear all pending changes.
  */
 export function clearChanges() {
@@ -72,10 +85,65 @@ export function clearChanges() {
 }
 
 /**
- * Get number of pending changes.
+ * Get the staged content for a specific path (if any).
+ * Returns the content string or null if no staged change exists.
+ */
+export function getStagedContent(path) {
+    const changes = load();
+    const match = changes.find(c => c.path === path);
+    return match ? match.content : null;
+}
+
+/**
+ * Remove a specific override from a manual_overrides.json staged change.
+ * If no overrides remain, removes the change entirely.
+ */
+export function removeOverrideFromChange(path, overrideIndex) {
+    const changes = load();
+    const idx = changes.findIndex(c => c.path === path);
+    if (idx === -1) return;
+
+    try {
+        const data = JSON.parse(changes[idx].content);
+        const overrides = data.overrides || [];
+        if (overrideIndex >= 0 && overrideIndex < overrides.length) {
+            overrides.splice(overrideIndex, 1);
+        }
+        if (overrides.length === 0) {
+            changes.splice(idx, 1);
+        } else {
+            data.overrides = overrides;
+            changes[idx].content = JSON.stringify(data, null, 2);
+            changes[idx].description = `${overrides.length} override(s)`;
+        }
+        save(changes);
+    } catch { /* ignore parse errors */ }
+}
+
+/**
+ * Get number of pending changes (display count).
+ * Groups count as 1, manual_overrides.json counts as N (one per override).
  */
 export function getChangeCount() {
-    return load().length;
+    const changes = load();
+    const seen = new Set();
+    let count = 0;
+    for (const c of changes) {
+        if (c.group) {
+            if (!seen.has(c.group)) {
+                seen.add(c.group);
+                count++;
+            }
+        } else if (c.path && c.path.endsWith('manual_overrides.json') && c.content) {
+            try {
+                const data = JSON.parse(c.content);
+                count += (data.overrides || []).length || 1;
+            } catch { count++; }
+        } else {
+            count++;
+        }
+    }
+    return count;
 }
 
 /**

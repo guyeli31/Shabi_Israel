@@ -203,15 +203,17 @@ function renderPlayerAverages(playerMatches, leagueConfig, columns) {
     const wins = played.filter(m => m.scoreSelf > m.scoreOpp).length;
     const winRate = ((wins / n) * 100).toFixed(1);
 
-    // PR/Luck averages
-    const avgPR = played.reduce((s, m) => s + m.prSelf, 0) / n;
-    const avgOppPR = played.reduce((s, m) => s + m.prOpp, 0) / n;
-    const avgLuckDiff = played.reduce((s, m) => s + (m.luckSelf - m.luckOpp), 0) / n;
+    // PR/Luck averages — exclude technical matches (null PR/Luck values)
+    const nonTechnical = played.filter(m => !m._technical);
+    const nt = nonTechnical.length;
+    const avgPR = nt > 0 ? nonTechnical.reduce((s, m) => s + m.prSelf, 0) / nt : null;
+    const avgOppPR = nt > 0 ? nonTechnical.reduce((s, m) => s + m.prOpp, 0) / nt : null;
+    const avgLuckDiff = nt > 0 ? nonTechnical.reduce((s, m) => s + (m.luckSelf - m.luckOpp), 0) / nt : null;
 
     // UBC points
     const totalPoints = played.reduce((s, m) => {
         const matchWin = m.scoreSelf > m.scoreOpp ? 1 : 0;
-        const prWin = m.prSelf < m.prOpp ? 1 : 0;
+        const prWin = (!m._technical && m.prSelf < m.prOpp) ? 1 : 0;
         return s + matchWin + prWin;
     }, 0);
     const avgPointsVal = (totalPoints / n).toFixed(2);
@@ -234,13 +236,13 @@ function renderPlayerAverages(playerMatches, leagueConfig, columns) {
                 // Consumed by colspan above
                 break;
             case 'prSelf':
-                html += `<td>${formatNumber(avgPR)}</td>`;
+                html += `<td>${avgPR !== null ? formatNumber(avgPR) : '—'}</td>`;
                 break;
             case 'prOpp':
-                html += `<td>${formatNumber(avgOppPR)}</td>`;
+                html += `<td>${avgOppPR !== null ? formatNumber(avgOppPR) : '—'}</td>`;
                 break;
             case 'luckDiff':
-                html += `<td>${formatNumber(avgLuckDiff)}</td>`;
+                html += `<td>${avgLuckDiff !== null ? formatNumber(avgLuckDiff) : '—'}</td>`;
                 break;
             case 'result':
             case 'matchPoints':

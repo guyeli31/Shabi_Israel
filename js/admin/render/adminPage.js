@@ -4,7 +4,7 @@
 
 import { isLoggedIn, login, logout, getToken, setToken, getRepo, setRepo, isGitHubConfigured } from '../auth.js';
 import { testConnection } from '../githubApi.js';
-import { getChanges, removeChange, getChangeCount, publishAll, clearChanges } from '../stagingStore.js';
+import { getChanges, removeChange, removeGroup, removeOverrideFromChange, getChangeCount, publishAll, clearChanges } from '../stagingStore.js';
 
 let currentView = 'leagues';
 let onNavigate = null; // callback set by admin.html to handle view switching
@@ -124,6 +124,7 @@ function renderAdminShell() {
                     <button class="admin-nav-item" data-view="settings">Settings</button>
                 </nav>
                 <div class="admin-sidebar-footer">
+                    <a href="index.html" class="admin-nav-item admin-view-site">&#x2190; View Site</a>
                     <button class="admin-nav-item" id="logout-btn">Logout</button>
                 </div>
             </aside>
@@ -228,29 +229,40 @@ function renderPendingChanges(container) {
         return;
     }
 
+    // Group changes by group field, render grouped items as single line
+    const displayItems = buildDisplayItems(changes);
+
     let listHtml = '';
-    for (let i = 0; i < changes.length; i++) {
-        const c = changes[i];
-        const time = new Date(c.timestamp).toLocaleString('en-GB', {
+    for (const item of displayItems) {
+        const time = new Date(item.timestamp).toLocaleString('en-GB', {
             day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
         });
+        let cancelAttr;
+        if (item.group) {
+            cancelAttr = `data-remove-group="${escHtml(item.group)}"`;
+        } else if (item.overridePath != null) {
+            cancelAttr = `data-remove-override-path="${escHtml(item.overridePath)}" data-remove-override-idx="${item.overrideIndex}"`;
+        } else {
+            cancelAttr = `data-remove="${item.indices[0]}"`;
+        }
         listHtml += `
             <li class="pending-item">
-                <span class="pending-item-desc">${escHtml(c.description)}</span>
+                <span class="pending-item-desc">${item.displayText}</span>
                 <span class="pending-item-time">${time}</span>
-                <button class="btn btn-danger btn-sm" data-remove="${i}">Cancel</button>
+                <button class="btn btn-danger btn-sm" ${cancelAttr}>Cancel</button>
             </li>`;
     }
 
     container.innerHTML = `
         <h1>Pending Changes</h1>
         <div class="pending-panel">
-            <h3>${changes.length} change${changes.length === 1 ? '' : 's'} waiting to be published</h3>
+            <h3>${displayItems.length} change${displayItems.length === 1 ? '' : 's'} waiting to be published</h3>
             <ul class="pending-list">${listHtml}</ul>
             <div id="publish-msg"></div>
             <div id="publish-progress"></div>
-            <div style="display:flex;gap:var(--space-sm)">
+            <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap">
                 <button class="btn btn-success" id="publish-btn">Publish to Site</button>
+                <button class="btn btn-secondary" id="preview-btn">Preview</button>
                 <button class="btn btn-danger" id="discard-all-btn">Discard All</button>
             </div>
         </div>`;
@@ -259,6 +271,27 @@ function renderPendingChanges(container) {
     container.querySelectorAll('[data-remove]').forEach(btn => {
         btn.addEventListener('click', () => {
             removeChange(parseInt(btn.dataset.remove));
+            refreshBadge();
+            renderPendingChanges(container);
+        });
+    });
+
+    // Cancel grouped changes
+    container.querySelectorAll('[data-remove-group]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const groupId = btn.dataset.removeGroup;
+            removeGroup(groupId);
+            refreshBadge();
+            renderPendingChanges(container);
+        });
+    });
+
+    // Cancel individual override from expanded overrides list
+    container.querySelectorAll('[data-remove-override-path]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const path = btn.dataset.removeOverridePath;
+            const idx = parseInt(btn.dataset.removeOverrideIdx);
+            removeOverrideFromChange(path, idx);
             refreshBadge();
             renderPendingChanges(container);
         });
@@ -311,6 +344,11 @@ function renderPendingChanges(container) {
         // Re-render after short delay
         setTimeout(() => renderPendingChanges(container), 1500);
     });
+
+    // Preview
+    document.getElementById('preview-btn').addEventListener('click', () => {
+        window.open('index.html?preview=true', '_blank');
+    });
 }
 
 // ---- Helpers ----
@@ -325,4 +363,154 @@ function escHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+}
+
+/**
+ * Build display items from raw changes. Groups changes with the same `group` field.
+ * Formats descriptions as: [League] • [Type] — [Detail]
+ */
+function buildDisplayItems(changes) {
+    const items = [];
+    const groupMap = new Map();
+
+    for (let i = 0; i < changes.length; i++) {
+        const c = changes[i];
+
+        if (c.group) {
+            if (!groupMap.has(c.group)) {
+                groupMap.set(c.group, {
+                    group: c.group,
+                    indices: [],
+                    timestamp: c.timestamp,
+                    description: c.groupDescription || c.description
+                });
+            }
+            const g = groupMap.get(c.group);
+            g.indices.push(i);
+            if (c.timestamp > g.timestamp) g.timestamp = c.timestamp;
+        } else if (c.path && c.path.endsWith('manual_overrides.json') && c.content) {
+            // Expand each override as a separate display line
+            try {
+                const data = JSON.parse(c.content);
+                const overrides = data.overrides || [];
+                // Extract league name from path
+                let league = '';
+                const lm = c.path.match(/^leagues\/([^/]+)\//);
+                if (lm) league = decodeURIComponent(lm[1]);
+
+                for (let oi = 0; oi < overrides.length; oi++) {
+                    const o = overrides[oi];
+                    const detail = `${escHtml(o.playerA)} vs ${escHtml(o.playerB)} (${escHtml(o.type)})`;
+                    let text = '';
+                    if (league) text += `<b>${escHtml(league)}</b> · `;
+                    text += `Match Override — ${detail}`;
+
+                    items.push({
+                        group: null,
+                        indices: [i],
+                        overridePath: c.path,
+                        overrideIndex: oi,
+                        timestamp: o.timestamp || c.timestamp,
+                        displayText: text
+                    });
+                }
+            } catch {
+                items.push({
+                    group: null, indices: [i],
+                    timestamp: c.timestamp,
+                    displayText: formatChangeDesc(c)
+                });
+            }
+        } else {
+            items.push({
+                group: null,
+                indices: [i],
+                timestamp: c.timestamp,
+                displayText: formatChangeDesc(c)
+            });
+        }
+    }
+
+    // Add grouped items
+    for (const g of groupMap.values()) {
+        items.push({
+            group: g.group,
+            indices: g.indices,
+            timestamp: g.timestamp,
+            displayText: escHtml(g.description)
+        });
+    }
+
+    return items;
+}
+
+/**
+ * Format a change into: [League] • [Type] — [Detail]
+ */
+function formatChangeDesc(change) {
+    const path = change.path || '';
+
+    // Extract league name from path like "leagues/Shabi%20Israel%20April%202026/..."
+    let league = '';
+    const leagueMatch = path.match(/^leagues\/([^/]+)\//);
+    if (leagueMatch) {
+        league = decodeURIComponent(leagueMatch[1]);
+    }
+
+    // Determine type and detail
+    let type = '';
+    let detail = change.description || '';
+
+    if (path.endsWith('manual_overrides.json')) {
+        type = 'Match Override';
+        // Extract detail from description like "Override: X vs Y (result)"
+        const m = detail.match(/Override:\s*(.+)/);
+        if (m) detail = m[1];
+        else if (detail.startsWith('Remove override')) {
+            type = 'Remove Override';
+            detail = detail.replace(/Remove override #\d+:\s*/, '');
+        }
+    } else if (path.endsWith('league_params.json')) {
+        if (change.type === 'delete') {
+            type = 'Delete';
+            detail = 'League files';
+        } else if (detail.includes('Update players')) {
+            type = 'Players';
+            detail = 'Updated player settings';
+        } else if (detail.includes('Update settings') || detail.includes('Create league')) {
+            type = 'Settings';
+            detail = detail.replace(/^(Update settings|Create league):\s*/, '');
+        } else {
+            type = 'Settings';
+        }
+    } else if (path.endsWith('leaguedata.csv')) {
+        if (change.type === 'delete') {
+            type = 'Delete';
+            detail = 'CSV data';
+        } else if (detail.includes('Rename')) {
+            type = 'CSV';
+            detail = detail.replace(/Rename players in CSV:\s*/, 'Renamed: ');
+        } else {
+            type = 'CSV Import';
+        }
+    } else if (path === 'leagues/leagues_order.json') {
+        type = 'League Order';
+        league = '';
+        const addMatch = detail.match(/Add "(.+)" to/);
+        const rmMatch = detail.match(/Remove "(.+)" from/);
+        if (addMatch) detail = `Added: ${addMatch[1]}`;
+        else if (rmMatch) detail = `Removed: ${rmMatch[1]}`;
+    } else if (path.startsWith('assets/flags/')) {
+        type = 'Flag Upload';
+        league = '';
+    } else {
+        type = change.type || 'Update';
+    }
+
+    // Build formatted string
+    let text = '';
+    if (league) text += `<b>${escHtml(league)}</b> · `;
+    if (type) text += `${escHtml(type)} — `;
+    text += escHtml(detail);
+    return text;
 }

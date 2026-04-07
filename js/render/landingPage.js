@@ -8,6 +8,7 @@ import { buildRankings } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { leagueUrl, flagUrl, getFlagCode } from '../utils/helpers.js';
 import { isLoggedIn } from '../admin/auth.js';
+import { isPreviewMode } from '../admin/previewMode.js';
 
 export async function renderLandingPage() {
     const container = document.getElementById('content');
@@ -30,7 +31,7 @@ export async function renderLandingPage() {
         // For each league, we need the leader (rank 1 player).
         // Load matches in parallel for all leagues.
         // Filter hidden leagues for non-admin users
-        const adminLoggedIn = isLoggedIn();
+        const adminLoggedIn = isLoggedIn() && !isPreviewMode();
         const visibleLeagues = adminLoggedIn
             ? leaguesData
             : leaguesData.filter(({ params }) => !params.Hidden);

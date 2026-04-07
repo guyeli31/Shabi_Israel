@@ -206,6 +206,12 @@ export function initThemePicker() {
         }
     }
 
+    // Tooltip
+    const tooltip = document.createElement('span');
+    tooltip.className = 'floating-btn-tooltip';
+    tooltip.textContent = 'Change Theme';
+
+    picker.appendChild(tooltip);
     picker.appendChild(panel);
     picker.appendChild(toggle);
     document.body.appendChild(picker);

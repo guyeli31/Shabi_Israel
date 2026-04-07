@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="css/theme.css">
     <link rel="stylesheet" href="css/themes.css">
     <link rel="stylesheet" href="css/theme-picker.css">
+    <link rel="stylesheet" href="css/admin-button.css">
     <script>
       (function(){
         var t=localStorage.getItem('shabi-theme');
@@ -29,21 +30,17 @@
             <div class="loading">Loading league data...</div>
         </div>
     </div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script type="module">
+        import { isPreviewMode, installPreviewInterceptor } from './js/admin/previewMode.js';
+        if (isPreviewMode()) installPreviewInterceptor();
+
         import { renderLeaguePage } from './js/render/leaguePage.js';
         import { initThemePicker } from './js/render/themePicker.js';
-        import { addRemainingReportButton } from './js/admin/remainingReport.js';
-        import { getQueryParam } from './js/utils/helpers.js';
+        import { initAdminButton } from './js/render/adminButton.js';
 
         await renderLeaguePage();
         initThemePicker();
-
-        // Add remaining report button after the table
-        const leagueId = getQueryParam('league');
-        if (leagueId) {
-            addRemainingReportButton(document.getElementById('content'), leagueId);
-        }
+        initAdminButton();
     </script>
 </body>
 </html>

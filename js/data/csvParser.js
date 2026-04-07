@@ -41,6 +41,39 @@ export function parseCSV(csvText) {
 }
 
 /**
+ * Parse CSV including unplayed rows (all-zero scores/PRs).
+ * Same as parseCSV but without the zero-row filter.
+ */
+export function parseCSVAll(csvText) {
+    const lines = csvText.split(/\r?\n/);
+    const matches = [];
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (trimmed.toLowerCase().startsWith('player')) continue;
+
+        const parts = trimmed.split(',');
+        if (parts.length < 8) continue;
+
+        const playerA = parts[0].trim();
+        const prA = parseFloat(parts[1]) || 0;
+        const luckA = parseFloat(parts[2]) || 0;
+        const scoreA = parseFloat(parts[3]) || 0;
+        const playerB = parts[4].trim();
+        const prB = parseFloat(parts[5]) || 0;
+        const luckB = parseFloat(parts[6]) || 0;
+        const scoreB = parseFloat(parts[7]) || 0;
+
+        if (playerA === 'Bye' || playerB === 'Bye') continue;
+
+        matches.push({ playerA, prA, luckA, scoreA, playerB, prB, luckB, scoreB });
+    }
+
+    return matches;
+}
+
+/**
  * Get all unique player names from raw CSV text, including those with no played matches.
  * Unlike getAllPlayers(), this does NOT filter out unplayed rows (all-zero scores/PRs).
  * Returns a Set<string>.

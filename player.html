@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="css/theme.css">
     <link rel="stylesheet" href="css/themes.css">
     <link rel="stylesheet" href="css/theme-picker.css">
+    <link rel="stylesheet" href="css/admin-button.css">
     <script>
       (function(){
         var t=localStorage.getItem('shabi-theme');
@@ -31,10 +32,15 @@
         </div>
     </div>
     <script type="module">
+        import { isPreviewMode, installPreviewInterceptor } from './js/admin/previewMode.js';
+        if (isPreviewMode()) installPreviewInterceptor();
+
         import { renderPlayerPage } from './js/render/playerPage.js';
         import { initThemePicker } from './js/render/themePicker.js';
+        import { initAdminButton } from './js/render/adminButton.js';
         renderPlayerPage();
         initThemePicker();
+        initAdminButton();
     </script>
 </body>
 </html>

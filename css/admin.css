@@ -398,21 +398,101 @@
     color: var(--color-text-muted);
 }
 
-/* ---- Admin link on index page ---- */
-.admin-link-subtle {
-    position: fixed;
-    bottom: var(--space-md);
-    left: var(--space-md);
-    color: var(--color-text-muted);
+/* ---- View Site link ---- */
+.admin-view-site {
     text-decoration: none;
-    font-size: 1.2rem;
-    opacity: 0.3;
-    transition: opacity 0.2s;
-    z-index: 100;
+    color: var(--color-text-muted);
+    display: block;
 }
 
-.admin-link-subtle:hover {
-    opacity: 0.8;
+.admin-view-site:hover {
+    color: var(--color-accent);
+}
+
+/* ---- Match filter bar ---- */
+.match-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+}
+
+.match-filter-bar input {
+    padding: 6px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    background: var(--color-surface);
+    color: var(--color-text);
+    min-width: 200px;
+}
+
+.match-filter-bar label {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+}
+
+/* ---- Inline match editing ---- */
+.admin-table-compact th,
+.admin-table-compact td {
+    padding: 4px 5px;
+    font-size: 0.8rem;
+}
+
+.inline-edit-input {
+    width: 52px;
+    padding: 2px 3px;
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    font-size: 0.8rem;
+    text-align: center;
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.inline-edit-input:focus {
+    border-color: var(--color-accent);
+    outline: none;
+}
+
+.inline-edit-score {
+    width: 42px;
+}
+
+.btn-xs {
+    padding: 2px 6px;
+    font-size: 0.7rem;
+    border-radius: 3px;
+    cursor: pointer;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.btn-xs:hover {
+    background: var(--color-border);
+}
+
+.btn-tech {
+    font-weight: 700;
+}
+
+.match-row-unplayed {
+    opacity: 0.5;
+}
+
+.match-row-overridden {
+    background: var(--color-accent-light);
+}
+
+.nowrap {
+    white-space: nowrap;
+}
+
+.edit-ts {
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
 }
 
 /* ---- Responsive ---- */

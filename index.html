@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="css/theme.css">
     <link rel="stylesheet" href="css/themes.css">
     <link rel="stylesheet" href="css/theme-picker.css">
+    <link rel="stylesheet" href="css/admin-button.css">
     <script>
       (function(){
         var t=localStorage.getItem('shabi-theme');
@@ -30,12 +31,16 @@
             <div class="loading">Loading leagues...</div>
         </div>
     </div>
-    <a href="admin.html" class="admin-link-subtle" title="Admin">&#x2699;</a>
     <script type="module">
+        import { isPreviewMode, installPreviewInterceptor } from './js/admin/previewMode.js';
+        if (isPreviewMode()) installPreviewInterceptor();
+
         import { renderLandingPage } from './js/render/landingPage.js';
         import { initThemePicker } from './js/render/themePicker.js';
+        import { initAdminButton } from './js/render/adminButton.js';
         renderLandingPage();
         initThemePicker();
+        initAdminButton();
     </script>
 </body>
 </html>

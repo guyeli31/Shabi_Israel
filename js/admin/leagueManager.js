@@ -4,7 +4,7 @@
 
 import { loadLeagueOrder, loadLeagueParams, loadLeagueMatches } from '../data/leagueLoader.js';
 import { getFile } from './githubApi.js';
-import { addChange } from './stagingStore.js';
+import { addChange, getStagedContent } from './stagingStore.js';
 import { getAllPlayersFromCSV } from '../data/csvParser.js';
 import { renderCsvEditor } from './csvEditor.js';
 import { renderRemainingReport } from './remainingReport.js';
@@ -196,19 +196,25 @@ function stageAddLeague(name, type, displayOrder) {
 
 function stageDeleteLeague(leagueId, title, displayOrder) {
     const encoded = encodeURIComponent(leagueId);
+    const groupId = `delete-${leagueId}`;
+    const groupDescription = `Delete league: ${title}`;
 
     addChange({
         type: 'delete',
         path: `leagues/${encoded}/league_params.json`,
         content: null,
-        description: `Delete league params: ${leagueId}`
+        description: `Delete league params: ${leagueId}`,
+        group: groupId,
+        groupDescription
     });
 
     addChange({
         type: 'delete',
         path: `leagues/${encoded}/leaguedata.csv`,
         content: null,
-        description: `Delete league CSV: ${leagueId}`
+        description: `Delete league CSV: ${leagueId}`,
+        group: groupId,
+        groupDescription
     });
 
     // Update order
@@ -217,7 +223,9 @@ function stageDeleteLeague(leagueId, title, displayOrder) {
         type: 'update',
         path: 'leagues/leagues_order.json',
         content: JSON.stringify({ DisplayOrder: newOrder }, null, 2),
-        description: `Remove "${title}" from league order`
+        description: `Remove "${title}" from league order`,
+        group: groupId,
+        groupDescription
     });
 
     if (refreshBadgeFn) refreshBadgeFn();
@@ -428,7 +436,10 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
 
     // Save settings
     document.getElementById('save-league-settings').addEventListener('click', () => {
-        const newParams = { ...params };
+        const encoded = encodeURIComponent(leagueId);
+        const stagedJson = getStagedContent(`leagues/${encoded}/league_params.json`);
+        const baseParams = stagedJson ? JSON.parse(stagedJson) : params;
+        const newParams = { ...baseParams };
         newParams.LeagueTitle = document.getElementById('edit-title').value.trim();
         newParams.LeagueType = document.getElementById('edit-type').value;
         newParams.Running = document.getElementById('edit-status').checked;
@@ -440,7 +451,6 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         // Remove Hidden if false (keep JSON clean)
         if (!newParams.Hidden) delete newParams.Hidden;
 
-        const encoded = encodeURIComponent(leagueId);
         addChange({
             type: 'update',
             path: `leagues/${encoded}/league_params.json`,
@@ -495,8 +505,11 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                 }
             });
 
-            // Update params
-            const updatedParams = { ...params };
+            // Update params — use staged version as base if it exists
+            const paramsPath = `leagues/${encodeURIComponent(leagueId)}/league_params.json`;
+            const stagedPlayerJson = getStagedContent(paramsPath);
+            const playerBaseParams = stagedPlayerJson ? JSON.parse(stagedPlayerJson) : params;
+            const updatedParams = { ...playerBaseParams };
             updatedParams.CustomFlags = newCustomFlags;
             if (newRetired.length > 0) {
                 updatedParams.RetiredPlayers = newRetired;

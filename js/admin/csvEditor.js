@@ -1,12 +1,12 @@
 /**
- * csvEditor.js — Interactive CSV editor with manual override management.
+ * csvEditor.js — Inline match editor with technical result buttons and override management.
  *
- * Shows all matches (CSV + overrides applied), allows inline editing,
- * adding new rows, and managing overrides.
+ * Shows ALL match pairings (played + unplayed) with inline-editable fields,
+ * quick technical result buttons, and override management.
  */
 
-import { loadLeagueMatches } from '../data/leagueLoader.js';
-import { addChange } from './stagingStore.js';
+import { loadLeagueMatchesAll, loadOverrides } from '../data/leagueLoader.js';
+import { addChange, getStagedContent } from './stagingStore.js';
 import { renderExcelImporter } from './excelImporter.js';
 
 /**
@@ -19,7 +19,6 @@ export function renderCsvEditor(container, leagueId, refreshBadge) {
             <button class="btn btn-primary" id="show-editor-btn">Edit Matches</button>
             <button class="btn btn-secondary" id="show-import-btn">Import CSV/Excel</button>
             <button class="btn btn-secondary" id="show-overrides-btn">View Overrides</button>
-            <button class="btn btn-success" id="add-match-btn">+ Add Match</button>
         </div>
         <div id="csv-content"></div>`;
 
@@ -37,10 +36,6 @@ export function renderCsvEditor(container, leagueId, refreshBadge) {
         renderOverridesList(document.getElementById('csv-content'), leagueId, refreshBadge);
     });
 
-    document.getElementById('add-match-btn').addEventListener('click', () => {
-        renderAddMatchForm(document.getElementById('csv-content'), leagueId, refreshBadge);
-    });
-
     // Default: show editor
     renderMatchEditor(document.getElementById('csv-content'), leagueId, refreshBadge);
 }
@@ -51,270 +46,275 @@ async function renderMatchEditor(container, leagueId, refreshBadge) {
     container.innerHTML = '<div class="loading">Loading matches...</div>';
 
     try {
-        const { matches } = await loadLeagueMatches(leagueId);
+        const { matches: csvMatches, allPlayers } = await loadLeagueMatchesAll(leagueId);
+        const overrides = await loadOverrides(leagueId);
 
-        if (matches.length === 0) {
-            container.innerHTML = '<p style="color:var(--color-text-muted)">No matches yet. Import a CSV or add matches manually.</p>';
+        // Build override map for timestamps and data
+        const overrideMap = new Map();
+        for (const o of overrides) {
+            overrideMap.set(overrideKey(o.playerA, o.playerB), o);
+        }
+
+        // Build complete pairings: CSV rows + unplayed combos
+        const allPairings = buildAllPairings(csvMatches, allPlayers, overrideMap);
+
+        if (allPairings.length === 0) {
+            container.innerHTML = '<p style="color:var(--color-text-muted)">No players yet. Import a CSV first.</p>';
             return;
         }
 
-        let rows = '';
-        for (let i = 0; i < matches.length; i++) {
-            const m = matches[i];
-            const isOverridden = m._overridden || false;
-            const rowClass = isOverridden ? 'style="background:var(--color-accent-light)"' : '';
-            rows += `
-                <tr ${rowClass}>
-                    <td>${esc(m.playerA)}</td>
-                    <td>${m.prA}</td>
-                    <td>${m.luckA}</td>
-                    <td>${m.scoreA}</td>
-                    <td>${esc(m.playerB)}</td>
-                    <td>${m.prB}</td>
-                    <td>${m.luckB}</td>
-                    <td>${m.scoreB}</td>
-                    <td>
-                        <button class="btn btn-primary btn-sm" data-edit-row="${i}">Edit</button>
-                    </td>
-                </tr>`;
+        // Player names for filter datalist
+        const sortedPlayers = [...allPlayers].sort((a, b) => a.localeCompare(b));
+        const datalistOptions = sortedPlayers.map(p => `<option value="${esc(p)}">`).join('');
+
+        function buildRows(filterText) {
+            const ft = (filterText || '').toLowerCase();
+            let rows = '';
+            for (let i = 0; i < allPairings.length; i++) {
+                const m = allPairings[i];
+                if (ft && !m.playerA.toLowerCase().includes(ft) && !m.playerB.toLowerCase().includes(ft)) continue;
+
+                const rowClass = m._overridden ? 'class="match-row-overridden"'
+                    : !m.played ? 'class="match-row-unplayed"' : '';
+
+                const prA = m.played && m.prA !== null ? m.prA : '';
+                const lkA = m.played && m.luckA !== null ? m.luckA : '';
+                const scA = m.played ? m.scoreA : '';
+                const prB = m.played && m.prB !== null ? m.prB : '';
+                const lkB = m.played && m.luckB !== null ? m.luckB : '';
+                const scB = m.played ? m.scoreB : '';
+
+                const edited = m.lastEdited
+                    ? new Date(m.lastEdited).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                    : '—';
+
+                rows += `
+                    <tr ${rowClass} data-row="${i}">
+                        <td class="nowrap">${esc(m.playerA)}</td>
+                        <td><input type="number" class="inline-edit-input" data-field="prA" step="0.01" value="${prA}"></td>
+                        <td><input type="number" class="inline-edit-input" data-field="luckA" step="0.01" value="${lkA}"></td>
+                        <td><input type="number" class="inline-edit-input inline-edit-score" data-field="scoreA" step="1" value="${scA}"></td>
+                        <td class="nowrap">${esc(m.playerB)}</td>
+                        <td><input type="number" class="inline-edit-input" data-field="prB" step="0.01" value="${prB}"></td>
+                        <td><input type="number" class="inline-edit-input" data-field="luckB" step="0.01" value="${lkB}"></td>
+                        <td><input type="number" class="inline-edit-input inline-edit-score" data-field="scoreB" step="1" value="${scB}"></td>
+                        <td class="nowrap edit-ts">${edited}</td>
+                        <td class="nowrap">
+                            <button class="btn btn-primary btn-xs" data-save="${i}" title="Save changes">Save</button>
+                            <button class="btn btn-xs btn-tech" data-tech-a="${i}" title="Technical win ${esc(m.playerA)}">TA</button>
+                            <button class="btn btn-xs btn-tech" data-tech-b="${i}" title="Technical win ${esc(m.playerB)}">TB</button>
+                            <button class="btn btn-xs btn-tech" data-tech-d="${i}" title="Technical draw">TD</button>
+                        </td>
+                    </tr>`;
+            }
+            return rows;
+        }
+
+        function attachListeners() {
+            // Save buttons
+            container.querySelectorAll('[data-save]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.dataset.save);
+                    const m = allPairings[idx];
+                    const row = container.querySelector(`tr[data-row="${idx}"]`);
+                    if (!row) return;
+
+                    const override = {
+                        type: 'result',
+                        playerA: m.playerA,
+                        playerB: m.playerB,
+                        scoreA: parseFloat(row.querySelector('[data-field="scoreA"]').value) || 0,
+                        scoreB: parseFloat(row.querySelector('[data-field="scoreB"]').value) || 0,
+                        prA: parseFloat(row.querySelector('[data-field="prA"]').value) || 0,
+                        prB: parseFloat(row.querySelector('[data-field="prB"]').value) || 0,
+                        luckA: parseFloat(row.querySelector('[data-field="luckA"]').value) || 0,
+                        luckB: parseFloat(row.querySelector('[data-field="luckB"]').value) || 0,
+                        reason: 'Manual edit',
+                        timestamp: new Date().toISOString()
+                    };
+
+                    stageOverride(leagueId, override, refreshBadge);
+                    showMsg('editor-msg', `Override staged: ${m.playerA} vs ${m.playerB}`, 'success');
+                });
+            });
+
+            // Technical win A
+            container.querySelectorAll('[data-tech-a]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.dataset.techA);
+                    applyTechnical(idx, 'technical_win', allPairings[idx].playerA);
+                });
+            });
+
+            // Technical win B
+            container.querySelectorAll('[data-tech-b]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.dataset.techB);
+                    applyTechnical(idx, 'technical_win', allPairings[idx].playerB);
+                });
+            });
+
+            // Technical draw
+            container.querySelectorAll('[data-tech-d]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.dataset.techD);
+                    applyTechnical(idx, 'technical_draw', null);
+                });
+            });
+        }
+
+        function applyTechnical(idx, type, winner) {
+            const m = allPairings[idx];
+            const row = container.querySelector(`tr[data-row="${idx}"]`);
+            if (!row) return;
+
+            const scoreA = type === 'technical_draw' ? 7 : (winner === m.playerA ? 7 : 0);
+            const scoreB = type === 'technical_draw' ? 7 : (winner === m.playerB ? 7 : 0);
+
+            // Update inputs visually
+            row.querySelector('[data-field="prA"]').value = '';
+            row.querySelector('[data-field="luckA"]').value = '';
+            row.querySelector('[data-field="scoreA"]').value = scoreA;
+            row.querySelector('[data-field="prB"]').value = '';
+            row.querySelector('[data-field="luckB"]').value = '';
+            row.querySelector('[data-field="scoreB"]').value = scoreB;
+
+            const override = {
+                type,
+                playerA: m.playerA,
+                playerB: m.playerB,
+                reason: type === 'technical_draw' ? 'Technical draw' : `Technical win: ${winner}`,
+                timestamp: new Date().toISOString()
+            };
+            if (winner) override.winner = winner;
+
+            stageOverride(leagueId, override, refreshBadge);
+            showMsg('editor-msg', `Technical result staged: ${m.playerA} vs ${m.playerB}`, 'success');
         }
 
         container.innerHTML = `
             <div id="editor-msg"></div>
-            <div class="table-scroll" style="max-height:500px;overflow:auto">
-                <table class="admin-table">
+            <div class="match-filter-bar">
+                <label for="match-filter-input">Filter by player:</label>
+                <input type="text" id="match-filter-input" list="match-player-list" placeholder="Type player name...">
+                <datalist id="match-player-list">${datalistOptions}</datalist>
+            </div>
+            <div class="table-scroll" style="max-height:600px;overflow:auto">
+                <table class="admin-table admin-table-compact">
                     <thead>
                         <tr>
-                            <th>Player A</th><th>PR A</th><th>Luck A</th><th>Score A</th>
-                            <th>Player B</th><th>PR B</th><th>Luck B</th><th>Score B</th>
-                            <th>Actions</th>
+                            <th>Player A</th><th>PR</th><th>Luck</th><th>Score</th>
+                            <th>Player B</th><th>PR</th><th>Luck</th><th>Score</th>
+                            <th>Edited</th><th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody>${rows}</tbody>
+                    <tbody id="match-table-body">${buildRows('')}</tbody>
                 </table>
             </div>
-            <p style="font-size:0.8rem;color:var(--color-text-muted);margin-top:var(--space-sm)">
-                Highlighted rows have manual overrides applied.
+            <p style="font-size:0.75rem;color:var(--color-text-muted);margin-top:var(--space-xs)">
+                Highlighted rows = overridden &nbsp;|&nbsp; Dimmed rows = not yet played
             </p>`;
 
-        container.querySelectorAll('[data-edit-row]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const idx = parseInt(btn.dataset.editRow);
-                renderEditMatchForm(container, leagueId, matches[idx], refreshBadge);
-            });
+        attachListeners();
+
+        // Live filter
+        document.getElementById('match-filter-input').addEventListener('input', (e) => {
+            document.getElementById('match-table-body').innerHTML = buildRows(e.target.value);
+            attachListeners();
         });
     } catch (err) {
         container.innerHTML = `<div class="admin-msg admin-msg-error">${err.message}</div>`;
     }
 }
 
-// ---- Edit Match Form ----
+/**
+ * Build all match pairings: CSV rows (played) + generated unplayed combos.
+ */
+function buildAllPairings(csvMatches, allPlayers, overrideMap) {
+    const pairings = [];
+    const seenKeys = new Set();
 
-function renderEditMatchForm(container, leagueId, match, refreshBadge) {
-    container.innerHTML = `
-        <div class="admin-card">
-            <h2>Edit Match: ${esc(match.playerA)} vs ${esc(match.playerB)}</h2>
-            <div id="edit-match-msg"></div>
-            <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
-                <div style="flex:1;min-width:200px">
-                    <h3 style="margin-bottom:var(--space-sm)">${esc(match.playerA)}</h3>
-                    <div class="form-group">
-                        <label>Score</label>
-                        <input type="number" id="em-scoreA" value="${match.scoreA}" step="1">
-                    </div>
-                    <div class="form-group">
-                        <label>PR</label>
-                        <input type="number" id="em-prA" value="${match.prA}" step="0.01">
-                    </div>
-                    <div class="form-group">
-                        <label>Luck</label>
-                        <input type="number" id="em-luckA" value="${match.luckA}" step="0.01">
-                    </div>
-                </div>
-                <div style="flex:1;min-width:200px">
-                    <h3 style="margin-bottom:var(--space-sm)">${esc(match.playerB)}</h3>
-                    <div class="form-group">
-                        <label>Score</label>
-                        <input type="number" id="em-scoreB" value="${match.scoreB}" step="1">
-                    </div>
-                    <div class="form-group">
-                        <label>PR</label>
-                        <input type="number" id="em-prB" value="${match.prB}" step="0.01">
-                    </div>
-                    <div class="form-group">
-                        <label>Luck</label>
-                        <input type="number" id="em-luckB" value="${match.luckB}" step="0.01">
-                    </div>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Reason for change</label>
-                <input type="text" id="em-reason" placeholder="e.g. Manual correction">
-            </div>
-            <div style="display:flex;gap:var(--space-sm)">
-                <button class="btn btn-primary" id="em-save">Save as Override</button>
-                <button class="btn btn-secondary" id="em-cancel">Cancel</button>
-            </div>
-        </div>`;
+    // First: CSV rows (preserves chronological order)
+    for (const m of csvMatches) {
+        const key = overrideKey(m.playerA, m.playerB);
+        seenKeys.add(key);
 
-    document.getElementById('em-cancel').addEventListener('click', () => {
-        renderMatchEditor(container, leagueId, refreshBadge);
-    });
+        const o = overrideMap.get(key);
+        const isPlayed = m.scoreA !== 0 || m.scoreB !== 0 || m.prA !== 0 || m.prB !== 0;
 
-    document.getElementById('em-save').addEventListener('click', () => {
-        const override = {
-            type: 'result',
-            playerA: match.playerA,
-            playerB: match.playerB,
-            scoreA: parseFloat(document.getElementById('em-scoreA').value) || 0,
-            scoreB: parseFloat(document.getElementById('em-scoreB').value) || 0,
-            prA: parseFloat(document.getElementById('em-prA').value) || 0,
-            prB: parseFloat(document.getElementById('em-prB').value) || 0,
-            luckA: parseFloat(document.getElementById('em-luckA').value) || 0,
-            luckB: parseFloat(document.getElementById('em-luckB').value) || 0,
-            reason: document.getElementById('em-reason').value.trim() || 'Manual edit',
-            timestamp: new Date().toISOString()
-        };
-
-        stageOverride(leagueId, override, refreshBadge);
-        showMsg('edit-match-msg', 'Override staged.', 'success');
-        setTimeout(() => renderMatchEditor(container, leagueId, refreshBadge), 800);
-    });
-}
-
-// ---- Add Match Form ----
-
-function renderAddMatchForm(container, leagueId, refreshBadge) {
-    container.innerHTML = `
-        <div class="admin-card">
-            <h2>Add Match</h2>
-            <div id="add-match-msg"></div>
-            <div class="form-group">
-                <label>Match Type</label>
-                <select id="am-type">
-                    <option value="result">Regular Result</option>
-                    <option value="technical_win">Technical Win</option>
-                    <option value="technical_draw">Technical Draw</option>
-                </select>
-            </div>
-            <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
-                <div class="form-group" style="flex:1;min-width:140px">
-                    <label>Player A</label>
-                    <input type="text" id="am-playerA" placeholder="Name">
-                </div>
-                <div class="form-group" style="flex:1;min-width:140px">
-                    <label>Player B</label>
-                    <input type="text" id="am-playerB" placeholder="Name">
-                </div>
-            </div>
-            <div id="am-regular-fields">
-                <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
-                    <div class="form-group" style="flex:1">
-                        <label>Score A</label>
-                        <input type="number" id="am-scoreA" value="0">
-                    </div>
-                    <div class="form-group" style="flex:1">
-                        <label>Score B</label>
-                        <input type="number" id="am-scoreB" value="0">
-                    </div>
-                </div>
-                <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
-                    <div class="form-group" style="flex:1">
-                        <label>PR A</label>
-                        <input type="number" id="am-prA" value="0" step="0.01">
-                    </div>
-                    <div class="form-group" style="flex:1">
-                        <label>PR B</label>
-                        <input type="number" id="am-prB" value="0" step="0.01">
-                    </div>
-                </div>
-                <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
-                    <div class="form-group" style="flex:1">
-                        <label>Luck A</label>
-                        <input type="number" id="am-luckA" value="0" step="0.01">
-                    </div>
-                    <div class="form-group" style="flex:1">
-                        <label>Luck B</label>
-                        <input type="number" id="am-luckB" value="0" step="0.01">
-                    </div>
-                </div>
-            </div>
-            <div id="am-tech-winner" style="display:none">
-                <div class="form-group">
-                    <label>Winner</label>
-                    <select id="am-winner">
-                        <option value="A">Player A</option>
-                        <option value="B">Player B</option>
-                    </select>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Reason</label>
-                <input type="text" id="am-reason" placeholder="e.g. Added manually">
-            </div>
-            <div style="display:flex;gap:var(--space-sm)">
-                <button class="btn btn-success" id="am-save">Add Match</button>
-                <button class="btn btn-secondary" id="am-cancel">Cancel</button>
-            </div>
-        </div>`;
-
-    const typeSelect = document.getElementById('am-type');
-    typeSelect.addEventListener('change', () => {
-        const t = typeSelect.value;
-        document.getElementById('am-regular-fields').style.display = t === 'result' ? '' : 'none';
-        document.getElementById('am-tech-winner').style.display = t === 'technical_win' ? '' : 'none';
-    });
-
-    document.getElementById('am-cancel').addEventListener('click', () => {
-        renderMatchEditor(container, leagueId, refreshBadge);
-    });
-
-    document.getElementById('am-save').addEventListener('click', () => {
-        const playerA = document.getElementById('am-playerA').value.trim();
-        const playerB = document.getElementById('am-playerB').value.trim();
-
-        if (!playerA || !playerB) {
-            showMsg('add-match-msg', 'Both player names are required.', 'error');
-            return;
-        }
-
-        const type = typeSelect.value;
-        const reason = document.getElementById('am-reason').value.trim() || 'Manual add';
-        const timestamp = new Date().toISOString();
-
-        let override;
-        if (type === 'result') {
-            override = {
-                type: 'result',
-                playerA, playerB,
-                scoreA: parseFloat(document.getElementById('am-scoreA').value) || 0,
-                scoreB: parseFloat(document.getElementById('am-scoreB').value) || 0,
-                prA: parseFloat(document.getElementById('am-prA').value) || 0,
-                prB: parseFloat(document.getElementById('am-prB').value) || 0,
-                luckA: parseFloat(document.getElementById('am-luckA').value) || 0,
-                luckB: parseFloat(document.getElementById('am-luckB').value) || 0,
-                reason, timestamp
-            };
-        } else if (type === 'technical_win') {
-            const winnerSel = document.getElementById('am-winner').value;
-            override = {
-                type: 'technical_win',
-                playerA, playerB,
-                winner: winnerSel === 'A' ? playerA : playerB,
-                reason, timestamp
-            };
+        if (o && (o.type === 'technical_win' || o.type === 'technical_draw')) {
+            // Technical override — show technical result
+            const aWins = o.winner === m.playerA;
+            pairings.push({
+                playerA: m.playerA, playerB: m.playerB,
+                prA: null, luckA: null,
+                scoreA: o.type === 'technical_draw' ? 7 : (aWins ? 7 : 0),
+                prB: null, luckB: null,
+                scoreB: o.type === 'technical_draw' ? 7 : (aWins ? 0 : 7),
+                played: true, _overridden: true,
+                lastEdited: o.timestamp || null
+            });
+        } else if (o && o.type === 'result') {
+            // Result override
+            pairings.push({
+                playerA: m.playerA, playerB: m.playerB,
+                prA: o.prA, luckA: o.luckA, scoreA: o.scoreA,
+                prB: o.prB, luckB: o.luckB, scoreB: o.scoreB,
+                played: true, _overridden: true,
+                lastEdited: o.timestamp || null
+            });
         } else {
-            override = {
-                type: 'technical_draw',
-                playerA, playerB,
-                reason, timestamp
-            };
+            // Original CSV data
+            pairings.push({
+                ...m, played: isPlayed, _overridden: false, lastEdited: null
+            });
         }
+    }
 
-        stageOverride(leagueId, override, refreshBadge);
-        showMsg('add-match-msg', 'Match override staged.', 'success');
-        setTimeout(() => renderMatchEditor(container, leagueId, refreshBadge), 800);
-    });
+    // Second: overrides for pairings not in CSV
+    for (const [key, o] of overrideMap) {
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+
+        if (o.type === 'technical_win' || o.type === 'technical_draw') {
+            const aWins = o.winner === o.playerA;
+            pairings.push({
+                playerA: o.playerA, playerB: o.playerB,
+                prA: null, luckA: null,
+                scoreA: o.type === 'technical_draw' ? 7 : (aWins ? 7 : 0),
+                prB: null, luckB: null,
+                scoreB: o.type === 'technical_draw' ? 7 : (aWins ? 0 : 7),
+                played: true, _overridden: true,
+                lastEdited: o.timestamp || null
+            });
+        } else if (o.type === 'result') {
+            pairings.push({
+                playerA: o.playerA, playerB: o.playerB,
+                prA: o.prA, luckA: o.luckA, scoreA: o.scoreA,
+                prB: o.prB, luckB: o.luckB, scoreB: o.scoreB,
+                played: true, _overridden: true,
+                lastEdited: o.timestamp || null
+            });
+        }
+    }
+
+    // Third: unplayed pairings from allPlayers not yet seen
+    const playerArr = [...allPlayers].sort((a, b) => a.localeCompare(b));
+    for (let i = 0; i < playerArr.length; i++) {
+        for (let j = i + 1; j < playerArr.length; j++) {
+            const key = overrideKey(playerArr[i], playerArr[j]);
+            if (seenKeys.has(key)) continue;
+            seenKeys.add(key);
+            pairings.push({
+                playerA: playerArr[i], playerB: playerArr[j],
+                prA: 0, luckA: 0, scoreA: 0,
+                prB: 0, luckB: 0, scoreB: 0,
+                played: false, _overridden: false, lastEdited: null
+            });
+        }
+    }
+
+    return pairings;
 }
 
 // ---- Overrides List ----
@@ -387,16 +387,22 @@ async function renderOverridesList(container, leagueId, refreshBadge) {
 
 async function stageOverride(leagueId, newOverride, refreshBadge) {
     const encoded = encodeURIComponent(leagueId);
+    const overridesPath = `leagues/${encoded}/manual_overrides.json`;
 
-    // Load existing overrides
+    // Load existing overrides — prefer staged version, fall back to server
     let overrides = [];
-    try {
-        const resp = await fetch(`leagues/${encoded}/manual_overrides.json`);
-        if (resp.ok) {
-            const data = await resp.json();
-            overrides = data.overrides || [];
-        }
-    } catch { /* no overrides file yet */ }
+    const staged = getStagedContent(overridesPath);
+    if (staged) {
+        try { overrides = JSON.parse(staged).overrides || []; } catch { /* ignore */ }
+    } else {
+        try {
+            const resp = await fetch(`leagues/${encoded}/manual_overrides.json`);
+            if (resp.ok) {
+                const data = await resp.json();
+                overrides = data.overrides || [];
+            }
+        } catch { /* no overrides file yet */ }
+    }
 
     // Check if override for same match exists — replace it
     const key = overrideKey(newOverride.playerA, newOverride.playerB);
