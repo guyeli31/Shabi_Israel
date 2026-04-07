@@ -43,6 +43,7 @@ export function loadAllLeagues() {
                     config,
                     matches: league.matches,
                     allPlayers: league.allPlayers,
+                    lastModified: league.lastModified,
                     statsMap,
                     rankings
                 };
