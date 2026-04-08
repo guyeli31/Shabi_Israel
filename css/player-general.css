@@ -190,6 +190,34 @@
 .pg-matches-table .result-loss { color: #c62828; font-weight: 600; }
 .pg-matches-table .result-draw { color: #777; font-weight: 600; }
 
+/* Visited-link fix: keep link color consistent after clicking */
+.pg-leagues-table a,
+.pg-leagues-table a:visited,
+.pg-matches-table a,
+.pg-matches-table a:visited {
+    color: var(--color-text, #222);
+    text-decoration: none;
+}
+.pg-leagues-table a:hover,
+.pg-matches-table a:hover {
+    color: var(--color-accent, #1c4e80);
+    text-decoration: underline;
+}
+
+/* Match history scroll cap — 20 visible rows */
+.pg-matches-scroll {
+    max-height: 680px;  /* ~20 rows at ~34px each */
+    overflow-y: auto;
+}
+.pg-matches-scroll table {
+    width: 100%;
+}
+
+/* Medal coloring in RANK column */
+.rank-cell-gold { color: var(--color-gold-text, #92400e); font-weight: 700; }
+.rank-cell-silver { color: var(--color-silver-text, #475569); font-weight: 600; }
+.rank-cell-bronze { color: #b45309; font-weight: 600; }
+
 .status-pill.running {
     background: #2ecc40;
     color: white;

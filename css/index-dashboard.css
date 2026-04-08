@@ -548,7 +548,7 @@
 
 .achv-tables-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
     gap: var(--space-md);
 }
 
@@ -601,3 +601,171 @@
     font-style: italic;
     padding: var(--space-md);
 }
+
+/* ── Admin Edit Mode (Chunk 7) ─────────────────────────── */
+
+/* Edit-mode toggle button (pencil) */
+.edit-mode-toggle {
+    position: absolute;
+    top: var(--space-sm);
+    right: var(--space-sm);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-sm);
+    transition: background 0.15s, transform 0.15s;
+    z-index: 5;
+}
+
+.edit-mode-toggle:hover { background: var(--color-hover); }
+
+.edit-mode-toggle.active {
+    background: var(--color-primary, #1e293b);
+    color: #fff;
+    border-color: var(--color-primary, #1e293b);
+}
+
+/* Make page-header position:relative for the toggle */
+.page-header { position: relative; }
+
+/* Editable field highlight */
+.editable-field {
+    outline: 2px dashed var(--color-accent, #2563eb);
+    outline-offset: 4px;
+    border-radius: var(--radius-sm);
+    min-width: 80px;
+    cursor: text;
+}
+
+.editable-field:focus {
+    outline-style: solid;
+    background: rgba(37, 99, 235, 0.04);
+}
+
+/* Logo edit overlay */
+.logo-edit-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.logo-edit-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.9rem;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.logo-edit-wrapper:hover .logo-edit-overlay { opacity: 1; }
+
+/* Drag handles */
+.drag-handle {
+    cursor: grab;
+    font-size: 1.1rem;
+    color: var(--color-text-muted);
+    user-select: none;
+    text-align: center;
+    width: 30px;
+    padding: 6px 4px;
+}
+
+.drag-handle:active { cursor: grabbing; }
+
+.card-drag-handle {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    z-index: 2;
+}
+
+/* Edit-mode: league cards need relative for the handle */
+.edit-mode .league-card { position: relative; }
+
+/* Drag visual feedback */
+tr.dragging, .league-card.dragging {
+    opacity: 0.4;
+}
+
+tr.drag-over {
+    border-top: 2px solid var(--color-accent, #2563eb);
+}
+
+.league-card.drag-over {
+    outline: 2px solid var(--color-accent, #2563eb);
+    outline-offset: -2px;
+}
+
+/* Save / Cancel bar */
+.edit-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-md);
+    padding: var(--space-sm) var(--space-lg);
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+}
+
+.edit-bar-label {
+    margin-right: auto;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--color-text);
+}
+
+.edit-bar-cancel {
+    padding: 8px 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.edit-bar-cancel:hover { background: var(--color-hover); }
+
+.edit-bar-save {
+    padding: 8px 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: var(--color-primary, #1e293b);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.edit-bar-save:hover { filter: brightness(1.1); }
+.edit-bar-save:disabled { opacity: 0.5; cursor: not-allowed; }

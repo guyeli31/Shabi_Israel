@@ -2,7 +2,7 @@
  * leagueManager.js — Admin league management: list, create, edit, delete leagues + player editing.
  */
 
-import { loadLeagueOrder, loadLeagueParams, loadLeagueMatches } from '../data/leagueLoader.js';
+import { loadLeagueOrder, loadLeagueParams, loadLeagueMatches, loadLandingSettings } from '../data/leagueLoader.js';
 import { getFile } from './githubApi.js';
 import { addChange, getStagedContent } from './stagingStore.js';
 import { getAllPlayersFromCSV } from '../data/csvParser.js';
@@ -152,7 +152,7 @@ function renderAddLeagueForm(container, displayOrder) {
     });
 }
 
-function stageAddLeague(name, type, displayOrder) {
+async function stageAddLeague(name, type, displayOrder) {
     // Folder name: title without dash
     const folderName = name.replace(' - ', ' ');
     const encoded = encodeURIComponent(folderName);
@@ -183,7 +183,7 @@ function stageAddLeague(name, type, displayOrder) {
         description: `Create CSV for: ${name}`
     });
 
-    // Update leagues_order.json
+    // Update leagues_order.json + landing_settings.json
     const newOrder = [name, ...displayOrder];
     addChange({
         type: 'update',
@@ -192,10 +192,27 @@ function stageAddLeague(name, type, displayOrder) {
         description: `Add "${name}" to league order`
     });
 
+    // Keep landing_settings.json in sync
+    try {
+        const settings = await loadLandingSettings();
+        settings.displayOrder = newOrder;
+        addChange({
+            type: 'update',
+            path: 'leagues/landing_settings.json',
+            content: JSON.stringify({
+                title: settings.title,
+                subtitle: settings.subtitle,
+                logoPath: settings.logoPath,
+                DisplayOrder: settings.displayOrder
+            }, null, 2),
+            description: `Add "${name}" to landing settings`
+        });
+    } catch { /* landing_settings.json may not exist yet */ }
+
     if (refreshBadgeFn) refreshBadgeFn();
 }
 
-function stageDeleteLeague(leagueId, title, displayOrder) {
+async function stageDeleteLeague(leagueId, title, displayOrder) {
     const encoded = encodeURIComponent(leagueId);
     const groupId = `delete-${leagueId}`;
     const groupDescription = `Delete league: ${title}`;
@@ -228,6 +245,25 @@ function stageDeleteLeague(leagueId, title, displayOrder) {
         group: groupId,
         groupDescription
     });
+
+    // Keep landing_settings.json in sync
+    try {
+        const settings = await loadLandingSettings();
+        settings.displayOrder = newOrder;
+        addChange({
+            type: 'update',
+            path: 'leagues/landing_settings.json',
+            content: JSON.stringify({
+                title: settings.title,
+                subtitle: settings.subtitle,
+                logoPath: settings.logoPath,
+                DisplayOrder: settings.displayOrder
+            }, null, 2),
+            description: `Remove "${title}" from landing settings`,
+            group: groupId,
+            groupDescription
+        });
+    } catch { /* landing_settings.json may not exist yet */ }
 
     if (refreshBadgeFn) refreshBadgeFn();
 }

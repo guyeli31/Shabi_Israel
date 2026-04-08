@@ -12,10 +12,12 @@
 | 1 | Data model & league params | ✅ Done |
 | 2 | Cross-league rankings & all-time tables | ✅ Done |
 | 3 | Main dashboard polish | ✅ Done |
-| 4 | League dashboard polish | ⏳ Next |
-| 5 | Player cards polish | ⬜ Pending |
-| 6 | Charts | ⬜ Pending |
-| 7 | Admin edit-mode for landing page | ⬜ Pending |
+| 4 | League dashboard polish | ✅ Done |
+| 5 | Player cards polish | ✅ Done |
+| 5.5 | Achievement tables: flags + Avg Win Rate | ✅ Done |
+| 6 | Charts | ✅ Done |
+| 7 | Admin edit-mode for landing page | ✅ Done |
+| 7.5 | Admin panel extensions | ⏳ Next |
 | 8 | Themes redesign session | ⬜ Pending |
 
 Last updated: 2026-04-08
@@ -176,6 +178,61 @@ Dedicated working session to redesign themes from scratch. Bundle NEW-3 into thi
 - For each chunk: load main landing, open at least one league of each type (`doubling`, `regular`, `ubc`), open at least one player from each, exercise sortable tables, run admin mode where applicable.
 - For chunks touching params (Chunk 1, NEW-12), validate every league still loads — missing fields must default safely.
 - For Chunk 2 (cross-league), spot-check totals against current Phase H output for at least one well-known player to confirm no regressions.
+
+## Chunk 7.5 — Admin Panel Extensions (Detailed Plan)
+
+Extends the admin panel (`admin.html`) with 4 features. Chunk 7 (inline edit on `index.html`) is a prerequisite.
+
+### Feature A — "Main Dashboard" view in admin sidebar
+- New nav item above "Leagues" in sidebar (`adminPage.js` line ~119)
+- New module `js/admin/dashboardManager.js` renders a dashboard management view:
+  - **Displayed Leagues**: drag-and-drop table (reorder), "Hide" button per row
+  - **Not Displayed Leagues**: list with "Add to Dashboard" button
+  - Save bar stages `landing_settings.json` + `leagues_order.json` (same pattern as `landingPage.js` edit mode)
+- Lazy-loaded in `admin.html` alongside existing `leagues` route
+- CSS additions in `admin.css`: drag handle, drag feedback, save bar
+
+### Feature B — Replace "View Site" with elegant navigation
+- Replace `← View Site` anchor (`adminPage.js` line ~127) with SVG home icon + "Home" text
+- CSS: `.admin-home-link` flex layout, icon opacity hover transition
+
+### Feature C — Per-league IssueDate, EntryFee, Prizes in Edit form
+- Fields already exist in `league_params.json` data but aren't exposed in admin UI
+- Add to `renderEditLeagueForm()` in `leagueManager.js` (after medal count row, ~line 385):
+  - Issue Date (`<input type="date">`), Entry Fee (`<input type="number">`)
+  - Prize Gold / Silver / Bronze (`<input type="number">` × 3)
+- Save handler (~line 475): read new fields into `newParams`
+- Backwards compat: `normalizeParams()` in `leagueLoader.js` already provides defaults
+
+### Feature D — Enhanced Add New League form
+- Rewrite `renderAddLeagueForm()` in `leagueManager.js` as full-page layout with 3 cards:
+  1. **League Settings**: Name, Type, Issue Date, Entry Fee
+  2. **Medals & Prizes**: Gold/Silver/Bronze Count + Prize amount (side by side)
+  3. **Players**: Import from existing league dropdown + manual add + Name/Flag/Retired/Remove table
+- Player management: local `newLeaguePlayers[]` array, import loads CSV + params from selected league
+- Update `stageAddLeague()` to accept `options = { issueDate, entryFee, prizes, goldCount, silverCount, bronzeCount, players }`
+- Generate round-robin CSV matchup rows from player list (all pairs)
+
+### Files to modify
+| File | Changes |
+|------|---------|
+| `js/admin/render/adminPage.js` | Sidebar nav + View Site replacement + dashboard routing |
+| `js/admin/leagueManager.js` | Edit form fields (C) + rewrite Add form (D) + stageAddLeague update |
+| `css/admin.css` | Dashboard view styles + home link styles |
+| `admin.html` | Lazy-load routing for `dashboard` view |
+| **NEW** `js/admin/dashboardManager.js` | Dashboard management module |
+
+### Implementation order
+B (quick) → C (edit form) → D (add form) → A (dashboard view, most complex)
+
+### Verification
+1. Admin sidebar: "Home" icon works, "Main Dashboard" nav appears
+2. Edit league: IssueDate/EntryFee/Prizes fields appear, save correctly
+3. Add league: full form with players, import from existing league, CSV generated with matchups
+4. Main Dashboard view: reorder/hide/show leagues, changes in Pending Changes
+5. Existing workflows (edit/delete/publish) still work
+
+---
 
 ## Notes
 - Implementation order is bottom-up: data → compute → UI → admin → themes.

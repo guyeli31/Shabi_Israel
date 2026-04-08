@@ -267,9 +267,9 @@ export async function collectMedalsByType(playerName, leagueType) {
     if (typeLeagues.length === 0) return null;
 
     // Per-player tallies
-    const tally = new Map(); // name -> { gold, silver, bronze, rankSum, participations }
+    const tally = new Map(); // name -> { gold, silver, bronze, rankSum, participations, totalWins, totalGames }
     const bump = name => {
-        if (!tally.has(name)) tally.set(name, { gold: 0, silver: 0, bronze: 0, rankSum: 0, participations: 0 });
+        if (!tally.has(name)) tally.set(name, { gold: 0, silver: 0, bronze: 0, rankSum: 0, participations: 0, totalWins: 0, totalGames: 0 });
         return tally.get(name);
     };
 
@@ -285,6 +285,8 @@ export async function collectMedalsByType(playerName, leagueType) {
             const t = bump(r.player);
             t.participations++;
             t.rankSum += rank;
+            t.totalWins += r.wins || 0;
+            t.totalGames += r.games || 0;
             if (rank <= goldCount) t.gold++;
             else if (rank <= goldCount + silverCount) t.silver++;
             else if (rank <= goldCount + silverCount + bronzeCount) t.bronze++;
@@ -293,7 +295,7 @@ export async function collectMedalsByType(playerName, leagueType) {
 
     if (!tally.has(playerName)) return null;
 
-    // Compute avgRank per player
+    // Compute avgRank and winRate per player
     const records = [];
     for (const [name, t] of tally) {
         records.push({
@@ -302,7 +304,10 @@ export async function collectMedalsByType(playerName, leagueType) {
             silver: t.silver,
             bronze: t.bronze,
             participations: t.participations,
-            avgRank: t.participations > 0 ? t.rankSum / t.participations : Infinity
+            avgRank: t.participations > 0 ? t.rankSum / t.participations : Infinity,
+            winRate: t.totalGames > 0 ? t.totalWins / t.totalGames : 0,
+            totalWins: t.totalWins,
+            totalGames: t.totalGames
         });
     }
 
@@ -321,18 +326,26 @@ export async function collectMedalsByType(playerName, leagueType) {
     const byAvg = [...records].sort((a, b) => a.avgRank - b.avgRank);
     const avgRankRank = byAvg.findIndex(r => r.name === playerName) + 1;
 
+    // Win rate: DESC (higher is better)
+    const byWinRate = [...records].sort((a, b) => b.winRate - a.winRate || a.totalGames - b.totalGames);
+    const winRateRank = byWinRate.findIndex(r => r.name === playerName) + 1;
+
     return {
         self: {
             gold: self.gold,
             silver: self.silver,
             bronze: self.bronze,
             avgRank: self.avgRank,
-            participations: self.participations
+            participations: self.participations,
+            winRate: self.winRate,
+            totalWins: self.totalWins,
+            totalGames: self.totalGames
         },
         goldRank: medalRank('gold'),
         silverRank: medalRank('silver'),
         bronzeRank: medalRank('bronze'),
         avgRankRank,
+        winRateRank,
         totalPlayers: records.length
     };
 }

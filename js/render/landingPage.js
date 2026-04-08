@@ -10,10 +10,12 @@
 
 import { loadAllLeagues } from '../compute/crossLeague.js';
 import { buildAllTimeRankings } from '../compute/allTimeRankings.js';
+import { loadLandingSettings } from '../data/leagueLoader.js';
 import { dashboardUrl, flagUrl, getFlagCode, formatPercent, formatNumber } from '../utils/helpers.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { isLoggedIn } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
+import { addChange, getChangeCount } from '../admin/stagingStore.js';
 
 /* ── Helpers ─────────────────────────────────────────── */
 
@@ -47,11 +49,18 @@ function parseLeagueDate(folderId) {
 
 /* ── Main entry ──────────────────────────────────────── */
 
+/** Landing settings loaded once, shared with edit mode. */
+let _landingSettings = null;
+
 export async function renderLandingPage() {
     const container = document.getElementById('content');
     container.innerHTML = '<div class="loading">Loading leagues...</div>';
 
     try {
+        // Load landing settings and populate header
+        _landingSettings = await loadLandingSettings();
+        populateHeader(_landingSettings);
+
         const allLeagues = await loadAllLeagues();
 
         // Filter hidden leagues for non-admin users
@@ -101,9 +110,421 @@ export async function renderLandingPage() {
         const presentTypes = [...new Set(leagues.map(l => l.leagueType))];
         renderAchievementsSection(container, presentTypes);
         renderPRLeadersSection(container, presentTypes);
+
+        // Show edit-mode toggle for logged-in admins
+        if (adminLoggedIn) {
+            renderEditModeToggle(_landingSettings);
+        }
     } catch (err) {
         container.innerHTML = `<div class="error">Failed to load leagues: ${err.message}</div>`;
     }
+}
+
+/* ── Header population ────────────────────────────────── */
+
+function populateHeader(settings) {
+    const logo = document.getElementById('site-logo');
+    const title = document.getElementById('site-title');
+    const subtitle = document.getElementById('site-subtitle');
+    if (logo) logo.src = settings.logoPath;
+    if (title) title.textContent = settings.title;
+    if (subtitle) subtitle.textContent = settings.subtitle;
+}
+
+/* ── Admin Edit Mode ──────────────────────────────────── */
+
+let _editModeActive = false;
+let _editState = null; // tracks dirty values during edit
+
+function renderEditModeToggle(settings) {
+    const header = document.getElementById('page-header');
+    if (!header || header.querySelector('.edit-mode-toggle')) return;
+
+    const btn = document.createElement('button');
+    btn.className = 'edit-mode-toggle';
+    btn.title = 'Edit Mode';
+    btn.innerHTML = '&#9998;'; // pencil
+    btn.addEventListener('click', () => {
+        if (_editModeActive) {
+            exitEditMode();
+        } else {
+            enterEditMode(settings);
+        }
+    });
+    header.appendChild(btn);
+}
+
+function enterEditMode(settings) {
+    _editModeActive = true;
+    _editState = {
+        title: settings.title,
+        subtitle: settings.subtitle,
+        logoPath: settings.logoPath,
+        logoData: null,       // base64 if user picked a new image
+        logoFileName: null,
+        displayOrder: [...settings.displayOrder],
+        dirty: false
+    };
+
+    document.querySelector('.page-container').classList.add('edit-mode');
+    document.querySelector('.edit-mode-toggle').classList.add('active');
+
+    // Make title/subtitle editable
+    const titleEl = document.getElementById('site-title');
+    const subtitleEl = document.getElementById('site-subtitle');
+    titleEl.contentEditable = 'true';
+    subtitleEl.contentEditable = 'true';
+    titleEl.classList.add('editable-field');
+    subtitleEl.classList.add('editable-field');
+
+    titleEl.addEventListener('input', onHeaderInput);
+    subtitleEl.addEventListener('input', onHeaderInput);
+
+    // Add logo overlay
+    const logo = document.getElementById('site-logo');
+    const logoWrap = document.createElement('div');
+    logoWrap.className = 'logo-edit-wrapper';
+    logo.parentNode.insertBefore(logoWrap, logo);
+    logoWrap.appendChild(logo);
+    const overlay = document.createElement('div');
+    overlay.className = 'logo-edit-overlay';
+    overlay.textContent = 'Change';
+    overlay.addEventListener('click', pickLogo);
+    logoWrap.appendChild(overlay);
+
+    // Add drag handles to completed leagues table rows
+    addDragHandles();
+
+    // Show save/cancel bar
+    showEditBar();
+}
+
+function exitEditMode() {
+    _editModeActive = false;
+    document.querySelector('.page-container').classList.remove('edit-mode');
+    const toggleBtn = document.querySelector('.edit-mode-toggle');
+    if (toggleBtn) toggleBtn.classList.remove('active');
+
+    // Restore header
+    const titleEl = document.getElementById('site-title');
+    const subtitleEl = document.getElementById('site-subtitle');
+    titleEl.contentEditable = 'false';
+    subtitleEl.contentEditable = 'false';
+    titleEl.classList.remove('editable-field');
+    subtitleEl.classList.remove('editable-field');
+    titleEl.removeEventListener('input', onHeaderInput);
+    subtitleEl.removeEventListener('input', onHeaderInput);
+
+    // Restore original values
+    populateHeader(_landingSettings);
+
+    // Remove logo wrapper
+    const logoWrap = document.querySelector('.logo-edit-wrapper');
+    if (logoWrap) {
+        const logo = logoWrap.querySelector('.logo');
+        logoWrap.parentNode.insertBefore(logo, logoWrap);
+        logoWrap.remove();
+    }
+
+    // Remove drag handles
+    removeDragHandles();
+
+    // Remove save/cancel bar
+    const bar = document.querySelector('.edit-bar');
+    if (bar) bar.remove();
+
+    _editState = null;
+}
+
+function onHeaderInput() {
+    if (!_editState) return;
+    _editState.title = document.getElementById('site-title').textContent.trim();
+    _editState.subtitle = document.getElementById('site-subtitle').textContent.trim();
+    markDirty();
+}
+
+function markDirty() {
+    if (!_editState) return;
+    _editState.dirty = true;
+    const saveBtn = document.querySelector('.edit-bar-save');
+    if (saveBtn) saveBtn.disabled = false;
+}
+
+function pickLogo() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.addEventListener('change', () => {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            const base64 = reader.result.split(',')[1];
+            _editState.logoData = base64;
+            _editState.logoFileName = file.name;
+            document.getElementById('site-logo').src = reader.result;
+            markDirty();
+        };
+        reader.readAsDataURL(file);
+    });
+    input.click();
+}
+
+/* ── Drag-and-drop league reorder ─────────────────────── */
+
+let _dragSrcRow = null;
+
+function addDragHandles() {
+    const table = document.querySelector('.completed-leagues-table');
+    if (!table) return;
+    const rows = table.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+        const handle = document.createElement('td');
+        handle.className = 'drag-handle';
+        handle.innerHTML = '&#10303;'; // grip icon ⠿
+        handle.title = 'Drag to reorder';
+        row.insertBefore(handle, row.firstChild);
+        row.draggable = true;
+
+        row.addEventListener('dragstart', onDragStart);
+        row.addEventListener('dragover', onDragOver);
+        row.addEventListener('drop', onDrop);
+        row.addEventListener('dragend', onDragEnd);
+    });
+
+    // Also add header cell for the grip column
+    const thead = table.querySelector('thead tr');
+    if (thead) {
+        const th = document.createElement('th');
+        th.style.width = '30px';
+        thead.insertBefore(th, thead.firstChild);
+    }
+
+    // Also handle active league cards
+    const cards = document.querySelectorAll('.active-leagues-grid .league-card');
+    cards.forEach(card => {
+        const handle = document.createElement('div');
+        handle.className = 'drag-handle card-drag-handle';
+        handle.innerHTML = '&#10303;';
+        handle.title = 'Drag to reorder';
+        card.insertBefore(handle, card.firstChild);
+        card.draggable = true;
+
+        card.addEventListener('dragstart', onCardDragStart);
+        card.addEventListener('dragover', onCardDragOver);
+        card.addEventListener('drop', onCardDrop);
+        card.addEventListener('dragend', onCardDragEnd);
+    });
+}
+
+function removeDragHandles() {
+    document.querySelectorAll('.drag-handle').forEach(el => el.remove());
+    document.querySelectorAll('[draggable="true"]').forEach(el => {
+        el.draggable = false;
+        el.removeEventListener('dragstart', onDragStart);
+        el.removeEventListener('dragover', onDragOver);
+        el.removeEventListener('drop', onDrop);
+        el.removeEventListener('dragend', onDragEnd);
+        el.removeEventListener('dragstart', onCardDragStart);
+        el.removeEventListener('dragover', onCardDragOver);
+        el.removeEventListener('drop', onCardDrop);
+        el.removeEventListener('dragend', onCardDragEnd);
+    });
+    // Remove extra th
+    const table = document.querySelector('.completed-leagues-table');
+    if (table) {
+        const thead = table.querySelector('thead tr');
+        if (thead && thead.firstChild && thead.firstChild.style && thead.firstChild.style.width === '30px') {
+            thead.removeChild(thead.firstChild);
+        }
+    }
+}
+
+/* Table row drag */
+function onDragStart(e) {
+    _dragSrcRow = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+}
+
+function onDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const row = this;
+    if (row === _dragSrcRow) return;
+    row.classList.add('drag-over');
+}
+
+function onDrop(e) {
+    e.preventDefault();
+    const target = this;
+    target.classList.remove('drag-over');
+    if (!_dragSrcRow || _dragSrcRow === target) return;
+
+    const tbody = target.parentNode;
+    const rows = [...tbody.children];
+    const srcIdx = rows.indexOf(_dragSrcRow);
+    const tgtIdx = rows.indexOf(target);
+
+    if (srcIdx < tgtIdx) {
+        tbody.insertBefore(_dragSrcRow, target.nextSibling);
+    } else {
+        tbody.insertBefore(_dragSrcRow, target);
+    }
+
+    syncDisplayOrderFromDOM();
+    markDirty();
+}
+
+function onDragEnd() {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    _dragSrcRow = null;
+}
+
+/* Active league card drag */
+let _dragSrcCard = null;
+
+function onCardDragStart(e) {
+    _dragSrcCard = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+}
+
+function onCardDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (this !== _dragSrcCard) this.classList.add('drag-over');
+}
+
+function onCardDrop(e) {
+    e.preventDefault();
+    this.classList.remove('drag-over');
+    if (!_dragSrcCard || _dragSrcCard === this) return;
+
+    const grid = this.parentNode;
+    const cards = [...grid.children];
+    const srcIdx = cards.indexOf(_dragSrcCard);
+    const tgtIdx = cards.indexOf(this);
+
+    if (srcIdx < tgtIdx) {
+        grid.insertBefore(_dragSrcCard, this.nextSibling);
+    } else {
+        grid.insertBefore(_dragSrcCard, this);
+    }
+
+    syncDisplayOrderFromDOM();
+    markDirty();
+}
+
+function onCardDragEnd() {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    _dragSrcCard = null;
+}
+
+/**
+ * Read the current DOM order of league cards + table rows and rebuild _editState.displayOrder.
+ * Titles in DisplayOrder use " - " (dash), folder IDs use " " (space).
+ */
+function syncDisplayOrderFromDOM() {
+    if (!_editState) return;
+
+    // Map folder-id → display title
+    const idToTitle = new Map();
+    for (const t of _landingSettings.displayOrder) {
+        idToTitle.set(t.replace(' - ', ' '), t);
+    }
+
+    const order = [];
+
+    // Active league cards first
+    document.querySelectorAll('.active-leagues-grid .league-card').forEach(card => {
+        const id = card.dataset.leagueId;
+        if (id) order.push(idToTitle.get(id) || id);
+    });
+
+    // Completed leagues table rows
+    document.querySelectorAll('.completed-leagues-table tbody tr').forEach(row => {
+        const id = row.dataset.leagueId;
+        if (id) order.push(idToTitle.get(id) || id);
+    });
+
+    _editState.displayOrder = order;
+}
+
+/* ── Save / Cancel bar ────────────────────────────────── */
+
+function showEditBar() {
+    if (document.querySelector('.edit-bar')) return;
+    const bar = document.createElement('div');
+    bar.className = 'edit-bar';
+    bar.innerHTML = `
+        <span class="edit-bar-label">Edit Mode</span>
+        <button class="edit-bar-cancel">Cancel</button>
+        <button class="edit-bar-save" disabled>Save Changes</button>`;
+
+    bar.querySelector('.edit-bar-cancel').addEventListener('click', exitEditMode);
+    bar.querySelector('.edit-bar-save').addEventListener('click', saveEditChanges);
+    document.body.appendChild(bar);
+}
+
+async function saveEditChanges() {
+    if (!_editState || !_editState.dirty) return;
+
+    // Build updated landing_settings.json
+    const newSettings = {
+        title: _editState.title,
+        subtitle: _editState.subtitle,
+        logoPath: _editState.logoData ? _landingSettings.logoPath : _editState.logoPath,
+        DisplayOrder: _editState.displayOrder
+    };
+
+    addChange({
+        type: 'update',
+        path: 'leagues/landing_settings.json',
+        content: JSON.stringify(newSettings, null, 2),
+        description: 'Update landing page settings'
+    });
+
+    // Also keep leagues_order.json in sync for backwards compatibility
+    addChange({
+        type: 'update',
+        path: 'leagues/leagues_order.json',
+        content: JSON.stringify({ DisplayOrder: _editState.displayOrder }, null, 2),
+        description: 'Sync league order (from landing edit)'
+    });
+
+    // Stage logo if changed
+    if (_editState.logoData) {
+        addChange({
+            type: 'update',
+            path: _landingSettings.logoPath,
+            content: _editState.logoData,
+            binary: true,
+            description: 'Update site logo'
+        });
+    }
+
+    // Update in-memory settings
+    _landingSettings = {
+        title: newSettings.title,
+        subtitle: newSettings.subtitle,
+        logoPath: newSettings.logoPath,
+        displayOrder: newSettings.DisplayOrder
+    };
+
+    // Refresh admin badge if present
+    const badge = document.getElementById('staging-badge');
+    if (badge) {
+        const count = getChangeCount();
+        badge.textContent = count;
+        badge.classList.toggle('empty', count === 0);
+    }
+
+    exitEditMode();
 }
 
 /* ── H4 — Info cards ─────────────────────────────────── */
@@ -627,7 +1048,8 @@ const ACHIEVEMENT_METRICS = [
     { key: 'gold',    label: 'Gold',     fmt: v => v },
     { key: 'silver',  label: 'Silver',   fmt: v => v },
     { key: 'bronze',  label: 'Bronze',   fmt: v => v },
-    { key: 'avgRank', label: 'Avg Rank', fmt: v => formatNumber(v) }
+    { key: 'avgRank', label: 'Avg Rank', fmt: v => formatNumber(v) },
+    { key: 'winRate', label: 'Avg Win Rate', fmt: v => formatPercent(v) }
 ];
 
 function sortPresentTypes(types) {
@@ -703,7 +1125,7 @@ function renderAchievementTables(data) {
         const rowsHtml = rows.map(r => `
             <tr>
                 <td>${r.rank}</td>
-                <td>${playerNameLink(r.name)}</td>
+                <td><img class="flag" src="${flagUrl(getFlagCode(r.name, data.customFlags))}" alt="flag"> ${playerNameLink(r.name)}</td>
                 <td>${m.fmt(r.value)}</td>
             </tr>
         `).join('');
@@ -790,7 +1212,7 @@ function renderPRTables(data) {
         const rowsHtml = rows.map(r => `
             <tr>
                 <td>${r.rank}</td>
-                <td>${playerNameLink(r.name)}</td>
+                <td><img class="flag" src="${flagUrl(getFlagCode(r.name, data.customFlags))}" alt="flag"> ${playerNameLink(r.name)}</td>
                 <td>${formatNumber(r.value)}</td>
             </tr>
         `).join('');

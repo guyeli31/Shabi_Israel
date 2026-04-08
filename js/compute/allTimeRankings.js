@@ -32,6 +32,14 @@ export async function buildAllTimeRankings(leagueType) {
         const hasPR = PR_TYPES.has(leagueType);
         const prWeight = (leagueType === 'regular') ? 5 : 7;
 
+        // Merge custom flags from all leagues of this type
+        const customFlags = {};
+        for (const league of typeLeagues) {
+            if (league.params.CustomFlags) {
+                Object.assign(customFlags, league.params.CustomFlags);
+            }
+        }
+
         // Per-player tally
         // name -> {
         //   gold, silver, bronze, participations, rankSum,
@@ -157,7 +165,8 @@ export async function buildAllTimeRankings(leagueType) {
         return {
             players,
             rankings,
-            totalPlayers: players.length
+            totalPlayers: players.length,
+            customFlags
         };
     })();
 

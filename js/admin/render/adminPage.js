@@ -493,14 +493,15 @@ function formatChangeDesc(change) {
         } else {
             type = 'CSV Import';
         }
-    } else if (path === 'leagues/leagues_order.json') {
-        type = 'League Order';
+    } else if (path === 'leagues/leagues_order.json' || path === 'leagues/landing_settings.json') {
+        type = path.includes('landing') ? 'Landing Settings' : 'League Order';
         league = '';
         const addMatch = detail.match(/Add "(.+)" to/);
         const rmMatch = detail.match(/Remove "(.+)" from/);
         if (addMatch) detail = `Added: ${addMatch[1]}`;
         else if (rmMatch) detail = `Removed: ${rmMatch[1]}`;
-    } else if (path.startsWith('assets/flags/')) {
+        else if (detail.includes('Update landing')) detail = 'Landing page updated';
+    } else if (path.startsWith('assets/flags/') || path.startsWith('assets/logo/')) {
         type = 'Flag Upload';
         league = '';
     } else {

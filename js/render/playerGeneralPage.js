@@ -21,7 +21,7 @@ import {
 import { colorForLevel } from '../compute/colorScale.js';
 import {
     getQueryParam, flagUrl, getFlagCode,
-    formatNumber, dashboardUrl
+    formatNumber, dashboardUrl, playerGeneralUrl
 } from '../utils/helpers.js';
 import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
@@ -252,6 +252,11 @@ async function showAchievementType(body, playerName, type) {
                 <div class="pg-tile-value">${isFinite(m.self.avgRank) ? m.self.avgRank.toFixed(1) : '—'}</div>
                 <div class="pg-tile-sub">${m.self.participations} league${m.self.participations === 1 ? '' : 's'}</div>
             </div>
+            <div class="pg-tile">
+                <div class="pg-tile-title">🏆 Win Rate <span class="pg-tile-rank">(${ordinal(m.winRateRank)} / ${total})</span></div>
+                <div class="pg-tile-value">${(m.self.winRate * 100).toFixed(1)}%</div>
+                <div class="pg-tile-sub">${m.self.totalWins}W / ${m.self.totalGames}G</div>
+            </div>
         </div>
     `;
 }
@@ -297,7 +302,7 @@ function renderLeaguesTable(section, perLeague) {
                 <td>${s.losses || 0}</td>
                 <td title="${primaryLabel}">${primary}</td>
                 <td>${meanPR}</td>
-                <td>${e.playerRank != null ? `${e.playerRank} / ${e.totalPlayers}` : '—'}</td>
+                <td class="${e.playerRank === 1 ? 'rank-cell-gold' : e.playerRank === 2 ? 'rank-cell-silver' : e.playerRank === 3 ? 'rank-cell-bronze' : ''}">${e.playerRank != null ? `${e.playerRank} / ${e.totalPlayers}` : '—'}</td>
             </tr>
         `;
     }
@@ -407,7 +412,7 @@ function renderMatchHistory(section, playerName, perLeague) {
             { key: 'luckSelf', label: 'Luck' },
             { key: 'result', label: 'Result' }
         ];
-        let html = '<table class="pg-matches-table"><thead><tr>';
+        let html = '<div class="pg-matches-scroll"><table class="pg-matches-table"><thead><tr>';
         for (const h of headers) {
             const arrow = sortKey === h.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
             html += `<th data-key="${h.key}">${h.label}${arrow}</th>`;
@@ -429,7 +434,7 @@ function renderMatchHistory(section, playerName, perLeague) {
                     <td>${date}</td>
                     <td><a href="${dashboardUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
                     <td>${escapeHtml(r.leagueType)}</td>
-                    <td>${escapeHtml(r.opponent)}</td>
+                    <td><a href="${playerGeneralUrl(r.opponent)}">${escapeHtml(r.opponent)}</a></td>
                     <td>${r.scoreSelf}–${r.scoreOpp}</td>
                     <td>${pr}</td>
                     <td>${prOpp}</td>
@@ -438,7 +443,7 @@ function renderMatchHistory(section, playerName, perLeague) {
                 </tr>
             `;
         }
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         host.innerHTML = html;
 
         host.querySelectorAll('th[data-key]').forEach(th => {

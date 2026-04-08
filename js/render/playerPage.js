@@ -65,6 +65,7 @@ export async function renderPlayerPage() {
  */
 function getPlayerColumns(config) {
     const cols = [
+        { key: 'date', label: 'Date' },
         { key: 'opponent', label: 'Opponent' },
         { key: 'scoreSelf', label: 'Score' },
         { key: 'scoreOpp', label: 'Opp Score' },
@@ -123,13 +124,16 @@ function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns)
 
         if (!m.played) {
             html += `
-                    <tr class="unplayed">
-                        <td class="player-cell">
+                    <tr class="unplayed">`;
+            // Empty date cell if date column is first
+            if (columns[0].key === 'date') html += `<td></td>`;
+            html += `<td class="player-cell">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
                             <a href="${oppUrl}" title="Open ${m.opponent}'s card for this league">${m.opponent}</a>
                         </td>`;
-            // Empty cells for all columns except opponent and last (result/points)
-            for (let i = 1; i < columns.length - 1; i++) {
+            // Empty cells for remaining columns except last (result/points)
+            const skip = columns[0].key === 'date' ? 2 : 1;
+            for (let i = skip; i < columns.length - 1; i++) {
                 html += `<td></td>`;
             }
             html += `<td>Not played</td>
@@ -166,6 +170,11 @@ function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns)
                     <tr>`;
         for (const col of columns) {
             switch (col.key) {
+                case 'date': {
+                    const dateStr = m.updatedAt ? new Date(m.updatedAt).toLocaleDateString('en-GB') : '—';
+                    html += `<td>${dateStr}</td>`;
+                    break;
+                }
                 case 'opponent':
                     html += `<td class="player-cell">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
@@ -234,6 +243,9 @@ function renderPlayerAverages(playerMatches, leagueConfig, columns) {
     let html = `<tr class="avg-row">`;
     for (const col of columns) {
         switch (col.key) {
+            case 'date':
+                html += `<td></td>`;
+                break;
             case 'opponent':
                 html += `<td><b>AVERAGES</b></td>`;
                 break;
@@ -310,6 +322,12 @@ function sortAndRerender(playerMatches, params, leagueId, col, dir, leagueConfig
             const va = a.luckSelf - a.luckOpp;
             const vb = b.luckSelf - b.luckOpp;
             return dir === 'asc' ? va - vb : vb - va;
+        }
+
+        if (key === 'date') {
+            const at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+            const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+            return dir === 'asc' ? at - bt : bt - at;
         }
 
         if (key === 'opponent') {

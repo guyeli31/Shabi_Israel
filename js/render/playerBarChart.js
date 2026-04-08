@@ -33,7 +33,7 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
     const W = canvas.width;
     const H = canvas.height;
 
-    const padL = 50, padR = 20, padT = 20, padB = 40;
+    const padL = 55, padR = 20, padT = 20, padB = 50;
     const plotW = W - padL - padR;
     const plotH = H - padT - padB;
 
@@ -64,12 +64,16 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
     function drawAll(hoverIndex = -1, hoverMA = -1) {
         ctx.clearRect(0, 0, W, H);
 
-        // Grid (minor every 1, major every 5)
+        // Y-axis adaptive grid spacing
+        const yIntervals = [1, 2, 5, 10, 20, 50, 100];
+        let yStep = 1;
+        for (const iv of yIntervals) {
+            if (Math.ceil((maxV - minV) / iv) <= 10) { yStep = iv; break; }
+        }
         ctx.lineWidth = 1;
-        for (let g = Math.ceil(minV); g <= Math.floor(maxV); g++) {
+        for (let g = Math.ceil(minV / yStep) * yStep; g <= maxV; g += yStep) {
             const y = yPx(g);
-            const isMajor = g % 5 === 0;
-            ctx.strokeStyle = isMajor ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.06)';
+            ctx.strokeStyle = 'rgba(0,0,0,0.18)';
             ctx.beginPath();
             ctx.moveTo(padL, y);
             ctx.lineTo(padL + plotW, y);
@@ -84,13 +88,30 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
         ctx.lineTo(padL + plotW, padT + plotH);
         ctx.stroke();
 
-        // Y labels
+        // Y-axis tick labels (same adaptive spacing as grid)
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
         ctx.font = '11px sans-serif';
         ctx.textAlign = 'right';
-        ctx.fillText(maxV.toFixed(1), padL - 6, padT + 10);
-        ctx.fillText(minV.toFixed(1), padL - 6, padT + plotH);
-        if (minV < 0 && maxV > 0) ctx.fillText('0', padL - 6, zeroY + 4);
+        for (let g = Math.ceil(minV / yStep) * yStep; g <= maxV; g += yStep) {
+            const y = yPx(g);
+            ctx.fillText(g.toString(), padL - 6, y + 4);
+            // Small tick mark on axis
+            ctx.beginPath();
+            ctx.moveTo(padL - 3, y);
+            ctx.lineTo(padL, y);
+            ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+            ctx.stroke();
+        }
+
+        // Y-axis legend (rotated)
+        ctx.save();
+        ctx.translate(14, padT + plotH / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillText(metric.toUpperCase(), 0, 0);
+        ctx.restore();
 
         // Bars
         const step = plotW / N;
@@ -124,10 +145,8 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
             if (m) playedValues.push(metric === 'luck' ? (m.luckSelf ?? 0) : (m.prSelf ?? 0));
             else break;
         }
-        const window = 5;
         const ma = playedValues.map((_, i) => {
-            const start = Math.max(0, i - window + 1);
-            const slice = playedValues.slice(start, i + 1);
+            const slice = playedValues.slice(0, i + 1);
             return slice.reduce((s, v) => s + v, 0) / slice.length;
         });
 
@@ -154,10 +173,32 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
             }
         }
 
-        // X label
+        // X-axis tick marks with adaptive spacing
+        const xIntervals = [1, 2, 5, 10, 20, 50, 100];
+        let xStep = 1;
+        for (const iv of xIntervals) {
+            if (Math.ceil(N / iv) <= 15) { xStep = iv; break; }
+        }
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.font = '10px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(`Match # (1..${N}) • ${metric.toUpperCase()}`, padL + plotW / 2, H - 10);
+        for (let i = xStep; i <= N; i += xStep) {
+            const x = padL + step * (i - 1) + step / 2;
+            // Tick line
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+            ctx.moveTo(x, padT + plotH);
+            ctx.lineTo(x, padT + plotH + 5);
+            ctx.stroke();
+            // Label
+            ctx.fillText(i.toString(), x, padT + plotH + 16);
+        }
+
+        // X-axis legend
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.textAlign = 'center';
+        ctx.fillText('MATCH #', padL + plotW / 2, H - 4);
     }
 
     // Pre-compute MA for hover
@@ -167,10 +208,8 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
             if (m) playedVals.push(metric === 'luck' ? (m.luckSelf ?? 0) : (m.prSelf ?? 0));
             else break;
         }
-        const w = 5;
         return playedVals.map((_, i) => {
-            const start = Math.max(0, i - w + 1);
-            const slice = playedVals.slice(start, i + 1);
+            const slice = playedVals.slice(0, i + 1);
             return slice.reduce((s, v) => s + v, 0) / slice.length;
         });
     }
