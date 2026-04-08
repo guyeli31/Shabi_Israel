@@ -110,34 +110,265 @@ function renderLeagueList(container, leagues, displayOrder) {
 
 // ---- Add League ----
 
-function renderAddLeagueForm(container, displayOrder) {
+async function renderAddLeagueForm(container, displayOrder) {
+    // Local state for the new league
+    const state = {
+        players: [], // [{ name, flag, retired }]
+        customFlags: {},
+        csvText: null // if set, overrides round-robin generation
+    };
+
+    // Load existing leagues for the import dropdown
+    let existingLeagues = [];
+    try {
+        existingLeagues = displayOrder.map(t => ({ title: t, id: t.replace(' - ', ' ') }));
+    } catch { /* noop */ }
+
+    const importOptions = existingLeagues.map(lg =>
+        `<option value="${esc(lg.id)}">${esc(lg.title)}</option>`
+    ).join('');
+
     container.innerHTML = `
         <h1>Add New League</h1>
-        <div class="admin-card">
-            <div id="add-msg"></div>
-            <div class="form-group">
-                <label for="new-league-name">League Name</label>
-                <input type="text" id="new-league-name" placeholder="e.g. Shabi Israel - May 2026">
+        <button class="btn btn-secondary" id="cancel-new-league" style="margin-bottom:var(--space-lg)">&larr; Back to Leagues</button>
+        <div id="add-msg"></div>
+
+        <div class="add-league-grid">
+            <div class="admin-card">
+                <h2>League Settings</h2>
+                <div class="form-group">
+                    <label for="new-league-name">League Name</label>
+                    <input type="text" id="new-league-name" placeholder="e.g. Shabi Israel - May 2026">
+                </div>
+                <div class="form-group">
+                    <label for="new-league-type">League Type</label>
+                    <select id="new-league-type">
+                        <option value="doubling">Doubling (Win Rate)</option>
+                        <option value="regular">Regular (Wins only)</option>
+                        <option value="ubc">UBC (PR Wins + Points)</option>
+                    </select>
+                </div>
+                <div class="add-league-row">
+                    <div class="form-group">
+                        <label for="new-issue-date">Issue Date</label>
+                        <input type="date" id="new-issue-date">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-entry-fee">Entry Fee</label>
+                        <input type="number" id="new-entry-fee" value="0" min="0">
+                    </div>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="new-league-type">League Type</label>
-                <select id="new-league-type">
-                    <option value="doubling">Doubling (Win Rate)</option>
-                    <option value="regular">Regular (Wins only)</option>
-                    <option value="ubc">UBC (PR Wins + Points)</option>
-                </select>
+
+            <div class="admin-card">
+                <h2>Medals & Prizes</h2>
+                <div class="add-league-row">
+                    <div class="form-group">
+                        <label for="new-gold-count">Gold Count</label>
+                        <input type="number" id="new-gold-count" value="1" min="0" max="20">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-prize-gold">Prize Gold</label>
+                        <input type="number" id="new-prize-gold" value="0" min="0">
+                    </div>
+                </div>
+                <div class="add-league-row">
+                    <div class="form-group">
+                        <label for="new-silver-count">Silver Count</label>
+                        <input type="number" id="new-silver-count" value="1" min="0" max="20">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-prize-silver">Prize Silver</label>
+                        <input type="number" id="new-prize-silver" value="0" min="0">
+                    </div>
+                </div>
+                <div class="add-league-row">
+                    <div class="form-group">
+                        <label for="new-bronze-count">Bronze Count</label>
+                        <input type="number" id="new-bronze-count" value="4" min="0" max="20">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-prize-bronze">Prize Bronze</label>
+                        <input type="number" id="new-prize-bronze" value="0" min="0">
+                    </div>
+                </div>
             </div>
-            <div style="display:flex;gap:var(--space-sm)">
-                <button class="btn btn-success" id="save-new-league">Create League</button>
-                <button class="btn btn-secondary" id="cancel-new-league">Cancel</button>
+
+            <div class="admin-card full">
+                <h2>Players & Data</h2>
+                <div class="add-league-row" style="margin-bottom:var(--space-md)">
+                    <div class="form-group">
+                        <label for="import-source">Import from Existing League</label>
+                        <div style="display:flex;gap:var(--space-sm)">
+                            <select id="import-source">
+                                <option value="">— Select league —</option>
+                                ${importOptions}
+                            </select>
+                            <button class="btn btn-secondary btn-sm" id="import-source-btn">Import Players</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="upload-csv">Upload CSV / Excel</label>
+                        <div style="display:flex;gap:var(--space-sm);align-items:center">
+                            <input type="file" id="upload-csv" accept=".csv,.xlsx">
+                            <button class="btn btn-secondary btn-sm" id="upload-csv-btn">Load File</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="add-league-row" style="margin-bottom:var(--space-md);align-items:flex-end">
+                    <div class="form-group" style="flex:2">
+                        <label for="manual-player-name">Add Player Manually</label>
+                        <input type="text" id="manual-player-name" placeholder="Player name">
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label for="manual-player-flag">Flag</label>
+                        <select id="manual-player-flag">
+                            ${KNOWN_FLAGS.map(f => `<option value="${f}" ${f === 'IL' ? 'selected' : ''}>${f}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:0">
+                        <button class="btn btn-primary btn-sm" id="add-manual-player-btn">Add</button>
+                    </div>
+                </div>
+                <div id="csv-source-msg" style="font-size:0.85rem;color:var(--color-text-muted);margin-bottom:var(--space-sm)"></div>
+                <table class="admin-table" id="new-players-table">
+                    <thead><tr><th>Name</th><th>Flag</th><th>Retired</th><th></th></tr></thead>
+                    <tbody></tbody>
+                </table>
             </div>
+        </div>
+
+        <div style="display:flex;gap:var(--space-sm)">
+            <button class="btn btn-success" id="save-new-league">Create League</button>
+            <button class="btn btn-secondary" id="cancel-new-league-2">Cancel</button>
         </div>`;
 
-    document.getElementById('cancel-new-league').addEventListener('click', () => {
-        renderLeagueAdmin(container, refreshBadgeFn);
+    function rerenderPlayers() {
+        const tbody = container.querySelector('#new-players-table tbody');
+        if (state.players.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="color:var(--color-text-muted);text-align:center">No players yet</td></tr>';
+            return;
+        }
+        tbody.innerHTML = state.players.map((pl, i) => `
+            <tr>
+                <td><input type="text" data-pi="${i}" data-field="name" value="${esc(pl.name)}" style="width:160px;padding:2px 6px;border:1px solid var(--color-border);border-radius:4px"></td>
+                <td>
+                    <select data-pi="${i}" data-field="flag" style="padding:2px 6px;border:1px solid var(--color-border);border-radius:4px">
+                        ${KNOWN_FLAGS.map(f => `<option value="${f}" ${f === pl.flag ? 'selected' : ''}>${f}</option>`).join('')}
+                    </select>
+                </td>
+                <td>
+                    <label class="toggle-switch">
+                        <input type="checkbox" data-pi="${i}" data-field="retired" ${pl.retired ? 'checked' : ''}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </td>
+                <td><button class="btn btn-danger btn-sm" data-remove-pi="${i}">Remove</button></td>
+            </tr>`).join('');
+
+        tbody.querySelectorAll('input[data-field],select[data-field]').forEach(el => {
+            el.addEventListener('change', () => {
+                const i = parseInt(el.dataset.pi);
+                const f = el.dataset.field;
+                state.players[i][f] = f === 'retired' ? el.checked : el.value;
+            });
+        });
+        tbody.querySelectorAll('[data-remove-pi]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                state.players.splice(parseInt(btn.dataset.removePi), 1);
+                rerenderPlayers();
+            });
+        });
+    }
+    rerenderPlayers();
+
+    function setCsvSourceMsg(msg) {
+        document.getElementById('csv-source-msg').textContent = msg || '';
+    }
+
+    // Cancel
+    const cancel = () => renderLeagueAdmin(container, refreshBadgeFn);
+    document.getElementById('cancel-new-league').addEventListener('click', cancel);
+    document.getElementById('cancel-new-league-2').addEventListener('click', cancel);
+
+    // Manual add
+    document.getElementById('add-manual-player-btn').addEventListener('click', () => {
+        const name = document.getElementById('manual-player-name').value.trim();
+        const flag = document.getElementById('manual-player-flag').value;
+        if (!name) return;
+        if (state.players.some(p => p.name === name)) {
+            showMsg('add-msg', `Player "${name}" already in list.`, 'error');
+            return;
+        }
+        state.players.push({ name, flag, retired: false });
+        document.getElementById('manual-player-name').value = '';
+        rerenderPlayers();
     });
 
-    document.getElementById('save-new-league').addEventListener('click', () => {
+    // Import from existing league
+    document.getElementById('import-source-btn').addEventListener('click', async () => {
+        const sourceId = document.getElementById('import-source').value;
+        if (!sourceId) {
+            showMsg('add-msg', 'Select a league to import from.', 'error');
+            return;
+        }
+        try {
+            const [srcParams, srcData] = await Promise.all([
+                loadLeagueParams(sourceId),
+                loadLeagueMatches(sourceId)
+            ]);
+            const flags = srcParams.CustomFlags || {};
+            const retired = srcParams.RetiredPlayers || [];
+            const playerNames = [...srcData.allPlayers].sort();
+            state.players = playerNames.map(n => ({
+                name: n,
+                flag: flags[n] || 'IL',
+                retired: retired.includes(n)
+            }));
+            rerenderPlayers();
+            setCsvSourceMsg(`Imported ${playerNames.length} players from "${sourceId}".`);
+            showMsg('add-msg', `Imported ${playerNames.length} players.`, 'success');
+        } catch (err) {
+            showMsg('add-msg', `Import failed: ${err.message}`, 'error');
+        }
+    });
+
+    // Upload CSV / Excel
+    document.getElementById('upload-csv-btn').addEventListener('click', async () => {
+        const fileInput = document.getElementById('upload-csv');
+        if (!fileInput.files || fileInput.files.length === 0) {
+            showMsg('add-msg', 'Select a CSV or Excel file first.', 'error');
+            return;
+        }
+        const file = fileInput.files[0];
+        try {
+            let csvText;
+            if (file.name.toLowerCase().endsWith('.csv')) {
+                csvText = await file.text();
+            } else if (file.name.toLowerCase().endsWith('.xlsx')) {
+                if (typeof XLSX === 'undefined') throw new Error('XLSX library not loaded.');
+                const buffer = await file.arrayBuffer();
+                const wb = XLSX.read(buffer, { type: 'array' });
+                csvText = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
+            } else {
+                showMsg('add-msg', 'Unsupported file. Use .csv or .xlsx', 'error');
+                return;
+            }
+
+            state.csvText = csvText;
+            const playerSet = getAllPlayersFromCSV(csvText);
+            const names = [...playerSet].sort();
+            state.players = names.map(n => ({ name: n, flag: 'IL', retired: false }));
+            rerenderPlayers();
+            setCsvSourceMsg(`Loaded CSV with ${names.length} players. The uploaded file will be used as leaguedata.csv.`);
+            showMsg('add-msg', `CSV loaded with ${names.length} players.`, 'success');
+        } catch (err) {
+            showMsg('add-msg', `Load failed: ${err.message}`, 'error');
+        }
+    });
+
+    // Save
+    document.getElementById('save-new-league').addEventListener('click', async () => {
         const name = document.getElementById('new-league-name').value.trim();
         const type = document.getElementById('new-league-type').value;
 
@@ -146,26 +377,71 @@ function renderAddLeagueForm(container, displayOrder) {
             return;
         }
 
-        stageAddLeague(name, type, displayOrder);
+        const options = {
+            issueDate: document.getElementById('new-issue-date').value || null,
+            entryFee: parseInt(document.getElementById('new-entry-fee').value) || 0,
+            goldCount: parseInt(document.getElementById('new-gold-count').value) || 1,
+            silverCount: parseInt(document.getElementById('new-silver-count').value) || 1,
+            bronzeCount: parseInt(document.getElementById('new-bronze-count').value) || 4,
+            prizes: {
+                Gold: parseInt(document.getElementById('new-prize-gold').value) || 0,
+                Silver: parseInt(document.getElementById('new-prize-silver').value) || 0,
+                Bronze: parseInt(document.getElementById('new-prize-bronze').value) || 0
+            },
+            players: state.players,
+            csvText: state.csvText
+        };
+
+        await stageAddLeague(name, type, displayOrder, options);
         showMsg('add-msg', `League "${name}" staged. Go to Pending Changes to publish.`, 'success');
         setTimeout(() => renderLeagueAdmin(container, refreshBadgeFn), 1200);
     });
 }
 
-async function stageAddLeague(name, type, displayOrder) {
+/**
+ * Generate a round-robin CSV (header + empty match rows) from a player list.
+ */
+function generateRoundRobinCSV(players) {
+    const header = 'Player A,PR A,Luck A,Score A,Player B,PR B,Luck B,Score B\n';
+    const rows = [];
+    for (let i = 0; i < players.length; i++) {
+        for (let j = i + 1; j < players.length; j++) {
+            rows.push(`${players[i]},,,,${players[j]},,,,`);
+        }
+    }
+    return header + rows.join('\n') + (rows.length > 0 ? '\n' : '');
+}
+
+async function stageAddLeague(name, type, displayOrder, options = {}) {
     // Folder name: title without dash
     const folderName = name.replace(' - ', ' ');
     const encoded = encodeURIComponent(folderName);
+
+    const players = options.players || [];
+    const customFlags = {};
+    const retiredPlayers = [];
+    for (const pl of players) {
+        if (pl.flag && pl.flag !== 'IL') customFlags[pl.name] = pl.flag;
+        if (pl.retired) retiredPlayers.push(pl.name);
+    }
 
     // league_params.json
     const params = {
         LeagueTitle: name,
         LeagueType: type,
-        BronzeCount: 4,
+        GoldCount: options.goldCount ?? 1,
+        SilverCount: options.silverCount ?? 1,
+        BronzeCount: options.bronzeCount ?? 4,
         Running: true,
         StartDate: new Date().toISOString(),
-        CustomFlags: {}
+        CustomFlags: customFlags
     };
+    if (options.issueDate) params.IssueDate = options.issueDate;
+    if (options.entryFee) params.EntryFee = options.entryFee;
+    if (options.prizes && (options.prizes.Gold || options.prizes.Silver || options.prizes.Bronze)) {
+        params.Prizes = options.prizes;
+    }
+    if (retiredPlayers.length > 0) params.RetiredPlayers = retiredPlayers;
 
     addChange({
         type: 'create',
@@ -174,12 +450,19 @@ async function stageAddLeague(name, type, displayOrder) {
         description: `Create league: ${name}`
     });
 
-    // Empty CSV with header
-    const csvHeader = 'Player A,PR A,Luck A,Score A,Player B,PR B,Luck B,Score B\n';
+    // CSV: uploaded text wins; otherwise round-robin from players; otherwise header only
+    let csvContent;
+    if (options.csvText) {
+        csvContent = options.csvText;
+    } else if (players.length > 1) {
+        csvContent = generateRoundRobinCSV(players.map(p => p.name));
+    } else {
+        csvContent = 'Player A,PR A,Luck A,Score A,Player B,PR B,Luck B,Score B\n';
+    }
     addChange({
         type: 'create',
         path: `leagues/${encoded}/leaguedata.csv`,
-        content: csvHeader,
+        content: csvContent,
         description: `Create CSV for: ${name}`
     });
 
@@ -296,6 +579,9 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     const bronzeCount = p.BronzeCount || 4;
     const customFlags = p.CustomFlags || {};
     const retiredPlayers = p.RetiredPlayers || [];
+    const issueDate = p.IssueDate ? String(p.IssueDate).slice(0, 10) : '';
+    const entryFee = p.EntryFee ?? 0;
+    const prizes = p.Prizes || { Gold: 0, Silver: 0, Bronze: 0 };
 
     // Player rows
     let playerRows = '';
@@ -381,6 +667,30 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                 <div class="form-group" style="flex:1;min-width:80px">
                     <label for="edit-bronze">Bronze Count</label>
                     <input type="number" id="edit-bronze" value="${bronzeCount}" min="0" max="20">
+                </div>
+            </div>
+            <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
+                <div class="form-group" style="flex:1;min-width:140px">
+                    <label for="edit-issue-date">Issue Date</label>
+                    <input type="date" id="edit-issue-date" value="${issueDate}">
+                </div>
+                <div class="form-group" style="flex:1;min-width:120px">
+                    <label for="edit-entry-fee">Entry Fee</label>
+                    <input type="number" id="edit-entry-fee" value="${entryFee}" min="0" step="1">
+                </div>
+            </div>
+            <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
+                <div class="form-group" style="flex:1;min-width:90px">
+                    <label for="edit-prize-gold">Prize Gold</label>
+                    <input type="number" id="edit-prize-gold" value="${prizes.Gold || 0}" min="0" step="1">
+                </div>
+                <div class="form-group" style="flex:1;min-width:90px">
+                    <label for="edit-prize-silver">Prize Silver</label>
+                    <input type="number" id="edit-prize-silver" value="${prizes.Silver || 0}" min="0" step="1">
+                </div>
+                <div class="form-group" style="flex:1;min-width:90px">
+                    <label for="edit-prize-bronze">Prize Bronze</label>
+                    <input type="number" id="edit-prize-bronze" value="${prizes.Bronze || 0}" min="0" step="1">
                 </div>
             </div>
             <button class="btn btn-primary" id="save-league-settings">Save Settings</button>
@@ -484,6 +794,15 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         newParams.GoldCount = parseInt(document.getElementById('edit-gold').value) || 1;
         newParams.SilverCount = parseInt(document.getElementById('edit-silver').value) || 1;
         newParams.BronzeCount = parseInt(document.getElementById('edit-bronze').value) || 4;
+        const issueDateVal = document.getElementById('edit-issue-date').value;
+        if (issueDateVal) newParams.IssueDate = issueDateVal;
+        else delete newParams.IssueDate;
+        newParams.EntryFee = parseInt(document.getElementById('edit-entry-fee').value) || 0;
+        newParams.Prizes = {
+            Gold: parseInt(document.getElementById('edit-prize-gold').value) || 0,
+            Silver: parseInt(document.getElementById('edit-prize-silver').value) || 0,
+            Bronze: parseInt(document.getElementById('edit-prize-bronze').value) || 0
+        };
 
         // Remove Hidden if false (keep JSON clean)
         if (!newParams.Hidden) delete newParams.Hidden;

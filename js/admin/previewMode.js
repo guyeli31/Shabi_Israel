@@ -81,6 +81,41 @@ export function installPreviewInterceptor() {
 
     // Rewrite links to preserve ?preview=true
     preservePreviewParam();
+
+    // Build data: URLs for staged binary images so <img src> picks them up
+    // (img loads bypass window.fetch and need DOM-level rewriting).
+    const imgDataUrls = new Map();
+    for (const [path, entry] of pathMap.entries()) {
+        if (!entry.binary) continue;
+        const ct = guessContentType(path);
+        if (!ct.startsWith('image/')) continue;
+        imgDataUrls.set(path, `data:${ct};base64,${entry.content}`);
+    }
+    if (imgDataUrls.size > 0) interceptImages(imgDataUrls);
+}
+
+function interceptImages(imgDataUrls) {
+    const rewrite = (img) => {
+        const src = img.getAttribute('src');
+        if (!src || src.startsWith('data:')) return;
+        const path = normalizePath(urlToRelativePath(new URL(src, window.location.href).href));
+        if (imgDataUrls.has(path)) {
+            const dataUrl = imgDataUrls.get(path);
+            if (img.src !== dataUrl) img.src = dataUrl;
+        }
+    };
+    document.querySelectorAll('img').forEach(rewrite);
+    const obs = new MutationObserver(muts => {
+        for (const m of muts) {
+            if (m.type === 'attributes' && m.target.tagName === 'IMG') rewrite(m.target);
+            for (const n of m.addedNodes) {
+                if (n.nodeType !== 1) continue;
+                if (n.tagName === 'IMG') rewrite(n);
+                else n.querySelectorAll && n.querySelectorAll('img').forEach(rewrite);
+            }
+        }
+    });
+    obs.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
 }
 
 // ---- Internal helpers ----

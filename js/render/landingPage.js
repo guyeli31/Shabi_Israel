@@ -16,6 +16,7 @@ import { playerNameLink, attachPlayerNameInteractions } from './playerNameIntera
 import { isLoggedIn } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
 import { addChange, getChangeCount } from '../admin/stagingStore.js';
+import { mountAdminSidebar, unmountAdminSidebar, refreshBadge as refreshSidebarBadge } from '../admin/render/adminSidebar.js';
 
 /* ── Helpers ─────────────────────────────────────────── */
 
@@ -111,9 +112,9 @@ export async function renderLandingPage() {
         renderAchievementsSection(container, presentTypes);
         renderPRLeadersSection(container, presentTypes);
 
-        // Show edit-mode toggle for logged-in admins
-        if (adminLoggedIn) {
-            renderEditModeToggle(_landingSettings);
+        // Auto-enter edit mode if admin and ?edit=1 in URL
+        if (adminLoggedIn && new URLSearchParams(location.search).get('edit') === '1') {
+            enterEditMode(_landingSettings);
         }
     } catch (err) {
         container.innerHTML = `<div class="error">Failed to load leagues: ${err.message}</div>`;
@@ -136,24 +137,6 @@ function populateHeader(settings) {
 let _editModeActive = false;
 let _editState = null; // tracks dirty values during edit
 
-function renderEditModeToggle(settings) {
-    const header = document.getElementById('page-header');
-    if (!header || header.querySelector('.edit-mode-toggle')) return;
-
-    const btn = document.createElement('button');
-    btn.className = 'edit-mode-toggle';
-    btn.title = 'Edit Mode';
-    btn.innerHTML = '&#9998;'; // pencil
-    btn.addEventListener('click', () => {
-        if (_editModeActive) {
-            exitEditMode();
-        } else {
-            enterEditMode(settings);
-        }
-    });
-    header.appendChild(btn);
-}
-
 function enterEditMode(settings) {
     _editModeActive = true;
     _editState = {
@@ -167,7 +150,9 @@ function enterEditMode(settings) {
     };
 
     document.querySelector('.page-container').classList.add('edit-mode');
-    document.querySelector('.edit-mode-toggle').classList.add('active');
+
+    // Mount admin sidebar so navigation + Pending badge stay visible while editing
+    mountAdminSidebar({ activeView: 'dashboard' });
 
     // Make title/subtitle editable
     const titleEl = document.getElementById('site-title');
@@ -197,13 +182,24 @@ function enterEditMode(settings) {
 
     // Show save/cancel bar
     showEditBar();
+
+    // Block in-page navigation while editing — only embedded admin sidebar
+    // links (which live outside .page-container) should remain functional.
+    const pc = document.querySelector('.page-container');
+    const guard = (e) => {
+        const a = e.target.closest('a');
+        if (!a) return;
+        if (!pc.contains(a)) return;
+        e.preventDefault();
+        e.stopPropagation();
+    };
+    pc.addEventListener('click', guard, true);
+    _editState._clickGuard = guard;
 }
 
 function exitEditMode() {
     _editModeActive = false;
     document.querySelector('.page-container').classList.remove('edit-mode');
-    const toggleBtn = document.querySelector('.edit-mode-toggle');
-    if (toggleBtn) toggleBtn.classList.remove('active');
 
     // Restore header
     const titleEl = document.getElementById('site-title');
@@ -232,6 +228,13 @@ function exitEditMode() {
     // Remove save/cancel bar
     const bar = document.querySelector('.edit-bar');
     if (bar) bar.remove();
+
+    unmountAdminSidebar();
+
+    if (_editState && _editState._clickGuard) {
+        const pc = document.querySelector('.page-container');
+        if (pc) pc.removeEventListener('click', _editState._clickGuard, true);
+    }
 
     _editState = null;
 }
@@ -474,6 +477,18 @@ function showEditBar() {
 async function saveEditChanges() {
     if (!_editState || !_editState.dirty) return;
 
+    // Compare against original to detect actual changes
+    const orig = _landingSettings;
+    const titleChanged = _editState.title !== orig.title;
+    const subtitleChanged = _editState.subtitle !== orig.subtitle;
+    const logoChanged = !!_editState.logoData;
+    const orderChanged = JSON.stringify(_editState.displayOrder) !== JSON.stringify(orig.displayOrder);
+
+    if (!titleChanged && !subtitleChanged && !logoChanged && !orderChanged) {
+        exitEditMode();
+        return;
+    }
+
     // Build updated landing_settings.json
     const newSettings = {
         title: _editState.title,
@@ -482,11 +497,22 @@ async function saveEditChanges() {
         DisplayOrder: _editState.displayOrder
     };
 
+    // Build single grouped description summarizing what changed
+    const parts = [];
+    if (titleChanged) parts.push('title');
+    if (subtitleChanged) parts.push('subtitle');
+    if (logoChanged) parts.push('logo');
+    if (orderChanged) parts.push('order');
+    const groupDescription = `Dashboard updated (${parts.join(', ')})`;
+    const groupId = 'dashboard-edit-' + Date.now();
+
     addChange({
         type: 'update',
         path: 'leagues/landing_settings.json',
         content: JSON.stringify(newSettings, null, 2),
-        description: 'Update landing page settings'
+        description: groupDescription,
+        group: groupId,
+        groupDescription
     });
 
     // Also keep leagues_order.json in sync for backwards compatibility
@@ -494,7 +520,9 @@ async function saveEditChanges() {
         type: 'update',
         path: 'leagues/leagues_order.json',
         content: JSON.stringify({ DisplayOrder: _editState.displayOrder }, null, 2),
-        description: 'Sync league order (from landing edit)'
+        description: groupDescription,
+        group: groupId,
+        groupDescription
     });
 
     // Stage logo if changed
@@ -504,7 +532,9 @@ async function saveEditChanges() {
             path: _landingSettings.logoPath,
             content: _editState.logoData,
             binary: true,
-            description: 'Update site logo'
+            description: groupDescription,
+            group: groupId,
+            groupDescription
         });
     }
 
@@ -516,15 +546,28 @@ async function saveEditChanges() {
         displayOrder: newSettings.DisplayOrder
     };
 
-    // Refresh admin badge if present
-    const badge = document.getElementById('staging-badge');
-    if (badge) {
-        const count = getChangeCount();
-        badge.textContent = count;
-        badge.classList.toggle('empty', count === 0);
-    }
+    // Refresh admin sidebar badge
+    refreshSidebarBadge();
 
-    exitEditMode();
+    // Stay in edit mode after save — reset dirty state and resync editState to saved values
+    _editState.title = _landingSettings.title;
+    _editState.subtitle = _landingSettings.subtitle;
+    _editState.logoPath = _landingSettings.logoPath;
+    _editState.displayOrder = [..._landingSettings.displayOrder];
+    _editState.logoData = null;
+    _editState.logoFileName = null;
+    _editState.dirty = false;
+
+    const saveBtn = document.querySelector('.edit-bar-save');
+    if (saveBtn) saveBtn.disabled = true;
+
+    // Brief "Saved ✓" confirmation in the edit bar
+    const label = document.querySelector('.edit-bar-label');
+    if (label) {
+        const orig = label.textContent;
+        label.textContent = 'Saved ✓';
+        setTimeout(() => { label.textContent = orig; }, 1500);
+    }
 }
 
 /* ── H4 — Info cards ─────────────────────────────────── */

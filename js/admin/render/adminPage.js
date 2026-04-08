@@ -20,7 +20,9 @@ export function initAdminPage(viewCallback) {
         renderLoginForm();
     } else {
         renderAdminShell();
-        navigateTo('leagues');
+        const hash = (location.hash || '').replace('#', '');
+        const initial = (hash === 'pending' || hash === 'settings' || hash === 'leagues' || hash === 'players') ? hash : 'leagues';
+        navigateTo(initial);
     }
 }
 
@@ -117,14 +119,19 @@ function renderAdminShell() {
             <aside class="admin-sidebar">
                 <h2>Shabi Admin</h2>
                 <nav>
+                    <a href="index.html?edit=1" class="admin-nav-item">Main Dashboard</a>
                     <button class="admin-nav-item" data-view="leagues">Leagues</button>
+                    <button class="admin-nav-item" data-view="players">Players</button>
                     <button class="admin-nav-item" data-view="pending">
                         Pending Changes <span id="staging-badge" class="staging-badge ${count === 0 ? 'empty' : ''}">${count}</span>
                     </button>
                     <button class="admin-nav-item" data-view="settings">Settings</button>
                 </nav>
                 <div class="admin-sidebar-footer">
-                    <a href="index.html" class="admin-nav-item admin-view-site">&#x2190; View Site</a>
+                    <a href="index.html" class="admin-nav-item admin-home-link" title="View Site">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12L12 3l9 9"/><path d="M5 10v10h14V10"/></svg>
+                        <span>Home</span>
+                    </a>
                     <button class="admin-nav-item" id="logout-btn">Logout</button>
                 </div>
             </aside>

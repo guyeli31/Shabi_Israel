@@ -17,7 +17,8 @@
 | 5.5 | Achievement tables: flags + Avg Win Rate | ✅ Done |
 | 6 | Charts | ✅ Done |
 | 7 | Admin edit-mode for landing page | ✅ Done |
-| 7.5 | Admin panel extensions | ⏳ Next |
+| 7.5 | Admin panel extensions | ✅ Done |
+| 7.6 | Edit-mode link guard, Players admin, expandable rankings | ✅ Done |
 | 8 | Themes redesign session | ⬜ Pending |
 
 Last updated: 2026-04-08
@@ -184,13 +185,15 @@ Dedicated working session to redesign themes from scratch. Bundle NEW-3 into thi
 Extends the admin panel (`admin.html`) with 4 features. Chunk 7 (inline edit on `index.html`) is a prerequisite.
 
 ### Feature A — "Main Dashboard" view in admin sidebar
-- New nav item above "Leagues" in sidebar (`adminPage.js` line ~119)
-- New module `js/admin/dashboardManager.js` renders a dashboard management view:
-  - **Displayed Leagues**: drag-and-drop table (reorder), "Hide" button per row
-  - **Not Displayed Leagues**: list with "Add to Dashboard" button
-  - Save bar stages `landing_settings.json` + `leagues_order.json` (same pattern as `landingPage.js` edit mode)
-- Lazy-loaded in `admin.html` alongside existing `leagues` route
-- CSS additions in `admin.css`: drag handle, drag feedback, save bar
+- New nav item above "Leagues" in sidebar — implemented as `<a href="index.html?edit=1">` so it reuses the existing landing-page edit mode (single source of truth for the dashboard editor)
+- The pencil-button toggle on the landing page is removed: edit mode is only reachable via Admin → Main Dashboard
+- `landingPage.renderLandingPage()` auto-enters edit mode when admin is logged in and `?edit=1` is present
+- Order/title/subtitle/logo changes are diffed against the original; if nothing changed nothing is staged
+- All file updates from a save (landing_settings.json + leagues_order.json + optional logo) are bundled under one `group` so they appear as a single entry in Pending Changes
+- The standalone `js/admin/dashboardManager.js` module is therefore not needed and removed
+- While editing the dashboard, the admin sidebar stays mounted so navigation (Leagues / Pending / Settings / Home / Logout) and the live Pending Changes badge remain visible. Implemented via `js/admin/render/adminSidebar.js` (`mountAdminSidebar` / `unmountAdminSidebar`), called from `enterEditMode` / `exitEditMode`. Sidebar nav items deep-link into `admin.html#pending|#settings|#leagues`, and `admin.html` reads the hash to pick the initial view.
+- Mounted sidebar is pinned to the viewport via `position: sticky; top: 0; height: 100vh` (scoped to `.admin-layout.admin-sidebar-mounted > .admin-sidebar` in `css/admin.css`) so Home/Logout stay visible regardless of landing-page scroll.
+- After **Save Changes**, the user remains in Main Dashboard admin view (sidebar pinned, edit mode active, Save button disabled, brief "Saved ✓" feedback). Only Cancel / Home / sidebar deep-links leave the view.
 
 ### Feature B — Replace "View Site" with elegant navigation
 - Replace `← View Site` anchor (`adminPage.js` line ~127) with SVG home icon + "Home" text
@@ -208,19 +211,22 @@ Extends the admin panel (`admin.html`) with 4 features. Chunk 7 (inline edit on 
 - Rewrite `renderAddLeagueForm()` in `leagueManager.js` as full-page layout with 3 cards:
   1. **League Settings**: Name, Type, Issue Date, Entry Fee
   2. **Medals & Prizes**: Gold/Silver/Bronze Count + Prize amount (side by side)
-  3. **Players**: Import from existing league dropdown + manual add + Name/Flag/Retired/Remove table
+  3. **Players & Data**: 3 sources — Import from existing league dropdown / manual add / **upload CSV/Excel** (same as edit-league import). Editable Name/Flag/Retired/Remove table.
 - Player management: local `newLeaguePlayers[]` array, import loads CSV + params from selected league
-- Update `stageAddLeague()` to accept `options = { issueDate, entryFee, prizes, goldCount, silverCount, bronzeCount, players }`
-- Generate round-robin CSV matchup rows from player list (all pairs)
+- CSV/Excel upload reuses `excelImporter.js` parsing — extracts player list and stores raw CSV text to be used as the new league's `leaguedata.csv` (overrides round-robin generation)
+- Update `stageAddLeague()` to accept `options = { issueDate, entryFee, prizes, goldCount, silverCount, bronzeCount, players, csvText? }`
+- If `csvText` is supplied, use it verbatim. Else generate round-robin CSV matchup rows from player list (all pairs).
 
 ### Files to modify
 | File | Changes |
 |------|---------|
-| `js/admin/render/adminPage.js` | Sidebar nav + View Site replacement + dashboard routing |
+| `js/admin/render/adminPage.js` | Sidebar nav (Main Dashboard as link to `index.html?edit=1`) + View Site replacement |
 | `js/admin/leagueManager.js` | Edit form fields (C) + rewrite Add form (D) + stageAddLeague update |
-| `css/admin.css` | Dashboard view styles + home link styles |
-| `admin.html` | Lazy-load routing for `dashboard` view |
-| **NEW** `js/admin/dashboardManager.js` | Dashboard management module |
+| `js/render/landingPage.js` | Remove pencil toggle, auto-enter edit on `?edit=1`, diff-and-group staged changes |
+| `css/admin.css` | Home link styles, add-league grid |
+| `admin.html` | Hash routing (`#pending`/`#settings`/`#leagues`) for sidebar deep-links |
+| `js/admin/render/adminSidebar.js` | New: mount/unmount admin sidebar around landing page during dashboard edit |
+| `index.html` | Load `css/admin.css` so sidebar styles are available during edit mode |
 
 ### Implementation order
 B (quick) → C (edit form) → D (add form) → A (dashboard view, most complex)
@@ -231,6 +237,22 @@ B (quick) → C (edit form) → D (add form) → A (dashboard view, most complex
 3. Add league: full form with players, import from existing league, CSV generated with matchups
 4. Main Dashboard view: reorder/hide/show leagues, changes in Pending Changes
 5. Existing workflows (edit/delete/publish) still work
+
+---
+
+## Chunk 7.6 — Edit-mode link guard, Players admin, expandable rankings
+
+Three follow-ups requested after Chunk 7.5:
+
+- **A. Lock landing-page navigation while editing.** During `index.html?edit=1`, all anchors inside `.page-container` are visually dimmed and click-suppressed (CSS rule + delegated capture-phase click guard installed in `enterEditMode` / removed in `exitEditMode`). The embedded admin sidebar lives outside `.page-container` so its links remain functional.
+- **B. Players admin view + redesigned general profile.**
+  - New optional file `leagues/players_metadata.json` keyed by player name with `{ fullName, bmabTitle, photoPath }`. Loader: [js/data/playersMetadata.js](../../js/data/playersMetadata.js).
+  - New admin view [js/admin/playerManager.js](../../js/admin/playerManager.js): search input over the union of all players, edit form for the three fields (photo via FileReader → base64), live preview as an iframe to `player_general.html?player=...&preview=true` so the existing preview interceptor surfaces staged changes.
+  - Sidebar gets a **Players** entry (both `renderAdminShell` and `mountAdminSidebar`); `adminPage.initAdminPage` whitelist + `admin.html` lazy-loader updated.
+  - [js/render/playerGeneralPage.js](../../js/render/playerGeneralPage.js) header redesigned: optional avatar, BMAB badge with gold styling + `pg-titled` accent, full name with `aka` alias, and a **3-state activity dot** (green = in a Running league, orange = played in current calendar year but not in a Running league, gray = inactive this year) with `title=` tooltip.
+- **C. Expandable Achievements / PR Statistics rows.** Each `(Nth / M)` cell on the general player page is now a `.pg-rank-toggle` button that lazily loads and slides open a full ordered table beneath the parent card/tile, with the current player's row highlighted. New helpers `listYearRanking` and `listMedalRanking` in [js/compute/crossLeague.js](../../js/compute/crossLeague.js) provide the full ordered lists; `rankWithinYear` was refactored to call `listYearRanking` so there's a single source of truth.
+
+Files touched: [css/index-dashboard.css](../../css/index-dashboard.css), [css/admin.css](../../css/admin.css), [css/player-general.css](../../css/player-general.css), [js/render/landingPage.js](../../js/render/landingPage.js), [js/admin/render/adminSidebar.js](../../js/admin/render/adminSidebar.js), [js/admin/render/adminPage.js](../../js/admin/render/adminPage.js), [admin.html](../../admin.html), [js/admin/playerManager.js](../../js/admin/playerManager.js) (new), [js/data/playersMetadata.js](../../js/data/playersMetadata.js) (new), [js/render/playerGeneralPage.js](../../js/render/playerGeneralPage.js), [js/compute/crossLeague.js](../../js/compute/crossLeague.js).
 
 ---
 

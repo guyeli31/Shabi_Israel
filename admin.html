@@ -17,8 +17,9 @@
     <script type="module">
         import { initAdminPage, navigateTo, refreshBadge } from './js/admin/render/adminPage.js';
 
-        // Lazy-load league manager when navigating to "leagues"
+        // Lazy-load modules per view
         let leagueManagerModule = null;
+        let playerManagerModule = null;
 
         initAdminPage(async (view, container) => {
             if (view === 'leagues') {
@@ -26,8 +27,14 @@
                     leagueManagerModule = await import('./js/admin/leagueManager.js');
                 }
                 leagueManagerModule.renderLeagueAdmin(container, refreshBadge);
+            } else if (view === 'players') {
+                if (!playerManagerModule) {
+                    playerManagerModule = await import('./js/admin/playerManager.js');
+                }
+                playerManagerModule.renderPlayerAdmin(container, refreshBadge);
             }
         });
+
     </script>
 </body>
 </html>

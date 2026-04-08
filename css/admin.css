@@ -56,6 +56,16 @@
     border-top: 1px solid rgba(255,255,255,0.15);
 }
 
+/* When the admin sidebar is mounted around a long page (landing-page edit mode),
+   pin it to the viewport so the footer (Home / Logout) stays visible. */
+.admin-layout.admin-sidebar-mounted > .admin-sidebar {
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: 100vh;
+    overflow-y: auto;
+}
+
 .admin-main {
     flex: 1;
     padding: var(--space-lg) var(--space-xl);
@@ -533,4 +543,157 @@
     .admin-main {
         padding: var(--space-md);
     }
+}
+
+/* ---- Home link (replaces View Site) ---- */
+.admin-home-link {
+    text-decoration: none;
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    transition: color 0.2s;
+}
+.admin-home-link svg {
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+.admin-home-link:hover {
+    color: var(--color-accent);
+}
+.admin-home-link:hover svg {
+    opacity: 1;
+}
+
+/* ---- Add League form: card grid ---- */
+.add-league-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+.add-league-grid .admin-card.full {
+    grid-column: 1 / -1;
+}
+@media (max-width: 768px) {
+    .add-league-grid { grid-template-columns: 1fr; }
+}
+.add-league-row {
+    display: flex;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+}
+.add-league-row .form-group {
+    flex: 1;
+    min-width: 100px;
+}
+
+/* ---- Dashboard manager view ---- */
+.dashboard-manager-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-md);
+}
+@media (max-width: 900px) {
+    .dashboard-manager-grid { grid-template-columns: 1fr; }
+}
+.dashboard-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.dashboard-list li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-xs);
+    background: var(--color-bg);
+}
+.dashboard-list li.dragging { opacity: 0.4; }
+.dashboard-list li.drag-over { border-color: var(--color-accent); }
+.dashboard-list .drag-handle {
+    cursor: grab;
+    color: var(--color-text-muted);
+    user-select: none;
+    font-size: 1.1rem;
+}
+.dashboard-list .league-name {
+    flex: 1;
+}
+.dashboard-save-bar {
+    margin-top: var(--space-md);
+    display: flex;
+    gap: var(--space-sm);
+}
+
+/* ---- Player manager ---- */
+.player-search-results {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 240px;
+    overflow-y: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+}
+.player-search-results li {
+    padding: 6px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.9rem;
+}
+.player-search-results li:last-child { border-bottom: none; }
+.player-search-results li:hover { background: var(--color-hover); }
+.player-search-results li.muted {
+    cursor: default;
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+.player-meta-tag {
+    display: inline-block;
+    margin-left: var(--space-xs);
+    padding: 1px 6px;
+    background: var(--color-accent-light, #dbeafe);
+    color: var(--color-accent, #2563eb);
+    border-radius: var(--radius-sm);
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+.player-photo-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+}
+.player-photo-preview {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 2px solid var(--color-border);
+    background: var(--color-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.player-photo-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.player-photo-preview .muted {
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+}
+.player-preview-frame {
+    width: 100%;
+    height: 600px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
 }

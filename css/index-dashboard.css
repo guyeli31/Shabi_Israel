@@ -705,6 +705,14 @@
 /* Edit-mode: league cards need relative for the handle */
 .edit-mode .league-card { position: relative; }
 
+/* Edit-mode: disable in-page navigation. Only the embedded admin sidebar
+   (which lives outside .page-container) should remain clickable. */
+.page-container.edit-mode a {
+    pointer-events: none;
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 /* Drag visual feedback */
 tr.dragging, .league-card.dragging {
     opacity: 0.4;

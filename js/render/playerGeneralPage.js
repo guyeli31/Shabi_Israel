@@ -15,9 +15,12 @@ import {
     loadPlayerAcrossLeagues,
     aggregatePR,
     rankWithinYear,
+    listYearRanking,
     collectMedalsByType,
+    listMedalRanking,
     flattenAllMatches
 } from '../compute/crossLeague.js';
+import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { colorForLevel } from '../compute/colorScale.js';
 import {
     getQueryParam, flagUrl, getFlagCode,
@@ -41,7 +44,11 @@ export async function renderPlayerGeneralPage() {
     document.title = `${playerName} — Shabi Israel`;
 
     try {
-        const perLeague = await loadPlayerAcrossLeagues(playerName);
+        const [perLeague, allMeta] = await Promise.all([
+            loadPlayerAcrossLeagues(playerName),
+            loadPlayersMetadata()
+        ]);
+        const meta = allMeta[playerName] || {};
 
         if (perLeague.length === 0) {
             container.innerHTML = `<div class="error">No leagues found for player "${escapeHtml(playerName)}".</div>`;
@@ -49,7 +56,7 @@ export async function renderPlayerGeneralPage() {
         }
 
         // Header
-        renderHeader(playerName, perLeague);
+        renderHeader(playerName, perLeague, meta);
         renderBreadcrumbs([
             { label: 'Home', url: 'index.html' },
             { label: playerName }
@@ -93,27 +100,71 @@ export async function renderPlayerGeneralPage() {
 
 // ---- G2: Header ----
 
-function renderHeader(playerName, perLeague) {
+function renderHeader(playerName, perLeague, meta = {}) {
     const title = document.getElementById('page-title');
     if (!title) return;
 
-    const isActive = perLeague.some(e => e.league.params?.Running === true);
+    // 3-state activity dot
+    const inRunning = perLeague.some(e => e.league.params?.Running === true);
+    let playedThisYear = false;
+    for (const e of perLeague) {
+        for (const m of e.playerMatches) {
+            const y = m.updatedAt ? new Date(m.updatedAt).getFullYear() : null;
+            if (y === CURRENT_YEAR) { playedThisYear = true; break; }
+        }
+        if (playedThisYear) break;
+    }
+    let dotClass, dotTitle;
+    if (inRunning) {
+        dotClass = 'pg-dot pg-dot-green';
+        dotTitle = 'Active in a running league';
+    } else if (playedThisYear) {
+        dotClass = 'pg-dot pg-dot-orange';
+        dotTitle = `Played this year (${CURRENT_YEAR}), not in a running league`;
+    } else {
+        dotClass = 'pg-dot pg-dot-gray';
+        dotTitle = `Inactive in ${CURRENT_YEAR}`;
+    }
+    const dot = `<span class="${dotClass}" title="${dotTitle}"></span>`;
 
     // Distinct flag codes from all leagues
     const flagSet = new Set();
     for (const e of perLeague) {
         flagSet.add(getFlagCode(playerName, e.league.params?.CustomFlags));
     }
-    const flags = [...flagSet];
-
-    const flagsHtml = flags
+    const flagsHtml = [...flagSet]
         .map(code => `<img class="flag-title" src="${flagUrl(code)}" alt="${code}" title="${code}">`)
         .join('');
-    const dot = isActive
-        ? '<span class="pg-active-dot" title="Active in a running league"></span>'
+
+    // Optional avatar
+    const avatarHtml = meta.photoPath
+        ? `<img class="pg-avatar" src="${escapeHtml(meta.photoPath)}" alt="${escapeHtml(playerName)}">`
         : '';
 
-    title.innerHTML = `${flagsHtml} ${dot} <span class="pg-player-name">${escapeHtml(playerName)}</span>`;
+    // Optional BMAB badge
+    const bmabHtml = meta.bmabTitle
+        ? `<span class="pg-bmab-badge" title="Official BMAB Title">${escapeHtml(meta.bmabTitle)}</span>`
+        : '';
+
+    // Display name + alias
+    const displayName = meta.fullName || playerName;
+    const aliasHtml = meta.fullName
+        ? `<div class="pg-player-alias">aka ${escapeHtml(playerName)}</div>`
+        : '';
+
+    title.innerHTML = `
+        <div class="pg-header-row">
+            ${avatarHtml}
+            <div class="pg-header-text">
+                <div class="pg-name-line">
+                    ${flagsHtml} ${dot} ${bmabHtml}
+                    <span class="pg-player-name">${escapeHtml(displayName)}</span>
+                </div>
+                ${aliasHtml}
+            </div>
+        </div>
+    `;
+    if (meta.bmabTitle) title.classList.add('pg-titled');
 
     const subtitle = document.getElementById('league-subtitle');
     if (subtitle) {
@@ -158,28 +209,97 @@ async function renderPRStats(section, playerName, perLeague) {
                     <div class="pg-pr-label">Total PR</div>
                     <div class="pg-pr-value">${formatNumber(agg.totalPR)}</div>
                     ${levelBadge(agg.totalLevel)}
-                    <div class="pg-pr-rank">${formatYearRank(totalYearRank)}</div>
+                    <div class="pg-pr-rank">${rankToggleHtml(totalYearRank, { kind: 'pr', type, metric: 'totalPR' })}</div>
                 </div>
                 <div class="pg-pr-metric">
                     <div class="pg-pr-label">Last 300 PR</div>
                     <div class="pg-pr-value">${formatNumber(agg.last300PR)}</div>
                     ${levelBadge(agg.last300Level)}
-                    <div class="pg-pr-rank">${formatYearRank(last300YearRank)}</div>
+                    <div class="pg-pr-rank">${rankToggleHtml(last300YearRank, { kind: 'pr', type, metric: 'last300PR' })}</div>
                 </div>
             </div>
+            <div class="pg-rank-expanded" hidden></div>
         `;
         grid.appendChild(card);
     }
+
+    wireRankToggles(section, playerName);
+}
+
+/**
+ * Render either a clickable rank toggle or a dim "no data" placeholder.
+ * `meta` describes the underlying ranking source so the click handler can
+ * lazily fetch the full ordered list.
+ */
+function rankToggleHtml(r, meta) {
+    if (!r) return `<span class="pg-rank-dim">No ${CURRENT_YEAR} data</span>`;
+    const data = encodeURIComponent(JSON.stringify(meta));
+    return `<button type="button" class="pg-rank-toggle" data-rank="${data}">${CURRENT_YEAR}: <b>${ordinal(r.rank)}</b> / ${r.total}</button>`;
+}
+
+function wireRankToggles(section, playerName) {
+    if (section._rankWired) return;
+    section._rankWired = true;
+    section.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.pg-rank-toggle');
+        if (!btn) return;
+        const card = btn.closest('.pg-pr-card, .pg-tile-block');
+        if (!card) return;
+        const expanded = card.querySelector(':scope > .pg-rank-expanded');
+        if (!expanded) return;
+
+        // Toggle off if same button already open
+        if (!expanded.hidden && expanded.dataset.openBtn === btn.dataset.rank) {
+            expanded.hidden = true;
+            expanded.dataset.openBtn = '';
+            btn.classList.remove('pg-rank-toggle-open');
+            return;
+        }
+
+        // Mark which button is open; clear other open marks in this card
+        card.querySelectorAll('.pg-rank-toggle-open').forEach(b => b.classList.remove('pg-rank-toggle-open'));
+        btn.classList.add('pg-rank-toggle-open');
+        expanded.dataset.openBtn = btn.dataset.rank;
+        expanded.hidden = false;
+        expanded.innerHTML = '<div class="loading">Loading…</div>';
+
+        const meta = JSON.parse(decodeURIComponent(btn.dataset.rank));
+        try {
+            let rows;
+            if (meta.kind === 'pr') {
+                rows = await listYearRanking(meta.type, CURRENT_YEAR, meta.metric);
+            } else if (meta.kind === 'medal') {
+                rows = await listMedalRanking(meta.type, meta.metric);
+            }
+            expanded.innerHTML = renderRankTable(rows || [], playerName, meta);
+        } catch (err) {
+            expanded.innerHTML = `<div class="pg-note">Failed to load ranking: ${escapeHtml(err.message)}</div>`;
+        }
+    });
+}
+
+function renderRankTable(rows, playerName, meta) {
+    if (!rows.length) return '<div class="pg-note">No data.</div>';
+    const valueLabel = meta.kind === 'pr'
+        ? (meta.metric === 'totalPR' ? 'Total PR' : 'Last 300 PR')
+        : (meta.metric === 'gold' ? 'Gold' : meta.metric === 'silver' ? 'Silver' : meta.metric === 'bronze' ? 'Bronze' : meta.metric === 'avgRank' ? 'Avg Rank' : meta.metric === 'winRate' ? 'Win Rate' : 'Value');
+    let html = `<div class="pg-rank-table-wrap"><table class="pg-rank-table"><thead><tr><th>#</th><th>Player</th><th>${escapeHtml(valueLabel)}</th></tr></thead><tbody>`;
+    for (const r of rows) {
+        const isSelf = r.name === playerName;
+        const valFmt = (meta.kind === 'pr')
+            ? formatNumber(r.value)
+            : (meta.metric === 'avgRank' ? r.value.toFixed(1)
+              : meta.metric === 'winRate' ? (r.value * 100).toFixed(1) + '%'
+              : String(r.value));
+        html += `<tr class="${isSelf ? 'pg-rank-self' : ''}"><td>${r.rank}</td><td>${escapeHtml(r.name)}</td><td>${valFmt}</td></tr>`;
+    }
+    html += '</tbody></table></div>';
+    return html;
 }
 
 function levelBadge(level) {
     const color = colorForLevel(level);
     return `<span class="pg-level-badge" style="background:${color}">${escapeHtml(level)}</span>`;
-}
-
-function formatYearRank(r) {
-    if (!r) return `<span class="pg-rank-dim">No ${CURRENT_YEAR} data</span>`;
-    return `${CURRENT_YEAR}: <b>${ordinal(r.rank)}</b> / ${r.total}`;
 }
 
 function ordinal(n) {
@@ -233,32 +353,25 @@ async function showAchievementType(body, playerName, type) {
         return;
     }
     const total = m.totalPlayers;
+    const tile = (icon, label, rank, valueHtml, subHtml, metric) => `
+        <div class="pg-tile-block">
+            <div class="pg-tile">
+                <div class="pg-tile-title">${icon} ${label} <span class="pg-tile-rank">${rankToggleHtml({ rank, total }, { kind: 'medal', type, metric })}</span></div>
+                <div class="pg-tile-value">${valueHtml}</div>
+                ${subHtml}
+            </div>
+            <div class="pg-rank-expanded" hidden></div>
+        </div>`;
     body.innerHTML = `
         <div class="pg-tiles">
-            <div class="pg-tile">
-                <div class="pg-tile-title">🥇 Gold <span class="pg-tile-rank">(${ordinal(m.goldRank)} / ${total})</span></div>
-                <div class="pg-tile-value">${m.self.gold}</div>
-            </div>
-            <div class="pg-tile">
-                <div class="pg-tile-title">🥈 Silver <span class="pg-tile-rank">(${ordinal(m.silverRank)} / ${total})</span></div>
-                <div class="pg-tile-value">${m.self.silver}</div>
-            </div>
-            <div class="pg-tile">
-                <div class="pg-tile-title">🥉 Bronze <span class="pg-tile-rank">(${ordinal(m.bronzeRank)} / ${total})</span></div>
-                <div class="pg-tile-value">${m.self.bronze}</div>
-            </div>
-            <div class="pg-tile">
-                <div class="pg-tile-title">📊 Avg Rank <span class="pg-tile-rank">(${ordinal(m.avgRankRank)} / ${total})</span></div>
-                <div class="pg-tile-value">${isFinite(m.self.avgRank) ? m.self.avgRank.toFixed(1) : '—'}</div>
-                <div class="pg-tile-sub">${m.self.participations} league${m.self.participations === 1 ? '' : 's'}</div>
-            </div>
-            <div class="pg-tile">
-                <div class="pg-tile-title">🏆 Win Rate <span class="pg-tile-rank">(${ordinal(m.winRateRank)} / ${total})</span></div>
-                <div class="pg-tile-value">${(m.self.winRate * 100).toFixed(1)}%</div>
-                <div class="pg-tile-sub">${m.self.totalWins}W / ${m.self.totalGames}G</div>
-            </div>
+            ${tile('🥇', 'Gold', m.goldRank, m.self.gold, '', 'gold')}
+            ${tile('🥈', 'Silver', m.silverRank, m.self.silver, '', 'silver')}
+            ${tile('🥉', 'Bronze', m.bronzeRank, m.self.bronze, '', 'bronze')}
+            ${tile('📊', 'Avg Rank', m.avgRankRank, isFinite(m.self.avgRank) ? m.self.avgRank.toFixed(1) : '—', `<div class="pg-tile-sub">${m.self.participations} league${m.self.participations === 1 ? '' : 's'}</div>`, 'avgRank')}
+            ${tile('🏆', 'Win Rate', m.winRateRank, (m.self.winRate * 100).toFixed(1) + '%', `<div class="pg-tile-sub">${m.self.totalWins}W / ${m.self.totalGames}G</div>`, 'winRate')}
         </div>
     `;
+    wireRankToggles(body, playerName);
 }
 
 // ---- G4: League history table ----
