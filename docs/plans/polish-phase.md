@@ -19,6 +19,7 @@
 | 7 | Admin edit-mode for landing page | ✅ Done |
 | 7.5 | Admin panel extensions | ✅ Done |
 | 7.6 | Edit-mode link guard, Players admin, expandable rankings | ✅ Done |
+| 7.7 | Admin preview lockdown, creation form, Issue Date column | 🔄 In Progress |
 | 8 | Themes redesign session | ⬜ Pending |
 
 Last updated: 2026-04-08

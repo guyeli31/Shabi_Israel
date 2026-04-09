@@ -731,7 +731,7 @@ tr.drag-over {
 .edit-bar {
     position: fixed;
     bottom: 0;
-    left: 0;
+    left: 240px;
     right: 0;
     display: flex;
     align-items: center;
@@ -777,3 +777,14 @@ tr.drag-over {
 
 .edit-bar-save:hover { filter: brightness(1.1); }
 .edit-bar-save:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Raise theme picker above edit bar when in edit mode */
+body:has(.edit-bar) .theme-picker {
+    bottom: 70px;
+}
+
+/* Mobile: edit bar spans full width */
+@media (max-width: 768px) {
+    .edit-bar { left: 0; }
+    body:has(.edit-bar) .theme-picker { bottom: 65px; }
+}

@@ -37,12 +37,33 @@
         import { initThemePicker } from './js/render/themePicker.js';
         import { initAdminButton } from './js/render/adminButton.js';
         import { initNavBar, initKeyboardShortcuts } from './js/render/navigation.js';
+        import { isPreviewMode, installPreviewInterceptor } from './js/admin/previewMode.js';
+
+        // Install fetch interceptor BEFORE any data loads so staged changes are served
+        if (isPreviewMode()) installPreviewInterceptor();
+
+        const isEmbedded = window.self !== window.top;
+
+        if (isEmbedded) {
+            // Suppress all interactive chrome when inside admin preview iframe
+            const style = document.createElement('style');
+            style.textContent = `
+                a { pointer-events: none !important; cursor: default !important; opacity: 0.7 !important; }
+                .nav-search, .nav-search-wrapper { display: none !important; }
+                .preview-banner { display: none !important; }
+                body.preview-active { padding-top: 0 !important; }
+            `;
+            document.head.appendChild(style);
+        }
 
         await initNavBar();
         await renderPlayerGeneralPage();
-        initThemePicker();
-        initAdminButton();
-        initKeyboardShortcuts();
+
+        if (!isEmbedded) {
+            initThemePicker();
+            initAdminButton();
+            initKeyboardShortcuts();
+        }
     </script>
 </body>
 </html>

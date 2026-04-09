@@ -94,7 +94,7 @@ function selectPlayer(container, name) {
             </div>
             <div class="form-group">
                 <label for="pe-bmab">Official BMAB Title</label>
-                <input type="text" id="pe-bmab" value="${esc(meta.bmabTitle || '')}" placeholder="e.g. CM, FM, IM, GM">
+                <input type="text" id="pe-bmab" value="${esc(meta.bmabTitle || '')}" placeholder="e.g. Intermediate, Advanced, Master, Grandmaster">
             </div>
             <div class="form-group">
                 <label>Photo</label>
@@ -111,7 +111,6 @@ function selectPlayer(container, name) {
 
         <div class="admin-card">
             <h2>Live preview</h2>
-            <p class="muted" style="margin-bottom:var(--space-sm)">Reflects published data + your staged changes. Navigation stays inside this frame.</p>
             <iframe class="player-preview-frame"
                     src="player_general.html?player=${encodeURIComponent(name)}&preview=true"
                     title="Player preview"></iframe>

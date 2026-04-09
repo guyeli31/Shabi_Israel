@@ -146,10 +146,10 @@ function renderHeader(playerName, perLeague, meta = {}) {
         ? `<span class="pg-bmab-badge" title="Official BMAB Title">${escapeHtml(meta.bmabTitle)}</span>`
         : '';
 
-    // Display name + alias
-    const displayName = meta.fullName || playerName;
+    // Display name + full name beneath
+    const displayName = playerName;
     const aliasHtml = meta.fullName
-        ? `<div class="pg-player-alias">aka ${escapeHtml(playerName)}</div>`
+        ? `<div class="pg-player-alias">${escapeHtml(meta.fullName)}</div>`
         : '';
 
     title.innerHTML = `

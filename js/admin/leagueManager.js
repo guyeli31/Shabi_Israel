@@ -8,6 +8,7 @@ import { addChange, getStagedContent } from './stagingStore.js';
 import { getAllPlayersFromCSV } from '../data/csvParser.js';
 import { renderCsvEditor } from './csvEditor.js';
 import { renderRemainingReport } from './remainingReport.js';
+import { ensurePlayerIndex } from '../render/navigation.js';
 
 // Known flag codes (from assets/flags/)
 const KNOWN_FLAGS = ['BE', 'IL', 'RU', 'TZ', 'UN'];
@@ -48,7 +49,7 @@ function renderLeagueList(container, leagues, displayOrder) {
     let rows = '';
     for (const lg of leagues) {
         if (!lg.params) {
-            rows += `<tr><td>${esc(lg.id)}</td><td colspan="4" style="color:var(--color-loss)">Failed to load</td></tr>`;
+            rows += `<tr><td>${esc(lg.id)}</td><td colspan="5" style="color:var(--color-loss)">Failed to load</td></tr>`;
             continue;
         }
         const p = lg.params;
@@ -63,6 +64,7 @@ function renderLeagueList(container, leagues, displayOrder) {
             <tr>
                 <td>${esc(p.LeagueTitle || lg.id)}${hiddenBadge}</td>
                 <td>${esc(p.LeagueType || 'doubling')}</td>
+                <td>${p.IssueDate ? formatAdminDate(p.IssueDate) : '<span style="color:var(--color-text-muted)">—</span>'}</td>
                 <td>${statusPill}</td>
                 <td>
                     <button class="btn btn-primary btn-sm" data-edit="${lg.id}">Edit</button>
@@ -79,7 +81,7 @@ function renderLeagueList(container, leagues, displayOrder) {
         <div class="admin-card">
             <table class="admin-table">
                 <thead>
-                    <tr><th>Name</th><th>Type</th><th>Status</th><th>Actions</th></tr>
+                    <tr><th>Name</th><th>Type</th><th>Issue Date</th><th>Status</th><th>Actions</th></tr>
                 </thead>
                 <tbody>${rows}</tbody>
             </table>
@@ -117,16 +119,6 @@ async function renderAddLeagueForm(container, displayOrder) {
         customFlags: {},
         csvText: null // if set, overrides round-robin generation
     };
-
-    // Load existing leagues for the import dropdown
-    let existingLeagues = [];
-    try {
-        existingLeagues = displayOrder.map(t => ({ title: t, id: t.replace(' - ', ' ') }));
-    } catch { /* noop */ }
-
-    const importOptions = existingLeagues.map(lg =>
-        `<option value="${esc(lg.id)}">${esc(lg.title)}</option>`
-    ).join('');
 
     container.innerHTML = `
         <h1>Add New League</h1>
@@ -198,16 +190,6 @@ async function renderAddLeagueForm(container, displayOrder) {
                 <h2>Players & Data</h2>
                 <div class="add-league-row" style="margin-bottom:var(--space-md)">
                     <div class="form-group">
-                        <label for="import-source">Import from Existing League</label>
-                        <div style="display:flex;gap:var(--space-sm)">
-                            <select id="import-source">
-                                <option value="">— Select league —</option>
-                                ${importOptions}
-                            </select>
-                            <button class="btn btn-secondary btn-sm" id="import-source-btn">Import Players</button>
-                        </div>
-                    </div>
-                    <div class="form-group">
                         <label for="upload-csv">Upload CSV / Excel</label>
                         <div style="display:flex;gap:var(--space-sm);align-items:center">
                             <input type="file" id="upload-csv" accept=".csv,.xlsx">
@@ -216,9 +198,10 @@ async function renderAddLeagueForm(container, displayOrder) {
                     </div>
                 </div>
                 <div class="add-league-row" style="margin-bottom:var(--space-md);align-items:flex-end">
-                    <div class="form-group" style="flex:2">
+                    <div class="form-group" style="flex:2;position:relative">
                         <label for="manual-player-name">Add Player Manually</label>
-                        <input type="text" id="manual-player-name" placeholder="Player name">
+                        <input type="text" id="manual-player-name" placeholder="Player name" autocomplete="off">
+                        <ul class="player-autocomplete" id="manual-player-autocomplete" hidden></ul>
                     </div>
                     <div class="form-group" style="flex:1">
                         <label for="manual-player-flag">Flag</label>
@@ -229,6 +212,18 @@ async function renderAddLeagueForm(container, displayOrder) {
                     <div class="form-group" style="flex:0">
                         <button class="btn btn-primary btn-sm" id="add-manual-player-btn">Add</button>
                     </div>
+                </div>
+                <div style="margin-bottom:var(--space-md)">
+                    <h3 style="font-size:0.95rem;margin-bottom:var(--space-sm)">Upload Custom Flag</h3>
+                    <div class="form-group">
+                        <label>Flag Code + PNG file</label>
+                        <div style="display:flex;gap:var(--space-sm);align-items:center">
+                            <input type="text" id="new-upload-flag-code" placeholder="XX" style="width:60px">
+                            <input type="file" id="new-upload-flag-file" accept=".png">
+                            <button class="btn btn-secondary btn-sm" id="new-upload-flag-btn">Upload</button>
+                        </div>
+                    </div>
+                    <div id="new-flag-upload-msg"></div>
                 </div>
                 <div id="csv-source-msg" style="font-size:0.85rem;color:var(--color-text-muted);margin-bottom:var(--space-sm)"></div>
                 <table class="admin-table" id="new-players-table">
@@ -305,31 +300,76 @@ async function renderAddLeagueForm(container, displayOrder) {
         rerenderPlayers();
     });
 
-    // Import from existing league
-    document.getElementById('import-source-btn').addEventListener('click', async () => {
-        const sourceId = document.getElementById('import-source').value;
-        if (!sourceId) {
-            showMsg('add-msg', 'Select a league to import from.', 'error');
+    // Custom flag upload (create form)
+    document.getElementById('new-upload-flag-btn').addEventListener('click', async () => {
+        const code = document.getElementById('new-upload-flag-code').value.trim().toUpperCase();
+        const fileInput = document.getElementById('new-upload-flag-file');
+        if (!code || code.length < 2) {
+            showMsg('new-flag-upload-msg', 'Enter a valid flag code (2+ chars).', 'error');
             return;
         }
-        try {
-            const [srcParams, srcData] = await Promise.all([
-                loadLeagueParams(sourceId),
-                loadLeagueMatches(sourceId)
-            ]);
-            const flags = srcParams.CustomFlags || {};
-            const retired = srcParams.RetiredPlayers || [];
-            const playerNames = [...srcData.allPlayers].sort();
-            state.players = playerNames.map(n => ({
-                name: n,
-                flag: flags[n] || 'IL',
-                retired: retired.includes(n)
-            }));
-            rerenderPlayers();
-            setCsvSourceMsg(`Imported ${playerNames.length} players from "${sourceId}".`);
-            showMsg('add-msg', `Imported ${playerNames.length} players.`, 'success');
-        } catch (err) {
-            showMsg('add-msg', `Import failed: ${err.message}`, 'error');
+        if (!fileInput.files || fileInput.files.length === 0) {
+            showMsg('new-flag-upload-msg', 'Select a PNG file.', 'error');
+            return;
+        }
+        const file = fileInput.files[0];
+        if (!file.name.toLowerCase().endsWith('.png')) {
+            showMsg('new-flag-upload-msg', 'Only PNG files are accepted.', 'error');
+            return;
+        }
+        const buffer = await file.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        addChange({
+            type: 'create',
+            path: `assets/flags/${code}.png`,
+            content: base64,
+            binary: true,
+            description: `Upload flag: ${code}.png`
+        });
+        if (!KNOWN_FLAGS.includes(code)) KNOWN_FLAGS.push(code);
+        if (refreshBadgeFn) refreshBadgeFn();
+        showMsg('new-flag-upload-msg', `Flag ${code}.png staged for upload.`, 'success');
+        rerenderPlayers();
+    });
+
+    // Smart autocomplete for manual player input
+    let _acPlayerNames = null;
+    const acInput = document.getElementById('manual-player-name');
+    const acList = document.getElementById('manual-player-autocomplete');
+
+    acInput.addEventListener('input', async () => {
+        const q = acInput.value.trim().toLowerCase();
+        if (q.length < 2) { acList.hidden = true; return; }
+
+        if (!_acPlayerNames) {
+            try {
+                const index = await ensurePlayerIndex();
+                _acPlayerNames = [...index.keys()].sort();
+            } catch { _acPlayerNames = []; }
+        }
+
+        const existing = new Set(state.players.map(p => p.name));
+        const matches = _acPlayerNames
+            .filter(n => n.toLowerCase().includes(q) && !existing.has(n))
+            .slice(0, 10);
+
+        if (matches.length === 0) { acList.hidden = true; return; }
+
+        acList.innerHTML = matches.map(n => `<li data-name="${esc(n)}">${esc(n)}</li>`).join('');
+        acList.hidden = false;
+    });
+
+    acList.addEventListener('click', (e) => {
+        const li = e.target.closest('li[data-name]');
+        if (!li) return;
+        acInput.value = li.dataset.name;
+        acList.hidden = true;
+        acInput.focus();
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!acInput.contains(e.target) && !acList.contains(e.target)) {
+            acList.hidden = true;
         }
     });
 
@@ -965,6 +1005,14 @@ function esc(str) {
     const div = document.createElement('div');
     div.textContent = str || '';
     return div.innerHTML;
+}
+
+function formatAdminDate(dateStr) {
+    if (!dateStr) return '—';
+    try {
+        const d = new Date(dateStr + 'T00:00:00');
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch { return dateStr; }
 }
 
 function showMsg(elementId, message, type) {

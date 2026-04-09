@@ -183,6 +183,9 @@ function enterEditMode(settings) {
     // Show save/cancel bar
     showEditBar();
 
+    // Hide search during edit mode — admin button is not created in edit mode, theme picker stays visible
+    document.querySelectorAll('.nav-search, .nav-search-wrapper').forEach(el => el.style.display = 'none');
+
     // Block in-page navigation while editing — only embedded admin sidebar
     // links (which live outside .page-container) should remain functional.
     const pc = document.querySelector('.page-container');
@@ -230,6 +233,9 @@ function exitEditMode() {
     if (bar) bar.remove();
 
     unmountAdminSidebar();
+
+    // Restore search hidden during edit mode
+    document.querySelectorAll('.nav-search, .nav-search-wrapper').forEach(el => el.style.display = '');
 
     if (_editState && _editState._clickGuard) {
         const pc = document.querySelector('.page-container');

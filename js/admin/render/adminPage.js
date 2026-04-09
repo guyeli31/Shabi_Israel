@@ -117,6 +117,7 @@ function renderAdminShell() {
     app.innerHTML = `
         <div class="admin-layout">
             <aside class="admin-sidebar">
+                <img class="admin-sidebar-logo" src="assets/logo/logo.png" alt="Logo">
                 <h2>Shabi Admin</h2>
                 <nav>
                     <a href="index.html?edit=1" class="admin-nav-item">Main Dashboard</a>

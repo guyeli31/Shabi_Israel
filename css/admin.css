@@ -14,6 +14,17 @@
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+.admin-sidebar-logo {
+    display: block;
+    height: 60px;
+    margin: 0 auto var(--space-sm);
+    object-fit: contain;
 }
 
 .admin-sidebar h2 {
@@ -54,16 +65,6 @@
     margin-top: auto;
     padding-top: var(--space-md);
     border-top: 1px solid rgba(255,255,255,0.15);
-}
-
-/* When the admin sidebar is mounted around a long page (landing-page edit mode),
-   pin it to the viewport so the footer (Home / Logout) stays visible. */
-.admin-layout.admin-sidebar-mounted > .admin-sidebar {
-    position: sticky;
-    top: 0;
-    align-self: flex-start;
-    height: 100vh;
-    overflow-y: auto;
 }
 
 .admin-main {
@@ -516,6 +517,8 @@
         flex-direction: row;
         flex-wrap: wrap;
         padding: var(--space-sm);
+        position: static;
+        height: auto;
     }
 
     .admin-sidebar h2 {
@@ -696,4 +699,31 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     background: var(--color-surface);
+}
+
+/* ---- Player autocomplete dropdown ---- */
+.player-autocomplete {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 100;
+    max-height: 200px;
+    overflow-y: auto;
+}
+.player-autocomplete[hidden] { display: none; }
+.player-autocomplete li {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+.player-autocomplete li:hover {
+    background: var(--color-hover);
 }

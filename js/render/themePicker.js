@@ -35,6 +35,7 @@ function applyTheme(themeId) {
     }
     localStorage.setItem(STORAGE_KEY, themeId);
     clearCustomVars();
+    syncThemeToIframes();
 }
 
 function clearCustomVars() {
@@ -67,6 +68,33 @@ function saveCustomVar(key, value) {
     vars[key] = value;
     localStorage.setItem(CUSTOM_VARS_KEY, JSON.stringify(vars));
     document.documentElement.style.setProperty(key, value);
+    syncThemeToIframes();
+}
+
+function syncThemeToIframes() {
+    const theme = localStorage.getItem(STORAGE_KEY) || 'current';
+    const customVars = localStorage.getItem(CUSTOM_VARS_KEY);
+    for (const frame of document.querySelectorAll('iframe')) {
+        try {
+            const doc = frame.contentDocument;
+            if (!doc) continue;
+            if (theme === 'current') {
+                delete doc.documentElement.dataset.theme;
+            } else {
+                doc.documentElement.dataset.theme = theme;
+            }
+            // Clear all customizable vars first, then apply current ones
+            for (const v of CUSTOMIZABLE_VARS) {
+                doc.documentElement.style.removeProperty(v.key);
+            }
+            if (customVars) {
+                const vars = JSON.parse(customVars);
+                for (const [k, v] of Object.entries(vars)) {
+                    doc.documentElement.style.setProperty(k, v);
+                }
+            }
+        } catch (e) { /* cross-origin — ignore */ }
+    }
 }
 
 function getComputedVar(key) {
@@ -206,12 +234,6 @@ export function initThemePicker() {
         }
     }
 
-    // Tooltip
-    const tooltip = document.createElement('span');
-    tooltip.className = 'floating-btn-tooltip';
-    tooltip.textContent = 'Change Theme';
-
-    picker.appendChild(tooltip);
     picker.appendChild(panel);
     picker.appendChild(toggle);
     document.body.appendChild(picker);

@@ -30,6 +30,7 @@ export function mountAdminSidebar(opts = {}) {
     sidebar.className = 'admin-sidebar';
     const count = getChangeCount();
     sidebar.innerHTML = `
+        <img class="admin-sidebar-logo" src="assets/logo/logo.png" alt="Logo">
         <h2>Shabi Admin</h2>
         <nav>
             <a href="index.html?edit=1" class="admin-nav-item ${activeView === 'dashboard' ? 'active' : ''}">Main Dashboard</a>
