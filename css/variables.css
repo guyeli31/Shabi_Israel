@@ -66,6 +66,13 @@
     /* Medal text */
     --color-gold-text: #78350f;
     --color-silver-text: #1f2937;
+    --color-bronze-text: #78350f;
+
+    /* Chart (canvas) colors — overridden per theme */
+    --chart-grid: rgba(0,0,0,0.18);
+    --chart-axis: rgba(0,0,0,0.35);
+    --chart-label: rgba(0,0,0,0.65);
+    --chart-hover-outline: #000000;
 
     /* Medal hover */
     --color-gold-bg-hover: #fde68a;

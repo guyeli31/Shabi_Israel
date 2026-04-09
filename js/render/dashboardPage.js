@@ -156,7 +156,7 @@ function renderSummaryCards(ctx) {
     let leaderHtml = 'N/A';
     if (leader) {
         const flagCode = getFlagCode(leader.player, params.CustomFlags);
-        leaderHtml = `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}" style="vertical-align:middle"> ${leader.player}`;
+        leaderHtml = `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}" style="vertical-align:middle"> ${playerNameLink(leader.player)}`;
     }
     const avgPR = averages && averages.meanPR != null ? formatNumber(averages.meanPR) : 'N/A';
     const startDate = params.StartDate
@@ -174,12 +174,14 @@ function renderSummaryCards(ctx) {
         { label: 'Start Date', value: startDate }
     ];
 
-    document.getElementById('dash-cards').innerHTML = cards.map(c => `
+    const cardsHost = document.getElementById('dash-cards');
+    cardsHost.innerHTML = cards.map(c => `
         <div class="dash-card">
             <div class="dash-card-label">${c.label}</div>
             <div class="dash-card-value">${c.value}</div>
         </div>
     `).join('');
+    attachPlayerNameInteractions(cardsHost, ctx.leagueId);
 }
 
 // ---------- F2 ----------

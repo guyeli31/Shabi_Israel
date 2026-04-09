@@ -7,12 +7,15 @@ const STORAGE_KEY = 'shabi-theme';
 const CUSTOM_VARS_KEY = 'shabi-custom-vars';
 
 const THEMES = [
-    { id: 'current', label: 'Current' },
+    { id: 'current', label: 'Standard' },
     { id: 'dark',    label: 'Dark' },
     { id: 'beige',   label: 'Beige' },
-    { id: 'modern',  label: 'Modern' },
-    { id: 'royal',   label: 'Royal' }
+    { id: 'nature',  label: 'Nature' },
+    { id: 'vegas',   label: 'Las Vegas' }
 ];
+
+// Silent migration for legacy localStorage values
+const THEME_MIGRATIONS = { modern: 'nature', royal: 'vegas' };
 
 const CUSTOMIZABLE_VARS = [
     { key: '--color-bg',      label: 'Background' },
@@ -24,7 +27,15 @@ const CUSTOMIZABLE_VARS = [
 ];
 
 function getActiveTheme() {
-    return localStorage.getItem(STORAGE_KEY) || 'current';
+    let t = localStorage.getItem(STORAGE_KEY) || 'current';
+    if (THEME_MIGRATIONS[t]) {
+        t = THEME_MIGRATIONS[t];
+        localStorage.setItem(STORAGE_KEY, t);
+        if (document.documentElement.dataset.theme) {
+            document.documentElement.dataset.theme = t;
+        }
+    }
+    return t;
 }
 
 function applyTheme(themeId) {
@@ -36,6 +47,7 @@ function applyTheme(themeId) {
     localStorage.setItem(STORAGE_KEY, themeId);
     clearCustomVars();
     syncThemeToIframes();
+    window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: themeId } }));
 }
 
 function clearCustomVars() {

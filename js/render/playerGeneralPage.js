@@ -14,8 +14,8 @@
 import {
     loadPlayerAcrossLeagues,
     aggregatePR,
-    rankWithinYear,
-    listYearRanking,
+    rankAllTime,
+    listAllTimeRanking,
     collectMedalsByType,
     listMedalRanking,
     flattenAllMatches
@@ -24,7 +24,7 @@ import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { colorForLevel } from '../compute/colorScale.js';
 import {
     getQueryParam, flagUrl, getFlagCode,
-    formatNumber, dashboardUrl, playerGeneralUrl
+    formatNumber, dashboardUrl, playerGeneralUrl, getLeagueYear
 } from '../utils/helpers.js';
 import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
@@ -114,18 +114,19 @@ function renderHeader(playerName, perLeague, meta = {}) {
         }
         if (playedThisYear) break;
     }
+    const inCurrentYearLeague = perLeague.some(e => getLeagueYear(e.league) === CURRENT_YEAR);
     let dotClass, dotTitle;
     if (inRunning) {
         dotClass = 'pg-dot pg-dot-green';
         dotTitle = 'Active in a running league';
-    } else if (playedThisYear) {
+    } else if (playedThisYear || inCurrentYearLeague) {
         dotClass = 'pg-dot pg-dot-orange';
         dotTitle = `Played this year (${CURRENT_YEAR}), not in a running league`;
     } else {
         dotClass = 'pg-dot pg-dot-gray';
         dotTitle = `Inactive in ${CURRENT_YEAR}`;
     }
-    const dot = `<span class="${dotClass}" title="${dotTitle}"></span>`;
+    const dot = `<span class="pg-dot-wrap" tabindex="0" data-tip="${escapeHtml(dotTitle)}"><span class="${dotClass}" aria-label="${escapeHtml(dotTitle)}"></span></span>`;
 
     // Distinct flag codes from all leagues
     const flagSet = new Set();
@@ -194,10 +195,10 @@ async function renderPRStats(section, playerName, perLeague) {
         const agg = aggregatePR(perLeague, type);
         if (!agg) continue;
 
-        // Year-scoped ranking (current calendar year)
-        const [totalYearRank, last300YearRank] = await Promise.all([
-            rankWithinYear(playerName, type, CURRENT_YEAR, 'totalPR'),
-            rankWithinYear(playerName, type, CURRENT_YEAR, 'last300PR')
+        // All-time ranking (across full history)
+        const [totalRank, last300Rank] = await Promise.all([
+            rankAllTime(playerName, type, 'totalPR'),
+            rankAllTime(playerName, type, 'last300PR')
         ]);
 
         const card = document.createElement('div');
@@ -209,13 +210,13 @@ async function renderPRStats(section, playerName, perLeague) {
                     <div class="pg-pr-label">Total PR</div>
                     <div class="pg-pr-value">${formatNumber(agg.totalPR)}</div>
                     ${levelBadge(agg.totalLevel)}
-                    <div class="pg-pr-rank">${rankToggleHtml(totalYearRank, { kind: 'pr', type, metric: 'totalPR' })}</div>
+                    <div class="pg-pr-rank">${rankToggleHtml(totalRank, { kind: 'pr', type, metric: 'totalPR' })}</div>
                 </div>
                 <div class="pg-pr-metric">
                     <div class="pg-pr-label">Last 300 PR</div>
                     <div class="pg-pr-value">${formatNumber(agg.last300PR)}</div>
                     ${levelBadge(agg.last300Level)}
-                    <div class="pg-pr-rank">${rankToggleHtml(last300YearRank, { kind: 'pr', type, metric: 'last300PR' })}</div>
+                    <div class="pg-pr-rank">${rankToggleHtml(last300Rank, { kind: 'pr', type, metric: 'last300PR' })}</div>
                 </div>
             </div>
             <div class="pg-rank-expanded" hidden></div>
@@ -232,9 +233,11 @@ async function renderPRStats(section, playerName, perLeague) {
  * lazily fetch the full ordered list.
  */
 function rankToggleHtml(r, meta) {
-    if (!r) return `<span class="pg-rank-dim">No ${CURRENT_YEAR} data</span>`;
+    const isPR = meta.kind === 'pr';
+    const label = isPR ? 'All-time' : CURRENT_YEAR;
+    if (!r) return `<span class="pg-rank-dim">No ${isPR ? '' : CURRENT_YEAR + ' '}data</span>`;
     const data = encodeURIComponent(JSON.stringify(meta));
-    return `<button type="button" class="pg-rank-toggle" data-rank="${data}">${CURRENT_YEAR}: <b>${ordinal(r.rank)}</b> / ${r.total}</button>`;
+    return `<button type="button" class="pg-rank-toggle" data-rank="${data}">${label}: <b>${ordinal(r.rank)}</b> / ${r.total}</button>`;
 }
 
 function wireRankToggles(section, playerName) {
@@ -267,7 +270,7 @@ function wireRankToggles(section, playerName) {
         try {
             let rows;
             if (meta.kind === 'pr') {
-                rows = await listYearRanking(meta.type, CURRENT_YEAR, meta.metric);
+                rows = await listAllTimeRanking(meta.type, meta.metric);
             } else if (meta.kind === 'medal') {
                 rows = await listMedalRanking(meta.type, meta.metric);
             }

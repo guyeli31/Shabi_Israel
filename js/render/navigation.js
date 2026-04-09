@@ -180,10 +180,19 @@ async function buildPlayerIndex() {
         try {
             const displayOrder = await loadLeagueOrder();
             const folderNames = displayOrder.map(t => t.replace(' - ', ' '));
-            leagues = folderNames.map((id, i) => ({ id, title: displayOrder[i] }));
+            const allParams = await loadAllLeagueParams(folderNames);
+            leagues = allParams
+                .map((lp, i) => ({
+                    id: lp.id,
+                    title: displayOrder[i],
+                    hidden: lp.params?.Hidden === true
+                }))
+                .filter(l => !l.hidden);
         } catch {
             return map;
         }
+    } else {
+        leagues = leagues.filter(l => !l.hidden);
     }
 
     // Load all CSVs in parallel

@@ -175,9 +175,9 @@
 }
 
 /* Distinct medal row tints (override token collisions in variables.css) */
-.dash-table tr.rank-gold td { background: #fff4c4; }
-.dash-table tr.rank-silver td { background: #e8eaef; }
-.dash-table tr.rank-bronze td { background: #f4dcc1; }
+.dash-table tr.rank-gold td { background: var(--color-gold-bg); color: var(--color-gold-text); }
+.dash-table tr.rank-silver td { background: var(--color-silver-bg); color: var(--color-silver-text); }
+.dash-table tr.rank-bronze td { background: var(--color-bronze-bg); color: var(--color-bronze-text); }
 
 /* Player column / cell alignment */
 .dash-table th.player-col,

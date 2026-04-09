@@ -26,7 +26,7 @@ export async function buildAllTimeRankings(leagueType) {
     const promise = (async () => {
         const allLeagues = await loadAllLeagues();
         const typeLeagues = allLeagues.filter(
-            l => l.leagueType === leagueType && l.params.Running !== true
+            l => l.leagueType === leagueType && l.params.Running !== true && !l.params.Hidden
         );
 
         const hasPR = PR_TYPES.has(leagueType);

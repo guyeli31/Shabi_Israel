@@ -41,3 +41,45 @@ export function getFlagCode(playerName, customFlags) {
     }
     return 'IL';
 }
+
+const _MONTHS = [
+    'January','February','March','April','May','June',
+    'July','August','September','October','November','December'
+];
+const _MONTH_SHORT = [
+    'Jan','Feb','Mar','Apr','May','Jun',
+    'Jul','Aug','Sep','Oct','Nov','Dec'
+];
+
+/**
+ * Extract year and month from a league folder id.
+ * "Shabi Israel April 2026" → { year: 2026, monthIndex: 3, monthShort: "Apr" }
+ */
+export function parseLeagueDate(folderId) {
+    const parts = String(folderId || '').split(' ');
+    const year = parseInt(parts[parts.length - 1], 10);
+    const monthName = parts[parts.length - 2];
+    const monthIndex = _MONTHS.indexOf(monthName);
+    return {
+        year: Number.isFinite(year) ? year : null,
+        monthIndex,
+        monthShort: _MONTH_SHORT[monthIndex] || monthName
+    };
+}
+
+/**
+ * Resolve a league's calendar year from params.IssueDate, params.StartDate,
+ * or by parsing the folder id. Returns null if no source is available.
+ */
+export function getLeagueYear(league) {
+    const p = league?.params || {};
+    if (p.IssueDate) {
+        const d = new Date(p.IssueDate);
+        if (!isNaN(d)) return d.getUTCFullYear();
+    }
+    if (p.StartDate) {
+        const d = new Date(p.StartDate);
+        if (!isNaN(d)) return d.getUTCFullYear();
+    }
+    return parseLeagueDate(league?.id).year ?? null;
+}

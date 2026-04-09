@@ -108,7 +108,7 @@ td.player-cell a:hover {
 
 .medal-bronze {
     background: var(--color-bronze);
-    color: #fff;
+    color: var(--color-bronze-text, #fff);
 }
 
 /* Row medal highlights */

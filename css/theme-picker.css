@@ -96,10 +96,10 @@
 
 /* Swatch colors — fixed, not theme-dependent */
 .swatch-current { background: linear-gradient(135deg, #f0f2f5 50%, #2563eb 50%); }
-.swatch-dark { background: linear-gradient(135deg, #121218 50%, #60a5fa 50%); }
+.swatch-dark { background: linear-gradient(135deg, #1c1c26 50%, #6ba8ff 50%); }
 .swatch-beige { background: linear-gradient(135deg, #f5efe6 50%, #8b5e3c 50%); }
-.swatch-modern { background: linear-gradient(135deg, #fafafa 50%, #0066ff 50%); }
-.swatch-royal { background: linear-gradient(135deg, #0d0a1a 50%, #d4af37 50%); }
+.swatch-nature { background: linear-gradient(135deg, #eaf5e1 50%, #3d8b40 50%); }
+.swatch-vegas { background: linear-gradient(135deg, #14281a 50%, #f5d76e 50%); }
 
 /* Divider */
 .theme-picker-divider {

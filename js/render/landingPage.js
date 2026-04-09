@@ -11,7 +11,7 @@
 import { loadAllLeagues } from '../compute/crossLeague.js';
 import { buildAllTimeRankings } from '../compute/allTimeRankings.js';
 import { loadLandingSettings } from '../data/leagueLoader.js';
-import { dashboardUrl, flagUrl, getFlagCode, formatPercent, formatNumber } from '../utils/helpers.js';
+import { dashboardUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate } from '../utils/helpers.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { isLoggedIn } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
@@ -34,18 +34,6 @@ const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 function escapeHtml(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-/**
- * Extract year and month from a league folder id.
- * "Shabi Israel April 2026" → { year: 2026, monthIndex: 3, monthShort: "Apr" }
- */
-function parseLeagueDate(folderId) {
-    const parts = folderId.split(' ');
-    const year = parseInt(parts[parts.length - 1], 10);
-    const monthName = parts[parts.length - 2];
-    const monthIndex = MONTHS.indexOf(monthName);
-    return { year, monthIndex, monthShort: MONTH_SHORT[monthIndex] || monthName };
 }
 
 /* ── Main entry ──────────────────────────────────────── */

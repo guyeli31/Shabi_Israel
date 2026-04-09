@@ -383,9 +383,9 @@
 }
 
 /* Medal row highlights */
-.leaderboard-table tr.rank-gold td { background: #fff4c4; }
-.leaderboard-table tr.rank-silver td { background: #e8eaef; }
-.leaderboard-table tr.rank-bronze td { background: #f4dcc1; }
+.leaderboard-table tr.rank-gold td { background: var(--color-gold-bg); color: var(--color-gold-text); }
+.leaderboard-table tr.rank-silver td { background: var(--color-silver-bg); color: var(--color-silver-text); }
+.leaderboard-table tr.rank-bronze td { background: var(--color-bronze-bg); color: var(--color-bronze-text); }
 
 /* Completed leagues table (compact) */
 .completed-leagues-table {

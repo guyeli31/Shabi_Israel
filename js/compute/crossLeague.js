@@ -57,6 +57,16 @@ export function loadAllLeagues() {
 }
 
 /**
+ * Load only non-hidden leagues. Used by all public-facing cross-league
+ * aggregations so HIDDEN leagues never leak into player stats, achievements,
+ * rankings, or match history. The admin panel keeps using loadAllLeagues.
+ */
+export async function loadVisibleLeagues() {
+    const all = await loadAllLeagues();
+    return all.filter(l => !l.params.Hidden);
+}
+
+/**
  * Build per-league player data for one player. Returns array of:
  *   { league (the loadAllLeagues entry), playerStats, playerRank, totalPlayers,
  *     playerMatches }
@@ -66,7 +76,7 @@ export function loadAllLeagues() {
  *                           luckSelf, luckOpp, _technical, _draw, updatedAt }
  */
 export async function loadPlayerAcrossLeagues(playerName) {
-    const leagues = await loadAllLeagues();
+    const leagues = await loadVisibleLeagues();
     const out = [];
     for (const league of leagues) {
         if (!league.allPlayers.has(playerName)) continue;
@@ -194,7 +204,7 @@ export function aggregatePR(perLeagueData, leagueType) {
  * expandable ranking table.
  */
 export async function listYearRanking(leagueType, year, metric) {
-    const leagues = await loadAllLeagues();
+    const leagues = await loadVisibleLeagues();
     const typeLeagues = leagues.filter(l => l.leagueType === leagueType);
     if (typeLeagues.length === 0) return [];
 
@@ -238,6 +248,64 @@ export async function listYearRanking(leagueType, year, metric) {
     for (const [name, matches] of byPlayer) scores.push({ name, value: computeMetric(matches) });
     scores.sort((a, b) => a.value - b.value); // lower PR = better
     return scores.map((s, i) => ({ rank: i + 1, name: s.name, value: s.value }));
+}
+
+/**
+ * Same as listYearRanking but across ALL history (no year filter).
+ * Used by the player general card PR section so players without recent
+ * matches still get a meaningful rank.
+ */
+export async function listAllTimeRanking(leagueType, metric) {
+    const leagues = await loadVisibleLeagues();
+    const typeLeagues = leagues.filter(l => l.leagueType === leagueType);
+    if (typeLeagues.length === 0) return [];
+
+    const byPlayer = new Map();
+    typeLeagues.forEach((league, li) => {
+        for (const m of league.matches) {
+            if (m._technical) continue;
+            const pushFor = (name, prSelf) => {
+                if (!byPlayer.has(name)) byPlayer.set(name, []);
+                byPlayer.get(name).push({ prSelf, updatedAt: m.updatedAt, leagueOrderIdx: li });
+            };
+            if (m.prA != null) pushFor(m.playerA, m.prA);
+            if (m.prB != null) pushFor(m.playerB, m.prB);
+        }
+    });
+
+    if (byPlayer.size === 0) return [];
+
+    const weight = (leagueType === 'regular') ? 5 : 7;
+    function computeMetric(matches) {
+        if (metric === 'totalPR') {
+            return matches.reduce((s, m) => s + m.prSelf, 0) / matches.length;
+        }
+        const sorted = [...matches].sort((a, b) => {
+            const at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+            const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+            return bt - at;
+        });
+        let ws = 0, vs = 0;
+        for (const m of sorted) {
+            vs += m.prSelf * weight;
+            ws += weight;
+            if (ws >= 300) break;
+        }
+        return ws > 0 ? vs / ws : 0;
+    }
+
+    const scores = [];
+    for (const [name, matches] of byPlayer) scores.push({ name, value: computeMetric(matches) });
+    scores.sort((a, b) => a.value - b.value);
+    return scores.map((s, i) => ({ rank: i + 1, name: s.name, value: s.value }));
+}
+
+export async function rankAllTime(playerName, leagueType, metric) {
+    const sorted = await listAllTimeRanking(leagueType, metric);
+    if (!sorted.length) return null;
+    const idx = sorted.findIndex(s => s.name === playerName);
+    if (idx === -1) return null;
+    return { rank: idx + 1, total: sorted.length, value: sorted[idx].value };
 }
 
 export async function rankWithinYear(playerName, leagueType, year, metric) {
@@ -322,7 +390,7 @@ async function _legacyRankWithinYear(playerName, leagueType, year, metric) {
  * } or null if the player hasn't participated.
  */
 export async function collectMedalsByType(playerName, leagueType) {
-    const leagues = await loadAllLeagues();
+    const leagues = await loadVisibleLeagues();
     // Exclude leagues that are still running — placements aren't final yet,
     // so no achievements (medals / avg-rank) should accrue for them.
     const typeLeagues = leagues.filter(l =>
@@ -423,7 +491,7 @@ export async function collectMedalsByType(playerName, leagueType) {
  * Returns array of { rank, name, value } sorted best→worst.
  */
 export async function listMedalRanking(leagueType, metric) {
-    const leagues = await loadAllLeagues();
+    const leagues = await loadVisibleLeagues();
     const typeLeagues = leagues.filter(l =>
         l.leagueType === leagueType && l.params.Running !== true
     );

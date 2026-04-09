@@ -10,7 +10,7 @@
     padding-bottom: 6px;
 }
 .pg-note {
-    color: #666;
+    color: var(--color-text-secondary);
     font-style: italic;
     padding: 8px 0;
 }
@@ -38,7 +38,7 @@
 }
 .pg-player-alias {
     font-size: 0.85rem;
-    color: #777;
+    color: var(--color-text-muted);
     font-style: italic;
 }
 .pg-avatar {
@@ -70,14 +70,43 @@
 }
 
 /* 3-state activity dot */
+.pg-dot-wrap {
+    position: relative;
+    display: inline-block;
+    vertical-align: middle;
+    margin: 0 6px;
+    cursor: help;
+    outline: none;
+}
+.pg-dot-wrap::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 8px);
+    transform: translateX(-50%);
+    background: rgba(20, 24, 33, 0.95);
+    color: #f3f4f6;
+    font-size: 12px;
+    line-height: 1.3;
+    padding: 6px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+    z-index: 1000;
+}
+.pg-dot-wrap:hover::after,
+.pg-dot-wrap:focus::after {
+    opacity: 1;
+}
 .pg-dot {
     display: inline-block;
     width: 12px;
     height: 12px;
     border-radius: 50%;
     vertical-align: middle;
-    margin: 0 6px;
-    cursor: help;
 }
 .pg-dot-green {
     background: #2ecc40;
@@ -152,16 +181,16 @@
     gap: 16px;
 }
 .pg-pr-card {
-    border: 1px solid var(--border-color, #ddd);
+    border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 14px 16px;
-    background: var(--card-bg, #fafafa);
+    background: var(--color-surface);
 }
 .pg-pr-type {
     font-weight: 700;
     font-size: 0.9rem;
     letter-spacing: 0.06em;
-    color: #555;
+    color: var(--color-text-secondary);
     margin-bottom: 10px;
 }
 .pg-pr-row {
@@ -175,7 +204,7 @@
 .pg-pr-label {
     font-size: 0.8rem;
     text-transform: uppercase;
-    color: #777;
+    color: var(--color-text-muted);
 }
 .pg-pr-value {
     font-size: 1.8rem;
@@ -193,10 +222,10 @@
 .pg-pr-rank {
     margin-top: 6px;
     font-size: 0.85rem;
-    color: #555;
+    color: var(--color-text-secondary);
 }
 .pg-rank-dim {
-    color: #999;
+    color: var(--color-text-muted);
     font-style: italic;
 }
 
@@ -214,7 +243,7 @@
     cursor: pointer;
     font-size: 0.9rem;
     font-weight: 600;
-    color: #777;
+    color: var(--color-text-muted);
     border-bottom: 2px solid transparent;
 }
 .pg-tab.active {
@@ -227,18 +256,18 @@
     gap: 12px;
 }
 .pg-tile {
-    border: 1px solid var(--border-color, #ddd);
+    border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 12px 14px;
-    background: var(--card-bg, #fafafa);
+    background: var(--color-surface);
 }
 .pg-tile-title {
     font-size: 0.85rem;
-    color: #555;
+    color: var(--color-text-secondary);
     font-weight: 600;
 }
 .pg-tile-rank {
-    color: #888;
+    color: var(--color-text-muted);
     font-weight: 400;
     font-size: 0.75rem;
 }
@@ -249,7 +278,7 @@
 }
 .pg-tile-sub {
     font-size: 0.75rem;
-    color: #777;
+    color: var(--color-text-muted);
 }
 
 /* G4 — Leagues table */
@@ -285,7 +314,7 @@
     display: flex;
     flex-direction: column;
     font-size: 0.8rem;
-    color: #555;
+    color: var(--color-text-secondary);
     font-weight: 600;
 }
 .pg-filter select {
@@ -298,12 +327,12 @@
     max-width: 900px;
 }
 .pg-matches-table .na {
-    color: #999;
+    color: var(--color-text-muted);
     font-style: italic;
 }
-.pg-matches-table .result-win { color: #2e7d32; font-weight: 600; }
-.pg-matches-table .result-loss { color: #c62828; font-weight: 600; }
-.pg-matches-table .result-draw { color: #777; font-weight: 600; }
+.pg-matches-table .result-win { color: var(--color-win); font-weight: 600; }
+.pg-matches-table .result-loss { color: var(--color-loss); font-weight: 600; }
+.pg-matches-table .result-draw { color: var(--color-draw); font-weight: 600; }
 
 /* Visited-link fix: keep link color consistent after clicking */
 .pg-leagues-table a,
@@ -331,7 +360,7 @@
 /* Medal coloring in RANK column */
 .rank-cell-gold { color: var(--color-gold-text, #92400e); font-weight: 700; }
 .rank-cell-silver { color: var(--color-silver-text, #475569); font-weight: 600; }
-.rank-cell-bronze { color: #b45309; font-weight: 600; }
+.rank-cell-bronze { color: var(--color-bronze-text, #b45309); font-weight: 600; }
 
 .status-pill.running {
     background: #2ecc40;

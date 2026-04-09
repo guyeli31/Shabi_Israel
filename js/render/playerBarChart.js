@@ -33,6 +33,26 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
     const W = canvas.width;
     const H = canvas.height;
 
+    // Read theme-aware colors from CSS custom properties (re-read per draw
+    // so theme switches apply on next redraw).
+    function themeColors() {
+        const cs = getComputedStyle(canvas);
+        const v = (name, fallback) => {
+            const val = cs.getPropertyValue(name).trim();
+            return val || fallback;
+        };
+        return {
+            grid:         v('--chart-grid',         'rgba(0,0,0,0.18)'),
+            axis:         v('--chart-axis',         'rgba(0,0,0,0.35)'),
+            label:        v('--chart-label',        'rgba(0,0,0,0.6)'),
+            hoverOutline: v('--chart-hover-outline','#000'),
+            win:          v('--color-win',          '#3a8f3a'),
+            loss:         v('--color-loss',         '#c44'),
+            draw:         v('--color-draw',         '#888'),
+            accent:       v('--color-accent',       '#1c4e80'),
+        };
+    }
+
     const padL = 55, padR = 20, padT = 20, padB = 50;
     const plotW = W - padL - padR;
     const plotH = H - padT - padB;
@@ -62,6 +82,7 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
     const zeroY = yPx(0);
 
     function drawAll(hoverIndex = -1, hoverMA = -1) {
+        const C = themeColors();
         ctx.clearRect(0, 0, W, H);
 
         // Y-axis adaptive grid spacing
@@ -73,7 +94,7 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
         ctx.lineWidth = 1;
         for (let g = Math.ceil(minV / yStep) * yStep; g <= maxV; g += yStep) {
             const y = yPx(g);
-            ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+            ctx.strokeStyle = C.grid;
             ctx.beginPath();
             ctx.moveTo(padL, y);
             ctx.lineTo(padL + plotW, y);
@@ -81,7 +102,7 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
         }
 
         // Axes
-        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+        ctx.strokeStyle = C.axis;
         ctx.beginPath();
         ctx.moveTo(padL, padT);
         ctx.lineTo(padL, padT + plotH);
@@ -89,7 +110,7 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
         ctx.stroke();
 
         // Y-axis tick labels (same adaptive spacing as grid)
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillStyle = C.label;
         ctx.font = '11px sans-serif';
         ctx.textAlign = 'right';
         for (let g = Math.ceil(minV / yStep) * yStep; g <= maxV; g += yStep) {
@@ -99,7 +120,7 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
             ctx.beginPath();
             ctx.moveTo(padL - 3, y);
             ctx.lineTo(padL, y);
-            ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+            ctx.strokeStyle = C.axis;
             ctx.stroke();
         }
 
@@ -109,7 +130,7 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
         ctx.rotate(-Math.PI / 2);
         ctx.textAlign = 'center';
         ctx.font = 'bold 12px sans-serif';
-        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillStyle = C.label;
         ctx.fillText(metric.toUpperCase(), 0, 0);
         ctx.restore();
 
@@ -125,15 +146,15 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
             const h = Math.abs(yPx(v) - zeroY) || 1;
 
             let color;
-            if (m.scoreSelf === m.scoreOpp) color = '#888';
-            else if (m.scoreSelf > m.scoreOpp) color = '#3a8f3a';
-            else color = '#c44';
+            if (m.scoreSelf === m.scoreOpp) color = C.draw;
+            else if (m.scoreSelf > m.scoreOpp) color = C.win;
+            else color = C.loss;
 
             ctx.fillStyle = color;
             ctx.fillRect(x, top, barW, h);
 
             if (i === hoverIndex) {
-                ctx.strokeStyle = '#000';
+                ctx.strokeStyle = C.hoverOutline;
                 ctx.lineWidth = 2;
                 ctx.strokeRect(x - 1, top - 1, barW + 2, h + 2);
             }
@@ -151,7 +172,7 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
         });
 
         if (ma.length > 1) {
-            ctx.strokeStyle = '#1c4e80';
+            ctx.strokeStyle = C.accent;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ma.forEach((v, i) => {
@@ -166,7 +187,7 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
             if (hoverMA >= 0 && hoverMA < ma.length) {
                 const x = padL + step * hoverMA + step / 2;
                 const y = yPx(ma[hoverMA]);
-                ctx.fillStyle = '#1c4e80';
+                ctx.fillStyle = C.accent;
                 ctx.beginPath();
                 ctx.arc(x, y, 4, 0, Math.PI * 2);
                 ctx.fill();
@@ -179,14 +200,14 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
         for (const iv of xIntervals) {
             if (Math.ceil(N / iv) <= 15) { xStep = iv; break; }
         }
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillStyle = C.label;
         ctx.font = '10px sans-serif';
         ctx.textAlign = 'center';
         for (let i = xStep; i <= N; i += xStep) {
             const x = padL + step * (i - 1) + step / 2;
             // Tick line
             ctx.beginPath();
-            ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+            ctx.strokeStyle = C.axis;
             ctx.moveTo(x, padT + plotH);
             ctx.lineTo(x, padT + plotH + 5);
             ctx.stroke();
@@ -196,7 +217,7 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
 
         // X-axis legend
         ctx.font = 'bold 12px sans-serif';
-        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillStyle = C.label;
         ctx.textAlign = 'center';
         ctx.fillText('MATCH #', padL + plotW / 2, H - 4);
     }
@@ -216,6 +237,18 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
     const maCache = computeMA();
 
     drawAll();
+
+    // Redraw on theme change so canvas colors pick up new CSS vars
+    const onThemeChange = () => drawAll();
+    window.addEventListener('themechange', onThemeChange);
+    // Best-effort cleanup if host is removed
+    const mo = new MutationObserver(() => {
+        if (!document.body.contains(canvas)) {
+            window.removeEventListener('themechange', onThemeChange);
+            mo.disconnect();
+        }
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
 
     // Interaction
     canvas.addEventListener('mousemove', (e) => {
