@@ -28,8 +28,13 @@ import {
 } from '../utils/helpers.js';
 import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
+import { getTitleBadgesHtml, getTitleAbbreviationsHtml, getHighestTier } from '../data/titleConstants.js';
+import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 
 const CURRENT_YEAR = new Date().getFullYear();
+
+let _allMeta = {};
+let _mergedCustomFlags = {};
 
 export async function renderPlayerGeneralPage() {
     const container = document.getElementById('content');
@@ -49,6 +54,14 @@ export async function renderPlayerGeneralPage() {
             loadPlayersMetadata()
         ]);
         const meta = allMeta[playerName] || {};
+        _allMeta = allMeta;
+
+        // Build merged custom flags from all leagues
+        _mergedCustomFlags = {};
+        for (const e of perLeague) {
+            const cf = e.league.params?.CustomFlags;
+            if (cf) Object.assign(_mergedCustomFlags, cf);
+        }
 
         if (perLeague.length === 0) {
             container.innerHTML = `<div class="error">No leagues found for player "${escapeHtml(playerName)}".</div>`;
@@ -142,10 +155,8 @@ function renderHeader(playerName, perLeague, meta = {}) {
         ? `<img class="pg-avatar" src="${escapeHtml(meta.photoPath)}" alt="${escapeHtml(playerName)}">`
         : '';
 
-    // Optional BMAB badge
-    const bmabHtml = meta.bmabTitle
-        ? `<span class="pg-bmab-badge" title="Official BMAB Title">${escapeHtml(meta.bmabTitle)}</span>`
-        : '';
+    // Title badges (BMAB + championship) — appear RIGHT of name
+    const titleBadgesHtml = getTitleBadgesHtml(meta);
 
     // Display name + full name beneath
     const displayName = playerName;
@@ -153,19 +164,25 @@ function renderHeader(playerName, perLeague, meta = {}) {
         ? `<div class="pg-player-alias">${escapeHtml(meta.fullName)}</div>`
         : '';
 
+    // Highest tier for name color styling
+    const highestTier = getHighestTier(meta);
+
     title.innerHTML = `
         <div class="pg-header-row">
             ${avatarHtml}
             <div class="pg-header-text">
                 <div class="pg-name-line">
-                    ${flagsHtml} ${dot} ${bmabHtml}
+                    ${flagsHtml} ${dot}
                     <span class="pg-player-name">${escapeHtml(displayName)}</span>
+                    ${titleBadgesHtml}
                 </div>
                 ${aliasHtml}
             </div>
         </div>
     `;
-    if (meta.bmabTitle) title.classList.add('pg-titled');
+    // Apply tier-based name styling
+    title.classList.remove('pg-titled', 'pg-titled-gold', 'pg-titled-silver', 'pg-titled-bronze', 'pg-titled-white');
+    if (highestTier) title.classList.add(`pg-titled-${highestTier}`);
 
     const subtitle = document.getElementById('league-subtitle');
     if (subtitle) {
@@ -234,8 +251,8 @@ async function renderPRStats(section, playerName, perLeague) {
  */
 function rankToggleHtml(r, meta) {
     const isPR = meta.kind === 'pr';
-    const label = isPR ? 'All-time' : CURRENT_YEAR;
-    if (!r) return `<span class="pg-rank-dim">No ${isPR ? '' : CURRENT_YEAR + ' '}data</span>`;
+    const label = 'All-time';
+    if (!r) return `<span class="pg-rank-dim">No data</span>`;
     const data = encodeURIComponent(JSON.stringify(meta));
     return `<button type="button" class="pg-rank-toggle" data-rank="${data}">${label}: <b>${ordinal(r.rank)}</b> / ${r.total}</button>`;
 }
@@ -248,7 +265,16 @@ function wireRankToggles(section, playerName) {
         if (!btn) return;
         const card = btn.closest('.pg-pr-card, .pg-tile-block');
         if (!card) return;
-        const expanded = card.querySelector(':scope > .pg-rank-expanded');
+        let expanded;
+        if (card.classList.contains('pg-tile-block')) {
+            // Achievement tile: shared expanded panel is sibling of .pg-tiles
+            const tilesGrid = card.closest('.pg-tiles');
+            expanded = tilesGrid?.nextElementSibling;
+            if (!expanded || !expanded.classList.contains('pg-rank-expanded')) return;
+        } else {
+            // PR card: expanded is inside the card
+            expanded = card.querySelector(':scope > .pg-rank-expanded');
+        }
         if (!expanded) return;
 
         // Toggle off if same button already open
@@ -259,8 +285,17 @@ function wireRankToggles(section, playerName) {
             return;
         }
 
-        // Mark which button is open; clear other open marks in this card
-        card.querySelectorAll('.pg-rank-toggle-open').forEach(b => b.classList.remove('pg-rank-toggle-open'));
+        // Close ALL other expanded panels across the entire page (global accordion)
+        document.querySelectorAll('.pg-rank-expanded:not([hidden])').forEach(other => {
+            if (other !== expanded) {
+                other.hidden = true;
+                other.dataset.openBtn = '';
+            }
+        });
+        document.querySelectorAll('.pg-rank-toggle-open').forEach(b => {
+            if (b !== btn) b.classList.remove('pg-rank-toggle-open');
+        });
+
         btn.classList.add('pg-rank-toggle-open');
         expanded.dataset.openBtn = btn.dataset.rank;
         expanded.hidden = false;
@@ -275,6 +310,7 @@ function wireRankToggles(section, playerName) {
                 rows = await listMedalRanking(meta.type, meta.metric);
             }
             expanded.innerHTML = renderRankTable(rows || [], playerName, meta);
+            attachPlayerNameInteractions(expanded, null);
         } catch (err) {
             expanded.innerHTML = `<div class="pg-note">Failed to load ranking: ${escapeHtml(err.message)}</div>`;
         }
@@ -286,7 +322,8 @@ function renderRankTable(rows, playerName, meta) {
     const valueLabel = meta.kind === 'pr'
         ? (meta.metric === 'totalPR' ? 'Total PR' : 'Last 300 PR')
         : (meta.metric === 'gold' ? 'Gold' : meta.metric === 'silver' ? 'Silver' : meta.metric === 'bronze' ? 'Bronze' : meta.metric === 'avgRank' ? 'Avg Rank' : meta.metric === 'winRate' ? 'Win Rate' : 'Value');
-    let html = `<div class="pg-rank-table-wrap"><table class="pg-rank-table"><thead><tr><th>#</th><th>Player</th><th>${escapeHtml(valueLabel)}</th></tr></thead><tbody>`;
+    const showLeagues = meta.kind === 'medal';
+    let html = `<div class="pg-rank-table-wrap"><table class="pg-rank-table"><thead><tr><th>#</th><th>Player</th>${showLeagues ? '<th>Leagues</th>' : ''}<th>${escapeHtml(valueLabel)}</th></tr></thead><tbody>`;
     for (const r of rows) {
         const isSelf = r.name === playerName;
         const valFmt = (meta.kind === 'pr')
@@ -294,7 +331,10 @@ function renderRankTable(rows, playerName, meta) {
             : (meta.metric === 'avgRank' ? r.value.toFixed(1)
               : meta.metric === 'winRate' ? (r.value * 100).toFixed(1) + '%'
               : String(r.value));
-        html += `<tr class="${isSelf ? 'pg-rank-self' : ''}"><td>${r.rank}</td><td>${escapeHtml(r.name)}</td><td>${valFmt}</td></tr>`;
+        const flagCode = getFlagCode(r.name, _mergedCustomFlags);
+        const flagHtml = `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`;
+        const nameHtml = playerNameLink(r.name, _allMeta[r.name]);
+        html += `<tr class="${isSelf ? 'pg-rank-self' : ''}"><td>${r.rank}</td><td>${flagHtml} ${nameHtml}</td>${showLeagues ? `<td>${r.leagues}</td>` : ''}<td>${valFmt}</td></tr>`;
     }
     html += '</tbody></table></div>';
     return html;
@@ -363,7 +403,6 @@ async function showAchievementType(body, playerName, type) {
                 <div class="pg-tile-value">${valueHtml}</div>
                 ${subHtml}
             </div>
-            <div class="pg-rank-expanded" hidden></div>
         </div>`;
     body.innerHTML = `
         <div class="pg-tiles">
@@ -373,6 +412,7 @@ async function showAchievementType(body, playerName, type) {
             ${tile('📊', 'Avg Rank', m.avgRankRank, isFinite(m.self.avgRank) ? m.self.avgRank.toFixed(1) : '—', `<div class="pg-tile-sub">${m.self.participations} league${m.self.participations === 1 ? '' : 's'}</div>`, 'avgRank')}
             ${tile('🏆', 'Win Rate', m.winRateRank, (m.self.winRate * 100).toFixed(1) + '%', `<div class="pg-tile-sub">${m.self.totalWins}W / ${m.self.totalGames}G</div>`, 'winRate')}
         </div>
+        <div class="pg-rank-expanded" hidden></div>
     `;
     wireRankToggles(body, playerName);
 }
@@ -454,8 +494,14 @@ function renderMatchHistory(section, playerName, perLeague) {
         '<option value="all">All types</option>' +
         leagueTypes.map(t => `<option value="${t}">${t}</option>`).join('');
 
+    const countSel = document.createElement('select');
+    countSel.innerHTML =
+        '<option value="all">All</option>' +
+        [5, 10, 20, 50].map(n => `<option value="${n}">Last ${n}</option>`).join('');
+
     controls.appendChild(labelWrap('Year', yearSel));
     controls.appendChild(labelWrap('Type', typeSel));
+    controls.appendChild(labelWrap('Games', countSel));
     section.appendChild(controls);
 
     const chartHost = document.createElement('div');
@@ -472,11 +518,18 @@ function renderMatchHistory(section, playerName, perLeague) {
     function applyFilters() {
         const yv = yearSel.value;
         const tv = typeSel.value;
-        return allRows.filter(r => {
+        const cv = countSel.value;
+        let filtered = allRows.filter(r => {
             if (yv !== 'all' && r.year !== parseInt(yv, 10)) return false;
             if (tv !== 'all' && r.leagueType !== tv) return false;
             return true;
         });
+        // Apply game count limit (data is already sorted by date desc)
+        if (cv !== 'all') {
+            const limit = parseInt(cv, 10);
+            filtered = filtered.slice(0, limit);
+        }
+        return filtered;
     }
 
     function renderAll() {
@@ -535,7 +588,7 @@ function renderMatchHistory(section, playerName, perLeague) {
         }
         html += '</tr></thead><tbody>';
         for (const r of rows) {
-            const date = r.updatedAt ? new Date(r.updatedAt).toLocaleDateString('en-GB') : '—';
+            const date = r.updatedAt ? new Date(r.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
             const pr = (r.prSelf != null && !r._technical) ? formatNumber(r.prSelf) : '<span class="na">N/A</span>';
             const prOpp = (r.prOpp != null && !r._technical) ? formatNumber(r.prOpp) : '<span class="na">N/A</span>';
             const luck = (!r._technical && r.luckSelf != null && r.luckOpp != null)
@@ -550,7 +603,7 @@ function renderMatchHistory(section, playerName, perLeague) {
                     <td>${date}</td>
                     <td><a href="${dashboardUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
                     <td>${escapeHtml(r.leagueType)}</td>
-                    <td><a href="${playerGeneralUrl(r.opponent)}">${escapeHtml(r.opponent)}</a></td>
+                    <td><img class="flag" src="${flagUrl(getFlagCode(r.opponent, _mergedCustomFlags))}" alt="flag"> ${playerNameLink(r.opponent, _allMeta[r.opponent])}</td>
                     <td>${r.scoreSelf}–${r.scoreOpp}</td>
                     <td>${pr}</td>
                     <td>${prOpp}</td>
@@ -561,6 +614,7 @@ function renderMatchHistory(section, playerName, perLeague) {
         }
         html += '</tbody></table></div>';
         host.innerHTML = html;
+        attachPlayerNameInteractions(host, null);
 
         host.querySelectorAll('th[data-key]').forEach(th => {
             th.addEventListener('click', () => {
@@ -578,6 +632,7 @@ function renderMatchHistory(section, playerName, perLeague) {
 
     yearSel.addEventListener('change', renderAll);
     typeSel.addEventListener('change', renderAll);
+    countSel.addEventListener('change', renderAll);
     renderAll();
 }
 

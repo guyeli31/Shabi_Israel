@@ -42,7 +42,7 @@
         await initNavBar();
         await renderLeaguePage();
         initThemePicker();
-        initAdminButton();
+        if (!isPreviewMode()) initAdminButton();
         initKeyboardShortcuts();
     </script>
 </body>

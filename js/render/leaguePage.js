@@ -9,6 +9,8 @@ import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { colorForValue, colorForValueInverted, colorForGames, colorForLevel } from '../compute/colorScale.js';
 import { getQueryParam, formatPercent, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl } from '../utils/helpers.js';
 import { renderBreadcrumbs } from './navigation.js';
+import { loadPlayersMetadata } from '../data/playersMetadata.js';
+import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 
 let currentSortCol = -1;
 let currentSortDir = 'desc';
@@ -25,7 +27,10 @@ export async function renderLeaguePage() {
     container.innerHTML = '<div class="loading">Loading league data...</div>';
 
     try {
-        const { params, matches, lastModified, totalPlayers, allPlayers } = await loadLeague(leagueId);
+        const [{ params, matches, lastModified, totalPlayers, allPlayers }, playersMeta] = await Promise.all([
+            loadLeague(leagueId),
+            loadPlayersMetadata()
+        ]);
         const leagueConfig = getLeagueConfig(params);
 
         // Update page title
@@ -53,8 +58,8 @@ export async function renderLeaguePage() {
         const averages = computeAverages(rankings, leagueConfig);
         const matchStats = computeMatchStats(rankings, totalPlayers);
 
-        renderSummaryTable(container, rankings, averages, matchStats, params, leagueId, leagueConfig);
-        setupSorting(rankings, averages, matchStats, params, leagueId, leagueConfig);
+        renderSummaryTable(container, rankings, averages, matchStats, params, leagueId, leagueConfig, playersMeta);
+        setupSorting(rankings, averages, matchStats, params, leagueId, leagueConfig, playersMeta);
     } catch (err) {
         container.innerHTML = `<div class="error">Failed to load league: ${err.message}</div>`;
     }
@@ -115,7 +120,7 @@ function getColumnExtents(rankings, columns) {
     return extents;
 }
 
-function renderSummaryTable(container, rankings, averages, matchStats, params, leagueId, leagueConfig) {
+function renderSummaryTable(container, rankings, averages, matchStats, params, leagueId, leagueConfig, playersMeta = {}) {
     const columns = getColumns(leagueConfig);
     const extents = getColumnExtents(rankings, columns);
     const goldCount = params.GoldCount || 1;
@@ -137,7 +142,7 @@ function renderSummaryTable(container, rankings, averages, matchStats, params, l
                 </thead>
                 <tbody id="leagueBody">`;
 
-    html += renderDataRows(rankings, extents, params, leagueId, goldCount, silverCount, bronzeCount, columns, leagueConfig);
+    html += renderDataRows(rankings, extents, params, leagueId, goldCount, silverCount, bronzeCount, columns, leagueConfig, playersMeta);
     html += renderAverageRow(averages, columns, leagueConfig);
     html += renderStatRow(matchStats, columns.length);
 
@@ -192,7 +197,7 @@ function formatCell(key, value) {
     }
 }
 
-function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCount, bronzeCount, columns, leagueConfig) {
+function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCount, bronzeCount, columns, leagueConfig, playersMeta = {}) {
     const retiredPlayers = params.RetiredPlayers || [];
     // Determine best/worst for bold highlighting
     const boldKeys = ['winRate', 'meanPR', 'luck', 'avgPoints'];
@@ -222,9 +227,10 @@ function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCo
                     html += `<td>${r.originalRank}</td>`;
                 } else if (col.key === 'player') {
                     const retiredMark = isRetired ? ' <span class="retired-mark" title="Retired">&#x1F6AA;</span>' : '';
+                    const titleAbbrHtml = getTitleAbbreviationsHtml(playersMeta[r.player]);
                     html += `<td class="player-cell" data-name="${r.player}">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
-                            <a href="${pUrl}" title="Open ${r.player}'s card for this league">${r.player}</a>${retiredMark}
+                            <a href="${pUrl}" title="Open ${r.player}'s card for this league">${r.player}</a>${titleAbbrHtml}${retiredMark}
                         </td>`;
                 } else if (col.key === 'games' || col.key === 'wins' || col.key === 'losses' || col.key === 'prWins') {
                     html += `<td>0</td>`;
@@ -245,21 +251,30 @@ function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCo
                 html += `<td>${getMedalHtml(r.originalRank, goldCount, silverCount, bronzeCount)}</td>`;
             } else if (col.key === 'player') {
                 const retiredMark = isRetired ? ' <span class="retired-mark" title="Retired">&#x1F6AA;</span>' : '';
+                const titleAbbrHtml2 = getTitleAbbreviationsHtml(playersMeta[r.player]);
                 html += `<td class="player-cell" data-name="${r.player}">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
-                            <a href="${pUrl}" title="Open ${r.player}'s card for this league">${r.player}</a>${retiredMark}
+                            <a href="${pUrl}" title="Open ${r.player}'s card for this league">${r.player}</a>${titleAbbrHtml2}${retiredMark}
                         </td>`;
             } else if (col.key === 'level') {
-                const levelColor = colorForLevel(r.level);
-                html += `<td class="level-cell color-scaled" style="color:${levelColor}" data-pr="${r.meanPR}">${r.level}</td>`;
+                if (r.level == null) {
+                    html += `<td class="level-cell">\u2014</td>`;
+                } else {
+                    const levelColor = colorForLevel(r.level);
+                    html += `<td class="level-cell color-scaled" style="color:${levelColor}" data-pr="${r.meanPR}">${r.level}</td>`;
+                }
             } else {
                 const value = r[col.key];
-                const color = getCellColor(col.key, value, extents);
-                const formatted = formatCell(col.key, value);
-                const bw = bestWorst[col.key];
-                const isBold = bw && (value === bw.best || value === bw.worst);
-                const content = isBold ? `<b>${formatted}</b>` : formatted;
-                html += `<td class="color-scaled" style="color:${color}">${content}</td>`;
+                if (value === null || value === undefined) {
+                    html += `<td>\u2014</td>`;
+                } else {
+                    const color = getCellColor(col.key, value, extents);
+                    const formatted = formatCell(col.key, value);
+                    const bw = bestWorst[col.key];
+                    const isBold = bw && (value === bw.best || value === bw.worst);
+                    const content = isBold ? `<b>${formatted}</b>` : formatted;
+                    html += `<td class="color-scaled" style="color:${color}">${content}</td>`;
+                }
             }
         }
         html += `</tr>`;
@@ -309,7 +324,7 @@ function renderStatRow(matchStats, colCount) {
 
 // ---- Sorting ----
 
-function setupSorting(rankings, averages, matchStats, params, leagueId, leagueConfig) {
+function setupSorting(rankings, averages, matchStats, params, leagueId, leagueConfig, playersMeta = {}) {
     const table = document.getElementById('leagueTable');
     if (!table) return;
 
@@ -322,12 +337,12 @@ function setupSorting(rankings, averages, matchStats, params, leagueId, leagueCo
                 currentSortCol = col;
                 currentSortDir = col <= 1 ? 'asc' : 'desc';
             }
-            sortAndRerender(rankings, averages, matchStats, params, leagueId, col, currentSortDir, leagueConfig);
+            sortAndRerender(rankings, averages, matchStats, params, leagueId, col, currentSortDir, leagueConfig, playersMeta);
         });
     });
 }
 
-function sortAndRerender(rankings, averages, matchStats, params, leagueId, col, dir, leagueConfig) {
+function sortAndRerender(rankings, averages, matchStats, params, leagueId, col, dir, leagueConfig, playersMeta = {}) {
     const columns = getColumns(leagueConfig);
     const key = columns[col] ? columns[col].sortKey : 'rank';
 
@@ -351,7 +366,7 @@ function sortAndRerender(rankings, averages, matchStats, params, leagueId, col, 
     const bronzeCount = params.BronzeCount || 4;
     const extents = getColumnExtents(sorted, columns);
     const body = document.getElementById('leagueBody');
-    body.innerHTML = renderDataRows(sorted, extents, params, leagueId, goldCount, silverCount, bronzeCount, columns, leagueConfig)
+    body.innerHTML = renderDataRows(sorted, extents, params, leagueId, goldCount, silverCount, bronzeCount, columns, leagueConfig, playersMeta)
         + renderAverageRow(averages, columns, leagueConfig)
         + renderStatRow(matchStats, columns.length);
 }

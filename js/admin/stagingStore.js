@@ -123,6 +123,57 @@ export function removeOverrideFromChange(path, overrideIndex) {
 }
 
 /**
+ * Remove a single player from a grouped player-metadata change.
+ * If no players remain, removes the entire group.
+ * Also removes any associated photo change for this player.
+ */
+export function removePlayerFromGroup(playerName) {
+    const changes = load();
+    let modified = false;
+
+    // Find the players_metadata.json change (has editedPlayers)
+    const metaIdx = changes.findIndex(c => c.editedPlayers && c.editedPlayers.includes(playerName));
+    if (metaIdx !== -1) {
+        const c = changes[metaIdx];
+        // Remove player from editedPlayers
+        c.editedPlayers = c.editedPlayers.filter(p => p !== playerName);
+
+        // Remove player from JSON content
+        try {
+            const data = JSON.parse(c.content);
+            delete data[playerName];
+            c.content = JSON.stringify(data, null, 2);
+        } catch { /* ignore */ }
+
+        if (c.editedPlayers.length === 0) {
+            // Remove all changes in this group
+            const groupId = c.group;
+            const toRemove = new Set();
+            for (let i = 0; i < changes.length; i++) {
+                if (changes[i].group === groupId) toRemove.add(i);
+            }
+            for (const idx of [...toRemove].sort((a, b) => b - a)) {
+                changes.splice(idx, 1);
+            }
+        } else {
+            c.description = `Player metadata (${c.editedPlayers.length} player${c.editedPlayers.length > 1 ? 's' : ''})`;
+        }
+        modified = true;
+    }
+
+    // Remove photo change for this player
+    const photoIdx = changes.findIndex(c =>
+        c.description && c.description === `Player photo (${playerName})`
+    );
+    if (photoIdx !== -1) {
+        changes.splice(photoIdx, 1);
+        modified = true;
+    }
+
+    if (modified) save(changes);
+}
+
+/**
  * Get number of pending changes (display count).
  * Groups count as 1, manual_overrides.json counts as N (one per override).
  */
@@ -134,7 +185,7 @@ export function getChangeCount() {
         if (c.group) {
             if (!seen.has(c.group)) {
                 seen.add(c.group);
-                count++;
+                count += (c.editedPlayers && c.editedPlayers.length > 0) ? c.editedPlayers.length : 1;
             }
         } else if (c.path && c.path.endsWith('manual_overrides.json') && c.content) {
             try {
@@ -338,6 +389,12 @@ async function updateMatchHistory(leagueId) {
                 playerA: o.playerA, playerB: o.playerB,
                 scoreA: 0, scoreB: 0,
                 prA: null, prB: null, luckA: null, luckB: null
+            };
+        } else if (o.type === 'not_played') {
+            record = {
+                playerA: o.playerA, playerB: o.playerB,
+                scoreA: 0, scoreB: 0,
+                prA: 0, prB: 0, luckA: 0, luckB: 0
             };
         } else continue;
 

@@ -245,3 +245,238 @@
 [data-theme="vegas"] #leagueTable tbody tr:nth-child(even):hover {
     background: rgba(30, 40, 30, 0.6);
 }
+
+/* ============================================
+   CASINO THEME — vivid, bright casino palette
+   ============================================ */
+[data-theme="casino"] {
+    --color-bg: #1a0a0a;
+    --color-surface: #2c1414;
+    --color-text: #fff8e7;
+    --color-text-secondary: #ffd700;
+    --color-text-muted: #c9a84c;
+    --color-border: #5a2020;
+    --color-hover: #3a1a1a;
+    --color-accent: #ffd700;
+    --color-accent-light: #4a3000;
+
+    --color-gold: #ffd700;
+    --color-gold-bg: #5c4a00;
+    --color-gold-text: #ffe44d;
+    --color-silver: #c0c0c0;
+    --color-silver-bg: #3a3a4a;
+    --color-silver-text: #e8e8f0;
+    --color-bronze: #cd7f32;
+    --color-bronze-bg: #4a2800;
+    --color-bronze-text: #ffb366;
+
+    --color-gold-bg-hover: #6e5800;
+    --color-silver-bg-hover: #4a4a5a;
+    --color-bronze-bg-hover: #5c3200;
+
+    --color-running: #00e676;
+    --color-running-bg: #0a2a14;
+    --color-completed: #c9a84c;
+    --color-completed-bg: #2a1a0a;
+
+    --color-win: #00e676;
+    --color-loss: #ff1744;
+    --color-draw: #ffd700;
+
+    --color-avg-bg: #2a1414;
+    --color-avg-border: #5a2020;
+
+    --color-unplayed-bg: #1a0808;
+
+    --header-bg: #8b0000;
+    --header-text: #ffd700;
+    --header-bg-hover: #a01010;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.6);
+
+    --color-scale-filter: brightness(1.15);
+
+    --chart-grid: rgba(255,215,0,0.15);
+    --chart-axis: rgba(255,215,0,0.40);
+    --chart-label: rgba(255,248,231,0.80);
+    --chart-hover-outline: #ffd700;
+}
+
+/* Casino roulette-stripe alternating rows */
+[data-theme="casino"] #leagueTable tbody tr:nth-child(odd) {
+    background: rgba(180, 20, 20, 0.40);
+}
+[data-theme="casino"] #leagueTable tbody tr:nth-child(even) {
+    background: rgba(10, 10, 10, 0.50);
+}
+
+/* Medal rows override roulette pattern */
+[data-theme="casino"] #leagueTable tr.rank-gold td {
+    background: #5c4a00;
+}
+[data-theme="casino"] #leagueTable tr.rank-silver td {
+    background: #3a3a4a;
+}
+[data-theme="casino"] #leagueTable tr.rank-bronze td {
+    background: #4a2800;
+}
+
+/* Casino hover on roulette rows */
+[data-theme="casino"] #leagueTable tbody tr:nth-child(odd):hover {
+    background: rgba(200, 30, 30, 0.50);
+}
+[data-theme="casino"] #leagueTable tbody tr:nth-child(even):hover {
+    background: rgba(30, 30, 30, 0.60);
+}
+
+/* ============================================
+   RAINBOW THEME — bright, playful, childhood dream
+   ============================================ */
+[data-theme="rainbow"] {
+    --color-bg: #fff5f5;
+    --color-surface: #ffffff;
+    --color-text: #2d1b69;
+    --color-text-secondary: #6b4fa2;
+    --color-text-muted: #9b8abf;
+    --color-border: #e8d5f5;
+    --color-hover: #fce4ec;
+    --color-accent: #e91e63;
+    --color-accent-light: #fce4ec;
+
+    --color-gold: #ffd600;
+    --color-gold-bg: #fff9c4;
+    --color-gold-text: #6b5b00;
+    --color-silver: #ab47bc;
+    --color-silver-bg: #f3e5f5;
+    --color-silver-text: #4a148c;
+    --color-bronze: #ff7043;
+    --color-bronze-bg: #fbe9e7;
+    --color-bronze-text: #bf360c;
+
+    --color-gold-bg-hover: #fff176;
+    --color-silver-bg-hover: #e1bee7;
+    --color-bronze-bg-hover: #ffccbc;
+
+    --color-running: #00c853;
+    --color-running-bg: #e8f5e9;
+    --color-completed: #ab47bc;
+    --color-completed-bg: #f3e5f5;
+
+    --color-win: #00c853;
+    --color-loss: #ff1744;
+    --color-draw: #ff9100;
+
+    --color-avg-bg: #e8f5e9;
+    --color-avg-border: #a5d6a7;
+
+    --color-unplayed-bg: #fce4ec;
+
+    --header-bg: #7c4dff;
+    --header-text: #ffffff;
+    --header-bg-hover: #6200ea;
+
+    --shadow-sm: 0 1px 2px rgba(45, 27, 105, 0.08);
+    --shadow-md: 0 4px 12px rgba(45, 27, 105, 0.12);
+    --shadow-lg: 0 8px 30px rgba(45, 27, 105, 0.15);
+
+    --chart-grid: rgba(45,27,105,0.10);
+    --chart-axis: rgba(45,27,105,0.30);
+    --chart-label: rgba(45,27,105,0.70);
+    --chart-hover-outline: #e91e63;
+}
+
+/* Rainbow: colorful pastel table cell accents */
+[data-theme="rainbow"] .dash-card:nth-child(6n+1) { border-top: 3px solid #e91e63; }
+[data-theme="rainbow"] .dash-card:nth-child(6n+2) { border-top: 3px solid #ff9800; }
+[data-theme="rainbow"] .dash-card:nth-child(6n+3) { border-top: 3px solid #fdd835; }
+[data-theme="rainbow"] .dash-card:nth-child(6n+4) { border-top: 3px solid #4caf50; }
+[data-theme="rainbow"] .dash-card:nth-child(6n+5) { border-top: 3px solid #2196f3; }
+[data-theme="rainbow"] .dash-card:nth-child(6n+6) { border-top: 3px solid #9c27b0; }
+
+/* ============================================
+   X22 THEME — backgammon board: black felt, green + amber
+   triangles, walnut wood, cream & red pieces, gold hardware
+   ============================================ */
+[data-theme="x22"] {
+    --color-bg: #1a1a1a;
+    --color-surface: #2a2018;
+    --color-text: #f0e6c8;
+    --color-text-secondary: #d4a84e;
+    --color-text-muted: #9a8a6a;
+    --color-border: #4a3828;
+    --color-hover: #342a1e;
+    --color-accent: #e8a640;
+    --color-accent-light: #3a2e14;
+
+    --color-gold: #e8a640;
+    --color-gold-bg: #4a3a14;
+    --color-gold-text: #ffc95c;
+    --color-silver: #c0b8a8;
+    --color-silver-bg: #3a3530;
+    --color-silver-text: #e8e0d0;
+    --color-bronze: #c85a5a;
+    --color-bronze-bg: #3e1e1e;
+    --color-bronze-text: #f0a0a0;
+
+    --color-gold-bg-hover: #5c4a1e;
+    --color-silver-bg-hover: #4a4540;
+    --color-bronze-bg-hover: #502828;
+
+    --color-running: #4a8c4a;
+    --color-running-bg: #1a2e1a;
+    --color-completed: #9a8a6a;
+    --color-completed-bg: #2a2418;
+
+    --color-win: #4a8c4a;
+    --color-loss: #c85a5a;
+    --color-draw: #d4a84e;
+
+    --color-avg-bg: #2a2418;
+    --color-avg-border: #4a3828;
+
+    --color-unplayed-bg: #1e1a14;
+
+    --header-bg: #3d2b1f;
+    --header-text: #f0e6c8;
+    --header-bg-hover: #4e3828;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.6);
+
+    --color-scale-filter: brightness(1.15);
+
+    --chart-grid: rgba(240,230,200,0.10);
+    --chart-axis: rgba(240,230,200,0.30);
+    --chart-label: rgba(240,230,200,0.75);
+    --chart-hover-outline: #e8a640;
+}
+
+/* X22: backgammon-style alternating rows — green and amber triangles */
+[data-theme="x22"] #leagueTable tbody tr:nth-child(odd) {
+    background: rgba(46, 100, 46, 0.25);
+}
+[data-theme="x22"] #leagueTable tbody tr:nth-child(even) {
+    background: rgba(210, 150, 50, 0.15);
+}
+
+/* Medal rows override */
+[data-theme="x22"] #leagueTable tr.rank-gold td {
+    background: #4a3a14;
+}
+[data-theme="x22"] #leagueTable tr.rank-silver td {
+    background: #3a3530;
+}
+[data-theme="x22"] #leagueTable tr.rank-bronze td {
+    background: #3e1e1e;
+}
+
+/* X22 hover */
+[data-theme="x22"] #leagueTable tbody tr:nth-child(odd):hover {
+    background: rgba(46, 100, 46, 0.40);
+}
+[data-theme="x22"] #leagueTable tbody tr:nth-child(even):hover {
+    background: rgba(210, 150, 50, 0.28);
+}

@@ -5,8 +5,11 @@
 import { loadLeague } from '../data/leagueLoader.js';
 import { getPlayerMatches } from '../data/csvParser.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { getQueryParam, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl, playerGeneralUrl } from '../utils/helpers.js';
+import { getQueryParam, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl, playerGeneralUrl, getLeagueYear } from '../utils/helpers.js';
 import { renderBreadcrumbs, ensurePlayerIndex } from './navigation.js';
+import { loadPlayersMetadata } from '../data/playersMetadata.js';
+import { getTitleBadgesHtml, getHighestTier } from '../data/titleConstants.js';
+import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 
 let currentSortCol = -1;
 let currentSortDir = 'asc';
@@ -24,20 +27,75 @@ export async function renderPlayerPage() {
     container.innerHTML = '<div class="loading">Loading player data...</div>';
 
     try {
-        const { params, matches, allPlayers } = await loadLeague(leagueId);
+        const [{ params, matches, allPlayers }, allMeta] = await Promise.all([
+            loadLeague(leagueId),
+            loadPlayersMetadata()
+        ]);
         const leagueConfig = getLeagueConfig(params);
         const title = params.LeagueTitle || leagueId;
         const flagCode = getFlagCode(playerName, params.CustomFlags);
+        const meta = allMeta[playerName] || {};
 
         // Check if player is retired
         const retiredPlayers = params.RetiredPlayers || [];
         const isRetired = retiredPlayers.includes(playerName);
         const retiredBadge = isRetired ? ' <span class="retired-badge">Retired</span>' : '';
 
-        // Update page header — name links to general (cross-league) player card
-        document.getElementById('page-title').innerHTML =
-            `<img class="flag-title" src="${flagUrl(flagCode)}" alt="${flagCode}"> `
-            + `<a class="player-name-link" href="${playerGeneralUrl(playerName)}" title="Open general player card">${playerName}</a>${retiredBadge}`;
+        // Activity dot (league-context: green=running, orange=current year completed, gray=old)
+        const running = params.Running === true;
+        const CURRENT_YEAR = new Date().getFullYear();
+        const leagueYear = getLeagueYear({ params, id: leagueId });
+        let dotClass, dotTitle;
+        if (running) {
+            dotClass = 'pg-dot pg-dot-green';
+            dotTitle = 'Active in this running league';
+        } else if (leagueYear === CURRENT_YEAR) {
+            dotClass = 'pg-dot pg-dot-orange';
+            dotTitle = `League from ${CURRENT_YEAR}, now completed`;
+        } else {
+            dotClass = 'pg-dot pg-dot-gray';
+            dotTitle = 'Completed league';
+        }
+        const dotHtml = `<span class="pg-dot-wrap" tabindex="0" data-tip="${escapeHtml(dotTitle)}"><span class="${dotClass}" aria-label="${escapeHtml(dotTitle)}"></span></span>`;
+
+        // Optional avatar
+        const avatarHtml = meta.photoPath
+            ? `<img class="pg-avatar" src="${escapeHtml(meta.photoPath)}" alt="${escapeHtml(playerName)}">`
+            : '';
+
+        // Flag
+        const flagHtml = `<img class="flag-title" src="${flagUrl(flagCode)}" alt="${flagCode}" title="${flagCode}">`;
+
+        // Title badges (BMAB + championship) — RIGHT of name
+        const titleBadgesHtml = getTitleBadgesHtml(meta);
+
+        // Full name alias
+        const aliasHtml = meta.fullName
+            ? `<div class="pg-player-alias">${escapeHtml(meta.fullName)}</div>`
+            : '';
+
+        // Highest tier for name color
+        const highestTier = getHighestTier(meta);
+
+        // Build header matching general card style
+        const pageTitle = document.getElementById('page-title');
+        pageTitle.innerHTML = `
+            <div class="pg-header-row">
+                ${avatarHtml}
+                <div class="pg-header-text">
+                    <div class="pg-name-line">
+                        ${flagHtml} ${dotHtml}
+                        <a class="player-name-link pg-player-name" href="${playerGeneralUrl(playerName)}" title="Open general player card">${escapeHtml(playerName)}</a>
+                        ${titleBadgesHtml}
+                        ${retiredBadge}
+                    </div>
+                    ${aliasHtml}
+                </div>
+            </div>
+        `;
+        pageTitle.classList.remove('pg-titled-gold', 'pg-titled-silver', 'pg-titled-bronze', 'pg-titled-white');
+        if (highestTier) pageTitle.classList.add(`pg-titled-${highestTier}`);
+
         document.getElementById('league-subtitle').textContent = title;
         document.title = `${playerName} — ${title}`;
 
@@ -49,7 +107,7 @@ export async function renderPlayerPage() {
         ]);
 
         const playerMatches = getPlayerMatches(matches, playerName, allPlayers);
-        renderMatchTable(container, playerMatches, params, leagueId, playerName, leagueConfig);
+        renderMatchTable(container, playerMatches, params, leagueId, playerName, leagueConfig, allMeta);
         setupSorting(playerMatches, params, leagueId, playerName, leagueConfig);
 
         // "Also plays in" — load cross-league index
@@ -85,7 +143,7 @@ function getPlayerColumns(config) {
     return cols;
 }
 
-function renderMatchTable(container, playerMatches, params, leagueId, playerName, leagueConfig) {
+function renderMatchTable(container, playerMatches, params, leagueId, playerName, leagueConfig, allMeta) {
     const columns = getPlayerColumns(leagueConfig);
 
     const headerCells = columns.map((col, i) =>
@@ -103,7 +161,7 @@ function renderMatchTable(container, playerMatches, params, leagueId, playerName
                 </thead>
                 <tbody id="playerBody">`;
 
-    html += renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns);
+    html += renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns, allMeta);
     html += renderPlayerAverages(playerMatches, leagueConfig, columns);
 
     html += `
@@ -113,9 +171,10 @@ function renderMatchTable(container, playerMatches, params, leagueId, playerName
     </div>`;
 
     container.innerHTML = html;
+    attachPlayerNameInteractions(container, leagueId);
 }
 
-function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns) {
+function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns, allMeta = {}) {
     let html = '';
 
     for (const m of playerMatches) {
@@ -129,7 +188,7 @@ function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns)
             if (columns[0].key === 'date') html += `<td></td>`;
             html += `<td class="player-cell">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
-                            <a href="${oppUrl}" title="Open ${m.opponent}'s card for this league">${m.opponent}</a>
+                            ${playerNameLink(m.opponent, allMeta[m.opponent])}
                         </td>`;
             // Empty cells for remaining columns except last (result/points)
             const skip = columns[0].key === 'date' ? 2 : 1;
@@ -178,7 +237,7 @@ function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns)
                 case 'opponent':
                     html += `<td class="player-cell">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
-                            <a href="${oppUrl}" title="Open ${m.opponent}'s card for this league">${m.opponent}</a>
+                            ${playerNameLink(m.opponent, allMeta[m.opponent])}
                         </td>`;
                     break;
                 case 'scoreSelf':

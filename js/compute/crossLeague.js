@@ -101,7 +101,7 @@ export async function loadPlayerAcrossLeagues(playerName) {
  * preserving updatedAt (from match_history merge) when present.
  * Unplayed matches are omitted.
  */
-function extractPlayerMatches(matches, playerName) {
+export function extractPlayerMatches(matches, playerName) {
     const out = [];
     for (const m of matches) {
         let rec = null;
@@ -551,7 +551,7 @@ export async function listMedalRanking(leagueType, metric) {
         if (metric === 'winRate') return r.totalGames > 0;
         return r[metric] > 0 || r.participations > 0;
     });
-    return filtered.map((r, i) => ({ rank: i + 1, name: r.name, value: r[metric] }));
+    return filtered.map((r, i) => ({ rank: i + 1, name: r.name, value: r[metric], leagues: r.participations }));
 }
 
 /**
@@ -596,4 +596,61 @@ export function flattenAllMatches(perLeagueData) {
     });
 
     return rows;
+}
+
+/**
+ * Batch-compute Last 300 PR for multiple players in a single pass.
+ * Returns Map<playerName, last300PR>.
+ * Efficient: loads all visible leagues once (memoized), iterates each league once.
+ */
+export async function batchLast300PR(playerNames, leagueType) {
+    const leagues = await loadVisibleLeagues();
+    const typeLeagues = leagues.filter(l => (l.leagueType || 'doubling') === leagueType);
+    const weight = (leagueType === 'regular') ? 5 : 7;
+
+    // Build per-player match arrays in one pass over all leagues
+    const playerMatchesMap = new Map();
+    for (const name of playerNames) {
+        playerMatchesMap.set(name, []);
+    }
+
+    for (let li = 0; li < typeLeagues.length; li++) {
+        const league = typeLeagues[li];
+        for (const m of league.matches) {
+            const processPlayer = (name, prSelf) => {
+                const arr = playerMatchesMap.get(name);
+                if (!arr) return;
+                if (m._technical || prSelf == null) return;
+                arr.push({ prSelf, updatedAt: m.updatedAt || null, leagueOrderIdx: li });
+            };
+            processPlayer(m.playerA, m.prA);
+            processPlayer(m.playerB, m.prB);
+        }
+    }
+
+    // Compute Last 300 PR for each player
+    const result = new Map();
+    for (const name of playerNames) {
+        const all = playerMatchesMap.get(name);
+        if (!all || all.length === 0) continue;
+
+        // Sort by updatedAt DESC; missing falls back to league order (newest first)
+        all.sort((a, b) => {
+            const at = a.updatedAt ? new Date(a.updatedAt).getTime() : null;
+            const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : null;
+            if (at != null && bt != null) return bt - at;
+            if (at != null) return -1;
+            if (bt != null) return 1;
+            return a.leagueOrderIdx - b.leagueOrderIdx;
+        });
+
+        let wsum = 0, vsum = 0;
+        for (const m of all) {
+            vsum += m.prSelf * weight;
+            wsum += weight;
+            if (wsum >= 300) break;
+        }
+        result.set(name, wsum > 0 ? vsum / wsum : null);
+    }
+    return result;
 }

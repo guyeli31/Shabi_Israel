@@ -11,7 +11,10 @@ const THEMES = [
     { id: 'dark',    label: 'Dark' },
     { id: 'beige',   label: 'Beige' },
     { id: 'nature',  label: 'Nature' },
-    { id: 'vegas',   label: 'Las Vegas' }
+    { id: 'vegas',   label: 'Las Vegas' },
+    { id: 'casino',  label: 'Casino' },
+    { id: 'rainbow', label: 'Rainbow' },
+    { id: 'x22',     label: 'X22' }
 ];
 
 // Silent migration for legacy localStorage values

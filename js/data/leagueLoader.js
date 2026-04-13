@@ -142,7 +142,7 @@ export async function loadLeague(leagueId) {
  * Apply manual overrides on top of CSV-parsed matches.
  * Each override replaces or adds a match by playerA+playerB key.
  */
-function applyOverrides(matches, overrides) {
+export function applyOverrides(matches, overrides) {
     if (!overrides || overrides.length === 0) return matches;
 
     const result = [...matches];
@@ -182,6 +182,10 @@ function applyOverrides(matches, overrides) {
                 luckA: null, luckB: null,
                 _overridden: true, _technical: true, _draw: true
             };
+        } else if (o.type === 'not_played') {
+            // Remove match from played matches (treat as unplayed)
+            if (idx !== -1) result.splice(idx, 1);
+            continue;
         }
 
         if (newMatch) {

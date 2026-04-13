@@ -7,7 +7,7 @@
  * Plus: prev/next league navigation arrows in the header.
  */
 
-import { loadLeagueParams, loadLeagueOrder, loadOverrides, loadAllLeagueParams } from '../data/leagueLoader.js';
+import { loadLeagueParams, loadLeagueOrder, loadOverrides, loadAllLeagueParams, applyOverrides } from '../data/leagueLoader.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { loadMatchHistory, getMatchesAsOf, getUpdateDates, mergeHistoryIntoMatches, matchKey } from '../compute/matchHistory.js';
 import { parseCSVAllWithRounds, parseCSV, getAllPlayersFromCSV } from '../data/csvParser.js';
@@ -17,6 +17,9 @@ import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { getQueryParam, formatPercent, formatNumber, leagueUrl, playerUrl, dashboardUrl, flagUrl, getFlagCode } from '../utils/helpers.js';
 import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
+import { predictChampionship } from '../compute/championshipPredictor.js';
+import { batchLast300PR } from '../compute/crossLeague.js';
+import { loadPlayersMetadata } from '../data/playersMetadata.js';
 
 export async function renderDashboardPage() {
     const container = document.getElementById('content');
@@ -34,11 +37,12 @@ export async function renderDashboardPage() {
         const csvText = await csvResp.text();
         const lastModified = csvResp.headers.get('Last-Modified') || null;
 
-        const [params, overrides, history, leagueOrder] = await Promise.all([
+        const [params, overrides, history, leagueOrder, playersMeta] = await Promise.all([
             loadLeagueParams(leagueId),
             loadOverrides(leagueId),
             loadMatchHistory(leagueId),
-            loadLeagueOrder().catch(() => [])
+            loadLeagueOrder().catch(() => []),
+            loadPlayersMetadata()
         ]);
 
         // Per-type navigation requires params of all leagues
@@ -52,6 +56,15 @@ export async function renderDashboardPage() {
         document.getElementById('page-title').textContent = `${title}`;
         document.title = `${title} — Dashboard`;
 
+        // Status pill — inline after title text
+        const titleEl = document.getElementById('page-title');
+        const statusSpan = document.createElement('span');
+        statusSpan.style.cssText = 'margin-left:10px;vertical-align:middle;font-size:0.75rem;';
+        statusSpan.innerHTML = params.Running
+            ? '<span class="status-pill status-running">Active</span>'
+            : '<span class="status-pill status-completed">Completed</span>';
+        titleEl.appendChild(statusSpan);
+
         // Breadcrumbs
         renderBreadcrumbs([
             { label: 'Home', url: 'index.html' },
@@ -62,9 +75,13 @@ export async function renderDashboardPage() {
 
         // Parse CSV — both with-unplayed and only-played variants
         const parsedAll = parseCSVAllWithRounds(csvText);
-        const allMatchesIncUnplayed = parsedAll.matches;
-        const playedMatches = parseCSV(csvText);
+        const allMatchesIncUnplayedRaw = parsedAll.matches;
+        const playedMatchesRaw = parseCSV(csvText);
         const allPlayersSet = getAllPlayersFromCSV(csvText);
+
+        // Apply manual overrides (consistency with league table)
+        const playedMatches = applyOverrides(playedMatchesRaw, overrides);
+        const allMatchesIncUnplayed = applyOverridesToAll(allMatchesIncUnplayedRaw, overrides);
 
         const leagueConfig = getLeagueConfig(params);
         const liveMatches = mergeHistoryIntoMatches(playedMatches, history.matches);
@@ -73,18 +90,88 @@ export async function renderDashboardPage() {
             leagueId, params, leagueConfig, lastModified,
             allMatchesIncUnplayed, playedMatches, liveMatches, allPlayersSet,
             roundCount: parsedAll.roundCount,
-            history
+            history, playersMeta
         };
 
         container.innerHTML = renderShell();
         renderSummaryCards(ctx);
+        renderPrizes(ctx);
         renderHistorical(ctx);
+        renderPredictor(ctx); // async — fills in after data loads
         renderRounds(ctx);
         renderPlayerSection(ctx);
     } catch (err) {
         container.innerHTML = `<div class="error">Failed to load dashboard: ${err.message}</div>`;
         console.error(err);
     }
+}
+
+/**
+ * Apply overrides to the full match list (including unplayed).
+ * Unlike applyOverrides(), 'not_played' marks a match as unplayed instead of removing it.
+ */
+function applyOverridesToAll(matches, overrides) {
+    if (!overrides || overrides.length === 0) return matches;
+    const result = [...matches];
+    for (const o of overrides) {
+        const key = [o.playerA, o.playerB].sort().join('|');
+        const idx = result.findIndex(m => {
+            const mKey = [m.playerA, m.playerB].sort().join('|');
+            return mKey === key;
+        });
+
+        if (o.type === 'not_played') {
+            if (idx !== -1) {
+                result[idx] = {
+                    ...result[idx],
+                    played: false,
+                    scoreA: null, scoreB: null,
+                    prA: null, prB: null,
+                    luckA: null, luckB: null,
+                    _overridden: true
+                };
+            }
+            continue;
+        }
+
+        let newMatch;
+        if (o.type === 'result') {
+            newMatch = {
+                playerA: o.playerA, playerB: o.playerB,
+                scoreA: o.scoreA, scoreB: o.scoreB,
+                prA: o.prA, prB: o.prB,
+                luckA: o.luckA, luckB: o.luckB,
+                played: true, _overridden: true
+            };
+        } else if (o.type === 'technical_win') {
+            const aWins = o.winner === o.playerA;
+            newMatch = {
+                playerA: o.playerA, playerB: o.playerB,
+                scoreA: aWins ? 1 : 0, scoreB: aWins ? 0 : 1,
+                prA: null, prB: null,
+                luckA: null, luckB: null,
+                played: true, _overridden: true, _technical: true
+            };
+        } else if (o.type === 'technical_draw') {
+            newMatch = {
+                playerA: o.playerA, playerB: o.playerB,
+                scoreA: 0, scoreB: 0,
+                prA: null, prB: null,
+                luckA: null, luckB: null,
+                played: true, _overridden: true, _technical: true, _draw: true
+            };
+        }
+
+        if (newMatch) {
+            if (idx !== -1) {
+                newMatch.round = result[idx].round;
+                result[idx] = newMatch;
+            } else {
+                result.push(newMatch);
+            }
+        }
+    }
+    return result;
 }
 
 function installLeagueNavArrows(leagueId, allParams, currentType) {
@@ -114,6 +201,13 @@ function renderShell() {
     return `
         <div class="dashboard-cards" id="dash-cards"></div>
 
+        <section class="dash-section" id="prizes-section" style="display:none">
+            <h2>
+                <button class="prizes-toggle-btn" id="prizes-toggle">Prizes &amp; Medals</button>
+            </h2>
+            <div id="prizes-content" hidden></div>
+        </section>
+
         <section class="dash-section">
             <h2>Historical view</h2>
             <div class="dash-controls">
@@ -123,6 +217,31 @@ function renderShell() {
                 <a id="hist-to-full" class="open-full-btn" href="#" title="Open the full league table for the current state">Open full table &rsaquo;</a>
             </div>
             <div id="hist-table"></div>
+        </section>
+
+        <section class="dash-section" id="predictor-section" style="display:none">
+            <h2>Championship Predictor
+                <span class="predictor-tooltip" id="predictor-info-btn">?</span>
+            </h2>
+            <div class="predictor-info-popup" id="predictor-info-popup" hidden>
+                <button class="predictor-info-close" id="predictor-info-close">&times;</button>
+                <h3>How It Works</h3>
+                <p>The predictor simulates all remaining matches to estimate each player's probability of winning the championship.</p>
+                <h4>Simulation Method</h4>
+                <ul>
+                    <li><b>Exact enumeration</b> is used when ≤20 matches remain — every possible outcome combination (2<sup>N</sup> scenarios) is evaluated with its exact probability weight.</li>
+                    <li><b>Monte Carlo simulation</b> is used when &gt;20 matches remain — millions of random season outcomes are sampled to approximate the probabilities.</li>
+                </ul>
+                <h4>Win Probability Per Match</h4>
+                <p>Each match outcome is determined by the PR (Performance Rating) gap between the two players. A calibrated lookup table maps the PR difference to a win probability — the lower the PR, the stronger the player. For PR gaps beyond 10, linear extrapolation is applied, clamped to keep probabilities realistic.</p>
+                <h4>Determining the Champion</h4>
+                <p>After simulating all remaining matches, the final standings are ranked using the league's scoring rules (Win Rate, Points, etc.). The tiebreaker is Mean PR (lower is better). The championship percentage shows how often each player finishes 1st across all simulated seasons.</p>
+                <h4>Margin of Error</h4>
+                <p>For Monte Carlo results, the margin of error is a 95% confidence interval calculated from the binomial distribution, reflecting the statistical uncertainty of the sampling process. Exact calculations have no margin of error.</p>
+            </div>
+            <div class="predictor-moe" id="predictor-moe"></div>
+            <div id="predictor-table"><div class="loading">Computing predictions...</div></div>
+            <button id="predictor-expand" class="predictor-expand-btn" style="display:none">Show Full Table</button>
         </section>
 
         <section class="dash-section">
@@ -156,7 +275,7 @@ function renderSummaryCards(ctx) {
     let leaderHtml = 'N/A';
     if (leader) {
         const flagCode = getFlagCode(leader.player, params.CustomFlags);
-        leaderHtml = `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}" style="vertical-align:middle"> ${playerNameLink(leader.player)}`;
+        leaderHtml = `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}" style="vertical-align:middle"> ${playerNameLink(leader.player, ctx.playersMeta[leader.player])}`;
     }
     const avgPR = averages && averages.meanPR != null ? formatNumber(averages.meanPR) : 'N/A';
     const startDate = params.StartDate
@@ -182,6 +301,37 @@ function renderSummaryCards(ctx) {
         </div>
     `).join('');
     attachPlayerNameInteractions(cardsHost, ctx.leagueId);
+}
+
+// ---------- Prizes ----------
+function renderPrizes(ctx) {
+    const { params } = ctx;
+    const prizes = params.Prizes;
+    if (!prizes) return;
+
+    const section = document.getElementById('prizes-section');
+    const content = document.getElementById('prizes-content');
+    const toggleBtn = document.getElementById('prizes-toggle');
+    section.style.display = '';
+
+    const entryFee = params.EntryFee != null ? params.EntryFee : '—';
+    const rows = [];
+    if (params.GoldCount) rows.push({ medal: '🥇', tier: 'Gold', count: params.GoldCount, prize: prizes.Gold != null ? `₪${prizes.Gold.toLocaleString()}` : '—' });
+    if (params.SilverCount) rows.push({ medal: '🥈', tier: 'Silver', count: params.SilverCount, prize: prizes.Silver != null ? `₪${prizes.Silver.toLocaleString()}` : '—' });
+    if (params.BronzeCount) rows.push({ medal: '🥉', tier: 'Bronze', count: params.BronzeCount, prize: prizes.Bronze != null ? `₪${prizes.Bronze.toLocaleString()}` : '—' });
+
+    let html = `<div class="prizes-info"><span class="prizes-entry">Entry Fee: <b>₪${entryFee}</b></span></div>`;
+    html += '<table class="dash-table prizes-table"><thead><tr><th></th><th>Tier</th><th>Places</th><th>Prize</th></tr></thead><tbody>';
+    for (const r of rows) {
+        html += `<tr class="prize-row-${r.tier.toLowerCase()}"><td>${r.medal}</td><td>${r.tier}</td><td>${r.count}</td><td>${r.prize}</td></tr>`;
+    }
+    html += '</tbody></table>';
+    content.innerHTML = html;
+
+    toggleBtn.addEventListener('click', () => {
+        content.hidden = !content.hidden;
+        toggleBtn.classList.toggle('prizes-toggle-open', !content.hidden);
+    });
 }
 
 // ---------- F2 ----------
@@ -265,7 +415,7 @@ function drawHistTable(ctx, dateValue) {
         const flagCode = getFlagCode(r.player, params.CustomFlags);
         html += `<tr class="${rankClass(r.rank)}">
             <td>${r.rank}</td>
-            <td class="player-cell"><img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(r.player)}</td>
+            <td class="player-cell"><img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
             <td>${r.games}</td><td>${r.wins}</td><td>${r.losses}</td>`;
         if (leagueConfig.showWinRate) html += `<td>${r.winRate != null ? formatPercent(r.winRate) : 'N/A'}</td>`;
         if (leagueConfig.showPR) html += `<td>${r.meanPR != null ? formatNumber(r.meanPR) : 'N/A'}</td>`;
@@ -277,9 +427,118 @@ function drawHistTable(ctx, dateValue) {
     attachPlayerNameInteractions(host, ctx.leagueId);
 }
 
+// ---------- Championship Predictor ----------
+async function renderPredictor(ctx) {
+    const section = document.getElementById('predictor-section');
+    const host = document.getElementById('predictor-table');
+    const moeHost = document.getElementById('predictor-moe');
+    const expandBtn = document.getElementById('predictor-expand');
+
+    // Only show for running leagues
+    if (ctx.params.Running !== true) return;
+    section.style.display = '';
+
+    // Wire info popup toggle
+    const infoBtn = document.getElementById('predictor-info-btn');
+    const infoPopup = document.getElementById('predictor-info-popup');
+    const infoClose = document.getElementById('predictor-info-close');
+    if (infoBtn && infoPopup) {
+        infoBtn.addEventListener('click', () => { infoPopup.hidden = !infoPopup.hidden; });
+        if (infoClose) infoClose.addEventListener('click', () => { infoPopup.hidden = true; });
+    }
+
+    // Find remaining (unplayed) matches
+    const remaining = ctx.allMatchesIncUnplayed.filter(m => !m.played);
+
+    if (remaining.length === 0) {
+        // Season complete — show final standings
+        const statsMap = computeAllStats(ctx.liveMatches, ctx.allPlayersSet);
+        const rankings = buildRankings(statsMap, ctx.leagueConfig);
+        const top = rankings[0];
+        moeHost.textContent = '';
+        host.innerHTML = `<div style="text-align:center;color:var(--color-text-muted);padding:var(--space-md)">Season complete — ${top ? top.player : 'N/A'} wins the championship.</div>`;
+        return;
+    }
+
+    try {
+        const statsMap = computeAllStats(ctx.liveMatches, ctx.allPlayersSet);
+        const matchLength = ctx.params.MatchLength || 7;
+
+        // Load Last 300 PR (async — may take a moment)
+        const last300Map = await batchLast300PR([...ctx.allPlayersSet], ctx.leagueConfig.type);
+
+        const result = predictChampionship({
+            statsMap,
+            remainingMatches: remaining,
+            matchLength,
+            leagueConfig: ctx.leagueConfig,
+            last300Map,
+            allPlayers: ctx.allPlayersSet
+        });
+
+        // Render MoE
+        if (result.method === 'montecarlo' && result.moe > 0) {
+            moeHost.textContent = `Margin of Error: \u00b1${result.moe.toFixed(1)}% (95% confidence, ${result.iterations.toLocaleString()} simulations)`;
+        } else {
+            moeHost.textContent = `Exact calculation (${result.iterations.toLocaleString()} scenarios)`;
+        }
+
+        // Render table
+        const showPR = ctx.leagueConfig.showPR;
+        let expanded = false;
+        const renderTable = (full) => {
+            const data = full ? result.rankings : result.rankings.slice(0, 5);
+            const rows = data.map((r, i) => {
+                const flagCode = getFlagCode(r.player, ctx.params.CustomFlags);
+                const pct = r.championshipPct;
+                const barColor = pct > 20 ? 'var(--color-success)' : pct > 5 ? 'var(--color-warning)' : 'var(--color-text-muted)';
+                return `<tr>
+                    <td>${i + 1}</td>
+                    <td class="player-cell"><img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
+                    <td>${r.games}</td>
+                    <td>${r.wins}</td>
+                    <td>${r.losses}</td>
+                    <td>${showPR ? (r.meanPR != null ? formatNumber(r.meanPR) : '—') : (r.winRate != null ? formatPercent(r.winRate) : '—')}</td>
+                    <td class="predictor-pct-cell">
+                        <div class="predictor-pct-bar" style="--pct:${Math.min(pct, 100)}%;--bar-color:${barColor}">
+                            ${pct.toFixed(1)}%
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+
+            const prHeader = showPR ? 'Mean PR' : 'Win Rate';
+            host.innerHTML = `
+                <table>
+                    <thead><tr>
+                        <th>#</th><th>Player</th><th>G</th><th>W</th><th>L</th>
+                        <th>${prHeader}</th><th>Championship %</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+            attachPlayerNameInteractions(host, ctx.leagueId);
+        };
+
+        renderTable(false);
+
+        // Show expand button if more than 5 players
+        if (result.rankings.length > 5) {
+            expandBtn.style.display = '';
+            expandBtn.onclick = () => {
+                expanded = !expanded;
+                renderTable(expanded);
+                expandBtn.textContent = expanded ? 'Show Top 5' : 'Show Full Table';
+            };
+        }
+    } catch (err) {
+        host.innerHTML = `<div class="error">Prediction failed: ${err.message}</div>`;
+        console.error('Championship predictor error:', err);
+    }
+}
+
 // ---------- F3 ----------
 function renderRounds(ctx) {
-    const { allMatchesIncUnplayed, roundCount, history, leagueId } = ctx;
+    const { allMatchesIncUnplayed, roundCount, history, leagueId, playersMeta, params } = ctx;
     let current = 1;
     let showAll = false;
 
@@ -303,7 +562,7 @@ function renderRounds(ctx) {
             label.textContent = `Round ${current} / ${roundCount}`;
             list = allMatchesIncUnplayed.filter(m => m.round === current);
         }
-        drawRoundTable(list, playedAt, leagueId);
+        drawRoundTable(list, playedAt, leagueId, playersMeta, params.CustomFlags);
         prev.disabled = showAll || current <= 1;
         next.disabled = showAll || current >= roundCount;
     }
@@ -315,7 +574,7 @@ function renderRounds(ctx) {
     paint();
 }
 
-function drawRoundTable(matches, playedAt, leagueId) {
+function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFlags = {}) {
     let html = '<table class="dash-table"><thead><tr><th class="player-col">Player A</th><th>Score</th><th class="player-col">Player B</th><th>PR A</th><th>PR B</th><th>Luck A</th><th>Luck B</th><th>Played</th></tr></thead><tbody>';
     for (const m of matches) {
         const isPlayed = m.played;
@@ -324,9 +583,11 @@ function drawRoundTable(matches, playedAt, leagueId) {
             ? new Date(updated).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })
             : (isPlayed ? '—' : '<span style="color:var(--color-text-muted)">unplayed</span>');
         const rowClass = isPlayed ? '' : 'unplayed-row';
-        html += `<tr class="${rowClass}"><td class="player-cell">${playerNameLink(m.playerA)}</td>`
+        const flagA = getFlagCode(m.playerA, customFlags);
+        const flagB = getFlagCode(m.playerB, customFlags);
+        html += `<tr class="${rowClass}"><td class="player-cell"><img class="flag" src="${flagUrl(flagA)}" alt="${flagA}"> ${playerNameLink(m.playerA, playersMeta[m.playerA])}</td>`
             + `<td>${isPlayed ? m.scoreA + ' - ' + m.scoreB : '—'}</td>`
-            + `<td class="player-cell">${playerNameLink(m.playerB)}</td>`
+            + `<td class="player-cell"><img class="flag" src="${flagUrl(flagB)}" alt="${flagB}"> ${playerNameLink(m.playerB, playersMeta[m.playerB])}</td>`
             + `<td>${isPlayed && m.prA != null ? formatNumber(m.prA) : '—'}</td>`
             + `<td>${isPlayed && m.prB != null ? formatNumber(m.prB) : '—'}</td>`
             + `<td>${isPlayed && m.luckA != null ? formatNumber(m.luckA) : '—'}</td>`

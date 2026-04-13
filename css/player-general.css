@@ -1,5 +1,17 @@
 /* player-general.css — Phase G cross-league player profile */
 
+/* Flags in tables */
+.pg-rank-table .flag,
+.pg-matches-table .flag {
+    width: 20px;
+    height: 14px;
+    vertical-align: middle;
+    margin-right: 3px;
+    object-fit: contain;
+    image-rendering: crisp-edges;
+    border-radius: 2px;
+}
+
 .pg-section {
     margin: 24px 0;
 }
@@ -50,24 +62,69 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     flex-shrink: 0;
 }
+/* BMAB badge (base) */
 .pg-bmab-badge {
     display: inline-block;
     padding: 3px 10px;
-    background: linear-gradient(135deg, #f59e0b, #fbbf24);
-    color: #4a2700;
     font-family: Georgia, 'Times New Roman', serif;
     font-weight: 800;
     font-size: 0.85rem;
     letter-spacing: 0.05em;
     border-radius: 4px;
-    border: 1px solid #b45309;
+    border: 1px solid;
     box-shadow: 0 1px 3px rgba(0,0,0,0.2);
     text-transform: uppercase;
+    vertical-align: middle;
 }
-.pg-titled .pg-player-name {
-    color: #b45309;
+/* BMAB tier colors */
+.pg-badge-gold {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
+    color: #4a2700;
+    border-color: #b45309;
+}
+.pg-badge-silver {
+    background: linear-gradient(135deg, #94a3b8, #cbd5e1);
+    color: #1e293b;
+    border-color: #64748b;
+}
+.pg-badge-bronze {
+    background: linear-gradient(135deg, #d97706, #f59e0b);
+    color: #451a03;
+    border-color: #92400e;
+}
+.pg-badge-white {
+    background: #f8fafc;
+    color: #475569;
+    border-color: #94a3b8;
+}
+
+/* Championship badge — hexagon shape */
+.pg-champ-badge {
+    display: inline-block;
+    padding: 5px 20px;
+    font-family: Georgia, 'Times New Roman', serif;
     font-weight: 800;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    border: none;
+    text-transform: uppercase;
+    vertical-align: middle;
+    clip-path: polygon(5% 50%, 12% 0%, 88% 0%, 95% 50%, 88% 100%, 12% 100%);
 }
+.pg-champ-gold {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
+    color: #4a2700;
+}
+.pg-champ-silver {
+    background: linear-gradient(135deg, #94a3b8, #cbd5e1);
+    color: #1e293b;
+}
+
+/* Titled player name styling (varies by highest tier) */
+.pg-titled-gold .pg-player-name   { color: #b45309; font-weight: 800; }
+.pg-titled-silver .pg-player-name { color: #475569; font-weight: 800; }
+.pg-titled-bronze .pg-player-name { color: #92400e; font-weight: 800; }
+.pg-titled-white .pg-player-name  { color: #475569; font-weight: 800; }
 
 /* 3-state activity dot */
 .pg-dot-wrap {
@@ -348,6 +405,17 @@
     text-decoration: underline;
 }
 
+/* Rank table player name links — prevent default blue/purple visited styling */
+.pg-rank-table .player-name-link,
+.pg-rank-table .player-name-link:visited {
+    color: var(--color-text, #222);
+    text-decoration: none;
+}
+.pg-rank-table .player-name-link:hover {
+    color: var(--color-accent, #1c4e80);
+    text-decoration: underline;
+}
+
 /* Match history scroll cap — 20 visible rows */
 .pg-matches-scroll {
     max-height: 680px;  /* ~20 rows at ~34px each */
@@ -355,6 +423,12 @@
 }
 .pg-matches-scroll table {
     width: 100%;
+}
+.pg-matches-table tbody tr:nth-child(even) {
+    background: var(--row-alt-bg, rgba(0,0,0,0.025));
+}
+.pg-matches-table tbody tr:hover {
+    background: var(--row-hover-bg, rgba(0,0,0,0.05));
 }
 
 /* Medal coloring in RANK column */

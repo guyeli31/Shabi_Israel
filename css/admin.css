@@ -489,6 +489,21 @@
     font-weight: 700;
 }
 
+.btn-save-match:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+.btn-save-ready {
+    background: var(--color-win, #16a34a) !important;
+    color: #fff !important;
+    border-color: var(--color-win, #16a34a) !important;
+    animation: pulse-save 1.5s ease-in-out infinite;
+}
+@keyframes pulse-save {
+    0%, 100% { box-shadow: 0 0 4px rgba(22, 163, 74, 0.3); }
+    50% { box-shadow: 0 0 12px rgba(22, 163, 74, 0.6); }
+}
+
 .match-row-unplayed {
     opacity: 0.5;
 }

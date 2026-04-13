@@ -91,14 +91,15 @@ function computePlayerStats(matches, playerName) {
         }
     }
 
-    const meanPR = games > 0 ? mean(prValues) : 0;
-    const highestPR = games > 0 ? Math.max(...prValues) : 0;
-    const lowestPR = games > 0 ? Math.min(...prValues) : 0;
-    const oppMeanPR = games > 0 ? mean(oppPrValues) : 0;
-    const luck = games > 0 ? mean(luckValues) - mean(oppLuckValues) : 0;
-    const winRate = games > 0 ? wins / games : 0;
+    const hasPR = prValues.length > 0;
+    const meanPR = hasPR ? mean(prValues) : null;
+    const highestPR = hasPR ? Math.max(...prValues) : null;
+    const lowestPR = hasPR ? Math.min(...prValues) : null;
+    const oppMeanPR = hasPR ? mean(oppPrValues) : null;
+    const luck = hasPR ? mean(luckValues) - mean(oppLuckValues) : null;
+    const winRate = games > 0 ? wins / games : null;
 
-    const avgPoints = games > 0 ? points / games : 0;
+    const avgPoints = games > 0 ? points / games : null;
 
     return { games, wins, losses, winRate, meanPR, highestPR, lowestPR, oppMeanPR, luck, prWins, points, avgPoints };
 }

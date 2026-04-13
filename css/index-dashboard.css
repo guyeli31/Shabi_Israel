@@ -96,6 +96,74 @@
     font-style: italic;
 }
 
+/* Notable Figures collapsible section */
+.notable-figures-section {
+    margin-bottom: var(--space-lg);
+}
+.notable-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--color-text);
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 0;
+    transition: color 0.15s;
+}
+.notable-header:hover {
+    color: var(--color-accent);
+}
+.collapse-arrow {
+    display: inline-block;
+    transition: transform 0.25s ease;
+    font-size: 0.85em;
+}
+.notable-header.expanded .collapse-arrow {
+    transform: rotate(90deg);
+}
+.notable-list {
+    padding: 12px 0;
+}
+.notable-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    flex-wrap: wrap;
+}
+.notable-row:last-child {
+    border-bottom: none;
+}
+.notable-row .flag {
+    height: 18px;
+    width: auto;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+.notable-row .player-name-link {
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+.notable-fullname {
+    font-style: italic;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+}
+.notable-titles {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 0.88rem;
+    color: var(--color-text-secondary, #555);
+    margin-left: auto;
+}
+.notable-titles em {
+    font-style: italic;
+}
+
 /* H1 — Active league cards (horizontal scroll) */
 .active-leagues-wrapper {
     position: relative;

@@ -48,7 +48,7 @@
         renderLandingPage();
         initThemePicker();
         // Skip admin gear button when already in admin edit mode
-        if (new URLSearchParams(location.search).get('edit') !== '1') {
+        if (new URLSearchParams(location.search).get('edit') !== '1' && !isPreviewMode()) {
             initAdminButton();
         }
         initKeyboardShortcuts();

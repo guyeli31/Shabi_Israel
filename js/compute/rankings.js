@@ -71,6 +71,11 @@ export function buildRankings(statsMap, leagueConfig) {
         if (a[primary] !== b[primary]) return pMul * (a[primary] - b[primary]);
 
         if (secondary === 'player') return a.player.localeCompare(b.player);
+        const aSecNull = a[secondary] === null;
+        const bSecNull = b[secondary] === null;
+        if (aSecNull && bSecNull) return a.player.localeCompare(b.player);
+        if (aSecNull) return 1;
+        if (bSecNull) return -1;
         const sMul = secondaryDir === 'asc' ? 1 : -1;
         return sMul * (a[secondary] - b[secondary]);
     });
@@ -91,18 +96,20 @@ export function computeAverages(rankings, leagueConfig) {
     const played = rankings.filter(r => r.games > 0);
     if (played.length === 0) return null;
     const n = played.length;
+    const withPR = played.filter(r => r.meanPR !== null);
+    const nPR = withPR.length;
     const avg = {
         games: (played.reduce((s, r) => s + r.games, 0) / n),
         wins: (played.reduce((s, r) => s + r.wins, 0) / n),
         losses: (played.reduce((s, r) => s + r.losses, 0) / n),
         winRate: (played.reduce((s, r) => s + r.winRate, 0) / n),
-        meanPR: (played.reduce((s, r) => s + r.meanPR, 0) / n),
-        luck: (played.reduce((s, r) => s + r.luck, 0) / n)
+        meanPR: nPR > 0 ? (withPR.reduce((s, r) => s + r.meanPR, 0) / nPR) : null,
+        luck: nPR > 0 ? (withPR.reduce((s, r) => s + r.luck, 0) / nPR) : null
     };
     if (leagueConfig && leagueConfig.showPRWins) {
         avg.prWins = (played.reduce((s, r) => s + r.prWins, 0) / n);
-        avg.points = (played.reduce((s, r) => s + r.points, 0) / n);
-        avg.avgPoints = (played.reduce((s, r) => s + r.avgPoints, 0) / n);
+        avg.points = (played.reduce((s, r) => s + (r.points || 0), 0) / n);
+        avg.avgPoints = (played.reduce((s, r) => s + (r.avgPoints || 0), 0) / n);
     }
     return avg;
 }

@@ -17,6 +17,8 @@ import { isLoggedIn } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
 import { addChange, getChangeCount } from '../admin/stagingStore.js';
 import { mountAdminSidebar, unmountAdminSidebar, refreshBadge as refreshSidebarBadge } from '../admin/render/adminSidebar.js';
+import { loadPlayersMetadata } from '../data/playersMetadata.js';
+import { hasTitles, compareTitlePriority, getFullTitleDescription } from '../data/titleConstants.js';
 
 /* ── Helpers ─────────────────────────────────────────── */
 
@@ -40,6 +42,8 @@ function escapeHtml(s) {
 
 /** Landing settings loaded once, shared with edit mode. */
 let _landingSettings = null;
+/** Players metadata loaded once, shared across renderers. */
+let _playersMeta = {};
 
 export async function renderLandingPage() {
     const container = document.getElementById('content');
@@ -50,7 +54,11 @@ export async function renderLandingPage() {
         _landingSettings = await loadLandingSettings();
         populateHeader(_landingSettings);
 
-        const allLeagues = await loadAllLeagues();
+        const [allLeagues, playersMeta] = await Promise.all([
+            loadAllLeagues(),
+            loadPlayersMetadata()
+        ]);
+        _playersMeta = playersMeta;
 
         // Filter hidden leagues for non-admin users
         const adminLoggedIn = isLoggedIn() && !isPreviewMode();
@@ -91,6 +99,7 @@ export async function renderLandingPage() {
         container.innerHTML = '';
 
         renderInfoCards(container, activePlayers.size, allPlayers.size, leagues.length, latestModified);
+        renderNotableFigures(container, _playersMeta, leagues);
         renderActiveLeagues(container, running);
         if (completed.length > 0) renderCompletedLeagues(container, completed);
         renderLeaderboards(container, leaderboards);
@@ -596,6 +605,65 @@ function renderInfoCards(container, activePlayers, totalPlayers, totalLeagues, l
     container.appendChild(section);
 }
 
+/* ── Notable Figures (collapsible) ────────────────────── */
+
+function renderNotableFigures(container, allMeta, leagues) {
+    // Collect all players who have at least one title
+    const titled = [];
+    for (const [name, meta] of Object.entries(allMeta)) {
+        if (hasTitles(meta)) titled.push({ name, meta });
+    }
+    if (titled.length === 0) return;
+
+    // Sort: World Champions → National Champions → BMAB tier → alphabetical
+    titled.sort(compareTitlePriority);
+
+    // Resolve flags: pick the first available flag from any league
+    const playerFlags = {};
+    for (const l of leagues) {
+        for (const p of l.allPlayers) {
+            if (!playerFlags[p]) {
+                playerFlags[p] = getFlagCode(p, l.params?.CustomFlags);
+            }
+        }
+    }
+
+    const section = document.createElement('section');
+    section.className = 'notable-figures-section';
+
+    const rowsHtml = titled.map(({ name, meta }) => {
+        const flag = playerFlags[name] || 'IL';
+        const fullName = meta.fullName || '';
+        const desc = getFullTitleDescription(meta);
+        return `<div class="notable-row">
+            <img class="flag" src="${flagUrl(flag)}" alt="${flag}">
+            <a class="player-name-link" data-player="${escapeHtml(name)}" href="player_general.html?player=${encodeURIComponent(name)}">${escapeHtml(name)}</a>
+            <span class="notable-fullname">${escapeHtml(fullName)}</span>
+            <span class="notable-titles"><em>${escapeHtml(desc)}</em></span>
+        </div>`;
+    }).join('');
+
+    section.innerHTML = `
+        <h2 class="notable-header collapsed" id="notable-toggle">
+            Notable Figures (${titled.length}) <span class="collapse-arrow">&#9656;</span>
+        </h2>
+        <div class="notable-list" id="notable-list" hidden>
+            ${rowsHtml}
+        </div>
+    `;
+    container.appendChild(section);
+
+    // Toggle behavior
+    const header = section.querySelector('#notable-toggle');
+    const list = section.querySelector('#notable-list');
+    header.addEventListener('click', () => {
+        const expanded = !list.hidden;
+        list.hidden = expanded;
+        header.classList.toggle('expanded', !expanded);
+        header.classList.toggle('collapsed', expanded);
+    });
+}
+
 /* ── H1 — Active leagues ─────────────────────────────── */
 
 function renderActiveLeagues(container, running) {
@@ -610,7 +678,7 @@ function renderActiveLeagues(container, running) {
         let leaderHtml = '<span style="color:var(--color-text-muted)">—</span>';
         if (l.leader) {
             const flagCode = getFlagCode(l.leader.player, l.params.CustomFlags);
-            leaderHtml = `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(l.leader.player)}`;
+            leaderHtml = `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(l.leader.player, _playersMeta[l.leader.player])}`;
         }
 
         cardsHtml += `
@@ -715,7 +783,7 @@ function renderCompletedLeagues(container, completed) {
         let leaderHtml = '—';
         if (l.leader) {
             const flagCode = getFlagCode(l.leader.player, l.params.CustomFlags);
-            leaderHtml = `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(l.leader.player)}`;
+            leaderHtml = `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(l.leader.player, _playersMeta[l.leader.player])}`;
         }
         const typeLabel = TYPE_LABELS[l.leagueType] || l.leagueType;
         const typeCell = `<span class="league-type-pill type-${l.leagueType}">${typeLabel}</span>`;
@@ -936,7 +1004,7 @@ function renderLeaderboards(container, leaderboards) {
                     <td>${row.rank}</td>
                     <td class="player-cell">
                         <img class="flag" src="${flagUrl(row.flagCode)}" alt="${row.flagCode}">
-                        ${playerNameLink(row.player)}
+                        ${playerNameLink(row.player, _playersMeta[row.player])}
                     </td>
                     ${monthCells}
                     ${extraCells}
@@ -946,6 +1014,7 @@ function renderLeaderboards(container, leaderboards) {
         const title = `${lb.year} ${lb.typeName} Leaderboard`;
 
         const defaultRows = Math.min(10, lb.rows.length);
+        const maxAllowed = Math.min(25, lb.rows.length);
         section.innerHTML = `
             <div class="collapsible-section${collapsed}">
                 <div class="leaderboard-header-row">
@@ -953,7 +1022,7 @@ function renderLeaderboards(container, leaderboards) {
                     <div class="img-export-group">
                         <label class="img-export-label">Top
                             <input class="img-export-rows" type="number"
-                                   min="1" max="${lb.rows.length}" value="${defaultRows}">
+                                   min="1" max="${maxAllowed}" value="${defaultRows}">
                         </label>
                         <button class="img-export-btn">Export Image</button>
                     </div>
@@ -983,12 +1052,14 @@ function renderLeaderboards(container, leaderboards) {
 
         // Image export
         const exportBtn = section.querySelector('.img-export-btn');
-        const rowsInput = section.querySelector('.img-export-rows');
         exportBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            let maxRows = parseInt(rowsInput.value, 10);
+            // Re-query input at click time to avoid stale references
+            const currentInput = exportBtn.closest('.leaderboard-section').querySelector('.img-export-rows');
+            let maxRows = parseInt(currentInput.value, 10);
             if (!Number.isFinite(maxRows) || maxRows < 1) maxRows = 1;
-            if (maxRows > lb.rows.length) maxRows = lb.rows.length;
+            const cap = Math.min(25, lb.rows.length);
+            if (maxRows > cap) maxRows = cap;
             exportLeaderboardImage(lb, title, maxRows);
         });
         // Don't toggle collapsible when interacting with the export controls.
@@ -1162,7 +1233,7 @@ function renderAchievementTables(data) {
         const rowsHtml = rows.map(r => `
             <tr>
                 <td>${r.rank}</td>
-                <td><img class="flag" src="${flagUrl(getFlagCode(r.name, data.customFlags))}" alt="flag"> ${playerNameLink(r.name)}</td>
+                <td><img class="flag" src="${flagUrl(getFlagCode(r.name, data.customFlags))}" alt="flag"> ${playerNameLink(r.name, _playersMeta[r.name])}</td>
                 <td>${m.fmt(r.value)}</td>
             </tr>
         `).join('');
@@ -1249,7 +1320,7 @@ function renderPRTables(data) {
         const rowsHtml = rows.map(r => `
             <tr>
                 <td>${r.rank}</td>
-                <td><img class="flag" src="${flagUrl(getFlagCode(r.name, data.customFlags))}" alt="flag"> ${playerNameLink(r.name)}</td>
+                <td><img class="flag" src="${flagUrl(getFlagCode(r.name, data.customFlags))}" alt="flag"> ${playerNameLink(r.name, _playersMeta[r.name])}</td>
                 <td>${formatNumber(r.value)}</td>
             </tr>
         `).join('');

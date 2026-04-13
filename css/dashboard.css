@@ -187,11 +187,13 @@
 }
 
 .dash-table .flag {
-    width: 24px;
-    height: 16px;
+    width: 20px;
+    height: 14px;
     vertical-align: middle;
     margin-right: 4px;
-    object-fit: cover;
+    object-fit: contain;
+    image-rendering: crisp-edges;
+    border-radius: 2px;
 }
 
 /* Bar chart */
@@ -330,4 +332,184 @@
     color: var(--color-text-muted);
     cursor: not-allowed;
     text-decoration: line-through;
+}
+
+/* ── Championship Predictor ─────────────────────────── */
+.predictor-tooltip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-border);
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    vertical-align: middle;
+    margin-left: var(--space-xs);
+    user-select: none;
+}
+.predictor-tooltip:hover {
+    background: var(--color-text-muted);
+    color: var(--color-bg);
+}
+
+.predictor-info-popup {
+    position: relative;
+    background: var(--color-card-bg, var(--color-bg));
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: var(--space-md) var(--space-lg);
+    margin-bottom: var(--space-md);
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--color-text);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+.predictor-info-popup h3 {
+    margin: 0 0 var(--space-sm);
+    font-size: 1rem;
+}
+.predictor-info-popup h4 {
+    margin: var(--space-sm) 0 var(--space-xs);
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+}
+.predictor-info-popup ul {
+    margin: var(--space-xs) 0;
+    padding-left: 1.4em;
+}
+.predictor-info-popup li {
+    margin-bottom: var(--space-xs);
+}
+.predictor-info-popup p {
+    margin: var(--space-xs) 0;
+}
+.predictor-info-close {
+    position: absolute;
+    top: var(--space-xs);
+    right: var(--space-sm);
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    line-height: 1;
+}
+.predictor-info-close:hover {
+    color: var(--color-text);
+}
+
+.predictor-moe {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-sm);
+}
+
+#predictor-section table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#predictor-section thead th {
+    text-align: center;
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    border-bottom: 2px solid var(--color-border);
+    white-space: nowrap;
+}
+
+#predictor-section tbody td {
+    text-align: center;
+    padding: var(--space-xs) var(--space-sm);
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.9rem;
+}
+
+#predictor-section tbody td.player-cell {
+    text-align: left;
+}
+
+.predictor-pct-cell {
+    width: 140px;
+}
+
+.predictor-pct-bar {
+    position: relative;
+    background: linear-gradient(to right, var(--bar-color, var(--color-success)) var(--pct, 0%), transparent var(--pct, 0%));
+    border-radius: var(--radius-sm);
+    padding: 2px 8px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-align: right;
+    min-width: 60px;
+}
+
+.predictor-expand-btn {
+    display: block;
+    margin: var(--space-md) auto 0;
+    padding: var(--space-xs) var(--space-md);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-accent);
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.predictor-expand-btn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-text);
+}
+
+/* ── Prizes section ──────────────────────────────────── */
+.prizes-toggle-btn {
+    background: none;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-xs) var(--space-md);
+    color: var(--color-accent);
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: border-color 0.15s, color 0.15s;
+}
+.prizes-toggle-btn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-text);
+}
+.prizes-toggle-btn::after {
+    content: ' ▸';
+}
+.prizes-toggle-btn.prizes-toggle-open::after {
+    content: ' ▾';
+}
+
+.prizes-info {
+    margin-bottom: var(--space-sm);
+    font-size: 0.9rem;
+}
+.prizes-entry b {
+    color: var(--color-accent);
+}
+
+.prizes-table {
+    max-width: 400px;
+}
+.prizes-table td,
+.prizes-table th {
+    text-align: center;
+}
+.prize-row-gold td {
+    background: rgba(245,158,11,0.1);
+}
+.prize-row-silver td {
+    background: rgba(148,163,184,0.1);
+}
+.prize-row-bronze td {
+    background: rgba(217,119,6,0.08);
 }

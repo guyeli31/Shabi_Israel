@@ -9,17 +9,23 @@
  */
 
 import { playerUrl, playerGeneralUrl } from '../utils/helpers.js';
+import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 
 /**
  * Render an HTML <a> for a player name. Left click navigates to the
  * general (cross-league) player card; right click opens a context menu
  * for choosing the league-specific card instead.
+ *
+ * @param {string} playerName
+ * @param {object|null} meta — player metadata from players_metadata.json (optional).
+ *        When provided, abbreviated title badges are appended after the name.
  */
-export function playerNameLink(playerName) {
+export function playerNameLink(playerName, meta = null) {
+    const badgeHtml = meta ? getTitleAbbreviationsHtml(meta) : '';
     return `<a class="player-name-link"
               data-player="${escapeAttr(playerName)}"
               href="${playerGeneralUrl(playerName)}"
-              title="Open general player card">${escapeHtml(playerName)}</a>`;
+              title="Open general player card">${escapeHtml(playerName)}</a>${badgeHtml}`;
 }
 
 /**

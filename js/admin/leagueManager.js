@@ -149,6 +149,10 @@ async function renderAddLeagueForm(container, displayOrder) {
                         <label for="new-entry-fee">Entry Fee</label>
                         <input type="number" id="new-entry-fee" value="0" min="0">
                     </div>
+                    <div class="form-group">
+                        <label for="new-match-length">Match Length</label>
+                        <input type="number" id="new-match-length" value="7" min="1" max="25" step="2">
+                    </div>
                 </div>
             </div>
 
@@ -420,6 +424,7 @@ async function renderAddLeagueForm(container, displayOrder) {
         const options = {
             issueDate: document.getElementById('new-issue-date').value || null,
             entryFee: parseInt(document.getElementById('new-entry-fee').value) || 0,
+            matchLength: parseInt(document.getElementById('new-match-length').value) || 7,
             goldCount: parseInt(document.getElementById('new-gold-count').value) || 1,
             silverCount: parseInt(document.getElementById('new-silver-count').value) || 1,
             bronzeCount: parseInt(document.getElementById('new-bronze-count').value) || 4,
@@ -478,6 +483,7 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
     };
     if (options.issueDate) params.IssueDate = options.issueDate;
     if (options.entryFee) params.EntryFee = options.entryFee;
+    if (options.matchLength) params.MatchLength = options.matchLength;
     if (options.prizes && (options.prizes.Gold || options.prizes.Silver || options.prizes.Bronze)) {
         params.Prizes = options.prizes;
     }
@@ -655,6 +661,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                         <span class="toggle-slider"></span>
                     </label>
                 </td>
+                <td><button class="btn btn-danger btn-sm player-remove-btn" data-remove-player="${esc(player)}" title="Remove player">&#10005;</button></td>
             </tr>`;
     }
 
@@ -718,6 +725,10 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                     <label for="edit-entry-fee">Entry Fee</label>
                     <input type="number" id="edit-entry-fee" value="${entryFee}" min="0" step="1">
                 </div>
+                <div class="form-group" style="flex:1;min-width:100px">
+                    <label for="edit-match-length">Match Length</label>
+                    <input type="number" id="edit-match-length" value="${p.MatchLength || 7}" min="1" max="25" step="2">
+                </div>
             </div>
             <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
                 <div class="form-group" style="flex:1;min-width:90px">
@@ -742,7 +753,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             <div id="players-msg"></div>
             <table class="admin-table">
                 <thead>
-                    <tr><th>Name</th><th>Flag</th><th>Retired</th></tr>
+                    <tr><th>Name</th><th>Flag</th><th>Retired</th><th></th></tr>
                 </thead>
                 <tbody>${playerRows}</tbody>
             </table>
@@ -838,6 +849,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         if (issueDateVal) newParams.IssueDate = issueDateVal;
         else delete newParams.IssueDate;
         newParams.EntryFee = parseInt(document.getElementById('edit-entry-fee').value) || 0;
+        newParams.MatchLength = parseInt(document.getElementById('edit-match-length').value) || 7;
         newParams.Prizes = {
             Gold: parseInt(document.getElementById('edit-prize-gold').value) || 0,
             Silver: parseInt(document.getElementById('edit-prize-silver').value) || 0,
@@ -856,6 +868,19 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
 
         if (refreshBadgeFn) refreshBadgeFn();
         showMsg('edit-msg', 'Settings staged. Go to Pending Changes to publish.', 'success');
+    });
+
+    // Remove player buttons
+    const removedPlayers = new Set();
+    container.querySelectorAll('.player-remove-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const player = btn.dataset.removePlayer;
+            if (!confirm(`Remove "${player}" from this league? CSV match data will remain.`)) return;
+            removedPlayers.add(player);
+            const row = btn.closest('tr');
+            if (row) row.remove();
+            showMsg('players-msg', `"${player}" marked for removal. Click "Save Player Changes" to apply.`, 'success');
+        });
     });
 
     // Save players

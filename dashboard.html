@@ -43,7 +43,7 @@
         await initNavBar();
         await renderDashboardPage();
         initThemePicker();
-        initAdminButton();
+        if (!isPreviewMode()) initAdminButton();
         initKeyboardShortcuts();
     </script>
 </body>

@@ -100,10 +100,11 @@ async function renderMatchEditor(container, leagueId, refreshBadge) {
                         <td><input type="number" class="inline-edit-input inline-edit-score" data-field="scoreB" step="1" value="${scB}"></td>
                         <td class="nowrap edit-ts">${edited}</td>
                         <td class="nowrap">
-                            <button class="btn btn-primary btn-xs" data-save="${i}" title="Save changes">Save</button>
                             <button class="btn btn-xs btn-tech" data-tech-a="${i}" title="Technical win ${esc(m.playerA)}">TA</button>
                             <button class="btn btn-xs btn-tech" data-tech-b="${i}" title="Technical win ${esc(m.playerB)}">TB</button>
                             <button class="btn btn-xs btn-tech" data-tech-d="${i}" title="Technical draw">TD</button>
+                            <button class="btn btn-xs btn-tech" data-np="${i}" title="Mark as Not Played">NP</button>
+                            <button class="btn btn-primary btn-xs btn-save-match" data-save="${i}" title="Save changes" disabled>Save</button>
                         </td>
                     </tr>`;
             }
@@ -134,6 +135,8 @@ async function renderMatchEditor(container, leagueId, refreshBadge) {
                     };
 
                     stageOverride(leagueId, override, refreshBadge);
+                    btn.disabled = true;
+                    btn.classList.remove('btn-save-ready');
                     showMsg('editor-msg', `Override staged: ${m.playerA} vs ${m.playerB}`, 'success');
                 });
             });
@@ -159,6 +162,26 @@ async function renderMatchEditor(container, leagueId, refreshBadge) {
                 btn.addEventListener('click', () => {
                     const idx = parseInt(btn.dataset.techD);
                     applyTechnical(idx, 'technical_draw', null);
+                });
+            });
+
+            // Not Played
+            container.querySelectorAll('[data-np]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.dataset.np);
+                    applyNotPlayed(idx);
+                });
+            });
+
+            // Enable Save button when any input in the row changes
+            container.querySelectorAll('.inline-edit-input').forEach(input => {
+                input.addEventListener('input', () => {
+                    const row = input.closest('tr');
+                    const saveBtn = row && row.querySelector('[data-save]');
+                    if (saveBtn) {
+                        saveBtn.disabled = false;
+                        saveBtn.classList.add('btn-save-ready');
+                    }
                 });
             });
         }
@@ -190,6 +213,31 @@ async function renderMatchEditor(container, leagueId, refreshBadge) {
 
             stageOverride(leagueId, override, refreshBadge);
             showMsg('editor-msg', `Technical result staged: ${m.playerA} vs ${m.playerB}`, 'success');
+        }
+
+        function applyNotPlayed(idx) {
+            const m = allPairings[idx];
+            const row = container.querySelector(`tr[data-row="${idx}"]`);
+            if (!row) return;
+
+            // Clear all input fields
+            row.querySelector('[data-field="prA"]').value = '';
+            row.querySelector('[data-field="luckA"]').value = '';
+            row.querySelector('[data-field="scoreA"]').value = '';
+            row.querySelector('[data-field="prB"]').value = '';
+            row.querySelector('[data-field="luckB"]').value = '';
+            row.querySelector('[data-field="scoreB"]').value = '';
+
+            const override = {
+                type: 'not_played',
+                playerA: m.playerA,
+                playerB: m.playerB,
+                reason: 'Marked as Not Played',
+                timestamp: new Date().toISOString()
+            };
+
+            stageOverride(leagueId, override, refreshBadge);
+            showMsg('editor-msg', `Not Played staged: ${m.playerA} vs ${m.playerB}`, 'success');
         }
 
         container.innerHTML = `
@@ -242,7 +290,16 @@ function buildAllPairings(csvMatches, allPlayers, overrideMap) {
         const o = overrideMap.get(key);
         const isPlayed = m.scoreA !== 0 || m.scoreB !== 0 || m.prA !== 0 || m.prB !== 0;
 
-        if (o && (o.type === 'technical_win' || o.type === 'technical_draw')) {
+        if (o && o.type === 'not_played') {
+            // Not Played override — treat as unplayed
+            pairings.push({
+                playerA: m.playerA, playerB: m.playerB,
+                prA: 0, luckA: 0, scoreA: 0,
+                prB: 0, luckB: 0, scoreB: 0,
+                played: false, _overridden: true,
+                lastEdited: o.timestamp || null
+            });
+        } else if (o && (o.type === 'technical_win' || o.type === 'technical_draw')) {
             // Technical override — show technical result
             const aWins = o.winner === m.playerA;
             pairings.push({
@@ -276,7 +333,10 @@ function buildAllPairings(csvMatches, allPlayers, overrideMap) {
         if (seenKeys.has(key)) continue;
         seenKeys.add(key);
 
-        if (o.type === 'technical_win' || o.type === 'technical_draw') {
+        if (o.type === 'not_played') {
+            // Not Played override — skip (already unplayed, not in CSV)
+            continue;
+        } else if (o.type === 'technical_win' || o.type === 'technical_draw') {
             const aWins = o.winner === o.playerA;
             pairings.push({
                 playerA: o.playerA, playerB: o.playerB,

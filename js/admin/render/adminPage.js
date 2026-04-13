@@ -4,7 +4,7 @@
 
 import { isLoggedIn, login, logout, getToken, setToken, getRepo, setRepo, isGitHubConfigured } from '../auth.js';
 import { testConnection } from '../githubApi.js';
-import { getChanges, removeChange, removeGroup, removeOverrideFromChange, getChangeCount, publishAll, clearChanges } from '../stagingStore.js';
+import { getChanges, removeChange, removeGroup, removeOverrideFromChange, removePlayerFromGroup, getChangeCount, publishAll, clearChanges } from '../stagingStore.js';
 
 let currentView = 'leagues';
 let onNavigate = null; // callback set by admin.html to handle view switching
@@ -246,7 +246,9 @@ function renderPendingChanges(container) {
             day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
         });
         let cancelAttr;
-        if (item.group) {
+        if (item.removePlayer) {
+            cancelAttr = `data-remove-player="${escHtml(item.removePlayer)}"`;
+        } else if (item.group) {
             cancelAttr = `data-remove-group="${escHtml(item.group)}"`;
         } else if (item.overridePath != null) {
             cancelAttr = `data-remove-override-path="${escHtml(item.overridePath)}" data-remove-override-idx="${item.overrideIndex}"`;
@@ -279,6 +281,15 @@ function renderPendingChanges(container) {
     container.querySelectorAll('[data-remove]').forEach(btn => {
         btn.addEventListener('click', () => {
             removeChange(parseInt(btn.dataset.remove));
+            refreshBadge();
+            renderPendingChanges(container);
+        });
+    });
+
+    // Cancel individual player from grouped metadata
+    container.querySelectorAll('[data-remove-player]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            removePlayerFromGroup(btn.dataset.removePlayer);
             refreshBadge();
             renderPendingChanges(container);
         });
@@ -390,12 +401,14 @@ function buildDisplayItems(changes) {
                     group: c.group,
                     indices: [],
                     timestamp: c.timestamp,
-                    description: c.groupDescription || c.description
+                    description: c.groupDescription || c.description,
+                    editedPlayers: c.editedPlayers || null
                 });
             }
             const g = groupMap.get(c.group);
             g.indices.push(i);
             if (c.timestamp > g.timestamp) g.timestamp = c.timestamp;
+            if (c.editedPlayers) g.editedPlayers = c.editedPlayers;
         } else if (c.path && c.path.endsWith('manual_overrides.json') && c.content) {
             // Expand each override as a separate display line
             try {
@@ -439,14 +452,26 @@ function buildDisplayItems(changes) {
         }
     }
 
-    // Add grouped items
+    // Add grouped items — show editedPlayers as individual sub-lines
     for (const g of groupMap.values()) {
-        items.push({
-            group: g.group,
-            indices: g.indices,
-            timestamp: g.timestamp,
-            displayText: escHtml(g.description)
-        });
+        if (g.editedPlayers && g.editedPlayers.length > 0) {
+            for (const player of g.editedPlayers) {
+                items.push({
+                    group: g.group,
+                    indices: g.indices,
+                    removePlayer: player,
+                    timestamp: g.timestamp,
+                    displayText: `Player metadata — <b>${escHtml(player)}</b>`
+                });
+            }
+        } else {
+            items.push({
+                group: g.group,
+                indices: g.indices,
+                timestamp: g.timestamp,
+                displayText: escHtml(g.description)
+            });
+        }
     }
 
     return items;

@@ -100,6 +100,9 @@
 .swatch-beige { background: linear-gradient(135deg, #f5efe6 50%, #8b5e3c 50%); }
 .swatch-nature { background: linear-gradient(135deg, #eaf5e1 50%, #3d8b40 50%); }
 .swatch-vegas { background: linear-gradient(135deg, #14281a 50%, #f5d76e 50%); }
+.swatch-casino { background: linear-gradient(135deg, #8b0000 50%, #ffd700 50%); }
+.swatch-rainbow { background: linear-gradient(135deg, #fce4ec 50%, #7c4dff 50%); }
+.swatch-x22 { background: linear-gradient(135deg, #1a1a1a 33%, #2e7d32 66%, #e8a640 100%); }
 
 /* Divider */
 .theme-picker-divider {
