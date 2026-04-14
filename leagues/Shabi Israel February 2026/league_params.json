@@ -1,0 +1,17 @@
+{
+  "LeagueTitle": "Shabi Israel - February 2026",
+  "LeagueType": "doubling",
+  "IssueDate": "2026-02-01",
+  "EntryFee": 180,
+  "Prizes": { "Gold": 2200, "Silver": 800, "Bronze": 180 },
+
+  "BronzeCount": 4,
+  "MatchLength": 7,
+
+  "Running": false,
+
+  "CustomFlags": {
+    "Hummus": "BE",
+    "Moriarty": "TZ"
+  }
+}

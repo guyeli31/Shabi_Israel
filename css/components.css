@@ -1,0 +1,318 @@
+/* components.css — Tables, badges, medals, flags, pills */
+
+/* ---- Export Image button (shared across pages) ---- */
+.img-export-btn {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: var(--color-primary, #1e293b);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+.img-export-btn:hover { filter: brightness(1.1); }
+
+/* ---- Data Table ---- */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.93rem;
+}
+
+thead th {
+    background: var(--header-bg);
+    color: var(--header-text);
+    padding: var(--space-sm) var(--space-md);
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+}
+
+thead th:hover {
+    background: var(--header-bg-hover);
+}
+
+thead th .sort-icon {
+    margin-left: 4px;
+    font-size: 0.75em;
+    opacity: 0.5;
+}
+
+thead th.sorted .sort-icon {
+    opacity: 1;
+}
+
+tbody td {
+    padding: var(--space-sm) var(--space-md);
+    text-align: center;
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+}
+
+tbody tr:hover {
+    background: var(--color-hover);
+    transition: background 0.1s;
+}
+
+tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Player name cell */
+td.player-cell {
+    text-align: left;
+    font-weight: 600;
+}
+
+td.player-cell a {
+    color: var(--color-text);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+td.player-cell a:hover {
+    color: var(--color-accent);
+}
+
+/* ---- Flags ---- */
+.flag {
+    height: 16px;
+    width: auto;
+    border-radius: 2px;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+.flag-title {
+    height: 24px;
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+/* ---- Medal badges ---- */
+.medal {
+    display: inline-block;
+    width: 22px;
+    height: 22px;
+    line-height: 22px;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.medal-gold {
+    background: var(--color-gold);
+    color: var(--color-gold-text);
+}
+
+.medal-silver {
+    background: var(--color-silver);
+    color: var(--color-silver-text);
+}
+
+.medal-bronze {
+    background: var(--color-bronze);
+    color: var(--color-bronze-text, #fff);
+}
+
+/* Row medal highlights */
+tr.rank-gold { background: var(--color-gold-bg); }
+tr.rank-silver { background: var(--color-silver-bg); }
+tr.rank-bronze { background: rgba(217, 119, 6, 0.08); }
+
+tr.rank-gold:hover { background: var(--color-gold-bg-hover); }
+tr.rank-silver:hover { background: var(--color-silver-bg-hover); }
+tr.rank-bronze:hover { background: var(--color-bronze-bg-hover); }
+
+/* ---- Status pills ---- */
+.status-pill {
+    display: inline-block;
+    padding: 2px 12px;
+    border-radius: var(--radius-full);
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+.status-running {
+    background: var(--color-running-bg);
+    color: var(--color-running);
+}
+
+.status-completed {
+    background: var(--color-completed-bg);
+    color: var(--color-completed);
+}
+
+/* ---- Average / Stats rows ---- */
+tr.avg-row {
+    background: var(--color-avg-bg) !important;
+    font-weight: 700;
+    position: sticky;
+    bottom: 30px;
+    z-index: 2;
+}
+
+tr.avg-row td {
+    border-top: 2px solid var(--color-avg-border);
+    border-bottom: none;
+    padding: var(--space-sm) var(--space-md);
+}
+
+tr.stat-row {
+    background: var(--color-surface) !important;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+}
+
+tr.stat-row td {
+    padding: var(--space-sm) var(--space-md);
+    color: var(--color-text-secondary);
+    font-size: 0.88rem;
+    border-bottom: none;
+}
+
+.last-updated {
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+    margin-top: var(--space-xs);
+}
+
+/* ---- Result badges ---- */
+.result-win {
+    color: var(--color-win);
+    font-weight: 700;
+}
+
+.result-loss {
+    color: var(--color-loss);
+    font-weight: 700;
+}
+
+.result-draw {
+    color: var(--color-draw);
+    font-weight: 600;
+}
+
+/* Unplayed rows (league table: no games; player table: not yet played) */
+tr.unplayed {
+    color: var(--color-text-muted);
+    background: var(--color-unplayed-bg);
+}
+
+tr.unplayed td {
+    font-style: italic;
+}
+
+tr.unplayed td.player-cell {
+    font-style: normal;
+}
+
+/* ---- Retired players ---- */
+tr.retired {
+    opacity: 0.6;
+}
+
+.retired-mark {
+    font-size: 0.85rem;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.retired-badge {
+    display: inline-block;
+    background: var(--color-completed-bg);
+    color: var(--color-completed);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+/* ---- Title abbreviation badges (inline, in tables) ---- */
+.title-abbr {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid;
+    margin-left: 4px;
+    vertical-align: middle;
+    letter-spacing: 0.03em;
+    font-family: Georgia, 'Times New Roman', serif;
+    line-height: 1.3;
+}
+.title-abbr-gold {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
+    color: #4a2700;
+    border-color: #b45309;
+}
+.title-abbr-silver {
+    background: linear-gradient(135deg, #94a3b8, #cbd5e1);
+    color: #1e293b;
+    border-color: #64748b;
+}
+.title-abbr-bronze {
+    background: linear-gradient(135deg, #d97706, #f59e0b);
+    color: #451a03;
+    border-color: #92400e;
+}
+.title-abbr-white {
+    background: #f8fafc;
+    color: #475569;
+    border-color: #94a3b8;
+}
+
+/* Championship abbreviation badges — hexagon shape */
+.title-abbr-champ {
+    padding: 2px 10px;
+    border: none;
+    border-radius: 0;
+    clip-path: polygon(5% 50%, 15% 0%, 85% 0%, 95% 50%, 85% 100%, 15% 100%);
+}
+.title-abbr-champ.title-abbr-gold {
+    border: none;
+}
+.title-abbr-champ.title-abbr-silver {
+    border: none;
+}
+
+/* ---- Landing table specific ---- */
+.landing-table td {
+    padding: var(--space-sm) var(--space-lg);
+}
+
+.landing-table a {
+    color: var(--color-text);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.15s;
+}
+
+.landing-table a:hover {
+    color: var(--color-accent);
+}
+
+/* ---- Level cell ---- */
+.level-cell {
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+
+/* ---- Color scale filter (theme adaptation for inline colors) ---- */
+.color-scaled {
+    filter: var(--color-scale-filter);
+}

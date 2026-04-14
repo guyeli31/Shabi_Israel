@@ -1,0 +1,472 @@
+/* player-general.css — Phase G cross-league player profile */
+
+/* Flags in tables */
+.pg-rank-table .flag,
+.pg-matches-table .flag {
+    width: 20px;
+    height: 14px;
+    vertical-align: middle;
+    margin-right: 3px;
+    object-fit: contain;
+    image-rendering: crisp-edges;
+    border-radius: 2px;
+}
+
+.pg-section {
+    margin: 24px 0;
+}
+.pg-section h2 {
+    margin: 0 0 12px;
+    font-size: 1.25rem;
+    border-bottom: 1px solid var(--border-color, #ddd);
+    padding-bottom: 6px;
+}
+.pg-note {
+    color: var(--color-text-secondary);
+    font-style: italic;
+    padding: 8px 0;
+}
+
+/* Header */
+.pg-player-name {
+    vertical-align: middle;
+}
+.pg-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+}
+.pg-header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.pg-name-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.pg-player-alias {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+.pg-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--color-accent, #2563eb);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    flex-shrink: 0;
+}
+/* BMAB badge (base) */
+.pg-bmab-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 800;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    border-radius: 4px;
+    border: 1px solid;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+/* BMAB tier colors */
+.pg-badge-gold {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
+    color: #4a2700;
+    border-color: #b45309;
+}
+.pg-badge-silver {
+    background: linear-gradient(135deg, #94a3b8, #cbd5e1);
+    color: #1e293b;
+    border-color: #64748b;
+}
+.pg-badge-bronze {
+    background: linear-gradient(135deg, #d97706, #f59e0b);
+    color: #451a03;
+    border-color: #92400e;
+}
+.pg-badge-white {
+    background: #f8fafc;
+    color: #475569;
+    border-color: #94a3b8;
+}
+
+/* Championship badge — hexagon shape */
+.pg-champ-badge {
+    display: inline-block;
+    padding: 5px 20px;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 800;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    border: none;
+    text-transform: uppercase;
+    vertical-align: middle;
+    clip-path: polygon(5% 50%, 12% 0%, 88% 0%, 95% 50%, 88% 100%, 12% 100%);
+}
+.pg-champ-gold {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
+    color: #4a2700;
+}
+.pg-champ-silver {
+    background: linear-gradient(135deg, #94a3b8, #cbd5e1);
+    color: #1e293b;
+}
+
+/* Titled player name styling (varies by highest tier) */
+.pg-titled-gold .pg-player-name   { color: #b45309; font-weight: 800; }
+.pg-titled-silver .pg-player-name { color: #475569; font-weight: 800; }
+.pg-titled-bronze .pg-player-name { color: #92400e; font-weight: 800; }
+.pg-titled-white .pg-player-name  { color: #475569; font-weight: 800; }
+
+/* 3-state activity dot */
+.pg-dot-wrap {
+    position: relative;
+    display: inline-block;
+    vertical-align: middle;
+    margin: 0 6px;
+    cursor: help;
+    outline: none;
+}
+.pg-dot-wrap::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 8px);
+    transform: translateX(-50%);
+    background: rgba(20, 24, 33, 0.95);
+    color: #f3f4f6;
+    font-size: 12px;
+    line-height: 1.3;
+    padding: 6px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+    z-index: 1000;
+}
+.pg-dot-wrap:hover::after,
+.pg-dot-wrap:focus::after {
+    opacity: 1;
+}
+.pg-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    vertical-align: middle;
+}
+.pg-dot-green {
+    background: #2ecc40;
+    box-shadow: 0 0 6px rgba(46,204,64,0.7);
+}
+.pg-dot-orange {
+    background: #f59e0b;
+    box-shadow: 0 0 6px rgba(245,158,11,0.6);
+}
+.pg-dot-gray {
+    background: #9ca3af;
+    box-shadow: 0 0 4px rgba(156,163,175,0.4);
+}
+
+/* Expandable ranking rows (Achievements + PR) */
+.pg-rank-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+}
+.pg-rank-toggle:hover {
+    color: var(--color-accent, #2563eb);
+}
+.pg-rank-toggle-open {
+    color: var(--color-accent, #2563eb);
+    font-weight: 700;
+}
+.pg-rank-expanded {
+    margin-top: 10px;
+    padding: 10px;
+    background: rgba(0,0,0,0.03);
+    border-radius: 6px;
+    max-height: 360px;
+    overflow-y: auto;
+}
+.pg-rank-table-wrap {
+    overflow-x: auto;
+}
+.pg-rank-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+.pg-rank-table th,
+.pg-rank-table td {
+    padding: 4px 8px;
+    text-align: left;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+.pg-rank-table th {
+    font-weight: 700;
+    background: rgba(0,0,0,0.04);
+}
+.pg-rank-self {
+    background: #fef3c7;
+    font-weight: 700;
+}
+.pg-tile-block {
+    display: flex;
+    flex-direction: column;
+}
+
+/* G3 — PR cards */
+.pg-pr-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 16px;
+}
+.pg-pr-card {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    background: var(--color-surface);
+}
+.pg-pr-type {
+    font-weight: 700;
+    font-size: 0.9rem;
+    letter-spacing: 0.06em;
+    color: var(--color-text-secondary);
+    margin-bottom: 10px;
+}
+.pg-pr-row {
+    display: flex;
+    gap: 20px;
+}
+.pg-pr-metric {
+    flex: 1;
+    min-width: 0;
+}
+.pg-pr-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+.pg-pr-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin: 2px 0 4px;
+}
+.pg-level-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.pg-pr-rank {
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+}
+.pg-rank-dim {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+/* G6 — Achievements */
+.pg-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border-color, #ddd);
+    margin-bottom: 12px;
+}
+.pg-tab {
+    background: none;
+    border: none;
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    border-bottom: 2px solid transparent;
+}
+.pg-tab.active {
+    color: var(--accent-color, #1c4e80);
+    border-bottom-color: var(--accent-color, #1c4e80);
+}
+.pg-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+}
+.pg-tile {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    background: var(--color-surface);
+}
+.pg-tile-title {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+}
+.pg-tile-rank {
+    color: var(--color-text-muted);
+    font-weight: 400;
+    font-size: 0.75rem;
+}
+.pg-tile-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-top: 4px;
+}
+.pg-tile-sub {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+
+/* G4 — Leagues table */
+.pg-leagues-table,
+.pg-matches-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+.pg-leagues-table th,
+.pg-leagues-table td,
+.pg-matches-table th,
+.pg-matches-table td {
+    border: 1px solid var(--border-color, #e0e0e0);
+    padding: 6px 10px;
+    text-align: left;
+}
+.pg-leagues-table th,
+.pg-matches-table th {
+    background: var(--header-bg, #f2f2f2);
+    cursor: pointer;
+    user-select: none;
+}
+
+/* G5 — Matches */
+.pg-filters {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+.pg-filter {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+}
+.pg-filter select {
+    margin-top: 2px;
+    padding: 4px 8px;
+    font-size: 0.9rem;
+}
+.pg-chart-host {
+    margin: 12px 0;
+    max-width: 900px;
+}
+.pg-matches-table .na {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+.pg-matches-table .result-win { color: var(--color-win); font-weight: 600; }
+.pg-matches-table .result-loss { color: var(--color-loss); font-weight: 600; }
+.pg-matches-table .result-draw { color: var(--color-draw); font-weight: 600; }
+
+/* Visited-link fix: keep link color consistent after clicking */
+.pg-leagues-table a,
+.pg-leagues-table a:visited,
+.pg-matches-table a,
+.pg-matches-table a:visited {
+    color: var(--color-text, #222);
+    text-decoration: none;
+}
+.pg-leagues-table a:hover,
+.pg-matches-table a:hover {
+    color: var(--color-accent, #1c4e80);
+    text-decoration: underline;
+}
+
+/* Rank table player name links — prevent default blue/purple visited styling */
+.pg-rank-table .player-name-link,
+.pg-rank-table .player-name-link:visited {
+    color: var(--color-text, #222);
+    text-decoration: none;
+}
+.pg-rank-table .player-name-link:hover {
+    color: var(--color-accent, #1c4e80);
+    text-decoration: underline;
+}
+
+/* Match Records — stacked tables on player card */
+.pg-mr-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+.pg-mr-card h3 {
+    margin: 0 0 8px;
+    font-size: 1rem;
+}
+.pg-mr-table .flag {
+    height: 12px;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+/* Match history scroll cap — 20 visible rows */
+.pg-matches-scroll {
+    max-height: 374px;  /* ~10 rows at ~34px each + header */
+    overflow-y: auto;
+}
+.pg-mr-card .table-wrapper {
+    max-height: 204px;  /* ~5 rows at ~34px each + header */
+    overflow-y: auto;
+}
+.pg-matches-scroll table {
+    width: 100%;
+}
+.pg-matches-table tbody tr:nth-child(even) {
+    background: var(--row-alt-bg, rgba(0,0,0,0.025));
+}
+.pg-matches-table tbody tr:hover {
+    background: var(--row-hover-bg, rgba(0,0,0,0.05));
+}
+
+/* Medal coloring in RANK column */
+.rank-cell-gold { color: var(--color-gold-text, #92400e); font-weight: 700; }
+.rank-cell-silver { color: var(--color-silver-text, #475569); font-weight: 600; }
+.rank-cell-bronze { color: var(--color-bronze-text, #b45309); font-weight: 600; }
+
+.status-pill.running {
+    background: #2ecc40;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+}
+.status-pill.completed {
+    background: #aaa;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+}

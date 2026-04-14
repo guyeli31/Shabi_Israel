@@ -1,0 +1,100 @@
+/* layout.css — Page structure, containers, responsive */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    font-size: 15px;
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: var(--font-main);
+    background: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.6;
+    min-height: 100vh;
+}
+
+.page-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: var(--space-lg) var(--space-md);
+}
+
+.page-container.wide-table {
+    max-width: 1400px;
+}
+
+.page-header {
+    text-align: center;
+    padding: var(--space-xl) 0 var(--space-lg);
+}
+
+.page-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--color-text);
+    letter-spacing: -0.5px;
+}
+
+.page-header .subtitle {
+    font-size: 1rem;
+    color: var(--color-text-secondary);
+    margin-top: var(--space-xs);
+    font-style: italic;
+}
+
+.page-header .logo {
+    display: block;
+    height: 80px;
+    margin: var(--space-md) auto;
+    border-radius: var(--radius-md);
+}
+
+.table-wrapper {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    margin-bottom: var(--space-xl);
+}
+
+.table-scroll {
+    overflow-x: auto;
+}
+
+/* Loading / Error */
+.loading {
+    text-align: center;
+    padding: var(--space-2xl);
+    color: var(--color-text-muted);
+    font-size: 1.1rem;
+}
+
+.error {
+    text-align: center;
+    padding: var(--space-2xl);
+    color: var(--color-loss);
+    font-size: 1.1rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    html { font-size: 13px; }
+
+    .page-container {
+        padding: var(--space-md) var(--space-sm);
+    }
+
+    .page-header {
+        padding: var(--space-lg) 0 var(--space-md);
+    }
+
+    .page-header h1 {
+        font-size: 1.5rem;
+    }
+}

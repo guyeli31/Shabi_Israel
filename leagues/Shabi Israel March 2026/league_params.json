@@ -1,16 +1,19 @@
 {
-  "LeagueTitle": "Shabi Israel - April 2026",
+  "LeagueTitle": "Shabi Israel - March 2026",
   "LeagueType": "doubling",
-  "IssueDate": "2026-04-01",
+  "IssueDate": "2026-03-01",
   "EntryFee": 180,
   "Prizes": { "Gold": 2200, "Silver": 800, "Bronze": 180 },
-  "BronzeCount": 3,
+
+  "BronzeCount": 4,
   "MatchLength": 7,
-  "Running": true,
+
+  "Running": false,
+
   "CustomFlags": {
+    "Hummus": "BE",
     "Moriarty": "TZ",
+    "Aviv": "UN",
     "Danny_kondrea": "UN"
-  },
-  "GoldCount": 1,
-  "SilverCount": 1
+  }
 }

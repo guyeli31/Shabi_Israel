@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="he" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player — Shabi Israel</title>
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/themes.css">
+    <link rel="stylesheet" href="css/theme-picker.css">
+    <link rel="stylesheet" href="css/admin-button.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/navigation.css">
+    <link rel="stylesheet" href="css/player-general.css">
+    <script>
+      (function(){
+        var t=localStorage.getItem('shabi-theme');
+        if(t==='modern')t='nature';if(t==='royal')t='vegas';if(t&&t!=='current'){document.documentElement.dataset.theme=t;localStorage.setItem('shabi-theme',t);}
+        var c=localStorage.getItem('shabi-custom-vars');
+        if(c){try{var v=JSON.parse(c);for(var k in v)document.documentElement.style.setProperty(k,v[k])}catch(e){}}
+      })();
+    </script>
+</head>
+<body>
+    <div class="page-container">
+        <div class="page-header">
+            <h1 id="page-title">Loading...</h1>
+            <p class="subtitle" id="league-subtitle"></p>
+        </div>
+        <div id="content">
+            <div class="loading">Loading player data...</div>
+        </div>
+    </div>
+    <script type="module">
+        import { isPreviewMode, installPreviewInterceptor } from './js/admin/previewMode.js';
+        if (isPreviewMode()) installPreviewInterceptor();
+
+        import { renderPlayerPage } from './js/render/playerPage.js';
+        import { initThemePicker } from './js/render/themePicker.js';
+        import { initAdminButton } from './js/render/adminButton.js';
+        import { initNavBar, initKeyboardShortcuts } from './js/render/navigation.js';
+
+        await initNavBar();
+        await renderPlayerPage();
+        initThemePicker();
+        if (!isPreviewMode()) initAdminButton();
+        initKeyboardShortcuts();
+    </script>
+</body>
+</html>

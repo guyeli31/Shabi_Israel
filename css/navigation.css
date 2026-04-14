@@ -1,0 +1,315 @@
+/* navigation.css — Nav bar, breadcrumbs, search, keyboard focus */
+
+/* ============================================
+   SITE NAV BAR
+   ============================================ */
+.site-nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--header-bg);
+    color: var(--header-text);
+    box-shadow: var(--shadow-md);
+}
+
+.site-nav-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    height: var(--nav-height);
+    padding: 0 var(--space-md);
+    gap: var(--space-md);
+}
+
+/* Home link */
+.nav-home {
+    color: var(--header-text);
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 1rem;
+    white-space: nowrap;
+    transition: opacity 0.15s;
+}
+.nav-home:hover {
+    opacity: 0.8;
+}
+
+/* Leagues dropdown */
+.nav-leagues {
+    position: relative;
+}
+
+.nav-leagues-btn {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.2);
+    color: var(--header-text);
+    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.nav-leagues-btn:hover {
+    background: var(--header-bg-hover);
+}
+
+.nav-leagues-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    min-width: 260px;
+    max-height: 400px;
+    overflow-y: auto;
+    background: var(--color-surface);
+    color: var(--color-text);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    list-style: none;
+    padding: var(--space-xs) 0;
+    z-index: 110;
+}
+
+.nav-leagues-dropdown li {
+    padding: 0;
+}
+
+.nav-leagues-dropdown .dropdown-section {
+    padding: var(--space-xs) var(--space-md);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    letter-spacing: 0.5px;
+}
+
+.nav-leagues-dropdown a {
+    display: block;
+    padding: 6px var(--space-md);
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: background 0.1s;
+}
+.nav-leagues-dropdown a:hover {
+    background: var(--color-hover);
+}
+
+.nav-leagues-dropdown .status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+}
+.nav-leagues-dropdown .status-dot.running {
+    background: var(--color-running);
+}
+.nav-leagues-dropdown .status-dot.completed {
+    background: var(--color-completed);
+}
+
+/* ============================================
+   PLAYER SEARCH
+   ============================================ */
+.nav-search {
+    position: relative;
+    margin-left: auto;
+}
+
+.nav-search input {
+    width: 180px;
+    padding: 5px 10px;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: var(--radius-sm);
+    background: rgba(255,255,255,0.1);
+    color: var(--header-text);
+    font-size: 0.85rem;
+    outline: none;
+    transition: width 0.2s, border-color 0.15s;
+}
+.nav-search input::placeholder {
+    color: rgba(255,255,255,0.5);
+}
+.nav-search input:focus {
+    width: 240px;
+    border-color: var(--color-accent);
+    background: rgba(255,255,255,0.15);
+}
+
+.nav-search-results {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 280px;
+    max-height: 360px;
+    overflow-y: auto;
+    background: var(--color-surface);
+    color: var(--color-text);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    list-style: none;
+    padding: var(--space-xs) 0;
+    z-index: 110;
+}
+
+.nav-search-results li {
+    padding: 0;
+}
+
+.nav-search-results a {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 8px var(--space-md);
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: background 0.1s;
+}
+.nav-search-results a:hover {
+    background: var(--color-hover);
+}
+
+.nav-search-results .search-player-name {
+    font-weight: 600;
+}
+.nav-search-results .search-league-hint {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.nav-search-results .search-empty {
+    padding: 12px var(--space-md);
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+/* ============================================
+   BREADCRUMBS
+   ============================================ */
+.breadcrumbs {
+    padding: var(--space-sm) 0;
+    margin-bottom: var(--space-sm);
+}
+
+.breadcrumbs ol {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    list-style: none;
+    gap: 0;
+    font-size: 0.85rem;
+}
+
+.breadcrumbs li {
+    display: inline-flex;
+    align-items: center;
+}
+
+.breadcrumbs .sep {
+    margin: 0 6px;
+    color: var(--color-text-muted);
+    font-size: 0.9em;
+    user-select: none;
+}
+
+.breadcrumbs a {
+    color: var(--color-accent);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+.breadcrumbs a:hover {
+    color: var(--color-text);
+    text-decoration: underline;
+}
+
+.breadcrumbs .current {
+    color: var(--color-text-secondary);
+    font-weight: 500;
+}
+
+/* ============================================
+   ALSO PLAYS IN
+   ============================================ */
+.also-plays-in {
+    margin-top: var(--space-lg);
+    padding: var(--space-md);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.also-plays-in h3 {
+    font-size: 0.95rem;
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-sm);
+    font-weight: 600;
+}
+
+.also-plays-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
+
+.also-plays-links a {
+    display: inline-block;
+    padding: 4px 12px;
+    background: var(--color-accent-light);
+    color: var(--color-accent);
+    border-radius: var(--radius-full);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+}
+.also-plays-links a:hover {
+    background: var(--color-accent);
+    color: #fff;
+}
+
+/* ============================================
+   KEYBOARD FOCUS
+   ============================================ */
+tr.kb-focused {
+    outline: 2px solid var(--color-accent);
+    outline-offset: -2px;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 768px) {
+    .site-nav-inner {
+        flex-wrap: wrap;
+        height: auto;
+        padding: var(--space-sm) var(--space-sm);
+        gap: var(--space-sm);
+    }
+
+    .nav-search {
+        width: 100%;
+        margin-left: 0;
+    }
+    .nav-search input {
+        width: 100%;
+    }
+    .nav-search input:focus {
+        width: 100%;
+    }
+
+    .nav-search-results {
+        right: 0;
+        left: 0;
+        min-width: auto;
+    }
+
+    .breadcrumbs {
+        font-size: 0.8rem;
+    }
+}
