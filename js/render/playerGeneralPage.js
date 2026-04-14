@@ -24,8 +24,13 @@ import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { colorForLevel } from '../compute/colorScale.js';
 import {
     getQueryParam, flagUrl, getFlagCode,
-    formatNumber, dashboardUrl, playerGeneralUrl, getLeagueYear
+    formatNumber, dashboardUrl, playerGeneralUrl, getLeagueYear, leagueUrl
 } from '../utils/helpers.js';
+import {
+    collectPlayerBestPR,
+    collectPlayerBestLuckFor,
+    collectPlayerWorstLuckAgainst
+} from '../compute/matchRecords.js';
 import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { getTitleBadgesHtml, getTitleAbbreviationsHtml, getHighestTier } from '../data/titleConstants.js';
@@ -104,6 +109,9 @@ export async function renderPlayerGeneralPage() {
         matchesSection.innerHTML = '<h2>Match History</h2>';
         container.appendChild(matchesSection);
         renderMatchHistory(matchesSection, playerName, perLeague);
+
+        // Match Records — per-player best PR + luck highlights
+        renderPlayerMatchRecords(container, perLeague);
 
     } catch (err) {
         console.error(err);
@@ -650,4 +658,108 @@ function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[c]));
+}
+
+// ---- Match Records (per-player best PR + luck highlights) ----
+
+const MR_TYPE_LABELS = { doubling: 'Doubling', ubc: 'UBC' };
+const MR_MONTH_SHORT = [
+    'Jan','Feb','Mar','Apr','May','Jun',
+    'Jul','Aug','Sep','Oct','Nov','Dec'
+];
+
+function renderPlayerMatchRecords(container, perLeague) {
+    // Only league types with PR/Luck: doubling, ubc.
+    const typeCounts = {};
+    for (const e of perLeague) {
+        const t = e.league.leagueType;
+        if (t === 'doubling' || t === 'ubc') {
+            typeCounts[t] = (typeCounts[t] || 0) + 1;
+        }
+    }
+    const types = Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a]);
+    if (types.length === 0) return;
+
+    const section = document.createElement('section');
+    section.className = 'pg-section pg-match-records';
+    section.innerHTML = '<h2>Match Records</h2>';
+    container.appendChild(section);
+
+    const tabs = document.createElement('div');
+    tabs.className = 'pg-tabs';
+    const body = document.createElement('div');
+    body.className = 'pg-tabs-body';
+    section.appendChild(tabs);
+    section.appendChild(body);
+
+    types.forEach((type, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'pg-tab' + (i === 0 ? ' active' : '');
+        btn.textContent = MR_TYPE_LABELS[type] || type.toUpperCase();
+        btn.addEventListener('click', () => {
+            tabs.querySelectorAll('.pg-tab').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            showMatchRecordsType(body, perLeague, type);
+        });
+        tabs.appendChild(btn);
+    });
+
+    showMatchRecordsType(body, perLeague, types[0]);
+}
+
+function showMatchRecordsType(body, perLeague, type) {
+    const bestPR   = collectPlayerBestPR(perLeague, type);
+    const bestLuck = collectPlayerBestLuckFor(perLeague, type);
+    const worstLuck = collectPlayerWorstLuckAgainst(perLeague, type);
+
+    body.innerHTML = `
+        <div class="pg-mr-stack">
+            ${renderPlayerRecordTable('Best PR', 'PR', bestPR)}
+            ${renderPlayerRecordTable('Best Luck For', 'Luck Gap', bestLuck)}
+            ${renderPlayerRecordTable('Worst Luck Against', 'Luck Gap', worstLuck)}
+        </div>`;
+}
+
+function renderPlayerRecordTable(title, metricLabel, rows) {
+    const bodyHtml = rows.map((r, i) => playerMatchRecordRow(i + 1, r)).join('');
+    return `
+        <div class="pg-mr-card">
+            <h3>${title}</h3>
+            <div class="table-wrapper">
+                <table class="pg-matches-table pg-mr-table">
+                    <thead><tr>
+                        <th>#</th><th>${metricLabel}</th><th>Opponent</th>
+                        <th>Score</th><th>Result</th><th>League</th><th>Date</th>
+                    </tr></thead>
+                    <tbody>${bodyHtml || '<tr><td colspan="7" class="na">No data</td></tr>'}</tbody>
+                </table>
+            </div>
+        </div>`;
+}
+
+function playerMatchRecordRow(rank, r) {
+    const opponentFlag = flagUrl(getFlagCode(r.opponent, r.customFlags));
+    const resultClass = r.result === 'W' ? 'result-win'
+                      : r.result === 'L' ? 'result-loss'
+                      : 'result-draw';
+    return `
+        <tr>
+            <td>${rank}</td>
+            <td>${formatNumber(r.metric)}</td>
+            <td><img class="flag" src="${opponentFlag}" alt="flag"> ${playerNameLink(r.opponent, _allMeta[r.opponent])}</td>
+            <td>${r.scoreSelf}-${r.scoreOpp}</td>
+            <td><span class="${resultClass}">${r.result}</span></td>
+            <td><a href="${leagueUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
+            <td>${formatShortDate(r.date)}</td>
+        </tr>`;
+}
+
+function formatShortDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    const mon = MR_MONTH_SHORT[d.getUTCMonth()];
+    const yr  = d.getUTCFullYear();
+    return `${day} ${mon} ${yr}`;
 }

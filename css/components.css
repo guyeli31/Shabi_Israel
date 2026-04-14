@@ -1,5 +1,18 @@
 /* components.css — Tables, badges, medals, flags, pills */
 
+/* ---- Export Image button (shared across pages) ---- */
+.img-export-btn {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: var(--color-primary, #1e293b);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+.img-export-btn:hover { filter: brightness(1.1); }
+
 /* ---- Data Table ---- */
 table {
     width: 100%;

@@ -416,9 +416,29 @@
     text-decoration: underline;
 }
 
+/* Match Records — stacked tables on player card */
+.pg-mr-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+.pg-mr-card h3 {
+    margin: 0 0 8px;
+    font-size: 1rem;
+}
+.pg-mr-table .flag {
+    height: 12px;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
 /* Match history scroll cap — 20 visible rows */
 .pg-matches-scroll {
-    max-height: 680px;  /* ~20 rows at ~34px each */
+    max-height: 374px;  /* ~10 rows at ~34px each + header */
+    overflow-y: auto;
+}
+.pg-mr-card .table-wrapper {
+    max-height: 204px;  /* ~5 rows at ~34px each + header */
     overflow-y: auto;
 }
 .pg-matches-scroll table {

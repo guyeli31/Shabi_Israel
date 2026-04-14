@@ -664,6 +664,27 @@
     font-weight: 600;
 }
 
+.match-records-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.match-records-stack .achv-table-card {
+    width: 100%;
+}
+
+.achv-table .league-link,
+.achv-table .league-link:visited {
+    color: var(--color-text);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.achv-table .league-link:hover {
+    text-decoration: underline;
+}
+
 .achv-tables-loading {
     color: var(--color-text-muted);
     font-style: italic;

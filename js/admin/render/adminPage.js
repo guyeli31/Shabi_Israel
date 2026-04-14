@@ -366,7 +366,7 @@ function renderPendingChanges(container) {
 
     // Preview
     document.getElementById('preview-btn').addEventListener('click', () => {
-        window.open('index.html?preview=true', '_blank');
+        window.location.href = 'index.html?preview=true';
     });
 }
 

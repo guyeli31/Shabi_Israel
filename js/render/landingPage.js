@@ -11,7 +11,8 @@
 import { loadAllLeagues } from '../compute/crossLeague.js';
 import { buildAllTimeRankings } from '../compute/allTimeRankings.js';
 import { loadLandingSettings } from '../data/leagueLoader.js';
-import { dashboardUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate } from '../utils/helpers.js';
+import { dashboardUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueUrl } from '../utils/helpers.js';
+import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatches } from '../compute/matchRecords.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { isLoggedIn } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
@@ -108,6 +109,7 @@ export async function renderLandingPage() {
         const presentTypes = [...new Set(leagues.map(l => l.leagueType))];
         renderAchievementsSection(container, presentTypes);
         renderPRLeadersSection(container, presentTypes);
+        renderMatchRecordsSection(container, leagues, presentTypes);
 
         // Auto-enter edit mode if admin and ?edit=1 in URL
         if (adminLoggedIn && new URLSearchParams(location.search).get('edit') === '1') {
@@ -1120,7 +1122,7 @@ async function exportLeaderboardImage(lb, title, maxRows) {
     wrap.style.cssText = 'position:fixed;left:-10000px;top:0;background:#ffffff;padding:24px;font-family:sans-serif;';
     wrap.innerHTML = `
         <h3 style="margin:0 0 12px 0;font-size:20px;color:#1e293b;">${escapeHtml(title)}</h3>
-        <div class="leaderboard-table-wrapper">
+        <div class="leaderboard-table-wrapper" style="max-height:none;overflow:visible">
             <table class="leaderboard-table">
                 <thead>
                     <tr>
@@ -1335,4 +1337,121 @@ function renderPRTables(data) {
                 </div>
             </div>`;
     }).join('')}</div>`;
+}
+
+/* ── Match Records (per-match highlights) ───────────── */
+
+function renderMatchRecordsSection(container, allLeagues, presentTypes) {
+    const types = sortPresentTypes(presentTypes).filter(t => t === 'doubling' || t === 'ubc');
+    if (types.length === 0) return;
+
+    const leaguesByType = {};
+    for (const t of types) {
+        leaguesByType[t] = allLeagues.filter(l => l.leagueType === t);
+    }
+
+    const section = document.createElement('div');
+    section.className = 'dash-section match-records-section';
+
+    const tabsHtml = types.map((t, i) => {
+        const label = TYPE_LABELS[t] || t;
+        return `<button class="achv-tab${i === 0 ? ' active' : ''}" data-type="${t}">${label}</button>`;
+    }).join('');
+
+    const panelsHtml = types.map((t, i) => {
+        const luck = topLuckiestMatches(collectLuckMatches(leaguesByType[t]));
+        const pr   = topBestPRMatches(collectPRMatches(leaguesByType[t]));
+        return `
+            <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${t}">
+                ${renderMatchRecordsTables(luck, pr)}
+            </div>`;
+    }).join('');
+
+    section.innerHTML = `
+        <div class="collapsible-section">
+            <h2 class="collapsible-header">Match Records</h2>
+            <div class="collapsible-body">
+                <div class="achv-tabs">${tabsHtml}</div>
+                <div class="achv-panels">${panelsHtml}</div>
+            </div>
+        </div>`;
+
+    const header = section.querySelector('.collapsible-header');
+    header.addEventListener('click', () => {
+        header.closest('.collapsible-section').classList.toggle('collapsed');
+    });
+
+    section.querySelectorAll('.achv-tab').forEach(tab => {
+        tab.addEventListener('click', e => {
+            e.stopPropagation();
+            const type = tab.dataset.type;
+            section.querySelectorAll('.achv-tab').forEach(b => b.classList.toggle('active', b === tab));
+            section.querySelectorAll('.achv-panel').forEach(p => {
+                p.classList.toggle('hidden', p.dataset.type !== type);
+            });
+        });
+    });
+
+    container.appendChild(section);
+}
+
+function renderMatchRecordsTables(luckRows, prRows) {
+    const luckHtml = luckRows.map((r, i) => matchRecordRow(i + 1, r, formatNumber(r.luckGap))).join('');
+    const prHtml   = prRows.map((r, i)   => matchRecordRow(i + 1, r, formatNumber(r.pr))).join('');
+    return `
+        <div class="match-records-stack">
+            <div class="achv-table-card">
+                <h3>Best PR Matches</h3>
+                <div class="achv-table-wrapper">
+                    <table class="achv-table match-records-table">
+                        <thead><tr>
+                            <th>#</th><th>Player</th><th>PR</th><th>Opponent</th>
+                            <th>Score</th><th>Result</th><th>League</th><th>Date</th>
+                        </tr></thead>
+                        <tbody>${prHtml || '<tr><td colspan="8">No data</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="achv-table-card">
+                <h3>Luckiest Matches</h3>
+                <div class="achv-table-wrapper">
+                    <table class="achv-table match-records-table">
+                        <thead><tr>
+                            <th>#</th><th>Player</th><th>Luck Gap</th><th>Opponent</th>
+                            <th>Score</th><th>Result</th><th>League</th><th>Date</th>
+                        </tr></thead>
+                        <tbody>${luckHtml || '<tr><td colspan="8">No data</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>
+        </div>`;
+}
+
+function matchRecordRow(rank, r, metricCell) {
+    const playerFlag   = flagUrl(getFlagCode(r.player, r.customFlags));
+    const opponentFlag = flagUrl(getFlagCode(r.opponent, r.customFlags));
+    const resultClass = r.result === 'W' ? 'result-win'
+                      : r.result === 'L' ? 'result-loss'
+                      : 'result-draw';
+    return `
+        <tr>
+            <td>${rank}</td>
+            <td><img class="flag" src="${playerFlag}" alt="flag"> ${playerNameLink(r.player, _playersMeta[r.player])}</td>
+            <td>${metricCell}</td>
+            <td><img class="flag" src="${opponentFlag}" alt="flag"> ${playerNameLink(r.opponent, _playersMeta[r.opponent])}</td>
+            <td>${r.scoreSelf}-${r.scoreOpp}</td>
+            <td><span class="${resultClass}">${r.result}</span></td>
+            <td><a class="league-link" href="${leagueUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
+            <td>${formatShortDate(r.date)}</td>
+        </tr>`;
+}
+
+function formatShortDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    const mon = MONTH_SHORT[d.getUTCMonth()];
+    const yr  = d.getUTCFullYear();
+    return `${day} ${mon} ${yr}`;
 }

@@ -60,6 +60,11 @@ export async function renderLeaguePage() {
 
         renderSummaryTable(container, rankings, averages, matchStats, params, leagueId, leagueConfig, playersMeta);
         setupSorting(rankings, averages, matchStats, params, leagueId, leagueConfig, playersMeta);
+
+        const exportBtn = document.getElementById('leagueExportBtn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => exportLeagueTableImage(title));
+        }
     } catch (err) {
         container.innerHTML = `<div class="error">Failed to load league: ${err.message}</div>`;
     }
@@ -132,6 +137,9 @@ function renderSummaryTable(container, rankings, averages, matchStats, params, l
     ).join('\n                        ');
 
     let html = `
+    <div class="img-export-group" style="margin-bottom:var(--space-sm);text-align:right">
+        <button class="img-export-btn" id="leagueExportBtn">Export Image</button>
+    </div>
     <div class="table-wrapper">
         <div class="table-scroll">
             <table id="leagueTable">
@@ -369,4 +377,54 @@ function sortAndRerender(rankings, averages, matchStats, params, leagueId, col, 
     body.innerHTML = renderDataRows(sorted, extents, params, leagueId, goldCount, silverCount, bronzeCount, columns, leagueConfig, playersMeta)
         + renderAverageRow(averages, columns, leagueConfig)
         + renderStatRow(matchStats, columns.length);
+}
+
+// ---- Export Image ----
+
+async function exportLeagueTableImage(title) {
+    if (typeof html2canvas === 'undefined') {
+        alert('html2canvas library not loaded.');
+        return;
+    }
+    const tableEl = document.getElementById('leagueTable');
+    if (!tableEl) return;
+
+    const bodyStyle = getComputedStyle(document.body);
+    const themeBg = bodyStyle.backgroundColor;
+    const themeColor = bodyStyle.color;
+    const themeFont = bodyStyle.fontFamily;
+    const tableWidth = tableEl.offsetWidth;
+
+    const wrap = document.createElement('div');
+    wrap.style.cssText = `position:fixed;left:-10000px;top:0;padding:24px;background:${themeBg};color:${themeColor};font-family:${themeFont};width:${tableWidth + 48}px;box-sizing:border-box;`;
+    const heading = document.createElement('h3');
+    heading.style.cssText = 'margin:0 0 12px 0;font-size:20px;';
+    heading.textContent = title;
+    wrap.appendChild(heading);
+
+    const tableClone = tableEl.cloneNode(true);
+    tableClone.querySelectorAll('tr.avg-row, tr.stat-row').forEach(tr => {
+        tr.style.position = 'static';
+        tr.style.bottom = 'auto';
+    });
+    tableClone.style.width = tableWidth + 'px';
+    const scroll = document.createElement('div');
+    scroll.style.cssText = 'max-height:none;overflow:visible;';
+    scroll.appendChild(tableClone);
+    wrap.appendChild(scroll);
+    document.body.appendChild(wrap);
+
+    try {
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: null, useCORS: true });
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${title.replace(/\s+/g, '_')}_Table.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } finally {
+        wrap.remove();
+    }
 }
