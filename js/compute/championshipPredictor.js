@@ -299,14 +299,17 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
         }
     }
 
-    // Effective PR: league meanPR if player has games with PR data, else last300PR, else 10.0
+    // Effective PR for win-probability lookup: Last-300 PR represents the
+    // player's true strength, so it drives per-match probabilities regardless
+    // of current-league form. League meanPR is only a fallback when no
+    // historical data exists; it influences the tiebreaker via the weighted
+    // blend below, not the probability lookup.
     const effectivePR = new Float64Array(n);
     for (let i = 0; i < n; i++) {
-        const stats = statsMap.get(players[i]);
-        if (stats && stats.games > 0 && leagueMeanPR[i] > 0) {
-            effectivePR[i] = leagueMeanPR[i];
-        } else if (last300Map.has(players[i]) && last300Map.get(players[i]) != null) {
+        if (last300Map.has(players[i]) && last300Map.get(players[i]) != null) {
             effectivePR[i] = last300Map.get(players[i]);
+        } else if (leagueMeanPR[i] > 0) {
+            effectivePR[i] = leagueMeanPR[i];
         } else {
             effectivePR[i] = 10.0;
         }

@@ -236,11 +236,13 @@ function renderShell() {
                     <li><b>Monte Carlo simulation</b> is used when &gt;20 matches remain — millions of random season outcomes are sampled to approximate the probabilities.</li>
                 </ul>
                 <h4>Win Probability Per Match</h4>
-                <p>Each match outcome is determined by the PR (Performance Rating) gap between the two players. A calibrated lookup table maps the PR difference to a win probability — the lower the PR, the stronger the player. For PR gaps beyond 10, linear extrapolation is applied, clamped to keep probabilities realistic.</p>
+                <p>Each match outcome is determined by the PR gap between the two players, using each player's <b>Last-300 PR</b> (their calibrated strength over the last 300 rated matches) — not their current league performance. A calibrated lookup table maps the rounded PR difference to a win probability for the stronger (lower-PR) player; for gaps beyond 10, linear extrapolation from rows 9–10 is applied and clamped to [50%, 99.9%]. If a player has no Last-300 PR, their current league mean PR is used as a fallback (or 10.0 if neither exists). Current-league mean PR only influences the <b>tiebreaker</b> — see "Determining the Champion".</p>
                 <h4>Determining the Champion</h4>
-                <p>After simulating all remaining matches, the final standings are ranked using the league's scoring rules (Win Rate, Points, etc.). The tiebreaker is Mean PR (lower is better). The championship percentage shows how often each player finishes 1st across all simulated seasons.</p>
+                <p>After simulating all remaining matches, the final standings are ranked using the league's scoring rules (Win Rate, Points, etc.). The tiebreaker is a <b>blended Mean PR</b>: games already played contribute at the player's current league mean PR, while remaining games are assumed to be played at the player's Last-300 PR level (reflecting regression toward true strength, lower is better). The championship percentage shows how often each player finishes 1st across all simulated seasons.</p>
                 <h4>Margin of Error</h4>
-                <p>For Monte Carlo results, the margin of error is a 95% confidence interval calculated from the binomial distribution, reflecting the statistical uncertainty of the sampling process. Exact calculations have no margin of error.</p>
+                <p>For Monte Carlo results, the margin of error is a 95% confidence interval on the leading player's championship probability, computed from the binomial sampling distribution:</p>
+                <p style="text-align:center"><code><b>MoE = 1.96 × √(p × (1 − p) / N) × 100%</b></code></p>
+                <p>where <i>p</i> is the leader's estimated probability and <i>N</i> is the number of simulated seasons. It reflects sampling uncertainty only. Exact enumeration has no margin of error because every scenario is evaluated deterministically.</p>
             </div>
             <div class="predictor-moe" id="predictor-moe"></div>
             <div id="predictor-table"><div class="loading">Computing predictions...</div></div>
