@@ -1,5 +1,27 @@
 /* admin.css — Admin panel styles */
 
+/* Skip link (a11y) — duplicated from navigation.css since admin.html
+   does not load navigation.css. Keep in sync if the base rules change. */
+.skip-link {
+    position: absolute;
+    top: -100px;
+    left: 0;
+    background: var(--color-accent, #2563eb);
+    color: #fff;
+    padding: 8px 16px;
+    z-index: 9999;
+    text-decoration: none;
+    font-weight: 600;
+    border-radius: 0 0 4px 0;
+    transition: top 150ms ease-out;
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+    top: 0;
+    outline: 2px solid #fff;
+    outline-offset: -4px;
+}
+
 /* ---- Layout ---- */
 .admin-layout {
     display: flex;
@@ -521,46 +543,123 @@
     color: var(--color-text-muted);
 }
 
-/* ---- Responsive ---- */
-@media (max-width: 768px) {
+/* ---- Hamburger + drawer backdrop ----
+   Drawer is treated as a piece of the navy sidebar temporarily projecting
+   out. Hamburger inherits the sidebar palette so it reads as a handle
+   attached to the sidebar, not a floating overlay chrome element. */
+.admin-hamburger {
+    display: none;
+    position: fixed;
+    top: calc(16px + env(safe-area-inset-top, 0px));
+    left: 16px;
+    z-index: 110;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: none;
+    border-radius: 10px;
+    background: var(--header-bg);
+    color: var(--header-text, #fff);
+    cursor: pointer;
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.12),
+        0 8px 24px rgba(15, 23, 42, 0.18);
+    align-items: center;
+    justify-content: center;
+    transition: transform 160ms ease-out, box-shadow 160ms ease-out;
+}
+.admin-hamburger:hover {
+    transform: translateY(-1px);
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.14),
+        0 12px 32px rgba(15, 23, 42, 0.24);
+}
+.admin-hamburger:active { transform: translateY(0); }
+
+.admin-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    /* Navy-tinted rather than pure black — app recedes into the sidebar's
+       color world instead of just dimming. */
+    background: rgba(15, 23, 42, 0.55);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    z-index: 99;
+    opacity: 0;
+    transition: opacity 260ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.admin-backdrop.visible {
+    display: block;
+    opacity: 1;
+}
+
+/* Staggered nav reveal — plays once the drawer has started entering.
+   Each nav item fades + slides 8px with 40ms offset. Subtle, not showy. */
+@keyframes admin-nav-reveal {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ---- Responsive: mobile drawer ---- */
+@media (max-width: 767px) {
     .admin-layout {
         flex-direction: column;
     }
 
     .admin-sidebar {
-        width: 100%;
-        flex-direction: row;
-        flex-wrap: wrap;
-        padding: var(--space-sm);
-        position: static;
-        height: auto;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: min(284px, 82vw);
+        height: 100vh;
+        transform: translateX(-100%);
+        /* iOS-style confident ease — hits, then settles. */
+        transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
+        will-change: transform;
+        z-index: 100;
+        /* Layered elevation: tight ambient + far soft. */
+        box-shadow:
+            1px 0 0 rgba(255, 255, 255, 0.04),
+            6px 0 12px rgba(15, 23, 42, 0.28),
+            20px 0 48px rgba(15, 23, 42, 0.22);
     }
 
-    .admin-sidebar h2 {
-        width: 100%;
-        margin-bottom: var(--space-sm);
-        border-bottom: none;
+    .admin-sidebar.open {
+        transform: translateX(0);
     }
 
-    .admin-sidebar nav {
-        display: flex;
-        gap: var(--space-xs);
-        flex-wrap: wrap;
+    .admin-sidebar.open .admin-nav-item {
+        opacity: 0;
+        animation: admin-nav-reveal 280ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
     }
+    .admin-sidebar.open nav .admin-nav-item:nth-child(1) { animation-delay: 120ms; }
+    .admin-sidebar.open nav .admin-nav-item:nth-child(2) { animation-delay: 160ms; }
+    .admin-sidebar.open nav .admin-nav-item:nth-child(3) { animation-delay: 200ms; }
+    .admin-sidebar.open nav .admin-nav-item:nth-child(4) { animation-delay: 240ms; }
+    .admin-sidebar.open nav .admin-nav-item:nth-child(5) { animation-delay: 280ms; }
+    .admin-sidebar.open .admin-sidebar-footer .admin-nav-item:nth-child(1) { animation-delay: 320ms; }
+    .admin-sidebar.open .admin-sidebar-footer .admin-nav-item:nth-child(2) { animation-delay: 360ms; }
 
-    .admin-nav-item {
-        width: auto;
-    }
-
-    .admin-sidebar-footer {
-        margin-top: var(--space-sm);
-        border-top: none;
-        width: 100%;
+    @media (prefers-reduced-motion: reduce) {
+        .admin-sidebar,
+        .admin-backdrop { transition-duration: 0ms; }
+        .admin-sidebar.open .admin-nav-item { animation: none; opacity: 1; }
     }
 
     .admin-main {
-        padding: var(--space-md);
+        padding: calc(72px + env(safe-area-inset-top, 0px)) var(--space-md) var(--space-md);
+        width: 100%;
     }
+
+    .admin-hamburger {
+        display: inline-flex;
+    }
+}
+
+@media (min-width: 768px) {
+    .admin-hamburger,
+    .admin-backdrop { display: none !important; }
 }
 
 /* ---- Home link (replaces View Site) ---- */

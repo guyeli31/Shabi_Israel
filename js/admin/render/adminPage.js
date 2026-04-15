@@ -5,6 +5,7 @@
 import { isLoggedIn, login, logout, getToken, setToken, getRepo, setRepo, isGitHubConfigured } from '../auth.js';
 import { testConnection } from '../githubApi.js';
 import { getChanges, removeChange, removeGroup, removeOverrideFromChange, removePlayerFromGroup, getChangeCount, publishAll, clearChanges } from '../stagingStore.js';
+import { initAdminDrawer } from '../adminDrawer.js';
 
 let currentView = 'leagues';
 let onNavigate = null; // callback set by admin.html to handle view switching
@@ -116,7 +117,7 @@ function renderAdminShell() {
 
     app.innerHTML = `
         <div class="admin-layout">
-            <aside class="admin-sidebar">
+            <aside class="admin-sidebar" id="admin-sidebar">
                 <img class="admin-sidebar-logo" src="assets/logo/logo.png" alt="Logo">
                 <h2>Shabi Admin</h2>
                 <nav>
@@ -151,6 +152,8 @@ function renderAdminShell() {
         logout();
         renderLoginForm();
     });
+
+    initAdminDrawer();
 }
 
 // ---- Settings ----

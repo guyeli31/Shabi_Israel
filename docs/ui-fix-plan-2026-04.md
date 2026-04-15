@@ -244,34 +244,107 @@
 
 ---
 
-## שלב 6 — Mobile polish (H1 + H6 + H7)
+## שלב 6 — Mobile polish (H6)
 
 **מטרה:** חוויית מובייל מלוטשת.
 
 ### משימות
-1. **H1 — Touch targets ≥ 44×44px**
-   - [components.css](../css/components.css): `td.player-cell a { padding: 12px 0; display: inline-block; min-height: 44px; }`
-   - [navigation.css](../css/navigation.css): min-height 44px על nav links, breadcrumbs, dropdown buttons.
-   - Sortable headers: `padding: 14px var(--space-md);`.
+1. **H1 — Touch targets ≥ 44×44px** — ❌ בוטל (המשתמש ביקש לוותר על השינוי הזה).
 
 2. **H6 — Floating buttons safe-area**
    - [theme-picker.css](../css/theme-picker.css): `bottom: calc(16px + env(safe-area-inset-bottom));`
    - אותו דבר ל-admin button אם יש.
    - ב-[index.html](../index.html) (ועוד) `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`.
 
-3. **H7 — Hide empty Date column**
-   - ב-[js/render/playerPage.js](../js/render/playerPage.js): אחרי ה-render, לבדוק אם כל התאים בעמודה = '—'. אם כן — `th.style.display = 'none'` + כל ה-`td`-ים המתאימים.
-   - helper generic: `hideEmptyColumns(tableEl, emptyMarker = '—')`.
+3. **H7 — Hide empty Date column** — ❌ בוטל (המשתמש ביקש לוותר על השינוי הזה).
 
 ### בדיקה ידנית
-- DevTools mobile → לחץ על player-name link — קל להקליק.
 - theme picker לא נחסם ע"י Safari URL bar.
-- עמוד player — עמודת Date נעלמה, הטבלה תופסת יותר רוחב.
 
 ### Verification gate
-- [ ] כל focusable ≥ 44×44px (`Array.from(document.querySelectorAll('a,button,input')).filter(el => { const r = el.getBoundingClientRect(); return r.width < 44 || r.height < 44; }).length === 0`)
 - [ ] theme picker גלוי מעל iOS Safari URL bar
-- [ ] עמודת Date מוסתרת ב-player.html כשכולה ריקה
+
+---
+
+## שלב 6.5 — Mobile layout + zoom fix (C6 + C7)
+
+> ⏭️ **נדחה לגרסה הבאה (2026-04-16)** — שלב זה לא בוצע במחזור העבודה של שלבים 1–6. התוכנית להלן שמורה כ-blueprint להמשך עבודה, כולל סיבות, אסטרטגיית CSS-only cards, ו-verification gates.
+
+**מטרה:** טבלאות במובייל ברוחב מלא של המסך כברירת מחדל, ללא scroll אופקי, ללא שבירת פריסה בזמן pinch-zoom.
+
+### גבולות scope (חובה)
+- **Theme יחיד** — verification רץ רק על ה-theme הנוכחי/ברירת מחדל. המשתמש מרוצה מהניגודיות והצבעים בכל ה-themes; אין לחזור על הבדיקות פר-theme.
+- **מיקוד:** (א) פריסת entities במובייל, (ב) הגדלים שלהן, (ג) השפעת pinch-zoom in/out על הפריסה. שום דבר אחר.
+- **מחוץ ל-scope:** contrast, צבעים, typography, a11y מעבר למה שכבר נעשה בשלבים 1–6, וכן tablet (641–768px) — הבאג של sticky+zoom שם נשאר כידוע, תיקון טלפון בלבד.
+
+### בעיות שנחשפו ע"י המשתמש (צילומי מסך מובייל)
+1. **טבלאות לא ברוחב מלא** — [#leagueTable](../css/components.css#L84-L145) ו-[#playerTable](../css/components.css#L147-L195) משתמשות ב-`.table-scroll` עם עמודות ברוחב קבוע (`56px` rank, `180px` player, `44px` games…). ב-375px הטבלה רחבה מהמסך, המשתמש רואה טבלה חתוכה עם גלילה.
+2. **pinch-zoom שובר את הפריסה** — `position: sticky; left: 0` על עמודות 1–2 מתנגש עם iOS Safari zoom: התאים הדביקים מתנתקים / overlap-ים עם עמודות נומריות.
+3. **scrollbars קצרים** — כאשר scroll container קיים, ה-scrollbar לא תופס את כל רוחב/גובה ה-card.
+
+### אסטרטגיה — CSS-only "table → cards" ב-≤640px
+
+המרת ה-DOM של הטבלה הקיימת ל-layout מוערם במובייל באמצעות **CSS טהור** (`display: block` על `tr`, `td`, `thead`, + `::before` pseudo labels ממקור `data-label`). ללא JS rebuild, ללא DOM כפול, ללא פיצול render-path. Desktop מציג טבלה רגילה; אותו HTML זורם ל-cards מתחת ל-breakpoint.
+
+**למה CSS-only ולא JS rebuild:**
+- sorting, What-If simulator, color-scale, export-image, medal logic — הכל נשאר על אותם `<tr>` / `<td>`.
+- אפס סיכון regression בכל 3 סוגי הליגות (doubling / regular / ubc) כי ה-columns array לא משתנה.
+- source של אמת אחד.
+
+**שינוי JS יחיד נדרש:** הוספת `data-label="<col title>"` על כל `<td>` ב-render functions כדי ש-CSS יוכל להראות labels דרך `::before`. כ-5 שורות לכל קובץ render.
+
+### Breakpoint
+`@media (max-width: 640px)` — מתחת ל-`768px` הקיים של tablets, כך ש-iPad portrait עדיין רואה טבלה.
+
+### פריסת Card (לכל `<tr>`)
+```
+┌─────────────────────────────────┐
+│ [medal]  🇮🇱 PlayerName         │   ← header strip (Rank + Player)
+├─────────────────────────────────┤
+│ Games        22                 │
+│ Wins         16                 │
+│ Win Rate    72.73%              │   ← label-value דרך ::before
+│ Mean PR      6.62               │
+│ Luck         +1.34              │
+└─────────────────────────────────┘
+```
+`tr.avg-row` הופך ל-card מלא של "AVERAGES"; `tr.stat-row` הופך לקו caption מתחת לרשימה.
+
+### משימות
+
+1. **[css/components.css](../css/components.css)** — הוספת בלוק `@media (max-width: 640px)` בסוף הקובץ:
+   - `display: block` על `#leagueTable`, `#playerTable`, `#leagueTable thead`, `tbody`, `tr`, `td`.
+   - `position: static !important; left: auto !important` על עמודות sticky 1–2 + `thead` — **מתקן את באג ה-zoom של iOS כ-side effect**.
+   - `td::before { content: attr(data-label); }` layout של label-value בתוך כל td.
+   - תגי medal + color-scaled נשמרים (inline color, border-left accent מ-`.rank-gold` וכו').
+
+2. **[css/layout.css](../css/layout.css)** — `.page-container` padding של `0 var(--space-sm)` ב-≤640px כדי שה-cards יוכלו להגיע edge-to-edge.
+
+3. **JS — הוספת `data-label` על כל `<td>`** בקבצים הבאים (מקור הערך: `col.title` מתוך ה-columns array הקיים מ-[compute/leagueTypes.js](../js/compute/leagueTypes.js)):
+   - [js/render/leaguePage.js](../js/render/leaguePage.js) — `renderDataRows` (~231–288), `renderAverageRow` (~293–321), ענף unplayed.
+   - [js/render/playerPage.js](../js/render/playerPage.js) — תאי `#playerTable`.
+   - [js/render/dashboardPage.js](../js/render/dashboardPage.js) — מיני-טבלת Top 5.
+   - [js/render/landingPage.js](../js/render/landingPage.js) — `.completed-leagues-table`.
+   - ה-admin leagues table (הטבלה בצילום 1 שגולשת).
+
+4. **Scrollbar framing audit** — grep `overflow-x: auto` / `overflow-y: auto` בכל `css/`, לוודא שה-parent של כל container כזה הוא `width: 100%` / `height: 100%`, כך ש-scrollbar tracks נפרסים במלוא ה-card.
+
+### Verification gate (Playwright MCP, theme יחיד)
+
+Viewports: **375×812, 414×896, 768×1024, 1440×900**.
+Pages: index.html, league.html, player.html, dashboard.html, admin.html → Leagues.
+
+- [ ] `document.documentElement.scrollWidth === window.innerWidth` ב-375px בכל העמודים
+- [ ] כל שורה ב-`#leagueTable` / `#playerTable` ב-375px היא card ברוחב מלא (בדיקה: `tr.getBoundingClientRect().width === main.clientWidth - padding`)
+- [ ] `getComputedStyle(td, '::before').content` לא ריק עבור דוגמת תא נומרי (ווידוא שה-`data-label` קיים ומוצג)
+- [ ] `document.body.style.zoom = 1.5` → screenshot → אין cells שעוברים אחד על השני; Rank/Player לא דביקים עוד
+- [ ] `document.body.style.zoom = 2` ואז חזרה ל-`1` → הפריסה זהה למצב ההתחלתי (אין תאים תקועים)
+- [ ] scroll containers (אם נשארו) — `scrollWidth` של ה-track = `clientWidth` של ה-card
+- [ ] Desktop @ 1440×900 — טבלאות נראות רגיל, sticky עובד, אין regression ויזואלי
+- [ ] **רק ה-theme הנוכחי נבדק** (לא לעבור בין themes)
+
+### משך משוער
+~4–6 שעות: 1ש' CSS card layout, 1ש' `data-label` wiring ב-4 קבצי render, 1ש' scrollbar audit + layout.css, 1–2ש' Playwright verification + edge cases (avg-row, stat-row, colspans).
 
 ---
 
@@ -289,16 +362,17 @@
 
 ## סיכום — סדר ביצוע ומשך משוער
 
-| שלב | מה | משך | סיכון |
-|---|---|---|---|
-| 1 | Quick wins (C2+C5+H4) | 15 דק' | נמוך |
-| 2 | Sticky rows (C1) | 30 דק' | בינוני (cross-browser) |
-| 3 | a11y batch (H2+H3+H5) | 1 שעה | נמוך |
-| 4 | Contrast (C3) | 2 שעות | בינוני (theme-specific) |
-| — | **עצירה — audit gates עוברים** | | |
-| 5 | Admin drawer (C4) | 2 שעות | בינוני (component חדש) |
-| 6 | Mobile polish (H1+H6+H7) | 1 שעה | נמוך |
-| 7 | Editorial Chess | יומיים+ | גבוה (עיצוב מחדש) |
+| שלב | מה | משך | סיכון | סטטוס |
+|---|---|---|---|---|
+| 1 | Quick wins (C2+C5+H4) | 15 דק' | נמוך | ✅ הושלם |
+| 2 | Sticky rows (C1) | 30 דק' | בינוני (cross-browser) | ✅ הושלם |
+| 3 | a11y batch (H2+H3+H5) | 1 שעה | נמוך | ✅ הושלם |
+| 4 | Contrast (C3) | 2 שעות | בינוני (theme-specific) | ✅ הושלם |
+| — | **עצירה — audit gates עוברים** | | | ✅ |
+| 5 | Admin drawer (C4) | 2 שעות | בינוני (component חדש) | ✅ הושלם |
+| 6 | Mobile polish (H6) | 1 שעה | נמוך | ✅ הושלם |
+| 6.5 | Mobile layout + zoom (card view ≤640px, disable sticky, scrollbar framing) | 4–6 שעות | בינוני (theme יחיד, טלפון בלבד) | ⏭️ נדחה לגרסה הבאה |
+| 7 | Editorial Chess | יומיים+ | גבוה (עיצוב מחדש) | ⏭️ גרסה עתידית |
 
 **סה"כ עד ה-gate:** כ-4 שעות עבודה.
 **סה"כ עד סוף שלב 6:** כ-7 שעות.

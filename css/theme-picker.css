@@ -2,8 +2,8 @@
 
 .theme-picker {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    right: calc(20px + env(safe-area-inset-right));
     z-index: 1000;
     font-family: var(--font-main);
 }
@@ -190,13 +190,13 @@
 /* Responsive: smaller on mobile */
 @media (max-width: 768px) {
     .theme-picker {
-        bottom: 12px;
-        right: 12px;
+        bottom: calc(12px + env(safe-area-inset-bottom));
+        right: calc(12px + env(safe-area-inset-right));
     }
 
     .theme-picker-toggle {
-        width: 38px;
-        height: 38px;
+        width: 44px;
+        height: 44px;
         font-size: 1rem;
     }
 
