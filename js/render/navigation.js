@@ -101,6 +101,15 @@ export async function initNavBar() {
 
     document.body.insertBefore(nav, document.body.firstChild);
 
+    // Skip-to-main-content link (must be first focusable element)
+    if (!document.querySelector('.skip-link')) {
+        const skip = document.createElement('a');
+        skip.className = 'skip-link';
+        skip.href = '#main';
+        skip.textContent = 'Skip to content';
+        document.body.insertBefore(skip, document.body.firstChild);
+    }
+
     populateLeagueDropdown(nav);
     setupLeagueDropdown(nav);
     setupPlayerSearch(nav);

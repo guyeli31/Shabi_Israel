@@ -251,9 +251,9 @@ async function renderMatchEditor(container, leagueId, refreshBadge) {
                 <table class="admin-table admin-table-compact">
                     <thead>
                         <tr>
-                            <th>Player A</th><th>PR</th><th>Luck</th><th>Score</th>
-                            <th>Player B</th><th>PR</th><th>Luck</th><th>Score</th>
-                            <th>Edited</th><th>Actions</th>
+                            <th scope="col">Player A</th><th scope="col">PR</th><th scope="col">Luck</th><th scope="col">Score</th>
+                            <th scope="col">Player B</th><th scope="col">PR</th><th scope="col">Luck</th><th scope="col">Score</th>
+                            <th scope="col">Edited</th><th scope="col">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="match-table-body">${buildRows('')}</tbody>
@@ -416,7 +416,7 @@ async function renderOverridesList(container, leagueId, refreshBadge) {
         container.innerHTML = `
             <div id="overrides-msg"></div>
             <table class="admin-table">
-                <thead><tr><th>Type</th><th>Match</th><th>Reason</th><th>Date</th><th></th></tr></thead>
+                <thead><tr><th scope="col">Type</th><th scope="col">Match</th><th scope="col">Reason</th><th scope="col">Date</th><th scope="col"></th></tr></thead>
                 <tbody>${rows}</tbody>
             </table>`;
 

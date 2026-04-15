@@ -81,7 +81,7 @@ function renderLeagueList(container, leagues, displayOrder) {
         <div class="admin-card">
             <table class="admin-table">
                 <thead>
-                    <tr><th>Name</th><th>Type</th><th>Issue Date</th><th>Status</th><th>Actions</th></tr>
+                    <tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Issue Date</th><th scope="col">Status</th><th scope="col">Actions</th></tr>
                 </thead>
                 <tbody>${rows}</tbody>
             </table>
@@ -231,7 +231,7 @@ async function renderAddLeagueForm(container, displayOrder) {
                 </div>
                 <div id="csv-source-msg" style="font-size:0.85rem;color:var(--color-text-muted);margin-bottom:var(--space-sm)"></div>
                 <table class="admin-table" id="new-players-table">
-                    <thead><tr><th>Name</th><th>Flag</th><th>Retired</th><th></th></tr></thead>
+                    <thead><tr><th scope="col">Name</th><th scope="col">Flag</th><th scope="col">Retired</th><th scope="col"></th></tr></thead>
                     <tbody></tbody>
                 </table>
             </div>
@@ -753,7 +753,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             <div id="players-msg"></div>
             <table class="admin-table">
                 <thead>
-                    <tr><th>Name</th><th>Flag</th><th>Retired</th><th></th></tr>
+                    <tr><th scope="col">Name</th><th scope="col">Flag</th><th scope="col">Retired</th><th scope="col"></th></tr>
                 </thead>
                 <tbody>${playerRows}</tbody>
             </table>

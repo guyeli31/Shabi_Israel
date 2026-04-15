@@ -380,7 +380,7 @@ function renderPrizes(ctx) {
     if (params.BronzeCount) rows.push({ medal: '🥉', tier: 'Bronze', count: params.BronzeCount, prize: prizes.Bronze != null ? `₪${prizes.Bronze.toLocaleString()}` : '—' });
 
     let html = `<div class="prizes-info"><span class="prizes-entry">Entry Fee: <b>₪${entryFee}</b></span></div>`;
-    html += '<table class="dash-table prizes-table"><thead><tr><th></th><th>Tier</th><th>Places</th><th>Prize</th></tr></thead><tbody>';
+    html += '<table class="dash-table prizes-table"><thead><tr><th scope="col"></th><th scope="col">Tier</th><th scope="col">Places</th><th scope="col">Prize</th></tr></thead><tbody>';
     for (const r of rows) {
         html += `<tr class="prize-row-${r.tier.toLowerCase()}"><td>${r.medal}</td><td>${r.tier}</td><td>${r.count}</td><td>${r.prize}</td></tr>`;
     }
@@ -463,9 +463,9 @@ function drawHistTable(ctx, dateValue) {
         return '';
     }
 
-    let html = '<table class="dash-table"><thead><tr><th>Rank</th><th class="player-col">Player</th><th>Games</th><th>Wins</th><th>Losses</th>';
-    if (leagueConfig.showWinRate) html += '<th>Win Rate</th>';
-    if (leagueConfig.showPR) html += '<th>Mean PR</th>';
+    let html = '<table class="dash-table"><thead><tr><th scope="col">Rank</th><th scope="col" class="player-col">Player</th><th scope="col">Games</th><th scope="col">Wins</th><th scope="col">Losses</th>';
+    if (leagueConfig.showWinRate) html += '<th scope="col">Win Rate</th>';
+    if (leagueConfig.showPR) html += '<th scope="col">Mean PR</th>';
     html += '</tr></thead><tbody>';
     if (top.length === 0) {
         html += `<tr><td colspan="7" style="text-align:center;color:var(--color-text-muted)">No matches played yet</td></tr>`;
@@ -577,8 +577,8 @@ async function renderPredictor(ctx) {
             host.innerHTML = `
                 <table>
                     <thead><tr>
-                        <th>#</th><th>Player</th><th>G</th><th>W</th><th>L</th>
-                        <th>${prHeader}</th><th>Championship %</th>
+                        <th scope="col">#</th><th scope="col">Player</th><th scope="col">G</th><th scope="col">W</th><th scope="col">L</th>
+                        <th scope="col">${prHeader}</th><th scope="col">Championship %</th>
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>`;
@@ -873,8 +873,8 @@ function renderWhatIfSimulator(ctx) {
                 tableHost.innerHTML = `
                     <table class="whatif-table">
                         <thead><tr>
-                            <th>#</th><th>Player</th><th>G</th><th>W</th><th>L</th>
-                            <th>${prHeader}</th><th>Championship %</th>
+                            <th scope="col">#</th><th scope="col">Player</th><th scope="col">G</th><th scope="col">W</th><th scope="col">L</th>
+                            <th scope="col">${prHeader}</th><th scope="col">Championship %</th>
                         </tr></thead>
                         <tbody>${rows}</tbody>
                     </table>`;
@@ -951,7 +951,7 @@ function renderRounds(ctx) {
 }
 
 function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFlags = {}) {
-    let html = '<table class="dash-table"><thead><tr><th class="player-col">Player A</th><th>Score</th><th class="player-col">Player B</th><th>PR A</th><th>PR B</th><th>Luck A</th><th>Luck B</th><th>Played</th></tr></thead><tbody>';
+    let html = '<table class="dash-table"><thead><tr><th scope="col" class="player-col">Player A</th><th scope="col">Score</th><th scope="col" class="player-col">Player B</th><th scope="col">PR A</th><th scope="col">PR B</th><th scope="col">Luck A</th><th scope="col">Luck B</th><th scope="col">Played</th></tr></thead><tbody>';
     for (const m of matches) {
         const isPlayed = m.played;
         const updated = playedAt.get(matchKey(m.playerA, m.playerB));
@@ -1023,10 +1023,10 @@ function renderRemainingMatches(ctx) {
 
 function buildRemainingListHtml(matches, customFlags, playersMeta) {
     let html = '<table class="dash-table"><thead><tr>'
-             + '<th>Round</th>'
-             + '<th class="player-col">Player A</th>'
-             + '<th></th>'
-             + '<th class="player-col">Player B</th>'
+             + '<th scope="col">Round</th>'
+             + '<th scope="col" class="player-col">Player A</th>'
+             + '<th scope="col"></th>'
+             + '<th scope="col" class="player-col">Player B</th>'
              + '</tr></thead><tbody>';
     for (const m of matches) {
         const flagA = getFlagCode(m.playerA, customFlags);

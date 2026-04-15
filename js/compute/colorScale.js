@@ -1,70 +1,87 @@
 /**
  * colorScale.js — Dynamic color gradient calculations for data visualization.
  * Generates CSS color strings based on value position within a min/max range.
+ * Anchors are theme-aware so WCAG AA (4.5:1) holds on every theme's surface.
  */
 
-/**
- * Interpolate between red and green based on a normalized ratio (0 = red, 1 = green).
- * Returns a CSS rgb() string.
- */
+const DARK_THEMES = new Set(['dark', 'vegas', 'casino', 'x22']);
+
+function isDarkTheme() {
+    if (typeof document === 'undefined') return false;
+    const t = document.documentElement.getAttribute('data-theme');
+    return DARK_THEMES.has(t);
+}
+
+const LIGHT_ANCHORS = {
+    red:   [185, 28, 28],
+    amber: [146, 86, 0],
+    green: [21, 112, 58],
+};
+
+const DARK_ANCHORS = {
+    red:   [255, 128, 128],
+    amber: [255, 184, 74],
+    green: [93, 216, 128],
+};
+
 function interpolateRedGreen(ratio) {
-    // Clamp
     const t = Math.max(0, Math.min(1, ratio));
-    // Red (255,0,0) → Yellow (255,255,0) → Green (0,200,0)
-    let r, g, b = 0;
+    const a = isDarkTheme() ? DARK_ANCHORS : LIGHT_ANCHORS;
+    const lerp = (x, y, p) => Math.round(x + (y - x) * p);
+    let r, g, b;
     if (t < 0.5) {
-        const p = t * 2; // 0→1 for first half
-        r = 220;
-        g = Math.round(140 * p);
+        const p = t * 2;
+        r = lerp(a.red[0], a.amber[0], p);
+        g = lerp(a.red[1], a.amber[1], p);
+        b = lerp(a.red[2], a.amber[2], p);
     } else {
-        const p = (t - 0.5) * 2; // 0→1 for second half
-        r = Math.round(220 * (1 - p));
-        g = Math.round(140 + 60 * p);
+        const p = (t - 0.5) * 2;
+        r = lerp(a.amber[0], a.green[0], p);
+        g = lerp(a.amber[1], a.green[1], p);
+        b = lerp(a.amber[2], a.green[2], p);
     }
     return `rgb(${r}, ${g}, ${b})`;
 }
 
-/**
- * Get color for a value within a range.
- * Higher value = greener (good).
- */
 export function colorForValue(value, min, max) {
     if (min === max) return interpolateRedGreen(0.5);
     const ratio = (value - min) / (max - min);
     return interpolateRedGreen(ratio);
 }
 
-/**
- * Get color for a value where LOWER is better (e.g., PR, Losses).
- * Lower value = greener.
- */
 export function colorForValueInverted(value, min, max) {
     if (min === max) return interpolateRedGreen(0.5);
     const ratio = 1 - (value - min) / (max - min);
     return interpolateRedGreen(ratio);
 }
 
-/**
- * Color for Games column: fixed scale 0–25.
- */
 export function colorForGames(value) {
     return colorForValue(value, 0, 25);
 }
 
-/**
- * Level color mapping (discrete).
- */
-const LEVEL_COLORS = {
-    'World Champ':   '#00C853',
+const LEVEL_COLORS_LIGHT = {
+    'World Champ':   '#047857',
     'World Class':   '#2E7D32',
-    'Expert':        '#558B2F',
-    'Advanced':      '#9E9D24',
-    'Intermediate':  '#F57F17',
-    'Casual Player': '#E65100',
-    'Beginner':      '#BF360C',
-    'Distracted':    '#B71C1C'
+    'Expert':        '#4a7a28',
+    'Advanced':      '#6b6d00',
+    'Intermediate':  '#a85a00',
+    'Casual Player': '#c24500',
+    'Beginner':      '#a33000',
+    'Distracted':    '#8b1212'
+};
+
+const LEVEL_COLORS_DARK = {
+    'World Champ':   '#5dd880',
+    'World Class':   '#6fd8a0',
+    'Expert':        '#a8d860',
+    'Advanced':      '#d8d860',
+    'Intermediate':  '#ffb84a',
+    'Casual Player': '#ff9450',
+    'Beginner':      '#ff7a6a',
+    'Distracted':    '#ff6b6b'
 };
 
 export function colorForLevel(level) {
-    return LEVEL_COLORS[level] || '#666';
+    const table = isDarkTheme() ? LEVEL_COLORS_DARK : LEVEL_COLORS_LIGHT;
+    return table[level] || (isDarkTheme() ? '#b0b0b0' : '#555');
 }

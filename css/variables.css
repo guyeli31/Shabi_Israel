@@ -5,8 +5,8 @@
     --color-bg: #f0f2f5;
     --color-surface: #ffffff;
     --color-text: #1a1a2e;
-    --color-text-secondary: #555770;
-    --color-text-muted: #8888a0;
+    --color-text-secondary: #52546b;
+    --color-text-muted: #6b6d84;
     --color-border: #e2e4e9;
     --color-hover: #f5f6f8;
     --color-accent: #2563eb;
@@ -21,15 +21,15 @@
     --color-bronze-bg: #fef3c7;
 
     /* Status */
-    --color-running: #059669;
+    --color-running: #047857;
     --color-running-bg: #d1fae5;
-    --color-completed: #6b7280;
+    --color-completed: #4b5563;
     --color-completed-bg: #f3f4f6;
 
     /* Results */
-    --color-win: #059669;
-    --color-loss: #dc2626;
-    --color-draw: #6b7280;
+    --color-win: #047857;
+    --color-loss: #b91c1c;
+    --color-draw: #4b5563;
 
     /* Average row */
     --color-avg-bg: #ecfdf5;
@@ -87,4 +87,46 @@
 
     /* Color scale filter (for theme adaptation of inline colors) */
     --color-scale-filter: none;
+
+    /* League-type pill colors (default / light themes) */
+    --lt-doubling-bg: #dbeafe;
+    --lt-doubling-text: #1e40af;
+    --lt-ubc-bg: #ede9fe;
+    --lt-ubc-text: #5b21b6;
+    --lt-regular-bg: #ccfbf1;
+    --lt-regular-text: #115e59;
+}
+
+/* Dark-theme league-type pill overrides */
+[data-theme="dark"] {
+    --lt-doubling-bg: rgba(96, 165, 250, 0.22);
+    --lt-doubling-text: #93c5fd;
+    --lt-ubc-bg: rgba(167, 139, 250, 0.22);
+    --lt-ubc-text: #c4b5fd;
+    --lt-regular-bg: rgba(45, 212, 191, 0.22);
+    --lt-regular-text: #5eead4;
+}
+[data-theme="vegas"] {
+    --lt-doubling-bg: rgba(96, 165, 250, 0.22);
+    --lt-doubling-text: #93c5fd;
+    --lt-ubc-bg: rgba(167, 139, 250, 0.22);
+    --lt-ubc-text: #c4b5fd;
+    --lt-regular-bg: rgba(45, 212, 191, 0.22);
+    --lt-regular-text: #5eead4;
+}
+[data-theme="casino"] {
+    --lt-doubling-bg: rgba(96, 165, 250, 0.22);
+    --lt-doubling-text: #93c5fd;
+    --lt-ubc-bg: rgba(236, 72, 153, 0.22);
+    --lt-ubc-text: #f9a8d4;
+    --lt-regular-bg: rgba(45, 212, 191, 0.22);
+    --lt-regular-text: #5eead4;
+}
+[data-theme="x22"] {
+    --lt-doubling-bg: rgba(96, 165, 250, 0.22);
+    --lt-doubling-text: #93c5fd;
+    --lt-ubc-bg: rgba(236, 72, 153, 0.22);
+    --lt-ubc-text: #f9a8d4;
+    --lt-regular-bg: rgba(94, 234, 212, 0.22);
+    --lt-regular-text: #5eead4;
 }

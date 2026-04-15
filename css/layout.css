@@ -59,12 +59,12 @@ body {
     background: var(--color-surface);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-md);
-    overflow: hidden;
     margin-bottom: var(--space-xl);
 }
 
 .table-scroll {
-    overflow-x: auto;
+    overflow: auto;
+    max-height: calc(100vh - var(--nav-height, 48px) - 40px);
 }
 
 /* Loading / Error */

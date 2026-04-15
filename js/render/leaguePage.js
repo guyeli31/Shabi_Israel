@@ -133,7 +133,7 @@ function renderSummaryTable(container, rankings, averages, matchStats, params, l
     const bronzeCount = params.BronzeCount || 4;
 
     const headerCells = columns.map((col, i) =>
-        `<th data-col="${i}">${col.label} <span class="sort-icon">&#x25B2;</span></th>`
+        `<th scope="col" data-col="${i}">${col.label} <span class="sort-icon">&#x25B2;</span></th>`
     ).join('\n                        ');
 
     let html = `

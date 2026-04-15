@@ -116,7 +116,7 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone) {
         let tableHtml = '<thead><tr>';
         const headerParts = lines[0].split(',');
         for (const h of headerParts) {
-            tableHtml += `<th>${escHtml(h.trim())}</th>`;
+            tableHtml += `<th scope="col">${escHtml(h.trim())}</th>`;
         }
         tableHtml += '</tr></thead><tbody>';
 

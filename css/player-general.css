@@ -226,6 +226,21 @@
     background: #fef3c7;
     font-weight: 700;
 }
+/* Dark-theme overrides — light cream clashes with white text */
+[data-theme="dark"] .pg-rank-self td,
+[data-theme="vegas"] .pg-rank-self td,
+[data-theme="casino"] .pg-rank-self td,
+[data-theme="x22"] .pg-rank-self td {
+    background: rgba(255, 152, 0, 0.22);
+    color: #ffffff;
+    box-shadow: inset 3px 0 0 var(--color-accent);
+}
+[data-theme="dark"] .pg-rank-self,
+[data-theme="vegas"] .pg-rank-self,
+[data-theme="casino"] .pg-rank-self,
+[data-theme="x22"] .pg-rank-self {
+    background: transparent;
+}
 .pg-tile-block {
     display: flex;
     flex-direction: column;
@@ -247,8 +262,35 @@
     font-weight: 700;
     font-size: 0.9rem;
     letter-spacing: 0.06em;
-    color: var(--color-text-secondary);
     margin-bottom: 10px;
+}
+
+/* League-type pills */
+.pg-lt {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1.5;
+}
+.pg-pr-type.pg-lt {
+    padding: 4px 12px;
+    font-size: 0.8rem;
+}
+.pg-lt-doubling {
+    background: var(--lt-doubling-bg);
+    color: var(--lt-doubling-text);
+}
+.pg-lt-ubc {
+    background: var(--lt-ubc-bg);
+    color: var(--lt-ubc-text);
+}
+.pg-lt-regular {
+    background: var(--lt-regular-bg);
+    color: var(--lt-regular-text);
 }
 .pg-pr-row {
     display: flex;

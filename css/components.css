@@ -1,5 +1,26 @@
 /* components.css — Tables, badges, medals, flags, pills */
 
+/* ---- Global focus-visible (a11y H5) ---- */
+:focus-visible {
+    outline: 2px solid var(--color-accent, #2563eb);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+th[data-col]:focus-visible {
+    outline: 2px solid var(--color-accent, #2563eb);
+    outline-offset: 2px;
+}
+/* Remove default outline only when :focus-visible is supported — still keep :focus fallback */
+:focus:not(:focus-visible) {
+    outline: none;
+}
+
 /* ---- Export Image button (shared across pages) ---- */
 .img-export-btn {
     padding: 6px 12px;
@@ -16,8 +37,15 @@
 /* ---- Data Table ---- */
 table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 0.93rem;
+}
+
+thead {
+    position: sticky;
+    top: 0;
+    z-index: 3;
 }
 
 thead th {
@@ -27,9 +55,6 @@ thead th {
     font-weight: 600;
     text-align: center;
     white-space: nowrap;
-    position: sticky;
-    top: 0;
-    z-index: 3;
     cursor: pointer;
     user-select: none;
     transition: background 0.15s;
@@ -54,6 +79,118 @@ tbody td {
     text-align: center;
     border-bottom: 1px solid var(--color-border);
     white-space: nowrap;
+}
+
+/* ---- League table: sticky left 2 columns (Rank + Player) ---- */
+#leagueTable thead th:nth-child(1),
+#leagueTable tbody td:nth-child(1) {
+    width: 56px;
+    min-width: 56px;
+    max-width: 56px;
+}
+#leagueTable thead th:nth-child(2),
+#leagueTable tbody td:nth-child(2) {
+    width: 180px;
+    min-width: 180px;
+    max-width: 180px;
+}
+
+#leagueTable thead th:nth-child(1),
+#leagueTable thead th:nth-child(2) {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+}
+#leagueTable thead th:nth-child(2) {
+    left: 56px;
+}
+
+#leagueTable tbody td:nth-child(1),
+#leagueTable tbody td:nth-child(2) {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--color-surface);
+}
+#leagueTable tbody td:nth-child(2) {
+    left: 56px;
+}
+#leagueTable tbody tr:hover td:nth-child(1),
+#leagueTable tbody tr:hover td:nth-child(2) {
+    background: var(--color-hover);
+}
+
+/* Medal row tints on sticky cells */
+#leagueTable tbody tr.rank-gold td:nth-child(1),
+#leagueTable tbody tr.rank-gold td:nth-child(2) { background: var(--color-gold-bg); }
+#leagueTable tbody tr.rank-silver td:nth-child(1),
+#leagueTable tbody tr.rank-silver td:nth-child(2) { background: var(--color-silver-bg); }
+#leagueTable tbody tr.rank-bronze td:nth-child(1),
+#leagueTable tbody tr.rank-bronze td:nth-child(2) { background: rgba(217, 119, 6, 0.08); }
+
+#leagueTable tbody tr.rank-gold:hover td:nth-child(1),
+#leagueTable tbody tr.rank-gold:hover td:nth-child(2) { background: var(--color-gold-bg-hover); }
+#leagueTable tbody tr.rank-silver:hover td:nth-child(1),
+#leagueTable tbody tr.rank-silver:hover td:nth-child(2) { background: var(--color-silver-bg-hover); }
+#leagueTable tbody tr.rank-bronze:hover td:nth-child(1),
+#leagueTable tbody tr.rank-bronze:hover td:nth-child(2) { background: var(--color-bronze-bg-hover); }
+
+#leagueTable tr.avg-row td:first-child {
+    left: 0;
+    z-index: 3;
+}
+#leagueTable tr.stat-row td:first-child {
+    left: 0;
+    z-index: 3;
+}
+
+/* ---- Player table: sticky left 1 column (Opponent); Date is 2nd, not sticky ---- */
+#playerTable thead th:nth-child(1),
+#playerTable tbody td:nth-child(1) {
+    width: 180px;
+    min-width: 180px;
+    max-width: 180px;
+}
+#playerTable thead th:nth-child(2),
+#playerTable tbody td:nth-child(2) {
+    width: 95px;
+    min-width: 95px;
+    max-width: 95px;
+}
+
+/* Tighten numeric columns (cols 3+) in both tables to reclaim horizontal space */
+#leagueTable thead th:nth-child(n+3),
+#leagueTable tbody td:nth-child(n+3),
+#playerTable thead th:nth-child(n+3),
+#playerTable tbody td:nth-child(n+3) {
+    padding-left: 6px;
+    padding-right: 6px;
+    font-size: 0.88rem;
+}
+
+/* Games column is always ≤2 digits — narrow it */
+#leagueTable thead th:nth-child(3),
+#leagueTable tbody td:nth-child(3) {
+    width: 44px;
+    min-width: 44px;
+    max-width: 44px;
+}
+#playerTable thead th:nth-child(1) {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+}
+#playerTable tbody td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--color-surface);
+}
+#playerTable tbody tr:hover td:nth-child(1) {
+    background: var(--color-hover);
+}
+#playerTable tr.avg-row td:nth-child(1) {
+    background: var(--color-avg-bg);
 }
 
 tbody tr:hover {
@@ -154,15 +291,23 @@ tr.rank-bronze:hover { background: var(--color-bronze-bg-hover); }
 }
 
 /* ---- Average / Stats rows ---- */
+:root {
+    --stat-row-height: 36px;
+}
+
 tr.avg-row {
     background: var(--color-avg-bg) !important;
     font-weight: 700;
     position: sticky;
-    bottom: 30px;
+    bottom: 0;
     z-index: 2;
+}
+#leagueTable tr.avg-row {
+    bottom: var(--stat-row-height);
 }
 
 tr.avg-row td {
+    background: var(--color-avg-bg);
     border-top: 2px solid var(--color-avg-border);
     border-bottom: none;
     padding: var(--space-sm) var(--space-md);
@@ -176,6 +321,7 @@ tr.stat-row {
 }
 
 tr.stat-row td {
+    background: var(--color-surface);
     padding: var(--space-sm) var(--space-md);
     color: var(--color-text-secondary);
     font-size: 0.88rem;

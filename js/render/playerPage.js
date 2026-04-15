@@ -123,10 +123,9 @@ export async function renderPlayerPage() {
  */
 function getPlayerColumns(config) {
     const cols = [
-        { key: 'date', label: 'Date' },
         { key: 'opponent', label: 'Opponent' },
+        { key: 'date', label: 'Date' },
         { key: 'scoreSelf', label: 'Score' },
-        { key: 'scoreOpp', label: 'Opp Score' },
     ];
     if (config.showPR) {
         cols.push({ key: 'prSelf', label: 'PR' });
@@ -147,7 +146,7 @@ function renderMatchTable(container, playerMatches, params, leagueId, playerName
     const columns = getPlayerColumns(leagueConfig);
 
     const headerCells = columns.map((col, i) =>
-        `<th data-col="${i}">${col.label} <span class="sort-icon">&#x25B2;</span></th>`
+        `<th scope="col" data-col="${i}">${col.label} <span class="sort-icon">&#x25B2;</span></th>`
     ).join('\n                        ');
 
     let html = `
@@ -182,21 +181,21 @@ function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns,
         const oppUrl = playerUrl(leagueId, m.opponent);
 
         if (!m.played) {
-            html += `
-                    <tr class="unplayed">`;
-            // Empty date cell if date column is first
-            if (columns[0].key === 'date') html += `<td></td>`;
-            html += `<td class="player-cell">
+            html += `<tr class="unplayed">`;
+            for (let i = 0; i < columns.length; i++) {
+                const col = columns[i];
+                if (col.key === 'opponent') {
+                    html += `<td class="player-cell">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
                             ${playerNameLink(m.opponent, allMeta[m.opponent])}
                         </td>`;
-            // Empty cells for remaining columns except last (result/points)
-            const skip = columns[0].key === 'date' ? 2 : 1;
-            for (let i = skip; i < columns.length - 1; i++) {
-                html += `<td></td>`;
+                } else if (i === columns.length - 1) {
+                    html += `<td>Not played</td>`;
+                } else {
+                    html += `<td></td>`;
+                }
             }
-            html += `<td>Not played</td>
-                    </tr>`;
+            html += `</tr>`;
             continue;
         }
 
@@ -240,12 +239,16 @@ function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns,
                             ${playerNameLink(m.opponent, allMeta[m.opponent])}
                         </td>`;
                     break;
-                case 'scoreSelf':
-                    html += `<td>${isTechnical ? '—' : boldScore(m.scoreSelf, m.scoreOpp)}</td>`;
+                case 'scoreSelf': {
+                    if (isTechnical) {
+                        html += `<td>—</td>`;
+                    } else {
+                        const scoreStr = `${m.scoreSelf}-${m.scoreOpp}`;
+                        const won = m.scoreSelf > m.scoreOpp;
+                        html += `<td>${won ? `<b>${scoreStr}</b>` : scoreStr}</td>`;
+                    }
                     break;
-                case 'scoreOpp':
-                    html += `<td>${isTechnical ? '—' : boldScore(m.scoreOpp, m.scoreSelf)}</td>`;
-                    break;
+                }
                 case 'prSelf':
                     html += `<td>${isTechnical ? '—' : boldPR(m.prSelf, m.prOpp)}</td>`;
                     break;
@@ -309,10 +312,7 @@ function renderPlayerAverages(playerMatches, leagueConfig, columns) {
                 html += `<td><b>AVERAGES</b></td>`;
                 break;
             case 'scoreSelf':
-                html += `<td colspan="2"></td>`;
-                break;
-            case 'scoreOpp':
-                // Consumed by colspan above
+                html += `<td></td>`;
                 break;
             case 'prSelf':
                 html += `<td>${avgPR !== null ? formatNumber(avgPR) : '—'}</td>`;

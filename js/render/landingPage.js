@@ -802,9 +802,9 @@ function renderCompletedLeagues(container, completed) {
         <div class="collapsible-section${collapsed}">
             <h2 class="collapsible-header">Completed Leagues</h2>
             <div class="collapsible-body">
-                <div class="completed-table-wrapper">
+                <div class="completed-table-wrapper table-scroll">
                     <table class="completed-leagues-table">
-                        <thead><tr><th>Date</th><th>League</th><th>Type</th><th>Winner</th></tr></thead>
+                        <thead><tr><th scope="col">Date</th><th scope="col">League</th><th scope="col">Type</th><th scope="col">Winner</th></tr></thead>
                         <tbody>${rowsHtml}</tbody>
                     </table>
                 </div>
@@ -977,11 +977,11 @@ function renderLeaderboards(container, leaderboards) {
         const collapsed = lb.year >= currentYear ? '' : ' collapsed';
 
         // Header row
-        let thMonths = lb.months.map(m => `<th class="month-col">${m}</th>`).join('');
-        let thExtra = `<th class="total-col">Total</th>`;
-        if (showWinRate) thExtra += `<th>Win Rate</th>`;
-        if (showAvgPoints) thExtra += `<th>Avg Pts</th>`;
-        thExtra += `<th>Mean PR</th>`;
+        let thMonths = lb.months.map(m => `<th scope="col" class="month-col">${m}</th>`).join('');
+        let thExtra = `<th scope="col" class="total-col">Total</th>`;
+        if (showWinRate) thExtra += `<th scope="col">Win Rate</th>`;
+        if (showAvgPoints) thExtra += `<th scope="col">Avg Pts</th>`;
+        thExtra += `<th scope="col">Mean PR</th>`;
 
         // Data rows
         let rowsHtml = '';
@@ -1034,8 +1034,8 @@ function renderLeaderboards(container, leaderboards) {
                         <table class="leaderboard-table">
                             <thead>
                                 <tr>
-                                    <th>#</th>
-                                    <th class="player-col">Player</th>
+                                    <th scope="col">#</th>
+                                    <th scope="col" class="player-col">Player</th>
                                     ${thMonths}
                                     ${thExtra}
                                 </tr>
@@ -1081,11 +1081,11 @@ async function exportLeaderboardImage(lb, title, maxRows) {
     const showAvgPoints = lb.isUBC;
 
     // Build header
-    let thMonths = lb.months.map(m => `<th class="month-col">${m}</th>`).join('');
-    let thExtra = `<th class="total-col">Total</th>`;
-    if (showWinRate) thExtra += `<th>Win Rate</th>`;
-    if (showAvgPoints) thExtra += `<th>Avg Pts</th>`;
-    thExtra += `<th>Mean PR</th>`;
+    let thMonths = lb.months.map(m => `<th scope="col" class="month-col">${m}</th>`).join('');
+    let thExtra = `<th scope="col" class="total-col">Total</th>`;
+    if (showWinRate) thExtra += `<th scope="col">Win Rate</th>`;
+    if (showAvgPoints) thExtra += `<th scope="col">Avg Pts</th>`;
+    thExtra += `<th scope="col">Mean PR</th>`;
 
     // Build body
     let bodyHtml = '';
@@ -1126,8 +1126,8 @@ async function exportLeaderboardImage(lb, title, maxRows) {
             <table class="leaderboard-table">
                 <thead>
                     <tr>
-                        <th>#</th>
-                        <th class="player-col">Player</th>
+                        <th scope="col">#</th>
+                        <th scope="col" class="player-col">Player</th>
                         ${thMonths}
                         ${thExtra}
                     </tr>
@@ -1244,7 +1244,7 @@ function renderAchievementTables(data) {
                 <h3>${m.label}</h3>
                 <div class="achv-table-wrapper">
                     <table class="achv-table">
-                        <thead><tr><th>#</th><th>Player</th><th>${m.label}</th></tr></thead>
+                        <thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">${m.label}</th></tr></thead>
                         <tbody>${rowsHtml || '<tr><td colspan="3">No data</td></tr>'}</tbody>
                     </table>
                 </div>
@@ -1331,7 +1331,7 @@ function renderPRTables(data) {
                 <h3>${m.label}</h3>
                 <div class="achv-table-wrapper">
                     <table class="achv-table">
-                        <thead><tr><th>#</th><th>Player</th><th>PR</th></tr></thead>
+                        <thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">PR</th></tr></thead>
                         <tbody>${rowsHtml || '<tr><td colspan="3">No data</td></tr>'}</tbody>
                     </table>
                 </div>
@@ -1405,8 +1405,8 @@ function renderMatchRecordsTables(luckRows, prRows) {
                 <div class="achv-table-wrapper">
                     <table class="achv-table match-records-table">
                         <thead><tr>
-                            <th>#</th><th>Player</th><th>PR</th><th>Opponent</th>
-                            <th>Score</th><th>Result</th><th>League</th><th>Date</th>
+                            <th scope="col">#</th><th scope="col">Player</th><th scope="col">PR</th><th scope="col">Opponent</th>
+                            <th scope="col">Score</th><th scope="col">Result</th><th scope="col">League</th><th scope="col">Date</th>
                         </tr></thead>
                         <tbody>${prHtml || '<tr><td colspan="8">No data</td></tr>'}</tbody>
                     </table>
@@ -1417,8 +1417,8 @@ function renderMatchRecordsTables(luckRows, prRows) {
                 <div class="achv-table-wrapper">
                     <table class="achv-table match-records-table">
                         <thead><tr>
-                            <th>#</th><th>Player</th><th>Luck Gap</th><th>Opponent</th>
-                            <th>Score</th><th>Result</th><th>League</th><th>Date</th>
+                            <th scope="col">#</th><th scope="col">Player</th><th scope="col">Luck Gap</th><th scope="col">Opponent</th>
+                            <th scope="col">Score</th><th scope="col">Result</th><th scope="col">League</th><th scope="col">Date</th>
                         </tr></thead>
                         <tbody>${luckHtml || '<tr><td colspan="8">No data</td></tr>'}</tbody>
                     </table>

@@ -7,8 +7,8 @@
     --color-bg: #1c1c26;
     --color-surface: #262633;
     --color-text: #ececf1;
-    --color-text-secondary: #b4b8c8;
-    --color-text-muted: #80869a;
+    --color-text-secondary: #c5c9d8;
+    --color-text-muted: #9ea2b5;
     --color-border: #3a3a4d;
     --color-hover: #2f2f3f;
     --color-accent: #6ba8ff;
@@ -50,7 +50,7 @@
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.5);
 
-    --color-scale-filter: brightness(1.3) saturate(0.7);
+    --color-scale-filter: none;
 
     --chart-grid: rgba(255,255,255,0.10);
     --chart-axis: rgba(255,255,255,0.30);
@@ -65,8 +65,8 @@
     --color-bg: #f5efe6;
     --color-surface: #fdf8f0;
     --color-text: #3e2c1c;
-    --color-text-secondary: #6b5344;
-    --color-text-muted: #9a8878;
+    --color-text-secondary: #5a4436;
+    --color-text-muted: #7a6654;
     --color-border: #e0d4c4;
     --color-hover: #f0e6d8;
     --color-accent: #8b5e3c;
@@ -86,14 +86,14 @@
     --color-silver-bg-hover: #e0d8cc;
     --color-bronze-bg-hover: rgba(181, 101, 29, 0.14);
 
-    --color-running: #4a8c5c;
+    --color-running: #3a6e46;
     --color-running-bg: #dceede;
-    --color-completed: #7a6e5e;
+    --color-completed: #5c5144;
     --color-completed-bg: #ede7dd;
 
-    --color-win: #4a8c5c;
-    --color-loss: #b5382a;
-    --color-draw: #7a6e5e;
+    --color-win: #3a6e46;
+    --color-loss: #9b2e22;
+    --color-draw: #5c5144;
 
     --color-avg-bg: #e8f0e0;
     --color-avg-border: #c0d4a8;
@@ -112,11 +112,11 @@
     --color-bg: #eaf5e1;
     --color-surface: #ffffff;
     --color-text: #1f3a1a;
-    --color-text-secondary: #4a6b3a;
-    --color-text-muted: #7a8f6a;
+    --color-text-secondary: #3d5a2f;
+    --color-text-muted: #5e7548;
     --color-border: #c3dfae;
     --color-hover: #dcefcf;
-    --color-accent: #3d8b40;
+    --color-accent: #2e6b31;
     --color-accent-light: #d9efc4;
 
     --color-gold: #f5c518;
@@ -133,23 +133,23 @@
     --color-silver-bg-hover: #d1e4bf;
     --color-bronze-bg-hover: #ecd0a6;
 
-    --color-running: #3d8b40;
+    --color-running: #2e6b31;
     --color-running-bg: #d9efc4;
-    --color-completed: #7a8f6a;
+    --color-completed: #5e7548;
     --color-completed-bg: #e3efd5;
 
-    --color-win: #3d8b40;
-    --color-loss: #c0392b;
-    --color-draw: #7a8f6a;
+    --color-win: #2e6b31;
+    --color-loss: #9c2e22;
+    --color-draw: #5e7548;
 
     --color-avg-bg: #e3efd5;
     --color-avg-border: #a8c890;
 
     --color-unplayed-bg: #f1f7e8;
 
-    --header-bg: #2f5d2a;
+    --header-bg: #1f3f1c;
     --header-text: #f5c518;
-    --header-bg-hover: #3d7536;
+    --header-bg-hover: #2a5426;
 
     --shadow-sm: 0 1px 2px rgba(31, 58, 26, 0.08);
     --shadow-md: 0 4px 12px rgba(31, 58, 26, 0.12);
@@ -169,11 +169,12 @@
     --color-surface: #14281a;
     --color-text: #f8e9c4;
     --color-text-secondary: #d4af37;
-    --color-text-muted: #9a8a5a;
+    --color-text-muted: #b09a62;
     --color-border: #2a4a32;
     --color-hover: #1c3624;
     --color-accent: #e8c252;
     --color-accent-light: #3a2f10;
+    /* muted bumped for contrast on dark surfaces incl. avg-bg */
 
     --color-gold: #f5d76e;
     --color-gold-bg: #4a3a10;
@@ -211,7 +212,7 @@
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
     --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.6);
 
-    --color-scale-filter: brightness(1.15);
+    --color-scale-filter: none;
 
     --chart-grid: rgba(245,215,110,0.12);
     --chart-axis: rgba(245,215,110,0.35);
@@ -227,14 +228,30 @@
     background: rgba(10, 18, 12, 0.5);
 }
 
+/* Sticky left cells must match the row's zebra tint (opaque equivalents) */
+[data-theme="vegas"] #leagueTable tbody tr:nth-child(odd) td:nth-child(1),
+[data-theme="vegas"] #leagueTable tbody tr:nth-child(odd) td:nth-child(2) {
+    background: #37211c;
+}
+[data-theme="vegas"] #leagueTable tbody tr:nth-child(even) td:nth-child(1),
+[data-theme="vegas"] #leagueTable tbody tr:nth-child(even) td:nth-child(2) {
+    background: #0f1d13;
+}
+
 /* Medal rows override roulette pattern */
-[data-theme="vegas"] #leagueTable tr.rank-gold td {
+[data-theme="vegas"] #leagueTable tbody tr.rank-gold td,
+[data-theme="vegas"] #leagueTable tbody tr.rank-gold td:nth-child(1),
+[data-theme="vegas"] #leagueTable tbody tr.rank-gold td:nth-child(2) {
     background: #4a3a10;
 }
-[data-theme="vegas"] #leagueTable tr.rank-silver td {
+[data-theme="vegas"] #leagueTable tbody tr.rank-silver td,
+[data-theme="vegas"] #leagueTable tbody tr.rank-silver td:nth-child(1),
+[data-theme="vegas"] #leagueTable tbody tr.rank-silver td:nth-child(2) {
     background: #2a3340;
 }
-[data-theme="vegas"] #leagueTable tr.rank-bronze td {
+[data-theme="vegas"] #leagueTable tbody tr.rank-bronze td,
+[data-theme="vegas"] #leagueTable tbody tr.rank-bronze td:nth-child(1),
+[data-theme="vegas"] #leagueTable tbody tr.rank-bronze td:nth-child(2) {
     background: #3e2410;
 }
 
@@ -296,7 +313,7 @@
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
     --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.6);
 
-    --color-scale-filter: brightness(1.15);
+    --color-scale-filter: none;
 
     --chart-grid: rgba(255,215,0,0.15);
     --chart-axis: rgba(255,215,0,0.40);
@@ -312,14 +329,30 @@
     background: rgba(10, 10, 10, 0.50);
 }
 
+/* Sticky left cells must match the row's zebra tint (opaque equivalents) */
+[data-theme="casino"] #leagueTable tbody tr:nth-child(odd) td:nth-child(1),
+[data-theme="casino"] #leagueTable tbody tr:nth-child(odd) td:nth-child(2) {
+    background: #621414;
+}
+[data-theme="casino"] #leagueTable tbody tr:nth-child(even) td:nth-child(1),
+[data-theme="casino"] #leagueTable tbody tr:nth-child(even) td:nth-child(2) {
+    background: #1b0f0f;
+}
+
 /* Medal rows override roulette pattern */
-[data-theme="casino"] #leagueTable tr.rank-gold td {
+[data-theme="casino"] #leagueTable tbody tr.rank-gold td,
+[data-theme="casino"] #leagueTable tbody tr.rank-gold td:nth-child(1),
+[data-theme="casino"] #leagueTable tbody tr.rank-gold td:nth-child(2) {
     background: #5c4a00;
 }
-[data-theme="casino"] #leagueTable tr.rank-silver td {
+[data-theme="casino"] #leagueTable tbody tr.rank-silver td,
+[data-theme="casino"] #leagueTable tbody tr.rank-silver td:nth-child(1),
+[data-theme="casino"] #leagueTable tbody tr.rank-silver td:nth-child(2) {
     background: #3a3a4a;
 }
-[data-theme="casino"] #leagueTable tr.rank-bronze td {
+[data-theme="casino"] #leagueTable tbody tr.rank-bronze td,
+[data-theme="casino"] #leagueTable tbody tr.rank-bronze td:nth-child(1),
+[data-theme="casino"] #leagueTable tbody tr.rank-bronze td:nth-child(2) {
     background: #4a2800;
 }
 
@@ -338,11 +371,11 @@
     --color-bg: #fff5f5;
     --color-surface: #ffffff;
     --color-text: #2d1b69;
-    --color-text-secondary: #6b4fa2;
-    --color-text-muted: #9b8abf;
+    --color-text-secondary: #5a3f90;
+    --color-text-muted: #645385;
     --color-border: #e8d5f5;
     --color-hover: #fce4ec;
-    --color-accent: #e91e63;
+    --color-accent: #c2185b;
     --color-accent-light: #fce4ec;
 
     --color-gold: #ffd600;
@@ -359,23 +392,23 @@
     --color-silver-bg-hover: #e1bee7;
     --color-bronze-bg-hover: #ffccbc;
 
-    --color-running: #00c853;
+    --color-running: #007a33;
     --color-running-bg: #e8f5e9;
-    --color-completed: #ab47bc;
+    --color-completed: #8e24a3;
     --color-completed-bg: #f3e5f5;
 
-    --color-win: #00c853;
-    --color-loss: #ff1744;
-    --color-draw: #ff9100;
+    --color-win: #007a33;
+    --color-loss: #c7143a;
+    --color-draw: #b35a00;
 
     --color-avg-bg: #e8f5e9;
     --color-avg-border: #a5d6a7;
 
     --color-unplayed-bg: #fce4ec;
 
-    --header-bg: #7c4dff;
+    --header-bg: #5e35e0;
     --header-text: #ffffff;
-    --header-bg-hover: #6200ea;
+    --header-bg-hover: #4a22c0;
 
     --shadow-sm: 0 1px 2px rgba(45, 27, 105, 0.08);
     --shadow-md: 0 4px 12px rgba(45, 27, 105, 0.12);
@@ -400,83 +433,111 @@
    triangles, walnut wood, cream & red pieces, gold hardware
    ============================================ */
 [data-theme="x22"] {
-    --color-bg: #1a1a1a;
-    --color-surface: #2a2018;
-    --color-text: #f0e6c8;
-    --color-text-secondary: #d4a84e;
-    --color-text-muted: #9a8a6a;
-    --color-border: #4a3828;
-    --color-hover: #342a1e;
-    --color-accent: #e8a640;
-    --color-accent-light: #3a2e14;
+    --color-bg: #0f0f0f;
+    --color-surface: #181818;
+    --color-text: #f5f5f5;
+    --color-text-secondary: #ffb74d;
+    --color-text-muted: #8a8a8a;
+    --color-border: #2a2a2a;
+    --color-hover: #1f1f1f;
+    --color-accent: #ff9800;
+    --color-accent-light: #1a2e1a;
 
-    --color-gold: #e8a640;
-    --color-gold-bg: #4a3a14;
-    --color-gold-text: #ffc95c;
-    --color-silver: #c0b8a8;
-    --color-silver-bg: #3a3530;
-    --color-silver-text: #e8e0d0;
-    --color-bronze: #c85a5a;
-    --color-bronze-bg: #3e1e1e;
-    --color-bronze-text: #f0a0a0;
+    --color-gold: #ff9800;
+    --color-gold-bg: #3a2608;
+    --color-gold-text: #ffc266;
+    --color-silver: #cfcfcf;
+    --color-silver-bg: #2a2a2a;
+    --color-silver-text: #eaeaea;
+    --color-bronze: #4caf50;
+    --color-bronze-bg: #15321a;
+    --color-bronze-text: #8be28f;
 
-    --color-gold-bg-hover: #5c4a1e;
-    --color-silver-bg-hover: #4a4540;
-    --color-bronze-bg-hover: #502828;
+    --color-gold-bg-hover: #4a3210;
+    --color-silver-bg-hover: #3a3a3a;
+    --color-bronze-bg-hover: #1d4522;
 
-    --color-running: #4a8c4a;
-    --color-running-bg: #1a2e1a;
-    --color-completed: #9a8a6a;
-    --color-completed-bg: #2a2418;
+    --color-running: #4caf50;
+    --color-running-bg: #11241a;
+    --color-completed: #9e9e9e;
+    --color-completed-bg: #1f1f1f;
 
-    --color-win: #4a8c4a;
-    --color-loss: #c85a5a;
-    --color-draw: #d4a84e;
+    --color-win: #4caf50;
+    --color-loss: #e07070;
+    --color-draw: #ff9800;
 
-    --color-avg-bg: #2a2418;
-    --color-avg-border: #4a3828;
+    --color-avg-bg: #11241a;
+    --color-avg-border: #1e4526;
 
-    --color-unplayed-bg: #1e1a14;
+    --color-unplayed-bg: #151515;
 
-    --header-bg: #3d2b1f;
-    --header-text: #f0e6c8;
-    --header-bg-hover: #4e3828;
+    --header-bg: #1b3a1b;
+    --header-text: #ffffff;
+    --header-bg-hover: #255025;
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
     --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.6);
 
-    --color-scale-filter: brightness(1.15);
+    --color-scale-filter: none;
 
-    --chart-grid: rgba(240,230,200,0.10);
-    --chart-axis: rgba(240,230,200,0.30);
-    --chart-label: rgba(240,230,200,0.75);
-    --chart-hover-outline: #e8a640;
+    --chart-grid: rgba(255,255,255,0.10);
+    --chart-axis: rgba(255,255,255,0.30);
+    --chart-label: rgba(245,245,245,0.75);
+    --chart-hover-outline: #ff9800;
 }
 
-/* X22: backgammon-style alternating rows — green and amber triangles */
+/* X22: backgammon-style alternating rows — vivid green and orange */
 [data-theme="x22"] #leagueTable tbody tr:nth-child(odd) {
-    background: rgba(46, 100, 46, 0.25);
+    background: rgba(46, 125, 50, 0.32);
 }
 [data-theme="x22"] #leagueTable tbody tr:nth-child(even) {
-    background: rgba(210, 150, 50, 0.15);
+    background: rgba(255, 152, 0, 0.18);
+}
+
+/* Sticky left cells must match the row's zebra tint (opaque equivalents) */
+[data-theme="x22"] #leagueTable tbody tr:nth-child(odd) td:nth-child(1),
+[data-theme="x22"] #leagueTable tbody tr:nth-child(odd) td:nth-child(2) {
+    background: #1c321f;
+}
+[data-theme="x22"] #leagueTable tbody tr:nth-child(even) td:nth-child(1),
+[data-theme="x22"] #leagueTable tbody tr:nth-child(even) td:nth-child(2) {
+    background: #33240a;
 }
 
 /* Medal rows override */
-[data-theme="x22"] #leagueTable tr.rank-gold td {
-    background: #4a3a14;
+[data-theme="x22"] #leagueTable tbody tr.rank-gold td,
+[data-theme="x22"] #leagueTable tbody tr.rank-gold td:nth-child(1),
+[data-theme="x22"] #leagueTable tbody tr.rank-gold td:nth-child(2) {
+    background: #3a2608;
 }
-[data-theme="x22"] #leagueTable tr.rank-silver td {
-    background: #3a3530;
+[data-theme="x22"] #leagueTable tbody tr.rank-silver td,
+[data-theme="x22"] #leagueTable tbody tr.rank-silver td:nth-child(1),
+[data-theme="x22"] #leagueTable tbody tr.rank-silver td:nth-child(2) {
+    background: #2a2a2a;
 }
-[data-theme="x22"] #leagueTable tr.rank-bronze td {
-    background: #3e1e1e;
+[data-theme="x22"] #leagueTable tbody tr.rank-bronze td,
+[data-theme="x22"] #leagueTable tbody tr.rank-bronze td:nth-child(1),
+[data-theme="x22"] #leagueTable tbody tr.rank-bronze td:nth-child(2) {
+    background: #15321a;
 }
 
 /* X22 hover */
 [data-theme="x22"] #leagueTable tbody tr:nth-child(odd):hover {
-    background: rgba(46, 100, 46, 0.40);
+    background: rgba(46, 125, 50, 0.48);
 }
 [data-theme="x22"] #leagueTable tbody tr:nth-child(even):hover {
-    background: rgba(210, 150, 50, 0.28);
+    background: rgba(255, 152, 0, 0.30);
+}
+
+/* X22: subtle backgammon-triangle strip above league table */
+[data-theme="x22"] #leagueTable thead tr:first-child th {
+    border-top: 8px solid transparent;
+    border-image: repeating-linear-gradient(
+        90deg,
+        #2e7d32 0 14px,
+        #0f0f0f 14px 16px,
+        #ff9800 16px 30px,
+        #0f0f0f 30px 32px
+    ) 8;
 }
