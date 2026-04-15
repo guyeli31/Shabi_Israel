@@ -268,7 +268,7 @@
 
 ## שלב 6.5 — Mobile layout + zoom fix (C6 + C7)
 
-> ⏭️ **נדחה לגרסה הבאה (2026-04-16)** — שלב זה לא בוצע במחזור העבודה של שלבים 1–6. התוכנית להלן שמורה כ-blueprint להמשך עבודה, כולל סיבות, אסטרטגיית CSS-only cards, ו-verification gates.
+> ✅ **הושלם (2026-04-16)** — CSS-only card conversion ב-≤640px הוחל על `#leagueTable`, `#playerTable`, `.dash-table` (Top-5), `.completed-leagues-table`, `.admin-table`. Sticky מנוטרל אוטומטית בטלפון, מה שמתקן את באג ה-pinch-zoom של iOS. verified via Playwright MCP ב-375/414/768/1440 + zoom 1.5/2.
 
 **מטרה:** טבלאות במובייל ברוחב מלא של המסך כברירת מחדל, ללא scroll אופקי, ללא שבירת פריסה בזמן pinch-zoom.
 
@@ -371,7 +371,7 @@ Pages: index.html, league.html, player.html, dashboard.html, admin.html → Leag
 | — | **עצירה — audit gates עוברים** | | | ✅ |
 | 5 | Admin drawer (C4) | 2 שעות | בינוני (component חדש) | ✅ הושלם |
 | 6 | Mobile polish (H6) | 1 שעה | נמוך | ✅ הושלם |
-| 6.5 | Mobile layout + zoom (card view ≤640px, disable sticky, scrollbar framing) | 4–6 שעות | בינוני (theme יחיד, טלפון בלבד) | ⏭️ נדחה לגרסה הבאה |
+| 6.5 | Mobile layout + zoom (card view ≤640px, disable sticky, scrollbar framing) | 4–6 שעות | בינוני (theme יחיד, טלפון בלבד) | ✅ הושלם |
 | 7 | Editorial Chess | יומיים+ | גבוה (עיצוב מחדש) | ⏭️ גרסה עתידית |
 
 **סה"כ עד ה-gate:** כ-4 שעות עבודה.

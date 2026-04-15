@@ -184,15 +184,16 @@ function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns,
             html += `<tr class="unplayed">`;
             for (let i = 0; i < columns.length; i++) {
                 const col = columns[i];
+                const lbl = col.label;
                 if (col.key === 'opponent') {
-                    html += `<td class="player-cell">
+                    html += `<td class="player-cell" data-label="${lbl}">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
                             ${playerNameLink(m.opponent, allMeta[m.opponent])}
                         </td>`;
                 } else if (i === columns.length - 1) {
-                    html += `<td>Not played</td>`;
+                    html += `<td data-label="${lbl}">Not played</td>`;
                 } else {
-                    html += `<td></td>`;
+                    html += `<td data-label="${lbl}"></td>`;
                 }
             }
             html += `</tr>`;
@@ -227,43 +228,44 @@ function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns,
         html += `
                     <tr>`;
         for (const col of columns) {
+            const lbl = col.label;
             switch (col.key) {
                 case 'date': {
                     const dateStr = m.updatedAt ? new Date(m.updatedAt).toLocaleDateString('en-GB') : '—';
-                    html += `<td>${dateStr}</td>`;
+                    html += `<td data-label="${lbl}">${dateStr}</td>`;
                     break;
                 }
                 case 'opponent':
-                    html += `<td class="player-cell">
+                    html += `<td class="player-cell" data-label="${lbl}">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
                             ${playerNameLink(m.opponent, allMeta[m.opponent])}
                         </td>`;
                     break;
                 case 'scoreSelf': {
                     if (isTechnical) {
-                        html += `<td>—</td>`;
+                        html += `<td data-label="${lbl}">—</td>`;
                     } else {
                         const scoreStr = `${m.scoreSelf}-${m.scoreOpp}`;
                         const won = m.scoreSelf > m.scoreOpp;
-                        html += `<td>${won ? `<b>${scoreStr}</b>` : scoreStr}</td>`;
+                        html += `<td data-label="${lbl}">${won ? `<b>${scoreStr}</b>` : scoreStr}</td>`;
                     }
                     break;
                 }
                 case 'prSelf':
-                    html += `<td>${isTechnical ? '—' : boldPR(m.prSelf, m.prOpp)}</td>`;
+                    html += `<td data-label="${lbl}">${isTechnical ? '—' : boldPR(m.prSelf, m.prOpp)}</td>`;
                     break;
                 case 'prOpp':
-                    html += `<td>${isTechnical ? '—' : boldPR(m.prOpp, m.prSelf)}</td>`;
+                    html += `<td data-label="${lbl}">${isTechnical ? '—' : boldPR(m.prOpp, m.prSelf)}</td>`;
                     break;
                 case 'luckDiff':
-                    html += `<td>${luckHtml}</td>`;
+                    html += `<td data-label="${lbl}">${luckHtml}</td>`;
                     break;
                 case 'result':
-                    html += `<td class="${resultClass}">${resultText}${isTechnical ? ' <small>(T)</small>' : ''}</td>`;
+                    html += `<td class="${resultClass}" data-label="${lbl}">${resultText}${isTechnical ? ' <small>(T)</small>' : ''}</td>`;
                     break;
                 case 'matchPoints': {
                     const ptClass = matchPoints === 2 ? 'result-win' : matchPoints === 0 ? 'result-loss' : '';
-                    html += `<td class="${ptClass}">${matchPoints}</td>`;
+                    html += `<td class="${ptClass}" data-label="${lbl}">${matchPoints}</td>`;
                     break;
                 }
             }
@@ -304,28 +306,29 @@ function renderPlayerAverages(playerMatches, leagueConfig, columns) {
 
     let html = `<tr class="avg-row">`;
     for (const col of columns) {
+        const lbl = col.label;
         switch (col.key) {
             case 'date':
-                html += `<td></td>`;
+                html += `<td data-label="${lbl}"></td>`;
                 break;
             case 'opponent':
-                html += `<td><b>AVERAGES</b></td>`;
+                html += `<td data-label="Summary"><b>AVERAGES</b></td>`;
                 break;
             case 'scoreSelf':
-                html += `<td></td>`;
+                html += `<td data-label="${lbl}"></td>`;
                 break;
             case 'prSelf':
-                html += `<td>${avgPR !== null ? formatNumber(avgPR) : '—'}</td>`;
+                html += `<td data-label="${lbl}">${avgPR !== null ? formatNumber(avgPR) : '—'}</td>`;
                 break;
             case 'prOpp':
-                html += `<td>${avgOppPR !== null ? formatNumber(avgOppPR) : '—'}</td>`;
+                html += `<td data-label="${lbl}">${avgOppPR !== null ? formatNumber(avgOppPR) : '—'}</td>`;
                 break;
             case 'luckDiff':
-                html += `<td>${avgLuckDiff !== null ? formatNumber(avgLuckDiff) : '—'}</td>`;
+                html += `<td data-label="${lbl}">${avgLuckDiff !== null ? formatNumber(avgLuckDiff) : '—'}</td>`;
                 break;
             case 'result':
             case 'matchPoints':
-                html += `<td>${statLine}</td>`;
+                html += `<td data-label="${lbl}">${statLine}</td>`;
                 break;
         }
     }

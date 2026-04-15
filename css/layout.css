@@ -98,3 +98,10 @@ body {
         font-size: 1.5rem;
     }
 }
+
+/* Phone — edge-to-edge so cards can span the full viewport width */
+@media (max-width: 640px) {
+    .page-container {
+        padding: var(--space-md) var(--space-xs);
+    }
+}

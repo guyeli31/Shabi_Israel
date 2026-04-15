@@ -462,3 +462,315 @@ tr.retired {
 .color-scaled {
     filter: var(--color-scale-filter);
 }
+
+/* ============================================================
+ * MOBILE CARD VIEW (≤640px) — CSS-only table → stacked cards
+ * ------------------------------------------------------------
+ * Converts #leagueTable and #playerTable from horizontally
+ * scrolling tables into edge-to-edge stacked cards. Labels are
+ * surfaced from data-label via ::before, so no DOM rebuild is
+ * needed. Sticky left columns are disabled to eliminate the
+ * iOS Safari pinch-zoom overlap bug as a side effect.
+ * ============================================================ */
+@media (max-width: 640px) {
+
+    /* Unscroll the table — cards flow vertically edge-to-edge */
+    #leagueTable,
+    #playerTable {
+        display: block;
+        width: 100%;
+        font-size: 0.95rem;
+    }
+
+    /* Kill the horizontal scroll container; cards live in normal flow */
+    .table-wrapper:has(#leagueTable),
+    .table-wrapper:has(#playerTable) {
+        background: transparent;
+        box-shadow: none;
+        border-radius: 0;
+    }
+    .table-wrapper:has(#leagueTable) .table-scroll,
+    .table-wrapper:has(#playerTable) .table-scroll {
+        overflow: visible;
+        max-height: none;
+    }
+
+    /* Hide column headers — each row carries its own labels */
+    #leagueTable thead,
+    #playerTable thead {
+        position: absolute;
+        left: -10000px;
+        top: auto;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+    }
+
+    /* Data rows become cards */
+    #leagueTable tbody,
+    #playerTable tbody,
+    #leagueTable tr,
+    #playerTable tr {
+        display: block;
+        width: 100%;
+    }
+
+    #leagueTable tbody tr,
+    #playerTable tbody tr {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        background: var(--color-surface);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.06));
+        margin-bottom: var(--space-sm);
+        padding: 0;
+        overflow: hidden;
+        position: relative;
+    }
+
+    /* Medal-accent left edge stripe — intentional aesthetic anchor */
+    #leagueTable tbody tr.rank-gold { border-left: 4px solid var(--color-gold); }
+    #leagueTable tbody tr.rank-silver { border-left: 4px solid var(--color-silver); }
+    #leagueTable tbody tr.rank-bronze { border-left: 4px solid var(--color-bronze); }
+
+    /* Row cells become grid items: label ↔ value */
+    #leagueTable tbody td,
+    #playerTable tbody td {
+        display: grid;
+        grid-template-columns: minmax(42%, auto) 1fr;
+        gap: var(--space-sm);
+        align-items: center;
+        grid-column: 1 / -1;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        padding: 8px var(--space-md);
+        border-bottom: 1px solid var(--color-border);
+        text-align: right;
+        white-space: normal;
+        word-break: break-word;
+        /* Cancel sticky from desktop — fixes iOS zoom overlap */
+        position: static !important;
+        left: auto !important;
+        background: transparent !important;
+    }
+
+    #leagueTable tbody td::before,
+    #playerTable tbody td::before {
+        content: attr(data-label);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--color-text-secondary);
+        text-align: left;
+    }
+
+    /* Header strip: Rank (left) + Player (right) on the card's top row */
+    #leagueTable tbody td:nth-child(1) {
+        grid-column: 1 / 2;
+        grid-row: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 56px;
+        padding: var(--space-sm) var(--space-md);
+        background: var(--color-surface) !important;
+        border-bottom: 1px solid var(--color-border);
+        border-right: 1px solid var(--color-border);
+    }
+    #leagueTable tbody td:nth-child(1)::before {
+        display: none;
+    }
+    #leagueTable tbody td.player-cell {
+        grid-column: 2 / -1;
+        grid-row: 1;
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        background: var(--color-surface) !important;
+        padding: var(--space-sm) var(--space-md);
+        border-bottom: 1px solid var(--color-border);
+        font-size: 1rem;
+    }
+    #leagueTable tbody td.player-cell::before {
+        display: none;
+    }
+    #playerTable tbody td.player-cell {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        background: var(--color-surface) !important;
+        padding: var(--space-sm) var(--space-md);
+        font-size: 1rem;
+        border-bottom: 1px solid var(--color-border);
+    }
+    #playerTable tbody td.player-cell::before {
+        display: none;
+    }
+
+    /* Hover/medal background overrides from desktop (sticky cells) are reset */
+    #leagueTable tbody tr:hover td,
+    #leagueTable tbody tr.rank-gold td,
+    #leagueTable tbody tr.rank-silver td,
+    #leagueTable tbody tr.rank-bronze td {
+        background: transparent !important;
+    }
+    #leagueTable tbody tr:hover,
+    #leagueTable tbody tr.rank-gold:hover,
+    #leagueTable tbody tr.rank-silver:hover,
+    #leagueTable tbody tr.rank-bronze:hover {
+        background: var(--color-surface);
+    }
+
+    /* Last cell — no bottom border inside card */
+    #leagueTable tbody tr td:last-child,
+    #playerTable tbody tr td:last-child {
+        border-bottom: none;
+    }
+
+    /* AVG row — distinctive filled card */
+    #leagueTable tr.avg-row,
+    #playerTable tr.avg-row {
+        position: static !important;
+        bottom: auto !important;
+        background: var(--color-avg-bg) !important;
+        border: 1px solid var(--color-avg-border);
+        box-shadow: none;
+        margin-top: var(--space-md);
+    }
+    #leagueTable tr.avg-row td,
+    #playerTable tr.avg-row td {
+        background: transparent !important;
+        border-bottom: 1px solid var(--color-avg-border);
+        border-top: none !important;
+        padding: 8px var(--space-md);
+    }
+    #leagueTable tr.avg-row td[colspan],
+    #playerTable tr.avg-row td:first-child {
+        display: block;
+        text-align: center;
+        grid-template-columns: none;
+        font-size: 0.82rem;
+        letter-spacing: 0.08em;
+        color: var(--color-text-secondary);
+        padding-top: var(--space-sm);
+    }
+    #leagueTable tr.avg-row td[colspan]::before,
+    #playerTable tr.avg-row td:first-child::before {
+        display: none;
+    }
+    #leagueTable tr.avg-row td:last-child,
+    #playerTable tr.avg-row td:last-child {
+        border-bottom: none;
+    }
+
+    /* Stat row — caption below cards, full width */
+    #leagueTable tr.stat-row {
+        position: static !important;
+        bottom: auto !important;
+        background: transparent !important;
+        box-shadow: none;
+        margin-top: var(--space-xs);
+    }
+    #leagueTable tr.stat-row td {
+        display: block;
+        text-align: center;
+        padding: var(--space-sm) var(--space-md);
+        background: transparent !important;
+        color: var(--color-text-secondary);
+        font-size: 0.82rem;
+        border-bottom: none !important;
+    }
+    #leagueTable tr.stat-row td::before {
+        display: none;
+    }
+
+    /* Unplayed rows — desaturate the whole card */
+    #leagueTable tbody tr.unplayed,
+    #playerTable tbody tr.unplayed {
+        opacity: 0.72;
+    }
+
+    /* Admin leagues + Completed Leagues + Dashboard Top 5 — stack as cards */
+    .admin-table,
+    .completed-leagues-table,
+    .dash-table {
+        display: block;
+        width: 100%;
+    }
+    .admin-table thead,
+    .completed-leagues-table thead,
+    .dash-table thead {
+        position: absolute;
+        left: -10000px;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+    }
+    .admin-table tbody,
+    .admin-table tr,
+    .completed-leagues-table tbody,
+    .completed-leagues-table tr,
+    .dash-table tbody,
+    .dash-table tr {
+        display: block;
+        width: 100%;
+    }
+    .admin-table tbody tr,
+    .completed-leagues-table tbody tr,
+    .dash-table tbody tr {
+        background: var(--color-surface);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.06));
+        margin-bottom: var(--space-sm);
+        overflow: hidden;
+    }
+    /* Medal stripes on Top 5 cards too */
+    .dash-table tbody tr.rank-gold { border-left: 4px solid var(--color-gold); }
+    .dash-table tbody tr.rank-silver { border-left: 4px solid var(--color-silver); }
+    .dash-table tbody tr.rank-bronze { border-left: 4px solid var(--color-bronze); }
+
+    .admin-table tbody td,
+    .completed-leagues-table tbody td,
+    .dash-table tbody td {
+        display: grid;
+        grid-template-columns: minmax(38%, auto) 1fr;
+        gap: var(--space-sm);
+        padding: 8px var(--space-md);
+        text-align: right;
+        border-bottom: 1px solid var(--color-border);
+        white-space: normal;
+    }
+    .admin-table tbody td::before,
+    .completed-leagues-table tbody td::before,
+    .dash-table tbody td::before {
+        content: attr(data-label);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--color-text-secondary);
+        text-align: left;
+    }
+    .admin-table tbody td:last-child,
+    .completed-leagues-table tbody td:last-child,
+    .dash-table tbody td:last-child { border-bottom: none; }
+
+    /* Dashboard player cell — full-width header strip on the card */
+    .dash-table tbody td.player-cell {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        font-size: 1rem;
+        text-align: left;
+    }
+    .dash-table tbody td.player-cell::before { display: none; }
+
+    /* Completed-table-wrapper no longer needs to scroll horizontally at this size */
+    .completed-table-wrapper.table-scroll {
+        overflow: visible;
+        max-height: none;
+    }
+}

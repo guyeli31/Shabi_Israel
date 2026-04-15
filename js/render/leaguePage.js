@@ -231,21 +231,22 @@ function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCo
             html += `
                     <tr class="${rankClass}">`;
             for (const col of columns) {
+                const lbl = col.label;
                 if (col.key === 'rank') {
-                    html += `<td>${r.originalRank}</td>`;
+                    html += `<td data-label="${lbl}">${r.originalRank}</td>`;
                 } else if (col.key === 'player') {
                     const retiredMark = isRetired ? ' <span class="retired-mark" title="Retired">&#x1F6AA;</span>' : '';
                     const titleAbbrHtml = getTitleAbbreviationsHtml(playersMeta[r.player]);
-                    html += `<td class="player-cell" data-name="${r.player}">
+                    html += `<td class="player-cell" data-label="${lbl}" data-name="${r.player}">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
                             <a href="${pUrl}" title="Open ${r.player}'s card for this league">${r.player}</a>${titleAbbrHtml}${retiredMark}
                         </td>`;
                 } else if (col.key === 'games' || col.key === 'wins' || col.key === 'losses' || col.key === 'prWins') {
-                    html += `<td>0</td>`;
+                    html += `<td data-label="${lbl}">0</td>`;
                 } else if (col.key === 'level') {
-                    html += `<td class="level-cell">N/A</td>`;
+                    html += `<td class="level-cell" data-label="${lbl}">N/A</td>`;
                 } else {
-                    html += `<td>N/A</td>`;
+                    html += `<td data-label="${lbl}">N/A</td>`;
                 }
             }
             html += `</tr>`;
@@ -255,33 +256,34 @@ function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCo
         html += `
                     <tr class="${rankClass}" data-wr="${r.winRate}" data-pr="${r.meanPR}">`;
         for (const col of columns) {
+            const lbl = col.label;
             if (col.key === 'rank') {
-                html += `<td>${getMedalHtml(r.originalRank, goldCount, silverCount, bronzeCount)}</td>`;
+                html += `<td data-label="${lbl}">${getMedalHtml(r.originalRank, goldCount, silverCount, bronzeCount)}</td>`;
             } else if (col.key === 'player') {
                 const retiredMark = isRetired ? ' <span class="retired-mark" title="Retired">&#x1F6AA;</span>' : '';
                 const titleAbbrHtml2 = getTitleAbbreviationsHtml(playersMeta[r.player]);
-                html += `<td class="player-cell" data-name="${r.player}">
+                html += `<td class="player-cell" data-label="${lbl}" data-name="${r.player}">
                             <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
                             <a href="${pUrl}" title="Open ${r.player}'s card for this league">${r.player}</a>${titleAbbrHtml2}${retiredMark}
                         </td>`;
             } else if (col.key === 'level') {
                 if (r.level == null) {
-                    html += `<td class="level-cell">\u2014</td>`;
+                    html += `<td class="level-cell" data-label="${lbl}">\u2014</td>`;
                 } else {
                     const levelColor = colorForLevel(r.level);
-                    html += `<td class="level-cell color-scaled" style="color:${levelColor}" data-pr="${r.meanPR}">${r.level}</td>`;
+                    html += `<td class="level-cell color-scaled" data-label="${lbl}" style="color:${levelColor}" data-pr="${r.meanPR}">${r.level}</td>`;
                 }
             } else {
                 const value = r[col.key];
                 if (value === null || value === undefined) {
-                    html += `<td>\u2014</td>`;
+                    html += `<td data-label="${lbl}">\u2014</td>`;
                 } else {
                     const color = getCellColor(col.key, value, extents);
                     const formatted = formatCell(col.key, value);
                     const bw = bestWorst[col.key];
                     const isBold = bw && (value === bw.best || value === bw.worst);
                     const content = isBold ? `<b>${formatted}</b>` : formatted;
-                    html += `<td class="color-scaled" style="color:${color}">${content}</td>`;
+                    html += `<td class="color-scaled" data-label="${lbl}" style="color:${color}">${content}</td>`;
                 }
             }
         }
@@ -295,25 +297,26 @@ function renderAverageRow(averages, columns, leagueConfig) {
     let html = `<tr class="avg-row">`;
     for (let i = 0; i < columns.length; i++) {
         const col = columns[i];
+        const lbl = col.label;
         if (col.key === 'rank') {
             // Rank + Player cells combined
             continue;
         }
         if (col.key === 'player') {
-            html += `<td colspan="2"><b>AVERAGES</b></td>`;
+            html += `<td colspan="2" data-label="Summary"><b>AVERAGES</b></td>`;
             continue;
         }
         if (col.key === 'level') {
-            html += `<td></td>`;
+            html += `<td data-label="${lbl}"></td>`;
             continue;
         }
         const value = averages[col.key];
         if (value === undefined || value === null) {
-            html += `<td></td>`;
+            html += `<td data-label="${lbl}"></td>`;
         } else if (col.key === 'winRate') {
-            html += `<td>${formatPercent(value)}</td>`;
+            html += `<td data-label="${lbl}">${formatPercent(value)}</td>`;
         } else {
-            html += `<td>${formatNumber(value)}</td>`;
+            html += `<td data-label="${lbl}">${formatNumber(value)}</td>`;
         }
     }
     html += `</tr>`;

@@ -402,3 +402,7 @@ FodyWeavers.xsd
 
 # Playwright MCP trace/snapshot artifacts
 .playwright-mcp/
+
+# Ad-hoc verification screenshots at repo root
+/step*.png
+/dashboard-*.png

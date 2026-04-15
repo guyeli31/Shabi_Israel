@@ -62,11 +62,11 @@ function renderLeagueList(container, leagues, displayOrder) {
 
         rows += `
             <tr>
-                <td>${esc(p.LeagueTitle || lg.id)}${hiddenBadge}</td>
-                <td>${esc(p.LeagueType || 'doubling')}</td>
-                <td>${p.IssueDate ? formatAdminDate(p.IssueDate) : '<span style="color:var(--color-text-muted)">—</span>'}</td>
-                <td>${statusPill}</td>
-                <td>
+                <td data-label="Name">${esc(p.LeagueTitle || lg.id)}${hiddenBadge}</td>
+                <td data-label="Type">${esc(p.LeagueType || 'doubling')}</td>
+                <td data-label="Issue Date">${p.IssueDate ? formatAdminDate(p.IssueDate) : '<span style="color:var(--color-text-muted)">—</span>'}</td>
+                <td data-label="Status">${statusPill}</td>
+                <td data-label="Actions">
                     <button class="btn btn-primary btn-sm" data-edit="${lg.id}">Edit</button>
                     <button class="btn btn-danger btn-sm" data-delete="${lg.id}" data-title="${esc(lg.title)}">Delete</button>
                 </td>

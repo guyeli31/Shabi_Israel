@@ -473,11 +473,11 @@ function drawHistTable(ctx, dateValue) {
     for (const r of top) {
         const flagCode = getFlagCode(r.player, params.CustomFlags);
         html += `<tr class="${rankClass(r.rank)}">
-            <td>${r.rank}</td>
-            <td class="player-cell"><img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
-            <td>${r.games}</td><td>${r.wins}</td><td>${r.losses}</td>`;
-        if (leagueConfig.showWinRate) html += `<td>${r.winRate != null ? formatPercent(r.winRate) : 'N/A'}</td>`;
-        if (leagueConfig.showPR) html += `<td>${r.meanPR != null ? formatNumber(r.meanPR) : 'N/A'}</td>`;
+            <td data-label="Rank">${r.rank}</td>
+            <td class="player-cell" data-label="Player"><img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
+            <td data-label="Games">${r.games}</td><td data-label="Wins">${r.wins}</td><td data-label="Losses">${r.losses}</td>`;
+        if (leagueConfig.showWinRate) html += `<td data-label="Win Rate">${r.winRate != null ? formatPercent(r.winRate) : 'N/A'}</td>`;
+        if (leagueConfig.showPR) html += `<td data-label="Mean PR">${r.meanPR != null ? formatNumber(r.meanPR) : 'N/A'}</td>`;
         html += '</tr>';
     }
     html += '</tbody></table>';

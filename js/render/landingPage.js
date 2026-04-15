@@ -791,10 +791,10 @@ function renderCompletedLeagues(container, completed) {
         const typeCell = `<span class="league-type-pill type-${l.leagueType}">${typeLabel}</span>`;
         rowsHtml += `
             <tr class="row-type-${l.leagueType}" data-league-id="${escapeHtml(l.id)}">
-                <td>${dateStr}</td>
-                <td><a href="${dashboardUrl(l.id)}">${escapeHtml(l.title)}</a></td>
-                <td>${typeCell}</td>
-                <td>${leaderHtml}</td>
+                <td data-label="Date">${dateStr}</td>
+                <td data-label="League"><a href="${dashboardUrl(l.id)}">${escapeHtml(l.title)}</a></td>
+                <td data-label="Type">${typeCell}</td>
+                <td data-label="Winner">${leaderHtml}</td>
             </tr>`;
     }
 

@@ -618,8 +618,13 @@
 
 .achv-tables-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: var(--space-md);
+}
+@media (max-width: 640px) {
+    .achv-tables-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .achv-table-card {
