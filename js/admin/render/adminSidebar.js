@@ -6,6 +6,7 @@
 
 import { logout } from '../auth.js';
 import { getChangeCount } from '../stagingStore.js';
+import { initAdminDrawer } from '../adminDrawer.js';
 
 let _wrapper = null;
 let _badgeEl = null;
@@ -67,6 +68,9 @@ export function mountAdminSidebar(opts = {}) {
 
     // Poll badge so it reflects changes staged from inside the dashboard editor.
     _badgeInterval = setInterval(refreshBadge, 500);
+
+    // Mobile: attach hamburger + backdrop so the off-canvas drawer is reachable.
+    initAdminDrawer();
 }
 
 export function unmountAdminSidebar() {

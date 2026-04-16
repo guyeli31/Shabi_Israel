@@ -430,6 +430,11 @@ Pages: index.html, league.html, player.html, dashboard.html, admin.html → Leag
 - **CSV editor** (10 עמודות) נשאר על גלילה אופקית במובייל גם אחרי הדחיסה — זה by-design כי דחיסה אגרסיבית יותר תשבור את ה-inline inputs. שיפור עתידי אפשרי: card-per-match inline editor.
 - **Specificity** — `.admin-content .form-group { flex/min-width: ... !important }` עוקף inline styles בתוך `@media max-width:640px` בלבד; דסקטופ לא מושפע.
 
+### תיקון נוסף (6.6b-hotfix, 2026-04-16) — Hamburger drawer חסר ב-Main Dashboard
+**בעיה:** לאחר לחיצה על "Main Dashboard" מתוך ה-sidebar של admin.html במובייל, ה-sidebar מוטען ב-`index.html?edit=1` אבל נשאר מחוץ למסך (`transform: translateX(-100%)` דרך ה-CSS של `@media (max-width:767px)`). ה-`adminDrawer.js` (שיוצר את כפתור ה-hamburger + backdrop) הופעל רק מ-`adminPage.js` (admin.html), ולא מ-`adminSidebar.js` — לכן במובייל המשתמש "נלכד" על ה-Main Dashboard ללא דרך לפתוח את ה-drawer.
+
+**תיקון:** הוספה של `initAdminDrawer()` בסוף `mountAdminSidebar()` ב-[js/admin/render/adminSidebar.js](../js/admin/render/adminSidebar.js), ויבוא מ-`../adminDrawer.js`. Playwright אימת: כפתור 44×44px בפינה השמאלית-עליונה, לחיצה פותחת drawer, `transform: matrix(1,0,0,1,0,0)` + `left:0`.
+
 ---
 
 ## שלב 7 — Editorial Chess design direction
