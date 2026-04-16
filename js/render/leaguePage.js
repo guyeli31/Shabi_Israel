@@ -7,7 +7,7 @@ import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { colorForValue, colorForValueInverted, colorForGames, colorForLevel } from '../compute/colorScale.js';
-import { getQueryParam, formatPercent, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl } from '../utils/helpers.js';
+import { getQueryParam, formatPercent, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl, thLabel } from '../utils/helpers.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
@@ -87,26 +87,26 @@ function renderLastUpdated(lastModified) {
  */
 function getColumns(config) {
     const cols = [
-        { key: 'rank', sortKey: 'rank', label: 'Rank' },
-        { key: 'player', sortKey: 'player', label: 'Player' },
-        { key: 'games', sortKey: 'games', label: 'Games' },
-        { key: 'wins', sortKey: 'wins', label: 'Wins' },
-        { key: 'losses', sortKey: 'losses', label: 'Losses' },
+        { key: 'rank', sortKey: 'rank', label: 'Rank', abbr: '#' },
+        { key: 'player', sortKey: 'player', label: 'Player', abbr: 'Player' },
+        { key: 'games', sortKey: 'games', label: 'Games', abbr: 'G' },
+        { key: 'wins', sortKey: 'wins', label: 'Wins', abbr: 'W' },
+        { key: 'losses', sortKey: 'losses', label: 'Losses', abbr: 'L' },
     ];
     if (config.showWinRate) {
-        cols.push({ key: 'winRate', sortKey: 'winRate', label: 'Win Rate' });
+        cols.push({ key: 'winRate', sortKey: 'winRate', label: 'Win Rate', abbr: 'WR%' });
     }
     if (config.showPRWins) {
-        cols.push({ key: 'prWins', sortKey: 'prWins', label: 'PR Wins' });
-        cols.push({ key: 'points', sortKey: 'points', label: 'Points' });
-        cols.push({ key: 'avgPoints', sortKey: 'avgPoints', label: 'Avg Points' });
+        cols.push({ key: 'prWins', sortKey: 'prWins', label: 'PR Wins', abbr: 'PRW' });
+        cols.push({ key: 'points', sortKey: 'points', label: 'Points', abbr: 'Pts' });
+        cols.push({ key: 'avgPoints', sortKey: 'avgPoints', label: 'Avg Points', abbr: 'APts' });
     }
     if (config.showPR) {
-        cols.push({ key: 'meanPR', sortKey: 'meanPR', label: 'Mean PR' });
-        cols.push({ key: 'level', sortKey: 'meanPR', label: 'Level' });
+        cols.push({ key: 'meanPR', sortKey: 'meanPR', label: 'Mean PR', abbr: 'PR' });
+        cols.push({ key: 'level', sortKey: 'meanPR', label: 'Level', abbr: 'Lv' });
     }
     if (config.showLuck) {
-        cols.push({ key: 'luck', sortKey: 'luck', label: 'Luck' });
+        cols.push({ key: 'luck', sortKey: 'luck', label: 'Luck', abbr: 'Lk' });
     }
     return cols;
 }
@@ -133,7 +133,7 @@ function renderSummaryTable(container, rankings, averages, matchStats, params, l
     const bronzeCount = params.BronzeCount || 4;
 
     const headerCells = columns.map((col, i) =>
-        `<th scope="col" data-col="${i}">${col.label} <span class="sort-icon">&#x25B2;</span></th>`
+        `<th scope="col" data-col="${i}">${thLabel(col.label, col.abbr)} <span class="sort-icon">&#x25B2;</span></th>`
     ).join('\n                        ');
 
     let html = `

@@ -884,3 +884,76 @@ body:has(.edit-bar) .theme-picker {
     .edit-bar { left: 0; }
     body:has(.edit-bar) .theme-picker { bottom: 65px; }
 }
+
+/* ============================================================
+ * MOBILE (≤640px) — Step 6.6 compression for landing + achievements
+ * ============================================================ */
+@media (max-width: 640px) {
+    /* Leaderboard table — compress; keep wrapper scroll for many months */
+    .leaderboard-table {
+        font-size: 0.65rem;
+    }
+    .leaderboard-table th,
+    .leaderboard-table td {
+        padding: 3px 4px;
+        white-space: nowrap;
+    }
+    .leaderboard-table .month-col {
+        min-width: 24px;
+        font-size: 0.6rem;
+    }
+    .leaderboard-table th.player-col,
+    .leaderboard-table td.player-cell {
+        padding-left: 4px;
+        max-width: 90px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .leaderboard-table .flag {
+        height: 10px;
+        margin-right: 2px;
+    }
+
+    /* Achievement + match-records tables — compress, allow horizontal scroll */
+    .achv-table-wrapper {
+        overflow-x: auto;
+    }
+    .achv-table {
+        font-size: 0.7rem;
+        min-width: max-content;
+    }
+    .achv-table th,
+    .achv-table td {
+        padding: 3px 5px;
+        white-space: nowrap;
+    }
+    .achv-table .flag {
+        height: 10px;
+        margin-right: 2px;
+    }
+    .achv-tables-grid {
+        gap: 8px;
+    }
+    .achv-table-card {
+        padding: 8px;
+    }
+
+    /* Completed-leagues inside wrapper — no horizontal overflow */
+    .completed-leagues-table {
+        font-size: 0.7rem;
+    }
+    .completed-leagues-table th,
+    .completed-leagues-table td {
+        padding: 4px 6px;
+    }
+    .completed-leagues-table .flag {
+        height: 12px;
+        margin-right: 3px;
+    }
+
+    /* PDF export buttons — wrap and shrink */
+    .pdf-export-btn { font-size: 0.7rem; padding: 2px 6px; }
+
+    /* Info cards — 2-up at mobile */
+    .index-info-cards { gap: 8px; }
+}

@@ -14,7 +14,7 @@ import { parseCSVAllWithRounds, parseCSV, getAllPlayersFromCSV } from '../data/c
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { getQueryParam, formatPercent, formatNumber, leagueUrl, playerUrl, dashboardUrl, flagUrl, getFlagCode } from '../utils/helpers.js';
+import { getQueryParam, formatPercent, formatNumber, leagueUrl, playerUrl, dashboardUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
 import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { predictChampionship } from '../compute/championshipPredictor.js';
@@ -463,9 +463,9 @@ function drawHistTable(ctx, dateValue) {
         return '';
     }
 
-    let html = '<table class="dash-table"><thead><tr><th scope="col">Rank</th><th scope="col" class="player-col">Player</th><th scope="col">Games</th><th scope="col">Wins</th><th scope="col">Losses</th>';
-    if (leagueConfig.showWinRate) html += '<th scope="col">Win Rate</th>';
-    if (leagueConfig.showPR) html += '<th scope="col">Mean PR</th>';
+    let html = `<table class="dash-table"><thead><tr><th scope="col">${thLabel('Rank','#')}</th><th scope="col" class="player-col">${thLabel('Player','Player')}</th><th scope="col">${thLabel('Games','G')}</th><th scope="col">${thLabel('Wins','W')}</th><th scope="col">${thLabel('Losses','L')}</th>`;
+    if (leagueConfig.showWinRate) html += `<th scope="col">${thLabel('Win Rate','WR%')}</th>`;
+    if (leagueConfig.showPR) html += `<th scope="col">${thLabel('Mean PR','PR')}</th>`;
     html += '</tr></thead><tbody>';
     if (top.length === 0) {
         html += `<tr><td colspan="7" style="text-align:center;color:var(--color-text-muted)">No matches played yet</td></tr>`;
@@ -577,8 +577,8 @@ async function renderPredictor(ctx) {
             host.innerHTML = `
                 <table>
                     <thead><tr>
-                        <th scope="col">#</th><th scope="col">Player</th><th scope="col">G</th><th scope="col">W</th><th scope="col">L</th>
-                        <th scope="col">${prHeader}</th><th scope="col">Championship %</th>
+                        <th scope="col">#</th><th scope="col">${thLabel('Player','Player')}</th><th scope="col">G</th><th scope="col">W</th><th scope="col">L</th>
+                        <th scope="col">${thLabel(prHeader, prHeader === 'Mean PR' ? 'PR' : prHeader)}</th><th scope="col">${thLabel('Championship %','Ch%')}</th>
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>`;
@@ -951,7 +951,7 @@ function renderRounds(ctx) {
 }
 
 function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFlags = {}) {
-    let html = '<table class="dash-table"><thead><tr><th scope="col" class="player-col">Player A</th><th scope="col">Score</th><th scope="col" class="player-col">Player B</th><th scope="col">PR A</th><th scope="col">PR B</th><th scope="col">Luck A</th><th scope="col">Luck B</th><th scope="col">Played</th></tr></thead><tbody>';
+    let html = `<table class="dash-table"><thead><tr><th scope="col" class="player-col">${thLabel('Player A','A')}</th><th scope="col">${thLabel('Score','Sc')}</th><th scope="col" class="player-col">${thLabel('Player B','B')}</th><th scope="col">${thLabel('PR A','pA')}</th><th scope="col">${thLabel('PR B','pB')}</th><th scope="col">${thLabel('Luck A','lA')}</th><th scope="col">${thLabel('Luck B','lB')}</th><th scope="col">${thLabel('Played','On')}</th></tr></thead><tbody>`;
     for (const m of matches) {
         const isPlayed = m.played;
         const updated = playedAt.get(matchKey(m.playerA, m.playerB));
@@ -1022,12 +1022,12 @@ function renderRemainingMatches(ctx) {
 }
 
 function buildRemainingListHtml(matches, customFlags, playersMeta) {
-    let html = '<table class="dash-table"><thead><tr>'
-             + '<th scope="col">Round</th>'
-             + '<th scope="col" class="player-col">Player A</th>'
-             + '<th scope="col"></th>'
-             + '<th scope="col" class="player-col">Player B</th>'
-             + '</tr></thead><tbody>';
+    let html = `<table class="dash-table"><thead><tr>`
+             + `<th scope="col">${thLabel('Round','R')}</th>`
+             + `<th scope="col" class="player-col">${thLabel('Player A','A')}</th>`
+             + `<th scope="col"></th>`
+             + `<th scope="col" class="player-col">${thLabel('Player B','B')}</th>`
+             + `</tr></thead><tbody>`;
     for (const m of matches) {
         const flagA = getFlagCode(m.playerA, customFlags);
         const flagB = getFlagCode(m.playerB, customFlags);

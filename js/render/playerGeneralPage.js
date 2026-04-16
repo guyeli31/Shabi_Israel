@@ -24,7 +24,7 @@ import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { colorForLevel } from '../compute/colorScale.js';
 import {
     getQueryParam, flagUrl, getFlagCode,
-    formatNumber, dashboardUrl, playerGeneralUrl, getLeagueYear, leagueUrl
+    formatNumber, dashboardUrl, playerGeneralUrl, getLeagueYear, leagueUrl, thLabel
 } from '../utils/helpers.js';
 import {
     collectPlayerBestPR,
@@ -331,7 +331,7 @@ function renderRankTable(rows, playerName, meta) {
         ? (meta.metric === 'totalPR' ? 'Total PR' : 'Last 300 PR')
         : (meta.metric === 'gold' ? 'Gold' : meta.metric === 'silver' ? 'Silver' : meta.metric === 'bronze' ? 'Bronze' : meta.metric === 'avgRank' ? 'Avg Rank' : meta.metric === 'winRate' ? 'Win Rate' : 'Value');
     const showLeagues = meta.kind === 'medal';
-    let html = `<div class="pg-rank-table-wrap"><table class="pg-rank-table"><thead><tr><th scope="col">#</th><th scope="col">Player</th>${showLeagues ? '<th scope="col">Leagues</th>' : ''}<th scope="col">${escapeHtml(valueLabel)}</th></tr></thead><tbody>`;
+    let html = `<div class="pg-rank-table-wrap"><table class="pg-rank-table"><thead><tr><th scope="col">#</th><th scope="col">${thLabel('Player','Player')}</th>${showLeagues ? `<th scope="col">${thLabel('Leagues','Lg')}</th>` : ''}<th scope="col">${escapeHtml(valueLabel)}</th></tr></thead><tbody>`;
     for (const r of rows) {
         const isSelf = r.name === playerName;
         const valFmt = (meta.kind === 'pr')
@@ -429,19 +429,19 @@ async function showAchievementType(body, playerName, type) {
 
 function renderLeaguesTable(section, perLeague) {
     let html = `
-    <div class="table-wrapper">
+    <div class="pg-leagues-table-wrapper">
         <table class="pg-leagues-table">
             <thead>
                 <tr>
-                    <th scope="col">League</th>
-                    <th scope="col">Type</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Games</th>
-                    <th scope="col">W</th>
-                    <th scope="col">L</th>
-                    <th scope="col">Primary</th>
-                    <th scope="col">Mean PR</th>
-                    <th scope="col">Rank</th>
+                    <th scope="col">${thLabel('League','League')}</th>
+                    <th scope="col">${thLabel('Type','Type')}</th>
+                    <th scope="col">${thLabel('Status','Stat')}</th>
+                    <th scope="col">${thLabel('Rank','Rank')}</th>
+                    <th scope="col">${thLabel('Games','G')}</th>
+                    <th scope="col">${thLabel('W','W')}</th>
+                    <th scope="col">${thLabel('L','L')}</th>
+                    <th scope="col">${thLabel('Primary','Pri')}</th>
+                    <th scope="col">${thLabel('Mean PR','PR')}</th>
                 </tr>
             </thead>
             <tbody>
@@ -461,12 +461,12 @@ function renderLeaguesTable(section, perLeague) {
                 <td><a href="${dashboardUrl(e.league.id)}">${escapeHtml(e.league.title)}</a></td>
                 <td><span class="pg-lt pg-lt-${escapeHtml(e.league.leagueType)}">${escapeHtml(e.league.leagueType)}</span></td>
                 <td>${running ? '<span class="status-pill running">Running</span>' : '<span class="status-pill completed">Completed</span>'}</td>
+                <td class="${e.playerRank === 1 ? 'rank-cell-gold' : e.playerRank === 2 ? 'rank-cell-silver' : e.playerRank === 3 ? 'rank-cell-bronze' : ''}">${e.playerRank != null ? `${e.playerRank} / ${e.totalPlayers}` : '—'}</td>
                 <td>${s.games || 0}</td>
                 <td>${s.wins || 0}</td>
                 <td>${s.losses || 0}</td>
                 <td title="${primaryLabel}">${primary}</td>
                 <td>${meanPR}</td>
-                <td class="${e.playerRank === 1 ? 'rank-cell-gold' : e.playerRank === 2 ? 'rank-cell-silver' : e.playerRank === 3 ? 'rank-cell-bronze' : ''}">${e.playerRank != null ? `${e.playerRank} / ${e.totalPlayers}` : '—'}</td>
             </tr>
         `;
     }
@@ -579,23 +579,30 @@ function renderMatchHistory(section, playerName, perLeague) {
 
     function renderTable(host, rows) {
         const headers = [
-            { key: 'updatedAt', label: 'Date' },
-            { key: 'leagueTitle', label: 'League' },
-            { key: 'leagueType', label: 'Type' },
-            { key: 'opponent', label: 'Opponent' },
-            { key: 'scoreSelf', label: 'Score' },
-            { key: 'prSelf', label: 'PR' },
-            { key: 'prOpp', label: 'Opp PR' },
-            { key: 'luckSelf', label: 'Luck' },
-            { key: 'result', label: 'Result' }
+            { key: 'updatedAt', label: 'Date', abbr: 'Date' },
+            { key: 'leagueTitle', label: 'League', abbr: 'Lg' },
+            { key: 'leagueType', label: 'Type', abbr: 'T' },
+            { key: 'opponent', label: 'Opponent', abbr: 'Opp' },
+            { key: 'scoreSelf', label: 'Score', abbr: 'Sc' },
+            { key: 'prSelf', label: 'PR', abbr: 'PR' },
+            { key: 'prOpp', label: 'Opp PR', abbr: 'oPR' },
+            { key: 'luckSelf', label: 'Luck', abbr: 'Lk' },
+            { key: 'result', label: 'Result', abbr: 'Res' }
         ];
-        let html = '<div class="pg-matches-scroll"><table class="pg-matches-table"><thead><tr>';
+        const MOBILE_CAP = 25;
+        const needsExpand = rows.length > MOBILE_CAP;
+        let html = '';
+        if (needsExpand) {
+            html += `<button type="button" class="pg-matches-expand" data-expanded="false">Show all ${rows.length} matches</button>`;
+        }
+        html += '<div class="pg-matches-scroll"><table class="pg-matches-table"><thead><tr>';
         for (const h of headers) {
             const arrow = sortKey === h.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
-            html += `<th scope="col" data-key="${h.key}">${h.label}${arrow}</th>`;
+            html += `<th scope="col" data-key="${h.key}">${thLabel(h.label, h.abbr)}${arrow}</th>`;
         }
         html += '</tr></thead><tbody>';
-        for (const r of rows) {
+        for (let idx = 0; idx < rows.length; idx++) {
+            const r = rows[idx];
             const date = r.updatedAt ? new Date(r.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
             const pr = (r.prSelf != null && !r._technical) ? formatNumber(r.prSelf) : '<span class="na">N/A</span>';
             const prOpp = (r.prOpp != null && !r._technical) ? formatNumber(r.prOpp) : '<span class="na">N/A</span>';
@@ -606,8 +613,9 @@ function renderMatchHistory(section, playerName, perLeague) {
                 r.result === 'WIN' ? 'result-win'
                 : r.result === 'LOSS' ? 'result-loss'
                 : 'result-draw';
+            const hiddenCls = idx >= MOBILE_CAP ? ' class="hidden-mobile"' : '';
             html += `
-                <tr>
+                <tr${hiddenCls}>
                     <td>${date}</td>
                     <td><a href="${dashboardUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
                     <td><span class="pg-lt pg-lt-${escapeHtml(r.leagueType)}">${escapeHtml(r.leagueType)}</span></td>
@@ -623,6 +631,18 @@ function renderMatchHistory(section, playerName, perLeague) {
         html += '</tbody></table></div>';
         host.innerHTML = html;
         attachPlayerNameInteractions(host, null);
+
+        const expandBtn = host.querySelector('.pg-matches-expand');
+        if (expandBtn) {
+            expandBtn.addEventListener('click', () => {
+                const showAll = expandBtn.dataset.expanded === 'false';
+                host.querySelectorAll('tr.hidden-mobile').forEach(tr => {
+                    tr.classList.toggle('hidden-mobile-expanded', showAll);
+                });
+                expandBtn.dataset.expanded = showAll ? 'true' : 'false';
+                expandBtn.textContent = showAll ? `Show only ${MOBILE_CAP}` : `Show all ${rows.length} matches`;
+            });
+        }
 
         host.querySelectorAll('th[data-key]').forEach(th => {
             th.addEventListener('click', () => {
@@ -728,8 +748,8 @@ function renderPlayerRecordTable(title, metricLabel, rows) {
             <div class="table-wrapper">
                 <table class="pg-matches-table pg-mr-table">
                     <thead><tr>
-                        <th scope="col">#</th><th scope="col">${metricLabel}</th><th scope="col">Opponent</th>
-                        <th scope="col">Score</th><th scope="col">Result</th><th scope="col">League</th><th scope="col">Date</th>
+                        <th scope="col">#</th><th scope="col">${thLabel(metricLabel, metricLabel)}</th><th scope="col">${thLabel('Opponent','Opp')}</th>
+                        <th scope="col">${thLabel('Score','Sc')}</th><th scope="col">${thLabel('Result','Res')}</th><th scope="col">${thLabel('League','Lg')}</th><th scope="col">${thLabel('Date','Date')}</th>
                     </tr></thead>
                     <tbody>${bodyHtml || '<tr><td colspan="7" class="na">No data</td></tr>'}</tbody>
                 </table>

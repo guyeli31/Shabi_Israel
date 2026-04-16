@@ -11,7 +11,7 @@
 import { loadAllLeagues } from '../compute/crossLeague.js';
 import { buildAllTimeRankings } from '../compute/allTimeRankings.js';
 import { loadLandingSettings } from '../data/leagueLoader.js';
-import { dashboardUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueUrl } from '../utils/helpers.js';
+import { dashboardUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueUrl, thLabel } from '../utils/helpers.js';
 import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatches } from '../compute/matchRecords.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { isLoggedIn } from '../admin/auth.js';
@@ -804,7 +804,7 @@ function renderCompletedLeagues(container, completed) {
             <div class="collapsible-body">
                 <div class="completed-table-wrapper table-scroll">
                     <table class="completed-leagues-table">
-                        <thead><tr><th scope="col">Date</th><th scope="col">League</th><th scope="col">Type</th><th scope="col">Winner</th></tr></thead>
+                        <thead><tr><th scope="col">${thLabel('Date','Date')}</th><th scope="col">${thLabel('League','League')}</th><th scope="col">${thLabel('Type','T')}</th><th scope="col">${thLabel('Winner','Win')}</th></tr></thead>
                         <tbody>${rowsHtml}</tbody>
                     </table>
                 </div>

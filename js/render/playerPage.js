@@ -5,7 +5,7 @@
 import { loadLeague } from '../data/leagueLoader.js';
 import { getPlayerMatches } from '../data/csvParser.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { getQueryParam, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl, playerGeneralUrl, getLeagueYear } from '../utils/helpers.js';
+import { getQueryParam, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl, playerGeneralUrl, getLeagueYear, thLabel } from '../utils/helpers.js';
 import { renderBreadcrumbs, ensurePlayerIndex } from './navigation.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleBadgesHtml, getHighestTier } from '../data/titleConstants.js';
@@ -123,21 +123,21 @@ export async function renderPlayerPage() {
  */
 function getPlayerColumns(config) {
     const cols = [
-        { key: 'opponent', label: 'Opponent' },
-        { key: 'date', label: 'Date' },
-        { key: 'scoreSelf', label: 'Score' },
+        { key: 'opponent', label: 'Opponent', abbr: 'Opp' },
+        { key: 'date', label: 'Date', abbr: 'Date' },
+        { key: 'scoreSelf', label: 'Score', abbr: 'Sc' },
     ];
     if (config.showPR) {
-        cols.push({ key: 'prSelf', label: 'PR' });
-        cols.push({ key: 'prOpp', label: 'Opp PR' });
+        cols.push({ key: 'prSelf', label: 'PR', abbr: 'PR' });
+        cols.push({ key: 'prOpp', label: 'Opp PR', abbr: 'oPR' });
     }
     if (config.showLuck) {
-        cols.push({ key: 'luckDiff', label: 'Luck' });
+        cols.push({ key: 'luckDiff', label: 'Luck', abbr: 'Lk' });
     }
     if (config.playerResultMode === 'points') {
-        cols.push({ key: 'matchPoints', label: 'Points' });
+        cols.push({ key: 'matchPoints', label: 'Points', abbr: 'Pts' });
     } else {
-        cols.push({ key: 'result', label: 'Result' });
+        cols.push({ key: 'result', label: 'Result', abbr: 'Res' });
     }
     return cols;
 }
@@ -146,7 +146,7 @@ function renderMatchTable(container, playerMatches, params, leagueId, playerName
     const columns = getPlayerColumns(leagueConfig);
 
     const headerCells = columns.map((col, i) =>
-        `<th scope="col" data-col="${i}">${col.label} <span class="sort-icon">&#x25B2;</span></th>`
+        `<th scope="col" data-col="${i}">${thLabel(col.label, col.abbr)} <span class="sort-icon">&#x25B2;</span></th>`
     ).join('\n                        ');
 
     let html = `

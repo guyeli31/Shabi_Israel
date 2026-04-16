@@ -1,101 +1,253 @@
-# תוכנית — המשך עיצוב ונגישות מובייל
+# Mobile Matrix + Compression (Step 6.6 — Replaces 6.5)
+
+> **Status:** approved 2026-04-16, ready for implementation.
+> **Source:** master copy lives at `C:\Users\User\.claude\plans\mighty-roaming-ladybug.md`; this file mirrors it inside the repo for cross-session discoverability.
 
 ## Context
 
-שלב 6.5 בתוכנית [ui-fix-plan-2026-04.md](c:/WORKSPACE/Shabi_Israel/docs/ui-fix-plan-2026-04.md) הסתיים: המרת table→cards ב-≤640px הוחלה על הטבלאות הראשיות (`#leagueTable`, `#playerTable`, `.completed-leagues-table`, `.admin-table`, `.dash-table`). Playwright אימת overflow=0 ב-375/414/768/1440 + zoom 1.5/2.
+The previous approach in Step 6.5 (CSS-only table→cards at ≤640px) was implemented and verified, but the user viewed the result and rejected it as **"distortion"**. Tables on mobile must remain a **matrix** (rows × columns) like on desktop, rendered at **full page width**, **without horizontal scroll by default**. Same applies to high desktop zoom (>200%).
 
-המשתמש שאל שתי שאלות:
-1. **מה התכנון קדימה להמשך העיצוב?**
-2. **האם הפרויקט נגיש כולו לדפדפן מובייל?**
+**Visual reference:** the Championship Predictor table in [dashboard.html](../dashboard.html) — the user stated it "looks perfect" on mobile. Its CSS at [css/dashboard.css:411-434](../css/dashboard.css#L411) — `width:100%`, `font-size:0.8-0.9rem`, `padding: xs sm`, `text-align:center`. That is the standard to match.
 
-התשובה הקצרה: **לא, עדיין לא כולו.** ה-CSS של ה-cards הוחל על כל selector-ים של `.dash-table` וכו', אבל `data-label` **לא** נוסף בכל ה-renderers. בנוסף, עמוד `player_general.html` לא טופל כלל. ועל המפה גם Step 7 (Editorial Chess) ו-Polish Phase Chunk 8 (themes redesign) שנדחו.
+**Explicit user requirements:**
+1. All tables on all pages — matrix at full page width, no horizontal scroll by default.
+2. Scroll appears only under zoom-in; when it does, the **2 leftmost columns** (Rank + Player) must be `position: sticky`.
+3. Aggressive header abbreviations allowed (WR%, G, W, L, PR).
+4. Font as large as possible — shrink only until everything fits.
+5. `pg-leagues-table` — exception: horizontal scroll **is** allowed by default, with **sticky-left** on the League-name column. Also: **reorder** — move Rank column from position 9 to position 4 (between Status and Games) on **both** desktop and mobile. Target: 4 columns visible at 375px (LEAGUE sticky + TYPE + STATUS + RANK).
+6. `pg-matches-table` — cap at **25 matches** by default on mobile so the chart doesn't overflow page width.
+7. Admin-mode Leagues table — same compression.
 
----
+## Scope (all tables)
 
-## חלק א׳ — השלמת נגישות מובייל (טקטי, ~3–4 שעות)
-
-### בעיות שזוהו (מ-audit של Explore)
-
-**High — עמוד dashboard.html:**
-- **Rounds table** ב-[js/render/dashboardPage.js](c:/WORKSPACE/Shabi_Israel/js/render/dashboardPage.js) בפונקציה `drawRoundTable` (~שורה 953): 8 עמודות ללא `data-label`.
-- **Remaining matches table** ב-`buildRemainingListHtml` (~שורה 1024): 4 עמודות ללא `data-label`.
-- **Prizes table** ב-`.prizes-table` (~שורה 383): ללא `data-label`. גם יש `max-width: 400px` ב-[css/dashboard.css:501](c:/WORKSPACE/Shabi_Israel/css/dashboard.css#L501) — בפועל לא גולש כי card conversion דוחף ל-100%, אבל כדאי להסיר את ה-max-width.
-- **What-If table** (`.whatif-table`, ~שורה 874): 7 עמודות ללא `data-label`.
-
-> ה-CSS של `.dash-table` ב-[css/components.css:697-769](c:/WORKSPACE/Shabi_Israel/css/components.css#L697-L769) כבר ממיר את כל הטבלאות הללו ל-cards — רק ה-`data-label` חסרים. ללא labels, ה-`::before` נשאר ריק והמשתמש רואה ערכים בודדים ללא הקשר.
-
-**Medium — עמוד player_general.html:**
-אין בכלל card conversion ואין data-label:
-- `.pg-rank-table` ב-[js/render/playerGeneralPage.js:334](c:/WORKSPACE/Shabi_Israel/js/render/playerGeneralPage.js#L334)
-- `.pg-leagues-table` ב-`js/render/playerGeneralPage.js:433`
-- `.pg-matches-table` ב-`js/render/playerGeneralPage.js:592`
-- `.pg-mr-table` ב-`js/render/playerGeneralPage.js:729`
-- CSS: [css/player-general.css](c:/WORKSPACE/Shabi_Israel/css/player-general.css) — אין `@media (max-width: 640px)`.
-
-**Low:**
-- [css/admin.css:614](c:/WORKSPACE/Shabi_Israel/css/admin.css#L614) — `.admin-sidebar` ב-82vw, עובד אבל snug.
-- [css/theme-picker.css:41](c:/WORKSPACE/Shabi_Israel/css/theme-picker.css#L41) — `min-width: 220px` על הפאנל.
-
-### מה צריך לעשות
-
-1. **הוספת `data-label` ב-4 טבלאות של dashboard.js** — ~5 שורות לכל טבלה, עותק של התבנית שהוחלה בשלב 6.5 (מיפוי מ-columns array הקיים). Reuse של הדפוס מ-[js/render/dashboardPage.js](c:/WORKSPACE/Shabi_Israel/js/render/dashboardPage.js) ב-Top-5 שכבר הוטמע.
-2. **הסרת `max-width: 400px`** מ-`.prizes-table` ב-[css/dashboard.css:501](c:/WORKSPACE/Shabi_Israel/css/dashboard.css#L501) — מיותר אחרי card conversion.
-3. **הרחבת ה-card block ב-[css/components.css](c:/WORKSPACE/Shabi_Israel/css/components.css)** (או ב-[css/player-general.css](c:/WORKSPACE/Shabi_Israel/css/player-general.css)) לכלול `.pg-rank-table, .pg-leagues-table, .pg-matches-table, .pg-mr-table` תחת אותו `@media (max-width: 640px)` — reuse של אותו pattern.
-4. **הוספת `data-label` ב-4 render functions ב-[js/render/playerGeneralPage.js](c:/WORKSPACE/Shabi_Israel/js/render/playerGeneralPage.js)**.
-5. **אין שינוי ל-admin sidebar / theme-picker** — low severity, לא מצדיק שינוי עכשיו.
-
-### Verification (Playwright MCP, theme יחיד)
-
-- [ ] `scrollWidth === innerWidth` ב-375×812 על `dashboard.html` ו-`player_general.html`
-- [ ] `getComputedStyle(td, '::before').content` לא ריק לדגימת תא נומרי בכל אחת מ-8 הטבלאות החדשות
-- [ ] Desktop @1440 — כל הטבלאות נראות כרגיל, sticky עובד
-- [ ] zoom 1.5 + 2 — אין overlap של תאים
+| Selector | Page | Typical columns |
+|---|---|---|
+| `#leagueTable` | league.html | 7–11 (depends on leagueConfig) |
+| `#playerTable` | player.html | 8 |
+| `.dash-table` × 5 | dashboard.html | Top-5, Historical View, Rounds, Remaining, Prizes, What-If |
+| `#predictor-section table` | dashboard.html | **Already correct — sanity-check only** |
+| `.completed-leagues-table` | index.html | 4 |
+| `.admin-table` | admin.html | Varies (Leagues included) |
+| `.pg-rank-table` | player_general.html | ~6 |
+| `.pg-leagues-table` | player_general.html | 9 (**exception — sticky+scroll**) |
+| `.pg-matches-table` | player_general.html | Varies (**cap to 25**) |
+| `.pg-mr-table` | player_general.html | Varies |
 
 ---
 
-## חלק ב׳ — כיוון עיצובי קדימה (אסטרטגי)
+## Work Breakdown
 
-שלושה masa-ים פתוחים, לא קשורים זה לזה. דרוש החלטה של המשתמש לפני התחלה בכל אחד:
+### A. Revert — remove the card conversion from Step 6.5
 
-### 1. Step 7 — Editorial Chess (מ-[docs/ui-fix-plan-2026-04.md](c:/WORKSPACE/Shabi_Israel/docs/ui-fix-plan-2026-04.md))
+**File:** [css/components.css](../css/components.css) lines ~485–770 (`@media (max-width: 640px)`).
 
-**מה:** redesign מלא — טיפוגרפיה חדשה (Fraunces display + Inter Tight body), שינוי שמות themes ל-branding חדש, masthead header א-סימטרי.
-**מצב:** blueprint כללי בלבד בתוכנית — קובץ `whimsical-noodling-graham.md` שהוזכר כ-plan מלא **לא קיים במאגר**. נדרש design session נפרד.
-**סיכון:** גבוה — משנה את כל הזהות הוויזואלית.
-**משך:** יומיים+.
+**Delete:**
+- All `display: grid; grid-template-columns: auto 1fr` on `tr`/`td`.
+- All `td::before { content: attr(data-label) }` rules.
+- The medal `border-left` stripe (it will still work in matrix form via desktop styles).
+- `position: static !important` overrides — we want sticky preserved (conditionally).
 
-### 2. Polish Phase Chunk 8 — Themes redesign session (מ-[docs/plans/polish-phase.md](c:/WORKSPACE/Shabi_Israel/docs/plans/polish-phase.md))
+**Also delete:** `thead { display: none }` — headers must be visible in matrix mode.
 
-**מה:** session ייעודי להכרעה על צבעי placements בדשבורד הליגה, סגנון medal badges, והרמוניה חוצת-themes. כולל items פתוחים NEW-3 (dashboard colors), OLD-6 (themes), OLD-3 (visited-link styling).
-**Themes קיימים:** 7 — dark, beige, nature, vegas, casino, rainbow, x22 (כולם CSS custom properties ב-[css/themes.css](c:/WORKSPACE/Shabi_Israel/css/themes.css)).
-**סיכון:** בינוני — palette swaps בלבד, אין שינוי ארכיטקטורה.
-**משך:** חצי יום–יום.
+### B. New compression CSS inside `@media (max-width: 640px)`
 
-### 3. פריטים קטנים פתוחים מ-Polish Phase
+Principle: **small `font-size`, minimal padding, abbreviated headers, `text-align: center`**. Goal: all columns fit within 375px without `overflow-x`.
 
-- **NEW-9** — Chart axis legends/ticks (עיצוב axes בגרפים של player/dashboard)
-- **NEW-11** — Date column על player cards (הוסף עמודת תאריך לטבלת matches)
+**Base rule (starting values):**
+```css
+@media (max-width: 640px) {
+  #leagueTable, #playerTable, .dash-table, .completed-leagues-table,
+  .admin-table, .pg-rank-table, .pg-matches-table, .pg-mr-table {
+    font-size: 0.7rem;       /* ~10.5px — starting point, shrink as needed */
+    width: 100%;
+    table-layout: auto;
+  }
+  [same selectors] thead th { padding: 3px 2px; font-size: 0.65rem; white-space: nowrap; }
+  [same selectors] tbody td { padding: 2px 3px; }
+  [same selectors] .player-cell { text-align: left; }
+}
+```
 
-**סיכון:** נמוך. **משך:** 1–2 שעות לכל אחד.
+**Iterative process (Playwright-driven):** start at 0.7rem, measure `scrollWidth` at 375px; if > 375 → drop to 0.65 → 0.6 → 0.55. If still not fitting → go to step C.
 
----
+### C. Header abbreviations (dual-label pattern)
 
-## המלצה — סדר ביצוע מוצע
+**Files:**
+- [js/render/leaguePage.js:92-109](../js/render/leaguePage.js) — `cols` array
+- [js/render/playerPage.js](../js/render/playerPage.js) — columns array
+- [js/render/dashboardPage.js:466-469](../js/render/dashboardPage.js) — Historical View headers
+- [js/render/playerGeneralPage.js:436-444](../js/render/playerGeneralPage.js) — Leagues headers
 
-1. **קודם** — חלק א׳ במלואו (3–4 שעות). סוגר את הפער של "נגישות מלאה במובייל" ומשלים את roadmap של ui-fix-plan-2026-04.
-2. **אחר כך** — פריטי NEW-9 + NEW-11 הקטנים (3 שעות).
-3. **החלטה שלך** — האם להתקדם ל-Chunk 8 themes redesign (חצי יום, סיכון בינוני) או ישר ל-Step 7 Editorial Chess (יומיים, סיכון גבוה, דורש brief נפרד).
+**Pattern:**
+```html
+<th scope="col" data-col="0">
+  <span class="th-full">Win Rate</span>
+  <span class="th-abbr">WR%</span>
+</th>
+```
 
-הגישה הזאת שומרת על flow של "Mobile first ✅ → polish → redesign", ולא מערבבת תיקוני באגים עם שינויי זהות ויזואלית.
+```css
+.th-abbr { display: none; }
+@media (max-width: 640px) {
+  .th-full { display: none; }
+  .th-abbr { display: inline; }
+}
+```
 
----
-
-## קבצים קריטיים לעריכה (חלק א׳ בלבד)
-
-| קובץ | שינוי |
+**Abbreviation map (user-approved):**
+| Full | Abbr |
 |---|---|
-| [js/render/dashboardPage.js](c:/WORKSPACE/Shabi_Israel/js/render/dashboardPage.js) | `data-label` ב-`drawRoundTable`, `buildRemainingListHtml`, prizes, what-if |
-| [js/render/playerGeneralPage.js](c:/WORKSPACE/Shabi_Israel/js/render/playerGeneralPage.js) | `data-label` ב-`renderRankTable`, `renderLeaguesTable`, `renderMatchesTable`, `renderMatchRecords` |
-| [css/components.css](c:/WORKSPACE/Shabi_Israel/css/components.css) | הרחבת `@media (max-width: 640px)` לכלול `.pg-*-table` |
-| [css/dashboard.css](c:/WORKSPACE/Shabi_Israel/css/dashboard.css) | הסרת `max-width: 400px` מ-`.prizes-table` |
-| [docs/ui-fix-plan-2026-04.md](c:/WORKSPACE/Shabi_Israel/docs/ui-fix-plan-2026-04.md) | הוספת "שלב 6.6 — השלמת mobile לעמודים משניים" עם סטטוס |
+| Games | G |
+| Wins | W |
+| Losses | L |
+| Win Rate | WR% |
+| Mean PR | PR |
+| PR Wins | PRW |
+| Points | Pts |
+| Avg Points | APts |
+| Luck | Lk |
+| Level | Lv |
+| Opponent | Opp |
+| Player | (kept — user wants wide) |
+| Date | (kept — user wants wide) |
+
+### D. Conditional sticky rank+player (engaged only on zoom/overflow)
+
+**For #leagueTable, #playerTable, .dash-table, .completed-leagues-table, .admin-table, .pg-rank-table:**
+
+```css
+@media (max-width: 640px) {
+  /* Sticky engages only when parent becomes scrollable (zoom) */
+  .table-scroll { overflow-x: auto; }
+  [table] tbody td:nth-child(1),
+  [table] thead th:nth-child(1) { position: sticky; left: 0; background: var(--color-surface); z-index: 2; }
+  [table] tbody td.player-cell,
+  [table] thead th:nth-child(2) { position: sticky; left: var(--rank-col-width, 36px); background: var(--color-surface); z-index: 2; }
+}
+```
+
+Sticky activates only when `overflow-x` kicks in (zoom). At a normal 375px width, the table fits → no scroll → sticky is invisible.
+
+### E. `pg-leagues-table` — reorder + sticky-left + scroll allowed
+
+**Files:** [js/render/playerGeneralPage.js:436-469](../js/render/playerGeneralPage.js#L436) and [css/player-general.css](../css/player-general.css).
+
+**E.1 — Rank column reorder (Desktop + Mobile):**
+New 9-column order: **League | Type | Status | Rank | Games | W | L | Primary | Mean PR**.
+Rank moves from position 9 to position 4 (after Status, before Games). Required edits:
+- `<thead><tr>` at [js/render/playerGeneralPage.js:436-444](../js/render/playerGeneralPage.js#L436): move `<th>Rank</th>` to position 4.
+- Data loop at [js/render/playerGeneralPage.js:460-469](../js/render/playerGeneralPage.js#L460): move the `playerRank` `<td>` accordingly.
+
+**E.2 — Sticky-left + scroll (Mobile only):**
+```css
+@media (max-width: 640px) {
+  .pg-leagues-table-wrapper { overflow-x: auto; }
+  .pg-leagues-table {
+    font-size: 0.65rem;   /* calibrated so ~4 columns visible at 375px */
+    min-width: max-content;
+  }
+  .pg-leagues-table th:first-child,
+  .pg-leagues-table td:first-child {
+    position: sticky; left: 0;
+    background: var(--color-surface);
+    box-shadow: 4px 0 6px -4px rgba(0,0,0,0.15);
+    z-index: 2;
+  }
+}
+```
+
+**E.3 — Font calibration (Playwright-driven):**
+Target at 375px: **4 visible columns** by default — `LEAGUE (sticky)` + `TYPE` + `STATUS` + `RANK`. Calibrate font-size (0.7 → 0.65 → 0.6 → 0.55) until the width of those 4 columns ≤ 375px. The remaining 5 columns (Games, W, L, Primary, Mean PR) are exposed via horizontal scroll.
+
+> Note: in the user's spoken list they said "LEAGUE, TYPE, STATUS, **GAMES**" — but after the reorder, column 4 is RANK (not Games). Interpreted per the new ordering (LEAGUE, TYPE, STATUS, RANK). If the user meant to have Rank hidden with Games appearing first on scroll, the reorder should be cancelled first.
+
+### F. `pg-matches-table` — cap 25 on mobile
+
+**File:** [js/render/playerGeneralPage.js](../js/render/playerGeneralPage.js) in the `renderMatchesTable` function (~line 592).
+
+**Pattern:** render **all** matches, but add class `.hidden-mobile` to every row beyond row 25 + an "Show all N matches" button above the table that removes the class.
+
+```css
+@media (max-width: 640px) {
+  .pg-matches-table tr.hidden-mobile { display: none; }
+  .pg-matches-expand { display: inline-block; }
+}
+@media (min-width: 641px) {
+  .pg-matches-expand { display: none; }
+}
+```
+
+**In addition:** the chart on player_general must get `max-width: 100%` + `overflow: hidden` on mobile. If there's a hard-coded `width: 800px` on the chart — remove and replace with 100%.
+
+### G. `.dash-table` specific fixes
+
+- **Prizes table:** remove `max-width: 400px` at [css/dashboard.css:501](../css/dashboard.css#L501).
+- **Rounds / Remaining matches / What-If:** same compression. Some non-critical columns may get further abbreviated ("R" for "Round").
+- **Championship Predictor:** already correct — just Playwright sanity-check that the new compression defaults don't regress it.
+
+### H. Desktop zoom > 200%
+
+`@media (max-width: 640px)` activates automatically when effective viewport drops below 640px (= zoom 2× on 1280, or 2.3× on 1440). So the compression from B–G handles this automatically. Verify with Playwright at zoom 2.0 / 2.5 on a 1440 desktop.
+
+### I. Documentation update
+
+**[docs/ui-fix-plan-2026-04.md](ui-fix-plan-2026-04.md):**
+- Already flipped: Step 6.5 marker changed from "✅ הושלם" to "🔄 הוחלף — ראה שלב 6.6".
+- Step 6.6 added to the summary table pointing to this roadmap.
+
+---
+
+## Recommended execution order
+
+1. **A** — delete card CSS (~5 min).
+2. **B** — compression defaults (~15 min).
+3. **D** — conditional sticky rank+player (~15 min).
+4. **Playwright iteration #1:** measure at 375px across all tables. If still overflowing → continue to C.
+5. **C** — header abbreviations + dual-label pattern (~45–60 min).
+6. **Playwright iteration #2:** re-measure.
+7. **E** — pg-leagues-table reorder + sticky (~15 min).
+8. **F** — pg-matches cap 25 + chart max-width (~30 min).
+9. **G** — dash-table fixes (~15 min).
+10. **Playwright final:** 375/414/768 + zoom 1.5/2.0/2.5 on 1440.
+11. **I** — documentation sync.
+
+**Total estimate:** 3–4 hours.
+
+---
+
+## Verification (Playwright MCP)
+
+- [ ] `document.documentElement.scrollWidth === window.innerWidth` at 375/414 on: index, league, player, dashboard, player_general, admin (leagues tab).
+- [ ] No visible horizontal scrollbar on any table except `pg-leagues-table-wrapper`.
+- [ ] `pg-leagues-table`: left column (League name) stays sticky during horizontal scroll. New column order: League | Type | Status | Rank | Games | W | L | Primary | Mean PR (same on desktop). At 375px — 4 columns visible before scroll.
+- [ ] `pg-matches-table`: only 25 rows visible at 375px; "Show all" button reveals the rest.
+- [ ] Championship Predictor: no regression — renders as before.
+- [ ] Desktop 1440: all tables identical to current. Sticky works as before.
+- [ ] Zoom 2.0/2.5 on 1440: behaves like mobile — compression + sticky rank/player.
+- [ ] Accessibility: `getComputedStyle(th)::after { content }` doesn't cause duplicate screen-reader output. (Dual-label via `display: none` is safe.)
+
+---
+
+## Critical Files
+
+| File | Change |
+|---|---|
+| [css/components.css](../css/components.css) | Delete ~280 lines of card CSS; replace with ~80 lines of compression + conditional sticky |
+| [css/dashboard.css](../css/dashboard.css) | Add `@media` compression for `.dash-table`; remove `max-width: 400px` |
+| [css/player-general.css](../css/player-general.css) | Add `@media` compression + sticky-left for `pg-leagues-table` + chart max-width + matches cap CSS |
+| [css/admin.css](../css/admin.css) | Add `@media` compression for `.admin-table` (Leagues) |
+| [css/index-dashboard.css](../css/index-dashboard.css) | Add `@media` compression for `.completed-leagues-table` |
+| [js/render/leaguePage.js](../js/render/leaguePage.js) | Dual-label headers (full+abbr spans) |
+| [js/render/playerPage.js](../js/render/playerPage.js) | Dual-label headers |
+| [js/render/dashboardPage.js](../js/render/dashboardPage.js) | Dual-label in Historical View, Rounds, Remaining, What-If |
+| [js/render/playerGeneralPage.js](../js/render/playerGeneralPage.js) | Dual-label in 4 tables + reorder Rank + cap 25 + expand button |
+| [js/render/landingPage.js](../js/render/landingPage.js) | Dual-label in `.completed-leagues-table` |
+| [js/render/adminPage.js](../js/render/adminPage.js) (if present) | Dual-label in `.admin-table` Leagues |
+| [docs/ui-fix-plan-2026-04.md](ui-fix-plan-2026-04.md) | Status 6.5 → "replaced"; Step 6.6 added |
+
+---
+
+## Risk and rollback
+
+- **Readability risk:** font-size 9–10px may be hard to read for older users or users with vision issues. If this is too severe in Playwright — fallback path: hide secondary columns (Luck, Level) on mobile.
+- **Git safety:** create a dedicated branch `mobile-matrix-v2` before starting the revert, so rolling back to cards (Step 6.5) stays a single `git checkout` away if the user changes direction again.

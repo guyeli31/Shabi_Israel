@@ -42,6 +42,15 @@ export function getFlagCode(playerName, customFlags) {
     return 'IL';
 }
 
+/**
+ * Dual-label th content: full desktop text + abbreviated mobile text.
+ * CSS swaps visibility at ≤640px.
+ */
+export function thLabel(full, abbr) {
+    const a = (abbr == null || abbr === '') ? full : abbr;
+    return `<span class="th-full">${full}</span><span class="th-abbr">${a}</span>`;
+}
+
 const _MONTHS = [
     'January','February','March','April','May','June',
     'July','August','September','October','November','December'

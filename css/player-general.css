@@ -512,3 +512,120 @@
     border-radius: 10px;
     font-size: 0.75rem;
 }
+
+/* Leagues table wrapper — horizontal scroll on overflow */
+.pg-leagues-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+
+/* Match-history expand button (mobile-only) */
+.pg-matches-expand {
+    display: none;
+    margin: 0 0 var(--space-sm);
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+.pg-matches-expand:hover {
+    background: var(--color-hover);
+}
+
+/* ============================================================
+ * MOBILE (≤640px) — Step 6.6 compression for player-general
+ * ============================================================ */
+@media (max-width: 640px) {
+    /* Chart never wider than viewport */
+    .pg-chart-host {
+        max-width: 100%;
+        overflow: hidden;
+    }
+    .bar-chart-canvas {
+        max-width: 100%;
+        height: auto;
+    }
+
+    /* Leagues table: horizontal scroll with sticky League column */
+    .pg-leagues-table {
+        font-size: 0.65rem;
+        min-width: max-content;
+    }
+    .pg-leagues-table th,
+    .pg-leagues-table td {
+        padding: 3px 4px;
+        white-space: nowrap;
+    }
+    .pg-leagues-table th:first-child,
+    .pg-leagues-table td:first-child {
+        position: sticky;
+        left: 0;
+        background: var(--color-surface);
+        box-shadow: 4px 0 6px -4px rgba(0, 0, 0, 0.15);
+        z-index: 2;
+    }
+    .pg-leagues-table .pg-lt {
+        font-size: 0.55rem;
+        padding: 1px 5px;
+    }
+    .pg-leagues-table .status-pill {
+        font-size: 0.6rem;
+        padding: 1px 5px;
+    }
+
+    /* Matches table: horizontal scroll inside its wrapper; cap rows to 25 */
+    .pg-matches-scroll {
+        overflow-x: auto;
+        max-height: none;
+    }
+    .pg-matches-table {
+        min-width: max-content;
+    }
+    .pg-matches-table th,
+    .pg-matches-table td {
+        padding: 2px 4px;
+        white-space: nowrap;
+    }
+    .pg-matches-table .pg-lt {
+        font-size: 0.55rem;
+        padding: 1px 4px;
+    }
+    .pg-matches-table tr.hidden-mobile { display: none; }
+    .pg-matches-table tr.hidden-mobile.hidden-mobile-expanded { display: table-row; }
+    .pg-matches-expand { display: inline-block; }
+
+    /* Match-record card tables: compress + horizontal scroll */
+    .pg-mr-card .table-wrapper {
+        overflow-x: auto;
+        overflow-y: auto;
+    }
+    .pg-mr-table {
+        min-width: max-content;
+    }
+    .pg-mr-table th,
+    .pg-mr-table td {
+        padding: 2px 4px;
+        white-space: nowrap;
+    }
+
+    /* Rank table inside achievement tiles */
+    .pg-rank-table th,
+    .pg-rank-table td {
+        padding: 2px 4px;
+        font-size: 0.65rem;
+    }
+
+    /* Filter controls */
+    .pg-filters { gap: 8px; }
+    .pg-filter select { font-size: 0.75rem; padding: 2px 4px; }
+
+    /* PR cards — single column */
+    .pg-pr-grid { grid-template-columns: 1fr; gap: 10px; }
+    .pg-tiles { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .pg-tile-value { font-size: 1.35rem; }
+    .pg-tile { padding: 8px 10px; }
+}

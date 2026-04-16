@@ -268,7 +268,7 @@
 
 ## שלב 6.5 — Mobile layout + zoom fix (C6 + C7)
 
-> ✅ **הושלם (2026-04-16)** — CSS-only card conversion ב-≤640px הוחל על `#leagueTable`, `#playerTable`, `.dash-table` (Top-5), `.completed-leagues-table`, `.admin-table`. Sticky מנוטרל אוטומטית בטלפון, מה שמתקן את באג ה-pinch-zoom של iOS. verified via Playwright MCP ב-375/414/768/1440 + zoom 1.5/2.
+> 🔄 **הוחלף (2026-04-16)** — הגישה של CSS-only **card conversion** (table→cards ב-≤640px) הוטמעה ואומתה אבל נדחתה ע"י המשתמש שהגדיר אותה כ"עיוות". הדרישה המעודכנת: הטבלאות במובייל חייבות להישאר **מטריצה** כמו בדסקטופ. **ראה שלב 6.6** למטה ו-[docs/mobile-design-roadmap-2026-04.md](mobile-design-roadmap-2026-04.md) לפרטים מלאים.
 
 **מטרה:** טבלאות במובייל ברוחב מלא של המסך כברירת מחדל, ללא scroll אופקי, ללא שבירת פריסה בזמן pinch-zoom.
 
@@ -348,6 +348,58 @@ Pages: index.html, league.html, player.html, dashboard.html, admin.html → Leag
 
 ---
 
+## שלב 6.6 — Mobile Matrix + Compression ✅ (2026-04-16)
+
+**Status:** ✅ הושלם, branch `mobile-matrix-v2`.
+**Roadmap:** [docs/mobile-design-roadmap-2026-04.md](mobile-design-roadmap-2026-04.md).
+
+### מה בוצע
+- **A** — הוסרו כל כללי ה-card conversion מ-[css/components.css](../css/components.css) (`@media (max-width: 640px)` ~280 שורות).
+- **B** — דחיסה: `font-size: 0.7rem`, `padding: 2-3px`, `white-space: nowrap` על כל 9 selectors של טבלאות במובייל.
+- **C** — Dual-label pattern: `<span class="th-full">Win Rate</span><span class="th-abbr">WR%</span>` עם CSS swap. Helper `thLabel()` ב-[js/utils/helpers.js](../js/utils/helpers.js). הוחל על 5 קבצי render (leaguePage, playerPage, dashboardPage, playerGeneralPage, landingPage) + admin leagues inline.
+- **D** — Conditional sticky על Rank+Player ב-`#leagueTable` ו-`#playerTable` (thead+tbody, `background: var(--header-bg)` לכותרת, `var(--color-surface)` לגוף, `z-index: 4/2`).
+- **E** — `pg-leagues-table`: סידור Rank מעמודה 9 לעמודה 4 (desktop + mobile); wrapper חדש `.pg-leagues-table-wrapper` עם `overflow-x: auto`; עמודה 1 (League) sticky עם `box-shadow` אינדיקציה.
+- **F** — `pg-matches-table`: cap של 25 שורות במובייל + כפתור "Show all N matches" שמתחלף ל-"Show only 25". Chart `.bar-chart-canvas` קיבל `max-width: 100%; height: auto`.
+- **G** — dash-table: הוסר `max-width: 400px` מ-`.prizes-table`, נוספה דחיסה מובייל לכל הטבלאות ב-[css/dashboard.css](../css/dashboard.css); `.leaderboard-table`, `.achv-table`, `.completed-leagues-table` ב-[css/index-dashboard.css](../css/index-dashboard.css).
+- **I** — עדכון המסמך הזה.
+
+### Playwright verification (2026-04-16)
+
+| viewport | page | docScrollWidth | תוצאה |
+|---|---|---|---|
+| 375×812 | league.html | 360 | ✅ 9 cols fit (tableScroll=352, wrap=352) |
+| 375×812 | player.html | 360 | ✅ 7 cols fit (352/352), sticky header רקע תקין |
+| 375×812 | index.html | 360 | ✅ `.completed-leagues-table` 352/352, `.leaderboard-table` 338/338 |
+| 375×812 | dashboard.html | 360 | ✅ Top-5, Round, What-If 352/352 |
+| 375×812 | player_general.html | 360 | ✅ pg-leagues scrolls פנימית (383/352), pg-matches 117 מוסתרות/142 סה"כ, chart 352 |
+| 414×896 | league.html | 414 | ✅ 9 cols fit (406/406) |
+| 576×900 | league.html (≡ zoom 2.5× @ 1440) | 576 | ✅ mobile mode engaged, 568/568 |
+| 720×900 | league.html (≡ zoom 2.0× @ 1440) | 705 | ⚠ tablet mode (mexpected), wrapper scrolls internally |
+| 768×1024 | league.html | 753 | ✅ dual-label swaps back to full labels (desktop) |
+
+- [x] Dual-label: `.th-full display:none`, `.th-abbr display:inline` @ ≤640px; מתהפך @ ≥641px.
+- [x] Expand button: click → 117 hidden rows reveal, text updates to "Show only 25".
+- [x] Sticky header bg fix: ראיתי ש-`var(--color-surface)` הלבן דרס את ה-header הכהה של עמודת Opp; תוקן על-ידי פיצול לכללי thead (`--header-bg`) ו-tbody (`--color-surface`) נפרדים.
+- [x] Screenshot evidence: `.playwright-mcp/step6.6-league-375-fixed.png`, `.playwright-mcp/step6.6-player-375-fixed.png`, `.playwright-mcp/step6.6-pg-375.png`.
+
+### קבצים שהשתנו
+- [css/components.css](../css/components.css) — מחיקת ~280 שורות card CSS, החלפה ב-~140 שורות compression + conditional sticky + dual-label swap.
+- [css/dashboard.css](../css/dashboard.css) — הסרת `max-width: 400px`, הוספת mobile compression ל-`.dash-table`.
+- [css/player-general.css](../css/player-general.css) — ~100 שורות: `.pg-leagues-table-wrapper`, sticky League column, matches cap rows, chart max-width, grid 1-col, tiles 2-col.
+- [css/index-dashboard.css](../css/index-dashboard.css) — mobile compression ל-`.leaderboard-table`, `.achv-table`, `.completed-leagues-table`, `.pdf-export-btn`.
+- [js/utils/helpers.js](../js/utils/helpers.js) — export `thLabel(full, abbr)`.
+- [js/render/leaguePage.js](../js/render/leaguePage.js) — `cols` עם `abbr`: G/W/L/WR%/PR/Lv/Lk/#/PRW/Pts/APts.
+- [js/render/playerPage.js](../js/render/playerPage.js) — Opp/Sc/PR/oPR/Lk/Res/Pts.
+- [js/render/dashboardPage.js](../js/render/dashboardPage.js) — Top5, Historical, Predictor, What-If, Round, Remaining.
+- [js/render/playerGeneralPage.js](../js/render/playerGeneralPage.js) — reorder Rank→col 4, wrapper חדש, cap 25 + expand button, dual-label ב-4 טבלאות.
+- [js/render/landingPage.js](../js/render/landingPage.js) — Date/League/T/Win headers.
+- [js/admin/leagueManager.js](../js/admin/leagueManager.js) — inline dual-span ב-admin leagues table.
+
+### סיכון ידוע
+- **זום 2.0× על 1440** (= 720px effective) לא מפעיל את ה-breakpoint של 640px ולכן ה-wrapper עובר ל-scroll אופקי פנימי ללא sticky. זה התנהגות desktop-tablet צפויה; המשתמש זקוק לזום 2.3× לפחות כדי להפעיל את ה-mobile mode. אם יש צורך ב-sticky באזור ה-720–960 — נדרשת הרחבת ה-breakpoint או רולינג סטיקי חדש לdesktop overflow.
+
+---
+
 ## שלב 7 — Editorial Chess design direction
 
 **מטרה:** כיוון עיצובי חדש — typography + theme renames + masthead header.
@@ -371,7 +423,8 @@ Pages: index.html, league.html, player.html, dashboard.html, admin.html → Leag
 | — | **עצירה — audit gates עוברים** | | | ✅ |
 | 5 | Admin drawer (C4) | 2 שעות | בינוני (component חדש) | ✅ הושלם |
 | 6 | Mobile polish (H6) | 1 שעה | נמוך | ✅ הושלם |
-| 6.5 | Mobile layout + zoom (card view ≤640px, disable sticky, scrollbar framing) | 4–6 שעות | בינוני (theme יחיד, טלפון בלבד) | ✅ הושלם |
+| 6.5 | Mobile layout + zoom (card view ≤640px, disable sticky, scrollbar framing) | 4–6 שעות | בינוני (theme יחיד, טלפון בלבד) | 🔄 הוחלף ע"י 6.6 |
+| 6.6 | Mobile Matrix + Compression (replaces 6.5) — matrix layout, font compression, dual-label headers, conditional sticky | 3–4 שעות | בינוני | ✅ הושלם (2026-04-16, ראה [mobile-design-roadmap-2026-04.md](mobile-design-roadmap-2026-04.md)) |
 | 7 | Editorial Chess | יומיים+ | גבוה (עיצוב מחדש) | ⏭️ גרסה עתידית |
 
 **סה"כ עד ה-gate:** כ-4 שעות עבודה.

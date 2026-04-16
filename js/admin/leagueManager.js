@@ -81,7 +81,7 @@ function renderLeagueList(container, leagues, displayOrder) {
         <div class="admin-card">
             <table class="admin-table">
                 <thead>
-                    <tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Issue Date</th><th scope="col">Status</th><th scope="col">Actions</th></tr>
+                    <tr><th scope="col"><span class="th-full">Name</span><span class="th-abbr">Name</span></th><th scope="col"><span class="th-full">Type</span><span class="th-abbr">T</span></th><th scope="col"><span class="th-full">Issue Date</span><span class="th-abbr">Date</span></th><th scope="col"><span class="th-full">Status</span><span class="th-abbr">Stat</span></th><th scope="col"><span class="th-full">Actions</span><span class="th-abbr">Act</span></th></tr>
                 </thead>
                 <tbody>${rows}</tbody>
             </table>

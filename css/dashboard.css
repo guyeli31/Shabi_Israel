@@ -498,7 +498,10 @@
 }
 
 .prizes-table {
-    max-width: 400px;
+    max-width: 100%;
+}
+@media (min-width: 641px) {
+    .prizes-table { max-width: 400px; }
 }
 .prizes-table td,
 .prizes-table th {
