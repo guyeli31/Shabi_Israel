@@ -62,7 +62,7 @@ export async function renderDashboardPage() {
         const statusSpan = document.createElement('span');
         statusSpan.style.cssText = 'margin-left:10px;vertical-align:middle;font-size:0.75rem;';
         statusSpan.innerHTML = params.Running
-            ? '<span class="status-pill status-running">Active</span>'
+            ? '<span class="status-pill status-running">Running</span>'
             : '<span class="status-pill status-completed">Completed</span>';
         titleEl.appendChild(statusSpan);
 
@@ -179,7 +179,7 @@ function applyOverridesToAll(matches, overrides) {
 
 function installLeagueNavArrows(leagueId, allParams, currentType) {
     if (!allParams || allParams.length === 0) return;
-    // Filter to same league type only — preserves chronological order from leagues_order.json
+    // Filter to same league type only — preserves chronological order from landing_settings.json
     const sameType = allParams.filter(({ params }) => (params.LeagueType || 'doubling') === currentType);
     const folders = sameType.map(({ id }) => id);
     const idx = folders.indexOf(leagueId);
@@ -346,11 +346,13 @@ function renderSummaryCards(ctx) {
 
     const cards = [
         { label: 'League Type', value: typeLabel },
-        { label: 'Games Played', value: `${matchStats.playedMatches} / ${matchStats.totalMatches}` },
-        { label: 'Average PR', value: avgPR },
+        { label: 'Games Played', value: `${matchStats.playedMatches} / ${matchStats.totalMatches}` }
+    ];
+    if (leagueConfig.showPR) cards.push({ label: 'Average PR', value: avgPR });
+    cards.push(
         { label: 'Leading Player', value: leaderHtml },
         { label: 'Start Date', value: startDate }
-    ];
+    );
 
     const cardsHost = document.getElementById('dash-cards');
     cardsHost.innerHTML = cards.map(c => `
@@ -465,10 +467,11 @@ function drawHistTable(ctx, dateValue) {
 
     let html = `<table class="dash-table"><thead><tr><th scope="col">${thLabel('Rank','#')}</th><th scope="col" class="player-col">${thLabel('Player','Player')}</th><th scope="col">${thLabel('Games','G')}</th><th scope="col">${thLabel('Wins','W')}</th><th scope="col">${thLabel('Losses','L')}</th>`;
     if (leagueConfig.showWinRate) html += `<th scope="col">${thLabel('Win Rate','WR%')}</th>`;
+    if (leagueConfig.showPRWins) html += `<th scope="col">${thLabel('PR Wins','PRW')}</th><th scope="col">${thLabel('Avg Points','APts')}</th>`;
     if (leagueConfig.showPR) html += `<th scope="col">${thLabel('Mean PR','PR')}</th>`;
     html += '</tr></thead><tbody>';
     if (top.length === 0) {
-        html += `<tr><td colspan="7" style="text-align:center;color:var(--color-text-muted)">No matches played yet</td></tr>`;
+        html += `<tr><td colspan="9" style="text-align:center;color:var(--color-text-muted)">No matches played yet</td></tr>`;
     }
     for (const r of top) {
         const flagCode = getFlagCode(r.player, params.CustomFlags);
@@ -477,6 +480,7 @@ function drawHistTable(ctx, dateValue) {
             <td class="player-cell" data-label="Player"><img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
             <td data-label="Games">${r.games}</td><td data-label="Wins">${r.wins}</td><td data-label="Losses">${r.losses}</td>`;
         if (leagueConfig.showWinRate) html += `<td data-label="Win Rate">${r.winRate != null ? formatPercent(r.winRate) : 'N/A'}</td>`;
+        if (leagueConfig.showPRWins) html += `<td data-label="PR Wins">${r.prWins != null ? r.prWins : 'N/A'}</td><td data-label="Avg Points">${r.avgPoints != null ? formatNumber(r.avgPoints) : 'N/A'}</td>`;
         if (leagueConfig.showPR) html += `<td data-label="Mean PR">${r.meanPR != null ? formatNumber(r.meanPR) : 'N/A'}</td>`;
         html += '</tr>';
     }
@@ -874,7 +878,7 @@ function renderWhatIfSimulator(ctx) {
                     <table class="whatif-table">
                         <thead><tr>
                             <th scope="col">#</th><th scope="col">Player</th><th scope="col">G</th><th scope="col">W</th><th scope="col">L</th>
-                            <th scope="col">${prHeader}</th><th scope="col">Championship %</th>
+                            <th scope="col">${prHeader === 'Mean PR' ? 'PR' : prHeader}</th><th scope="col">Champ%</th>
                         </tr></thead>
                         <tbody>${rows}</tbody>
                     </table>`;

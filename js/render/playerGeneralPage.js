@@ -417,8 +417,8 @@ async function showAchievementType(body, playerName, type) {
             ${tile('🥇', 'Gold', m.goldRank, m.self.gold, '', 'gold')}
             ${tile('🥈', 'Silver', m.silverRank, m.self.silver, '', 'silver')}
             ${tile('🥉', 'Bronze', m.bronzeRank, m.self.bronze, '', 'bronze')}
-            ${tile('📊', 'Avg Rank', m.avgRankRank, isFinite(m.self.avgRank) ? m.self.avgRank.toFixed(1) : '—', `<div class="pg-tile-sub">${m.self.participations} league${m.self.participations === 1 ? '' : 's'}</div>`, 'avgRank')}
             ${tile('🏆', 'Win Rate', m.winRateRank, (m.self.winRate * 100).toFixed(1) + '%', `<div class="pg-tile-sub">${m.self.totalWins}W / ${m.self.totalGames}G</div>`, 'winRate')}
+            ${tile('📊', 'Avg Rank', m.avgRankRank, isFinite(m.self.avgRank) ? m.self.avgRank.toFixed(1) : '—', `<div class="pg-tile-sub">${m.self.participations} league${m.self.participations === 1 ? '' : 's'}</div>`, 'avgRank')}
         </div>
         <div class="pg-rank-expanded" hidden></div>
     `;
@@ -460,7 +460,7 @@ function renderLeaguesTable(section, perLeague) {
             <tr>
                 <td><a href="${dashboardUrl(e.league.id)}">${escapeHtml(e.league.title)}</a></td>
                 <td><span class="pg-lt pg-lt-${escapeHtml(e.league.leagueType)}">${escapeHtml(e.league.leagueType)}</span></td>
-                <td>${running ? '<span class="status-pill running">Running</span>' : '<span class="status-pill completed">Completed</span>'}</td>
+                <td>${running ? '<span class="status-pill status-running">Running</span>' : '<span class="status-pill status-completed">Completed</span>'}</td>
                 <td class="${e.playerRank === 1 ? 'rank-cell-gold' : e.playerRank === 2 ? 'rank-cell-silver' : e.playerRank === 3 ? 'rank-cell-bronze' : ''}">${e.playerRank != null ? `${e.playerRank} / ${e.totalPlayers}` : '—'}</td>
                 <td>${s.games || 0}</td>
                 <td>${s.wins || 0}</td>

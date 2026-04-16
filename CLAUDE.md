@@ -30,7 +30,7 @@ No build step — pure vanilla HTML/CSS/JS running in the browser. Deployed on G
 - `theme.css` — Data-driven color classes
 
 ### Data (`leagues/`)
-- `leagues_order.json` — Display order of leagues (source of truth for league discovery)
+- `landing_settings.json` — Title, subtitle, logo path, and display order of leagues (source of truth for league discovery)
 - Each league folder contains `leaguedata.csv` and `league_params.json`
 
 ## Development
@@ -45,7 +45,7 @@ No build, no dependencies, no package.json. All JS uses ES modules (`type="modul
 ## Key Conventions
 
 - League IDs in URLs = folder names under `leagues/` (e.g., "Shabi Israel April 2026")
-- `leagues_order.json` titles use " - " (dash), folder names use " " (space) — `landingPage.js` handles the mapping
+- `landing_settings.json` `DisplayOrder` titles use " - " (dash), folder names use " " (space) — `landingPage.js` handles the mapping
 - Default flag is IL (Israel); custom flags per player are in `league_params.json` → `CustomFlags`
 - League types (`LeagueType` in `league_params.json`): `"doubling"` (default — WinRate ranking), `"regular"` (wins-only, no PR/Luck), `"ubc"` (PR Wins + Points system). Config logic lives in `compute/leagueTypes.js`
 - Rankings sort varies by league type: Doubling = WinRate DESC then MeanPR ASC; Regular = Wins DESC; UBC = Avg Points DESC then MeanPR ASC

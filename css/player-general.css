@@ -336,7 +336,7 @@
     margin-bottom: 12px;
 }
 .pg-tab {
-    background: none;
+    background: transparent;
     border: none;
     padding: 8px 14px;
     cursor: pointer;
@@ -344,10 +344,18 @@
     font-weight: 600;
     color: var(--color-text-muted);
     border-bottom: 2px solid transparent;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.pg-tab:hover:not(.active) {
+    color: var(--color-text-secondary);
+    background: var(--color-hover);
 }
 .pg-tab.active {
-    color: var(--accent-color, #1c4e80);
-    border-bottom-color: var(--accent-color, #1c4e80);
+    color: var(--color-accent);
+    border-bottom-color: var(--color-accent);
+    background: var(--color-accent-light);
 }
 .pg-tiles {
     display: grid;
@@ -498,21 +506,6 @@
 .rank-cell-silver { color: var(--color-silver-text, #475569); font-weight: 600; }
 .rank-cell-bronze { color: var(--color-bronze-text, #b45309); font-weight: 600; }
 
-.status-pill.running {
-    background: #2ecc40;
-    color: white;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 0.75rem;
-}
-.status-pill.completed {
-    background: #aaa;
-    color: white;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 0.75rem;
-}
-
 /* Leagues table wrapper — horizontal scroll on overflow */
 .pg-leagues-table-wrapper {
     width: 100%;
@@ -628,4 +621,8 @@
     .pg-tiles { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .pg-tile-value { font-size: 1.35rem; }
     .pg-tile { padding: 8px 10px; }
+
+    /* Fix 9 (mobile): force Win Rate (4th tile) to start row 3 col 1
+       so Avg Rank (5th tile) sits to its right on the same row. */
+    .pg-tiles > .pg-tile-block:nth-child(4) { grid-column-start: 1; }
 }

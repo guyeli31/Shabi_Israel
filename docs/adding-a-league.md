@@ -52,12 +52,15 @@ Create `league_params.json` inside the folder:
 
 Available flag codes: `IL` (default), `TZ`, `RU`, `BE`, `UN`.
 
-### 4. Register the league — `leagues_order.json`
+### 4. Register the league — `landing_settings.json`
 
-Add the league title to `leagues/leagues_order.json` in the desired display position:
+Add the league title to the `DisplayOrder` array in `leagues/landing_settings.json` in the desired display position:
 
 ```json
 {
+  "title": "Shabi Israel",
+  "subtitle": "By Marcel Dana and Avshalom Yaish",
+  "logoPath": "assets/logo/logo.png",
   "DisplayOrder": [
     "Shabi Israel - May 2026",
     "Shabi Israel - April 2026",

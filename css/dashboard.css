@@ -757,6 +757,7 @@
     border: 2px dashed var(--color-accent);
     border-radius: var(--radius-md);
     background: var(--color-surface);
+    overflow-x: auto;
 }
 
 .whatif-ribbon {
@@ -782,29 +783,33 @@
 .whatif-table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
 }
 .whatif-table thead th {
     background: transparent;
     color: var(--color-text-muted);
     text-transform: uppercase;
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     letter-spacing: 0.5px;
-    padding: var(--space-xs) var(--space-sm);
+    padding: var(--space-xs) 4px;
     border-bottom: 2px dashed var(--color-border);
 }
 .whatif-table tbody td {
     text-align: center;
-    padding: var(--space-xs) var(--space-sm);
+    padding: var(--space-xs) 4px;
     border-bottom: 1px dashed var(--color-border);
-    font-size: 0.9rem;
+    font-size: 0.78rem;
     font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .whatif-table tbody td.player-cell {
     text-align: left;
     font-style: normal;
 }
 
-.whatif-pct-cell { width: 140px; }
+.whatif-pct-cell { width: 90px; }
 .whatif-pct-bar {
     position: relative;
     background:
@@ -817,11 +822,11 @@
             rgba(255,255,255,0.06) 8px
         );
     border-radius: var(--radius-sm);
-    padding: 2px 8px;
+    padding: 2px 6px;
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: 0.78rem;
     text-align: right;
-    min-width: 60px;
+    min-width: 40px;
     font-style: italic;
 }
 

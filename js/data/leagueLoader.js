@@ -9,30 +9,15 @@ const LEAGUES_BASE = 'leagues';
 
 /**
  * Load full landing settings (title, subtitle, logo, display order).
- * Tries landing_settings.json first, falls back to leagues_order.json.
  */
 export async function loadLandingSettings() {
-    try {
-        const resp = await fetch(`${LEAGUES_BASE}/landing_settings.json`);
-        if (resp.ok) {
-            const data = await resp.json();
-            return {
-                title: data.title || 'Shabi Israel',
-                subtitle: data.subtitle || '',
-                logoPath: data.logoPath || 'assets/logo/logo.png',
-                displayOrder: data.DisplayOrder || []
-            };
-        }
-    } catch { /* fall through */ }
-
-    // Fallback to legacy leagues_order.json
-    const resp = await fetch(`${LEAGUES_BASE}/leagues_order.json`);
-    if (!resp.ok) throw new Error('Failed to load league order');
+    const resp = await fetch(`${LEAGUES_BASE}/landing_settings.json`);
+    if (!resp.ok) throw new Error('Failed to load landing settings');
     const data = await resp.json();
     return {
-        title: 'Shabi Israel',
-        subtitle: 'By Marcel Dana and Avshalom Yaish',
-        logoPath: 'assets/logo/logo.png',
+        title: data.title || 'Shabi Israel',
+        subtitle: data.subtitle || '',
+        logoPath: data.logoPath || 'assets/logo/logo.png',
         displayOrder: data.DisplayOrder || []
     };
 }

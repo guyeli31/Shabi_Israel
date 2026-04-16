@@ -44,7 +44,7 @@ Open `http://localhost:3000` in your browser. On Windows, double-click `start.ba
 ```
 User opens page
   → JS reads URL query parameters
-  → Fetches leagues_order.json (or specific league CSV + JSON)
+  → Fetches landing_settings.json (or specific league CSV + JSON)
   → csvParser.js parses raw CSV into match objects
   → stats.js computes per-player statistics
   → rankings.js sorts players, assigns ranks and skill levels

@@ -186,16 +186,17 @@ function enterEditMode(settings) {
     document.querySelectorAll('.nav-search, .nav-search-wrapper').forEach(el => el.style.display = 'none');
 
     // Block in-page navigation while editing — only embedded admin sidebar
-    // links (which live outside .page-container) should remain functional.
-    const pc = document.querySelector('.page-container');
+    // links should remain functional. Covers .page-container AND .site-nav
+    // (whose "Shabi Israel" home link + league dropdown would otherwise
+    // navigate away and drop ?edit=1, exiting edit mode).
     const guard = (e) => {
         const a = e.target.closest('a');
         if (!a) return;
-        if (!pc.contains(a)) return;
+        if (!a.closest('.page-container, .site-nav')) return;
         e.preventDefault();
         e.stopPropagation();
     };
-    pc.addEventListener('click', guard, true);
+    document.addEventListener('click', guard, true);
     _editState._clickGuard = guard;
 }
 
@@ -241,8 +242,7 @@ function exitEditMode() {
     document.querySelectorAll('.nav-search, .nav-search-wrapper').forEach(el => el.style.display = '');
 
     if (_editState && _editState._clickGuard) {
-        const pc = document.querySelector('.page-container');
-        if (pc) pc.removeEventListener('click', _editState._clickGuard, true);
+        document.removeEventListener('click', _editState._clickGuard, true);
     }
 
     _editState = null;
@@ -519,16 +519,6 @@ async function saveEditChanges() {
         type: 'update',
         path: 'leagues/landing_settings.json',
         content: JSON.stringify(newSettings, null, 2),
-        description: groupDescription,
-        group: groupId,
-        groupDescription
-    });
-
-    // Also keep leagues_order.json in sync for backwards compatibility
-    addChange({
-        type: 'update',
-        path: 'leagues/leagues_order.json',
-        content: JSON.stringify({ DisplayOrder: _editState.displayOrder }, null, 2),
         description: groupDescription,
         group: groupId,
         groupDescription
@@ -980,12 +970,12 @@ function renderLeaderboards(container, leaderboards) {
         const showAvgPoints = lb.isUBC;
         const collapsed = lb.year >= currentYear ? '' : ' collapsed';
 
-        // Header row
+        // Header row (full label desktop, abbreviated mobile)
         let thMonths = lb.months.map(m => `<th scope="col" class="month-col">${m}</th>`).join('');
-        let thExtra = `<th scope="col" class="total-col">Total</th>`;
-        if (showWinRate) thExtra += `<th scope="col">Win Rate</th>`;
-        if (showAvgPoints) thExtra += `<th scope="col">Avg Pts</th>`;
-        thExtra += `<th scope="col">Mean PR</th>`;
+        let thExtra = `<th scope="col" class="total-col"><span class="th-full">Total</span><span class="th-abbr">Tot</span></th>`;
+        if (showWinRate) thExtra += `<th scope="col"><span class="th-full">Win Rate</span><span class="th-abbr">WR</span></th>`;
+        if (showAvgPoints) thExtra += `<th scope="col"><span class="th-full">Avg Pts</span><span class="th-abbr">APts</span></th>`;
+        thExtra += `<th scope="col"><span class="th-full">Mean PR</span><span class="th-abbr">PR</span></th>`;
 
         // Data rows
         let rowsHtml = '';
@@ -1159,9 +1149,9 @@ async function exportLeaderboardImage(lb, title, maxRows) {
 
 const TYPE_ORDER = ['doubling', 'regular', 'ubc'];
 const ACHIEVEMENT_METRICS = [
-    { key: 'gold',    label: 'Gold',     fmt: v => v },
-    { key: 'silver',  label: 'Silver',   fmt: v => v },
-    { key: 'bronze',  label: 'Bronze',   fmt: v => v },
+    { key: 'gold',    label: 'Gold',     medal: '🥇', fmt: v => v },
+    { key: 'silver',  label: 'Silver',   medal: '🥈', fmt: v => v },
+    { key: 'bronze',  label: 'Bronze',   medal: '🥉', fmt: v => v },
     { key: 'avgRank', label: 'Avg Rank', fmt: v => formatNumber(v) },
     { key: 'winRate', label: 'Avg Win Rate', fmt: v => formatPercent(v) }
 ];
@@ -1243,9 +1233,10 @@ function renderAchievementTables(data) {
                 <td>${m.fmt(r.value)}</td>
             </tr>
         `).join('');
+        const heading = m.medal ? `${m.medal} ${m.label}` : m.label;
         return `
             <div class="achv-table-card">
-                <h3>${m.label}</h3>
+                <h3>${heading}</h3>
                 <div class="achv-table-wrapper">
                     <table class="achv-table">
                         <thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">${m.label}</th></tr></thead>

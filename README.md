@@ -18,4 +18,4 @@ Then open `http://localhost:8080` in your browser.
 
 1. Create a folder under `leagues/` with the league name (e.g., `Shabi Israel May 2026`)
 2. Add `leaguedata.csv` with match data and `league_params.json` with configuration
-3. Add the league title to `leagues/leagues_order.json` in the desired display position
+3. Add the league title to `leagues/landing_settings.json` (`DisplayOrder` array) in the desired display position

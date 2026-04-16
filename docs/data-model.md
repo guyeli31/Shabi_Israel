@@ -1,11 +1,14 @@
 # Data Model
 
-## League Discovery — `leagues_order.json`
+## League Discovery — `landing_settings.json`
 
-The file `leagues/leagues_order.json` is the **single source of truth** for which leagues exist and their display order.
+The file `leagues/landing_settings.json` is the **single source of truth** for which leagues exist, their display order, and the landing page chrome (title, subtitle, logo).
 
 ```json
 {
+  "title": "Shabi Israel",
+  "subtitle": "By Marcel Dana and Avshalom Yaish",
+  "logoPath": "assets/logo/logo.png",
   "DisplayOrder": [
     "Shabi Israel - April 2026",
     "Shabi Israel - March 2026",
@@ -14,7 +17,7 @@ The file `leagues/leagues_order.json` is the **single source of truth** for whic
 }
 ```
 
-**Title-to-folder mapping:** Titles in this file use `" - "` (space-dash-space), but the actual folder names use a plain space. The landing page converts titles to folder names via:
+**Title-to-folder mapping:** Titles in `DisplayOrder` use `" - "` (space-dash-space), but the actual folder names use a plain space. The landing page converts titles to folder names via:
 
 ```
 "Shabi Israel - April 2026"  →  "Shabi Israel April 2026"

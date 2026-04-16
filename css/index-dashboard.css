@@ -897,17 +897,19 @@ body:has(.edit-bar) .theme-picker {
     .leaderboard-table td {
         padding: 3px 4px;
         white-space: nowrap;
+        font-size: 0.65rem;
     }
     .leaderboard-table .month-col {
         min-width: 24px;
-        font-size: 0.6rem;
+        font-size: 0.65rem;
     }
     .leaderboard-table th.player-col,
     .leaderboard-table td.player-cell {
         padding-left: 4px;
-        max-width: 90px;
+        max-width: 110px;
         overflow: hidden;
         text-overflow: ellipsis;
+        font-size: 0.65rem;
     }
     .leaderboard-table .flag {
         height: 10px;

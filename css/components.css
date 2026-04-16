@@ -484,7 +484,7 @@ tr.retired {
     /* Matrix compression — small font, minimal padding, center */
     #leagueTable, #playerTable, .dash-table, .completed-leagues-table,
     .admin-table, .pg-rank-table, .pg-matches-table, .pg-mr-table {
-        font-size: 0.7rem;
+        font-size: 0.65rem;
         width: 100%;
         table-layout: auto;
     }
@@ -546,7 +546,7 @@ tr.retired {
     #playerTable tbody td:nth-child(n+3) {
         padding-left: 3px;
         padding-right: 3px;
-        font-size: 0.7rem;
+        font-size: 0.62rem;
     }
     #playerTable thead th:nth-child(1),
     #playerTable tbody td:nth-child(1) {
@@ -620,7 +620,14 @@ tr.retired {
     #leagueTable tr.avg-row td,
     #playerTable tr.avg-row td {
         padding: 3px 3px;
-        font-size: 0.7rem;
+        font-size: 0.65rem;
+    }
+    /* Fix 3: sticky cols on avg-row inherit surface bg from sticky rule above —
+       force avg-bg on sticky cells so the whole row reads consistently. */
+    #leagueTable tr.avg-row td:nth-child(1),
+    #leagueTable tr.avg-row td:nth-child(2),
+    #playerTable tr.avg-row td:nth-child(1) {
+        background: var(--color-avg-bg) !important;
     }
     #leagueTable tr.stat-row td,
     #playerTable tr.stat-row td {

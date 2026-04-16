@@ -18,7 +18,7 @@ Displays a list of all leagues with their current status and leader.
 
 ### Behavior
 
-- Loads `leagues_order.json` to get league list
+- Loads `landing_settings.json` to get league list (and landing page chrome)
 - Maps title format (`" - "`) to folder format (space) for fetching
 - Loads matches for each league in parallel to determine the leader
 - If a league fails to load, leader shows as empty

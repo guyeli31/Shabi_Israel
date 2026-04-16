@@ -4,7 +4,7 @@
 
 import { loadLeague } from '../data/leagueLoader.js';
 import { computeAllStats } from '../compute/stats.js';
-import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
+import { buildRankings, computeAverages, computeMatchStats, LEVELS } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { colorForValue, colorForValueInverted, colorForGames, colorForLevel } from '../compute/colorScale.js';
 import { getQueryParam, formatPercent, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl, thLabel } from '../utils/helpers.js';
@@ -217,16 +217,20 @@ function formatCell(key, value) {
 
 function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCount, bronzeCount, columns, leagueConfig, playersMeta = {}) {
     const retiredPlayers = params.RetiredPlayers || [];
-    // Determine best/worst for bold highlighting
-    const boldKeys = ['winRate', 'meanPR', 'luck', 'avgPoints'];
+    // Determine best/worst for bold highlighting — bold extremes in all
+    // numeric stat columns (semantics of best/worst don't matter for bolding;
+    // both min and max get emphasized so the eye catches the outliers).
+    const boldKeys = ['games', 'wins', 'losses', 'winRate', 'meanPR', 'luck', 'prWins', 'avgPoints'];
     const bestWorst = {};
     for (const key of boldKeys) {
         if (!extents[key]) continue;
         bestWorst[key] = { best: extents[key].max, worst: extents[key].min };
-        if (key === 'meanPR') {
-            bestWorst[key] = { best: extents[key].min, worst: extents[key].max };
-        }
     }
+
+    // Level edges: bold only the two extreme level labels (best + worst in
+    // the LEVELS ladder). If no player falls in either edge level, no cells
+    // in the Level column are bolded.
+    const levelEdges = new Set([LEVELS[0].label, LEVELS[LEVELS.length - 1].label]);
 
     let html = '';
     for (let i = 0; i < rankings.length; i++) {
@@ -283,7 +287,8 @@ function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCo
                     html += `<td class="level-cell" data-label="${lbl}">\u2014</td>`;
                 } else {
                     const levelColor = colorForLevel(r.level);
-                    html += `<td class="level-cell color-scaled" data-label="${lbl}" style="color:${levelColor}" data-pr="${r.meanPR}">${r.level}</td>`;
+                    const levelText = levelEdges.has(r.level) ? `<b>${r.level}</b>` : r.level;
+                    html += `<td class="level-cell color-scaled" data-label="${lbl}" style="color:${levelColor}" data-pr="${r.meanPR}">${levelText}</td>`;
                 }
             } else {
                 const value = r[col.key];
@@ -422,6 +427,13 @@ async function exportLeagueTableImage(title) {
     tableClone.querySelectorAll('tr.avg-row, tr.stat-row').forEach(tr => {
         tr.style.position = 'static';
         tr.style.bottom = 'auto';
+    });
+    // Sticky cells (Rank/Player) pin to the viewport inside the offscreen
+    // fixed wrapper, which visually scrambles the column order in the PNG.
+    // Neutralize sticky positioning on the clone so the row flows naturally.
+    tableClone.querySelectorAll('thead th, tbody td').forEach(cell => {
+        cell.style.position = 'static';
+        cell.style.left = 'auto';
     });
     tableClone.style.width = tableWidth + 'px';
     const scroll = document.createElement('div');

@@ -529,8 +529,8 @@ function formatChangeDesc(change) {
         } else {
             type = 'CSV Import';
         }
-    } else if (path === 'leagues/leagues_order.json' || path === 'leagues/landing_settings.json') {
-        type = path.includes('landing') ? 'Landing Settings' : 'League Order';
+    } else if (path === 'leagues/landing_settings.json') {
+        type = 'Landing Settings';
         league = '';
         const addMatch = detail.match(/Add "(.+)" to/);
         const rmMatch = detail.match(/Remove "(.+)" from/);

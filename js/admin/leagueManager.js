@@ -17,6 +17,40 @@ const KNOWN_FLAGS = ['BE', 'IL', 'RU', 'TZ', 'UN'];
 let refreshBadgeFn = null;
 
 /**
+ * Convert any image file (jpg, png, gif, webp, heic, etc.) to a PNG base64 string.
+ * Uses Canvas to re-encode. HEIC works only where the browser can natively decode it
+ * (iOS 17+ Safari, recent Chrome on macOS) — falls back to a friendly error otherwise.
+ */
+async function fileToPngBase64(file) {
+    if (file.type === 'image/png' || /\.png$/i.test(file.name)) {
+        const buffer = await file.arrayBuffer();
+        return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    }
+
+    const url = URL.createObjectURL(file);
+    try {
+        const img = await new Promise((resolve, reject) => {
+            const im = new Image();
+            im.onload = () => resolve(im);
+            im.onerror = () => reject(new Error('decode-failed'));
+            im.src = url;
+        });
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const blob = await new Promise((resolve, reject) => {
+            canvas.toBlob(b => b ? resolve(b) : reject(new Error('encode-failed')), 'image/png');
+        });
+        const buffer = await blob.arrayBuffer();
+        return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    } finally {
+        URL.revokeObjectURL(url);
+    }
+}
+
+/**
  * Main entry: render the leagues admin view.
  */
 export async function renderLeagueAdmin(container, refreshBadge) {
@@ -224,7 +258,7 @@ async function renderAddLeagueForm(container, displayOrder) {
                         <label>Flag Code + PNG file</label>
                         <div style="display:flex;gap:var(--space-sm);align-items:center">
                             <input type="text" id="new-upload-flag-code" placeholder="XX" style="width:60px">
-                            <input type="file" id="new-upload-flag-file" accept=".png">
+                            <input type="file" id="new-upload-flag-file" accept="image/*">
                             <button class="btn btn-secondary btn-sm" id="new-upload-flag-btn">Upload</button>
                         </div>
                     </div>
@@ -314,16 +348,17 @@ async function renderAddLeagueForm(container, displayOrder) {
             return;
         }
         if (!fileInput.files || fileInput.files.length === 0) {
-            showMsg('new-flag-upload-msg', 'Select a PNG file.', 'error');
+            showMsg('new-flag-upload-msg', 'Select an image file.', 'error');
             return;
         }
         const file = fileInput.files[0];
-        if (!file.name.toLowerCase().endsWith('.png')) {
-            showMsg('new-flag-upload-msg', 'Only PNG files are accepted.', 'error');
+        let base64;
+        try {
+            base64 = await fileToPngBase64(file);
+        } catch {
+            showMsg('new-flag-upload-msg', 'Could not read this image. If it is a HEIC from iPhone, please share it as JPEG or PNG.', 'error');
             return;
         }
-        const buffer = await file.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
         addChange({
             type: 'create',
             path: `assets/flags/${code}.png`,
@@ -513,31 +548,21 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
         description: `Create CSV for: ${name}`
     });
 
-    // Update leagues_order.json + landing_settings.json
+    // Update landing_settings.json
     const newOrder = [name, ...displayOrder];
+    const settings = await loadLandingSettings();
+    settings.displayOrder = newOrder;
     addChange({
         type: 'update',
-        path: 'leagues/leagues_order.json',
-        content: JSON.stringify({ DisplayOrder: newOrder }, null, 2),
-        description: `Add "${name}" to league order`
+        path: 'leagues/landing_settings.json',
+        content: JSON.stringify({
+            title: settings.title,
+            subtitle: settings.subtitle,
+            logoPath: settings.logoPath,
+            DisplayOrder: settings.displayOrder
+        }, null, 2),
+        description: `Add "${name}" to landing settings`
     });
-
-    // Keep landing_settings.json in sync
-    try {
-        const settings = await loadLandingSettings();
-        settings.displayOrder = newOrder;
-        addChange({
-            type: 'update',
-            path: 'leagues/landing_settings.json',
-            content: JSON.stringify({
-                title: settings.title,
-                subtitle: settings.subtitle,
-                logoPath: settings.logoPath,
-                DisplayOrder: settings.displayOrder
-            }, null, 2),
-            description: `Add "${name}" to landing settings`
-        });
-    } catch { /* landing_settings.json may not exist yet */ }
 
     if (refreshBadgeFn) refreshBadgeFn();
 }
@@ -565,35 +590,23 @@ async function stageDeleteLeague(leagueId, title, displayOrder) {
         groupDescription
     });
 
-    // Update order
+    // Update order in landing_settings.json
     const newOrder = displayOrder.filter(t => t !== title);
+    const settings = await loadLandingSettings();
+    settings.displayOrder = newOrder;
     addChange({
         type: 'update',
-        path: 'leagues/leagues_order.json',
-        content: JSON.stringify({ DisplayOrder: newOrder }, null, 2),
-        description: `Remove "${title}" from league order`,
+        path: 'leagues/landing_settings.json',
+        content: JSON.stringify({
+            title: settings.title,
+            subtitle: settings.subtitle,
+            logoPath: settings.logoPath,
+            DisplayOrder: settings.displayOrder
+        }, null, 2),
+        description: `Remove "${title}" from landing settings`,
         group: groupId,
         groupDescription
     });
-
-    // Keep landing_settings.json in sync
-    try {
-        const settings = await loadLandingSettings();
-        settings.displayOrder = newOrder;
-        addChange({
-            type: 'update',
-            path: 'leagues/landing_settings.json',
-            content: JSON.stringify({
-                title: settings.title,
-                subtitle: settings.subtitle,
-                logoPath: settings.logoPath,
-                DisplayOrder: settings.displayOrder
-            }, null, 2),
-            description: `Remove "${title}" from landing settings`,
-            group: groupId,
-            groupDescription
-        });
-    } catch { /* landing_settings.json may not exist yet */ }
 
     if (refreshBadgeFn) refreshBadgeFn();
 }
@@ -767,7 +780,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                     <label>Flag Code + PNG file</label>
                     <div style="display:flex;gap:var(--space-sm);align-items:center">
                         <input type="text" id="upload-flag-code" placeholder="XX" style="width:60px">
-                        <input type="file" id="upload-flag-file" accept=".png">
+                        <input type="file" id="upload-flag-file" accept="image/*">
                         <button class="btn btn-secondary btn-sm" id="upload-flag-btn">Upload</button>
                     </div>
                 </div>
@@ -995,18 +1008,18 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                 return;
             }
             if (!fileInput.files || fileInput.files.length === 0) {
-                showMsg('flag-upload-msg', 'Select a PNG file.', 'error');
+                showMsg('flag-upload-msg', 'Select an image file.', 'error');
                 return;
             }
 
             const file = fileInput.files[0];
-            if (!file.name.endsWith('.png')) {
-                showMsg('flag-upload-msg', 'Only PNG files are accepted.', 'error');
+            let base64;
+            try {
+                base64 = await fileToPngBase64(file);
+            } catch {
+                showMsg('flag-upload-msg', 'Could not read this image. If it is a HEIC from iPhone, please share it as JPEG or PNG.', 'error');
                 return;
             }
-
-            const buffer = await file.arrayBuffer();
-            const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
 
             addChange({
                 type: 'create',

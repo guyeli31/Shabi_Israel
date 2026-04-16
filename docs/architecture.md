@@ -37,7 +37,7 @@
 │       └── helpers.js           URL params, formatting, flag paths
 │
 ├── leagues/
-│   ├── leagues_order.json       Display order of leagues (source of truth)
+│   ├── landing_settings.json    Title, subtitle, logo, display order of leagues (source of truth)
 │   └── <League Name>/
 │       ├── leaguedata.csv       Match data
 │       ├── league_params.json   League configuration (incl. StartDate, LeagueType)
