@@ -704,6 +704,14 @@
     flex: 1;
     min-width: 100px;
 }
+@media (max-width: 480px) {
+    .add-league-row {
+        flex-direction: column;
+    }
+    .add-league-row .form-group {
+        min-width: 0;
+    }
+}
 
 /* ---- Dashboard manager view ---- */
 .dashboard-manager-grid {

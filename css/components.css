@@ -135,6 +135,10 @@ tbody td {
 #leagueTable tbody tr.rank-bronze:hover td:nth-child(1),
 #leagueTable tbody tr.rank-bronze:hover td:nth-child(2) { background: var(--color-bronze-bg-hover); }
 
+#leagueTable tr.avg-row td:nth-child(1),
+#leagueTable tr.avg-row td:nth-child(2) {
+    background: var(--color-avg-bg) !important;
+}
 #leagueTable tr.avg-row td:first-child {
     left: 0;
     z-index: 3;

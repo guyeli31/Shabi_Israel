@@ -716,44 +716,44 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                     <small style="color:var(--color-text-muted)">${hidden ? 'Hidden from public' : 'Visible'}</small>
                 </div>
             </div>
-            <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
-                <div class="form-group" style="flex:1;min-width:80px">
+            <div class="add-league-row">
+                <div class="form-group">
                     <label for="edit-gold">Gold Count</label>
                     <input type="number" id="edit-gold" value="${goldCount}" min="0" max="20">
                 </div>
-                <div class="form-group" style="flex:1;min-width:80px">
+                <div class="form-group">
                     <label for="edit-silver">Silver Count</label>
                     <input type="number" id="edit-silver" value="${silverCount}" min="0" max="20">
                 </div>
-                <div class="form-group" style="flex:1;min-width:80px">
+                <div class="form-group">
                     <label for="edit-bronze">Bronze Count</label>
                     <input type="number" id="edit-bronze" value="${bronzeCount}" min="0" max="20">
                 </div>
             </div>
-            <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
-                <div class="form-group" style="flex:1;min-width:140px">
+            <div class="add-league-row">
+                <div class="form-group">
                     <label for="edit-issue-date">Issue Date</label>
                     <input type="date" id="edit-issue-date" value="${issueDate}">
                 </div>
-                <div class="form-group" style="flex:1;min-width:120px">
+                <div class="form-group">
                     <label for="edit-entry-fee">Entry Fee</label>
                     <input type="number" id="edit-entry-fee" value="${entryFee}" min="0" step="1">
                 </div>
-                <div class="form-group" style="flex:1;min-width:100px">
+                <div class="form-group">
                     <label for="edit-match-length">Match Length</label>
                     <input type="number" id="edit-match-length" value="${p.MatchLength || 7}" min="1" max="25" step="2">
                 </div>
             </div>
-            <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
-                <div class="form-group" style="flex:1;min-width:90px">
+            <div class="add-league-row">
+                <div class="form-group">
                     <label for="edit-prize-gold">Prize Gold</label>
                     <input type="number" id="edit-prize-gold" value="${prizes.Gold || 0}" min="0" step="1">
                 </div>
-                <div class="form-group" style="flex:1;min-width:90px">
+                <div class="form-group">
                     <label for="edit-prize-silver">Prize Silver</label>
                     <input type="number" id="edit-prize-silver" value="${prizes.Silver || 0}" min="0" step="1">
                 </div>
-                <div class="form-group" style="flex:1;min-width:90px">
+                <div class="form-group">
                     <label for="edit-prize-bronze">Prize Bronze</label>
                     <input type="number" id="edit-prize-bronze" value="${prizes.Bronze || 0}" min="0" step="1">
                 </div>
