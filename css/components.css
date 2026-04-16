@@ -171,9 +171,11 @@ tbody td {
 /* Games column is always ≤2 digits — narrow it */
 #leagueTable thead th:nth-child(3),
 #leagueTable tbody td:nth-child(3) {
-    width: 44px;
-    min-width: 44px;
-    max-width: 44px;
+    width: 36px;
+    min-width: 36px;
+    max-width: 36px;
+    padding-left: 3px;
+    padding-right: 3px;
 }
 #playerTable thead th:nth-child(1) {
     position: sticky;
@@ -454,7 +456,6 @@ tr.retired {
 
 /* ---- Level cell ---- */
 .level-cell {
-    font-weight: 700;
     letter-spacing: 0.3px;
 }
 

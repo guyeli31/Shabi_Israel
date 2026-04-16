@@ -61,6 +61,14 @@ export async function renderLeaguePage() {
         renderSummaryTable(container, rankings, averages, matchStats, params, leagueId, leagueConfig, playersMeta);
         setupSorting(rankings, averages, matchStats, params, leagueId, leagueConfig, playersMeta);
 
+        // Re-render table colors on theme change (colorScale reads isDarkTheme at render time)
+        window.addEventListener('themechange', () => {
+            sortAndRerender(rankings, averages, matchStats, params, leagueId,
+                currentSortCol >= 0 ? currentSortCol : 0,
+                currentSortCol >= 0 ? currentSortDir : 'asc',
+                leagueConfig, playersMeta);
+        });
+
         const exportBtn = document.getElementById('leagueExportBtn');
         if (exportBtn) {
             exportBtn.addEventListener('click', () => exportLeagueTableImage(title));
@@ -132,9 +140,10 @@ function renderSummaryTable(container, rankings, averages, matchStats, params, l
     const silverCount = params.SilverCount || 1;
     const bronzeCount = params.BronzeCount || 4;
 
-    const headerCells = columns.map((col, i) =>
-        `<th scope="col" data-col="${i}">${thLabel(col.label, col.abbr)} <span class="sort-icon">&#x25B2;</span></th>`
-    ).join('\n                        ');
+    const headerCells = columns.map((col, i) => {
+        if (i === 0) return `<th scope="col" data-col="${i}" style="cursor:default">${thLabel(col.label, col.abbr)}</th>`;
+        return `<th scope="col" data-col="${i}">${thLabel(col.label, col.abbr)} <span class="sort-icon">&#x25B2;</span></th>`;
+    }).join('\n                        ');
 
     let html = `
     <div class="img-export-group" style="margin-bottom:var(--space-sm);text-align:right">
@@ -170,11 +179,12 @@ function getRankClass(rank, goldCount, silverCount, bronzeCount) {
     return '';
 }
 
-function getMedalHtml(rank, goldCount, silverCount, bronzeCount) {
-    if (rank >= 1 && rank <= goldCount) return `<span class="medal medal-gold">${rank}</span>`;
-    if (rank > goldCount && rank <= goldCount + silverCount) return `<span class="medal medal-silver">${rank}</span>`;
-    if (rank > goldCount + silverCount && rank <= goldCount + silverCount + bronzeCount) return `<span class="medal medal-bronze">${rank}</span>`;
-    return rank;
+function getMedalHtml(rank, goldCount, silverCount, bronzeCount, displayPos) {
+    const show = displayPos !== undefined ? displayPos : rank;
+    if (rank >= 1 && rank <= goldCount) return `<span class="medal medal-gold">${show}</span>`;
+    if (rank > goldCount && rank <= goldCount + silverCount) return `<span class="medal medal-silver">${show}</span>`;
+    if (rank > goldCount + silverCount && rank <= goldCount + silverCount + bronzeCount) return `<span class="medal medal-bronze">${show}</span>`;
+    return show;
 }
 
 /**
@@ -219,7 +229,9 @@ function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCo
     }
 
     let html = '';
-    for (const r of rankings) {
+    for (let i = 0; i < rankings.length; i++) {
+        const r = rankings[i];
+        const displayPos = i + 1;
         const isUnplayed = r.winRate === null;
         const isRetired = retiredPlayers.includes(r.player);
         const rankClass = (isUnplayed ? 'unplayed' : getRankClass(r.originalRank, goldCount, silverCount, bronzeCount))
@@ -233,7 +245,7 @@ function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCo
             for (const col of columns) {
                 const lbl = col.label;
                 if (col.key === 'rank') {
-                    html += `<td data-label="${lbl}">${r.originalRank}</td>`;
+                    html += `<td data-label="${lbl}">${displayPos}</td>`;
                 } else if (col.key === 'player') {
                     const retiredMark = isRetired ? ' <span class="retired-mark" title="Retired">&#x1F6AA;</span>' : '';
                     const titleAbbrHtml = getTitleAbbreviationsHtml(playersMeta[r.player]);
@@ -258,7 +270,7 @@ function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCo
         for (const col of columns) {
             const lbl = col.label;
             if (col.key === 'rank') {
-                html += `<td data-label="${lbl}">${getMedalHtml(r.originalRank, goldCount, silverCount, bronzeCount)}</td>`;
+                html += `<td data-label="${lbl}">${getMedalHtml(r.originalRank, goldCount, silverCount, bronzeCount, displayPos)}</td>`;
             } else if (col.key === 'player') {
                 const retiredMark = isRetired ? ' <span class="retired-mark" title="Retired">&#x1F6AA;</span>' : '';
                 const titleAbbrHtml2 = getTitleAbbreviationsHtml(playersMeta[r.player]);
@@ -340,8 +352,9 @@ function setupSorting(rankings, averages, matchStats, params, leagueId, leagueCo
     if (!table) return;
 
     table.querySelectorAll('thead th').forEach(th => {
+        const col = parseInt(th.dataset.col);
+        if (col === 0) return; // Rank column is not sortable
         th.addEventListener('click', () => {
-            const col = parseInt(th.dataset.col);
             if (col === currentSortCol) {
                 currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
             } else {
@@ -399,7 +412,7 @@ async function exportLeagueTableImage(title) {
     const tableWidth = tableEl.offsetWidth;
 
     const wrap = document.createElement('div');
-    wrap.style.cssText = `position:fixed;left:-10000px;top:0;padding:24px;background:${themeBg};color:${themeColor};font-family:${themeFont};width:${tableWidth + 48}px;box-sizing:border-box;`;
+    wrap.style.cssText = `position:fixed;left:-10000px;top:0;padding:24px;background:${themeBg};color:${themeColor};font-family:${themeFont};width:${tableWidth + 48}px;box-sizing:border-box;direction:ltr;`;
     const heading = document.createElement('h3');
     heading.style.cssText = 'margin:0 0 12px 0;font-size:20px;';
     heading.textContent = title;
