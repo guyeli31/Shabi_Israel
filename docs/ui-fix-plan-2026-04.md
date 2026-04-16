@@ -400,6 +400,38 @@ Pages: index.html, league.html, player.html, dashboard.html, admin.html → Leag
 
 ---
 
+## שלב 6.6b — Admin Mobile Matrix + Cancel-Sidebar Persistence ✅ (2026-04-16)
+
+**תוכנית מקור:** `C:\Users\User\.claude\plans\federated-gliding-cat.md`
+
+### בעיות שנחשפו
+1. המשתמש דיווח: ה-mobile compression של 6.6 **לא תקף למסכי Admin** (Leagues tab, Edit League, New League). שורש הבעיה — [admin.html](../admin.html) לא טוען את `components.css` (רק `admin.css`), לכן כל ה-`@media (max-width: 640px)` של 6.6 לא מופעלים באדמין, והטבלה היחידה שכבר יש לה dual-span (league list) מציגה את שני הסיומות יחד כי ה-CSS toggle לא נטען.
+2. המשתמש דיווח (mobile + desktop): לחיצה על **Cancel** ב-Edit Mode של ה-Main Dashboard מסירה את ה-sidebar של ADMIN (`unmountAdminSidebar()` ב-[landingPage.js:234](../js/render/landingPage.js)), ולא נשארת דרך חזרה ל-admin.html.
+
+### מה בוצע
+- **A. Sidebar נשאר אחרי Cancel** — הוסר הקריאה ל-`unmountAdminSidebar()` מ-`exitEditMode()` ב-[js/render/landingPage.js](../js/render/landingPage.js); נוסף `history.replaceState` להסרת `?edit=1` מה-URL כך שרענון לא מחזיר ל-edit mode.
+- **B. בלוק mobile @media עצמאי ב-admin.css** — נוסף בסוף [css/admin.css](../css/admin.css): dual-label swap (`.th-full`/`.th-abbr`) + דחיסת `.admin-table` (font 0.7/0.65rem, padding 3/2px, inputs 0.7rem), `.add-league-grid` ל-1-col, `.form-group` flex:1 1 100%, `.admin-table-compact` עם `min-width:max-content` לגלילה אופקית של CSV editor.
+- **C. Dual-label headers ב-admin renderers** — `thLabel()` מיובא מ-[js/utils/helpers.js](../js/utils/helpers.js) ומוחל ב:
+  - [js/admin/leagueManager.js](../js/admin/leagueManager.js) — 3 טבלאות (League list 5-col, Add-League players 4-col, Edit-League players 4-col)
+  - [js/admin/csvEditor.js](../js/admin/csvEditor.js) — 2 טבלאות (Match editor 10-col עם אבריבציות PA/Lk/Sc/PB/Ed/Act, Overrides 5-col עם T/Match/Why/Date)
+
+### Verification
+- **Syntax** — `node --check` על 3 קבצי JS: עבר.
+- **Playwright אוטומטי** — נכשל (MCP browser במצב תקוע). המשתמש יבצע verification ידנית ב-375×812 במובייל על admin.html#leagues, Edit-League, Add-League, CSV editor.
+- **Cancel flow** — יש לוודא ידנית: `index.html?edit=1` → Cancel → `.admin-sidebar` עדיין קיים, `location.search` לא מכיל `edit=1`.
+
+### קבצים שהשתנו
+- [js/render/landingPage.js](../js/render/landingPage.js) — L234: הוסר unmount, נוסף URL cleanup; L20: הוסר import לא-בשימוש
+- [css/admin.css](../css/admin.css) — נוספו ~50 שורות mobile block בסוף הקובץ
+- [js/admin/leagueManager.js](../js/admin/leagueManager.js) — import `thLabel` + 3 שימושים
+- [js/admin/csvEditor.js](../js/admin/csvEditor.js) — import `thLabel` + 2 שימושים
+
+### סיכון ידוע
+- **CSV editor** (10 עמודות) נשאר על גלילה אופקית במובייל גם אחרי הדחיסה — זה by-design כי דחיסה אגרסיבית יותר תשבור את ה-inline inputs. שיפור עתידי אפשרי: card-per-match inline editor.
+- **Specificity** — `.admin-content .form-group { flex/min-width: ... !important }` עוקף inline styles בתוך `@media max-width:640px` בלבד; דסקטופ לא מושפע.
+
+---
+
 ## שלב 7 — Editorial Chess design direction
 
 **מטרה:** כיוון עיצובי חדש — typography + theme renames + masthead header.
@@ -425,6 +457,7 @@ Pages: index.html, league.html, player.html, dashboard.html, admin.html → Leag
 | 6 | Mobile polish (H6) | 1 שעה | נמוך | ✅ הושלם |
 | 6.5 | Mobile layout + zoom (card view ≤640px, disable sticky, scrollbar framing) | 4–6 שעות | בינוני (theme יחיד, טלפון בלבד) | 🔄 הוחלף ע"י 6.6 |
 | 6.6 | Mobile Matrix + Compression (replaces 6.5) — matrix layout, font compression, dual-label headers, conditional sticky | 3–4 שעות | בינוני | ✅ הושלם (2026-04-16, ראה [mobile-design-roadmap-2026-04.md](mobile-design-roadmap-2026-04.md)) |
+| 6.6b | Admin Mobile Matrix + Cancel-Sidebar Persistence — standalone admin.css mobile block, dual-label ב-admin renderers, sidebar נשאר אחרי Cancel | ~1.5 שעות | נמוך | ✅ הושלם (2026-04-16) |
 | 7 | Editorial Chess | יומיים+ | גבוה (עיצוב מחדש) | ⏭️ גרסה עתידית |
 
 **סה"כ עד ה-gate:** כ-4 שעות עבודה.

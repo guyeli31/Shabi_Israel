@@ -17,7 +17,7 @@ import { playerNameLink, attachPlayerNameInteractions } from './playerNameIntera
 import { isLoggedIn } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
 import { addChange, getChangeCount } from '../admin/stagingStore.js';
-import { mountAdminSidebar, unmountAdminSidebar, refreshBadge as refreshSidebarBadge } from '../admin/render/adminSidebar.js';
+import { mountAdminSidebar, refreshBadge as refreshSidebarBadge } from '../admin/render/adminSidebar.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { hasTitles, compareTitlePriority, getFullTitleDescription } from '../data/titleConstants.js';
 
@@ -231,7 +231,11 @@ function exitEditMode() {
     const bar = document.querySelector('.edit-bar');
     if (bar) bar.remove();
 
-    unmountAdminSidebar();
+    // Keep admin sidebar mounted so the admin can navigate back to admin.html.
+    // Strip ?edit=1 so a refresh returns to view mode instead of re-entering edit mode.
+    if (location.search.includes('edit=1')) {
+        history.replaceState({}, '', location.pathname + location.hash);
+    }
 
     // Restore search hidden during edit mode
     document.querySelectorAll('.nav-search, .nav-search-wrapper').forEach(el => el.style.display = '');

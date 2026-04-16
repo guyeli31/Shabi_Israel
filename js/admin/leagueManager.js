@@ -9,6 +9,7 @@ import { getAllPlayersFromCSV } from '../data/csvParser.js';
 import { renderCsvEditor } from './csvEditor.js';
 import { renderRemainingReport } from './remainingReport.js';
 import { ensurePlayerIndex } from '../render/navigation.js';
+import { thLabel } from '../utils/helpers.js';
 
 // Known flag codes (from assets/flags/)
 const KNOWN_FLAGS = ['BE', 'IL', 'RU', 'TZ', 'UN'];
@@ -81,7 +82,7 @@ function renderLeagueList(container, leagues, displayOrder) {
         <div class="admin-card">
             <table class="admin-table">
                 <thead>
-                    <tr><th scope="col"><span class="th-full">Name</span><span class="th-abbr">Name</span></th><th scope="col"><span class="th-full">Type</span><span class="th-abbr">T</span></th><th scope="col"><span class="th-full">Issue Date</span><span class="th-abbr">Date</span></th><th scope="col"><span class="th-full">Status</span><span class="th-abbr">Stat</span></th><th scope="col"><span class="th-full">Actions</span><span class="th-abbr">Act</span></th></tr>
+                    <tr><th scope="col">${thLabel('Name', 'Name')}</th><th scope="col">${thLabel('Type', 'T')}</th><th scope="col">${thLabel('Issue Date', 'Date')}</th><th scope="col">${thLabel('Status', 'Stat')}</th><th scope="col">${thLabel('Actions', 'Act')}</th></tr>
                 </thead>
                 <tbody>${rows}</tbody>
             </table>
@@ -231,7 +232,7 @@ async function renderAddLeagueForm(container, displayOrder) {
                 </div>
                 <div id="csv-source-msg" style="font-size:0.85rem;color:var(--color-text-muted);margin-bottom:var(--space-sm)"></div>
                 <table class="admin-table" id="new-players-table">
-                    <thead><tr><th scope="col">Name</th><th scope="col">Flag</th><th scope="col">Retired</th><th scope="col"></th></tr></thead>
+                    <thead><tr><th scope="col">${thLabel('Name', 'Name')}</th><th scope="col">${thLabel('Flag', 'Flag')}</th><th scope="col">${thLabel('Retired', 'Ret')}</th><th scope="col"></th></tr></thead>
                     <tbody></tbody>
                 </table>
             </div>
@@ -753,7 +754,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             <div id="players-msg"></div>
             <table class="admin-table">
                 <thead>
-                    <tr><th scope="col">Name</th><th scope="col">Flag</th><th scope="col">Retired</th><th scope="col"></th></tr>
+                    <tr><th scope="col">${thLabel('Name', 'Name')}</th><th scope="col">${thLabel('Flag', 'Flag')}</th><th scope="col">${thLabel('Retired', 'Ret')}</th><th scope="col"></th></tr>
                 </thead>
                 <tbody>${playerRows}</tbody>
             </table>

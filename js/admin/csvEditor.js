@@ -8,6 +8,7 @@
 import { loadLeagueMatchesAll, loadOverrides } from '../data/leagueLoader.js';
 import { addChange, getStagedContent } from './stagingStore.js';
 import { renderExcelImporter } from './excelImporter.js';
+import { thLabel } from '../utils/helpers.js';
 
 /**
  * Render the CSV editor for a league.
@@ -251,9 +252,9 @@ async function renderMatchEditor(container, leagueId, refreshBadge) {
                 <table class="admin-table admin-table-compact">
                     <thead>
                         <tr>
-                            <th scope="col">Player A</th><th scope="col">PR</th><th scope="col">Luck</th><th scope="col">Score</th>
-                            <th scope="col">Player B</th><th scope="col">PR</th><th scope="col">Luck</th><th scope="col">Score</th>
-                            <th scope="col">Edited</th><th scope="col">Actions</th>
+                            <th scope="col">${thLabel('Player A', 'PA')}</th><th scope="col">${thLabel('PR', 'PR')}</th><th scope="col">${thLabel('Luck', 'Lk')}</th><th scope="col">${thLabel('Score', 'Sc')}</th>
+                            <th scope="col">${thLabel('Player B', 'PB')}</th><th scope="col">${thLabel('PR', 'PR')}</th><th scope="col">${thLabel('Luck', 'Lk')}</th><th scope="col">${thLabel('Score', 'Sc')}</th>
+                            <th scope="col">${thLabel('Edited', 'Ed')}</th><th scope="col">${thLabel('Actions', 'Act')}</th>
                         </tr>
                     </thead>
                     <tbody id="match-table-body">${buildRows('')}</tbody>
@@ -416,7 +417,7 @@ async function renderOverridesList(container, leagueId, refreshBadge) {
         container.innerHTML = `
             <div id="overrides-msg"></div>
             <table class="admin-table">
-                <thead><tr><th scope="col">Type</th><th scope="col">Match</th><th scope="col">Reason</th><th scope="col">Date</th><th scope="col"></th></tr></thead>
+                <thead><tr><th scope="col">${thLabel('Type', 'T')}</th><th scope="col">${thLabel('Match', 'Match')}</th><th scope="col">${thLabel('Reason', 'Why')}</th><th scope="col">${thLabel('Date', 'Date')}</th><th scope="col"></th></tr></thead>
                 <tbody>${rows}</tbody>
             </table>`;
 

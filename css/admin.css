@@ -841,3 +841,51 @@
 .player-autocomplete li:hover {
     background: var(--color-hover);
 }
+
+/* ========================================================================
+   Step 6.6b — Mobile Matrix for Admin Pages
+   admin.html does NOT load components.css, so these rules are standalone.
+   ======================================================================== */
+
+/* Dual-label toggle (Step 6.6 pattern, standalone for admin-only pages) */
+.th-abbr { display: none; }
+
+@media (max-width: 640px) {
+    .th-full { display: none; }
+    .th-abbr { display: inline; }
+
+    /* Admin table compression — mirrors components.css values */
+    .admin-table {
+        font-size: 0.7rem;
+        width: 100%;
+        table-layout: auto;
+    }
+    .admin-table thead th {
+        padding: 3px 2px;
+        font-size: 0.65rem;
+        white-space: nowrap;
+    }
+    .admin-table tbody td {
+        padding: 2px 3px;
+    }
+    .admin-table tbody td input[type="text"],
+    .admin-table tbody td input[type="number"],
+    .admin-table tbody td select {
+        font-size: 0.7rem;
+        padding: 1px 3px;
+    }
+
+    /* Forms: add-league grid collapses to 1-col (also set at 768px) */
+    .add-league-grid { grid-template-columns: 1fr; }
+
+    /* Edit-league form uses inline flex-wrap with min-width:80-140px;
+       force each form-group to stack full-width on mobile */
+    .admin-content .form-group {
+        flex: 1 1 100% !important;
+        min-width: 0 !important;
+    }
+
+    /* CSV editor is 10 cols — stays on horizontal scroll (min-width:max-content) */
+    .admin-table-compact { min-width: max-content; }
+    .table-scroll { overflow-x: auto; }
+}
