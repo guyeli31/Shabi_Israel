@@ -1062,6 +1062,8 @@ function renderLeaderboards(container, leaderboards) {
         section.querySelector('.img-export-group').addEventListener('click', e => e.stopPropagation());
 
         container.appendChild(section);
+
+        section.querySelectorAll('.leaderboard-table').forEach(t => applyShowTopN(t));
     }
 }
 
@@ -1145,6 +1147,37 @@ async function exportLeaderboardImage(lb, title, maxRows) {
     }
 }
 
+/* ── Show-top-N helper (hides rows beyond N, adds toggle button) ── */
+
+function applyShowTopN(tableEl, defaultN = 5) {
+    const tbody = tableEl.querySelector('tbody');
+    if (!tbody) return;
+    const rows = tbody.querySelectorAll('tr');
+    if (rows.length <= defaultN) return;
+
+    rows.forEach((row, i) => {
+        if (i >= defaultN) row.classList.add('table-row-hidden');
+    });
+
+    const wrapper = tableEl.closest('.achv-table-wrapper') || tableEl.closest('.leaderboard-table-wrapper');
+    const savedMaxH = wrapper ? getComputedStyle(wrapper).maxHeight : '';
+
+    const btn = document.createElement('button');
+    btn.className = 'show-more-btn';
+    btn.textContent = `Show all (${rows.length})`;
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isCollapsed = rows[defaultN].classList.contains('table-row-hidden');
+        rows.forEach((row, i) => {
+            if (i >= defaultN) row.classList.toggle('table-row-hidden', !isCollapsed);
+        });
+        btn.textContent = isCollapsed ? `Show top ${defaultN}` : `Show all (${rows.length})`;
+        if (wrapper) wrapper.style.maxHeight = isCollapsed ? 'none' : '';
+    });
+
+    if (wrapper) wrapper.parentNode.insertBefore(btn, wrapper.nextSibling);
+}
+
 /* ── Achievements (all-time per league type) ─────────── */
 
 const TYPE_ORDER = ['doubling', 'regular', 'ubc'];
@@ -1217,6 +1250,7 @@ function renderAchievementsSection(container, presentTypes) {
         try {
             const data = await buildAllTimeRankings(t);
             panel.innerHTML = renderAchievementTables(data);
+            panel.querySelectorAll('.achv-table').forEach(t => applyShowTopN(t));
         } catch (err) {
             panel.innerHTML = `<div class="error">Failed to load: ${escapeHtml(err.message)}</div>`;
         }
@@ -1305,6 +1339,7 @@ function renderPRLeadersSection(container, presentTypes) {
         try {
             const data = await buildAllTimeRankings(t);
             panel.innerHTML = renderPRTables(data);
+            panel.querySelectorAll('.achv-table').forEach(t => applyShowTopN(t));
         } catch (err) {
             panel.innerHTML = `<div class="error">Failed to load: ${escapeHtml(err.message)}</div>`;
         }
@@ -1388,6 +1423,8 @@ function renderMatchRecordsSection(container, allLeagues, presentTypes) {
     });
 
     container.appendChild(section);
+
+    section.querySelectorAll('.achv-table').forEach(t => applyShowTopN(t));
 }
 
 function renderMatchRecordsTables(luckRows, prRows) {

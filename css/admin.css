@@ -707,10 +707,49 @@
 @media (max-width: 480px) {
     .add-league-row {
         flex-direction: column;
+        align-items: stretch !important;
     }
     .add-league-row .form-group {
         min-width: 0;
+        width: 100%;
+        text-align: left;
     }
+}
+
+/* ---- Custom file input (force English labels) ---- */
+.custom-file-input {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+.custom-file-input input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+.custom-file-input .file-btn {
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    color: var(--color-text);
+}
+.custom-file-input .file-btn:hover {
+    background: var(--color-bg);
+}
+.custom-file-input .file-name {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
 }
 
 /* ---- Dashboard manager view ---- */

@@ -231,7 +231,11 @@ async function renderAddLeagueForm(container, displayOrder) {
                     <div class="form-group">
                         <label for="upload-csv">Upload CSV / Excel</label>
                         <div style="display:flex;gap:var(--space-sm);align-items:center">
-                            <input type="file" id="upload-csv" accept=".csv,.xlsx">
+                            <div class="custom-file-input" style="flex:1">
+                                <label class="file-btn" for="upload-csv">Choose File</label>
+                                <input type="file" id="upload-csv" accept=".csv,.xlsx">
+                                <span class="file-name" data-for="upload-csv">No file chosen</span>
+                            </div>
                             <button class="btn btn-secondary btn-sm" id="upload-csv-btn">Load File</button>
                         </div>
                     </div>
@@ -258,7 +262,11 @@ async function renderAddLeagueForm(container, displayOrder) {
                         <label>Flag Code + PNG file</label>
                         <div style="display:flex;gap:var(--space-sm);align-items:center">
                             <input type="text" id="new-upload-flag-code" placeholder="XX" style="width:60px">
-                            <input type="file" id="new-upload-flag-file" accept="image/*">
+                            <div class="custom-file-input" style="flex:1">
+                                <label class="file-btn" for="new-upload-flag-file">Choose File</label>
+                                <input type="file" id="new-upload-flag-file" accept="image/*">
+                                <span class="file-name" data-for="new-upload-flag-file">No file chosen</span>
+                            </div>
                             <button class="btn btn-secondary btn-sm" id="new-upload-flag-btn">Upload</button>
                         </div>
                     </div>
@@ -319,6 +327,14 @@ async function renderAddLeagueForm(container, displayOrder) {
     function setCsvSourceMsg(msg) {
         document.getElementById('csv-source-msg').textContent = msg || '';
     }
+
+    // Custom file input labels
+    container.querySelectorAll('.custom-file-input input[type="file"]').forEach(inp => {
+        inp.addEventListener('change', () => {
+            const span = inp.parentElement.querySelector('.file-name');
+            if (span) span.textContent = inp.files.length ? inp.files[0].name : 'No file chosen';
+        });
+    });
 
     // Cancel
     const cancel = () => renderLeagueAdmin(container, refreshBadgeFn);
@@ -780,7 +796,11 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                     <label>Flag Code + PNG file</label>
                     <div style="display:flex;gap:var(--space-sm);align-items:center">
                         <input type="text" id="upload-flag-code" placeholder="XX" style="width:60px">
-                        <input type="file" id="upload-flag-file" accept="image/*">
+                        <div class="custom-file-input" style="flex:1">
+                            <label class="file-btn" for="upload-flag-file">Choose File</label>
+                            <input type="file" id="upload-flag-file" accept="image/*">
+                            <span class="file-name" data-for="upload-flag-file">No file chosen</span>
+                        </div>
                         <button class="btn btn-secondary btn-sm" id="upload-flag-btn">Upload</button>
                     </div>
                 </div>
@@ -844,6 +864,14 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     // Back
     document.getElementById('back-to-leagues').addEventListener('click', () => {
         renderLeagueAdmin(container, refreshBadgeFn);
+    });
+
+    // Custom file input labels (edit form)
+    container.querySelectorAll('.custom-file-input input[type="file"]').forEach(inp => {
+        inp.addEventListener('change', () => {
+            const span = inp.parentElement.querySelector('.file-name');
+            if (span) span.textContent = inp.files.length ? inp.files[0].name : 'No file chosen';
+        });
     });
 
     // Save settings
