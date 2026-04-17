@@ -48,6 +48,12 @@
     gap: 8px;
     flex-wrap: wrap;
 }
+.pg-badges-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
 .pg-player-alias {
     font-size: 0.85rem;
     color: var(--color-text-muted);
@@ -533,6 +539,38 @@
  * MOBILE (≤640px) — Step 6.6 compression for player-general
  * ============================================================ */
 @media (max-width: 640px) {
+    /* Player card header — stack vertically, compact badges */
+    .pg-header-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+    .pg-header-text {
+        align-items: center;
+    }
+    .pg-name-line {
+        justify-content: center;
+    }
+    .pg-avatar {
+        width: 64px;
+        height: 64px;
+    }
+    .pg-badges-line {
+        justify-content: center;
+    }
+    .pg-bmab-badge {
+        font-size: 0.65rem;
+        padding: 2px 7px;
+        letter-spacing: 0.02em;
+    }
+    .pg-champ-badge {
+        font-size: 0.65rem;
+        padding: 3px 14px;
+        letter-spacing: 0.02em;
+    }
+    .flag-title {
+        height: 18px;
+    }
+
     /* Chart never wider than viewport */
     .pg-chart-host {
         max-width: 100%;

@@ -78,6 +78,9 @@ export async function renderPlayerPage() {
         const highestTier = getHighestTier(meta);
 
         // Build header matching general card style
+        const badgesHtml = (titleBadgesHtml || retiredBadge)
+            ? `<div class="pg-badges-line">${titleBadgesHtml}${retiredBadge}</div>`
+            : '';
         const pageTitle = document.getElementById('page-title');
         pageTitle.innerHTML = `
             <div class="pg-header-row">
@@ -86,9 +89,8 @@ export async function renderPlayerPage() {
                     <div class="pg-name-line">
                         ${flagHtml} ${dotHtml}
                         <a class="player-name-link pg-player-name" href="${playerGeneralUrl(playerName)}" title="Open general player card">${escapeHtml(playerName)}</a>
-                        ${titleBadgesHtml}
-                        ${retiredBadge}
                     </div>
+                    ${badgesHtml}
                     ${aliasHtml}
                 </div>
             </div>

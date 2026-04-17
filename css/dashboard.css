@@ -844,3 +844,101 @@
 .whatif-expand-btn:hover {
     color: var(--color-text);
 }
+
+/* ── Mobile: compact predictor & what-if tables ──────── */
+@media (max-width: 640px) {
+    /* Predictor table */
+    #predictor-section thead th {
+        font-size: 0.68rem;
+        padding: var(--space-xs) 2px;
+    }
+    #predictor-section tbody td {
+        font-size: 0.75rem;
+        padding: var(--space-xs) 2px;
+    }
+    #predictor-section tbody td.player-cell {
+        max-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .predictor-pct-cell { width: 62px; }
+    .predictor-pct-bar {
+        font-size: 0.7rem;
+        padding: 2px 4px;
+        min-width: 32px;
+    }
+
+    /* What-If table */
+    .whatif-table thead th {
+        font-size: 0.6rem;
+        padding: 3px 2px;
+    }
+    .whatif-table tbody td {
+        font-size: 0.68rem;
+        padding: 3px 2px;
+    }
+    .whatif-table tbody td.player-cell {
+        max-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .whatif-pct-cell { width: 52px; }
+    .whatif-pct-bar {
+        font-size: 0.65rem;
+        padding: 1px 3px;
+        min-width: 28px;
+    }
+
+    /* Shrink flags in simulation tables */
+    #predictor-section .flag,
+    .whatif-table .flag {
+        width: 14px;
+        height: 10px;
+        margin-right: 2px;
+    }
+
+    /* UBC scroll wrappers — sticky # and Player columns */
+    .predictor-scroll-wrap,
+    .whatif-scroll-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .predictor-scroll-wrap table,
+    .whatif-scroll-wrap table {
+        table-layout: auto;
+        min-width: 480px;
+    }
+    .predictor-scroll-wrap th:nth-child(-n+2),
+    .predictor-scroll-wrap td:nth-child(-n+2),
+    .whatif-scroll-wrap th:nth-child(-n+2),
+    .whatif-scroll-wrap td:nth-child(-n+2) {
+        position: sticky;
+        background: var(--color-surface, #1a1a2e);
+        z-index: 2;
+    }
+    .predictor-scroll-wrap th:nth-child(1),
+    .predictor-scroll-wrap td:nth-child(1),
+    .whatif-scroll-wrap th:nth-child(1),
+    .whatif-scroll-wrap td:nth-child(1) {
+        left: 0;
+        min-width: 22px;
+    }
+    .predictor-scroll-wrap th:nth-child(2),
+    .predictor-scroll-wrap td:nth-child(2),
+    .whatif-scroll-wrap th:nth-child(2),
+    .whatif-scroll-wrap td:nth-child(2) {
+        left: 22px;
+        min-width: 80px;
+        max-width: 100px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        border-right: 1px solid var(--color-border);
+    }
+    .predictor-scroll-wrap thead th:nth-child(-n+2),
+    .whatif-scroll-wrap thead th:nth-child(-n+2) {
+        z-index: 3;
+    }
+}

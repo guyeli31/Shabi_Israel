@@ -2,6 +2,13 @@
  * championshipPredictor.js — Monte Carlo / Exact simulation engine
  * for predicting championship win probabilities.
  *
+ * Simulation strategy by league type:
+ *   - Doubling / Regular: Exact enumeration (≤20 matches) or Monte Carlo (>20).
+ *     PR win points are deterministic (not used in scoring).
+ *   - UBC: Always Monte Carlo. PR win points are probabilistic — each player's
+ *     per-match PR is modeled as N(mean, std) and the PR win outcome is sampled
+ *     via the normal CDF: P(A wins PR) = Φ((μB−μA) / √(σA²+σB²)).
+ *
  * Pure compute module: no DOM, no async.
  */
 
@@ -68,6 +75,32 @@ function getWinProbability(prA, prB, mlIdx) {
         return (100 - pctBetter) / 100;
     }
 }
+
+// ── Normal CDF & PR-win probability ────────────────────────────────
+// Abramowitz & Stegun rational approximation of the standard normal CDF.
+const A1 = 0.254829592, A2 = -0.284496736, A3 = 1.421413741;
+const A4 = -1.453152027, A5 = 1.061405429, P_COEFF = 0.3275911;
+
+function normalCDF(x) {
+    const sign = x < 0 ? -1 : 1;
+    const ax = Math.abs(x);
+    const t = 1 / (1 + P_COEFF * ax);
+    const y = 1 - ((((A5 * t + A4) * t + A3) * t + A2) * t + A1) * t * Math.exp(-ax * ax / 2);
+    return 0.5 * (1 + sign * y);
+}
+
+/**
+ * Probability that player A wins the PR point (lower PR wins).
+ * Models each player's match PR as N(mean, std).
+ * P(X_A < X_B) = Phi((meanB - meanA) / sqrt(stdA^2 + stdB^2))
+ */
+function prWinProbability(meanA, stdA, meanB, stdB) {
+    const denom = Math.sqrt(stdA * stdA + stdB * stdB);
+    if (denom === 0) return meanA <= meanB ? 1 : 0;
+    return normalCDF((meanB - meanA) / denom);
+}
+
+const DEFAULT_PR_STD = 2.0;
 
 /**
  * Determine the champion index from simulated final standings.
@@ -150,15 +183,15 @@ function simulateMonteCarlo(setup, N) {
                 simWins[a]++;
                 if (isUBC) {
                     simPoints[a] += 1; // match win point
-                    // PR win point goes deterministically
-                    if (remainingPRWinA[m]) simPoints[a] += 1;
+                    // PR win point — sampled from probability distribution
+                    if (Math.random() < remainingPRWinA[m]) simPoints[a] += 1;
                     else simPoints[b] += 1;
                 }
             } else {
                 simWins[b]++;
                 if (isUBC) {
                     simPoints[b] += 1; // match win point
-                    if (remainingPRWinA[m]) simPoints[a] += 1;
+                    if (Math.random() < remainingPRWinA[m]) simPoints[a] += 1;
                     else simPoints[b] += 1;
                 }
             }
@@ -270,7 +303,7 @@ function simulateExact(setup) {
  * @param {Array} params.remainingMatches - Unplayed match objects [{playerA, playerB, ...}]
  * @param {number} params.matchLength     - Target score (e.g. 7)
  * @param {Object} params.leagueConfig    - From getLeagueConfig
- * @param {Map} params.last300Map         - Map<player, last300PR>
+ * @param {Map} params.last300Map         - Map<player, {mean, std}> from batchLast300PR
  * @param {Set} params.allPlayers         - Set of all player names
  * @returns {Object} { rankings, moe, method, iterations }
  */
@@ -287,7 +320,8 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
     const currentWins = new Int32Array(n);
     const currentGames = new Int32Array(n);
     const currentPoints = new Int32Array(n);
-    const leagueMeanPR = new Float64Array(n); // league mean PR (0 if no data)
+    const leagueMeanPR = new Float64Array(n);
+    const leaguePRStd = new Float64Array(n);
 
     for (let i = 0; i < n; i++) {
         const stats = statsMap.get(players[i]);
@@ -296,22 +330,37 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
             currentGames[i] = stats.games || 0;
             currentPoints[i] = stats.points || 0;
             leagueMeanPR[i] = stats.meanPR || 0;
+            leaguePRStd[i] = stats.prStd || 0;
         }
+    }
+
+    // Extract mean and std from last300Map entries.
+    // last300Map values are {mean, std} objects.
+    function getLast300(playerName) {
+        if (!last300Map.has(playerName)) return null;
+        const entry = last300Map.get(playerName);
+        if (entry == null) return null;
+        // Backward compat: plain number → treat as mean-only
+        if (typeof entry === 'number') return { mean: entry, std: DEFAULT_PR_STD };
+        return entry;
     }
 
     // Effective PR for win-probability lookup: Last-300 PR represents the
     // player's true strength, so it drives per-match probabilities regardless
-    // of current-league form. League meanPR is only a fallback when no
-    // historical data exists; it influences the tiebreaker via the weighted
-    // blend below, not the probability lookup.
+    // of current-league form.
     const effectivePR = new Float64Array(n);
+    const effectiveSTD = new Float64Array(n);
     for (let i = 0; i < n; i++) {
-        if (last300Map.has(players[i]) && last300Map.get(players[i]) != null) {
-            effectivePR[i] = last300Map.get(players[i]);
+        const entry = getLast300(players[i]);
+        if (entry) {
+            effectivePR[i] = entry.mean;
+            effectiveSTD[i] = entry.std || DEFAULT_PR_STD;
         } else if (leagueMeanPR[i] > 0) {
             effectivePR[i] = leagueMeanPR[i];
+            effectiveSTD[i] = leaguePRStd[i] || DEFAULT_PR_STD;
         } else {
             effectivePR[i] = 10.0;
+            effectiveSTD[i] = DEFAULT_PR_STD;
         }
     }
 
@@ -327,15 +376,15 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
 
     const tiebreakerPR = new Float64Array(n);
     for (let i = 0; i < n; i++) {
-        const last300 = (last300Map.has(players[i]) && last300Map.get(players[i]) != null)
-            ? last300Map.get(players[i]) : effectivePR[i];
+        const entry = getLast300(players[i]);
+        const last300Mean = entry ? entry.mean : effectivePR[i];
         const played = currentGames[i];
         const rem = remainingCount[i];
         const total = played + rem;
         if (total > 0 && played > 0) {
-            tiebreakerPR[i] = (leagueMeanPR[i] * played + last300 * rem) / total;
+            tiebreakerPR[i] = (leagueMeanPR[i] * played + last300Mean * rem) / total;
         } else {
-            tiebreakerPR[i] = last300;
+            tiebreakerPR[i] = last300Mean;
         }
     }
 
@@ -344,7 +393,9 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
     const remainingA = new Int32Array(X);
     const remainingB = new Int32Array(X);
     const remainingProbA = new Float64Array(X);
-    const remainingPRWinA = new Uint8Array(X); // 1 if player A has better PR
+    // UBC: probability A wins the PR point (via normal CDF).
+    // Non-UBC: deterministic binary (not used in scoring).
+    const remainingPRWinA = isUBC ? new Float64Array(X) : new Uint8Array(X);
 
     for (let m = 0; m < X; m++) {
         const match = remainingMatches[m];
@@ -354,7 +405,15 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
         remainingA[m] = ai;
         remainingB[m] = bi;
         remainingProbA[m] = getWinProbability(effectivePR[ai], effectivePR[bi], mlIdx);
-        remainingPRWinA[m] = effectivePR[ai] <= effectivePR[bi] ? 1 : 0;
+        if (isUBC) {
+            // Probabilistic: P(A's PR < B's PR) using normal distributions
+            remainingPRWinA[m] = prWinProbability(
+                effectivePR[ai], effectiveSTD[ai],
+                effectivePR[bi], effectiveSTD[bi]
+            );
+        } else {
+            remainingPRWinA[m] = effectivePR[ai] <= effectivePR[bi] ? 1 : 0;
+        }
     }
 
     const setup = {
@@ -364,11 +423,17 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
     };
 
     // Choose method and run
+    // UBC always uses Monte Carlo — PR win outcomes are probabilistic and
+    // cannot be correctly enumerated with exact brute-force.
     let champWins;
     let method;
     let iterations;
 
-    if (X > 20) {
+    if (isUBC && X > 0) {
+        iterations = Math.max(Math.floor(50_000_000 / X), 100_000);
+        method = 'montecarlo';
+        champWins = simulateMonteCarlo(setup, iterations);
+    } else if (X > 20) {
         iterations = Math.floor(50_000_000 / X);
         method = 'montecarlo';
         champWins = simulateMonteCarlo(setup, iterations);
@@ -397,7 +462,9 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
             wins: stats ? stats.wins : 0,
             losses: stats ? stats.losses : 0,
             meanPR: stats ? stats.meanPR : null,
-            winRate: stats ? stats.winRate : null
+            winRate: stats ? stats.winRate : null,
+            points: stats ? (stats.points || 0) : 0,
+            avgPoints: stats ? stats.avgPoints : null
         };
     });
 

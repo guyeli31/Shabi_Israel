@@ -49,3 +49,7 @@ No build, no dependencies, no package.json. All JS uses ES modules (`type="modul
 - Default flag is IL (Israel); custom flags per player are in `league_params.json` → `CustomFlags`
 - League types (`LeagueType` in `league_params.json`): `"doubling"` (default — WinRate ranking), `"regular"` (wins-only, no PR/Luck), `"ubc"` (PR Wins + Points system). Config logic lives in `compute/leagueTypes.js`
 - Rankings sort varies by league type: Doubling = WinRate DESC then MeanPR ASC; Regular = Wins DESC; UBC = Avg Points DESC then MeanPR ASC
+
+## Plan Mode
+
+When in Plan Mode, present the plan concisely and focused — use short bullet points, avoid lengthy explanations, and get straight to the actionable steps.

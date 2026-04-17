@@ -232,11 +232,15 @@ function renderShell() {
                 <p>The predictor simulates all remaining matches to estimate each player's probability of winning the championship.</p>
                 <h4>Simulation Method</h4>
                 <ul>
-                    <li><b>Exact enumeration</b> is used when ≤20 matches remain — every possible outcome combination (2<sup>N</sup> scenarios) is evaluated with its exact probability weight.</li>
-                    <li><b>Monte Carlo simulation</b> is used when &gt;20 matches remain — millions of random season outcomes are sampled to approximate the probabilities.</li>
+                    <li><b>Doubling / Regular leagues:</b> <b>Exact enumeration</b> when ≤20 matches remain (every 2<sup>N</sup> outcome is evaluated with its exact probability weight); <b>Monte Carlo</b> when &gt;20 remain.</li>
+                    <li><b>UBC leagues:</b> Always <b>Monte Carlo</b> — because PR-win outcomes are probabilistic (see below), exact enumeration would require 4<sup>N</sup> scenarios and is not feasible.</li>
                 </ul>
                 <h4>Win Probability Per Match</h4>
                 <p>Each match outcome is determined by the PR gap between the two players, using each player's <b>Last-300 PR</b> (their calibrated strength over the last 300 rated matches) — not their current league performance. A calibrated lookup table maps the rounded PR difference to a win probability for the stronger (lower-PR) player; for gaps beyond 10, linear extrapolation from rows 9–10 is applied and clamped to [50%, 99.9%]. If a player has no Last-300 PR, their current league mean PR is used as a fallback (or 10.0 if neither exists). Current-league mean PR only influences the <b>tiebreaker</b> — see "Determining the Champion".</p>
+                <h4>PR Win Point (UBC only)</h4>
+                <p>In UBC leagues, each match awards up to 2 points: 1 for match win + 1 for <b>PR win</b> (lower PR in the match). The predictor models each player's per-match PR as a normal distribution N(μ, σ) using their Last-300 mean and standard deviation. The probability that player A wins the PR point is:</p>
+                <p style="text-align:center"><code><b>P(A wins PR) = Φ((μ<sub>B</sub> − μ<sub>A</sub>) / √(σ<sub>A</sub>² + σ<sub>B</sub>²))</b></code></p>
+                <p>where Φ is the standard normal CDF. This correctly captures that a small PR advantage does <i>not</i> guarantee the PR point — it only shifts the probability. When fewer than 3 matches are available for STD estimation, a default of 2.0 is used.</p>
                 <h4>Determining the Champion</h4>
                 <p>After simulating all remaining matches, the final standings are ranked using the league's scoring rules (Win Rate, Points, etc.). The tiebreaker is a <b>blended Mean PR</b>: games already played contribute at the player's current league mean PR, while remaining games are assumed to be played at the player's Last-300 PR level (reflecting regression toward true strength, lower is better). The championship percentage shows how often each player finishes 1st across all simulated seasons.</p>
                 <h4>Margin of Error</h4>
@@ -555,6 +559,7 @@ async function renderPredictor(ctx) {
 
         // Render table
         const showPR = ctx.leagueConfig.showPR;
+        const showPRWins = ctx.leagueConfig.showPRWins;
         let expanded = false;
         const renderTable = (full) => {
             const data = full ? result.rankings : result.rankings.slice(0, 5);
@@ -562,12 +567,17 @@ async function renderPredictor(ctx) {
                 const flagCode = getFlagCode(r.player, ctx.params.CustomFlags);
                 const pct = r.championshipPct;
                 const barColor = pct > 20 ? 'var(--color-success)' : pct > 5 ? 'var(--color-warning)' : 'var(--color-text-muted)';
+                let ubcCols = '';
+                if (showPRWins) {
+                    ubcCols = `<td>${r.points}</td><td>${r.avgPoints != null ? formatNumber(r.avgPoints) : '—'}</td>`;
+                }
                 return `<tr>
                     <td>${i + 1}</td>
                     <td class="player-cell"><img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
                     <td>${r.games}</td>
                     <td>${r.wins}</td>
                     <td>${r.losses}</td>
+                    ${ubcCols}
                     <td>${showPR ? (r.meanPR != null ? formatNumber(r.meanPR) : '—') : (r.winRate != null ? formatPercent(r.winRate) : '—')}</td>
                     <td class="predictor-pct-cell">
                         <div class="predictor-pct-bar" style="--pct:${Math.min(pct, 100)}%;--bar-color:${barColor}">
@@ -578,14 +588,22 @@ async function renderPredictor(ctx) {
             }).join('');
 
             const prHeader = showPR ? 'Mean PR' : 'Win Rate';
+            let ubcHeaders = '';
+            if (showPRWins) {
+                ubcHeaders = `<th scope="col">${thLabel('Points','Pts')}</th><th scope="col">${thLabel('Avg Points','APts')}</th>`;
+            }
+            const scrollClass = showPRWins ? ' predictor-scroll-wrap' : '';
             host.innerHTML = `
+                <div class="${scrollClass}">
                 <table>
                     <thead><tr>
                         <th scope="col">#</th><th scope="col">${thLabel('Player','Player')}</th><th scope="col">G</th><th scope="col">W</th><th scope="col">L</th>
+                        ${ubcHeaders}
                         <th scope="col">${thLabel(prHeader, prHeader === 'Mean PR' ? 'PR' : prHeader)}</th><th scope="col">${thLabel('Championship %','Ch%')}</th>
                     </tr></thead>
                     <tbody>${rows}</tbody>
-                </table>`;
+                </table>
+                </div>`;
             attachPlayerNameInteractions(host, ctx.leagueId);
         };
 
@@ -851,6 +869,7 @@ function renderWhatIfSimulator(ctx) {
             }
 
             const showPR = ctx.leagueConfig.showPR;
+            const showPRWins = ctx.leagueConfig.showPRWins;
             let expanded = false;
             const renderTable = (full) => {
                 const data = full ? result.rankings : result.rankings.slice(0, 5);
@@ -858,12 +877,17 @@ function renderWhatIfSimulator(ctx) {
                     const flagCode = getFlagCode(r.player, ctx.params.CustomFlags);
                     const pct = r.championshipPct;
                     const barColor = pct > 20 ? 'var(--color-success)' : pct > 5 ? 'var(--color-warning)' : 'var(--color-text-muted)';
+                    let ubcCols = '';
+                    if (showPRWins) {
+                        ubcCols = `<td>${r.points}</td><td>${r.avgPoints != null ? formatNumber(r.avgPoints) : '—'}</td>`;
+                    }
                     return `<tr>
                         <td>${i + 1}</td>
                         <td class="player-cell"><img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
                         <td>${r.games}</td>
                         <td>${r.wins}</td>
                         <td>${r.losses}</td>
+                        ${ubcCols}
                         <td>${showPR ? (r.meanPR != null ? formatNumber(r.meanPR) : '—') : (r.winRate != null ? formatPercent(r.winRate) : '—')}</td>
                         <td class="whatif-pct-cell">
                             <div class="whatif-pct-bar" style="--pct:${Math.min(pct, 100)}%;--bar-color:${barColor}">
@@ -874,14 +898,22 @@ function renderWhatIfSimulator(ctx) {
                 }).join('');
 
                 const prHeader = showPR ? 'Mean PR' : 'Win Rate';
+                let ubcHeaders = '';
+                if (showPRWins) {
+                    ubcHeaders = `<th scope="col">${thLabel('Points','Pts')}</th><th scope="col">${thLabel('Avg Points','APts')}</th>`;
+                }
+                const scrollClass = showPRWins ? ' whatif-scroll-wrap' : '';
                 tableHost.innerHTML = `
+                    <div class="${scrollClass}">
                     <table class="whatif-table">
                         <thead><tr>
-                            <th scope="col">#</th><th scope="col">Player</th><th scope="col">G</th><th scope="col">W</th><th scope="col">L</th>
-                            <th scope="col">${prHeader === 'Mean PR' ? 'PR' : prHeader}</th><th scope="col">Champ%</th>
+                            <th scope="col">#</th><th scope="col">${thLabel('Player','Player')}</th><th scope="col">G</th><th scope="col">W</th><th scope="col">L</th>
+                            ${ubcHeaders}
+                            <th scope="col">${thLabel(prHeader, prHeader === 'Mean PR' ? 'PR' : prHeader)}</th><th scope="col">${thLabel('Champ%','Ch%')}</th>
                         </tr></thead>
                         <tbody>${rows}</tbody>
-                    </table>`;
+                    </table>
+                    </div>`;
                 attachPlayerNameInteractions(tableHost, ctx.leagueId);
             };
 

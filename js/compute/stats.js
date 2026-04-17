@@ -26,7 +26,7 @@ export function computeAllStats(matches, allPlayers) {
             if (!statsMap.has(player)) {
                 statsMap.set(player, {
                     games: 0, wins: 0, losses: 0,
-                    winRate: null, meanPR: null, highestPR: null,
+                    winRate: null, meanPR: null, prStd: null, highestPR: null,
                     lowestPR: null, oppMeanPR: null, luck: null,
                     prWins: 0, points: null, avgPoints: null
                 });
@@ -93,6 +93,7 @@ function computePlayerStats(matches, playerName) {
 
     const hasPR = prValues.length > 0;
     const meanPR = hasPR ? mean(prValues) : null;
+    const prStd = prValues.length >= 3 ? stdDev(prValues) : null;
     const highestPR = hasPR ? Math.max(...prValues) : null;
     const lowestPR = hasPR ? Math.min(...prValues) : null;
     const oppMeanPR = hasPR ? mean(oppPrValues) : null;
@@ -101,10 +102,16 @@ function computePlayerStats(matches, playerName) {
 
     const avgPoints = games > 0 ? points / games : null;
 
-    return { games, wins, losses, winRate, meanPR, highestPR, lowestPR, oppMeanPR, luck, prWins, points, avgPoints };
+    return { games, wins, losses, winRate, meanPR, prStd, highestPR, lowestPR, oppMeanPR, luck, prWins, points, avgPoints };
 }
 
 function mean(arr) {
     if (arr.length === 0) return 0;
     return arr.reduce((sum, v) => sum + v, 0) / arr.length;
+}
+
+function stdDev(arr) {
+    const avg = mean(arr);
+    const variance = arr.reduce((sum, v) => sum + (v - avg) ** 2, 0) / arr.length;
+    return Math.sqrt(variance);
 }

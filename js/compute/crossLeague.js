@@ -645,12 +645,23 @@ export async function batchLast300PR(playerNames, leagueType) {
         });
 
         let wsum = 0, vsum = 0;
+        const prVals = [];
         for (const m of all) {
             vsum += m.prSelf * weight;
             wsum += weight;
+            prVals.push(m.prSelf);
             if (wsum >= 300) break;
         }
-        result.set(name, wsum > 0 ? vsum / wsum : null);
+        if (wsum > 0) {
+            const mean = vsum / wsum;
+            let std = 2.0; // default when insufficient data
+            if (prVals.length >= 3) {
+                const avg = prVals.reduce((s, v) => s + v, 0) / prVals.length;
+                const variance = prVals.reduce((s, v) => s + (v - avg) ** 2, 0) / prVals.length;
+                std = Math.sqrt(variance) || 2.0;
+            }
+            result.set(name, { mean, std });
+        }
     }
     return result;
 }

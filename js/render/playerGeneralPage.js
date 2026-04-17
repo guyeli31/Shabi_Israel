@@ -175,6 +175,9 @@ function renderHeader(playerName, perLeague, meta = {}) {
     // Highest tier for name color styling
     const highestTier = getHighestTier(meta);
 
+    const badgesHtml = titleBadgesHtml
+        ? `<div class="pg-badges-line">${titleBadgesHtml}</div>`
+        : '';
     title.innerHTML = `
         <div class="pg-header-row">
             ${avatarHtml}
@@ -182,8 +185,8 @@ function renderHeader(playerName, perLeague, meta = {}) {
                 <div class="pg-name-line">
                     ${flagsHtml} ${dot}
                     <span class="pg-player-name">${escapeHtml(displayName)}</span>
-                    ${titleBadgesHtml}
                 </div>
+                ${badgesHtml}
                 ${aliasHtml}
             </div>
         </div>
