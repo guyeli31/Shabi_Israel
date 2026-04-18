@@ -691,6 +691,93 @@
     width: 100%;
 }
 
+/* ── Match Records: 4-col horizontal sticky (# | Player | Metric | Opponent) ── */
+.match-records-table {
+    --mr-col1-w: 36px;
+    --mr-col2-w: 140px;
+    --mr-col3-w: 70px;
+    --mr-col4-w: 140px;
+}
+.match-records-table thead th:nth-child(1),
+.match-records-table tbody td:nth-child(1) {
+    width: var(--mr-col1-w);
+    min-width: var(--mr-col1-w);
+    max-width: var(--mr-col1-w);
+}
+.match-records-table thead th:nth-child(2),
+.match-records-table tbody td:nth-child(2) {
+    width: var(--mr-col2-w);
+    min-width: var(--mr-col2-w);
+    max-width: var(--mr-col2-w);
+}
+.match-records-table thead th:nth-child(3),
+.match-records-table tbody td:nth-child(3) {
+    width: var(--mr-col3-w);
+    min-width: var(--mr-col3-w);
+    max-width: var(--mr-col3-w);
+}
+.match-records-table thead th:nth-child(4),
+.match-records-table tbody td:nth-child(4) {
+    width: var(--mr-col4-w);
+    min-width: var(--mr-col4-w);
+    max-width: var(--mr-col4-w);
+}
+
+/* tbody sticky cells — use surface background */
+.match-records-table tbody td:nth-child(1) {
+    position: sticky; left: 0; z-index: 3;
+    background: var(--color-surface);
+}
+.match-records-table tbody td:nth-child(2) {
+    position: sticky; left: var(--mr-col1-w); z-index: 2;
+    background: var(--color-surface);
+}
+.match-records-table tbody td:nth-child(3) {
+    position: sticky;
+    left: calc(var(--mr-col1-w) + var(--mr-col2-w));
+    z-index: 2;
+    background: var(--color-surface);
+}
+.match-records-table tbody td:nth-child(4) {
+    position: sticky;
+    left: calc(var(--mr-col1-w) + var(--mr-col2-w) + var(--mr-col3-w));
+    z-index: 2;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+}
+
+/* thead sticky cells — header row already sticky top:0; add left-sticky + higher z */
+.match-records-table thead th:nth-child(1) {
+    position: sticky; left: 0; top: 0; z-index: 5;
+    background: var(--color-surface);
+}
+.match-records-table thead th:nth-child(2) {
+    position: sticky; left: var(--mr-col1-w); top: 0; z-index: 4;
+    background: var(--color-surface);
+}
+.match-records-table thead th:nth-child(3) {
+    position: sticky;
+    left: calc(var(--mr-col1-w) + var(--mr-col2-w));
+    top: 0; z-index: 4;
+    background: var(--color-surface);
+}
+.match-records-table thead th:nth-child(4) {
+    position: sticky;
+    left: calc(var(--mr-col1-w) + var(--mr-col2-w) + var(--mr-col3-w));
+    top: 0; z-index: 4;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+}
+
+@media (max-width: 640px) {
+    .match-records-table {
+        --mr-col1-w: 28px;
+        --mr-col2-w: 110px;
+        --mr-col3-w: 52px;
+        --mr-col4-w: 110px;
+    }
+}
+
 .achv-table .league-link,
 .achv-table .league-link:visited {
     color: var(--color-text);
@@ -707,6 +794,47 @@
     font-style: italic;
     padding: var(--space-md);
 }
+
+/* ── Luck Percentile card (Achievements) ───────────── */
+@media (min-width: 641px) {
+    .achv-tables-grid > .achv-table-card.achv-luck-card { grid-column: span 6; }
+}
+
+.achv-luck-table th:nth-child(3),
+.achv-luck-table td:nth-child(3),
+.achv-luck-table th:nth-child(4),
+.achv-luck-table td:nth-child(4) {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.achv-table tr.unstable-sample td {
+    opacity: 0.55;
+    font-style: italic;
+}
+.achv-table tr.unstable-sample .player-name-link {
+    font-style: italic;
+    color: var(--color-text-muted);
+}
+
+.luck-info-popup {
+    margin-top: var(--space-sm);
+    margin-bottom: var(--space-sm);
+}
+.luck-info-popup .luck-bell-curve {
+    display: block;
+    width: 100%;
+    max-width: 320px;
+    height: auto;
+    margin: var(--space-sm) auto 0;
+}
+.luck-bell-curve .bc-curve       { fill: none; stroke: var(--color-text); stroke-width: 1.5; }
+.luck-bell-curve .bc-fill-left   { fill: var(--color-danger, #dc3545);  opacity: 0.22; }
+.luck-bell-curve .bc-fill-right  { fill: var(--color-success, #28a745); opacity: 0.22; }
+.luck-bell-curve .bc-axis        { stroke: var(--color-border); stroke-width: 1; }
+.luck-bell-curve .bc-tick        { stroke: var(--color-border); stroke-width: 1; }
+.luck-bell-curve .bc-label-sigma { fill: var(--color-text-muted); font-size: 10px; }
+.luck-bell-curve .bc-label-pct   { fill: var(--color-text); font-size: 10px; font-weight: 600; }
 
 /* ── Admin Edit Mode (Chunk 7) ─────────────────────────── */
 
@@ -969,10 +1097,13 @@ body:has(.edit-bar) .theme-picker {
     /* Info cards — 2-up at mobile */
     .index-info-cards { gap: 8px; }
 
-    /* Narrow all dashboard tables on mobile, centered with dead space on sides */
-    .achv-table-card,
+    /* Uniform width for achievement & PR-leaders cards on mobile — ~80vw,
+       centered, always stacked one below the other. */
+    .achievements-section .achv-table-card,
+    .pr-leaders-section   .achv-table-card,
     .leaderboard-table-wrapper {
-        max-width: 90vw;
+        max-width: 80vw;
+        width: 80vw;
         margin-left: auto;
         margin-right: auto;
     }

@@ -10,6 +10,8 @@
 
 import { loadAllLeagues } from '../compute/crossLeague.js';
 import { buildAllTimeRankings } from '../compute/allTimeRankings.js';
+import { colorForValue } from '../compute/colorScale.js';
+import { luckBellCurveSvg } from './luckBellCurve.js';
 import { loadLandingSettings } from '../data/leagueLoader.js';
 import { dashboardUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueUrl, thLabel } from '../utils/helpers.js';
 import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatches } from '../compute/matchRecords.js';
@@ -1249,16 +1251,31 @@ function renderAchievementsSection(container, presentTypes) {
         const panel = section.querySelector(`.achv-panel[data-type="${t}"]`);
         try {
             const data = await buildAllTimeRankings(t);
-            panel.innerHTML = renderAchievementTables(data);
-            panel.querySelectorAll('.achv-table').forEach(t => applyShowTopN(t));
+            panel.innerHTML = renderAchievementTables(data, t);
+            panel.querySelectorAll('.achv-table').forEach(tbl => applyShowTopN(tbl));
+            wireLuckInfoPopup(panel, t);
         } catch (err) {
             panel.innerHTML = `<div class="error">Failed to load: ${escapeHtml(err.message)}</div>`;
         }
     });
 }
 
-function renderAchievementTables(data) {
-    return `<div class="achv-tables-grid">${ACHIEVEMENT_METRICS.map(m => {
+function wireLuckInfoPopup(panel, leagueType) {
+    const btn   = panel.querySelector(`#luck-info-btn-${leagueType}`);
+    const popup = panel.querySelector(`#luck-info-popup-${leagueType}`);
+    const close = panel.querySelector(`#luck-info-close-${leagueType}`);
+    if (!btn || !popup) return;
+    btn.addEventListener('click', e => {
+        e.stopPropagation();
+        popup.hidden = !popup.hidden;
+    });
+    if (close) {
+        close.addEventListener('click', () => { popup.hidden = true; });
+    }
+}
+
+function renderAchievementTables(data, leagueType) {
+    const coreCards = ACHIEVEMENT_METRICS.map(m => {
         const rows = data.rankings[m.key] || [];
         const rowsHtml = rows.map(r => `
             <tr>
@@ -1278,7 +1295,60 @@ function renderAchievementTables(data) {
                     </table>
                 </div>
             </div>`;
-    }).join('')}</div>`;
+    }).join('');
+
+    const luckCard = data.rankings.luckPercentile
+        ? renderLuckPercentileCard(data, leagueType)
+        : '';
+
+    return `<div class="achv-tables-grid">${coreCards}${luckCard}</div>`;
+}
+
+function renderLuckPercentileCard(data, leagueType) {
+    const rows = data.rankings.luckPercentile || [];
+    const rowsHtml = rows.map(r => {
+        const cls = r.unstableSample ? 'unstable-sample' : '';
+        const color = colorForValue(r.value, 0, 100);
+        return `
+            <tr class="${cls}">
+                <td>${r.rank}</td>
+                <td><img class="flag" src="${flagUrl(getFlagCode(r.name, data.customFlags))}" alt="flag"> ${playerNameLink(r.name, _playersMeta[r.name])}</td>
+                <td>${r.games}</td>
+                <td style="color:${color};font-weight:600;">${r.value}</td>
+            </tr>
+        `;
+    }).join('');
+
+    return `
+        <div class="achv-table-card achv-luck-card">
+            <h3>Luck Percentile <span class="predictor-tooltip" id="luck-info-btn-${leagueType}">?</span></h3>
+            <div class="predictor-info-popup luck-info-popup" id="luck-info-popup-${leagueType}" hidden>
+                <button class="predictor-info-close" id="luck-info-close-${leagueType}">&times;</button>
+                <h3>How It Works</h3>
+                <p>For each historical match we look up the a-priori win probability <i>p<sub>i</sub></i> from the PR difference and match length, then compare <b>actual wins</b> to <b>expected wins</b>. The result is standardized into a Z-score and mapped to a percentile via the standard normal distribution.</p>
+                <ul>
+                    <li><b>EW</b> (expected wins) = Σ p<sub>i</sub></li>
+                    <li><b>Var</b> = Σ p<sub>i</sub>(1 − p<sub>i</sub>)</li>
+                    <li><b>Z</b> = (AW − EW) / √Var</li>
+                    <li><b>Percentile</b> = Φ(Z) × 100</li>
+                </ul>
+                <p>50 ≈ expected, 100 = extremely lucky, 0 = extremely unlucky. Players with fewer than 15 rated games are shown struck-through — the sample is too small to be reliable.</p>
+                ${luckBellCurveSvg()}
+            </div>
+            <div class="achv-table-wrapper">
+                <table class="achv-table achv-luck-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">Player</th>
+                            <th scope="col">Games</th>
+                            <th scope="col">Luck %ile</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml || '<tr><td colspan="4">No data</td></tr>'}</tbody>
+                </table>
+            </div>
+        </div>`;
 }
 
 /* ── PR Leaders (Total PR + Last 300 PR) ───────────── */

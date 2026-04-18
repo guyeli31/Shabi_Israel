@@ -151,7 +151,7 @@ function renderSummaryTable(container, rankings, averages, matchStats, params, l
     </div>
     <div class="table-wrapper">
         <div class="table-scroll">
-            <table id="leagueTable">
+            <table id="leagueTable" data-league-type="${leagueConfig.type}">
                 <thead>
                     <tr>
                         ${headerCells}

@@ -438,13 +438,13 @@ function renderLeaguesTable(section, perLeague) {
                 <tr>
                     <th scope="col">${thLabel('League','League')}</th>
                     <th scope="col">${thLabel('Type','Type')}</th>
-                    <th scope="col">${thLabel('Status','Stat')}</th>
+                    <th scope="col">${thLabel('Status','Status')}</th>
                     <th scope="col">${thLabel('Rank','Rank')}</th>
-                    <th scope="col">${thLabel('Games','G')}</th>
+                    <th scope="col">${thLabel('Games','Games')}</th>
                     <th scope="col">${thLabel('W','W')}</th>
                     <th scope="col">${thLabel('L','L')}</th>
-                    <th scope="col">${thLabel('Primary','Pri')}</th>
-                    <th scope="col">${thLabel('Mean PR','PR')}</th>
+                    <th scope="col">${thLabel('Primary','Primary')}</th>
+                    <th scope="col">${thLabel('Mean PR','Mean PR')}</th>
                 </tr>
             </thead>
             <tbody>
@@ -583,14 +583,14 @@ function renderMatchHistory(section, playerName, perLeague) {
     function renderTable(host, rows) {
         const headers = [
             { key: 'updatedAt', label: 'Date', abbr: 'Date' },
-            { key: 'leagueTitle', label: 'League', abbr: 'Lg' },
-            { key: 'leagueType', label: 'Type', abbr: 'T' },
-            { key: 'opponent', label: 'Opponent', abbr: 'Opp' },
-            { key: 'scoreSelf', label: 'Score', abbr: 'Sc' },
+            { key: 'leagueTitle', label: 'League', abbr: 'League' },
+            { key: 'leagueType', label: 'Type', abbr: 'Type' },
+            { key: 'opponent', label: 'Opponent', abbr: 'Opponent' },
+            { key: 'scoreSelf', label: 'Score', abbr: 'Score' },
             { key: 'prSelf', label: 'PR', abbr: 'PR' },
-            { key: 'prOpp', label: 'Opp PR', abbr: 'oPR' },
-            { key: 'luckSelf', label: 'Luck', abbr: 'Lk' },
-            { key: 'result', label: 'Result', abbr: 'Res' }
+            { key: 'prOpp', label: 'Opp PR', abbr: 'Opp PR' },
+            { key: 'luckSelf', label: 'Luck', abbr: 'Luck' },
+            { key: 'result', label: 'Result', abbr: 'Result' }
         ];
         const MOBILE_CAP = 25;
         const needsExpand = rows.length > MOBILE_CAP;
@@ -751,8 +751,8 @@ function renderPlayerRecordTable(title, metricLabel, rows) {
             <div class="table-wrapper">
                 <table class="pg-matches-table pg-mr-table">
                     <thead><tr>
-                        <th scope="col">#</th><th scope="col">${thLabel(metricLabel, metricLabel)}</th><th scope="col">${thLabel('Opponent','Opp')}</th>
-                        <th scope="col">${thLabel('Score','Sc')}</th><th scope="col">${thLabel('Result','Res')}</th><th scope="col">${thLabel('League','Lg')}</th><th scope="col">${thLabel('Date','Date')}</th>
+                        <th scope="col">#</th><th scope="col">${thLabel(metricLabel, metricLabel)}</th><th scope="col">${thLabel('Opponent','Opponent')}</th>
+                        <th scope="col">${thLabel('Score','Score')}</th><th scope="col">${thLabel('Result','Result')}</th><th scope="col">${thLabel('League','League')}</th><th scope="col">${thLabel('Date','Date')}</th>
                     </tr></thead>
                     <tbody>${bodyHtml || '<tr><td colspan="7" class="na">No data</td></tr>'}</tbody>
                 </table>

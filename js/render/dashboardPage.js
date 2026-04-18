@@ -987,7 +987,7 @@ function renderRounds(ctx) {
 }
 
 function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFlags = {}) {
-    let html = `<table class="dash-table"><thead><tr><th scope="col" class="player-col">${thLabel('Player A','A')}</th><th scope="col">${thLabel('Score','Sc')}</th><th scope="col" class="player-col">${thLabel('Player B','B')}</th><th scope="col">${thLabel('PR A','pA')}</th><th scope="col">${thLabel('PR B','pB')}</th><th scope="col">${thLabel('Luck A','lA')}</th><th scope="col">${thLabel('Luck B','lB')}</th><th scope="col">${thLabel('Played','On')}</th></tr></thead><tbody>`;
+    let html = `<div class="rounds-scroll-wrap"><table class="dash-table"><thead><tr><th scope="col" class="player-col">${thLabel('Player A','A')}</th><th scope="col">${thLabel('Score','Sc')}</th><th scope="col" class="player-col">${thLabel('Player B','B')}</th><th scope="col">${thLabel('PR A','pA')}</th><th scope="col">${thLabel('PR B','pB')}</th><th scope="col">${thLabel('Luck A','lA')}</th><th scope="col">${thLabel('Luck B','lB')}</th><th scope="col">${thLabel('Played','On')}</th></tr></thead><tbody>`;
     for (const m of matches) {
         const isPlayed = m.played;
         const updated = playedAt.get(matchKey(m.playerA, m.playerB));
@@ -1007,7 +1007,7 @@ function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFla
             + `<td>${playedCell}</td></tr>`;
     }
     if (matches.length === 0) html += '<tr><td colspan="8">No matches</td></tr>';
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     const host = document.getElementById('round-table');
     host.innerHTML = html;
     attachPlayerNameInteractions(host, leagueId);

@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "mcp__playwright__browser_evaluate"
+      "mcp__playwright__browser_evaluate",
+      "Bash(grep -r \"class=\\\\\"logo\\\\|class='logo\" /c/WORKSPACE/Shabi_Israel/*.html)"
     ]
   }
 }

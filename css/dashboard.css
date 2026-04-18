@@ -847,6 +847,15 @@
 
 /* ── Mobile: compact predictor & what-if tables ──────── */
 @media (max-width: 640px) {
+    /* Historical View: cap Player column width to match Predictor/WhatIf */
+    #hist-table td.player-cell,
+    #hist-table th.player-col {
+        max-width: clamp(70px, 20vw, 110px);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     /* Predictor table */
     #predictor-section thead th {
         font-size: 0.68rem;
@@ -899,46 +908,177 @@
         margin-right: 2px;
     }
 
-    /* UBC scroll wrappers — sticky # and Player columns */
-    .predictor-scroll-wrap,
-    .whatif-scroll-wrap {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
+}
+
+/* --- UBC scroll wrappers — sticky # and Player columns (mobile + desktop) --- */
+.predictor-scroll-wrap,
+.whatif-scroll-wrap {
+    --col1-w: 36px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.predictor-scroll-wrap table,
+.whatif-scroll-wrap table {
+    table-layout: auto;
+    min-width: 480px;
+}
+.predictor-scroll-wrap tbody td:nth-child(1),
+.whatif-scroll-wrap tbody td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    width: var(--col1-w);
+    min-width: var(--col1-w);
+    background: var(--color-surface, #1a1a2e);
+    z-index: 3;
+}
+.predictor-scroll-wrap tbody td:nth-child(2),
+.whatif-scroll-wrap tbody td:nth-child(2) {
+    position: sticky;
+    left: var(--col1-w);
+    min-width: clamp(70px, 20vw, 110px);
+    max-width: clamp(70px, 20vw, 110px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: var(--color-surface, #1a1a2e);
+    z-index: 2;
+    border-right: 1px solid var(--color-border);
+}
+/* Sticky header cells — use header background so sticky header row matches the rest of the thead */
+.predictor-scroll-wrap thead th:nth-child(1),
+.whatif-scroll-wrap thead th:nth-child(1) {
+    position: sticky;
+    left: 0;
+    width: var(--col1-w);
+    min-width: var(--col1-w);
+    background: var(--header-bg);
+    z-index: 4;
+}
+.predictor-scroll-wrap thead th:nth-child(2),
+.whatif-scroll-wrap thead th:nth-child(2) {
+    position: sticky;
+    left: var(--col1-w);
+    min-width: clamp(70px, 20vw, 110px);
+    max-width: clamp(70px, 20vw, 110px);
+    background: var(--header-bg);
+    z-index: 3;
+    border-right: 1px solid var(--color-border);
+}
+/* Win over ID-scoped `#predictor-section tbody td.player-cell { max-width: 0 }` mobile rule */
+#predictor-section .predictor-scroll-wrap tbody td.player-cell,
+.whatif-scroll-wrap tbody td.player-cell {
+    max-width: clamp(70px, 20vw, 110px);
+}
+
+/* --- B2: Rounds table sticky columns (Player A | Score | Player B) --- */
+/* Column tuning: Player A/B get more room (names + flag); Score compact;
+   non-sticky PR/Luck are narrowed via nth-child(4..7). */
+.rounds-scroll-wrap {
+    --col1-w: 170px;
+    --col2-w: 60px;
+    --col3-w: 170px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.rounds-scroll-wrap table {
+    table-layout: auto;
+}
+/* Body sticky cells */
+.rounds-scroll-wrap tbody td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    width: var(--col1-w);
+    min-width: var(--col1-w);
+    max-width: var(--col1-w);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: var(--color-surface, #1a1a2e);
+    z-index: 3;
+}
+.rounds-scroll-wrap tbody td:nth-child(2) {
+    position: sticky;
+    left: var(--col1-w);
+    width: var(--col2-w);
+    min-width: var(--col2-w);
+    max-width: var(--col2-w);
+    background: var(--color-surface, #1a1a2e);
+    z-index: 2;
+}
+.rounds-scroll-wrap tbody td:nth-child(3) {
+    position: sticky;
+    left: calc(var(--col1-w) + var(--col2-w));
+    width: var(--col3-w);
+    min-width: var(--col3-w);
+    max-width: var(--col3-w);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: var(--color-surface, #1a1a2e);
+    z-index: 2;
+    border-right: 1px solid var(--color-border);
+}
+/* Header sticky cells — use header-bg so sticky header row matches non-sticky header cells */
+.rounds-scroll-wrap thead th:nth-child(1) {
+    position: sticky;
+    left: 0;
+    width: var(--col1-w);
+    min-width: var(--col1-w);
+    max-width: var(--col1-w);
+    background: var(--header-bg);
+    z-index: 4;
+}
+.rounds-scroll-wrap thead th:nth-child(2) {
+    position: sticky;
+    left: var(--col1-w);
+    width: var(--col2-w);
+    min-width: var(--col2-w);
+    max-width: var(--col2-w);
+    background: var(--header-bg);
+    z-index: 3;
+}
+.rounds-scroll-wrap thead th:nth-child(3) {
+    position: sticky;
+    left: calc(var(--col1-w) + var(--col2-w));
+    width: var(--col3-w);
+    min-width: var(--col3-w);
+    max-width: var(--col3-w);
+    background: var(--header-bg);
+    z-index: 3;
+    border-right: 1px solid var(--color-border);
+}
+/* Non-sticky numeric cols (PR A, PR B, Luck A, Luck B): keep them compact */
+.rounds-scroll-wrap th:nth-child(4),
+.rounds-scroll-wrap td:nth-child(4),
+.rounds-scroll-wrap th:nth-child(5),
+.rounds-scroll-wrap td:nth-child(5),
+.rounds-scroll-wrap th:nth-child(6),
+.rounds-scroll-wrap td:nth-child(6),
+.rounds-scroll-wrap th:nth-child(7),
+.rounds-scroll-wrap td:nth-child(7) {
+    width: 56px;
+    min-width: 56px;
+    max-width: 64px;
+}
+.rounds-scroll-wrap th:nth-child(8),
+.rounds-scroll-wrap td:nth-child(8) { width: 80px; }
+
+@media (max-width: 640px) {
+    .rounds-scroll-wrap {
+        --col1-w: 130px;
+        --col2-w: 52px;
+        --col3-w: 130px;
     }
-    .predictor-scroll-wrap table,
-    .whatif-scroll-wrap table {
-        table-layout: auto;
-        min-width: 480px;
-    }
-    .predictor-scroll-wrap th:nth-child(-n+2),
-    .predictor-scroll-wrap td:nth-child(-n+2),
-    .whatif-scroll-wrap th:nth-child(-n+2),
-    .whatif-scroll-wrap td:nth-child(-n+2) {
-        position: sticky;
-        background: var(--color-surface, #1a1a2e);
-        z-index: 2;
-    }
-    .predictor-scroll-wrap th:nth-child(1),
-    .predictor-scroll-wrap td:nth-child(1),
-    .whatif-scroll-wrap th:nth-child(1),
-    .whatif-scroll-wrap td:nth-child(1) {
-        left: 0;
-        min-width: 22px;
-    }
-    .predictor-scroll-wrap th:nth-child(2),
-    .predictor-scroll-wrap td:nth-child(2),
-    .whatif-scroll-wrap th:nth-child(2),
-    .whatif-scroll-wrap td:nth-child(2) {
-        left: 22px;
-        min-width: 80px;
-        max-width: 100px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        border-right: 1px solid var(--color-border);
-    }
-    .predictor-scroll-wrap thead th:nth-child(-n+2),
-    .whatif-scroll-wrap thead th:nth-child(-n+2) {
-        z-index: 3;
+    .rounds-scroll-wrap th:nth-child(4),
+    .rounds-scroll-wrap td:nth-child(4),
+    .rounds-scroll-wrap th:nth-child(5),
+    .rounds-scroll-wrap td:nth-child(5),
+    .rounds-scroll-wrap th:nth-child(6),
+    .rounds-scroll-wrap td:nth-child(6),
+    .rounds-scroll-wrap th:nth-child(7),
+    .rounds-scroll-wrap td:nth-child(7) {
+        width: 48px;
+        min-width: 48px;
+        max-width: 52px;
     }
 }

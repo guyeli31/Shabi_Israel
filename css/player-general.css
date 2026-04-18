@@ -394,27 +394,46 @@
     color: var(--color-text-muted);
 }
 
-/* G4 — Leagues table */
+/* G4 — Leagues table
+   A1: unify surface/header/stripes with .completed-leagues-table (landing dashboard).
+   Note: `overflow: hidden` (used by .completed-leagues-table for rounded-corner
+   clipping) is omitted here — it would trap horizontal `position: sticky`
+   descendants and break the A3 2-col sticky. Border-radius + box-shadow still
+   carry the dashboard feel; cells abut the edges without clipping. */
 .pg-leagues-table,
 .pg-matches-table {
     width: 100%;
     border-collapse: collapse;
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
     font-size: 0.9rem;
 }
 .pg-leagues-table th,
 .pg-leagues-table td,
 .pg-matches-table th,
 .pg-matches-table td {
-    border: 1px solid var(--border-color, #e0e0e0);
-    padding: 6px 10px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--color-border);
     text-align: left;
 }
 .pg-leagues-table th,
 .pg-matches-table th {
-    background: var(--header-bg, #f2f2f2);
+    background: var(--header-bg, #1e293b);
+    color: var(--header-text, #fff);
+    font-weight: 600;
+    font-size: 0.85rem;
+    position: sticky;
+    top: 0;
+    z-index: 3;  /* above body sticky (z=2) so header covers cols 1&2 when scrolling vertically */
     cursor: pointer;
     user-select: none;
 }
+.pg-leagues-table tr:hover td,
+.pg-matches-table tr:hover td {
+    background: var(--color-hover);
+}
+
 
 /* G5 — Matches */
 .pg-filters {
@@ -488,13 +507,16 @@
     margin-right: 4px;
 }
 
-/* Match history scroll cap — 20 visible rows */
+/* Match history scroll cap — 20 visible rows. overflow-x must be auto on
+   desktop too so the 2-col sticky (A3) has a horizontal scroll container. */
 .pg-matches-scroll {
     max-height: 374px;  /* ~10 rows at ~34px each + header */
+    overflow-x: auto;
     overflow-y: auto;
 }
 .pg-mr-card .table-wrapper {
     max-height: 204px;  /* ~5 rows at ~34px each + header */
+    overflow-x: auto;
     overflow-y: auto;
 }
 .pg-matches-scroll table {
@@ -507,14 +529,94 @@
     background: var(--row-hover-bg, rgba(0,0,0,0.05));
 }
 
+/* ============================================================
+ * A3 — 2-column sticky on all player-general tables (desktop + mobile)
+ * Mirrors the #leagueTable pattern at components.css:84-150.
+ * ============================================================ */
+.pg-leagues-table       { --pg-col1-w: 210px; }
+.pg-matches-table       { --pg-col1-w: 100px; }
+.pg-matches-table.pg-mr-table { --pg-col1-w: 36px; }
+
+/* Leagues table — shrink narrow numeric columns so col1 (League name) gets
+   room for the full "Shabi Israel - April 2026" string on desktop. */
+.pg-leagues-table thead th:nth-child(2),    /* Type pill */
+.pg-leagues-table tbody td:nth-child(2)   { width: 110px; }
+.pg-leagues-table thead th:nth-child(3),    /* Status pill */
+.pg-leagues-table tbody td:nth-child(3)   { width: 110px; }
+.pg-leagues-table thead th:nth-child(4),    /* Rank */
+.pg-leagues-table tbody td:nth-child(4)   { width: 70px; }
+.pg-leagues-table thead th:nth-child(5),    /* Games */
+.pg-leagues-table tbody td:nth-child(5),
+.pg-leagues-table thead th:nth-child(6),    /* W */
+.pg-leagues-table tbody td:nth-child(6),
+.pg-leagues-table thead th:nth-child(7),    /* L */
+.pg-leagues-table tbody td:nth-child(7)   { width: 54px; text-align: center; }
+.pg-leagues-table thead th:nth-child(8),    /* Primary (%) */
+.pg-leagues-table tbody td:nth-child(8)   { width: 80px; }
+.pg-leagues-table thead th:nth-child(9),    /* Mean PR */
+.pg-leagues-table tbody td:nth-child(9)   { width: 80px; }
+
+.pg-leagues-table thead th:nth-child(1),
+.pg-leagues-table tbody td:nth-child(1),
+.pg-matches-table thead th:nth-child(1),
+.pg-matches-table tbody td:nth-child(1) {
+    width: var(--pg-col1-w);
+    min-width: var(--pg-col1-w);
+    max-width: var(--pg-col1-w);
+    position: sticky;
+    left: 0;
+    z-index: 2;
+}
+.pg-leagues-table thead th:nth-child(2),
+.pg-leagues-table tbody td:nth-child(2),
+.pg-matches-table thead th:nth-child(2),
+.pg-matches-table tbody td:nth-child(2) {
+    position: sticky;
+    left: var(--pg-col1-w);
+    z-index: 2;
+    border-right: 1px solid var(--color-border);
+}
+
+/* Sticky body cells: opaque background so content beneath doesn't bleed through. */
+.pg-leagues-table tbody td:nth-child(1),
+.pg-leagues-table tbody td:nth-child(2),
+.pg-matches-table tbody td:nth-child(1),
+.pg-matches-table tbody td:nth-child(2) {
+    background: var(--color-surface);
+}
+/* Preserve row stripe on sticky cells for matches/match-records. */
+.pg-matches-table tbody tr:nth-child(even) td:nth-child(1),
+.pg-matches-table tbody tr:nth-child(even) td:nth-child(2) {
+    background: var(--row-alt-bg, rgba(0,0,0,0.025));
+}
+/* Hover wins over stripe. */
+.pg-leagues-table tbody tr:hover td:nth-child(1),
+.pg-leagues-table tbody tr:hover td:nth-child(2),
+.pg-matches-table tbody tr:hover td:nth-child(1),
+.pg-matches-table tbody tr:hover td:nth-child(2) {
+    background: var(--color-hover);
+}
+
+/* Sticky-on-both-axes header cells (the top-left corner): bump z above the
+   sticky-top-only header (z=3) AND the sticky-left-only body cells (z=2). */
+.pg-leagues-table thead th:nth-child(1),
+.pg-leagues-table thead th:nth-child(2),
+.pg-matches-table thead th:nth-child(1),
+.pg-matches-table thead th:nth-child(2) {
+    background: var(--header-bg, #1e293b);
+    z-index: 4;
+}
+
 /* Medal coloring in RANK column */
 .rank-cell-gold { color: var(--color-gold-text, #92400e); font-weight: 700; }
 .rank-cell-silver { color: var(--color-silver-text, #475569); font-weight: 600; }
 .rank-cell-bronze { color: var(--color-bronze-text, #b45309); font-weight: 600; }
 
-/* Leagues table wrapper — horizontal scroll on overflow */
+/* Leagues table wrapper — horizontal scroll on overflow + dashboard parity */
 .pg-leagues-table-wrapper {
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     overflow-x: auto;
 }
 
@@ -581,23 +683,16 @@
         height: auto;
     }
 
-    /* Leagues table: horizontal scroll with sticky League column */
+    /* Leagues table: horizontal scroll; 2-col sticky is applied in A3 block above. */
     .pg-leagues-table {
         font-size: 0.65rem;
         min-width: max-content;
+        --pg-col1-w: 110px;
     }
     .pg-leagues-table th,
     .pg-leagues-table td {
         padding: 3px 4px;
         white-space: nowrap;
-    }
-    .pg-leagues-table th:first-child,
-    .pg-leagues-table td:first-child {
-        position: sticky;
-        left: 0;
-        background: var(--color-surface);
-        box-shadow: 4px 0 6px -4px rgba(0, 0, 0, 0.15);
-        z-index: 2;
     }
     .pg-leagues-table .pg-lt {
         font-size: 0.55rem;
@@ -615,6 +710,10 @@
     }
     .pg-matches-table {
         min-width: max-content;
+        --pg-col1-w: 80px;
+    }
+    .pg-matches-table.pg-mr-table {
+        --pg-col1-w: 28px;
     }
     .pg-matches-table th,
     .pg-matches-table td {

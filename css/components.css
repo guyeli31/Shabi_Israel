@@ -95,6 +95,14 @@ tbody td {
     max-width: 180px;
 }
 
+/* UBC tables have more columns competing for space — give Player a readable minimum */
+#leagueTable[data-league-type="ubc"] thead th:nth-child(2),
+#leagueTable[data-league-type="ubc"] tbody td:nth-child(2) {
+    width: clamp(140px, 22vw, 200px);
+    min-width: clamp(140px, 22vw, 200px);
+    max-width: clamp(140px, 22vw, 200px);
+}
+
 #leagueTable thead th:nth-child(1),
 #leagueTable thead th:nth-child(2) {
     position: sticky;
@@ -242,14 +250,17 @@ td.player-cell a:hover {
 
 /* ---- Medal badges ---- */
 .medal {
-    display: inline-block;
-    width: 22px;
-    height: 22px;
-    line-height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    line-height: 1;
     border-radius: var(--radius-full);
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     font-weight: 700;
     text-align: center;
+    vertical-align: middle;
 }
 
 .medal-gold {
@@ -544,6 +555,14 @@ tr.retired {
         min-width: 0;
         max-width: none;
     }
+
+    /* UBC mobile: guarantee Player col has enough room for longest name + 1 title */
+    #leagueTable[data-league-type="ubc"] thead th:nth-child(2),
+    #leagueTable[data-league-type="ubc"] tbody td:nth-child(2) {
+        min-width: 120px;
+        width: 120px;
+        max-width: 120px;
+    }
     #leagueTable thead th:nth-child(n+3),
     #leagueTable tbody td:nth-child(n+3),
     #playerTable thead th:nth-child(n+3),
@@ -567,10 +586,10 @@ tr.retired {
 
     /* Smaller medals + flag on mobile */
     .medal {
-        width: 18px;
-        height: 18px;
-        line-height: 18px;
-        font-size: 0.65rem;
+        width: 14px;
+        height: 14px;
+        line-height: 1;
+        font-size: 0.6rem;
     }
     .flag {
         height: 12px;

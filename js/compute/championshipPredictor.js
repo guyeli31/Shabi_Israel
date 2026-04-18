@@ -35,7 +35,7 @@ const PR_PROBABILITY_TABLE = {
 /**
  * Find the nearest index in matchLengths for a given match length.
  */
-function nearestMatchLengthIdx(matchLength) {
+export function nearestMatchLengthIdx(matchLength) {
     const lens = PR_PROBABILITY_TABLE.matchLengths;
     let bestIdx = 0;
     let bestDist = Math.abs(lens[0] - matchLength);
@@ -51,7 +51,7 @@ function nearestMatchLengthIdx(matchLength) {
  * Lower PR = stronger player.
  * For PR diffs > 10: linear extrapolation from rows 9 & 10, clamped to [0.5, 0.999].
  */
-function getWinProbability(prA, prB, mlIdx) {
+export function getWinProbability(prA, prB, mlIdx) {
     const diff = Math.abs(prA - prB);
     const diffRounded = Math.round(diff);
     const table = PR_PROBABILITY_TABLE.probabilitiesByPrDiff;
@@ -81,7 +81,7 @@ function getWinProbability(prA, prB, mlIdx) {
 const A1 = 0.254829592, A2 = -0.284496736, A3 = 1.421413741;
 const A4 = -1.453152027, A5 = 1.061405429, P_COEFF = 0.3275911;
 
-function normalCDF(x) {
+export function normalCDF(x) {
     const sign = x < 0 ? -1 : 1;
     const ax = Math.abs(x);
     const t = 1 / (1 + P_COEFF * ax);
