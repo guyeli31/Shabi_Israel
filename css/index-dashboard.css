@@ -424,6 +424,27 @@
     font-weight: 700;
 }
 
+/* Sticky first two columns (rank + player) */
+.leaderboard-table th:first-child,
+.leaderboard-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    min-width: 36px;
+}
+
+.leaderboard-table th:nth-child(2),
+.leaderboard-table td:nth-child(2) {
+    position: sticky;
+    left: 36px;
+    z-index: 2;
+}
+
+.leaderboard-table td:first-child,
+.leaderboard-table td:nth-child(2) {
+    background: var(--color-surface);
+}
+
 .leaderboard-table tr:hover td {
     background: var(--color-hover);
 }
@@ -435,7 +456,7 @@
 
 /* Completed leagues table (compact) */
 .completed-leagues-table {
-    --cl-date-w: 80px;
+    --cl-date-w: 110px;
     width: 100%;
     border-collapse: collapse;
     background: var(--color-surface);
@@ -474,6 +495,18 @@
     left: 0;
     z-index: 2;
     background: var(--color-surface);
+}
+.completed-leagues-table tr.row-type-doubling td:first-child {
+    background: linear-gradient(rgba(59,130,246,.06),rgba(59,130,246,.06)), var(--color-surface);
+}
+.completed-leagues-table tr.row-type-regular td:first-child {
+    background: linear-gradient(rgba(16,185,129,.06),rgba(16,185,129,.06)), var(--color-surface);
+}
+.completed-leagues-table tr.row-type-ubc td:first-child {
+    background: linear-gradient(rgba(245,158,11,.06),rgba(245,158,11,.06)), var(--color-surface);
+}
+.completed-leagues-table tr:hover td:first-child {
+    background: var(--color-hover);
 }
 .completed-leagues-table thead th:first-child {
     position: sticky;
@@ -1035,6 +1068,16 @@ body:has(.edit-bar) .theme-picker {
         overflow: hidden;
         text-overflow: ellipsis;
         font-size: 0.65rem;
+    }
+
+    .leaderboard-table th:first-child,
+    .leaderboard-table td:first-child {
+        min-width: 22px;
+    }
+
+    .leaderboard-table th:nth-child(2),
+    .leaderboard-table td:nth-child(2) {
+        left: 22px;
     }
     .leaderboard-table .flag {
         height: 10px;

@@ -595,7 +595,7 @@ async function renderPredictor(ctx) {
             const scrollClass = showPRWins ? ' predictor-scroll-wrap' : '';
             host.innerHTML = `
                 <div class="${scrollClass}">
-                <table>
+                <table class="dash-table">
                     <thead><tr>
                         <th scope="col">#</th><th scope="col">${thLabel('Player','Player')}</th><th scope="col">G</th><th scope="col">W</th><th scope="col">L</th>
                         ${ubcHeaders}
@@ -905,7 +905,7 @@ function renderWhatIfSimulator(ctx) {
                 const scrollClass = showPRWins ? ' whatif-scroll-wrap' : '';
                 tableHost.innerHTML = `
                     <div class="${scrollClass}">
-                    <table class="whatif-table">
+                    <table class="dash-table whatif-table">
                         <thead><tr>
                             <th scope="col">#</th><th scope="col">${thLabel('Player','Player')}</th><th scope="col">G</th><th scope="col">W</th><th scope="col">L</th>
                             ${ubcHeaders}
@@ -987,7 +987,16 @@ function renderRounds(ctx) {
 }
 
 function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFlags = {}) {
-    let html = `<div class="rounds-scroll-wrap"><table class="dash-table"><thead><tr><th scope="col" class="player-col">${thLabel('Player A','A')}</th><th scope="col">${thLabel('Score','Sc')}</th><th scope="col" class="player-col">${thLabel('Player B','B')}</th><th scope="col">${thLabel('PR A','pA')}</th><th scope="col">${thLabel('PR B','pB')}</th><th scope="col">${thLabel('Luck A','lA')}</th><th scope="col">${thLabel('Luck B','lB')}</th><th scope="col">${thLabel('Played','On')}</th></tr></thead><tbody>`;
+    let html = `<div class="rounds-scroll-wrap"><table class="dash-table"><thead><tr>`
+        + `<th scope="col" class="player-col">${thLabel('Player A','A')}</th>`
+        + `<th scope="col" class="player-col">${thLabel('Player B','B')}</th>`
+        + `<th scope="col">${thLabel('Score','Sc')}</th>`
+        + `<th scope="col">${thLabel('PR A','pA')}</th>`
+        + `<th scope="col">${thLabel('PR B','pB')}</th>`
+        + `<th scope="col">${thLabel('Luck A','lA')}</th>`
+        + `<th scope="col">${thLabel('Luck B','lB')}</th>`
+        + `<th scope="col">${thLabel('Played','On')}</th>`
+        + `</tr></thead><tbody>`;
     for (const m of matches) {
         const isPlayed = m.played;
         const updated = playedAt.get(matchKey(m.playerA, m.playerB));
@@ -997,9 +1006,10 @@ function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFla
         const rowClass = isPlayed ? '' : 'unplayed-row';
         const flagA = getFlagCode(m.playerA, customFlags);
         const flagB = getFlagCode(m.playerB, customFlags);
-        html += `<tr class="${rowClass}"><td class="player-cell"><img class="flag" src="${flagUrl(flagA)}" alt="${flagA}"> ${playerNameLink(m.playerA, playersMeta[m.playerA])}</td>`
-            + `<td>${isPlayed ? m.scoreA + ' - ' + m.scoreB : '—'}</td>`
+        html += `<tr class="${rowClass}">`
+            + `<td class="player-cell"><img class="flag" src="${flagUrl(flagA)}" alt="${flagA}"> ${playerNameLink(m.playerA, playersMeta[m.playerA])}</td>`
             + `<td class="player-cell"><img class="flag" src="${flagUrl(flagB)}" alt="${flagB}"> ${playerNameLink(m.playerB, playersMeta[m.playerB])}</td>`
+            + `<td>${isPlayed ? m.scoreA + ' - ' + m.scoreB : '—'}</td>`
             + `<td>${isPlayed && m.prA != null ? formatNumber(m.prA) : '—'}</td>`
             + `<td>${isPlayed && m.prB != null ? formatNumber(m.prB) : '—'}</td>`
             + `<td>${isPlayed && m.luckA != null ? formatNumber(m.luckA) : '—'}</td>`

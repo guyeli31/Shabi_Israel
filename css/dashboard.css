@@ -408,29 +408,8 @@
     margin-bottom: var(--space-sm);
 }
 
-#predictor-section table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
 #predictor-section thead th {
-    text-align: center;
-    padding: var(--space-xs) var(--space-sm);
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
-    border-bottom: 2px solid var(--color-border);
     white-space: nowrap;
-}
-
-#predictor-section tbody td {
-    text-align: center;
-    padding: var(--space-xs) var(--space-sm);
-    border-bottom: 1px solid var(--color-border);
-    font-size: 0.9rem;
-}
-
-#predictor-section tbody td.player-cell {
-    text-align: left;
 }
 
 .predictor-pct-cell {
@@ -442,8 +421,7 @@
     background: linear-gradient(to right, var(--bar-color, var(--color-success)) var(--pct, 0%), transparent var(--pct, 0%));
     border-radius: var(--radius-sm);
     padding: 2px 8px;
-    font-weight: 600;
-    font-size: 0.85rem;
+    font-size: inherit;
     text-align: right;
     min-width: 60px;
 }
@@ -780,33 +758,8 @@
     font-style: italic;
 }
 
-.whatif-table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
-}
 .whatif-table thead th {
-    background: transparent;
-    color: var(--color-text-muted);
-    text-transform: uppercase;
-    font-size: 0.68rem;
-    letter-spacing: 0.5px;
-    padding: var(--space-xs) 4px;
-    border-bottom: 2px dashed var(--color-border);
-}
-.whatif-table tbody td {
-    text-align: center;
-    padding: var(--space-xs) 4px;
-    border-bottom: 1px dashed var(--color-border);
-    font-size: 0.78rem;
-    font-style: italic;
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
-}
-.whatif-table tbody td.player-cell {
-    text-align: left;
-    font-style: normal;
 }
 
 .whatif-pct-cell { width: 90px; }
@@ -856,47 +809,12 @@
         white-space: nowrap;
     }
 
-    /* Predictor table — font matches Historical (0.65rem) */
-    #predictor-section thead th,
-    .predictor-scroll-wrap thead th {
-        font-size: 0.65rem;
-        padding: var(--space-xs) 2px;
-    }
-    #predictor-section tbody td,
-    .predictor-scroll-wrap tbody td {
-        font-size: 0.65rem;
-        padding: var(--space-xs) 2px;
-    }
-    #predictor-section tbody td.player-cell {
-        max-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
     .predictor-pct-cell { width: 62px; }
     .predictor-pct-bar {
-        font-size: 0.7rem;
         padding: 2px 4px;
         min-width: 32px;
     }
 
-    /* What-If table — font matches Historical (0.65rem) */
-    .whatif-table thead th,
-    .whatif-scroll-wrap thead th {
-        font-size: 0.65rem;
-        padding: 3px 2px;
-    }
-    .whatif-table tbody td,
-    .whatif-scroll-wrap tbody td {
-        font-size: 0.65rem;
-        padding: 3px 2px;
-    }
-    .whatif-table tbody td.player-cell {
-        max-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
     .whatif-pct-cell { width: 52px; }
     .whatif-pct-bar {
         font-size: 0.65rem;
@@ -912,6 +830,17 @@
         margin-right: 2px;
     }
 
+}
+
+/* Player column cap — all viewports (matches Historical View proportion) */
+#predictor-section td.player-cell,
+#predictor-section th.player-col,
+.whatif-table td.player-cell,
+.whatif-table th.player-col {
+    max-width: clamp(70px, 20vw, 110px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* --- UBC scroll wrappers — sticky # and Player columns (mobile + desktop) --- */
@@ -974,20 +903,17 @@
     max-width: clamp(70px, 20vw, 110px);
 }
 
-/* --- B2: Rounds table sticky columns (Player A | Score | Player B) --- */
-/* Column tuning: Player A/B get more room (names + flag); Score compact;
-   non-sticky PR/Luck are narrowed via nth-child(4..7). */
+/* --- B2: Rounds table — Match (sticky) | Score | PR A | PR B | Luck A | Luck B | Played --- */
 .rounds-scroll-wrap {
-    --col1-w: 170px;
-    --col2-w: 60px;
-    --col3-w: 170px;
+    --col1-w: 120px;
+    --col2-w: 120px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
 }
 .rounds-scroll-wrap table {
     table-layout: auto;
 }
-/* Body sticky cells */
+/* Player A — sticky col 1 */
 .rounds-scroll-wrap tbody td:nth-child(1) {
     position: sticky;
     left: 0;
@@ -1000,29 +926,6 @@
     background: var(--color-surface, #1a1a2e);
     z-index: 3;
 }
-.rounds-scroll-wrap tbody td:nth-child(2) {
-    position: sticky;
-    left: var(--col1-w);
-    width: var(--col2-w);
-    min-width: var(--col2-w);
-    max-width: var(--col2-w);
-    background: var(--color-surface, #1a1a2e);
-    z-index: 2;
-}
-.rounds-scroll-wrap tbody td:nth-child(3) {
-    position: sticky;
-    left: calc(var(--col1-w) + var(--col2-w));
-    width: var(--col3-w);
-    min-width: var(--col3-w);
-    max-width: var(--col3-w);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    background: var(--color-surface, #1a1a2e);
-    z-index: 2;
-    border-right: 1px solid var(--color-border);
-}
-/* Header sticky cells — use header-bg so sticky header row matches non-sticky header cells */
 .rounds-scroll-wrap thead th:nth-child(1) {
     position: sticky;
     left: 0;
@@ -1032,6 +935,20 @@
     background: var(--header-bg);
     z-index: 4;
 }
+/* Player B — sticky col 2 */
+.rounds-scroll-wrap tbody td:nth-child(2) {
+    position: sticky;
+    left: var(--col1-w);
+    width: var(--col2-w);
+    min-width: var(--col2-w);
+    max-width: var(--col2-w);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: var(--color-surface, #1a1a2e);
+    z-index: 3;
+    border-right: 1px solid var(--color-border);
+}
 .rounds-scroll-wrap thead th:nth-child(2) {
     position: sticky;
     left: var(--col1-w);
@@ -1039,19 +956,16 @@
     min-width: var(--col2-w);
     max-width: var(--col2-w);
     background: var(--header-bg);
-    z-index: 3;
-}
-.rounds-scroll-wrap thead th:nth-child(3) {
-    position: sticky;
-    left: calc(var(--col1-w) + var(--col2-w));
-    width: var(--col3-w);
-    min-width: var(--col3-w);
-    max-width: var(--col3-w);
-    background: var(--header-bg);
-    z-index: 3;
+    z-index: 4;
     border-right: 1px solid var(--color-border);
 }
-/* Non-sticky numeric cols (PR A, PR B, Luck A, Luck B): keep them compact */
+/* Score */
+.rounds-scroll-wrap th:nth-child(3),
+.rounds-scroll-wrap td:nth-child(3) {
+    width: 60px;
+    min-width: 60px;
+}
+/* PR A, PR B, Luck A, Luck B */
 .rounds-scroll-wrap th:nth-child(4),
 .rounds-scroll-wrap td:nth-child(4),
 .rounds-scroll-wrap th:nth-child(5),
@@ -1062,16 +976,20 @@
 .rounds-scroll-wrap td:nth-child(7) {
     width: 56px;
     min-width: 56px;
-    max-width: 64px;
 }
+/* Played */
 .rounds-scroll-wrap th:nth-child(8),
 .rounds-scroll-wrap td:nth-child(8) { width: 80px; }
 
 @media (max-width: 640px) {
     .rounds-scroll-wrap {
-        --col1-w: 130px;
-        --col2-w: 52px;
-        --col3-w: 130px;
+        --col1-w: 100px;
+        --col2-w: 100px;
+    }
+    .rounds-scroll-wrap th:nth-child(3),
+    .rounds-scroll-wrap td:nth-child(3) {
+        width: 52px;
+        min-width: 52px;
     }
     .rounds-scroll-wrap th:nth-child(4),
     .rounds-scroll-wrap td:nth-child(4),
@@ -1083,6 +1001,5 @@
     .rounds-scroll-wrap td:nth-child(7) {
         width: 48px;
         min-width: 48px;
-        max-width: 52px;
     }
 }

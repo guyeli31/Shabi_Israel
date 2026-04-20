@@ -15,15 +15,6 @@ import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 let currentSortCol = -1;
 let currentSortDir = 'desc';
 
-function staggerRows() {
-    const rows = document.querySelectorAll('#leagueBody tr:not(.avg-row):not(.stat-row)');
-    rows.forEach((tr, i) => {
-        tr.classList.remove('row-animate');
-        void tr.offsetWidth;
-        tr.style.animationDelay = `${i * 35}ms`;
-        tr.classList.add('row-animate');
-    });
-}
 
 export async function renderLeaguePage() {
     const container = document.getElementById('content');
@@ -180,7 +171,6 @@ function renderSummaryTable(container, rankings, averages, matchStats, params, l
     </div>`;
 
     container.innerHTML = html;
-    staggerRows();
 }
 
 function getRankClass(rank, goldCount, silverCount, bronzeCount) {
@@ -327,11 +317,11 @@ function renderAverageRow(averages, columns, leagueConfig) {
         const col = columns[i];
         const lbl = col.label;
         if (col.key === 'rank') {
-            // Rank + Player cells combined
+            html += `<td></td>`;
             continue;
         }
         if (col.key === 'player') {
-            html += `<td colspan="2" data-label="Summary"><b>AVERAGES</b></td>`;
+            html += `<td data-label="Summary"><b>AVERAGES</b></td>`;
             continue;
         }
         if (col.key === 'level') {
@@ -409,7 +399,6 @@ function sortAndRerender(rankings, averages, matchStats, params, leagueId, col, 
     body.innerHTML = renderDataRows(sorted, extents, params, leagueId, goldCount, silverCount, bronzeCount, columns, leagueConfig, playersMeta)
         + renderAverageRow(averages, columns, leagueConfig)
         + renderStatRow(matchStats, columns.length);
-    staggerRows();
 }
 
 // ---- Export Image ----

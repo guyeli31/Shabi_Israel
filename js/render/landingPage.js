@@ -52,6 +52,9 @@ export async function renderLandingPage() {
     const container = document.getElementById('content');
     container.innerHTML = '<div class="loading">Loading leagues...</div>';
 
+    const logoEl = document.getElementById('site-logo');
+    if (logoEl) logoEl.classList.add('logo-loading');
+
     try {
         // Load landing settings and populate header
         _landingSettings = await loadLandingSettings();
@@ -119,6 +122,8 @@ export async function renderLandingPage() {
         }
     } catch (err) {
         container.innerHTML = `<div class="error">Failed to load leagues: ${err.message}</div>`;
+    } finally {
+        if (logoEl) logoEl.classList.remove('logo-loading');
     }
 }
 

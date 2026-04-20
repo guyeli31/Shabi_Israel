@@ -55,6 +55,23 @@ body {
     border-radius: var(--radius-md);
 }
 
+@media (max-width: 640px) {
+    @keyframes logo-breathe {
+        0%   { transform: scale(1);    filter: drop-shadow(0 0 0px transparent); }
+        50%  { transform: scale(1.12); filter: drop-shadow(0 4px 14px rgba(0,0,0,0.22)); }
+        100% { transform: scale(1);    filter: drop-shadow(0 0 0px transparent); }
+    }
+
+    .page-header .logo.logo-loading {
+        animation: logo-breathe 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+        transform-origin: center;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .page-header .logo.logo-loading { animation: none; }
+    }
+}
+
 .table-wrapper {
     background: var(--color-surface);
     border-radius: var(--radius-lg);

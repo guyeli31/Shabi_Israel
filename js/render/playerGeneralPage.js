@@ -440,14 +440,14 @@ function renderLeaguesTable(section, perLeague) {
                 <tr>
                     <th scope="col">${thLabel('Date','Date')}</th>
                     <th scope="col">${thLabel('League','League')}</th>
-                    <th scope="col">${thLabel('Type','Type')}</th>
-                    <th scope="col">${thLabel('Status','Status')}</th>
-                    <th scope="col">${thLabel('Rank','Rank')}</th>
-                    <th scope="col">${thLabel('Games','Games')}</th>
+                    <th scope="col">${thLabel('Type','Tp')}</th>
+                    <th scope="col">${thLabel('Status','St')}</th>
+                    <th scope="col">${thLabel('Rank','#')}</th>
+                    <th scope="col">${thLabel('Games','G')}</th>
                     <th scope="col">${thLabel('W','W')}</th>
                     <th scope="col">${thLabel('L','L')}</th>
-                    <th scope="col">${thLabel('Primary','Primary')}</th>
-                    <th scope="col">${thLabel('Mean PR','Mean PR')}</th>
+                    <th scope="col">${thLabel('Primary','Pr')}</th>
+                    <th scope="col">${thLabel('Mean PR','PR')}</th>
                 </tr>
             </thead>
             <tbody>
@@ -537,7 +537,7 @@ function renderMatchHistory(section, playerName, perLeague) {
     section.appendChild(chartHost);
 
     const tableWrap = document.createElement('div');
-    tableWrap.className = 'table-wrapper';
+    tableWrap.className = 'pg-matches-table-wrapper';
     section.appendChild(tableWrap);
 
     let sortKey = 'updatedAt';
@@ -609,7 +609,7 @@ function renderMatchHistory(section, playerName, perLeague) {
             { key: 'luckSelf', label: 'Luck', abbr: 'Luck' },
             { key: 'result', label: 'Result', abbr: 'Result' }
         ];
-        let html = '<div class="pg-matches-scroll"><table class="pg-matches-table"><thead><tr>';
+        let html = '<table class="pg-matches-table"><thead><tr>';
         for (const h of headers) {
             const arrow = sortKey === h.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
             html += `<th scope="col" data-key="${h.key}">${thLabel(h.label, h.abbr)}${arrow}</th>`;
@@ -640,7 +640,7 @@ function renderMatchHistory(section, playerName, perLeague) {
                 </tr>
             `;
         }
-        html += '</tbody></table></div>';
+        html += '</tbody></table>';
         host.innerHTML = html;
         attachPlayerNameInteractions(host, null);
 
@@ -760,7 +760,7 @@ function applyShowTopN(tableEl, defaultN = 5) {
         if (i >= defaultN) row.classList.add('table-row-hidden');
     });
 
-    const wrapper = tableEl.closest('.pg-matches-scroll, .table-wrapper');
+    const wrapper = tableEl.closest('.pg-matches-table-wrapper, .table-wrapper');
 
     const btn = document.createElement('button');
     btn.className = 'show-more-btn';

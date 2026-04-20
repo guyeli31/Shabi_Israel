@@ -394,19 +394,12 @@
     color: var(--color-text-muted);
 }
 
-/* G4 — Leagues table
-   A1: unify surface/header/stripes with .completed-leagues-table (landing dashboard).
-   Note: `overflow: hidden` (used by .completed-leagues-table for rounded-corner
-   clipping) is omitted here — it would trap horizontal `position: sticky`
-   descendants and break the A3 2-col sticky. Border-radius + box-shadow still
-   carry the dashboard feel; cells abut the edges without clipping. */
+/* G4 — Leagues table + G5 Match History table shared base */
 .pg-leagues-table,
 .pg-matches-table {
     width: 100%;
     border-collapse: collapse;
     background: var(--color-surface);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-md);
     font-size: 0.9rem;
 }
 .pg-leagues-table th,
@@ -497,6 +490,14 @@
     flex-direction: column;
     gap: 20px;
 }
+/* Card shell lives on .pg-mr-card (same as .achv-table-card in main dashboard):
+   h3 + table wrapper + show-more button are all visually inside the card. */
+.pg-mr-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+}
 .pg-mr-card h3 {
     margin: 0 0 8px;
     font-size: 1rem;
@@ -507,20 +508,10 @@
     margin-right: 4px;
 }
 
-/* Match history scroll cap — 20 visible rows. overflow-x must be auto on
-   desktop too so the 2-col sticky (A3) has a horizontal scroll container. */
-.pg-matches-scroll {
-    max-height: 374px;  /* ~10 rows at ~34px each + header */
-    overflow-x: auto;
-    overflow-y: auto;
-}
+/* Match Records table wrapper — just scroll, no card shell (card is on .pg-mr-card) */
 .pg-mr-card .table-wrapper {
-    max-height: 204px;  /* ~5 rows at ~34px each + header */
     overflow-x: auto;
-    overflow-y: auto;
-}
-.pg-matches-scroll table {
-    width: 100%;
+    overflow-y: hidden;
 }
 .pg-matches-table tbody tr:nth-child(even) {
     background: var(--row-alt-bg, rgba(0,0,0,0.025));
@@ -535,8 +526,9 @@
  *   pg-matches-table  : col1 = Date, col2 = League
  *   pg-mr-table       : col1 = #,    col2 = Metric  (uses --pg-col1-w only)
  * ============================================================ */
-.pg-leagues-table             { --pg-date-w: 90px; --pg-col1-w: 210px; }
-.pg-matches-table             { --pg-date-w: 90px; --pg-col1-w: 140px; }
+/* Unified Date + League column widths in both tables */
+.pg-leagues-table             { --pg-date-w: 90px; --pg-col1-w: 200px; }
+.pg-matches-table             { --pg-date-w: 90px; --pg-col1-w: 200px; }
 .pg-matches-table.pg-mr-table { --pg-date-w: 0px;  --pg-col1-w: 36px; }
 
 /* Leagues table — explicit widths on remaining (post-Date) columns. */
@@ -556,6 +548,10 @@
 .pg-leagues-table tbody td:nth-child(9)   { width: 80px; }
 .pg-leagues-table thead th:nth-child(10),   /* Mean PR */
 .pg-leagues-table tbody td:nth-child(10)  { width: 80px; }
+
+/* Match History col 3 = Type — same width as Leagues table Type column */
+.pg-matches-table:not(.pg-mr-table) thead th:nth-child(3),
+.pg-matches-table:not(.pg-mr-table) tbody td:nth-child(3) { width: 110px; }
 
 /* Col 1 = Date (leagues + matches) */
 .pg-leagues-table thead th:nth-child(1),
@@ -631,12 +627,22 @@
 .rank-cell-silver { color: var(--color-silver-text, #475569); font-weight: 600; }
 .rank-cell-bronze { color: var(--color-bronze-text, #b45309); font-weight: 600; }
 
-/* Leagues table wrapper — horizontal scroll on overflow + dashboard parity */
+/* Leagues table wrapper — card shell (rounds corners, shadow) + horizontal scroll */
 .pg-leagues-table-wrapper {
     width: 100%;
-    max-width: 100%;
-    min-width: 0;
     overflow-x: auto;
+    overflow-y: hidden;   /* clip to border-radius without creating a y-scroll context */
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+}
+
+/* Match History table wrapper — identical card shell */
+.pg-matches-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
 }
 
 /* Show-top-N toggle (mirrors index-dashboard.css `.show-more-btn`).
@@ -708,8 +714,8 @@
     .pg-leagues-table {
         font-size: 0.65rem;
         min-width: max-content;
-        --pg-date-w: 72px;
-        --pg-col1-w: 150px;
+        --pg-date-w: 62px;
+        --pg-col1-w: 110px;
     }
     .pg-leagues-table th,
     .pg-leagues-table td {
@@ -725,17 +731,30 @@
         font-size: 0.6rem;
         padding: 1px 5px;
     }
+    /* Narrow fixed-width non-sticky columns on mobile */
+    .pg-leagues-table thead th:nth-child(3),
+    .pg-leagues-table tbody td:nth-child(3) { width: 56px; }   /* Type */
+    .pg-leagues-table thead th:nth-child(4),
+    .pg-leagues-table tbody td:nth-child(4) { width: 60px; }   /* Status */
+    .pg-leagues-table thead th:nth-child(5),
+    .pg-leagues-table tbody td:nth-child(5) { width: 44px; }   /* Rank */
+    .pg-leagues-table thead th:nth-child(6),
+    .pg-leagues-table tbody td:nth-child(6),
+    .pg-leagues-table thead th:nth-child(7),
+    .pg-leagues-table tbody td:nth-child(7),
+    .pg-leagues-table thead th:nth-child(8),
+    .pg-leagues-table tbody td:nth-child(8) { width: 22px; padding-left: 2px; padding-right: 2px; } /* G W L */
+    .pg-leagues-table thead th:nth-child(9),
+    .pg-leagues-table tbody td:nth-child(9) { width: 44px; }   /* Primary */
+    .pg-leagues-table thead th:nth-child(10),
+    .pg-leagues-table tbody td:nth-child(10) { width: 36px; }  /* PR */
 
-    /* Matches table: horizontal scroll inside its wrapper. */
-    .pg-matches-scroll {
-        overflow-x: auto;
-        max-height: none;
-    }
+    /* Match history table: same sticky vars as leagues */
     .pg-matches-table {
         font-size: 0.65rem;
         min-width: max-content;
-        --pg-date-w: 72px;
-        --pg-col1-w: 100px;
+        --pg-date-w: 62px;
+        --pg-col1-w: 110px;
     }
     .pg-matches-table.pg-mr-table {
         font-size: 0.65rem;
@@ -753,9 +772,8 @@
     }
 
     /* Match-record card tables: compress + horizontal scroll */
-    .pg-mr-card .table-wrapper {
-        overflow-x: auto;
-        overflow-y: auto;
+    .pg-mr-card {
+        padding: 8px;
     }
     .pg-mr-table {
         min-width: max-content;

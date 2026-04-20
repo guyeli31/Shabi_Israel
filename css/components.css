@@ -134,7 +134,7 @@ tbody td {
 #leagueTable tbody tr.rank-silver td:nth-child(1),
 #leagueTable tbody tr.rank-silver td:nth-child(2) { background: var(--color-silver-bg); }
 #leagueTable tbody tr.rank-bronze td:nth-child(1),
-#leagueTable tbody tr.rank-bronze td:nth-child(2) { background: rgba(217, 119, 6, 0.08); }
+#leagueTable tbody tr.rank-bronze td:nth-child(2) { background: var(--color-bronze-bg); }
 
 #leagueTable tbody tr.rank-gold:hover td:nth-child(1),
 #leagueTable tbody tr.rank-gold:hover td:nth-child(2) { background: var(--color-gold-bg-hover); }
@@ -281,7 +281,7 @@ td.player-cell a:hover {
 /* Row medal highlights */
 tr.rank-gold { background: var(--color-gold-bg); }
 tr.rank-silver { background: var(--color-silver-bg); }
-tr.rank-bronze { background: rgba(217, 119, 6, 0.08); }
+tr.rank-bronze { background: var(--color-bronze-bg); }
 
 tr.rank-gold:hover { background: var(--color-gold-bg-hover); }
 tr.rank-silver:hover { background: var(--color-silver-bg-hover); }
@@ -597,14 +597,6 @@ tr.retired {
         padding-left: 2px;
         padding-right: 2px;
     }
-    /* AVG row AVERAGES spans cols 1-2 via colspan=2, so its nth-child(2) is
-       actually the Games cell — override the UBC Player-col 120px rule so
-       Games column in table-layout:auto isn't forced wide by the avg row */
-    #leagueTable[data-league-type="ubc"] tr.avg-row td:nth-child(2) {
-        width: 28px;
-        min-width: 28px;
-        max-width: 28px;
-    }
     #leagueTable thead th:nth-child(n+3),
     #leagueTable tbody td:nth-child(n+3),
     #playerTable thead th:nth-child(n+3),
@@ -679,7 +671,7 @@ tr.retired {
     #leagueTable tbody tr.rank-silver td:nth-child(1),
     #leagueTable tbody tr.rank-silver td:nth-child(2) { background: var(--color-silver-bg); }
     #leagueTable tbody tr.rank-bronze td:nth-child(1),
-    #leagueTable tbody tr.rank-bronze td:nth-child(2) { background: rgba(217, 119, 6, 0.08); }
+    #leagueTable tbody tr.rank-bronze td:nth-child(2) { background: var(--color-bronze-bg); }
 
     /* Avg row — keep visible but compress */
     #leagueTable tr.avg-row td,
@@ -699,17 +691,4 @@ tr.retired {
         padding: 3px 3px;
         font-size: 0.65rem;
     }
-}
-
-
-/* ---- Row entrance animation ---- */
-@keyframes rowFadeIn {
-    from { opacity: 0; transform: translateX(-18px); }
-    to   { opacity: 1; transform: translateX(0); }
-}
-.row-animate {
-    animation: rowFadeIn 0.15s ease both;
-}
-@media (prefers-reduced-motion: reduce) {
-    .row-animate { animation: none; }
 }
