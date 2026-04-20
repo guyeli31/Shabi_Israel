@@ -2,19 +2,19 @@
  * playerNameInteraction.js — Shared helpers for player name click behavior
  * in the dashboard and player-page header.
  *
- * Left click  → general player card (player_general.html)
- * Right click → context menu:
- *                 1. "Open league player card" (links to player.html)
- *                 2. "Open general player card" (player_general.html)
+ * Left click / tap → league-specific player card (player.html) when a leagueId
+ *                    is in scope; otherwise the general card (player_general.html).
+ * Right click / long-press → context menu with the general card as the
+ *                    alternate option (and the league card, when leagueId exists).
  */
 
 import { playerUrl, playerGeneralUrl } from '../utils/helpers.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 
 /**
- * Render an HTML <a> for a player name. Left click navigates to the
- * general (cross-league) player card; right click opens a context menu
- * for choosing the league-specific card instead.
+ * Render an HTML <a> for a player name. The anchor is emitted with the
+ * general-card URL as a safe default; `attachPlayerNameInteractions()` will
+ * rewrite the href to the league-specific URL when a leagueId is in scope.
  *
  * @param {string} playerName
  * @param {object|null} meta — player metadata from players_metadata.json (optional).
@@ -29,12 +29,19 @@ export function playerNameLink(playerName, meta = null) {
 }
 
 /**
- * Attach context menu handlers to all .player-name-link elements within
- * rootEl, scoped to a leagueId. Left click follows the anchor (general card).
+ * Attach click / context-menu handlers to all .player-name-link elements
+ * within rootEl. When `leagueId` is provided, rewrite each link's href to
+ * the league-specific card so left-click / tap lands there; right-click
+ * exposes the general card as an alternate.
  */
 export function attachPlayerNameInteractions(rootEl, leagueId) {
     const links = rootEl.querySelectorAll('.player-name-link');
     links.forEach(a => {
+        if (leagueId) {
+            const player = a.dataset.player;
+            a.setAttribute('href', playerUrl(leagueId, player));
+            a.setAttribute('title', 'Open league player card');
+        }
         a.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             const player = a.dataset.player;
@@ -51,14 +58,15 @@ function showContextMenu(x, y, leagueId, playerName) {
     menu.className = 'player-context-menu';
     menu.style.left = x + 'px';
     menu.style.top = y + 'px';
-    menu.innerHTML = `
-        <a class="cm-item"
-           href="${playerUrl(leagueId, playerName)}"
-           title="Open this player's card for this league">Open league player card</a>
+    const generalItem = `
         <a class="cm-item"
            href="${playerGeneralUrl(playerName)}"
-           title="Open cross-league player profile">Open general player card</a>
-    `;
+           title="Open cross-league player profile">Open general card</a>`;
+    const leagueItem = leagueId ? `
+        <a class="cm-item"
+           href="${playerUrl(leagueId, playerName)}"
+           title="Open this player's card for this league">Open league player card</a>` : '';
+    menu.innerHTML = generalItem + leagueItem;
     document.body.appendChild(menu);
     activeMenu = menu;
 

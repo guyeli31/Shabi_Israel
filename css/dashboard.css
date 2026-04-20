@@ -856,13 +856,15 @@
         white-space: nowrap;
     }
 
-    /* Predictor table */
-    #predictor-section thead th {
-        font-size: 0.68rem;
+    /* Predictor table — font matches Historical (0.65rem) */
+    #predictor-section thead th,
+    .predictor-scroll-wrap thead th {
+        font-size: 0.65rem;
         padding: var(--space-xs) 2px;
     }
-    #predictor-section tbody td {
-        font-size: 0.75rem;
+    #predictor-section tbody td,
+    .predictor-scroll-wrap tbody td {
+        font-size: 0.65rem;
         padding: var(--space-xs) 2px;
     }
     #predictor-section tbody td.player-cell {
@@ -878,13 +880,15 @@
         min-width: 32px;
     }
 
-    /* What-If table */
-    .whatif-table thead th {
-        font-size: 0.6rem;
+    /* What-If table — font matches Historical (0.65rem) */
+    .whatif-table thead th,
+    .whatif-scroll-wrap thead th {
+        font-size: 0.65rem;
         padding: 3px 2px;
     }
-    .whatif-table tbody td {
-        font-size: 0.68rem;
+    .whatif-table tbody td,
+    .whatif-scroll-wrap tbody td {
+        font-size: 0.65rem;
         padding: 3px 2px;
     }
     .whatif-table tbody td.player-cell {

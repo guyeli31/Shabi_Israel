@@ -24,7 +24,8 @@ import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { colorForLevel } from '../compute/colorScale.js';
 import {
     getQueryParam, flagUrl, getFlagCode,
-    formatNumber, dashboardUrl, playerGeneralUrl, getLeagueYear, leagueUrl, thLabel
+    formatNumber, dashboardUrl, playerGeneralUrl, getLeagueYear, leagueUrl, thLabel,
+    parseLeagueDate
 } from '../utils/helpers.js';
 import {
     collectPlayerBestPR,
@@ -37,6 +38,7 @@ import { getTitleBadgesHtml, getTitleAbbreviationsHtml, getHighestTier } from '.
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 
 const CURRENT_YEAR = new Date().getFullYear();
+const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 
 let _allMeta = {};
 let _mergedCustomFlags = {};
@@ -436,6 +438,7 @@ function renderLeaguesTable(section, perLeague) {
         <table class="pg-leagues-table">
             <thead>
                 <tr>
+                    <th scope="col">${thLabel('Date','Date')}</th>
                     <th scope="col">${thLabel('League','League')}</th>
                     <th scope="col">${thLabel('Type','Type')}</th>
                     <th scope="col">${thLabel('Status','Status')}</th>
@@ -461,8 +464,9 @@ function renderLeaguesTable(section, perLeague) {
         const running = e.league.params?.Running === true;
         html += `
             <tr>
+                <td>${formatLeagueDate(e.league)}</td>
                 <td><a href="${dashboardUrl(e.league.id)}">${escapeHtml(e.league.title)}</a></td>
-                <td><span class="pg-lt pg-lt-${escapeHtml(e.league.leagueType)}">${escapeHtml(e.league.leagueType)}</span></td>
+                <td><span class="league-type-pill type-${escapeHtml(e.league.leagueType)}">${escapeHtml(LEAGUE_TYPE_LABELS[e.league.leagueType] || e.league.leagueType)}</span></td>
                 <td>${running ? '<span class="status-pill status-running">Running</span>' : '<span class="status-pill status-completed">Completed</span>'}</td>
                 <td class="${e.playerRank === 1 ? 'rank-cell-gold' : e.playerRank === 2 ? 'rank-cell-silver' : e.playerRank === 3 ? 'rank-cell-bronze' : ''}">${e.playerRank != null ? `${e.playerRank} / ${e.totalPlayers}` : '—'}</td>
                 <td>${s.games || 0}</td>
@@ -475,6 +479,19 @@ function renderLeaguesTable(section, perLeague) {
     }
     html += '</tbody></table></div>';
     section.innerHTML += html;
+}
+
+function formatLeagueDate(league) {
+    const iso = league.params?.IssueDate || league.params?.StartDate;
+    if (iso) {
+        const d = new Date(iso);
+        if (!isNaN(d)) {
+            return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+    }
+    const parsed = parseLeagueDate(league.id);
+    if (parsed.year != null) return `${parsed.monthShort} ${parsed.year}`;
+    return '—';
 }
 
 // ---- G5: Match history ----
@@ -592,20 +609,13 @@ function renderMatchHistory(section, playerName, perLeague) {
             { key: 'luckSelf', label: 'Luck', abbr: 'Luck' },
             { key: 'result', label: 'Result', abbr: 'Result' }
         ];
-        const MOBILE_CAP = 25;
-        const needsExpand = rows.length > MOBILE_CAP;
-        let html = '';
-        if (needsExpand) {
-            html += `<button type="button" class="pg-matches-expand" data-expanded="false">Show all ${rows.length} matches</button>`;
-        }
-        html += '<div class="pg-matches-scroll"><table class="pg-matches-table"><thead><tr>';
+        let html = '<div class="pg-matches-scroll"><table class="pg-matches-table"><thead><tr>';
         for (const h of headers) {
             const arrow = sortKey === h.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
             html += `<th scope="col" data-key="${h.key}">${thLabel(h.label, h.abbr)}${arrow}</th>`;
         }
         html += '</tr></thead><tbody>';
-        for (let idx = 0; idx < rows.length; idx++) {
-            const r = rows[idx];
+        for (const r of rows) {
             const date = r.updatedAt ? new Date(r.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
             const pr = (r.prSelf != null && !r._technical) ? formatNumber(r.prSelf) : '<span class="na">N/A</span>';
             const prOpp = (r.prOpp != null && !r._technical) ? formatNumber(r.prOpp) : '<span class="na">N/A</span>';
@@ -616,9 +626,8 @@ function renderMatchHistory(section, playerName, perLeague) {
                 r.result === 'WIN' ? 'result-win'
                 : r.result === 'LOSS' ? 'result-loss'
                 : 'result-draw';
-            const hiddenCls = idx >= MOBILE_CAP ? ' class="hidden-mobile"' : '';
             html += `
-                <tr${hiddenCls}>
+                <tr>
                     <td>${date}</td>
                     <td><a href="${dashboardUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
                     <td><span class="pg-lt pg-lt-${escapeHtml(r.leagueType)}">${escapeHtml(r.leagueType)}</span></td>
@@ -635,17 +644,8 @@ function renderMatchHistory(section, playerName, perLeague) {
         host.innerHTML = html;
         attachPlayerNameInteractions(host, null);
 
-        const expandBtn = host.querySelector('.pg-matches-expand');
-        if (expandBtn) {
-            expandBtn.addEventListener('click', () => {
-                const showAll = expandBtn.dataset.expanded === 'false';
-                host.querySelectorAll('tr.hidden-mobile').forEach(tr => {
-                    tr.classList.toggle('hidden-mobile-expanded', showAll);
-                });
-                expandBtn.dataset.expanded = showAll ? 'true' : 'false';
-                expandBtn.textContent = showAll ? `Show only ${MOBILE_CAP}` : `Show all ${rows.length} matches`;
-            });
-        }
+        const tableEl = host.querySelector('table.pg-matches-table');
+        if (tableEl) applyShowTopN(tableEl, 10);
 
         host.querySelectorAll('th[data-key]').forEach(th => {
             th.addEventListener('click', () => {
@@ -741,6 +741,42 @@ function showMatchRecordsType(body, perLeague, type) {
             ${renderPlayerRecordTable('Best Luck For', 'Luck Gap', bestLuck)}
             ${renderPlayerRecordTable('Worst Luck Against', 'Luck Gap', worstLuck)}
         </div>`;
+
+    body.querySelectorAll('table.pg-mr-table').forEach(t => applyShowTopN(t, 5));
+}
+
+/* Show-top-N: hide rows beyond N and add a Show all / Show top N toggle.
+   Mirrors the helper in landingPage.js so the player-card tables match the
+   Main Dashboard pattern. CSS classes (.show-more-btn, .table-row-hidden) are
+   defined locally in player-general.css since this page does not load
+   index-dashboard.css. */
+function applyShowTopN(tableEl, defaultN = 5) {
+    const tbody = tableEl.querySelector('tbody');
+    if (!tbody) return;
+    const rows = tbody.querySelectorAll('tr');
+    if (rows.length <= defaultN) return;
+
+    rows.forEach((row, i) => {
+        if (i >= defaultN) row.classList.add('table-row-hidden');
+    });
+
+    const wrapper = tableEl.closest('.pg-matches-scroll, .table-wrapper');
+
+    const btn = document.createElement('button');
+    btn.className = 'show-more-btn';
+    btn.textContent = `Show all (${rows.length})`;
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isCollapsed = rows[defaultN].classList.contains('table-row-hidden');
+        rows.forEach((row, i) => {
+            if (i >= defaultN) row.classList.toggle('table-row-hidden', !isCollapsed);
+        });
+        btn.textContent = isCollapsed ? `Show top ${defaultN}` : `Show all (${rows.length})`;
+        if (wrapper) wrapper.style.maxHeight = isCollapsed ? 'none' : '';
+    });
+
+    const anchor = wrapper || tableEl;
+    if (anchor.parentNode) anchor.parentNode.insertBefore(btn, anchor.nextSibling);
 }
 
 function renderPlayerRecordTable(title, metricLabel, rows) {

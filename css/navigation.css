@@ -195,14 +195,31 @@
     background: var(--color-hover);
 }
 
+.nav-search-results .search-player-info {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+}
 .nav-search-results .search-player-name {
     font-weight: 600;
+    white-space: nowrap;
+}
+.nav-search-results .search-player-realname {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    font-weight: 400;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .nav-search-results .search-league-hint {
     font-size: 0.78rem;
     color: var(--color-text-muted);
     margin-left: auto;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .nav-search-results .search-empty {

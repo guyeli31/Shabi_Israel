@@ -35,10 +35,33 @@ No build step — pure vanilla HTML/CSS/JS running in the browser. Deployed on G
 
 ## Development
 
-Serve locally (ES modules require a server):
+Serve locally (ES modules require a server). **Default port: 8090** (we standardised off 8080 because other tools collide on it).
+
+### Dev server — reuse, don't relaunch
+
+The `http-server` process is OS-level, independent of any Claude window. If a sibling window already started it, every other window should reuse it. Before starting a server, always probe:
+
 ```bash
-npx http-server -p 8080 --cors -c-1
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8090/index.html
 ```
+
+- `200` → server is up, reuse `http://localhost:8090/` as-is. Do **not** relaunch.
+- anything else → start it once in the background:
+  ```bash
+  npx http-server -p 8090 --cors -c-1
+  ```
+  Run with `run_in_background: true` so it survives the turn. A follow-up 200 on the probe confirms bind success even if the bash task reports a non-zero exit (harmless EADDRINUSE race when the port is already held).
+
+Never kill a running `http-server` just to "start clean" — other windows (and the user's own browser tabs) may depend on it.
+
+### Playwright MCP — shared Chrome profile
+
+Playwright MCP uses a single Chrome profile at `C:\Users\User\AppData\Local\ms-playwright\mcp-chrome-*`. Only one Claude window can drive it at a time; a second concurrent call returns *"Browser is already in use … use --isolated"* (we can't pass `--isolated` from the MCP tool). When this happens:
+1. Do other work (code edits, static verification) first.
+2. Retry the browser call later — the sibling window releases the lock when it finishes or when its page is closed.
+3. If the wait is long, use `ScheduleWakeup` to retry in ~90–180 s rather than busy-polling.
+
+Pages already navigated in the shared browser persist across windows — a new window's first `browser_navigate` just reuses the same tab.
 
 No build, no dependencies, no package.json. All JS uses ES modules (`type="module"`).
 

@@ -13,6 +13,7 @@ import { thLabel } from '../utils/helpers.js';
 
 // Known flag codes (from assets/flags/)
 const KNOWN_FLAGS = ['BE', 'IL', 'RU', 'TZ', 'UN'];
+const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 
 let refreshBadgeFn = null;
 
@@ -98,7 +99,7 @@ function renderLeagueList(container, leagues, displayOrder) {
         rows += `
             <tr>
                 <td data-label="Name">${esc(p.LeagueTitle || lg.id)}${hiddenBadge}</td>
-                <td data-label="Type">${esc(p.LeagueType || 'doubling')}</td>
+                <td data-label="Type"><span class="league-type-pill type-${esc(p.LeagueType || 'doubling')}">${esc(LEAGUE_TYPE_LABELS[p.LeagueType] || LEAGUE_TYPE_LABELS.doubling)}</span></td>
                 <td data-label="Issue Date">${p.IssueDate ? formatAdminDate(p.IssueDate) : '<span style="color:var(--color-text-muted)">—</span>'}</td>
                 <td data-label="Status">${statusPill}</td>
                 <td data-label="Actions">

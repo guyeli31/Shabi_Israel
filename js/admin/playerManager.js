@@ -271,6 +271,8 @@ function savePlayer(container, name) {
         return;
     }
 
+    const existingPhotoPath = _state.metadata[name] && _state.metadata[name].photoPath;
+
     const entry = { ..._state.metadata[name] };
     if (fullName) entry.fullName = fullName; else delete entry.fullName;
     if (bmabTitle) entry.bmabTitle = bmabTitle; else delete entry.bmabTitle;
@@ -321,6 +323,16 @@ function savePlayer(container, name) {
             content: _state.photoData,
             binary: true,
             description: `Player photo (${name})`,
+            group: `players-meta-${name}`
+        });
+    } else if (_state.removePhoto && existingPhotoPath) {
+        // Stage binary delete of the existing photo file
+        addChange({
+            type: 'delete',
+            path: existingPhotoPath,
+            content: null,
+            binary: true,
+            description: `Remove player photo (${name})`,
             group: `players-meta-${name}`
         });
     }

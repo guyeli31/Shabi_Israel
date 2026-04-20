@@ -5,6 +5,7 @@
 
 import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches } from '../data/leagueLoader.js';
 import { dashboardUrl, playerUrl, playerGeneralUrl } from '../utils/helpers.js';
+import { loadPlayersMetadata } from '../data/playersMetadata.js';
 
 // ---- Breadcrumbs ----
 
@@ -204,13 +205,16 @@ async function buildPlayerIndex() {
         leagues = leagues.filter(l => !l.hidden);
     }
 
-    // Load all CSVs in parallel
-    const results = await Promise.allSettled(
-        leagues.map(async l => {
-            const { allPlayers } = await loadLeagueMatches(l.id);
-            return { leagueId: l.id, title: l.title, players: allPlayers };
-        })
-    );
+    // Load all CSVs and metadata in parallel
+    const [results, meta] = await Promise.all([
+        Promise.allSettled(
+            leagues.map(async l => {
+                const { allPlayers } = await loadLeagueMatches(l.id);
+                return { leagueId: l.id, title: l.title, players: allPlayers };
+            })
+        ),
+        loadPlayersMetadata()
+    ]);
 
     for (const r of results) {
         if (r.status !== 'fulfilled') continue;
@@ -218,6 +222,14 @@ async function buildPlayerIndex() {
         for (const name of players) {
             if (!map.has(name)) map.set(name, []);
             map.get(name).push({ leagueId, title });
+        }
+    }
+
+    // Attach fullName from metadata to each entry
+    for (const [name, leagues] of map) {
+        const fullName = meta[name]?.fullName;
+        if (fullName) {
+            for (const entry of leagues) entry.fullName = fullName;
         }
     }
 
@@ -251,8 +263,9 @@ function setupPlayerSearch(nav) {
         const index = await ensurePlayerIndex();
         const matches = [];
         for (const [name, leagues] of index) {
-            if (name.toLowerCase().includes(query)) {
-                matches.push({ name, leagues });
+            const fullName = leagues[0]?.fullName || '';
+            if (name.toLowerCase().includes(query) || fullName.toLowerCase().includes(query)) {
+                matches.push({ name, leagues, fullName });
                 if (matches.length >= 8) break;
             }
         }
@@ -267,8 +280,11 @@ function setupPlayerSearch(nav) {
             const firstLeague = m.leagues[0];
             const leagueCount = m.leagues.length;
             const hint = leagueCount === 1 ? firstLeague.title : `${leagueCount} leagues`;
+            const nameHtml = m.fullName
+                ? `<span class="search-player-name">${escapeHtml(m.name)}</span><span class="search-player-realname">${escapeHtml(m.fullName)}</span>`
+                : `<span class="search-player-name">${escapeHtml(m.name)}</span>`;
             return `<li><a href="${playerGeneralUrl(m.name)}">
-                <span class="search-player-name">${escapeHtml(m.name)}</span>
+                <span class="search-player-info">${nameHtml}</span>
                 <span class="search-league-hint">${escapeHtml(hint)}</span>
             </a></li>`;
         }).join('');

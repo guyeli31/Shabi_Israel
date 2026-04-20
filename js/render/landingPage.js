@@ -800,7 +800,7 @@ function renderCompletedLeagues(container, completed) {
             <div class="collapsible-body">
                 <div class="completed-table-wrapper table-scroll">
                     <table class="completed-leagues-table">
-                        <thead><tr><th scope="col">${thLabel('Date','Date')}</th><th scope="col">${thLabel('League','League')}</th><th scope="col">${thLabel('Type','T')}</th><th scope="col">${thLabel('Winner','Win')}</th></tr></thead>
+                        <thead><tr><th scope="col">${thLabel('Date','Date')}</th><th scope="col">${thLabel('League','League')}</th><th scope="col">${thLabel('Type','Type')}</th><th scope="col">${thLabel('Winner','Win')}</th></tr></thead>
                         <tbody>${rowsHtml}</tbody>
                     </table>
                 </div>
@@ -822,6 +822,10 @@ function renderCompletedLeagues(container, completed) {
     }
 
     container.appendChild(section);
+
+    // Limit to top 10 with Show-all toggle (same pattern as Match Records)
+    const tableEl = section.querySelector('.completed-leagues-table');
+    if (tableEl) applyShowTopN(tableEl, 10);
 }
 
 /* ── H2 — Annual leaderboards ─────────────────────────── */
@@ -1161,7 +1165,7 @@ function applyShowTopN(tableEl, defaultN = 5) {
         if (i >= defaultN) row.classList.add('table-row-hidden');
     });
 
-    const wrapper = tableEl.closest('.achv-table-wrapper') || tableEl.closest('.leaderboard-table-wrapper');
+    const wrapper = tableEl.closest('.achv-table-wrapper') || tableEl.closest('.leaderboard-table-wrapper') || tableEl.closest('.completed-table-wrapper');
     const savedMaxH = wrapper ? getComputedStyle(wrapper).maxHeight : '';
 
     const btn = document.createElement('button');
@@ -1184,11 +1188,12 @@ function applyShowTopN(tableEl, defaultN = 5) {
 
 const TYPE_ORDER = ['doubling', 'regular', 'ubc'];
 const ACHIEVEMENT_METRICS = [
-    { key: 'gold',    label: 'Gold',     medal: '🥇', fmt: v => v },
-    { key: 'silver',  label: 'Silver',   medal: '🥈', fmt: v => v },
-    { key: 'bronze',  label: 'Bronze',   medal: '🥉', fmt: v => v },
-    { key: 'avgRank', label: 'Avg Rank', fmt: v => formatNumber(v) },
-    { key: 'winRate', label: 'Avg Win Rate', fmt: v => formatPercent(v) }
+    { key: 'gold',      label: 'Gold',         medal: '🥇', fmt: v => v },
+    { key: 'silver',    label: 'Silver',       medal: '🥈', fmt: v => v },
+    { key: 'bronze',    label: 'Bronze',       medal: '🥉', fmt: v => v },
+    { key: 'avgRank',   label: 'Avg Rank',     fmt: v => formatNumber(v) },
+    { key: 'winRate',   label: 'Avg Win Rate', fmt: v => formatPercent(v) },
+    { key: 'prWinRate', label: 'Avg PR Win',   fmt: v => formatPercent(v) }
 ];
 
 function sortPresentTypes(types) {
@@ -1275,7 +1280,9 @@ function wireLuckInfoPopup(panel, leagueType) {
 }
 
 function renderAchievementTables(data, leagueType) {
-    const coreCards = ACHIEVEMENT_METRICS.map(m => {
+    const coreCards = ACHIEVEMENT_METRICS
+        .filter(m => data.rankings[m.key] != null)
+        .map(m => {
         const rows = data.rankings[m.key] || [];
         const rowsHtml = rows.map(r => `
             <tr>
@@ -1301,7 +1308,7 @@ function renderAchievementTables(data, leagueType) {
         ? renderLuckPercentileCard(data, leagueType)
         : '';
 
-    return `<div class="achv-tables-grid">${coreCards}${luckCard}</div>`;
+    return `<div class="achv-tables-grid type-${leagueType}">${coreCards}${luckCard}</div>`;
 }
 
 function renderLuckPercentileCard(data, leagueType) {

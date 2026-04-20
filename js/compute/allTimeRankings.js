@@ -33,6 +33,7 @@ export async function buildAllTimeRankings(leagueType) {
         );
 
         const hasPR = PR_TYPES.has(leagueType);
+        const isUBC = leagueType === 'ubc';
         const prWeight = (leagueType === 'regular') ? 5 : 7;
 
         // Merge custom flags from all leagues of this type
@@ -56,6 +57,7 @@ export async function buildAllTimeRankings(leagueType) {
                     gold: 0, silver: 0, bronze: 0,
                     participations: 0, rankSum: 0,
                     wins: 0, games: 0,
+                    prWins: 0, prGames: 0,
                     prMatches: [],
                     luckMatches: []   // [{ m, matchLength }]
                 });
@@ -109,6 +111,15 @@ export async function buildAllTimeRankings(leagueType) {
                             });
                         }
                     }
+                    // PR-win rate (UBC only): count non-technical matches, includes running leagues.
+                    if (isUBC) {
+                        const pA = bump(m.playerA);
+                        pA.prGames++;
+                        if (m.prA < m.prB) pA.prWins++;
+                        const pB = bump(m.playerB);
+                        pB.prGames++;
+                        if (m.prB < m.prA) pB.prWins++;
+                    }
                     // Luck-percentile includes running leagues.
                     bump(m.playerA).luckMatches.push({ m, matchLength });
                     bump(m.playerB).luckMatches.push({ m, matchLength });
@@ -157,6 +168,8 @@ export async function buildAllTimeRankings(leagueType) {
                 luckUnstable = lp.unstableSample;
             }
 
+            const prWinRate = t.prGames > 0 ? t.prWins / t.prGames : null;
+
             players.push({
                 name,
                 gold: t.gold,
@@ -173,7 +186,9 @@ export async function buildAllTimeRankings(leagueType) {
                 last300Count,
                 luckPercentile,
                 luckGames,
-                luckUnstable
+                luckUnstable,
+                prWinRate,
+                prGames: t.prGames
             });
         }
 
@@ -187,7 +202,8 @@ export async function buildAllTimeRankings(leagueType) {
             winRate: rankWinRate(players),
             totalPR:   hasPR ? rankPR(players, 'totalPR')   : null,
             last300PR: hasPR ? rankPR(players, 'last300PR') : null,
-            luckPercentile: hasPR ? rankLuckPercentile(players) : null
+            luckPercentile: hasPR ? rankLuckPercentile(players) : null,
+            prWinRate: isUBC ? rankPrWinRate(players) : null
         };
 
         return {
@@ -267,6 +283,23 @@ function rankPR(players, key) {
     return eligible.map((p, i) => ({
         name: p.name,
         value: p[key],
+        rank: i + 1
+    }));
+}
+
+// PR-win rate: DESC (higher PR-win % is better). UBC only.
+// Filter out very-low-sample players (< 5 PR games) so the leaderboard isn't
+// dominated by single-match outliers.
+const PR_WIN_RATE_MIN_GAMES = 5;
+function rankPrWinRate(players) {
+    const eligible = players.filter(p => p.prGames >= PR_WIN_RATE_MIN_GAMES);
+    eligible.sort((a, b) => {
+        if (b.prWinRate !== a.prWinRate) return b.prWinRate - a.prWinRate;
+        return b.prGames - a.prGames;
+    });
+    return eligible.map((p, i) => ({
+        name: p.name,
+        value: p.prWinRate,
         rank: i + 1
     }));
 }
