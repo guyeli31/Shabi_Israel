@@ -5,7 +5,7 @@
 import { loadLeague } from '../data/leagueLoader.js';
 import { getPlayerMatches } from '../data/csvParser.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { getQueryParam, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl, playerGeneralUrl, getLeagueYear, thLabel } from '../utils/helpers.js';
+import { getQueryParam, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl, leagueUrl, playerGeneralUrl, getLeagueYear, thLabel } from '../utils/helpers.js';
 import { renderBreadcrumbs, ensurePlayerIndex } from './navigation.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleBadgesHtml, getHighestTier } from '../data/titleConstants.js';
@@ -152,6 +152,9 @@ function renderMatchTable(container, playerMatches, params, leagueId, playerName
     ).join('\n                        ');
 
     let html = `
+    <div class="dash-controls">
+        <a class="open-full-btn" href="${leagueUrl(leagueId)}" title="Back to the full league table">&lsaquo; Back to full table</a>
+    </div>
     <div class="table-wrapper">
         <div class="table-scroll">
             <table id="playerTable">

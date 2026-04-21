@@ -520,8 +520,10 @@ tr.retired {
     .th-full { display: none; }
     .th-abbr { display: inline; }
 
-    /* Matrix compression — small font, minimal padding, center */
-    #leagueTable, #playerTable, .dash-table, .completed-leagues-table,
+    /* Matrix compression — small font, minimal padding, center.
+       A1 (.completed-leagues-table) is excluded: its font-size is user-controlled
+       per iron rule 3 and must not be auto-reduced on mobile. */
+    #leagueTable, #playerTable, .dash-table,
     .admin-table, .pg-rank-table, .pg-matches-table, .pg-mr-table {
         font-size: 0.65rem;
         width: 100%;
@@ -530,7 +532,6 @@ tr.retired {
     #leagueTable thead th,
     #playerTable thead th,
     .dash-table thead th,
-    .completed-leagues-table thead th,
     .admin-table thead th,
     .pg-rank-table thead th,
     .pg-matches-table thead th,
@@ -542,7 +543,6 @@ tr.retired {
     #leagueTable tbody td,
     #playerTable tbody td,
     .dash-table tbody td,
-    .completed-leagues-table tbody td,
     .admin-table tbody td,
     .pg-rank-table tbody td,
     .pg-matches-table tbody td,

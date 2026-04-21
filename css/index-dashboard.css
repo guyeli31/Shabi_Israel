@@ -456,13 +456,13 @@
 
 /* Completed leagues table (compact) */
 .completed-leagues-table {
-    --cl-date-w: 110px;
     width: 100%;
     border-collapse: collapse;
     background: var(--color-surface);
     border-radius: var(--radius-md);
     overflow: hidden;
     box-shadow: var(--shadow-sm);
+    font-size: 0.85rem;
 }
 
 .completed-leagues-table th,
@@ -470,24 +470,22 @@
     padding: 8px 14px;
     border-bottom: 1px solid var(--color-border);
     text-align: left;
+    font-size: inherit;
 }
 
 .completed-leagues-table th {
     background: var(--header-bg, #1e293b);
     color: var(--header-text, #fff);
     font-weight: 600;
-    font-size: 0.85rem;
     position: sticky;
     top: 0;
     z-index: 1;
 }
 
-/* DATE column: sticky left on both viewports */
+/* DATE column: sticky left on both viewports.
+   Width derives from content (no hard-coded width). */
 .completed-leagues-table thead th:first-child,
 .completed-leagues-table tbody td:first-child {
-    width: var(--cl-date-w);
-    min-width: var(--cl-date-w);
-    max-width: var(--cl-date-w);
     border-right: 1px solid var(--color-border);
 }
 .completed-leagues-table tbody td:first-child {
@@ -496,16 +494,18 @@
     z-index: 2;
     background: var(--color-surface);
 }
-.completed-leagues-table tr.row-type-doubling td:first-child {
-    background: linear-gradient(rgba(59,130,246,.06),rgba(59,130,246,.06)), var(--color-surface);
+/* Row tint applied opaquely to every td (incl. sticky) so sticky matches row
+   and non-sticky content cannot leak through during horizontal scroll. */
+.completed-leagues-table tr.row-type-doubling td {
+    background: color-mix(in srgb, var(--color-surface) 94%, rgb(59,130,246) 6%);
 }
-.completed-leagues-table tr.row-type-regular td:first-child {
-    background: linear-gradient(rgba(16,185,129,.06),rgba(16,185,129,.06)), var(--color-surface);
+.completed-leagues-table tr.row-type-regular td {
+    background: color-mix(in srgb, var(--color-surface) 94%, rgb(16,185,129) 6%);
 }
-.completed-leagues-table tr.row-type-ubc td:first-child {
-    background: linear-gradient(rgba(245,158,11,.06),rgba(245,158,11,.06)), var(--color-surface);
+.completed-leagues-table tr.row-type-ubc td {
+    background: color-mix(in srgb, var(--color-surface) 94%, rgb(245,158,11) 6%);
 }
-.completed-leagues-table tr:hover td:first-child {
+.completed-leagues-table tr:hover td {
     background: var(--color-hover);
 }
 .completed-leagues-table thead th:first-child {
@@ -525,14 +525,10 @@
 }
 
 .completed-leagues-table .flag {
-    height: 16px;
+    height: 1em;
     vertical-align: middle;
     margin-right: 4px;
     object-fit: cover;
-}
-
-.completed-leagues-table tr:hover td {
-    background: var(--color-hover);
 }
 
 /* Responsive */
@@ -606,11 +602,8 @@
 
 .img-export-btn:hover { filter: brightness(1.1); }
 
-/* ── Completed leagues row tinting (Chunk 3 / OLD-5) ── */
-/* Neutral placeholder tints — final palette in Chunk 8 themes session. */
-.completed-leagues-table tr.row-type-doubling { background: rgba(59, 130, 246, 0.06); }
-.completed-leagues-table tr.row-type-regular  { background: rgba(16, 185, 129, 0.06); }
-.completed-leagues-table tr.row-type-ubc      { background: rgba(245, 158, 11, 0.06); }
+/* Completed leagues row tinting — applied per-td above to keep sticky and
+   non-sticky cells identical in color (iron rule 11). */
 
 /* ── Achievements + PR Leaders (Chunk 3 / NEW-4) ────── */
 .achievements-section,
@@ -1108,17 +1101,13 @@ body:has(.edit-bar) .theme-picker {
         padding: 8px;
     }
 
-    /* Completed-leagues inside wrapper — matches Match Records mobile font */
-    .completed-leagues-table {
-        --cl-date-w: 64px;
-        font-size: 0.65rem;
-    }
+    /* Completed-leagues mobile: only padding differs (density).
+       Font-size, column width, and icon height inherit desktop per iron rules 1–5. */
     .completed-leagues-table th,
     .completed-leagues-table td {
         padding: 4px 6px;
     }
     .completed-leagues-table .flag {
-        height: 12px;
         margin-right: 3px;
     }
 
@@ -1191,7 +1180,11 @@ body:has(.edit-bar) .theme-picker {
     padding: 4px 2px;
 }
 
-/* Mobile: also make Date (col 2) and League (col 3) sticky */
+/* Mobile: also make Date (col 2) sticky after the drag handle.
+   League (col 3) sticky dropped on mobile — multi-column sticky requires a
+   fixed left-offset, which would reintroduce a hard-coded column width and
+   violate iron rules 1–2. Row-type tint inherits from base per-td rules
+   (iron rule 11: sticky cell color identical to rest of row). */
 @media (max-width: 640px) {
     .page-container.edit-mode .completed-leagues-table {
         --cl-handle-w: 22px;
@@ -1202,51 +1195,13 @@ body:has(.edit-bar) .theme-picker {
     .page-container.edit-mode .completed-leagues-table tbody td:nth-child(2) {
         position: sticky;
         left: var(--cl-handle-w);
-        width: var(--cl-date-w);
-        min-width: var(--cl-date-w);
-        max-width: var(--cl-date-w);
         border-right: 1px solid var(--color-border);
     }
     .page-container.edit-mode .completed-leagues-table tbody td:nth-child(2) {
         z-index: 2;
-        background: var(--color-surface);
     }
     .page-container.edit-mode .completed-leagues-table thead th:nth-child(2) {
         z-index: 4;
         background: var(--header-bg, #1e293b);
-    }
-
-    /* League column — sticky after drag handle + date */
-    .page-container.edit-mode .completed-leagues-table thead th:nth-child(3),
-    .page-container.edit-mode .completed-leagues-table tbody td:nth-child(3) {
-        position: sticky;
-        left: calc(var(--cl-handle-w) + var(--cl-date-w));
-        border-right: 1px solid var(--color-border);
-    }
-    .page-container.edit-mode .completed-leagues-table tbody td:nth-child(3) {
-        z-index: 2;
-        background: var(--color-surface);
-    }
-    .page-container.edit-mode .completed-leagues-table thead th:nth-child(3) {
-        z-index: 4;
-        background: var(--header-bg, #1e293b);
-    }
-
-    /* Row-type tints for sticky Date + League cells */
-    .page-container.edit-mode .completed-leagues-table tr.row-type-doubling td:nth-child(2),
-    .page-container.edit-mode .completed-leagues-table tr.row-type-doubling td:nth-child(3) {
-        background: linear-gradient(rgba(59,130,246,.06),rgba(59,130,246,.06)), var(--color-surface);
-    }
-    .page-container.edit-mode .completed-leagues-table tr.row-type-regular td:nth-child(2),
-    .page-container.edit-mode .completed-leagues-table tr.row-type-regular td:nth-child(3) {
-        background: linear-gradient(rgba(16,185,129,.06),rgba(16,185,129,.06)), var(--color-surface);
-    }
-    .page-container.edit-mode .completed-leagues-table tr.row-type-ubc td:nth-child(2),
-    .page-container.edit-mode .completed-leagues-table tr.row-type-ubc td:nth-child(3) {
-        background: linear-gradient(rgba(245,158,11,.06),rgba(245,158,11,.06)), var(--color-surface);
-    }
-    .page-container.edit-mode .completed-leagues-table tr:hover td:nth-child(2),
-    .page-container.edit-mode .completed-leagues-table tr:hover td:nth-child(3) {
-        background: var(--color-hover);
     }
 }
