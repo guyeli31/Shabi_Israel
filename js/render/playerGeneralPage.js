@@ -666,6 +666,8 @@ function renderMatchHistory(section, playerName, perLeague) {
     typeSel.addEventListener('change', renderAll);
     countSel.addEventListener('change', renderAll);
     renderAll();
+
+    renderMatchup(section, playerName, allRows);
 }
 
 // ---- helpers ----
