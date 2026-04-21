@@ -406,3 +406,9 @@ FodyWeavers.xsd
 # Ad-hoc verification screenshots at repo root
 /step*.png
 /dashboard-*.png
+/pg-*.png
+
+# Claude / Superpowers internal files
+.claude/scheduled_tasks.lock
+.superpowers/
+docs/superpowers/
