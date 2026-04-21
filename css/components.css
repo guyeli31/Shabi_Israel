@@ -779,7 +779,9 @@ tr.retired {
     margin: 0;
 }
 .matchup-search-option {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
     width: 100%;
     padding: 8px var(--space-md);
     background: none;
@@ -788,8 +790,28 @@ tr.retired {
     font-size: 0.9rem;
     color: var(--color-text);
     cursor: pointer;
+    box-sizing: border-box;
 }
 .matchup-search-option:hover { background: var(--color-hover); }
+.matchup-search-dropdown .search-player-info {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+}
+.matchup-search-dropdown .search-player-name {
+    font-weight: 600;
+    white-space: nowrap;
+}
+.matchup-search-dropdown .search-player-realname {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    font-weight: 400;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .matchup-search-empty {
     padding: 10px var(--space-md);
     color: var(--color-text-muted);
