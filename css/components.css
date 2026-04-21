@@ -698,10 +698,11 @@ tr.retired {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    padding: var(--space-sm) var(--space-md);
+    padding: var(--space-md) 0 6px;
     cursor: pointer;
     user-select: none;
-    border-top: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 12px;
     transition: background 0.12s;
 }
 
@@ -947,3 +948,76 @@ table.matchup-table a:hover {
     transition: background 0.12s;
 }
 .matchup-show-all-btn:hover { background: var(--color-border); color: var(--color-text); }
+
+/* ---- Matchup — mobile (≤640px) ---- */
+@media (max-width: 640px) {
+    /* Header: flush with section title */
+    .matchup-header {
+        padding: var(--space-sm) 0 6px;
+    }
+    /* Body: remove side padding so table can full-bleed */
+    .matchup-body {
+        padding: var(--space-xs) 0 var(--space-md);
+    }
+
+    /* Selector row: small inset, full-width input, badge wraps */
+    .matchup-selector-row {
+        padding: 0 var(--space-xs);
+        gap: 6px;
+        margin-bottom: var(--space-sm);
+    }
+    .matchup-search-wrap {
+        max-width: 100%;
+        flex: 1;
+        min-width: 0;
+    }
+    .matchup-count-badge {
+        align-self: flex-start;
+        font-size: 0.7rem;
+    }
+
+    /* Table: compress like pg-matches-table on mobile */
+    table.matchup-table {
+        font-size: 0.65rem;
+        min-width: max-content;
+    }
+    table.matchup-table thead th,
+    table.matchup-table tbody td {
+        padding: 2px 3px;
+        white-space: nowrap;
+    }
+    table.matchup-table .pg-lt {
+        font-size: 0.55rem;
+        padding: 1px 4px;
+    }
+
+    /* Sticky col widths: tighter (mirror --pg-date-w: 62px / --pg-col1-w: 110px) */
+    table.matchup-table thead th:nth-child(1),
+    table.matchup-table tbody  td:nth-child(1) {
+        min-width: 62px;
+    }
+    table.matchup-table thead th:nth-child(2),
+    table.matchup-table tbody  td:nth-child(2) {
+        left: 62px;
+        min-width: 90px;
+    }
+
+    /* Table wrapper: full-bleed edge-to-edge */
+    .matchup-table-wrapper {
+        border-left: none;
+        border-right: none;
+        border-radius: 0;
+    }
+
+    /* Empty state: compact */
+    .matchup-empty {
+        padding: var(--space-md);
+        font-size: 0.78rem;
+        border-left: none;
+        border-right: none;
+        border-radius: 0;
+    }
+    .matchup-empty strong { font-size: 0.82rem; }
+
+    .matchup-show-all-btn { font-size: 0.72rem; }
+}

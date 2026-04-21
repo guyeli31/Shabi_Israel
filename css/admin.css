@@ -147,6 +147,8 @@
 .form-group select,
 .form-group textarea {
     width: 100%;
+    box-sizing: border-box;
+    min-width: 0;
     padding: var(--space-sm) var(--space-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);

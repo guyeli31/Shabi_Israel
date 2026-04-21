@@ -680,8 +680,7 @@ function renderMatchup(section, playerName, allRows) {
     header.className = 'matchup-header';
     header.innerHTML =
         `<span class="matchup-arrow" id="mu-arrow">&#x25B8;</span>` +
-        `<span class="matchup-title">Matchup</span>` +
-        `<span class="matchup-hint" id="mu-hint"></span>`;
+        `<span class="matchup-title">Matchup</span>`;
 
     const body = document.createElement('div');
     body.className = 'matchup-body';
@@ -807,12 +806,9 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
     });
 
     function renderResults(opponent) {
-        const hint = document.getElementById('mu-hint');
-
         if (!opponent) {
             resultsArea.innerHTML = '';
             badge.hidden = true;
-            if (hint) hint.textContent = '';
             return;
         }
 
@@ -834,7 +830,6 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
         const summaryText = headToHead ? ` · ${headToHead}` : '';
         badge.textContent = matchText + limitText + summaryText;
         badge.hidden = false;
-        if (hint) hint.textContent = ` (${matchText} vs ${opponent}${headToHead ? ` · ${headToHead}` : ''})`;
 
         if (count === 0) {
             resultsArea.innerHTML =
@@ -1005,7 +1000,7 @@ function showMatchRecordsType(body, perLeague, type) {
     const worstLuck = collectPlayerWorstLuckAgainst(perLeague, type);
 
     body.innerHTML = `
-        <div class="pg-mr-stack">
+        <div class="match-records-stack">
             ${renderPlayerRecordTable('Best PR', 'PR', bestPR)}
             ${renderPlayerRecordTable('Best Luck For', 'Luck Gap', bestLuck)}
             ${renderPlayerRecordTable('Worst Luck Against', 'Luck Gap', worstLuck)}
@@ -1015,10 +1010,8 @@ function showMatchRecordsType(body, perLeague, type) {
 }
 
 /* Show-top-N: hide rows beyond N and add a Show all / Show top N toggle.
-   Mirrors the helper in landingPage.js so the player-card tables match the
-   Main Dashboard pattern. CSS classes (.show-more-btn, .table-row-hidden) are
-   defined locally in player-general.css since this page does not load
-   index-dashboard.css. */
+   Mirrors the helper in landingPage.js. CSS classes (.show-more-btn, .table-row-hidden) are
+   defined locally in player-general.css since this page does not load index-dashboard.css. */
 function applyShowTopN(tableEl, defaultN = 5) {
     const tbody = tableEl.querySelector('tbody');
     if (!tbody) return;
@@ -1029,7 +1022,8 @@ function applyShowTopN(tableEl, defaultN = 5) {
         if (i >= defaultN) row.classList.add('table-row-hidden');
     });
 
-    const wrapper = tableEl.closest('.pg-matches-table-wrapper, .table-wrapper');
+    const wrapper = tableEl.closest('.pg-matches-table-wrapper, .achv-table-wrapper, .table-wrapper');
+    const savedMaxH = wrapper ? getComputedStyle(wrapper).maxHeight : '';
 
     const btn = document.createElement('button');
     btn.className = 'show-more-btn';
@@ -1041,23 +1035,23 @@ function applyShowTopN(tableEl, defaultN = 5) {
             if (i >= defaultN) row.classList.toggle('table-row-hidden', !isCollapsed);
         });
         btn.textContent = isCollapsed ? `Show top ${defaultN}` : `Show all (${rows.length})`;
-        if (wrapper) wrapper.style.maxHeight = isCollapsed ? 'none' : '';
+        if (wrapper) wrapper.style.maxHeight = isCollapsed ? 'none' : savedMaxH;
     });
 
-    const anchor = wrapper || tableEl;
-    if (anchor.parentNode) anchor.parentNode.insertBefore(btn, anchor.nextSibling);
+    if (wrapper) wrapper.parentNode.insertBefore(btn, wrapper.nextSibling);
+    else tableEl.parentNode?.insertBefore(btn, tableEl.nextSibling);
 }
 
 function renderPlayerRecordTable(title, metricLabel, rows) {
     const bodyHtml = rows.map((r, i) => playerMatchRecordRow(i + 1, r)).join('');
     return `
-        <div class="pg-mr-card">
+        <div class="achv-table-card">
             <h3>${title}</h3>
-            <div class="table-wrapper">
-                <table class="pg-matches-table pg-mr-table">
+            <div class="achv-table-wrapper">
+                <table class="achv-table pg-mr-table">
                     <thead><tr>
-                        <th scope="col">#</th><th scope="col">${thLabel(metricLabel, metricLabel)}</th><th scope="col">${thLabel('Opponent','Opponent')}</th>
-                        <th scope="col">${thLabel('Score','Score')}</th><th scope="col">${thLabel('Result','Result')}</th><th scope="col">${thLabel('League','League')}</th><th scope="col">${thLabel('Date','Date')}</th>
+                        <th scope="col">#</th><th scope="col">${metricLabel}</th><th scope="col">Opponent</th>
+                        <th scope="col">Score</th><th scope="col">Result</th><th scope="col">League</th><th scope="col">Date</th>
                     </tr></thead>
                     <tbody>${bodyHtml || '<tr><td colspan="7" class="na">No data</td></tr>'}</tbody>
                 </table>
@@ -1077,7 +1071,7 @@ function playerMatchRecordRow(rank, r) {
             <td><img class="flag" src="${opponentFlag}" alt="flag"> ${playerNameLink(r.opponent, _allMeta[r.opponent])}</td>
             <td>${r.scoreSelf}-${r.scoreOpp}</td>
             <td><span class="${resultClass}">${r.result}</span></td>
-            <td><a href="${leagueUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
+            <td><a class="league-link" href="${dashboardUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
             <td>${formatShortDate(r.date)}</td>
         </tr>`;
 }

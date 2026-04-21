@@ -1175,3 +1175,78 @@ body:has(.edit-bar) .theme-picker {
     transition: background 0.15s;
 }
 .show-more-btn:hover { background: var(--color-hover); }
+
+/* ── Edit-mode: drag-handle narrow + Date+League sticky (mobile) ─── */
+
+/* All viewports: drag handle is td:first-child in edit mode — keep it narrow */
+.page-container.edit-mode .completed-leagues-table {
+    --cl-handle-w: 28px;
+}
+.page-container.edit-mode .completed-leagues-table thead th:first-child,
+.page-container.edit-mode .completed-leagues-table tbody td:first-child {
+    width: var(--cl-handle-w);
+    min-width: var(--cl-handle-w);
+    max-width: var(--cl-handle-w);
+    border-right: none;
+    padding: 4px 2px;
+}
+
+/* Mobile: also make Date (col 2) and League (col 3) sticky */
+@media (max-width: 640px) {
+    .page-container.edit-mode .completed-leagues-table {
+        --cl-handle-w: 22px;
+    }
+
+    /* Date column — sticky after drag handle */
+    .page-container.edit-mode .completed-leagues-table thead th:nth-child(2),
+    .page-container.edit-mode .completed-leagues-table tbody td:nth-child(2) {
+        position: sticky;
+        left: var(--cl-handle-w);
+        width: var(--cl-date-w);
+        min-width: var(--cl-date-w);
+        max-width: var(--cl-date-w);
+        border-right: 1px solid var(--color-border);
+    }
+    .page-container.edit-mode .completed-leagues-table tbody td:nth-child(2) {
+        z-index: 2;
+        background: var(--color-surface);
+    }
+    .page-container.edit-mode .completed-leagues-table thead th:nth-child(2) {
+        z-index: 4;
+        background: var(--header-bg, #1e293b);
+    }
+
+    /* League column — sticky after drag handle + date */
+    .page-container.edit-mode .completed-leagues-table thead th:nth-child(3),
+    .page-container.edit-mode .completed-leagues-table tbody td:nth-child(3) {
+        position: sticky;
+        left: calc(var(--cl-handle-w) + var(--cl-date-w));
+        border-right: 1px solid var(--color-border);
+    }
+    .page-container.edit-mode .completed-leagues-table tbody td:nth-child(3) {
+        z-index: 2;
+        background: var(--color-surface);
+    }
+    .page-container.edit-mode .completed-leagues-table thead th:nth-child(3) {
+        z-index: 4;
+        background: var(--header-bg, #1e293b);
+    }
+
+    /* Row-type tints for sticky Date + League cells */
+    .page-container.edit-mode .completed-leagues-table tr.row-type-doubling td:nth-child(2),
+    .page-container.edit-mode .completed-leagues-table tr.row-type-doubling td:nth-child(3) {
+        background: linear-gradient(rgba(59,130,246,.06),rgba(59,130,246,.06)), var(--color-surface);
+    }
+    .page-container.edit-mode .completed-leagues-table tr.row-type-regular td:nth-child(2),
+    .page-container.edit-mode .completed-leagues-table tr.row-type-regular td:nth-child(3) {
+        background: linear-gradient(rgba(16,185,129,.06),rgba(16,185,129,.06)), var(--color-surface);
+    }
+    .page-container.edit-mode .completed-leagues-table tr.row-type-ubc td:nth-child(2),
+    .page-container.edit-mode .completed-leagues-table tr.row-type-ubc td:nth-child(3) {
+        background: linear-gradient(rgba(245,158,11,.06),rgba(245,158,11,.06)), var(--color-surface);
+    }
+    .page-container.edit-mode .completed-leagues-table tr:hover td:nth-child(2),
+    .page-container.edit-mode .completed-leagues-table tr:hover td:nth-child(3) {
+        background: var(--color-hover);
+    }
+}

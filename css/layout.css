@@ -121,4 +121,9 @@ body {
     .page-container {
         padding: var(--space-md) var(--space-xs);
     }
+
+    /* Remove vertical cap so all rows show; page scrolls naturally */
+    .table-scroll {
+        max-height: none;
+    }
 }

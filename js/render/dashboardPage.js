@@ -592,7 +592,7 @@ async function renderPredictor(ctx) {
             if (showPRWins) {
                 ubcHeaders = `<th scope="col">${thLabel('Points','Pts')}</th><th scope="col">${thLabel('Avg Points','APts')}</th>`;
             }
-            const scrollClass = showPRWins ? ' predictor-scroll-wrap' : '';
+            const scrollClass = ' predictor-scroll-wrap';
             host.innerHTML = `
                 <div class="${scrollClass}">
                 <table class="dash-table">
@@ -902,7 +902,7 @@ function renderWhatIfSimulator(ctx) {
                 if (showPRWins) {
                     ubcHeaders = `<th scope="col">${thLabel('Points','Pts')}</th><th scope="col">${thLabel('Avg Points','APts')}</th>`;
                 }
-                const scrollClass = showPRWins ? ' whatif-scroll-wrap' : '';
+                const scrollClass = ' whatif-scroll-wrap';
                 tableHost.innerHTML = `
                     <div class="${scrollClass}">
                     <table class="dash-table whatif-table">

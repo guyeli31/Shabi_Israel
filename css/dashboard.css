@@ -843,7 +843,7 @@
     white-space: nowrap;
 }
 
-/* --- UBC scroll wrappers — sticky # and Player columns (mobile + desktop) --- */
+/* --- Scroll wrappers — sticky # and Player columns (all league types, mobile + desktop) --- */
 .predictor-scroll-wrap,
 .whatif-scroll-wrap {
     --col1-w: 36px;
@@ -853,7 +853,6 @@
 .predictor-scroll-wrap table,
 .whatif-scroll-wrap table {
     table-layout: auto;
-    min-width: 480px;
 }
 .predictor-scroll-wrap tbody td:nth-child(1),
 .whatif-scroll-wrap tbody td:nth-child(1) {
@@ -901,6 +900,21 @@
 #predictor-section .predictor-scroll-wrap tbody td.player-cell,
 .whatif-scroll-wrap tbody td.player-cell {
     max-width: clamp(70px, 20vw, 110px);
+}
+
+@media (max-width: 640px) {
+    /* Wider player column on mobile for predictor / what-if */
+    .predictor-scroll-wrap tbody td:nth-child(2),
+    .whatif-scroll-wrap tbody td:nth-child(2),
+    .predictor-scroll-wrap thead th:nth-child(2),
+    .whatif-scroll-wrap thead th:nth-child(2) {
+        min-width: 95px;
+        max-width: 95px;
+    }
+    #predictor-section .predictor-scroll-wrap tbody td.player-cell,
+    .whatif-scroll-wrap tbody td.player-cell {
+        max-width: 95px;
+    }
 }
 
 /* --- B2: Rounds table — Match (sticky) | Score | PR A | PR B | Luck A | Luck B | Played --- */
