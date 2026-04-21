@@ -7,7 +7,7 @@
 }
 
 html {
-    font-size: 15px;
+    font-size: 93.75%; /* ≡ 15px at browser default 16px; respects user font-size preference */
     scroll-behavior: smooth;
 }
 
@@ -101,7 +101,7 @@ body {
 
 /* Responsive */
 @media (max-width: 768px) {
-    html { font-size: 13px; }
+    html { font-size: 81.25%; } /* ≡ 13px at browser default 16px */
 
     .page-container {
         padding: var(--space-md) var(--space-sm);

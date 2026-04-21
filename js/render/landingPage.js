@@ -804,7 +804,7 @@ function renderCompletedLeagues(container, completed) {
             <h2 class="collapsible-header">Completed Leagues</h2>
             <div class="collapsible-body">
                 <div class="completed-table-wrapper table-scroll">
-                    <table class="completed-leagues-table">
+                    <table class="completed-leagues-table font-large">
                         <thead><tr><th scope="col">${thLabel('Date','Date')}</th><th scope="col">${thLabel('League','League')}</th><th scope="col">${thLabel('Type','Type')}</th><th scope="col">${thLabel('Winner','Win')}</th></tr></thead>
                         <tbody>${rowsHtml}</tbody>
                     </table>

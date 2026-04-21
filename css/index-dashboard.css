@@ -355,7 +355,9 @@
     margin-bottom: var(--space-lg);
 }
 
-/* Completed leagues table wrapper with scroll */
+/* Completed leagues table wrapper with scroll.
+   Rounded-corner clipping moved here from the table so the table's
+   overflow stays `visible` and left-column `position: sticky` works. */
 .completed-table-wrapper {
     overflow-x: auto;
     overflow-y: auto;
@@ -363,6 +365,7 @@
     margin-bottom: var(--space-lg);
     max-width: 100%;
     min-width: 0;
+    border-radius: var(--radius-md);
 }
 
 .leaderboard-table {
@@ -454,15 +457,17 @@
 .leaderboard-table tr.rank-silver td { background: var(--color-silver-bg); color: var(--color-silver-text); }
 .leaderboard-table tr.rank-bronze td { background: var(--color-bronze-bg); color: var(--color-bronze-text); }
 
-/* Completed leagues table (compact) */
+/* Completed leagues table (compact).
+   NOTE: no `overflow: hidden` on the table itself — it would become the
+   sticky scroll ancestor and break left-column sticky. Rounded corners +
+   clipping live on the wrapper below.
+   font-size comes from the global `.font-large` / `.font-small` class
+   attached on the <table> element (see components.css). */
 .completed-leagues-table {
     width: 100%;
     border-collapse: collapse;
     background: var(--color-surface);
-    border-radius: var(--radius-md);
-    overflow: hidden;
     box-shadow: var(--shadow-sm);
-    font-size: 0.85rem;
 }
 
 .completed-leagues-table th,

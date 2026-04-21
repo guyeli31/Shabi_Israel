@@ -1,5 +1,13 @@
 /* components.css — Tables, badges, medals, flags, pills */
 
+/* ---- Global table font-size classes (iron rule 3) ----
+   Attached per table on the <table> element. Single source of truth.
+   Values are constant across viewports — rem base shift on <html>
+   (layout.css) handles device density, not media queries here. */
+table.font-large { font-size: 0.93rem; }
+table.font-small { font-size: 0.85rem; }
+
+
 /* ---- Global focus-visible (a11y H5) ---- */
 :focus-visible {
     outline: 2px solid var(--color-accent, #2563eb);
