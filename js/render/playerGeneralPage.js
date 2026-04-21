@@ -729,18 +729,29 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
     label.className = 'matchup-selector-label';
     label.textContent = 'vs.';
 
-    const sel = document.createElement('select');
-    sel.className = 'matchup-select';
-    sel.innerHTML =
-        '<option value="">— Choose opponent —</option>' +
-        allOpponents.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+    // Typeahead search input
+    const inputWrap = document.createElement('div');
+    inputWrap.className = 'matchup-search-wrap';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'matchup-search-input';
+    input.placeholder = 'Search opponent…';
+    input.autocomplete = 'off';
+
+    const dropdown = document.createElement('ul');
+    dropdown.className = 'matchup-search-dropdown';
+    dropdown.hidden = true;
+
+    inputWrap.appendChild(input);
+    inputWrap.appendChild(dropdown);
 
     const badge = document.createElement('span');
     badge.className = 'matchup-count-badge';
     badge.hidden = true;
 
     selectorRow.appendChild(label);
-    selectorRow.appendChild(sel);
+    selectorRow.appendChild(inputWrap);
     selectorRow.appendChild(badge);
 
     const resultsArea = document.createElement('div');
@@ -750,6 +761,43 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
     body.appendChild(resultsArea);
 
     let showAll = false;
+
+    function filterDropdown(query) {
+        const q = query.trim().toLowerCase();
+        if (q.length < 1) { dropdown.hidden = true; return; }
+        const matches = allOpponents.filter(p => p.toLowerCase().includes(q)).slice(0, 8);
+        if (matches.length === 0) {
+            dropdown.innerHTML = '<li class="matchup-search-empty">No players found</li>';
+        } else {
+            dropdown.innerHTML = matches.map(p =>
+                `<li><button class="matchup-search-option" type="button">${escapeHtml(p)}</button></li>`
+            ).join('');
+            for (const btn of dropdown.querySelectorAll('.matchup-search-option')) {
+                btn.addEventListener('mousedown', e => {
+                    e.preventDefault();
+                    selectOpponent(btn.textContent);
+                });
+            }
+        }
+        dropdown.hidden = false;
+    }
+
+    function selectOpponent(name) {
+        input.value = name;
+        dropdown.hidden = true;
+        showAll = false;
+        renderResults(name);
+    }
+
+    input.addEventListener('input', () => filterDropdown(input.value));
+    input.addEventListener('blur', () => { dropdown.hidden = true; });
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { dropdown.hidden = true; input.blur(); }
+        if (e.key === 'Enter') {
+            const first = dropdown.querySelector('.matchup-search-option');
+            if (first) { e.preventDefault(); selectOpponent(first.textContent); }
+        }
+    });
 
     function renderResults(opponent) {
         const hint = document.getElementById('mu-hint');
@@ -764,11 +812,22 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
         const rows = allRows.filter(r => r.opponent === opponent);
         const count = rows.length;
 
-        badge.textContent = count === 0
-            ? '0 matches'
-            : `${count} match${count === 1 ? '' : 'es'}${!showAll && count > LIMIT ? ` · showing ${LIMIT}` : ''}`;
+        // W-L summary
+        const selfWins = rows.filter(r => r.scoreSelf > r.scoreOpp).length;
+        const oppWins  = rows.filter(r => r.scoreOpp  > r.scoreSelf).length;
+        let headToHead = '';
+        if (count > 0) {
+            if (selfWins === oppWins)      headToHead = `Tied ${selfWins}–${oppWins}`;
+            else if (selfWins > oppWins)   headToHead = `${playerName} leads ${selfWins}–${oppWins}`;
+            else                           headToHead = `${opponent} leads ${oppWins}–${selfWins}`;
+        }
+
+        const matchText   = count === 0 ? '0 matches' : `${count} match${count === 1 ? '' : 'es'}`;
+        const limitText   = !showAll && count > LIMIT ? ` · showing ${LIMIT}` : '';
+        const summaryText = headToHead ? ` · ${headToHead}` : '';
+        badge.textContent = matchText + limitText + summaryText;
         badge.hidden = false;
-        if (hint) hint.textContent = ` (${count} match${count === 1 ? '' : 'es'} vs ${opponent})`;
+        if (hint) hint.textContent = ` (${matchText} vs ${opponent}${headToHead ? ` · ${headToHead}` : ''})`;
 
         if (count === 0) {
             resultsArea.innerHTML =
@@ -864,16 +923,10 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
         if (!showAll && count > LIMIT) {
             resultsArea.querySelector('#mu-show-all').addEventListener('click', () => {
                 showAll = true;
-                badge.textContent = `${count} match${count === 1 ? '' : 'es'}`;
                 renderResults(opponent);
             });
         }
     }
-
-    sel.addEventListener('change', () => {
-        showAll = false;
-        renderResults(sel.value);
-    });
 }
 
 // ---- helpers ----
