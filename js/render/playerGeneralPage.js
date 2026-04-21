@@ -765,17 +765,24 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
     function filterDropdown(query) {
         const q = query.trim().toLowerCase();
         if (q.length < 1) { dropdown.hidden = true; return; }
-        const matches = allOpponents.filter(p => p.toLowerCase().includes(q)).slice(0, 8);
+        const matches = allOpponents.filter(p => {
+            const full = _allMeta[p]?.fullName || '';
+            return p.toLowerCase().includes(q) || full.toLowerCase().includes(q);
+        }).slice(0, 8);
         if (matches.length === 0) {
             dropdown.innerHTML = '<li class="matchup-search-empty">No players found</li>';
         } else {
-            dropdown.innerHTML = matches.map(p =>
-                `<li><button class="matchup-search-option" type="button">${escapeHtml(p)}</button></li>`
-            ).join('');
+            dropdown.innerHTML = matches.map(p => {
+                const fullName = _allMeta[p]?.fullName;
+                const nameHtml = fullName
+                    ? `<span class="search-player-name">${escapeHtml(p)}</span><span class="search-player-realname">${escapeHtml(fullName)}</span>`
+                    : `<span class="search-player-name">${escapeHtml(p)}</span>`;
+                return `<li><button class="matchup-search-option" type="button" data-name="${escapeHtml(p)}"><span class="search-player-info">${nameHtml}</span></button></li>`;
+            }).join('');
             for (const btn of dropdown.querySelectorAll('.matchup-search-option')) {
                 btn.addEventListener('mousedown', e => {
                     e.preventDefault();
-                    selectOpponent(btn.textContent);
+                    selectOpponent(btn.dataset.name);
                 });
             }
         }

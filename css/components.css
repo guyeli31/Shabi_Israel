@@ -704,7 +704,6 @@ tr.retired {
     border-top: 1px solid var(--color-border);
     transition: background 0.12s;
 }
-.matchup-header:hover { background: var(--color-hover); }
 
 .matchup-arrow {
     display: inline-block;
