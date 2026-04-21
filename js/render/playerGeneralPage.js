@@ -670,6 +670,212 @@ function renderMatchHistory(section, playerName, perLeague) {
     renderMatchup(section, playerName, allRows);
 }
 
+// ---- G5b: Matchup sub-section ----
+
+function renderMatchup(section, playerName, allRows) {
+    const LIMIT = 10;
+
+    // Header (collapsible, like Remaining Matches in dashboard)
+    const header = document.createElement('div');
+    header.className = 'matchup-header';
+    header.innerHTML =
+        `<span class="matchup-arrow" id="mu-arrow">&#x25B8;</span>` +
+        `<span class="matchup-title">Matchup</span>` +
+        `<span class="matchup-hint" id="mu-hint"></span>`;
+
+    const body = document.createElement('div');
+    body.className = 'matchup-body';
+    body.hidden = true;
+
+    section.appendChild(header);
+    section.appendChild(body);
+
+    let initialized = false;
+
+    header.addEventListener('click', async () => {
+        const opening = body.hidden;
+        body.hidden = !opening;
+        header.querySelector('#mu-arrow').classList.toggle('open', opening);
+        if (opening && !initialized) {
+            initialized = true;
+            await _initMatchupBody(body, playerName, allRows, LIMIT);
+        }
+    });
+}
+
+async function _initMatchupBody(body, playerName, allRows, LIMIT) {
+    body.innerHTML = '<div class="pg-note">Loading players…</div>';
+
+    let allOpponents;
+    try {
+        const leagues = await loadAllLeagues();
+        const playerSet = new Set();
+        for (const l of leagues) {
+            for (const p of l.allPlayers) {
+                if (p !== playerName) playerSet.add(p);
+            }
+        }
+        allOpponents = [...playerSet].sort((a, b) => a.localeCompare(b));
+    } catch (err) {
+        body.innerHTML = `<div class="pg-note">Failed to load players: ${escapeHtml(err.message)}</div>`;
+        return;
+    }
+
+    // Selector row
+    const selectorRow = document.createElement('div');
+    selectorRow.className = 'matchup-selector-row';
+
+    const label = document.createElement('span');
+    label.className = 'matchup-selector-label';
+    label.textContent = 'vs.';
+
+    const sel = document.createElement('select');
+    sel.className = 'matchup-select';
+    sel.innerHTML =
+        '<option value="">— Choose opponent —</option>' +
+        allOpponents.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+
+    const badge = document.createElement('span');
+    badge.className = 'matchup-count-badge';
+    badge.hidden = true;
+
+    selectorRow.appendChild(label);
+    selectorRow.appendChild(sel);
+    selectorRow.appendChild(badge);
+
+    const resultsArea = document.createElement('div');
+
+    body.innerHTML = '';
+    body.appendChild(selectorRow);
+    body.appendChild(resultsArea);
+
+    let showAll = false;
+
+    function renderResults(opponent) {
+        const hint = document.getElementById('mu-hint');
+
+        if (!opponent) {
+            resultsArea.innerHTML = '';
+            badge.hidden = true;
+            if (hint) hint.textContent = '';
+            return;
+        }
+
+        const rows = allRows.filter(r => r.opponent === opponent);
+        const count = rows.length;
+
+        badge.textContent = count === 0
+            ? '0 matches'
+            : `${count} match${count === 1 ? '' : 'es'}${!showAll && count > LIMIT ? ` · showing ${LIMIT}` : ''}`;
+        badge.hidden = false;
+        if (hint) hint.textContent = ` (${count} match${count === 1 ? '' : 'es'} vs ${opponent})`;
+
+        if (count === 0) {
+            resultsArea.innerHTML =
+                `<div class="matchup-empty">` +
+                `<strong>${escapeHtml(playerName)} &amp; ${escapeHtml(opponent)} haven't faced each other yet</strong>` +
+                `They appear in different leagues but have never been scheduled against each other.` +
+                `</div>`;
+            return;
+        }
+
+        // Sort newest first
+        const sorted = [...rows].sort((a, b) => {
+            const at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+            const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+            return bt - at;
+        });
+        const visible = showAll ? sorted : sorted.slice(0, LIMIT);
+
+        let html =
+            `<div class="matchup-table-wrapper">` +
+            `<table class="matchup-table"><thead><tr>` +
+            `<th scope="col">DATE</th>` +
+            `<th scope="col">LEAGUE</th>` +
+            `<th scope="col">TYPE</th>` +
+            `<th scope="col">WINNER</th>` +
+            `<th scope="col">SCORE</th>` +
+            `<th scope="col">PR A</th>` +
+            `<th scope="col">PR B</th>` +
+            `<th scope="col">LUCK A</th>` +
+            `<th scope="col">LUCK B</th>` +
+            `</tr></thead><tbody>`;
+
+        for (const r of visible) {
+            const date = r.updatedAt
+                ? new Date(r.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                : '—';
+
+            const typePill =
+                `<span class="pg-lt pg-lt-${escapeHtml(r.leagueType)}">` +
+                `${escapeHtml(LEAGUE_TYPE_LABELS[r.leagueType] || r.leagueType)}` +
+                `</span>`;
+
+            const won = r.scoreSelf > r.scoreOpp;
+            const winnerName = won ? playerName : opponent;
+            const winnerClass = won ? 'matchup-winner-win' : 'matchup-winner-loss';
+            const score = `${r.scoreSelf}–${r.scoreOpp}`;
+
+            // PR: bold the lower value (lower = better)
+            const prA = r._technical ? null : r.prSelf;
+            const prB = r._technical ? null : r.prOpp;
+            let prAHtml, prBHtml;
+            if (prA != null && prB != null) {
+                prAHtml = `<span class="${prA <= prB ? 'matchup-pr-best' : 'matchup-pr-other'}">${formatNumber(prA)}</span>`;
+                prBHtml = `<span class="${prB <= prA ? 'matchup-pr-best' : 'matchup-pr-other'}">${formatNumber(prB)}</span>`;
+            } else {
+                prAHtml = prBHtml = '<span class="na">N/A</span>';
+            }
+
+            // LUCK: bold the higher value (no color tinting)
+            const luckA = r._technical ? null : r.luckSelf;
+            const luckB = r._technical ? null : r.luckOpp;
+            let luckAHtml, luckBHtml;
+            if (luckA != null && luckB != null) {
+                const fmtLuck = v => (v > 0 ? '+' : '') + formatNumber(v);
+                luckAHtml = `<span class="${luckA >= luckB ? 'matchup-luck-best' : 'matchup-luck-other'}">${fmtLuck(luckA)}</span>`;
+                luckBHtml = `<span class="${luckB >= luckA ? 'matchup-luck-best' : 'matchup-luck-other'}">${fmtLuck(luckB)}</span>`;
+            } else {
+                luckAHtml = luckBHtml = '<span class="na">N/A</span>';
+            }
+
+            html +=
+                `<tr>` +
+                `<td>${escapeHtml(date)}</td>` +
+                `<td style="text-align:left"><a href="${dashboardUrl(r.leagueId)}">${escapeHtml(r.leagueTitle || r.leagueId)}</a></td>` +
+                `<td>${typePill}</td>` +
+                `<td class="${winnerClass}">${escapeHtml(winnerName)}</td>` +
+                `<td style="font-family:var(--font-mono);font-size:0.85rem">${escapeHtml(score)}</td>` +
+                `<td>${prAHtml}</td>` +
+                `<td>${prBHtml}</td>` +
+                `<td>${luckAHtml}</td>` +
+                `<td>${luckBHtml}</td>` +
+                `</tr>`;
+        }
+        html += '</tbody></table></div>';
+
+        if (!showAll && count > LIMIT) {
+            html += `<div class="matchup-footer"><button class="matchup-show-all-btn" id="mu-show-all">SHOW ALL ${count} MATCHES</button></div>`;
+        }
+
+        resultsArea.innerHTML = html;
+        attachPlayerNameInteractions(resultsArea, null);
+
+        if (!showAll && count > LIMIT) {
+            resultsArea.querySelector('#mu-show-all').addEventListener('click', () => {
+                showAll = true;
+                badge.textContent = `${count} match${count === 1 ? '' : 'es'}`;
+                renderResults(opponent);
+            });
+        }
+    }
+
+    sel.addEventListener('change', () => {
+        showAll = false;
+        renderResults(sel.value);
+    });
+}
+
 // ---- helpers ----
 
 function labelWrap(label, el) {
