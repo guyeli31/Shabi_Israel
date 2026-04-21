@@ -18,7 +18,8 @@ import {
     listAllTimeRanking,
     collectMedalsByType,
     listMedalRanking,
-    flattenAllMatches
+    flattenAllMatches,
+    loadAllLeagues
 } from '../compute/crossLeague.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { colorForLevel } from '../compute/colorScale.js';
