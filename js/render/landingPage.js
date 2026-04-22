@@ -1036,7 +1036,7 @@ function renderLeaderboards(container, leaderboards) {
                 </div>
                 <div class="collapsible-body">
                     <div class="leaderboard-table-wrapper">
-                        <table class="leaderboard-table">
+                        <table class="leaderboard-table font-small">
                             <thead>
                                 <tr>
                                     <th scope="col">#</th>
@@ -1075,7 +1075,28 @@ function renderLeaderboards(container, leaderboards) {
         container.appendChild(section);
 
         section.querySelectorAll('.leaderboard-table').forEach(t => applyShowTopN(t));
+        section.querySelectorAll('.leaderboard-table-wrapper').forEach(w => measureLeaderboardStickyCols(w));
     }
+}
+
+/* Measure the rank column's rendered width and publish it as
+   `--sticky-col-1-width` on the wrapper, so the player column's
+   `left:` can lock to it without any hard-coded px (iron rule 12). */
+function measureLeaderboardStickyCols(wrapper) {
+    const table = wrapper.querySelector('.leaderboard-table');
+    if (!table) return;
+    const write = () => {
+        const firstTh = table.querySelector('thead th:first-child');
+        if (!firstTh) return;
+        const w = firstTh.getBoundingClientRect().width;
+        wrapper.style.setProperty('--sticky-col-1-width', `${w}px`);
+    };
+    write();
+    if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(write);
+        ro.observe(table);
+    }
+    window.addEventListener('resize', write);
 }
 
 async function exportLeaderboardImage(lb, title, maxRows) {
@@ -1130,7 +1151,7 @@ async function exportLeaderboardImage(lb, title, maxRows) {
     wrap.innerHTML = `
         <h3 style="margin:0 0 12px 0;font-size:20px;color:#1e293b;">${escapeHtml(title)}</h3>
         <div class="leaderboard-table-wrapper" style="max-height:none;overflow:visible">
-            <table class="leaderboard-table">
+            <table class="leaderboard-table font-small">
                 <thead>
                     <tr>
                         <th scope="col">#</th>
@@ -1301,7 +1322,7 @@ function renderAchievementTables(data, leagueType) {
             <div class="achv-table-card">
                 <h3>${heading}</h3>
                 <div class="achv-table-wrapper">
-                    <table class="achv-table">
+                    <table class="achv-table font-small">
                         <thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">${m.label}</th></tr></thead>
                         <tbody>${rowsHtml || '<tr><td colspan="3">No data</td></tr>'}</tbody>
                     </table>
@@ -1348,7 +1369,7 @@ function renderLuckPercentileCard(data, leagueType) {
                 ${luckBellCurveSvg()}
             </div>
             <div class="achv-table-wrapper">
-                <table class="achv-table achv-luck-table">
+                <table class="achv-table achv-luck-table font-small">
                     <thead>
                         <tr>
                             <th scope="col">#</th>
@@ -1442,7 +1463,7 @@ function renderPRTables(data) {
             <div class="achv-table-card">
                 <h3>${m.label}</h3>
                 <div class="achv-table-wrapper">
-                    <table class="achv-table">
+                    <table class="achv-table font-small">
                         <thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">PR</th></tr></thead>
                         <tbody>${rowsHtml || '<tr><td colspan="3">No data</td></tr>'}</tbody>
                     </table>
@@ -1517,7 +1538,7 @@ function renderMatchRecordsTables(luckRows, prRows) {
             <div class="achv-table-card">
                 <h3>Best PR Matches</h3>
                 <div class="achv-table-wrapper">
-                    <table class="achv-table match-records-table">
+                    <table class="achv-table match-records-table font-small">
                         <thead><tr>
                             <th scope="col">#</th><th scope="col">Player</th><th scope="col">PR</th><th scope="col">Opponent</th>
                             <th scope="col">Score</th><th scope="col">Result</th><th scope="col">League</th><th scope="col">Date</th>
@@ -1529,7 +1550,7 @@ function renderMatchRecordsTables(luckRows, prRows) {
             <div class="achv-table-card">
                 <h3>Luckiest Matches</h3>
                 <div class="achv-table-wrapper">
-                    <table class="achv-table match-records-table">
+                    <table class="achv-table match-records-table font-small">
                         <thead><tr>
                             <th scope="col">#</th><th scope="col">Player</th><th scope="col">Luck Gap</th><th scope="col">Opponent</th>
                             <th scope="col">Score</th><th scope="col">Result</th><th scope="col">League</th><th scope="col">Date</th>

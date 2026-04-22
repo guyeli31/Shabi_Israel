@@ -348,11 +348,17 @@
     background: var(--color-hover);
 }
 
+/* Wrapper is the sole scroll container. Rounded-corner clipping lives here
+   (not on the table) so the table's overflow stays `visible` and sticky
+   columns keep working. */
 .leaderboard-table-wrapper {
     overflow-x: auto;
     overflow-y: auto;
     max-height: 440px;
     margin-bottom: var(--space-lg);
+    max-width: 100%;
+    min-width: 0;
+    border-radius: var(--radius-md);
 }
 
 /* Completed leagues table wrapper with scroll.
@@ -368,13 +374,13 @@
     border-radius: var(--radius-md);
 }
 
+/* font-size comes from `.font-large` / `.font-small` on the <table>
+   (see components.css). No font-size here or in media queries. */
 .leaderboard-table {
     width: 100%;
     border-collapse: collapse;
     background: var(--color-surface);
     color: var(--color-text);
-    border-radius: var(--radius-md);
-    overflow: hidden;
     box-shadow: var(--shadow-sm);
 }
 
@@ -382,41 +388,39 @@
 .leaderboard-table td {
     padding: 8px 10px;
     border-bottom: 1px solid var(--color-border);
-    text-align: center;
+    text-align: left;
     white-space: nowrap;
+    font-size: inherit;
+    background: var(--color-surface);
 }
 
 .leaderboard-table th {
     background: var(--header-bg, #1e293b);
     color: var(--header-text, #fff);
     font-weight: 600;
-    font-size: 0.85rem;
     position: sticky;
     top: 0;
-    z-index: 1;
+    z-index: 3;
 }
 
 .leaderboard-table td.player-cell {
-    text-align: left;
     padding-left: var(--space-md);
     font-weight: 600;
 }
 
 .leaderboard-table td.player-cell .flag {
-    height: 16px;
+    height: 1em;
     vertical-align: middle;
     margin-right: 4px;
     object-fit: cover;
 }
 
 .leaderboard-table th.player-col {
-    text-align: left;
     padding-left: var(--space-md);
 }
 
 .leaderboard-table .month-col {
     min-width: 42px;
-    font-size: 0.85rem;
 }
 
 .leaderboard-table td.month-col {
@@ -427,35 +431,34 @@
     font-weight: 700;
 }
 
-/* Sticky first two columns (rank + player) */
-.leaderboard-table th:first-child,
-.leaderboard-table td:first-child {
+/* Sticky first two columns (rank + player).
+   Col-2 offset is a JS-measured CSS variable — no hard-coded px. */
+.leaderboard-table tbody td:first-child,
+.leaderboard-table thead th:first-child {
     position: sticky;
     left: 0;
     z-index: 2;
-    min-width: 36px;
 }
+.leaderboard-table thead th:first-child { z-index: 4; }
 
-.leaderboard-table th:nth-child(2),
-.leaderboard-table td:nth-child(2) {
+.leaderboard-table tbody td:nth-child(2),
+.leaderboard-table thead th:nth-child(2) {
     position: sticky;
-    left: 36px;
+    left: var(--sticky-col-1-width, 0);
     z-index: 2;
 }
+.leaderboard-table thead th:nth-child(2) { z-index: 4; }
 
-.leaderboard-table td:first-child,
-.leaderboard-table td:nth-child(2) {
-    background: var(--color-surface);
-}
-
-.leaderboard-table tr:hover td {
-    background: var(--color-hover);
-}
-
-/* Medal row highlights */
+/* Opaque row tint applied to every td (incl. sticky) so sticky matches
+   row and non-sticky content cannot leak through during scroll. */
 .leaderboard-table tr.rank-gold td { background: var(--color-gold-bg); color: var(--color-gold-text); }
 .leaderboard-table tr.rank-silver td { background: var(--color-silver-bg); color: var(--color-silver-text); }
 .leaderboard-table tr.rank-bronze td { background: var(--color-bronze-bg); color: var(--color-bronze-text); }
+
+.leaderboard-table tr:hover td { background: var(--color-hover); }
+.leaderboard-table tr.rank-gold:hover td   { background: var(--color-gold-bg-hover); }
+.leaderboard-table tr.rank-silver:hover td { background: var(--color-silver-bg-hover); }
+.leaderboard-table tr.rank-bronze:hover td { background: var(--color-bronze-bg-hover); }
 
 /* Completed leagues table (compact).
    NOTE: no `overflow: hidden` on the table itself — it would become the
@@ -551,10 +554,10 @@
         grid-template-columns: repeat(2, 1fr);
     }
 
+    /* Mobile density — padding only. font-size stays constant (iron rule 3). */
     .leaderboard-table th,
     .leaderboard-table td {
         padding: 6px 6px;
-        font-size: 0.8rem;
     }
 
     .leaderboard-table .month-col {
@@ -688,12 +691,20 @@
 .achv-table-wrapper {
     max-height: 360px;
     overflow-y: auto;
+    overflow-x: auto;
+    min-width: 0;
 }
 
 .achv-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.85rem;
+}
+
+/* Flag inherits table cell font-size per iron rule 5 (no hard-coded px). */
+.achv-table .flag {
+    height: 1em;
+    vertical-align: middle;
+    margin-right: 4px;
 }
 
 .achv-table th,
@@ -771,6 +782,13 @@
     border-right: 1px solid var(--color-border);
 }
 
+/* tbody sticky hover — explicit td-level override (tr:hover won't pierce sticky td background) */
+.match-records-table tbody tr:hover td:nth-child(1),
+.match-records-table tbody tr:hover td:nth-child(2),
+.match-records-table tbody tr:hover td:nth-child(3) {
+    background: var(--color-hover);
+}
+
 /* thead sticky cells — header row already sticky top:0; add left-sticky + higher z */
 .match-records-table thead th:nth-child(1) {
     position: sticky; left: 0; top: 0; z-index: 5;
@@ -799,7 +817,6 @@
 .achv-table .league-link,
 .achv-table .league-link:visited {
     color: var(--color-text);
-    font-weight: 600;
     text-decoration: none;
 }
 
@@ -822,7 +839,6 @@
 .achv-luck-table td:nth-child(3),
 .achv-luck-table th:nth-child(4),
 .achv-luck-table td:nth-child(4) {
-    text-align: right;
     white-space: nowrap;
 }
 
@@ -1045,19 +1061,14 @@ body:has(.edit-bar) .theme-picker {
  * MOBILE (≤640px) — Step 6.6 compression for landing + achievements
  * ============================================================ */
 @media (max-width: 640px) {
-    /* Leaderboard table — compress; keep wrapper scroll for many months */
-    .leaderboard-table {
-        font-size: 0.65rem;
-    }
+    /* Leaderboard table mobile — density only (padding). font-size is locked
+       by `.font-small` on the <table>, sticky col-2 offset is JS-measured. */
     .leaderboard-table th,
     .leaderboard-table td {
         padding: 3px 4px;
-        white-space: nowrap;
-        font-size: 0.65rem;
     }
     .leaderboard-table .month-col {
         min-width: 24px;
-        font-size: 0.65rem;
     }
     .leaderboard-table th.player-col,
     .leaderboard-table td.player-cell {
@@ -1065,21 +1076,6 @@ body:has(.edit-bar) .theme-picker {
         max-width: 110px;
         overflow: hidden;
         text-overflow: ellipsis;
-        font-size: 0.65rem;
-    }
-
-    .leaderboard-table th:first-child,
-    .leaderboard-table td:first-child {
-        min-width: 22px;
-    }
-
-    .leaderboard-table th:nth-child(2),
-    .leaderboard-table td:nth-child(2) {
-        left: 22px;
-    }
-    .leaderboard-table .flag {
-        height: 10px;
-        margin-right: 2px;
     }
 
     /* Achievement + match-records tables — compress, allow horizontal scroll */
@@ -1087,17 +1083,12 @@ body:has(.edit-bar) .theme-picker {
         overflow-x: auto;
     }
     .achv-table {
-        font-size: 0.7rem;
         min-width: max-content;
     }
     .achv-table th,
     .achv-table td {
         padding: 3px 5px;
         white-space: nowrap;
-    }
-    .achv-table .flag {
-        height: 10px;
-        margin-right: 2px;
     }
     .achv-tables-grid {
         gap: 8px;
@@ -1143,12 +1134,16 @@ body:has(.edit-bar) .theme-picker {
     /* Uniform width for achievement & PR-leaders cards on mobile — ~80vw,
        centered, always stacked one below the other. */
     .achievements-section .achv-table-card,
-    .pr-leaders-section   .achv-table-card,
-    .leaderboard-table-wrapper {
+    .pr-leaders-section   .achv-table-card {
         max-width: 80vw;
         width: 80vw;
         margin-left: auto;
         margin-right: auto;
+    }
+    /* A2 leaderboard wrapper takes the full available width on mobile. */
+    .leaderboard-table-wrapper {
+        width: 100%;
+        max-width: 100%;
     }
 }
 

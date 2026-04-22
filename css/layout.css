@@ -7,7 +7,9 @@
 }
 
 html {
-    font-size: 93.75%; /* ≡ 15px at browser default 16px; respects user font-size preference */
+    /* Fluid typography: smoothly scales between ≡13px (mobile) and ≡15px (desktop)
+       at browser default 16px. Uses em (not px) so it respects user font-size preference. */
+    font-size: clamp(0.8125em, calc(0.75em + 0.3vw), 0.9375em);
     scroll-behavior: smooth;
 }
 
@@ -30,12 +32,13 @@ body {
 }
 
 .page-header {
+    --title-size: 2rem;
     text-align: center;
     padding: var(--space-xl) 0 var(--space-lg);
 }
 
 .page-header h1 {
-    font-size: 2rem;
+    font-size: var(--title-size);
     font-weight: 700;
     color: var(--color-text);
     letter-spacing: -0.5px;
@@ -50,7 +53,7 @@ body {
 
 .page-header .logo {
     display: block;
-    height: 80px;
+    height: calc(var(--title-size) * 2.5);
     margin: var(--space-md) auto;
     border-radius: var(--radius-md);
 }
@@ -101,7 +104,7 @@ body {
 
 /* Responsive */
 @media (max-width: 768px) {
-    html { font-size: 81.25%; } /* ≡ 13px at browser default 16px */
+    /* html font-size handled by fluid clamp() above — no breakpoint override */
 
     .page-container {
         padding: var(--space-md) var(--space-sm);
@@ -109,10 +112,6 @@ body {
 
     .page-header {
         padding: var(--space-lg) 0 var(--space-md);
-    }
-
-    .page-header h1 {
-        font-size: 1.5rem;
     }
 }
 
