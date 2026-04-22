@@ -737,7 +737,9 @@
     width: 100%;
 }
 
-/* ── Match Records: 3-col horizontal sticky (# | Player | Metric) ── */
+/* ── Match Records: 3-col horizontal sticky (# | Player | Metric) ──
+   --mr-col1-w / --mr-col2-w are JS-measured on render and resize (Iron Rule 12).
+   Values below are CSS fallbacks only; JS overwrites them on the <table> element. */
 .match-records-table {
     --mr-col1-w: 36px;
     --mr-col2-w: 156px;
@@ -746,18 +748,7 @@
 .match-records-table tbody td:nth-child(2) {
     white-space: nowrap;
 }
-.match-records-table thead th:nth-child(1),
-.match-records-table tbody td:nth-child(1) {
-    width: var(--mr-col1-w);
-    min-width: var(--mr-col1-w);
-    max-width: var(--mr-col1-w);
-}
-.match-records-table thead th:nth-child(2),
-.match-records-table tbody td:nth-child(2) {
-    width: var(--mr-col2-w);
-    min-width: var(--mr-col2-w);
-    max-width: var(--mr-col2-w);
-}
+/* Cols 1 and 2: no hard-coded width — browser sizes to max-content, JS reads actual px. */
 .match-records-table thead th:nth-child(3),
 .match-records-table tbody td:nth-child(3) {
     width: var(--mr-col3-w);
@@ -808,8 +799,7 @@
 
 @media (max-width: 640px) {
     .match-records-table {
-        --mr-col1-w: 28px;
-        --mr-col2-w: 110px;
+        /* col1/col2 set by JS on resize; only col3 needs a CSS override */
         --mr-col3-w: 52px;
     }
 }

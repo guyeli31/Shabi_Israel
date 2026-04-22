@@ -1522,12 +1522,33 @@ function renderMatchRecordsSection(container, allLeagues, presentTypes) {
             section.querySelectorAll('.achv-panel').forEach(p => {
                 p.classList.toggle('hidden', p.dataset.type !== type);
             });
+            requestAnimationFrame(() => applyMatchRecordsStickyOffsets(section));
         });
     });
 
     container.appendChild(section);
 
     section.querySelectorAll('.achv-table').forEach(t => applyShowTopN(t));
+
+    requestAnimationFrame(() => applyMatchRecordsStickyOffsets(section));
+
+    let _mrRafId;
+    window.addEventListener('resize', () => {
+        cancelAnimationFrame(_mrRafId);
+        _mrRafId = requestAnimationFrame(() => applyMatchRecordsStickyOffsets(section));
+    });
+}
+
+function applyMatchRecordsStickyOffsets(root) {
+    root.querySelectorAll('.match-records-table').forEach(table => {
+        const th1 = table.querySelector('thead th:nth-child(1)');
+        const th2 = table.querySelector('thead th:nth-child(2)');
+        if (!th1 || !th2) return;
+        const w1 = th1.getBoundingClientRect().width;
+        const w2 = th2.getBoundingClientRect().width;
+        if (w1 > 0) table.style.setProperty('--mr-col1-w', w1 + 'px');
+        if (w2 > 0) table.style.setProperty('--mr-col2-w', w2 + 'px');
+    });
 }
 
 function renderMatchRecordsTables(luckRows, prRows) {
