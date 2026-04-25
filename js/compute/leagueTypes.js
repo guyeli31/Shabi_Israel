@@ -21,10 +21,10 @@ const DOUBLING_CONFIG = {
 const REGULAR_CONFIG = {
     type: 'regular',
     showPR: false,
-    showLuck: false,
+    showLuck: true,
     showWinRate: true,
     showPRWins: false,
-    ranking: { primary: 'winRate', primaryDir: 'desc', secondary: 'wins', secondaryDir: 'desc' },
+    ranking: { primary: 'winRate', primaryDir: 'desc', secondary: 'wins', secondaryDir: 'desc', h2hTiebreak: true },
     playerResultMode: 'winloss'
 };
 

@@ -50,10 +50,111 @@
 }
 
 .admin-sidebar h2 {
-    font-size: 1.2rem;
-    margin-bottom: var(--space-lg);
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: var(--space-md);
     padding-bottom: var(--space-sm);
-    border-bottom: 1px solid rgba(255,255,255,0.15);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.5);
+}
+
+/* ---- Welcome Card ---- */
+.admin-welcome {
+    margin-bottom: var(--space-lg);
+    padding: 12px 10px 10px 12px;
+    background: linear-gradient(135deg, rgba(37,99,235,0.22) 0%, rgba(255,255,255,0.04) 100%);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-top-color: rgba(255,255,255,0.13);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: welcome-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes welcome-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.admin-welcome::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(to bottom, #60a5fa 0%, #2563eb 100%);
+    border-radius: 0 2px 2px 0;
+}
+
+.admin-welcome-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #fff;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    box-shadow: 0 0 0 2px rgba(96,165,250,0.25), 0 2px 10px rgba(37,99,235,0.45);
+}
+
+.admin-welcome-body {
+    min-width: 0;
+    flex: 1;
+}
+
+.admin-welcome-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.38);
+    margin-bottom: 1px;
+}
+
+.admin-welcome-name {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: rgba(255,255,255,0.95);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.01em;
+}
+
+.admin-welcome-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 3px;
+    font-size: 0.65rem;
+    color: rgba(52,211,153,0.85);
+    letter-spacing: 0.04em;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.admin-welcome-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 0 2px rgba(52,211,153,0.2);
+    animation: pulse-dot 2.4s ease-in-out infinite;
+    flex-shrink: 0;
+}
+
+@keyframes pulse-dot {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(52,211,153,0.2); }
+    50%       { box-shadow: 0 0 0 4px rgba(52,211,153,0.12), 0 0 8px rgba(52,211,153,0.3); }
 }
 
 .admin-sidebar nav {
@@ -179,48 +280,68 @@
     font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.15s, opacity 0.15s;
+    transition: background 0.15s, opacity 0.15s, transform 0.12s, box-shadow 0.15s;
+    position: relative;
+    letter-spacing: 0.01em;
+}
+
+.btn:not(:disabled):hover {
+    transform: translateY(-1px);
+}
+
+.btn:not(:disabled):active {
+    transform: translateY(0);
 }
 
 .btn:disabled {
-    opacity: 0.5;
+    opacity: 0.45;
     cursor: not-allowed;
 }
 
 .btn-primary {
     background: var(--color-accent);
     color: #fff;
+    box-shadow: 0 1px 3px rgba(37,99,235,0.3);
 }
 
 .btn-primary:hover:not(:disabled) {
     background: #1d4ed8;
+    box-shadow: 0 4px 12px rgba(37,99,235,0.38);
 }
 
 .btn-success {
     background: var(--color-running);
     color: #fff;
+    box-shadow: 0 1px 3px rgba(4,120,87,0.3);
 }
 
 .btn-success:hover:not(:disabled) {
     background: #047857;
+    box-shadow: 0 4px 12px rgba(4,120,87,0.38);
 }
 
 .btn-danger {
     background: var(--color-loss);
     color: #fff;
+    box-shadow: 0 1px 3px rgba(185,28,28,0.25);
 }
 
 .btn-danger:hover:not(:disabled) {
     background: #b91c1c;
+    box-shadow: 0 4px 12px rgba(185,28,28,0.35);
 }
 
 .btn-secondary {
-    background: var(--color-border);
+    background: var(--color-surface);
     color: var(--color-text);
+    border: 1px solid var(--color-border);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
 .btn-secondary:hover:not(:disabled) {
-    background: #d1d5db;
+    background: var(--color-hover);
+    border-color: #c0c4cd;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.09);
 }
 
 .btn-sm {
@@ -300,14 +421,23 @@
 .admin-card {
     background: var(--color-surface);
     border-radius: var(--radius-md);
-    box-shadow: var(--shadow-sm);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
     padding: var(--space-lg);
     margin-bottom: var(--space-lg);
     border: 1px solid var(--color-border);
+    transition: box-shadow 0.2s;
+}
+
+.admin-card:hover {
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.06);
 }
 
 .admin-card h2 {
-    font-size: 1.1rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
     margin-bottom: var(--space-md);
     padding-bottom: var(--space-sm);
     border-bottom: 1px solid var(--color-border);
@@ -318,25 +448,35 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 0.9rem;
+    color: var(--color-text);
 }
 
 .admin-table th {
     text-align: left;
     padding: var(--space-sm) var(--space-md);
     background: var(--color-bg);
-    font-weight: 600;
+    font-weight: 700;
     color: var(--color-text-secondary);
+    font-size: 0.78rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     border-bottom: 2px solid var(--color-border);
+    white-space: nowrap;
 }
 
 .admin-table td {
     padding: var(--space-sm) var(--space-md);
     border-bottom: 1px solid var(--color-border);
     vertical-align: middle;
+    color: var(--color-text);
 }
 
-.admin-table tr:hover {
+.admin-table tbody tr:hover {
     background: var(--color-hover);
+}
+
+.admin-table tbody tr:last-child td {
+    border-bottom: none;
 }
 
 /* ---- Status Toggle ---- */
@@ -493,6 +633,18 @@
 
 .inline-edit-score {
     width: 42px;
+}
+
+/* Admin table compact inputs/selects (player rows, flag uploads) */
+.player-name-input,
+.player-flag-select,
+.player-flag-custom,
+[data-field="name"],
+[data-field="flag"],
+#new-upload-flag-code,
+#upload-flag-code {
+    background: var(--color-surface);
+    color: var(--color-text);
 }
 
 .btn-xs {

@@ -55,7 +55,7 @@ export async function renderLeaguePage() {
         }
 
         const statsMap = computeAllStats(matches, allPlayers);
-        const rankings = buildRankings(statsMap, leagueConfig);
+        const rankings = buildRankings(statsMap, leagueConfig, matches);
         const averages = computeAverages(rankings, leagueConfig);
         const matchStats = computeMatchStats(rankings, totalPlayers);
 

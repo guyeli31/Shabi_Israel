@@ -13,6 +13,7 @@ const ADMIN_PASS_HASH = '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809
 
 const KEYS = {
     session: 'shabi-admin-session',
+    username: 'shabi-admin-user',
     token: 'shabi-github-token',
     repo: 'shabi-github-repo'
 };
@@ -34,6 +35,7 @@ export async function login(username, password) {
     const hash = await sha256(password);
     if (hash !== ADMIN_PASS_HASH) return false;
     localStorage.setItem(KEYS.session, 'true');
+    localStorage.setItem(KEYS.username, username);
     return true;
 }
 
@@ -42,6 +44,14 @@ export async function login(username, password) {
  */
 export function logout() {
     localStorage.removeItem(KEYS.session);
+    localStorage.removeItem(KEYS.username);
+}
+
+/**
+ * Get the currently logged-in username.
+ */
+export function getUsername() {
+    return localStorage.getItem(KEYS.username) || '';
 }
 
 /**

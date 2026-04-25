@@ -6,6 +6,7 @@
 import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches } from '../data/leagueLoader.js';
 import { dashboardUrl, playerUrl, playerGeneralUrl } from '../utils/helpers.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
+import { isLoggedIn, getUsername } from '../admin/auth.js';
 
 // ---- Breadcrumbs ----
 
@@ -84,6 +85,10 @@ export async function initNavBar() {
         leagueIndex = [];
     }
 
+    const adminBadge = isLoggedIn()
+        ? `<div class="nav-admin-user"><span class="nav-admin-label">Welcome,</span><span class="nav-admin-name">${getUsername()}</span></div>`
+        : '';
+
     const nav = document.createElement('nav');
     nav.className = 'site-nav';
     nav.innerHTML = `
@@ -97,6 +102,7 @@ export async function initNavBar() {
                 <input type="text" placeholder="Search player\u2026" autocomplete="off">
                 <ul class="nav-search-results" hidden></ul>
             </div>
+            ${adminBadge}
         </div>
     `;
 
@@ -255,7 +261,7 @@ function setupPlayerSearch(nav) {
 
     input.addEventListener('input', async () => {
         const query = input.value.trim().toLowerCase();
-        if (query.length < 2) {
+        if (query.length < 1) {
             results.hidden = true;
             return;
         }

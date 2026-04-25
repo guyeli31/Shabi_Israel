@@ -29,12 +29,31 @@ export function getLevel(meanPR) {
 }
 
 /**
+ * Build a head-to-head wins map from played matches.
+ * Returns Map<playerA, Map<playerB, winsOfA>> for all played matches.
+ */
+function buildH2H(matches) {
+    const h2h = new Map();
+    for (const m of (matches || [])) {
+        if (m.played === false) continue;
+        const { playerA, playerB, scoreA, scoreB } = m;
+        if (!h2h.has(playerA)) h2h.set(playerA, new Map());
+        if (!h2h.has(playerB)) h2h.set(playerB, new Map());
+        const mapA = h2h.get(playerA);
+        const mapB = h2h.get(playerB);
+        mapA.set(playerB, (mapA.get(playerB) || 0) + (scoreA > scoreB ? 1 : 0));
+        mapB.set(playerA, (mapB.get(playerA) || 0) + (scoreB > scoreA ? 1 : 0));
+    }
+    return h2h;
+}
+
+/**
  * Build a ranked table from a stats map.
  * Input: Map<playerName, statsObject> from stats.js
  * Returns: Array of { rank, player, games, wins, losses, winRate, meanPR, level, luck }
- *          sorted by winRate desc, then meanPR asc.
+ *          sorted by config-driven primary/secondary, with optional H2H tiebreaker.
  */
-export function buildRankings(statsMap, leagueConfig) {
+export function buildRankings(statsMap, leagueConfig, matches = null) {
     const rows = [];
 
     for (const [player, s] of statsMap) {
@@ -55,9 +74,10 @@ export function buildRankings(statsMap, leagueConfig) {
     }
 
     // Config-driven sort with null/unplayed handling
-    const { primary, primaryDir, secondary, secondaryDir } = leagueConfig
+    const ranking = leagueConfig
         ? leagueConfig.ranking
         : { primary: 'winRate', primaryDir: 'desc', secondary: 'meanPR', secondaryDir: 'asc' };
+    const { primary, primaryDir, secondary, secondaryDir } = ranking;
 
     rows.sort((a, b) => {
         const aNull = a[primary] === null;
@@ -79,6 +99,36 @@ export function buildRankings(statsMap, leagueConfig) {
         const sMul = secondaryDir === 'asc' ? 1 : -1;
         return sMul * (a[secondary] - b[secondary]);
     });
+
+    // H2H tiebreaker: re-sort groups where both primary AND secondary are equal
+    if (ranking.h2hTiebreak && matches) {
+        const h2h = buildH2H(matches);
+
+        // Find tied groups (same primary + secondary values)
+        let i = 0;
+        while (i < rows.length) {
+            let j = i + 1;
+            while (j < rows.length &&
+                rows[j][primary] === rows[i][primary] &&
+                rows[j][secondary] === rows[i][secondary]) {
+                j++;
+            }
+            if (j - i > 1) {
+                const group = rows.slice(i, j);
+                const groupNames = new Set(group.map(r => r.player));
+                group.sort((a, b) => {
+                    const aWins = [...groupNames].filter(p => p !== a.player)
+                        .reduce((s, p) => s + (h2h.get(a.player)?.get(p) || 0), 0);
+                    const bWins = [...groupNames].filter(p => p !== b.player)
+                        .reduce((s, p) => s + (h2h.get(b.player)?.get(p) || 0), 0);
+                    if (aWins !== bWins) return bWins - aWins;
+                    return a.player.localeCompare(b.player);
+                });
+                rows.splice(i, j - i, ...group);
+            }
+            i = j;
+        }
+    }
 
     // Assign ranks
     rows.forEach((row, i) => {

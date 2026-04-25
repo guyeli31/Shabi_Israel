@@ -141,6 +141,27 @@
     margin-left: auto;
 }
 
+.nav-admin-user {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    white-space: nowrap;
+    font-size: 0.8rem;
+}
+
+.nav-admin-label {
+    color: rgba(255,255,255,0.55);
+}
+
+.nav-admin-name {
+    color: #fff;
+    font-weight: 600;
+}
+
 .nav-search input {
     width: 180px;
     padding: 5px 10px;
@@ -347,6 +368,14 @@ tr.kb-focused {
         right: 0;
         left: 0;
         min-width: auto;
+    }
+
+    .nav-admin-user {
+        margin-left: auto;
+    }
+
+    .nav-admin-label {
+        display: none;
     }
 
     .breadcrumbs {

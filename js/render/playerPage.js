@@ -409,6 +409,7 @@ function sortAndRerender(playerMatches, params, leagueId, col, dir, leagueConfig
     const body = document.getElementById('playerBody');
     body.innerHTML = renderMatchRows(sorted, params, leagueId, leagueConfig, columns)
         + renderPlayerAverages(sorted, leagueConfig, columns);
+    attachPlayerNameInteractions(body, leagueId);
 }
 
 // ---- E6: Also plays in ----

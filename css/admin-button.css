@@ -1,3 +1,44 @@
+/* ---- Admin login modal overlay ---- */
+
+.admin-login-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.25s;
+}
+
+.admin-login-overlay.visible {
+    background: rgba(0, 0, 0, 0.55);
+}
+
+.admin-login-modal {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 10px);
+    padding: var(--space-xl, 2rem);
+    width: min(360px, calc(100vw - 2rem));
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+    transform: translateY(24px);
+    opacity: 0;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.admin-login-overlay.visible .admin-login-modal {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.admin-login-modal-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: var(--space-lg, 1.5rem);
+    color: var(--color-text);
+}
+
 /* ---- Admin floating button (mirrors theme-picker) ---- */
 
 .admin-button {

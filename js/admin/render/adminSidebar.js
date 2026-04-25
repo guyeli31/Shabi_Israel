@@ -4,7 +4,7 @@
  * so the sidebar stays visible and Pending Changes badge updates live).
  */
 
-import { logout } from '../auth.js';
+import { logout, getUsername } from '../auth.js';
 import { getChangeCount } from '../stagingStore.js';
 import { initAdminDrawer } from '../adminDrawer.js';
 
@@ -33,6 +33,14 @@ export function mountAdminSidebar(opts = {}) {
     sidebar.innerHTML = `
         <img class="admin-sidebar-logo" src="assets/logo/logo.png" alt="Logo">
         <h2>Shabi Admin</h2>
+        <div class="admin-welcome">
+            <div class="admin-welcome-avatar">${getUsername().charAt(0).toUpperCase()}</div>
+            <div class="admin-welcome-body">
+                <div class="admin-welcome-label">Welcome back</div>
+                <div class="admin-welcome-name">${getUsername()}</div>
+                <div class="admin-welcome-status"><span class="admin-welcome-dot"></span>Active</div>
+            </div>
+        </div>
         <nav>
             <a href="index.html?edit=1" class="admin-nav-item ${activeView === 'dashboard' ? 'active' : ''}">Main Dashboard</a>
             <a href="admin.html#leagues" class="admin-nav-item">Leagues</a>

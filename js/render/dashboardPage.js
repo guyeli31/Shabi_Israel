@@ -15,9 +15,10 @@ import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { getQueryParam, formatPercent, formatNumber, leagueUrl, playerUrl, dashboardUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
+import { colorForValueInverted } from '../compute/colorScale.js';
 import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
-import { predictChampionship } from '../compute/championshipPredictor.js';
+import { predictChampionship, computeTopXPct } from '../compute/championshipPredictor.js';
 import { batchLast300PR } from '../compute/crossLeague.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
@@ -249,6 +250,10 @@ function renderShell() {
                 <p>where <i>p</i> is the leader's estimated probability and <i>N</i> is the number of simulated seasons. It reflects sampling uncertainty only. Exact enumeration has no margin of error because every scenario is evaluated deterministically.</p>
             </div>
             <div class="predictor-moe" id="predictor-moe"></div>
+            <div class="predictor-topx-control" id="predictor-topx-wrap" style="display:none">
+                <label for="predictor-topx-input">Show</label>
+                <select id="predictor-topx-input" class="topx-select"></select>
+            </div>
             <div id="predictor-table"><div class="loading">Computing predictions...</div></div>
             <button id="predictor-expand" class="predictor-expand-btn" style="display:none">Show Full Table</button>
 
@@ -287,6 +292,10 @@ function renderShell() {
                     <div id="whatif-output" class="whatif-output" hidden>
                         <div class="whatif-ribbon">SIMULATION &mdash; based on your what-if scenario</div>
                         <div class="whatif-moe" id="whatif-moe"></div>
+                        <div class="predictor-topx-control" id="whatif-topx-wrap" style="display:none">
+                            <label for="whatif-topx-input">Show</label>
+                            <select id="whatif-topx-input" class="topx-select"></select>
+                        </div>
                         <div id="whatif-table"></div>
                         <button id="whatif-expand" class="whatif-expand-btn" style="display:none">Show Full Table</button>
                     </div>
@@ -306,16 +315,18 @@ function renderShell() {
         </section>
 
         <section class="dash-section" id="remaining-section">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-md);flex-wrap:wrap">
-                <h2 id="remaining-header" style="cursor:pointer;margin:0;user-select:none">
-                    <span id="remaining-arrow">&#x25B8;</span> Remaining Matches
-                    <span id="remaining-count" style="font-size:0.8em;color:var(--color-text-muted);font-weight:normal"></span>
-                </h2>
-                <button id="remaining-export-btn" class="img-export-btn" style="display:none">Export Image</button>
+            <h2>
+                Remaining Matches
+                <span id="remaining-count" style="font-size:0.8em;color:var(--color-text-muted);font-weight:normal"></span>
+            </h2>
+            <div class="rem-tab-bar">
+                <button class="rem-tab-btn" data-panel="rem-panel-b6a"><span class="rem-tab-arrow">&#x25B8;</span> All Remaining</button>
+                <button class="rem-tab-btn" data-panel="rem-panel-b6b"><span class="rem-tab-arrow">&#x25B8;</span> Remaining Report</button>
+                <button class="rem-tab-btn" data-panel="rem-panel-b6c"><span class="rem-tab-arrow">&#x25B8;</span> Per Player</button>
             </div>
-            <div id="remaining-body" hidden>
-                <div id="remaining-matches-list"></div>
-            </div>
+            <div id="rem-panel-b6a" class="rem-tab-panel" hidden></div>
+            <div id="rem-panel-b6b" class="rem-tab-panel" hidden></div>
+            <div id="rem-panel-b6c" class="rem-tab-panel" hidden></div>
         </section>
 
         <section class="dash-section">
@@ -330,7 +341,7 @@ function renderShell() {
 function renderSummaryCards(ctx) {
     const { params, liveMatches, allPlayersSet, leagueConfig } = ctx;
     const statsMap = computeAllStats(liveMatches, allPlayersSet);
-    const rankings = buildRankings(statsMap, leagueConfig);
+    const rankings = buildRankings(statsMap, leagueConfig, liveMatches);
     const averages = computeAverages(rankings, leagueConfig);
     const matchStats = computeMatchStats(rankings, allPlayersSet.size);
 
@@ -454,7 +465,7 @@ function drawHistTable(ctx, dateValue) {
     }
 
     const statsMap = computeAllStats(matchesForView, allPlayersSet);
-    const rankings = buildRankings(statsMap, leagueConfig);
+    const rankings = buildRankings(statsMap, leagueConfig, matchesForView);
 
     const goldCount = params.GoldCount || 1;
     const silverCount = params.SilverCount || 1;
@@ -527,7 +538,7 @@ async function renderPredictor(ctx) {
     if (remaining.length === 0) {
         // Season complete — show final standings
         const statsMap = computeAllStats(ctx.liveMatches, ctx.allPlayersSet);
-        const rankings = buildRankings(statsMap, ctx.leagueConfig);
+        const rankings = buildRankings(statsMap, ctx.leagueConfig, ctx.liveMatches);
         const top = rankings[0];
         moeHost.textContent = '';
         host.innerHTML = `<div style="text-align:center;color:var(--color-text-muted);padding:var(--space-md)">Season complete — ${top ? top.player : 'N/A'} wins the championship.</div>`;
@@ -557,16 +568,39 @@ async function renderPredictor(ctx) {
             moeHost.textContent = `Exact calculation (${result.iterations.toLocaleString()} scenarios)`;
         }
 
+        // Wire Top X control
+        const topXWrap = document.getElementById('predictor-topx-wrap');
+        const topXInput = document.getElementById('predictor-topx-input');
+        topXWrap.style.display = '';
+        topXInput.innerHTML = '';
+        for (let x = 1; x <= result.n; x++) {
+            const opt = document.createElement('option');
+            opt.value = x;
+            opt.textContent = x === 1 ? '1st place only' : x === result.n ? `Top ${x} (any finish)` : `Top ${x}`;
+            topXInput.appendChild(opt);
+        }
+        topXInput.value = 1;
+        let currentX = 1;
+
+        const getTopXPct = (r) =>
+            computeTopXPct(result.finishRankCounts, r.playerIdx, result.n, result.totalWeight, currentX);
+
+        topXInput.addEventListener('change', () => {
+            currentX = parseInt(topXInput.value);
+            renderTable(expanded);
+        });
+
         // Render table
         const showPR = ctx.leagueConfig.showPR;
         const showPRWins = ctx.leagueConfig.showPRWins;
         let expanded = false;
         const renderTable = (full) => {
-            const data = full ? result.rankings : result.rankings.slice(0, 5);
+            const sorted = [...result.rankings].sort((a, b) => getTopXPct(b) - getTopXPct(a));
+            const data = full ? sorted : sorted.slice(0, 5);
             const rows = data.map((r, i) => {
                 const flagCode = getFlagCode(r.player, ctx.params.CustomFlags);
-                const pct = r.championshipPct;
-                const barColor = pct > 20 ? 'var(--color-success)' : pct > 5 ? 'var(--color-warning)' : 'var(--color-text-muted)';
+                const pct = getTopXPct(r);
+                const barColor = pct > Math.min(20 * currentX, 80) ? 'var(--color-success)' : pct > Math.min(5 * currentX, 30) ? 'var(--color-warning)' : 'var(--color-text-muted)';
                 let ubcCols = '';
                 if (showPRWins) {
                     ubcCols = `<td>${r.points}</td><td>${r.avgPoints != null ? formatNumber(r.avgPoints) : '—'}</td>`;
@@ -592,6 +626,8 @@ async function renderPredictor(ctx) {
             if (showPRWins) {
                 ubcHeaders = `<th scope="col">${thLabel('Points','Pts')}</th><th scope="col">${thLabel('Avg Points','APts')}</th>`;
             }
+            const pctHeader = currentX === 1 ? 'Championship %' : `Top ${currentX} %`;
+            const pctShortHeader = currentX === 1 ? 'Ch%' : `T${currentX}%`;
             const scrollClass = ' predictor-scroll-wrap';
             host.innerHTML = `
                 <div class="${scrollClass}">
@@ -599,7 +635,7 @@ async function renderPredictor(ctx) {
                     <thead><tr>
                         <th scope="col">#</th><th scope="col">${thLabel('Player','Player')}</th><th scope="col">G</th><th scope="col">W</th><th scope="col">L</th>
                         ${ubcHeaders}
-                        <th scope="col">${thLabel(prHeader, prHeader === 'Mean PR' ? 'PR' : prHeader)}</th><th scope="col">${thLabel('Championship %','Ch%')}</th>
+                        <th scope="col">${thLabel(prHeader, prHeader === 'Mean PR' ? 'PR' : prHeader)}</th><th scope="col">${thLabel(pctHeader, pctShortHeader)}</th>
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
@@ -868,15 +904,38 @@ function renderWhatIfSimulator(ctx) {
                 moeHost.textContent = `Exact calculation (${result.iterations.toLocaleString()} scenarios)`;
             }
 
+            // Wire Top X control
+            const wiTopXWrap = document.getElementById('whatif-topx-wrap');
+            const wiTopXInput = document.getElementById('whatif-topx-input');
+            wiTopXWrap.style.display = '';
+            wiTopXInput.innerHTML = '';
+            for (let x = 1; x <= result.n; x++) {
+                const opt = document.createElement('option');
+                opt.value = x;
+                opt.textContent = x === 1 ? '1st place only' : x === result.n ? `Top ${x} (any finish)` : `Top ${x}`;
+                wiTopXInput.appendChild(opt);
+            }
+            wiTopXInput.value = 1;
+            let currentX = 1;
+
+            const getTopXPct = (r) =>
+                computeTopXPct(result.finishRankCounts, r.playerIdx, result.n, result.totalWeight, currentX);
+
+            wiTopXInput.addEventListener('change', () => {
+                currentX = parseInt(wiTopXInput.value);
+                renderTable(expanded);
+            });
+
             const showPR = ctx.leagueConfig.showPR;
             const showPRWins = ctx.leagueConfig.showPRWins;
             let expanded = false;
             const renderTable = (full) => {
-                const data = full ? result.rankings : result.rankings.slice(0, 5);
+                const sorted = [...result.rankings].sort((a, b) => getTopXPct(b) - getTopXPct(a));
+                const data = full ? sorted : sorted.slice(0, 5);
                 const rows = data.map((r, i) => {
                     const flagCode = getFlagCode(r.player, ctx.params.CustomFlags);
-                    const pct = r.championshipPct;
-                    const barColor = pct > 20 ? 'var(--color-success)' : pct > 5 ? 'var(--color-warning)' : 'var(--color-text-muted)';
+                    const pct = getTopXPct(r);
+                    const barColor = pct > Math.min(20 * currentX, 80) ? 'var(--color-success)' : pct > Math.min(5 * currentX, 30) ? 'var(--color-warning)' : 'var(--color-text-muted)';
                     let ubcCols = '';
                     if (showPRWins) {
                         ubcCols = `<td>${r.points}</td><td>${r.avgPoints != null ? formatNumber(r.avgPoints) : '—'}</td>`;
@@ -902,6 +961,8 @@ function renderWhatIfSimulator(ctx) {
                 if (showPRWins) {
                     ubcHeaders = `<th scope="col">${thLabel('Points','Pts')}</th><th scope="col">${thLabel('Avg Points','APts')}</th>`;
                 }
+                const pctHeader = currentX === 1 ? 'Champ%' : `Top ${currentX} %`;
+                const pctShortHeader = currentX === 1 ? 'Ch%' : `T${currentX}%`;
                 const scrollClass = ' whatif-scroll-wrap';
                 tableHost.innerHTML = `
                     <div class="${scrollClass}">
@@ -909,7 +970,7 @@ function renderWhatIfSimulator(ctx) {
                         <thead><tr>
                             <th scope="col">#</th><th scope="col">${thLabel('Player','Player')}</th><th scope="col">G</th><th scope="col">W</th><th scope="col">L</th>
                             ${ubcHeaders}
-                            <th scope="col">${thLabel(prHeader, prHeader === 'Mean PR' ? 'PR' : prHeader)}</th><th scope="col">${thLabel('Champ%','Ch%')}</th>
+                            <th scope="col">${thLabel(prHeader, prHeader === 'Mean PR' ? 'PR' : prHeader)}</th><th scope="col">${thLabel(pctHeader, pctShortHeader)}</th>
                         </tr></thead>
                         <tbody>${rows}</tbody>
                     </table>
@@ -950,7 +1011,7 @@ function escapeHtml(s) {
 
 // ---------- F3 ----------
 function renderRounds(ctx) {
-    const { allMatchesIncUnplayed, roundCount, history, leagueId, playersMeta, params } = ctx;
+    const { allMatchesIncUnplayed, roundCount, history, leagueId, playersMeta, params, leagueConfig } = ctx;
     let current = 1;
     let showAll = false;
 
@@ -974,7 +1035,7 @@ function renderRounds(ctx) {
             label.textContent = `Round ${current} / ${roundCount}`;
             list = allMatchesIncUnplayed.filter(m => m.round === current);
         }
-        drawRoundTable(list, playedAt, leagueId, playersMeta, params.CustomFlags);
+        drawRoundTable(list, playedAt, leagueId, playersMeta, params.CustomFlags, leagueConfig);
         prev.disabled = showAll || current <= 1;
         next.disabled = showAll || current >= roundCount;
     }
@@ -986,13 +1047,14 @@ function renderRounds(ctx) {
     paint();
 }
 
-function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFlags = {}) {
+function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFlags = {}, leagueConfig = null) {
+    const showPR = leagueConfig ? leagueConfig.showPR : true;
+    const colCount = showPR ? 8 : 6;
     let html = `<div class="rounds-scroll-wrap"><table class="dash-table"><thead><tr>`
         + `<th scope="col" class="player-col">${thLabel('Player A','A')}</th>`
         + `<th scope="col" class="player-col">${thLabel('Player B','B')}</th>`
         + `<th scope="col">${thLabel('Score','Sc')}</th>`
-        + `<th scope="col">${thLabel('PR A','pA')}</th>`
-        + `<th scope="col">${thLabel('PR B','pB')}</th>`
+        + (showPR ? `<th scope="col">${thLabel('PR A','pA')}</th><th scope="col">${thLabel('PR B','pB')}</th>` : '')
         + `<th scope="col">${thLabel('Luck A','lA')}</th>`
         + `<th scope="col">${thLabel('Luck B','lB')}</th>`
         + `<th scope="col">${thLabel('Played','On')}</th>`
@@ -1010,61 +1072,217 @@ function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFla
             + `<td class="player-cell"><img class="flag" src="${flagUrl(flagA)}" alt="${flagA}"> ${playerNameLink(m.playerA, playersMeta[m.playerA])}</td>`
             + `<td class="player-cell"><img class="flag" src="${flagUrl(flagB)}" alt="${flagB}"> ${playerNameLink(m.playerB, playersMeta[m.playerB])}</td>`
             + `<td>${isPlayed ? m.scoreA + ' - ' + m.scoreB : '—'}</td>`
-            + `<td>${isPlayed && m.prA != null ? formatNumber(m.prA) : '—'}</td>`
-            + `<td>${isPlayed && m.prB != null ? formatNumber(m.prB) : '—'}</td>`
+            + (showPR ? `<td>${isPlayed && m.prA != null ? formatNumber(m.prA) : '—'}</td><td>${isPlayed && m.prB != null ? formatNumber(m.prB) : '—'}</td>` : '')
             + `<td>${isPlayed && m.luckA != null ? formatNumber(m.luckA) : '—'}</td>`
             + `<td>${isPlayed && m.luckB != null ? formatNumber(m.luckB) : '—'}</td>`
             + `<td>${playedCell}</td></tr>`;
     }
-    if (matches.length === 0) html += '<tr><td colspan="8">No matches</td></tr>';
+    if (matches.length === 0) html += `<tr><td colspan="${colCount}">No matches</td></tr>`;
     html += '</tbody></table></div>';
     const host = document.getElementById('round-table');
     host.innerHTML = html;
     attachPlayerNameInteractions(host, leagueId);
 }
 
-// ---------- Remaining Matches ----------
+// ---------- Remaining Matches (B6a / B6b / B6c) ----------
 function renderRemainingMatches(ctx) {
-    const { allMatchesIncUnplayed, params, playersMeta, leagueId } = ctx;
+    const { allMatchesIncUnplayed, params, playersMeta, lastModified } = ctx;
     const remaining = allMatchesIncUnplayed
         .filter(m => !m.played)
         .slice()
         .sort((a, b) => (a.round - b.round) || a.playerA.localeCompare(b.playerA) || a.playerB.localeCompare(b.playerB));
 
-    const header = document.getElementById('remaining-header');
-    const arrow = document.getElementById('remaining-arrow');
-    const body = document.getElementById('remaining-body');
     const countEl = document.getElementById('remaining-count');
-    const list = document.getElementById('remaining-matches-list');
-    const exportBtn = document.getElementById('remaining-export-btn');
-    if (!header || !body || !list) return;
+    if (countEl) countEl.textContent = `(${remaining.length})`;
 
-    countEl.textContent = `(${remaining.length})`;
+    // Sub-tab toggle — one panel open at a time; clicking an open tab closes it
+    const buttons = document.querySelectorAll('#remaining-section .rem-tab-btn');
+    buttons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const panelId = btn.dataset.panel;
+            const panel = document.getElementById(panelId);
+            if (!panel) return;
+            const opening = panel.hidden;
 
-    if (remaining.length === 0) {
-        list.innerHTML = '<div style="padding:var(--space-md);color:var(--color-text-muted)">No remaining matches — season complete.</div>';
-    } else {
-        list.innerHTML = buildRemainingListHtml(remaining, params.CustomFlags, playersMeta);
+            // Close all panels
+            buttons.forEach(b => {
+                const p = document.getElementById(b.dataset.panel);
+                if (p) p.hidden = true;
+                b.classList.remove('rem-tab-btn--open');
+                const arr = b.querySelector('.rem-tab-arrow');
+                if (arr) arr.innerHTML = '&#x25B8;';
+            });
+
+            if (!opening) return; // was open — close it
+
+            panel.hidden = false;
+            btn.classList.add('rem-tab-btn--open');
+            const arrow = btn.querySelector('.rem-tab-arrow');
+            if (arrow) arrow.innerHTML = '&#x25BE;';
+
+            if (!panel._built) {
+                panel._built = true;
+                if (panelId === 'rem-panel-b6a') buildB6aPanel(panel, remaining, params, playersMeta, lastModified);
+                else if (panelId === 'rem-panel-b6b') buildB6bPanel(panel, ctx, remaining, lastModified);
+                else if (panelId === 'rem-panel-b6c') buildB6cPanel(panel, ctx, remaining, lastModified);
+            }
+        });
+    });
+}
+
+function buildB6aPanel(panel, remaining, params, playersMeta, lastModified) {
+    if (remaining.length > 0) {
+        const exportRow = document.createElement('div');
+        exportRow.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:var(--space-sm);';
+        const exportBtn = document.createElement('button');
+        exportBtn.className = 'img-export-btn';
+        exportBtn.textContent = 'Export Image';
+        exportRow.appendChild(exportBtn);
+        panel.appendChild(exportRow);
+        exportBtn.addEventListener('click', () => {
+            exportRemainingMatchesImage(params.LeagueTitle || '', remaining, params.CustomFlags, playersMeta, lastModified);
+        });
+    }
+    const wrap = document.createElement('div');
+    wrap.className = 'rem-b6a-wrap';
+    wrap.innerHTML = remaining.length === 0
+        ? '<div style="padding:var(--space-md);color:var(--color-text-muted)">No remaining matches — season complete.</div>'
+        : buildRemainingListHtml(remaining, params.CustomFlags, playersMeta);
+    panel.appendChild(wrap);
+}
+
+function buildB6bPanel(panel, ctx, remaining, lastModified) {
+    const { params, liveMatches, allPlayersSet, leagueConfig } = ctx;
+    const statsMap = computeAllStats(liveMatches, allPlayersSet);
+    const rankings = buildRankings(statsMap, leagueConfig, liveMatches);
+    const n = allPlayersSet.size;
+    const maxGames = n > 0 ? n - 1 : 0;
+    const halfThreshold = maxGames / 2;
+
+    const playerRemainingData = rankings.map(r => ({
+        player: r.player,
+        games: r.games,
+        remaining: Math.max(0, maxGames - r.games),
+        flagCode: getFlagCode(r.player, params.CustomFlags)
+    })).sort((a, b) => b.remaining - a.remaining);
+
+    const maxRem = playerRemainingData.length > 0 ? playerRemainingData[0].remaining : 0;
+    const minRem = playerRemainingData.length > 0 ? playerRemainingData[playerRemainingData.length - 1].remaining : 0;
+    const hasAnyBelowHalf = playerRemainingData.some(p => p.games <= halfThreshold);
+
+    const exportRow = document.createElement('div');
+    exportRow.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:var(--space-sm);';
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'img-export-btn';
+    exportBtn.textContent = 'Export Image';
+    exportRow.appendChild(exportBtn);
+    panel.appendChild(exportRow);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'rem-b6b-wrap';
+    wrap.innerHTML = buildB6bTableHtml(playerRemainingData, maxRem, minRem, halfThreshold, hasAnyBelowHalf, maxGames);
+    panel.appendChild(wrap);
+
+    exportBtn.addEventListener('click', () => {
+        exportB6bImage(params.LeagueTitle || ctx.leagueId, playerRemainingData, maxRem, minRem, halfThreshold, hasAnyBelowHalf, maxGames, lastModified);
+    });
+}
+
+function buildB6bTableHtml(playerRemainingData, maxRem, minRem, halfThreshold, hasAnyBelowHalf, maxGames) {
+    let html = '<table class="dash-table player-remaining-table"><thead><tr>'
+        + '<th scope="col" class="player-col">Player</th>'
+        + '<th scope="col">Remaining / Total</th>'
+        + '</tr></thead><tbody>';
+    let separatorInserted = false;
+    for (const p of playerRemainingData) {
+        if (!separatorInserted && hasAnyBelowHalf && p.games > halfThreshold) {
+            html += '<tr class="player-remaining-divider player-remaining-divider--bold"><td colspan="2">&#8212; played &ge; half &#8212;</td></tr>';
+            separatorInserted = true;
+        }
+        const isBold = !separatorInserted;
+        const color = colorForValueInverted(p.remaining, minRem, maxRem);
+        const boldStyle = isBold ? 'font-weight:700' : '';
+        html += `<tr>`
+            + `<td class="player-cell" style="${boldStyle}"><img class="flag" src="${flagUrl(p.flagCode)}" alt="${p.flagCode}"> ${escapeHtml(p.player)}</td>`
+            + `<td style="${boldStyle}"><span style="color:${color};font-weight:700">${p.remaining}</span> / ${maxGames}</td>`
+            + `</tr>`;
+    }
+    html += '</tbody></table>';
+    return html;
+}
+
+function buildB6cPanel(panel, ctx, remaining, lastModified) {
+    const { params, playersMeta } = ctx;
+    const allPlayers = [...ctx.allPlayersSet].filter(p => p && p !== 'Bye').sort();
+
+    const unplayedByPlayer = new Map();
+    for (const p of allPlayers) unplayedByPlayer.set(p, []);
+    for (const m of remaining) {
+        if (m.playerA && m.playerA !== 'Bye' && unplayedByPlayer.has(m.playerA))
+            unplayedByPlayer.get(m.playerA).push(m.playerB);
+        if (m.playerB && m.playerB !== 'Bye' && unplayedByPlayer.has(m.playerB))
+            unplayedByPlayer.get(m.playerB).push(m.playerA);
     }
 
-    header.addEventListener('click', () => {
-        const hidden = body.hasAttribute('hidden');
-        if (hidden) {
-            body.removeAttribute('hidden');
-            arrow.innerHTML = '&#x25BE;';
-            if (remaining.length > 0) exportBtn.style.display = '';
-        } else {
-            body.setAttribute('hidden', '');
-            arrow.innerHTML = '&#x25B8;';
-            exportBtn.style.display = 'none';
-        }
-    });
+    const outer = document.createElement('div');
+    outer.className = 'rem-b6c-outer';
+    outer.innerHTML = `
+        <div class="rem-b6c-wrap">
+            <div class="rem-b6c-search-row">
+                <input type="text" id="rem-b6c-input" class="rem-b6c-input"
+                    placeholder="Search player…" autocomplete="off" list="rem-b6c-list">
+                <datalist id="rem-b6c-list">
+                    ${allPlayers.map(p => `<option value="${escapeHtml(p)}"></option>`).join('')}
+                </datalist>
+            </div>
+            <div id="rem-b6c-result"></div>
+        </div>`;
+    panel.appendChild(outer);
 
-    exportBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const title = params.LeagueTitle || leagueId;
-        exportRemainingMatchesImage(title, remaining, params.CustomFlags, playersMeta);
-    });
+    const input = outer.querySelector('#rem-b6c-input');
+    const result = outer.querySelector('#rem-b6c-result');
+    const title = params.LeagueTitle || ctx.leagueId;
+
+    function showPlayer(rawVal) {
+        const lower = rawVal.trim().toLowerCase();
+        if (!lower) { result.innerHTML = ''; return; }
+        const player = allPlayers.find(p => p.toLowerCase() === lower);
+        if (!player) { result.innerHTML = ''; return; }
+
+        const opponents = (unplayedByPlayer.get(player) || []).slice().sort();
+        result.innerHTML = `
+            <div class="rem-b6c-header">
+                <span class="rem-b6c-player-name">${escapeHtml(player)}</span>
+                &mdash; <span class="rem-b6c-rem-count">${opponents.length} remaining match${opponents.length !== 1 ? 'es' : ''}</span>
+            </div>
+            <div class="rem-b6c-export-row">
+                <button class="img-export-btn" id="rem-b6c-export-btn">Export Image</button>
+            </div>
+            ${buildB6cTableHtml(opponents, params.CustomFlags, playersMeta)}`;
+
+        result.querySelector('#rem-b6c-export-btn').addEventListener('click', () => {
+            exportB6cImage(title, player, opponents, params.CustomFlags, playersMeta, lastModified);
+        });
+    }
+
+    input.addEventListener('input', () => showPlayer(input.value));
+    input.addEventListener('change', () => showPlayer(input.value));
+}
+
+function buildB6cTableHtml(opponents, customFlags, playersMeta) {
+    if (opponents.length === 0) {
+        return `<div style="color:var(--color-text-muted);padding:var(--space-sm);text-align:center">All matches played!</div>`;
+    }
+    let html = '<table class="dash-table rem-b6c-table"><thead><tr>'
+        + '<th scope="col" class="player-col">Unplayed Opponent</th>'
+        + '</tr></thead><tbody>';
+    for (const opp of opponents) {
+        const flagCode = getFlagCode(opp, customFlags);
+        const titlesHtml = getTitleAbbreviationsHtml(playersMeta[opp]);
+        html += `<tr><td class="player-cell"><img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${escapeHtml(opp)}${titlesHtml}</td></tr>`;
+    }
+    html += '</tbody></table>';
+    return html;
 }
 
 function buildRemainingListHtml(matches, customFlags, playersMeta) {
@@ -1082,7 +1300,7 @@ function buildRemainingListHtml(matches, customFlags, playersMeta) {
         html += `<tr class="unplayed-row">`
              +  `<td>${m.round}</td>`
              +  `<td class="player-cell"><img class="flag" src="${flagUrl(flagA)}" alt="${flagA}"> ${m.playerA}${titlesA}</td>`
-             +  `<td style="color:var(--color-text-muted);font-weight:600">vs</td>`
+             +  `<td></td>`
              +  `<td class="player-cell"><img class="flag" src="${flagUrl(flagB)}" alt="${flagB}"> ${m.playerB}${titlesB}</td>`
              +  `</tr>`;
     }
@@ -1090,17 +1308,20 @@ function buildRemainingListHtml(matches, customFlags, playersMeta) {
     return html;
 }
 
-async function exportRemainingMatchesImage(title, matches, customFlags, playersMeta) {
+async function exportRemainingMatchesImage(title, matches, customFlags, playersMeta, lastModified) {
     if (typeof html2canvas === 'undefined') {
         alert('html2canvas library not loaded.');
         return;
     }
     const bodyStyle = getComputedStyle(document.body);
+    const asOf = lastModified
+        ? `As of ${new Date(lastModified).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+        : '';
     const wrap = document.createElement('div');
     wrap.style.cssText = `position:fixed;left:-10000px;top:0;padding:24px;background:${bodyStyle.backgroundColor};color:${bodyStyle.color};font-family:${bodyStyle.fontFamily};min-width:560px;`;
     wrap.innerHTML = `
-        <h3 style="margin:0 0 8px 0;font-size:20px;">${title}</h3>
-        <div style="margin:0 0 12px 0;font-size:14px;opacity:0.75">Remaining Matches (${matches.length})</div>
+        <h3 style="margin:0 0 4px 0;font-size:20px;">${escapeHtml(title)}</h3>
+        <div style="margin:0 0 12px 0;font-size:13px;opacity:0.75">Remaining Matches (${matches.length})${asOf ? ' \u2014 ' + asOf : ''}</div>
         ${buildRemainingListHtml(matches, customFlags, playersMeta)}`;
     document.body.appendChild(wrap);
     try {
@@ -1111,6 +1332,124 @@ async function exportRemainingMatchesImage(title, matches, customFlags, playersM
         const a = document.createElement('a');
         a.href = url;
         a.download = `${title.replace(/\s+/g, '_')}_Remaining.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } finally {
+        wrap.remove();
+    }
+}
+
+async function exportB6bImage(title, playerRemainingData, maxRem, minRem, halfThreshold, hasAnyBelowHalf, maxGames, lastModified) {
+    if (typeof html2canvas === 'undefined') {
+        alert('html2canvas library not loaded.');
+        return;
+    }
+    const bodyStyle = getComputedStyle(document.body);
+    const docStyle = getComputedStyle(document.documentElement);
+    const bgColor = bodyStyle.backgroundColor;
+    const textColor = bodyStyle.color;
+    const borderColor = docStyle.getPropertyValue('--color-border').trim() || '#e2e4e9';
+    const headerBg = docStyle.getPropertyValue('--header-bg').trim() || '#1e293b';
+    const headerText = docStyle.getPropertyValue('--header-text').trim() || '#f8fafc';
+    const mutedColor = docStyle.getPropertyValue('--color-text-muted').trim() || '#6b6d84';
+    const asOf = lastModified
+        ? `As of ${new Date(lastModified).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+        : '';
+
+    const wrap = document.createElement('div');
+    wrap.style.cssText = `position:fixed;left:-10000px;top:0;padding:24px;background:${bgColor};color:${textColor};font-family:${bodyStyle.fontFamily};min-width:380px;`;
+
+    let html = `<h3 style="margin:0 0 4px 0;font-size:18px;color:${textColor}">${escapeHtml(title)}</h3>`
+        + `<div style="margin:0 0 12px 0;font-size:13px;color:${mutedColor}">Remaining Matches Report${asOf ? ' \u2014 ' + asOf : ''}</div>`
+        + `<table style="width:100%;border-collapse:collapse;font-size:14px;">`
+        + `<thead><tr>`
+        + `<th style="text-align:left;padding:7px 12px;background:${headerBg};color:${headerText}">Player</th>`
+        + `<th style="text-align:center;padding:7px 12px;background:${headerBg};color:${headerText}">Remaining / Total</th>`
+        + `</tr></thead><tbody>`;
+
+    let separatorInserted = false;
+    for (const p of playerRemainingData) {
+        if (!separatorInserted && hasAnyBelowHalf && p.games > halfThreshold) {
+            html += `<tr><td colspan="2" style="padding:3px 12px;border-top:2px dashed ${borderColor};font-size:11px;color:${mutedColor};text-align:center;font-style:italic;font-weight:700;">&#8212; played &ge; half &#8212;</td></tr>`;
+            separatorInserted = true;
+        }
+        const isBold = !separatorInserted;
+        const color = colorForValueInverted(p.remaining, minRem, maxRem);
+        const rowBorder = `border-bottom:1px solid ${borderColor}`;
+        const boldStyle = isBold ? 'font-weight:700' : '';
+        html += `<tr>`
+            + `<td style="text-align:left;padding:6px 12px;${rowBorder};${boldStyle}">`
+            + `<img src="${flagUrl(p.flagCode)}" alt="${p.flagCode}" style="height:12px;border-radius:2px;vertical-align:middle;margin-right:6px">`
+            + `${escapeHtml(p.player)}</td>`
+            + `<td style="text-align:center;padding:6px 12px;${rowBorder};${boldStyle};color:${color}">${p.remaining} / ${maxGames}</td>`
+            + `</tr>`;
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+    document.body.appendChild(wrap);
+    try {
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: null, useCORS: true });
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${title.replace(/\s+/g, '_')}_Remaining_Report.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } finally {
+        wrap.remove();
+    }
+}
+
+async function exportB6cImage(title, player, opponents, customFlags, playersMeta, lastModified) {
+    if (typeof html2canvas === 'undefined') {
+        alert('html2canvas library not loaded.');
+        return;
+    }
+    const bodyStyle = getComputedStyle(document.body);
+    const docStyle = getComputedStyle(document.documentElement);
+    const bgColor = bodyStyle.backgroundColor;
+    const textColor = bodyStyle.color;
+    const borderColor = docStyle.getPropertyValue('--color-border').trim() || '#e2e4e9';
+    const headerBg = docStyle.getPropertyValue('--header-bg').trim() || '#1e293b';
+    const headerText = docStyle.getPropertyValue('--header-text').trim() || '#f8fafc';
+    const mutedColor = docStyle.getPropertyValue('--color-text-muted').trim() || '#6b6d84';
+    const asOf = lastModified
+        ? `As of ${new Date(lastModified).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+        : '';
+
+    const wrap = document.createElement('div');
+    wrap.style.cssText = `position:fixed;left:-10000px;top:0;padding:24px;background:${bgColor};color:${textColor};font-family:${bodyStyle.fontFamily};min-width:280px;`;
+
+    let html = `<h3 style="margin:0 0 4px 0;font-size:18px;color:${textColor}">${escapeHtml(title)}</h3>`
+        + `<div style="margin:0 0 4px 0;font-size:14px;color:${textColor};font-weight:700">${escapeHtml(player)}</div>`
+        + `<div style="margin:0 0 12px 0;font-size:12px;color:${mutedColor}">${opponents.length} remaining match${opponents.length !== 1 ? 'es' : ''}${asOf ? ' \u2014 ' + asOf : ''}</div>`;
+
+    if (opponents.length === 0) {
+        html += `<div style="color:${mutedColor};font-size:13px">All matches played!</div>`;
+    } else {
+        html += `<table style="width:100%;border-collapse:collapse;font-size:14px;">`
+            + `<thead><tr><th style="text-align:left;padding:7px 12px;background:${headerBg};color:${headerText}">Unplayed Opponent</th></tr></thead><tbody>`;
+        for (const opp of opponents) {
+            const flagCode = getFlagCode(opp, customFlags);
+            html += `<tr><td style="text-align:left;padding:6px 12px;border-bottom:1px solid ${borderColor}">`
+                + `<img src="${flagUrl(flagCode)}" alt="${flagCode}" style="height:12px;border-radius:2px;vertical-align:middle;margin-right:6px">`
+                + `${escapeHtml(opp)}</td></tr>`;
+        }
+        html += '</tbody></table>';
+    }
+
+    wrap.innerHTML = html;
+    document.body.appendChild(wrap);
+    try {
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: null, useCORS: true });
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${title.replace(/\s+/g, '_')}_${player.replace(/\s+/g, '_')}_Remaining.png`;
         a.click();
         URL.revokeObjectURL(url);
     } finally {

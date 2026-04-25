@@ -2,7 +2,7 @@
  * adminPage.js — Render the admin panel shell: login, sidebar, settings, pending changes.
  */
 
-import { isLoggedIn, login, logout, getToken, setToken, getRepo, setRepo, isGitHubConfigured } from '../auth.js';
+import { isLoggedIn, logout, getToken, setToken, getRepo, setRepo, isGitHubConfigured, getUsername } from '../auth.js';
 import { testConnection } from '../githubApi.js';
 import { getChanges, removeChange, removeGroup, removeOverrideFromChange, removePlayerFromGroup, getChangeCount, publishAll, clearChanges } from '../stagingStore.js';
 import { initAdminDrawer } from '../adminDrawer.js';
@@ -18,7 +18,8 @@ export function initAdminPage(viewCallback) {
     onNavigate = viewCallback;
 
     if (!isLoggedIn()) {
-        renderLoginForm();
+        location.href = 'index.html';
+        return;
     } else {
         renderAdminShell();
         const hash = (location.hash || '').replace('#', '');
@@ -61,54 +62,6 @@ export function refreshBadge() {
     badge.classList.toggle('empty', count === 0);
 }
 
-// ---- Login ----
-
-function renderLoginForm() {
-    const app = document.getElementById('app');
-    app.innerHTML = `
-        <div class="admin-login-wrapper">
-            <div class="admin-login-box">
-                <h1>Admin Login</h1>
-                <div id="login-msg"></div>
-                <div class="form-group">
-                    <label for="login-user">Username</label>
-                    <input type="text" id="login-user" autocomplete="username">
-                </div>
-                <div class="form-group">
-                    <label for="login-pass">Password</label>
-                    <input type="password" id="login-pass" autocomplete="current-password">
-                </div>
-                <button class="btn btn-primary btn-block" id="login-btn">Login</button>
-            </div>
-        </div>`;
-
-    const btn = document.getElementById('login-btn');
-    const userInput = document.getElementById('login-user');
-    const passInput = document.getElementById('login-pass');
-
-    async function doLogin() {
-        const user = userInput.value.trim();
-        const pass = passInput.value;
-        if (!user || !pass) {
-            showMsg('login-msg', 'Please enter username and password.', 'error');
-            return;
-        }
-        btn.disabled = true;
-        const ok = await login(user, pass);
-        btn.disabled = false;
-        if (ok) {
-            renderAdminShell();
-            navigateTo('leagues');
-        } else {
-            showMsg('login-msg', 'Invalid username or password.', 'error');
-        }
-    }
-
-    btn.addEventListener('click', doLogin);
-    passInput.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-    userInput.focus();
-}
-
 // ---- Admin Shell ----
 
 function renderAdminShell() {
@@ -120,6 +73,14 @@ function renderAdminShell() {
             <aside class="admin-sidebar" id="admin-sidebar">
                 <img class="admin-sidebar-logo" src="assets/logo/logo.png" alt="Logo">
                 <h2>Shabi Admin</h2>
+                <div class="admin-welcome">
+                    <div class="admin-welcome-avatar">${getUsername().charAt(0).toUpperCase()}</div>
+                    <div class="admin-welcome-body">
+                        <div class="admin-welcome-label">Welcome back</div>
+                        <div class="admin-welcome-name">${getUsername()}</div>
+                        <div class="admin-welcome-status"><span class="admin-welcome-dot"></span>Active</div>
+                    </div>
+                </div>
                 <nav>
                     <a href="index.html?edit=1" class="admin-nav-item">Main Dashboard</a>
                     <button class="admin-nav-item" data-view="leagues">Leagues</button>
@@ -150,7 +111,7 @@ function renderAdminShell() {
     // Logout
     document.getElementById('logout-btn').addEventListener('click', () => {
         logout();
-        renderLoginForm();
+        location.href = 'index.html';
     });
 
     initAdminDrawer();

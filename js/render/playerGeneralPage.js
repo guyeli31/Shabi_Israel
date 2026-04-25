@@ -1038,8 +1038,15 @@ function applyShowTopN(tableEl, defaultN = 5) {
         if (wrapper) wrapper.style.maxHeight = isCollapsed ? 'none' : savedMaxH;
     });
 
-    if (wrapper) wrapper.parentNode.insertBefore(btn, wrapper.nextSibling);
-    else tableEl.parentNode?.insertBefore(btn, tableEl.nextSibling);
+    const insertParent = wrapper ? wrapper.parentNode : tableEl.parentNode;
+    const insertBefore = wrapper ? wrapper.nextSibling : tableEl.nextSibling;
+
+    // Remove any stale button from a previous render of the same table
+    const anchor = wrapper || tableEl;
+    const stale = anchor.nextElementSibling;
+    if (stale && stale.classList.contains('show-more-btn')) stale.remove();
+
+    if (insertParent) insertParent.insertBefore(btn, insertBefore);
 }
 
 function renderPlayerRecordTable(title, metricLabel, rows) {

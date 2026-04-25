@@ -453,6 +453,10 @@
     margin-top: 2px;
     padding: 4px 8px;
     font-size: 0.9rem;
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
 }
 .pg-chart-host {
     margin: 12px 0;

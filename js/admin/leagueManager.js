@@ -7,7 +7,6 @@ import { getFile } from './githubApi.js';
 import { addChange, getStagedContent } from './stagingStore.js';
 import { getAllPlayersFromCSV } from '../data/csvParser.js';
 import { renderCsvEditor } from './csvEditor.js';
-import { renderRemainingReport } from './remainingReport.js';
 import { ensurePlayerIndex } from '../render/navigation.js';
 import { thLabel } from '../utils/helpers.js';
 
@@ -814,25 +813,12 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             <div id="csv-editor-container"></div>
         </div>
 
-        <div class="admin-card">
-            <h2>Reports</h2>
-            <button class="btn btn-secondary" id="remaining-report-btn">Remaining Matches Report</button>
-            <div id="remaining-report-container" style="margin-top:var(--space-md)"></div>
-        </div>
     `;
 
     // CSV editor
     const csvContainer = document.getElementById('csv-editor-container');
     if (csvContainer) {
         renderCsvEditor(csvContainer, leagueId, refreshBadgeFn);
-    }
-
-    // Remaining report
-    const reportBtn = document.getElementById('remaining-report-btn');
-    if (reportBtn) {
-        reportBtn.addEventListener('click', () => {
-            renderRemainingReport(document.getElementById('remaining-report-container'), leagueId);
-        });
     }
 
     // Status toggle label update

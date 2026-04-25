@@ -151,18 +151,71 @@ function findChampion(wins, games, points, tiebreakerPR, rankingConfig, n) {
 }
 
 /**
- * Monte Carlo simulation.
- * Returns Float64Array of championship win counts per player.
+ * Rank all players from best (index 0) to worst (index n-1).
+ * Uses the same comparator as findChampion.
+ * Returns Int32Array of length n containing player indices in rank order.
  */
+function rankAllPlayers(wins, games, points, tiebreakerPR, rankingConfig, n) {
+    const primary = rankingConfig.primary;
+    const primaryDesc = rankingConfig.primaryDir === 'desc';
+    const secondary = rankingConfig.secondary;
+    const secondaryAsc = rankingConfig.secondaryDir === 'asc';
+
+    function getPrimary(i) {
+        if (primary === 'winRate') return games[i] > 0 ? wins[i] / games[i] : 0;
+        if (primary === 'avgPoints') return games[i] > 0 ? points[i] / games[i] : 0;
+        return wins[i];
+    }
+    function getSecondary(i) {
+        if (secondary === 'meanPR') return tiebreakerPR[i];
+        if (secondary === 'wins') return wins[i];
+        return 0;
+    }
+
+    const indices = Array.from({ length: n }, (_, i) => i);
+    indices.sort((a, b) => {
+        const pa = getPrimary(a), pb = getPrimary(b);
+        if (pa !== pb) return primaryDesc ? pb - pa : pa - pb;
+        const sa = getSecondary(a), sb = getSecondary(b);
+        return secondaryAsc ? sa - sb : sb - sa;
+    });
+    return indices;
+}
+
+/**
+ * Monte Carlo simulation.
+ * Returns { champWins, finishRankCounts } where finishRankCounts is a
+ * Float64Array of size n*n: finishRankCounts[playerIdx * n + rank] = # simulations
+ * where that player finished at that rank (0 = 1st).
+ */
+// Benchmarks 1 000 iterations to calibrate how many fit within targetMs on this machine.
+function estimateIterations(setup, targetMs = 500) {
+    const WARMUP = 1_000;
+    const STEP = 200_000;
+    const t0 = performance.now();
+    simulateMonteCarlo(setup, WARMUP);
+    const msPerIter = (performance.now() - t0) / WARMUP;
+    const raw = Math.round(targetMs / msPerIter);
+    return Math.max(Math.round(raw / STEP) * STEP, STEP);
+}
+
 function simulateMonteCarlo(setup, N) {
     const { n, currentWins, currentGames, currentPoints, tiebreakerPR,
             remainingA, remainingB, remainingProbA, rankingConfig, isUBC, remainingPRWinA } = setup;
     const X = remainingA.length;
     const champWins = new Float64Array(n);
+    const finishRankCounts = new Float64Array(n * n);
 
     const simWins = new Int32Array(n);
     const simGames = new Int32Array(n);
     const simPoints = new Int32Array(n);
+
+    // Hoisted outside loop — avoids per-iteration Array allocation + GC pressure
+    const indices = Array.from({ length: n }, (_, i) => i);
+    const primary = rankingConfig.primary;
+    const primaryDesc = rankingConfig.primaryDir === 'desc';
+    const secondary = rankingConfig.secondary;
+    const secondaryAsc = rankingConfig.secondaryDir === 'asc';
 
     for (let iter = 0; iter < N; iter++) {
         // Reset to current standings
@@ -197,17 +250,35 @@ function simulateMonteCarlo(setup, N) {
             }
         }
 
-        const champ = findChampion(simWins, simGames, simPoints, tiebreakerPR, rankingConfig, n);
-        champWins[champ]++;
+        // Reset indices in-place (avoids Array.from allocation each iteration)
+        for (let i = 0; i < n; i++) indices[i] = i;
+        indices.sort((a, b) => {
+            let pa, pb;
+            if (primary === 'winRate') {
+                pa = simGames[a] > 0 ? simWins[a] / simGames[a] : 0;
+                pb = simGames[b] > 0 ? simWins[b] / simGames[b] : 0;
+            } else if (primary === 'avgPoints') {
+                pa = simGames[a] > 0 ? simPoints[a] / simGames[a] : 0;
+                pb = simGames[b] > 0 ? simPoints[b] / simGames[b] : 0;
+            } else {
+                pa = simWins[a]; pb = simWins[b];
+            }
+            if (pa !== pb) return primaryDesc ? pb - pa : pa - pb;
+            const sa = secondary === 'meanPR' ? tiebreakerPR[a] : secondary === 'wins' ? simWins[a] : 0;
+            const sb = secondary === 'meanPR' ? tiebreakerPR[b] : secondary === 'wins' ? simWins[b] : 0;
+            return secondaryAsc ? sa - sb : sb - sa;
+        });
+        champWins[indices[0]]++;
+        for (let r = 0; r < n; r++) finishRankCounts[indices[r] * n + r]++;
     }
 
-    return champWins;
+    return { champWins, finishRankCounts };
 }
 
 /**
  * Exact brute-force enumeration over all 2^X scenarios.
  * Uses Gray code for O(1) updates per step.
- * Returns Float64Array of weighted championship wins per player.
+ * Returns { champWins, finishRankCounts }.
  */
 function simulateExact(setup) {
     const { n, currentWins, currentGames, currentPoints, tiebreakerPR,
@@ -215,6 +286,7 @@ function simulateExact(setup) {
     const X = remainingA.length;
     const totalScenarios = 1 << X;
     const champWins = new Float64Array(n);
+    const finishRankCounts = new Float64Array(n * n);
 
     // Start with all B-wins (mask = 0)
     const simWins = new Int32Array(n);
@@ -251,8 +323,9 @@ function simulateExact(setup) {
 
     // Process scenario 0 (all B wins)
     let weight = Math.exp(logWeight);
-    let champ = findChampion(simWins, simGames, simPoints, tiebreakerPR, rankingConfig, n);
-    champWins[champ] += weight;
+    let ranks = rankAllPlayers(simWins, simGames, simPoints, tiebreakerPR, rankingConfig, n);
+    champWins[ranks[0]] += weight;
+    for (let r = 0; r < n; r++) finishRankCounts[ranks[r] * n + r] += weight;
 
     // Gray code iteration
     let prevGray = 0;
@@ -287,12 +360,13 @@ function simulateExact(setup) {
             weight *= (1 - pA) / pA;
         }
 
-        champ = findChampion(simWins, simGames, simPoints, tiebreakerPR, rankingConfig, n);
-        champWins[champ] += weight;
+        ranks = rankAllPlayers(simWins, simGames, simPoints, tiebreakerPR, rankingConfig, n);
+        champWins[ranks[0]] += weight;
+        for (let r = 0; r < n; r++) finishRankCounts[ranks[r] * n + r] += weight;
         prevGray = gray;
     }
 
-    return champWins;
+    return { champWins, finishRankCounts };
 }
 
 /**
@@ -426,28 +500,31 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
     // UBC always uses Monte Carlo — PR win outcomes are probabilistic and
     // cannot be correctly enumerated with exact brute-force.
     let champWins;
+    let finishRankCounts;
     let method;
     let iterations;
 
     if (isUBC && X > 0) {
-        iterations = Math.max(Math.floor(50_000_000 / X), 100_000);
+        iterations = estimateIterations(setup);
         method = 'montecarlo';
-        champWins = simulateMonteCarlo(setup, iterations);
+        ({ champWins, finishRankCounts } = simulateMonteCarlo(setup, iterations));
     } else if (X > 20) {
-        iterations = Math.floor(50_000_000 / X);
+        iterations = estimateIterations(setup);
         method = 'montecarlo';
-        champWins = simulateMonteCarlo(setup, iterations);
+        ({ champWins, finishRankCounts } = simulateMonteCarlo(setup, iterations));
     } else if (X > 0) {
         iterations = 1 << X;
         method = 'exact';
-        champWins = simulateExact(setup);
+        ({ champWins, finishRankCounts } = simulateExact(setup));
     } else {
         // No remaining matches — current standings are final
         iterations = 0;
         method = 'exact';
         champWins = new Float64Array(n);
-        const champ = findChampion(currentWins, currentGames, currentPoints, tiebreakerPR, leagueConfig.ranking, n);
-        champWins[champ] = 1;
+        finishRankCounts = new Float64Array(n * n);
+        const finalRanks = rankAllPlayers(currentWins, currentGames, currentPoints, tiebreakerPR, leagueConfig.ranking, n);
+        champWins[finalRanks[0]] = 1;
+        for (let r = 0; r < n; r++) finishRankCounts[finalRanks[r] * n + r] = 1;
     }
 
     // Normalize to percentages
@@ -457,6 +534,7 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
         const pct = total > 0 ? (champWins[i] / total) * 100 : 0;
         return {
             player,
+            playerIdx: i,
             championshipPct: pct,
             games: stats ? stats.games : 0,
             wins: stats ? stats.wins : 0,
@@ -478,5 +556,21 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
         moe = 1.96 * Math.sqrt(p * (1 - p) / iterations) * 100;
     }
 
-    return { rankings, moe, method, iterations };
+    return { rankings, moe, method, iterations, finishRankCounts, n, totalWeight: total };
+}
+
+/**
+ * Compute the probability (0–100) of a player finishing in the top X positions.
+ * @param {Float64Array} finishRankCounts  flat n×n array from predictChampionship
+ * @param {number} playerIdx              the player's original index in the players array
+ * @param {number} n                      total number of players
+ * @param {number} totalWeight            iterations (MC) or sum of weights (exact)
+ * @param {number} X                      top-X threshold (1 = championship only)
+ */
+export function computeTopXPct(finishRankCounts, playerIdx, n, totalWeight, X) {
+    let count = 0;
+    const base = playerIdx * n;
+    const limit = Math.min(X, n);
+    for (let r = 0; r < limit; r++) count += finishRankCounts[base + r];
+    return totalWeight > 0 ? (count / totalWeight) * 100 : 0;
 }

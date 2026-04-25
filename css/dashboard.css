@@ -412,6 +412,27 @@
     white-space: nowrap;
 }
 
+.predictor-topx-control {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+    font-size: 0.88rem;
+    color: var(--color-text-secondary);
+}
+
+.topx-select {
+    padding: 2px var(--space-xs);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 0.9rem;
+    font-family: var(--font-main);
+    cursor: pointer;
+}
+.topx-select:focus { outline: none; border-color: var(--color-accent); }
+
 .predictor-pct-cell {
     width: 140px;
 }
@@ -994,6 +1015,149 @@
 /* Played */
 .rounds-scroll-wrap th:nth-child(8),
 .rounds-scroll-wrap td:nth-child(8) { width: 80px; }
+
+/* ── B6 Remaining Matches sub-tabs (B6a / B6b / B6c) ──── */
+.rem-tab-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-sm);
+}
+
+.rem-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-accent);
+    font-family: var(--font-main);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    user-select: none;
+}
+.rem-tab-btn:hover {
+    background: var(--color-hover);
+    border-color: var(--color-accent);
+}
+.rem-tab-btn--open {
+    background: var(--color-accent);
+    color: var(--color-bg);
+    border-color: var(--color-accent);
+}
+.rem-tab-btn--open:hover {
+    background: var(--color-text);
+    border-color: var(--color-text);
+}
+.rem-tab-arrow {
+    font-size: 0.75em;
+}
+
+.rem-tab-panel {
+    margin-top: var(--space-sm);
+    padding: var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+/* B6a — All Remaining (50% viewport width, centered) */
+.rem-b6a-wrap {
+    width: 50%;
+    margin: 0 auto;
+}
+
+/* B6b — Remaining Report (centered) */
+.rem-b6b-wrap {
+    display: flex;
+    justify-content: center;
+}
+.rem-b6b-wrap .player-remaining-table {
+    width: auto;
+    min-width: 280px;
+    margin-top: 0;
+}
+
+/* B6c — Per Player (30% viewport width, centered) */
+.rem-b6c-outer {
+    display: flex;
+    justify-content: center;
+}
+.rem-b6c-wrap {
+    width: 30%;
+    min-width: 280px;
+}
+.rem-b6c-search-row {
+    margin-bottom: var(--space-sm);
+}
+.rem-b6c-input {
+    width: 100%;
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    font-size: 0.9rem;
+    font-family: var(--font-main);
+    box-sizing: border-box;
+}
+.rem-b6c-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+}
+.rem-b6c-header {
+    margin-bottom: var(--space-xs);
+    font-size: 0.88rem;
+    color: var(--color-text-muted);
+}
+.rem-b6c-player-name {
+    font-weight: 700;
+    color: var(--color-text);
+}
+.rem-b6c-rem-count {
+    color: var(--color-accent);
+}
+.rem-b6c-export-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--space-xs);
+}
+.rem-b6c-table {
+    width: 100%;
+}
+
+/* Shared remaining table */
+.player-remaining-table {
+    margin-top: var(--space-sm);
+}
+
+.player-remaining-divider td {
+    padding: 4px 12px !important;
+    border-top: 2px dashed var(--color-border) !important;
+    border-bottom: none !important;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    font-style: italic;
+    text-align: center;
+    background: transparent !important;
+}
+.player-remaining-divider--bold td {
+    font-weight: 700 !important;
+    color: var(--color-text) !important;
+}
+
+@media (max-width: 640px) {
+    .rem-b6a-wrap,
+    .rem-b6c-wrap {
+        width: 100%;
+        min-width: 0;
+    }
+}
 
 @media (max-width: 640px) {
     .rounds-scroll-wrap {

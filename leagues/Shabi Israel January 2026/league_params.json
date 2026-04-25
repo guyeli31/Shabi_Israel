@@ -1,6 +1,6 @@
 {
   "LeagueTitle": "Shabi Israel - January 2026",
-  "LeagueType": "doubling",
+  "LeagueType": "regular",
   "IssueDate": "2026-01-01",
   "EntryFee": 180,
   "Prizes": { "Gold": 2200, "Silver": 800, "Bronze": 180 },
