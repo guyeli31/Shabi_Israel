@@ -92,3 +92,35 @@ export function getLeagueYear(league) {
     }
     return parseLeagueDate(league?.id).year ?? null;
 }
+
+/**
+ * Append a hidden-in-plain-sight credit footer to an export-image wrap element.
+ * The blended color is computed in JS (not via CSS color-mix) because
+ * html2canvas 1.4.1 chokes on color-mix() in inline styles and the whole
+ * export silently fails.
+ */
+export function appendExportCredit(wrap) {
+    const credit = document.createElement('div');
+    const bg = parseRgb(getComputedStyle(wrap).backgroundColor) || [255, 255, 255];
+    const text = parseRgb(getComputedStyle(wrap).color) || [0, 0, 0];
+    const mixed = mixRgb(bg, text, 0.06);
+    credit.style.cssText =
+        'margin-top:18px;padding-top:8px;text-align:center;'
+        + 'font-size:8px;font-weight:300;letter-spacing:0.12em;'
+        + `color:rgb(${mixed[0]},${mixed[1]},${mixed[2]});`
+        + 'user-select:none;';
+    credit.textContent = 'Built by Guy Eliyahu  \u00B7  April 2026';
+    wrap.appendChild(credit);
+    return credit;
+}
+
+function parseRgb(str) {
+    if (!str) return null;
+    const m = str.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i);
+    if (!m) return null;
+    return [Math.round(+m[1]), Math.round(+m[2]), Math.round(+m[3])];
+}
+
+function mixRgb(a, b, t) {
+    return [0, 1, 2].map(i => Math.round(a[i] * (1 - t) + b[i] * t));
+}

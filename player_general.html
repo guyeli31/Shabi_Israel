@@ -45,11 +45,13 @@
         const isEmbedded = window.self !== window.top;
 
         if (isEmbedded) {
-            // Suppress all interactive chrome when inside admin preview iframe
+            // Suppress interactive chrome in preview iframe, but keep the nav search functional
             const style = document.createElement('style');
             style.textContent = `
-                a { pointer-events: none !important; cursor: default !important; opacity: 0.7 !important; }
-                .nav-search, .nav-search-wrapper { display: none !important; }
+                a:not(.nav-search a):not(.nav-search-results a) { pointer-events: none !important; cursor: default !important; opacity: 0.7 !important; }
+                .nav-search, .nav-search * { pointer-events: auto !important; opacity: 1 !important; }
+                .nav-search input { cursor: text !important; }
+                .nav-search-results a { cursor: pointer !important; }
                 .preview-banner { display: none !important; }
                 body.preview-active { padding-top: 0 !important; }
             `;

@@ -93,7 +93,20 @@ The JS code is organized in 4 layers with strict dependency direction: **Data �
 
 | Module | Key Exports | Purpose |
 |--------|------------|---------|
-| `helpers.js` | `getQueryParam()`, `formatPercent()`, `formatNumber()`, `flagUrl()`, `leagueUrl()`, `playerUrl()`, `getFlagCode()` | Shared utilities for URL parameter parsing, number formatting, flag/league/player URL construction, and custom flag resolution (default: IL). |
+| `helpers.js` | `getQueryParam()`, `formatPercent()`, `formatNumber()`, `flagUrl()`, `leagueUrl()`, `playerUrl()`, `getFlagCode()`, `appendExportCredit()` | Shared utilities for URL parameter parsing, number formatting, flag/league/player URL construction, and custom flag resolution (default: IL). `appendExportCredit(wrap)` injects the disguised "Built by Guy Eliyahu · April 2026" footer into any element that's about to be rasterized via `html2canvas` — colour resolves with `color-mix` against the wrap's own background so it blends into every theme. |
+
+## Image Export — Hidden Credit
+
+Every `Export Image` flow (PNG download via `html2canvas`) appends the platform credit to the offscreen wrapper *just before* rasterisation. Inline styles only (no class) so the snapshot is self-contained:
+
+| Caller | Function | Wrapper |
+|--------|----------|---------|
+| `landingPage.js` | `exportLeaderboardImage()` | offscreen `<div>` |
+| `leaguePage.js` | `exportLeagueTableImage()` | offscreen `<div>` |
+| `dashboardPage.js` | `exportRemainingMatchesImage()`, `exportB6bImage()`, `exportB6cImage()` | offscreen `<div>` |
+| `admin/remainingReport.js` | `downloadReportAsImage()`, `shareReport()` | live `#remaining-report` (credit removed in `finally`) |
+
+The visible UI also shows the same credit on `index.html` only — appended at the end of `renderLandingPage()` via the `.platform-credit` class in `dashboard.css`. League/player pages do **not** show it on screen.
 
 ## CSS Responsibilities
 

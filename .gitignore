@@ -407,6 +407,21 @@ FodyWeavers.xsd
 /step*.png
 /dashboard-*.png
 /pg-*.png
+/admin_*.png
+/nav_*.png
+/round_editor_*.png
+/preview_*.png
+/match_results_*.png
+/csv_upload_*.png
+/pending_*.png
+/player_card_*.png
+/credit_*.png
+/dashboard_*.png
+/league_*.png
+/spinner_*.png
+/view_*.png
+/b6b_*.png
+/b6c_*.png
 
 # Claude / Superpowers internal files
 .claude/scheduled_tasks.lock

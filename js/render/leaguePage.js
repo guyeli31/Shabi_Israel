@@ -7,7 +7,7 @@ import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages, computeMatchStats, LEVELS } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { colorForValue, colorForValueInverted, colorForGames, colorForLevel } from '../compute/colorScale.js';
-import { getQueryParam, formatPercent, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl, thLabel } from '../utils/helpers.js';
+import { getQueryParam, formatPercent, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl, thLabel, appendExportCredit } from '../utils/helpers.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
@@ -244,6 +244,8 @@ function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCo
         const flagCode = getFlagCode(r.player, params.CustomFlags);
         const pUrl = playerUrl(leagueId, r.player);
 
+        const isHiddenPlayer = !!(playersMeta[r.player] && playersMeta[r.player].hidden);
+
         if (isUnplayed) {
             html += `
                     <tr class="${rankClass}">`;
@@ -253,10 +255,12 @@ function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCo
                     html += `<td data-label="${lbl}">${displayPos}</td>`;
                 } else if (col.key === 'player') {
                     const retiredMark = isRetired ? ' <span class="retired-mark" title="Retired">&#x1F6AA;</span>' : '';
-                    const titleAbbrHtml = getTitleAbbreviationsHtml(playersMeta[r.player]);
+                    const playerCell = isHiddenPlayer
+                        ? `<i class="player-hidden">N/A</i>`
+                        : `<a href="${pUrl}" title="Open ${r.player}'s card for this league">${r.player}</a>${getTitleAbbreviationsHtml(playersMeta[r.player])}${retiredMark}`;
                     html += `<td class="player-cell" data-label="${lbl}" data-name="${r.player}">
-                            <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
-                            <a href="${pUrl}" title="Open ${r.player}'s card for this league">${r.player}</a>${titleAbbrHtml}${retiredMark}
+                            ${isHiddenPlayer ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`}
+                            ${playerCell}
                         </td>`;
                 } else if (col.key === 'games' || col.key === 'wins' || col.key === 'losses' || col.key === 'prWins') {
                     html += `<td data-label="${lbl}">0</td>`;
@@ -278,10 +282,12 @@ function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCo
                 html += `<td data-label="${lbl}">${getMedalHtml(r.originalRank, goldCount, silverCount, bronzeCount, displayPos)}</td>`;
             } else if (col.key === 'player') {
                 const retiredMark = isRetired ? ' <span class="retired-mark" title="Retired">&#x1F6AA;</span>' : '';
-                const titleAbbrHtml2 = getTitleAbbreviationsHtml(playersMeta[r.player]);
+                const playerCell2 = isHiddenPlayer
+                    ? `<i class="player-hidden">N/A</i>`
+                    : `<a href="${pUrl}" title="Open ${r.player}'s card for this league">${r.player}</a>${getTitleAbbreviationsHtml(playersMeta[r.player])}${retiredMark}`;
                 html += `<td class="player-cell" data-label="${lbl}" data-name="${r.player}">
-                            <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
-                            <a href="${pUrl}" title="Open ${r.player}'s card for this league">${r.player}</a>${titleAbbrHtml2}${retiredMark}
+                            ${isHiddenPlayer ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`}
+                            ${playerCell2}
                         </td>`;
             } else if (col.key === 'level') {
                 if (r.level == null) {
@@ -442,6 +448,7 @@ async function exportLeagueTableImage(title) {
     scroll.appendChild(tableClone);
     wrap.appendChild(scroll);
     document.body.appendChild(wrap);
+    appendExportCredit(wrap);
 
     try {
         if (document.fonts && document.fonts.ready) await document.fonts.ready;

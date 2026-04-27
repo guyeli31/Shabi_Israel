@@ -6,7 +6,9 @@ import { loadLeagueOrder, loadLeagueParams, loadLeagueMatches, loadLandingSettin
 import { getFile } from './githubApi.js';
 import { addChange, getStagedContent } from './stagingStore.js';
 import { getAllPlayersFromCSV } from '../data/csvParser.js';
-import { renderCsvEditor } from './csvEditor.js';
+import { renderRoundEditor } from './roundEditor.js';
+import { renderExcelImporter } from './excelImporter.js';
+import { renderOverridesList } from './overridesList.js';
 import { ensurePlayerIndex } from '../render/navigation.js';
 import { thLabel } from '../utils/helpers.js';
 
@@ -178,7 +180,7 @@ async function renderAddLeagueForm(container, displayOrder) {
                 <div class="add-league-row">
                     <div class="form-group">
                         <label for="new-issue-date">Issue Date</label>
-                        <input type="date" id="new-issue-date">
+                        <input type="date" id="new-issue-date" class="themed-date">
                     </div>
                     <div class="form-group">
                         <label for="new-entry-fee">Entry Fee</label>
@@ -242,36 +244,15 @@ async function renderAddLeagueForm(container, displayOrder) {
                 </div>
                 <div class="add-league-row" style="margin-bottom:var(--space-md);align-items:flex-end">
                     <div class="form-group" style="flex:2;position:relative">
-                        <label for="manual-player-name">Add Player Manually</label>
-                        <input type="text" id="manual-player-name" placeholder="Player name" autocomplete="off">
+                        <label for="manual-player-name">Add Player from Registry</label>
+                        <input type="text" id="manual-player-name" placeholder="Type a registered player name…" autocomplete="off">
                         <ul class="player-autocomplete" id="manual-player-autocomplete" hidden></ul>
                     </div>
-                    <div class="form-group" style="flex:1">
-                        <label for="manual-player-flag">Flag</label>
-                        <select id="manual-player-flag">
-                            ${KNOWN_FLAGS.map(f => `<option value="${f}" ${f === 'IL' ? 'selected' : ''}>${f}</option>`).join('')}
-                        </select>
-                    </div>
                     <div class="form-group" style="flex:0">
-                        <button class="btn btn-primary btn-sm" id="add-manual-player-btn">Add</button>
+                        <button class="btn btn-primary btn-sm" id="add-manual-player-btn" style="margin-top:1.4rem">Add</button>
                     </div>
                 </div>
-                <div style="margin-bottom:var(--space-md)">
-                    <h3 style="font-size:0.95rem;margin-bottom:var(--space-sm)">Upload Custom Flag</h3>
-                    <div class="form-group">
-                        <label>Flag Code + PNG file</label>
-                        <div style="display:flex;gap:var(--space-sm);align-items:center">
-                            <input type="text" id="new-upload-flag-code" placeholder="XX" style="width:60px">
-                            <div class="custom-file-input" style="flex:1">
-                                <label class="file-btn" for="new-upload-flag-file">Choose File</label>
-                                <input type="file" id="new-upload-flag-file" accept="image/*">
-                                <span class="file-name" data-for="new-upload-flag-file">No file chosen</span>
-                            </div>
-                            <button class="btn btn-secondary btn-sm" id="new-upload-flag-btn">Upload</button>
-                        </div>
-                    </div>
-                    <div id="new-flag-upload-msg"></div>
-                </div>
+                <div id="add-msg" style="margin-bottom:var(--space-sm)"></div>
                 <div id="csv-source-msg" style="font-size:0.85rem;color:var(--color-text-muted);margin-bottom:var(--space-sm)"></div>
                 <table class="admin-table" id="new-players-table">
                     <thead><tr><th scope="col">${thLabel('Name', 'Name')}</th><th scope="col">${thLabel('Flag', 'Flag')}</th><th scope="col">${thLabel('Retired', 'Ret')}</th><th scope="col"></th></tr></thead>
@@ -291,13 +272,31 @@ async function renderAddLeagueForm(container, displayOrder) {
             tbody.innerHTML = '<tr><td colspan="4" style="color:var(--color-text-muted);text-align:center">No players yet</td></tr>';
             return;
         }
-        tbody.innerHTML = state.players.map((pl, i) => `
+        tbody.innerHTML = state.players.map((pl, i) => {
+            const knownSelected = KNOWN_FLAGS.includes(pl.flag);
+            const customOption = (!knownSelected && pl.flag)
+                ? `<option value="${esc(pl.flag)}" selected>${esc(pl.flag)}</option>`
+                : '';
+            return `
             <tr>
                 <td><input type="text" data-pi="${i}" data-field="name" value="${esc(pl.name)}" style="width:160px;padding:2px 6px;border:1px solid var(--color-border);border-radius:4px"></td>
                 <td>
-                    <select data-pi="${i}" data-field="flag" style="padding:2px 6px;border:1px solid var(--color-border);border-radius:4px">
-                        ${KNOWN_FLAGS.map(f => `<option value="${f}" ${f === pl.flag ? 'selected' : ''}>${f}</option>`).join('')}
-                    </select>
+                    <div style="display:flex;flex-direction:column;gap:4px">
+                        <select data-pi="${i}" data-field="flag" style="padding:2px 6px;border:1px solid var(--color-border);border-radius:4px">
+                            ${KNOWN_FLAGS.map(f => `<option value="${f}" ${f === pl.flag ? 'selected' : ''}>${f}</option>`).join('')}
+                            ${customOption}
+                            <option value="__custom">Custom…</option>
+                        </select>
+                        <div class="inline-custom-flag" style="display:none;align-items:center;gap:4px;flex-wrap:wrap">
+                            <input type="text" class="cflag-code" placeholder="XX" maxlength="6"
+                                   style="width:50px;padding:2px 4px;border:1px solid var(--color-border);border-radius:4px">
+                            <label class="file-btn" for="cflag-file-${i}" style="padding:2px 8px;font-size:0.8rem;cursor:pointer">PNG</label>
+                            <input type="file" id="cflag-file-${i}" accept="image/*" style="display:none">
+                            <span class="cflag-filename" style="font-size:0.8rem;color:var(--color-text-muted)">No file</span>
+                            <button type="button" class="btn btn-secondary btn-sm cflag-upload-btn" style="padding:2px 8px">Upload</button>
+                            <span class="cflag-msg" style="font-size:0.8rem"></span>
+                        </div>
+                    </div>
                 </td>
                 <td>
                     <label class="toggle-switch">
@@ -306,15 +305,83 @@ async function renderAddLeagueForm(container, displayOrder) {
                     </label>
                 </td>
                 <td><button class="btn btn-danger btn-sm" data-remove-pi="${i}">Remove</button></td>
-            </tr>`).join('');
+            </tr>`;
+        }).join('');
 
         tbody.querySelectorAll('input[data-field],select[data-field]').forEach(el => {
             el.addEventListener('change', () => {
                 const i = parseInt(el.dataset.pi);
                 const f = el.dataset.field;
+                if (f === 'flag' && el.value === '__custom') {
+                    // Revert select to current flag, show inline custom area instead
+                    const cur = state.players[i].flag;
+                    el.value = KNOWN_FLAGS.includes(cur) ? cur : (cur || KNOWN_FLAGS[0]);
+                    const area = el.closest('div').querySelector('.inline-custom-flag');
+                    if (area) area.style.display = 'flex';
+                    return;
+                }
                 state.players[i][f] = f === 'retired' ? el.checked : el.value;
             });
         });
+
+        // Wire inline custom-flag upload for each row
+        tbody.querySelectorAll('.cflag-upload-btn').forEach(btn => {
+            const row = btn.closest('tr');
+            const i = parseInt(row.querySelector('select[data-field="flag"]').dataset.pi);
+            const area = btn.closest('.inline-custom-flag');
+            const codeInput = area.querySelector('.cflag-code');
+            const fileInput = area.querySelector('input[type="file"]');
+            const msgEl = area.querySelector('.cflag-msg');
+
+            fileInput.addEventListener('change', () => {
+                const span = area.querySelector('.cflag-filename');
+                if (span) span.textContent = fileInput.files.length ? fileInput.files[0].name : 'No file';
+            });
+
+            btn.addEventListener('click', async () => {
+                const code = codeInput.value.trim().toUpperCase();
+                if (!code || code.length < 2) {
+                    msgEl.textContent = 'Enter a valid code (2+ chars).';
+                    msgEl.style.color = 'var(--color-loss, red)';
+                    return;
+                }
+                if (!fileInput.files || fileInput.files.length === 0) {
+                    msgEl.textContent = 'Select a PNG file.';
+                    msgEl.style.color = 'var(--color-loss, red)';
+                    return;
+                }
+                let base64;
+                try {
+                    const dataUrl = await new Promise((res, rej) => {
+                        const fr = new FileReader();
+                        fr.onload = () => res(fr.result);
+                        fr.onerror = rej;
+                        fr.readAsDataURL(fileInput.files[0]);
+                    });
+                    base64 = dataUrl.split(',')[1];
+                } catch {
+                    msgEl.textContent = 'Could not read image.';
+                    msgEl.style.color = 'var(--color-loss, red)';
+                    return;
+                }
+                state.players[i].flag = code;
+                state.players[i].flagData = base64;
+                if (!KNOWN_FLAGS.includes(code)) KNOWN_FLAGS.push(code);
+                // Update the select to show the new flag
+                const sel = row.querySelector('select[data-field="flag"]');
+                let opt = sel.querySelector(`option[value="${code}"]`);
+                if (!opt) {
+                    opt = document.createElement('option');
+                    opt.value = code;
+                    opt.textContent = code;
+                    sel.insertBefore(opt, sel.querySelector('option[value="__custom"]'));
+                }
+                sel.value = code;
+                area.style.display = 'none';
+                msgEl.textContent = '';
+            });
+        });
+
         tbody.querySelectorAll('[data-remove-pi]').forEach(btn => {
             btn.addEventListener('click', () => {
                 state.players.splice(parseInt(btn.dataset.removePi), 1);
@@ -341,77 +408,96 @@ async function renderAddLeagueForm(container, displayOrder) {
     document.getElementById('cancel-new-league').addEventListener('click', cancel);
     document.getElementById('cancel-new-league-2').addEventListener('click', cancel);
 
-    // Manual add
-    document.getElementById('add-manual-player-btn').addEventListener('click', () => {
+    // Manual add — registry-only enforcement
+    document.getElementById('add-manual-player-btn').addEventListener('click', async () => {
         const name = document.getElementById('manual-player-name').value.trim();
-        const flag = document.getElementById('manual-player-flag').value;
         if (!name) return;
         if (state.players.some(p => p.name === name)) {
             showMsg('add-msg', `Player "${name}" already in list.`, 'error');
             return;
         }
+        // Enforce: name must exist in player registry (or staged)
+        await ensureAcData();
+        if (!_acPlayerNames.includes(name)) {
+            showMsg('add-msg', `"${name}" is not in the player registry. Create the player first in the Players section.`, 'error');
+            return;
+        }
+        // Use the player's default flag from metadata if available (check staged first)
+        let flag = 'IL';
+        try {
+            const { loadPlayersMetadata } = await import('../data/playersMetadata.js');
+            const meta = await loadPlayersMetadata();
+            if (meta[name]?.defaultFlag) flag = meta[name].defaultFlag;
+            // Staged metadata takes precedence
+            const stagedRaw = getStagedContent('leagues/players_metadata.json');
+            if (stagedRaw) {
+                const stagedMeta = JSON.parse(stagedRaw);
+                if (stagedMeta[name]?.defaultFlag) flag = stagedMeta[name].defaultFlag;
+            }
+        } catch { /* fallback to IL */ }
         state.players.push({ name, flag, retired: false });
         document.getElementById('manual-player-name').value = '';
-        rerenderPlayers();
-    });
-
-    // Custom flag upload (create form)
-    document.getElementById('new-upload-flag-btn').addEventListener('click', async () => {
-        const code = document.getElementById('new-upload-flag-code').value.trim().toUpperCase();
-        const fileInput = document.getElementById('new-upload-flag-file');
-        if (!code || code.length < 2) {
-            showMsg('new-flag-upload-msg', 'Enter a valid flag code (2+ chars).', 'error');
-            return;
-        }
-        if (!fileInput.files || fileInput.files.length === 0) {
-            showMsg('new-flag-upload-msg', 'Select an image file.', 'error');
-            return;
-        }
-        const file = fileInput.files[0];
-        let base64;
-        try {
-            base64 = await fileToPngBase64(file);
-        } catch {
-            showMsg('new-flag-upload-msg', 'Could not read this image. If it is a HEIC from iPhone, please share it as JPEG or PNG.', 'error');
-            return;
-        }
-        addChange({
-            type: 'create',
-            path: `assets/flags/${code}.png`,
-            content: base64,
-            binary: true,
-            description: `Upload flag: ${code}.png`
-        });
-        if (!KNOWN_FLAGS.includes(code)) KNOWN_FLAGS.push(code);
-        if (refreshBadgeFn) refreshBadgeFn();
-        showMsg('new-flag-upload-msg', `Flag ${code}.png staged for upload.`, 'success');
+        showMsg('add-msg', '', '');
         rerenderPlayers();
     });
 
     // Smart autocomplete for manual player input
     let _acPlayerNames = null;
+    let _acPlayerMeta = null; // nickname → fullName (for full-name search)
     const acInput = document.getElementById('manual-player-name');
     const acList = document.getElementById('manual-player-autocomplete');
 
+    async function ensureAcData() {
+        if (_acPlayerNames) return;
+        try {
+            const [index, { loadPlayersMetadata }] = await Promise.all([
+                ensurePlayerIndex(),
+                import('../data/playersMetadata.js')
+            ]);
+            const meta = await loadPlayersMetadata();
+            const names = new Set([...index.keys()]);
+            const fullNames = {};
+            for (const [n, m] of Object.entries(meta)) {
+                if (m && m.inactive) names.add(n);
+                if (m?.fullName) fullNames[n] = m.fullName;
+            }
+            const stagedRaw = getStagedContent('leagues/players_metadata.json');
+            if (stagedRaw) {
+                try {
+                    const stagedMeta = JSON.parse(stagedRaw);
+                    for (const [n, m] of Object.entries(stagedMeta)) {
+                        if (m && m.inactive) names.add(n);
+                        if (m?.fullName) fullNames[n] = m.fullName;
+                    }
+                } catch { /* ignore parse errors */ }
+            }
+            _acPlayerNames = [...names].sort();
+            _acPlayerMeta = fullNames;
+        } catch { _acPlayerNames = []; _acPlayerMeta = {}; }
+    }
+
     acInput.addEventListener('input', async () => {
         const q = acInput.value.trim().toLowerCase();
-        if (q.length < 2) { acList.hidden = true; return; }
+        if (q.length < 1) { acList.hidden = true; return; }
 
-        if (!_acPlayerNames) {
-            try {
-                const index = await ensurePlayerIndex();
-                _acPlayerNames = [...index.keys()].sort();
-            } catch { _acPlayerNames = []; }
-        }
+        await ensureAcData();
 
         const existing = new Set(state.players.map(p => p.name));
         const matches = _acPlayerNames
-            .filter(n => n.toLowerCase().includes(q) && !existing.has(n))
+            .filter(n => {
+                if (existing.has(n)) return false;
+                const fl = (_acPlayerMeta?.[n] || '').toLowerCase();
+                return n.toLowerCase().includes(q) || fl.includes(q);
+            })
             .slice(0, 10);
 
         if (matches.length === 0) { acList.hidden = true; return; }
 
-        acList.innerHTML = matches.map(n => `<li data-name="${esc(n)}">${esc(n)}</li>`).join('');
+        acList.innerHTML = matches.map(n => {
+            const fn = _acPlayerMeta?.[n];
+            const label = fn ? `${esc(n)} <span class="ac-hint">(${esc(fn)})</span>` : esc(n);
+            return `<li data-name="${esc(n)}">${label}</li>`;
+        }).join('');
         acList.hidden = false;
     });
 
@@ -496,17 +582,36 @@ async function renderAddLeagueForm(container, displayOrder) {
 }
 
 /**
- * Generate a round-robin CSV (header + empty match rows) from a player list.
+ * Generate a round-robin CSV using the circle method with a random initial shuffle.
+ * Each player plays every other exactly once. Rounds are separated by repeated
+ * header rows (as expected by parseCSVWithRounds).
+ * For N players: N-1 rounds (even) or N rounds with one bye skipped (odd).
  */
-function generateRoundRobinCSV(players) {
-    const header = 'Player A,PR A,Luck A,Score A,Player B,PR B,Luck B,Score B\n';
-    const rows = [];
-    for (let i = 0; i < players.length; i++) {
-        for (let j = i + 1; j < players.length; j++) {
-            rows.push(`${players[i]},,,,${players[j]},,,,`);
+function generateRoundRobinCSV(playerNames) {
+    const header = 'Player A,PR A,Luck A,Score A,Player B,PR B,Luck B,Score B';
+    const players = [...playerNames].sort(() => Math.random() - 0.5);
+    if (players.length % 2 !== 0) players.push('Bye');
+    const n = players.length;
+    const lines = [];
+
+    for (let round = 0; round < n - 1; round++) {
+        const roundLines = [];
+        for (let i = 0; i < n / 2; i++) {
+            const a = players[i];
+            const b = players[n - 1 - i];
+            if (a !== 'Bye' && b !== 'Bye') {
+                roundLines.push(`${a},,,,${b},,,,`);
+            }
         }
+        if (roundLines.length > 0) {
+            lines.push(header);
+            lines.push(...roundLines);
+        }
+        // Rotate all except the fixed first player
+        players.splice(1, 0, players.pop());
     }
-    return header + rows.join('\n') + (rows.length > 0 ? '\n' : '');
+
+    return lines.join('\n') + '\n';
 }
 
 async function stageAddLeague(name, type, displayOrder, options = {}) {
@@ -520,6 +625,16 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
     for (const pl of players) {
         if (pl.flag && pl.flag !== 'IL') customFlags[pl.name] = pl.flag;
         if (pl.retired) retiredPlayers.push(pl.name);
+        // Stage uploaded custom flag PNG
+        if (pl.flagData && pl.flag) {
+            addChange({
+                type: 'create',
+                path: `assets/flags/${pl.flag}.png`,
+                content: pl.flagData,
+                binary: true,
+                description: `Upload flag: ${pl.flag}.png`
+            });
+        }
     }
 
     // league_params.json
@@ -554,6 +669,7 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
         csvContent = options.csvText;
     } else if (players.length > 1) {
         csvContent = generateRoundRobinCSV(players.map(p => p.name));
+        params.ManualEntry = true;
     } else {
         csvContent = 'Player A,PR A,Luck A,Score A,Player B,PR B,Luck B,Score B\n';
     }
@@ -749,7 +865,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             <div class="add-league-row">
                 <div class="form-group">
                     <label for="edit-issue-date">Issue Date</label>
-                    <input type="date" id="edit-issue-date" value="${issueDate}">
+                    <input type="date" id="edit-issue-date" class="themed-date" value="${issueDate}">
                 </div>
                 <div class="form-group">
                     <label for="edit-entry-fee">Entry Fee</label>
@@ -809,17 +925,27 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         </div>
         ` : '<div class="admin-card"><p style="color:var(--color-text-muted)">No players yet. Upload a CSV first.</p></div>'}
 
-        <div class="admin-card" id="csv-editor-section">
-            <div id="csv-editor-container"></div>
-        </div>
+        <section class="match-results-section" id="match-results-section">
+            <h2>Match Results</h2>
+            <div class="rem-tab-bar" id="match-tab-bar">
+                <button class="rem-tab-btn" data-panel="match-panel-rounds"><span class="rem-tab-arrow">&#x25B8;</span> Round Editor</button>
+                ${!params.ManualEntry ? `
+                <button class="rem-tab-btn" data-panel="match-panel-upload"><span class="rem-tab-arrow">&#x25B8;</span> Upload CSV</button>
+                <button class="rem-tab-btn" data-panel="match-panel-overrides"><span class="rem-tab-arrow">&#x25B8;</span> View Overrides</button>
+                ` : ''}
+            </div>
+            <div id="match-panel-rounds" class="rem-tab-panel" hidden></div>
+            ${!params.ManualEntry ? `
+            <div id="match-panel-upload" class="rem-tab-panel" hidden></div>
+            <div id="match-panel-overrides" class="rem-tab-panel" hidden></div>
+            ` : ''}
+        </section>
 
     `;
 
-    // CSV editor
-    const csvContainer = document.getElementById('csv-editor-container');
-    if (csvContainer) {
-        renderCsvEditor(csvContainer, leagueId, refreshBadgeFn);
-    }
+    // Match Results sub-tabs — same pattern as dashboard "Remaining Matches" tabs.
+    // Round Editor renders Table F for ALL leagues; manual overrides win over CSV.
+    setupMatchResultsTabs(leagueId, params, refreshBadgeFn);
 
     // Status toggle label update
     document.getElementById('edit-status').addEventListener('change', function() {
@@ -1073,4 +1199,56 @@ function showMsg(elementId, message, type) {
     const el = document.getElementById(elementId);
     if (!el) return;
     el.innerHTML = `<div class="admin-msg admin-msg-${type}">${message}</div>`;
+}
+
+/**
+ * Wire up the Match Results sub-tabs (Round Editor / Upload CSV / View Overrides).
+ * Round Editor opens by default. Tabs follow the same pattern as the dashboard
+ * "Remaining Matches" sub-tabs (one panel open at a time; click again to close).
+ */
+function setupMatchResultsTabs(leagueId, params, refreshBadge) {
+    const bar = document.getElementById('match-tab-bar');
+    if (!bar) return;
+    const buttons = bar.querySelectorAll('.rem-tab-btn');
+
+    function openPanel(btn) {
+        const panelId = btn.dataset.panel;
+        const panel = document.getElementById(panelId);
+        if (!panel) return;
+        const opening = panel.hidden;
+
+        buttons.forEach(b => {
+            const p = document.getElementById(b.dataset.panel);
+            if (p) p.hidden = true;
+            b.classList.remove('rem-tab-btn--open');
+            const arr = b.querySelector('.rem-tab-arrow');
+            if (arr) arr.innerHTML = '&#x25B8;';
+        });
+
+        if (!opening) return;
+
+        panel.hidden = false;
+        btn.classList.add('rem-tab-btn--open');
+        const arrow = btn.querySelector('.rem-tab-arrow');
+        if (arrow) arrow.innerHTML = '&#x25BE;';
+
+        if (panelId === 'match-panel-rounds') {
+            if (!panel._built) {
+                panel._built = true;
+                renderRoundEditor(panel, leagueId, refreshBadge);
+            }
+        } else if (panelId === 'match-panel-upload') {
+            // Re-render every open so the drop zone resets cleanly after a previous import.
+            renderExcelImporter(panel, leagueId, refreshBadge, () => location.reload());
+        } else if (panelId === 'match-panel-overrides') {
+            // Re-render every open to reflect the latest overrides file.
+            renderOverridesList(panel, leagueId, refreshBadge);
+        }
+    }
+
+    buttons.forEach(btn => btn.addEventListener('click', () => openPanel(btn)));
+
+    // Open Round Editor by default.
+    const defaultBtn = bar.querySelector('[data-panel="match-panel-rounds"]');
+    if (defaultBtn) openPanel(defaultBtn);
 }

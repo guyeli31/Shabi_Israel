@@ -13,8 +13,9 @@ import { buildAllTimeRankings } from '../compute/allTimeRankings.js';
 import { colorForValue } from '../compute/colorScale.js';
 import { luckBellCurveSvg } from './luckBellCurve.js';
 import { loadLandingSettings } from '../data/leagueLoader.js';
-import { dashboardUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueUrl, thLabel } from '../utils/helpers.js';
+import { dashboardUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueUrl, thLabel, appendExportCredit } from '../utils/helpers.js';
 import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatches } from '../compute/matchRecords.js';
+import { getLevel } from '../compute/rankings.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { isLoggedIn } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
@@ -115,6 +116,11 @@ export async function renderLandingPage() {
         renderAchievementsSection(container, presentTypes);
         renderPRLeadersSection(container, presentTypes);
         renderMatchRecordsSection(container, leagues, presentTypes);
+
+        const credit = document.createElement('div');
+        credit.className = 'platform-credit';
+        credit.textContent = 'Built by Guy Eliyahu  ·  April 2026';
+        container.appendChild(credit);
 
         // Auto-enter edit mode if admin and ?edit=1 in URL
         if (adminLoggedIn && new URLSearchParams(location.search).get('edit') === '1') {
@@ -681,7 +687,8 @@ function renderActiveLeagues(container, running) {
         let leaderHtml = '<span style="color:var(--color-text-muted)">—</span>';
         if (l.leader) {
             const flagCode = getFlagCode(l.leader.player, l.params.CustomFlags);
-            leaderHtml = `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(l.leader.player, _playersMeta[l.leader.player])}`;
+            const leaderIsHidden = !!_playersMeta[l.leader.player]?.hidden;
+            leaderHtml = `${leaderIsHidden ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`} ${playerNameLink(l.leader.player, _playersMeta[l.leader.player])}`;
         }
 
         cardsHtml += `
@@ -786,7 +793,8 @@ function renderCompletedLeagues(container, completed) {
         let leaderHtml = '—';
         if (l.leader) {
             const flagCode = getFlagCode(l.leader.player, l.params.CustomFlags);
-            leaderHtml = `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(l.leader.player, _playersMeta[l.leader.player])}`;
+            const leaderIsHidden = !!_playersMeta[l.leader.player]?.hidden;
+            leaderHtml = `${leaderIsHidden ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`} ${playerNameLink(l.leader.player, _playersMeta[l.leader.player])}`;
         }
         const typeLabel = TYPE_LABELS[l.leagueType] || l.leagueType;
         const typeCell = `<span class="league-type-pill type-${l.leagueType}">${typeLabel}</span>`;
@@ -988,9 +996,10 @@ function renderLeaderboards(container, leaderboards) {
         if (showAvgPoints) thExtra += `<th scope="col"><span class="th-full">Avg Pts</span><span class="th-abbr">APts</span></th>`;
         thExtra += `<th scope="col"><span class="th-full">Mean PR</span><span class="th-abbr">PR</span></th>`;
 
-        // Data rows
+        // Data rows — skip hidden players entirely
         let rowsHtml = '';
         for (const row of lb.rows) {
+            if (_playersMeta[row.player]?.hidden) continue;
             let rankClass = '';
             if (row.rank === 1) rankClass = 'rank-gold';
             else if (row.rank === 2) rankClass = 'rank-silver';
@@ -1164,6 +1173,7 @@ async function exportLeaderboardImage(lb, title, maxRows) {
             </table>
         </div>`;
     document.body.appendChild(wrap);
+    appendExportCredit(wrap);
 
     try {
         const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: '#ffffff' });
@@ -1309,7 +1319,7 @@ function renderAchievementTables(data, leagueType) {
     const coreCards = ACHIEVEMENT_METRICS
         .filter(m => data.rankings[m.key] != null)
         .map(m => {
-        const rows = data.rankings[m.key] || [];
+        const rows = (data.rankings[m.key] || []).filter(r => !_playersMeta[r.name]?.hidden);
         const rowsHtml = rows.map(r => `
             <tr>
                 <td>${r.rank}</td>
@@ -1338,7 +1348,7 @@ function renderAchievementTables(data, leagueType) {
 }
 
 function renderLuckPercentileCard(data, leagueType) {
-    const rows = data.rankings.luckPercentile || [];
+    const rows = (data.rankings.luckPercentile || []).filter(r => !_playersMeta[r.name]?.hidden);
     const rowsHtml = rows.map(r => {
         const cls = r.unstableSample ? 'unstable-sample' : '';
         const color = colorForValue(r.value, 0, 100);
@@ -1450,22 +1460,23 @@ function renderPRLeadersSection(container, presentTypes) {
 }
 
 function renderPRTables(data) {
-    return `<div class="achv-tables-grid">${PR_METRICS.map(m => {
-        const rows = data.rankings[m.key] || [];
+    return `<div class="achv-tables-grid pr-leaders-grid">${PR_METRICS.map(m => {
+        const rows = (data.rankings[m.key] || []).filter(r => !_playersMeta[r.name]?.hidden);
         const rowsHtml = rows.map(r => `
             <tr>
                 <td>${r.rank}</td>
                 <td><img class="flag" src="${flagUrl(getFlagCode(r.name, data.customFlags))}" alt="flag"> ${playerNameLink(r.name, _playersMeta[r.name])}</td>
                 <td>${formatNumber(r.value)}</td>
+                <td>${getLevel(r.value)}</td>
             </tr>
         `).join('');
         return `
             <div class="achv-table-card">
                 <h3>${m.label}</h3>
                 <div class="achv-table-wrapper">
-                    <table class="achv-table font-small">
-                        <thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">PR</th></tr></thead>
-                        <tbody>${rowsHtml || '<tr><td colspan="3">No data</td></tr>'}</tbody>
+                    <table class="achv-table pr-leaders-table font-small">
+                        <thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">PR</th><th scope="col">Level</th></tr></thead>
+                        <tbody>${rowsHtml || '<tr><td colspan="4">No data</td></tr>'}</tbody>
                     </table>
                 </div>
             </div>`;
@@ -1552,8 +1563,9 @@ function applyMatchRecordsStickyOffsets(root) {
 }
 
 function renderMatchRecordsTables(luckRows, prRows) {
-    const luckHtml = luckRows.map((r, i) => matchRecordRow(i + 1, r, formatNumber(r.luckGap))).join('');
-    const prHtml   = prRows.map((r, i)   => matchRecordRow(i + 1, r, formatNumber(r.pr))).join('');
+    const notHidden = r => !_playersMeta[r.player]?.hidden && !_playersMeta[r.opponent]?.hidden;
+    const luckHtml = luckRows.filter(notHidden).map((r, i) => matchRecordRow(i + 1, r, formatNumber(r.luckGap))).join('');
+    const prHtml   = prRows.filter(notHidden).map((r, i)   => matchRecordRow(i + 1, r, formatNumber(r.pr))).join('');
     return `
         <div class="match-records-stack">
             <div class="achv-table-card">

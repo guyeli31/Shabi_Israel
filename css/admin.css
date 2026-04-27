@@ -1,5 +1,71 @@
 /* admin.css — Admin panel styles */
 
+/* ── Match Results section + sub-tabs (admin.html) ────────────────────────
+   Mirrors the dashboard's .dash-section + .rem-tab-* pattern so the admin
+   tab bar feels native. The section has no background — tabs sit on the
+   page bg (var(--color-bg)) and contrast against their surface-coloured
+   buttons. The opened panel carries its own surface background.
+   Keep visually in sync with css/dashboard.css :: .rem-tab-bar block. */
+.match-results-section {
+    margin-top: var(--space-xl);
+    margin-bottom: var(--space-lg);
+}
+.match-results-section > h2 {
+    margin-bottom: var(--space-md);
+    font-size: 1.2rem;
+    border-bottom: 2px solid var(--color-border);
+    padding-bottom: var(--space-xs);
+    color: var(--color-text);
+}
+
+.rem-tab-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-sm);
+}
+.rem-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-accent);
+    font-family: var(--font-main);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    user-select: none;
+}
+.rem-tab-btn:hover {
+    background: var(--color-hover);
+    border-color: var(--color-accent);
+}
+.rem-tab-btn--open {
+    background: var(--color-accent);
+    color: var(--color-bg);
+    border-color: var(--color-accent);
+}
+.rem-tab-btn--open:hover {
+    background: var(--color-text);
+    border-color: var(--color-text);
+}
+.rem-tab-arrow {
+    font-size: 0.75em;
+}
+.rem-tab-panel {
+    margin-top: var(--space-sm);
+    padding: var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+
 /* Skip link (a11y) — duplicated from navigation.css since admin.html
    does not load navigation.css. Keep in sync if the base rules change. */
 .skip-link {
@@ -697,38 +763,325 @@
     color: var(--color-text-muted);
 }
 
-/* ---- Hamburger + drawer backdrop ----
-   Drawer is treated as a piece of the navy sidebar temporarily projecting
-   out. Hamburger inherits the sidebar palette so it reads as a handle
-   attached to the sidebar, not a floating overlay chrome element. */
-.admin-hamburger {
+/* ----------------------------------------------------------------------
+   Table F — Round Editor (admin.html, ManualEntry leagues)
+   2 rows per match (one per player). EDITED + ACTIONS rowspan=2.
+   Sticky: leftmost (PLAYERS) column only — per TABLE-DESIGN.md iron rules.
+   The scroll container is .round-editor-scroll (the wrapper). The table
+   itself stays overflow:visible; backgrounds live on td (not tr) so the
+   sticky column stays opaque under non-sticky cells.
+   ---------------------------------------------------------------------- */
+.admin-round-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    min-width: max-content;
+}
+
+.admin-round-table th,
+.admin-round-table td {
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.admin-round-table thead th {
+    background: var(--color-bg);
+}
+
+/* Leftmost column = PLAYERS = the only sticky column */
+.admin-round-table .match-player-cell {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    /* Visual edge so the sticky column is distinguishable on scroll */
+    box-shadow: 1px 0 0 var(--color-border);
+}
+
+.admin-round-table thead .match-player-cell {
+    z-index: 3;
+}
+
+/* Each match = one <tbody class="match-block"> with two <tr>s.
+   Border belongs to the *bottom* of each match-block and spans all 6 columns.
+   Row-b carries it for the per-row columns; the rowspan'd EDITED/ACTIONS
+   cells (physically in row-a) carry it for the right two columns.
+   Suppressed for :last-child so the table doesn't end with a hanging line. */
+.admin-round-table .match-block .match-row-a td {
+    border-bottom: none;
+}
+.admin-round-table .match-block:not(:last-child) .match-row-b td {
+    border-bottom: 1px solid var(--color-border);
+}
+.admin-round-table .match-block:not(:last-child) .match-row-a .match-edited,
+.admin-round-table .match-block:not(:last-child) .match-row-a .match-actions {
+    border-bottom: 1px solid var(--color-border);
+}
+.admin-round-table .match-block:last-child .match-row-b td {
+    border-bottom: none;
+}
+
+/* Match-state colouring is on td (not tr/tbody) so sticky cells inherit
+   the row background without breaking opacity. */
+.match-block-unplayed td {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    opacity: 0.6;
+}
+
+.match-block-overridden td {
+    background: var(--color-accent-light);
+}
+
+.match-block-pending td {
+    background: color-mix(in srgb, var(--color-accent-light) 60%, var(--color-warning, #fef3c7) 40%);
+}
+
+/* Hover EDITED/ACTIONS (rowspan'd cells) → highlight the whole match-block. */
+.admin-round-table .match-block:has(.match-edited:hover) td,
+.admin-round-table .match-block:has(.match-actions:hover) td {
+    background: var(--color-hover);
+}
+
+/* Hover row-a's per-row cells (PLAYER/PR/LUCK/SCORE) → only those cells.
+   Don't extend the hover into the rowspan'd EDITED/ACTIONS cells, so that
+   row-a and row-b feel symmetric. */
+.admin-round-table .match-row-a:hover td:not(.match-edited):not(.match-actions) {
+    background: var(--color-hover);
+}
+
+/* Hover row-b → all of row-b's cells (no rowspan'd cells live in row-b). */
+.admin-round-table .match-row-b:hover td {
+    background: var(--color-hover);
+}
+
+/* Same logic for the overridden-state tinted hover. */
+.match-block-overridden:has(.match-edited:hover) td,
+.match-block-overridden:has(.match-actions:hover) td,
+.admin-round-table .match-block-overridden .match-row-a:hover td:not(.match-edited):not(.match-actions),
+.admin-round-table .match-block-overridden .match-row-b:hover td {
+    background: color-mix(in srgb, var(--color-accent-light) 70%, var(--color-hover) 30%);
+}
+
+/* All cells left-aligned per TABLE-DESIGN.md iron rule 7. */
+.admin-round-table th,
+.admin-round-table td {
+    text-align: left;
+}
+
+.admin-round-table .match-edited {
+    vertical-align: middle;
+}
+
+.admin-round-table .match-actions {
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.admin-round-table .match-actions .btn {
+    margin: 1px 2px;
+}
+
+/* Tight inputs so columns size to their data (the table already uses
+   min-width: max-content; otherwise the default 150px <input type=number>
+   dominates column width). */
+.admin-round-table .inline-edit-input {
+    width: 4em;
+    -moz-appearance: textfield;
+}
+.admin-round-table .inline-edit-input.inline-edit-score,
+.admin-round-table .inline-edit-input.inline-edit-score-select {
+    width: 3.2em;
+}
+.admin-round-table .inline-edit-input::-webkit-outer-spin-button,
+.admin-round-table .inline-edit-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Score <select> dropdown — same chrome as the number inputs it replaces. */
+.admin-round-table select.inline-edit-score-select {
+    padding: 2px 18px 2px 6px;
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font-size: 0.8rem;
+    font-family: inherit;
+    cursor: pointer;
+    accent-color: var(--color-accent);
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%232563eb' d='M0 0l5 6 5-6z'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 5px center;
+    background-size: 8px 5px;
+}
+.admin-round-table select.inline-edit-score-select:focus {
+    border-color: var(--color-accent);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-accent-light);
+}
+
+/* Themed <input type="date"> — used for Issue Date (form) and EDITED column.
+   accent-color tints the popup calendar in modern browsers. color-scheme is
+   the only knob the browser exposes for the popup itself: 'light' renders
+   the OS light calendar (white bg), 'dark' renders the OS dark calendar
+   (dark-grey bg). We pick whichever is closest per theme below. */
+.themed-date {
+    accent-color: var(--color-accent);
+    color-scheme: light;
+    font-family: inherit;
+    color: var(--color-text);
+    background: var(--color-surface);
+}
+.themed-date::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.85;
+    filter: invert(28%) sepia(95%) saturate(2200%) hue-rotate(213deg) brightness(95%) contrast(95%);
+    transition: opacity 0.15s, transform 0.15s;
+}
+.themed-date::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* Dark themes — surface lightness < 50%, so the white popup is jarring.
+   Switch the popup to the browser's dark calendar (dark-grey bg, light text)
+   and drop the blue-tint filter from the icon so it stays light-on-dark. */
+[data-theme="dark"] .themed-date,
+[data-theme="vegas"] .themed-date,
+[data-theme="casino"] .themed-date,
+[data-theme="x22"] .themed-date {
+    color-scheme: dark;
+}
+[data-theme="dark"] .themed-date::-webkit-calendar-picker-indicator,
+[data-theme="vegas"] .themed-date::-webkit-calendar-picker-indicator,
+[data-theme="casino"] .themed-date::-webkit-calendar-picker-indicator,
+[data-theme="x22"] .themed-date::-webkit-calendar-picker-indicator {
+    filter: none;
+}
+
+/* Compact themed date input inside the EDITED cell. */
+.admin-round-table .match-edited-date {
+    width: 8.5em;
+    padding: 2px 4px;
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    font-size: 0.78rem;
+    line-height: 1.2;
+}
+.admin-round-table .match-edited-date:focus {
+    border-color: var(--color-accent);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-accent-light);
+}
+
+/* Flag image inside the PLAYERS sticky column — mirrors .dash-table .flag. */
+.admin-round-table .flag {
+    width: 20px;
+    height: 14px;
+    vertical-align: middle;
+    margin-right: 4px;
+    object-fit: contain;
+    image-rendering: crisp-edges;
+    border-radius: 2px;
+}
+
+/* ---- Mobile topbar (hamburger + title + user chip) ----
+   Hidden on desktop; on mobile replaces the floating standalone hamburger.
+   Lives inside .admin-mobile-topbar which is fixed across the viewport top. */
+.admin-mobile-topbar {
     display: none;
     position: fixed;
-    top: calc(16px + env(safe-area-inset-top, 0px));
-    left: 16px;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: calc(60px + env(safe-area-inset-top, 0px));
+    padding: env(safe-area-inset-top, 0px) 16px 0 8px;
+    background: var(--header-bg);
+    color: var(--header-text, #fff);
     z-index: 110;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.07), 0 4px 16px rgba(15,23,42,0.22);
+}
+
+.admin-topbar-logo {
+    height: 32px;
+    width: auto;
+    object-fit: contain;
+    flex-shrink: 0;
+    border-radius: 4px;
+}
+
+.admin-topbar-title {
+    flex: 1;
+    font-size: 0.88rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.88);
+    padding-left: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.admin-topbar-user {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 10px 5px 6px;
+    border-radius: 22px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    max-width: 160px;
+    flex-shrink: 0;
+}
+
+.admin-topbar-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #fff;
+    flex-shrink: 0;
+    text-transform: uppercase;
+}
+
+.admin-topbar-name {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.88);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Hamburger lives inside .admin-mobile-topbar on mobile — no fixed position needed. */
+.admin-hamburger {
+    display: inline-flex;
+    position: static;
     width: 44px;
     height: 44px;
     padding: 0;
     border: none;
     border-radius: 10px;
-    background: var(--header-bg);
+    background: transparent;
     color: var(--header-text, #fff);
     cursor: pointer;
-    box-shadow:
-        0 1px 2px rgba(15, 23, 42, 0.12),
-        0 8px 24px rgba(15, 23, 42, 0.18);
     align-items: center;
     justify-content: center;
-    transition: transform 160ms ease-out, box-shadow 160ms ease-out;
+    transition: background-color 160ms ease-out;
+    flex-shrink: 0;
 }
-.admin-hamburger:hover {
-    transform: translateY(-1px);
-    box-shadow:
-        0 1px 2px rgba(15, 23, 42, 0.14),
-        0 12px 32px rgba(15, 23, 42, 0.24);
-}
-.admin-hamburger:active { transform: translateY(0); }
+.admin-hamburger:hover  { background: rgba(255,255,255,0.09); }
+.admin-hamburger:active { background: rgba(255,255,255,0.15); }
 
 .admin-backdrop {
     display: none;
@@ -761,12 +1114,16 @@
         flex-direction: column;
     }
 
+    .admin-mobile-topbar {
+        display: flex;
+    }
+
     .admin-sidebar {
         position: fixed;
-        top: 0;
+        top: calc(60px + env(safe-area-inset-top, 0px));
         left: 0;
         width: min(284px, 82vw);
-        height: 100vh;
+        height: calc(100vh - 60px - env(safe-area-inset-top, 0px));
         transform: translateX(-100%);
         /* iOS-style confident ease — hits, then settles. */
         transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -777,6 +1134,17 @@
             1px 0 0 rgba(255, 255, 255, 0.04),
             6px 0 12px rgba(15, 23, 42, 0.28),
             20px 0 48px rgba(15, 23, 42, 0.22);
+    }
+
+    /* Topbar already provides branding — hide the logo and compact the heading */
+    .admin-sidebar .admin-sidebar-logo {
+        display: none;
+    }
+    .admin-sidebar h2 {
+        font-size: 0.85rem;
+        margin-top: 0;
+        margin-bottom: var(--space-sm);
+        padding-bottom: var(--space-xs, 4px);
     }
 
     .admin-sidebar.open {
@@ -805,14 +1173,10 @@
         padding: calc(72px + env(safe-area-inset-top, 0px)) var(--space-md) var(--space-md);
         width: 100%;
     }
-
-    .admin-hamburger {
-        display: inline-flex;
-    }
 }
 
 @media (min-width: 768px) {
-    .admin-hamburger,
+    .admin-mobile-topbar,
     .admin-backdrop { display: none !important; }
 }
 
@@ -981,6 +1345,14 @@
     font-size: 0.7rem;
     font-weight: 600;
 }
+.player-meta-inactive {
+    background: var(--color-bg-muted, #e5e7eb);
+    color: var(--color-text-muted, #6b7280);
+}
+.player-meta-hidden {
+    background: #fee2e2;
+    color: #b91c1c;
+}
 .player-photo-row {
     display: flex;
     align-items: center;
@@ -1041,6 +1413,11 @@
 }
 .player-autocomplete li:hover {
     background: var(--color-hover);
+}
+.player-autocomplete .ac-hint {
+    color: var(--color-text-muted);
+    font-size: 0.82em;
+    font-weight: 400;
 }
 
 /* ========================================================================

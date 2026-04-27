@@ -665,6 +665,10 @@
         grid-column: span 2;
     }
 }
+/* A4 PR Leaders — 2 cards side-by-side (50/50), matching Avg Rank / Avg Win Rate layout */
+.achv-tables-grid.pr-leaders-grid > .achv-table-card {
+    grid-column: span 3;
+}
 @media (max-width: 640px) {
     .achv-tables-grid {
         grid-template-columns: 1fr;
@@ -720,6 +724,24 @@
     background: var(--color-surface);
     font-weight: 600;
     color: var(--color-text-muted);
+}
+
+/* A4 PR Leaders — sticky rank col (iron rule 12: single sticky → left:0 directly, no JS) */
+.pr-leaders-table thead th:nth-child(1),
+.pr-leaders-table tbody td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+}
+.pr-leaders-table thead th:nth-child(1) {
+    z-index: 3;
+    background: var(--color-surface);
+}
+.pr-leaders-table tbody td:nth-child(1) {
+    background: var(--color-surface);
+}
+.pr-leaders-table tbody tr:hover td:nth-child(1) {
+    background: var(--color-hover);
 }
 
 .achv-table .player-name-link {
@@ -1121,14 +1143,19 @@ body:has(.edit-bar) .theme-picker {
     /* Info cards — 2-up at mobile */
     .index-info-cards { gap: 8px; }
 
-    /* Uniform width for achievement & PR-leaders cards on mobile — ~80vw,
-       centered, always stacked one below the other. */
-    .achievements-section .achv-table-card,
-    .pr-leaders-section   .achv-table-card {
+    /* Achievement cards on mobile — ~80vw, centered */
+    .achievements-section .achv-table-card {
         max-width: 80vw;
         width: 80vw;
         margin-left: auto;
         margin-right: auto;
+    }
+    /* A4 PR Leaders cards on mobile — full width */
+    .pr-leaders-section .achv-table-card {
+        max-width: 100%;
+        width: 100%;
+        margin-left: 0;
+        margin-right: 0;
     }
     /* A2 leaderboard wrapper takes the full available width on mobile. */
     .leaderboard-table-wrapper {

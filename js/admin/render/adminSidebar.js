@@ -6,7 +6,7 @@
 
 import { logout, getUsername } from '../auth.js';
 import { getChangeCount } from '../stagingStore.js';
-import { initAdminDrawer } from '../adminDrawer.js';
+import { initAdminDrawer, setTopbarSection } from '../adminDrawer.js';
 
 let _wrapper = null;
 let _badgeEl = null;
@@ -78,7 +78,8 @@ export function mountAdminSidebar(opts = {}) {
     _badgeInterval = setInterval(refreshBadge, 500);
 
     // Mobile: attach hamburger + backdrop so the off-canvas drawer is reachable.
-    initAdminDrawer();
+    initAdminDrawer(getUsername());
+    setTopbarSection('Main Dashboard');
 }
 
 export function unmountAdminSidebar() {

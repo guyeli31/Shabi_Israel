@@ -418,6 +418,12 @@ tr.retired {
     opacity: 0.6;
 }
 
+.player-hidden {
+    font-style: italic;
+    color: var(--color-text-muted);
+    font-weight: 400;
+}
+
 .retired-mark {
     font-size: 0.85rem;
     margin-left: 4px;

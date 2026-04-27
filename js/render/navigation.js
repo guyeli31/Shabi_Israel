@@ -7,6 +7,7 @@ import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches } from '../data
 import { dashboardUrl, playerUrl, playerGeneralUrl } from '../utils/helpers.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { isLoggedIn, getUsername } from '../admin/auth.js';
+import { isPreviewMode } from '../admin/previewMode.js';
 
 // ---- Breadcrumbs ----
 
@@ -86,7 +87,11 @@ export async function initNavBar() {
     }
 
     const adminBadge = isLoggedIn()
-        ? `<div class="nav-admin-user"><span class="nav-admin-label">Welcome,</span><span class="nav-admin-name">${getUsername()}</span></div>`
+        ? `<div class="nav-admin-user">
+               <img class="nav-admin-logo" src="assets/logo/logo.png" alt="">
+               <div class="nav-admin-avatar">${getUsername().charAt(0).toUpperCase()}</div>
+               <span class="nav-admin-name">${getUsername()}</span>
+           </div>`
         : '';
 
     const nav = document.createElement('nav');
@@ -231,11 +236,22 @@ async function buildPlayerIndex() {
         }
     }
 
-    // Attach fullName from metadata to each entry
+    // Attach fullName from metadata and remove hidden players
     for (const [name, leagues] of map) {
+        if (meta[name]?.hidden) { map.delete(name); continue; }
         const fullName = meta[name]?.fullName;
         if (fullName) {
             for (const entry of leagues) entry.fullName = fullName;
+        }
+    }
+
+    // In preview mode, also include pre-registered inactive players (not in any CSV yet)
+    if (isPreviewMode()) {
+        for (const [name, m] of Object.entries(meta)) {
+            if (!m || m.hidden || map.has(name)) continue;
+            if (m.inactive) {
+                map.set(name, m.fullName ? [{ fullName: m.fullName }] : []);
+            }
         }
     }
 
@@ -282,14 +298,19 @@ function setupPlayerSearch(nav) {
             return;
         }
 
+        const isEmbedded = window.self !== window.top;
         results.innerHTML = matches.map(m => {
             const firstLeague = m.leagues[0];
-            const leagueCount = m.leagues.length;
-            const hint = leagueCount === 1 ? firstLeague.title : `${leagueCount} leagues`;
+            const leagueCount = m.leagues.filter(l => l.leagueId).length;
+            const hint = leagueCount === 0 ? 'inactive' : leagueCount === 1 ? firstLeague.title : `${leagueCount} leagues`;
             const nameHtml = m.fullName
                 ? `<span class="search-player-name">${escapeHtml(m.name)}</span><span class="search-player-realname">${escapeHtml(m.fullName)}</span>`
                 : `<span class="search-player-name">${escapeHtml(m.name)}</span>`;
-            return `<li><a href="${playerGeneralUrl(m.name)}">
+            const searchHref = isPreviewMode()
+                ? `${playerGeneralUrl(m.name)}&preview=true`
+                : playerGeneralUrl(m.name);
+            const targetAttr = isEmbedded ? ' target="_top"' : '';
+            return `<li><a href="${searchHref}"${targetAttr}>
                 <span class="search-player-info">${nameHtml}</span>
                 <span class="search-league-hint">${escapeHtml(hint)}</span>
             </a></li>`;

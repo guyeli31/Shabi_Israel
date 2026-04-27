@@ -11,7 +11,7 @@ import { computeAllStats } from '../compute/stats.js';
 import { buildRankings } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { colorForValueInverted } from '../compute/colorScale.js';
-import { getFlagCode, flagUrl } from '../utils/helpers.js';
+import { getFlagCode, flagUrl, appendExportCredit } from '../utils/helpers.js';
 
 /**
  * Render the remaining matches report into a container.
@@ -132,7 +132,13 @@ async function downloadReportAsImage(title) {
         return;
     }
 
-    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' });
+    const credit = appendExportCredit(el);
+    let canvas;
+    try {
+        canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' });
+    } finally {
+        credit.remove();
+    }
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
     const url = URL.createObjectURL(blob);
 
@@ -147,7 +153,13 @@ async function shareReport(title) {
     const el = document.getElementById('remaining-report');
     if (!el || typeof html2canvas === 'undefined') return;
 
-    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' });
+    const credit = appendExportCredit(el);
+    let canvas;
+    try {
+        canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' });
+    } finally {
+        credit.remove();
+    }
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
     const file = new File([blob], `${title}_remaining.png`, { type: 'image/png' });
 

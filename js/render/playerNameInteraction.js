@@ -21,6 +21,9 @@ import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
  *        When provided, abbreviated title badges are appended after the name.
  */
 export function playerNameLink(playerName, meta = null) {
+    if (meta && meta.hidden) {
+        return `<i class="player-hidden">N/A</i>`;
+    }
     const badgeHtml = meta ? getTitleAbbreviationsHtml(meta) : '';
     return `<a class="player-name-link"
               data-player="${escapeAttr(playerName)}"

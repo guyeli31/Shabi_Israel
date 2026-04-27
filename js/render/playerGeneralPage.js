@@ -71,12 +71,7 @@ export async function renderPlayerGeneralPage() {
             if (cf) Object.assign(_mergedCustomFlags, cf);
         }
 
-        if (perLeague.length === 0) {
-            container.innerHTML = `<div class="error">No leagues found for player "${escapeHtml(playerName)}".</div>`;
-            return;
-        }
-
-        // Header
+        // Header (render even with no leagues — inactive player)
         renderHeader(playerName, perLeague, meta);
         renderBreadcrumbs([
             { label: 'Home', url: 'index.html' },
@@ -152,11 +147,12 @@ function renderHeader(playerName, perLeague, meta = {}) {
     }
     const dot = `<span class="pg-dot-wrap" tabindex="0" data-tip="${escapeHtml(dotTitle)}"><span class="${dotClass}" aria-label="${escapeHtml(dotTitle)}"></span></span>`;
 
-    // Distinct flag codes from all leagues
+    // Distinct flag codes from all leagues; fallback to default when player has no leagues
     const flagSet = new Set();
     for (const e of perLeague) {
         flagSet.add(getFlagCode(playerName, e.league.params?.CustomFlags));
     }
+    if (flagSet.size === 0) flagSet.add(getFlagCode(playerName, {}));
     const flagsHtml = [...flagSet]
         .map(code => `<img class="flag-title" src="${flagUrl(code)}" alt="${code}" title="${code}">`)
         .join('');
@@ -200,7 +196,9 @@ function renderHeader(playerName, perLeague, meta = {}) {
 
     const subtitle = document.getElementById('league-subtitle');
     if (subtitle) {
-        subtitle.textContent = `Active in ${perLeague.length} league${perLeague.length === 1 ? '' : 's'}`;
+        subtitle.textContent = perLeague.length === 0
+            ? 'No league data'
+            : `Active in ${perLeague.length} league${perLeague.length === 1 ? '' : 's'}`;
     }
 }
 
@@ -338,7 +336,7 @@ function renderRankTable(rows, playerName, meta) {
         : (meta.metric === 'gold' ? 'Gold' : meta.metric === 'silver' ? 'Silver' : meta.metric === 'bronze' ? 'Bronze' : meta.metric === 'avgRank' ? 'Avg Rank' : meta.metric === 'winRate' ? 'Win Rate' : 'Value');
     const showLeagues = meta.kind === 'medal';
     let html = `<div class="pg-rank-table-wrap"><table class="pg-rank-table"><thead><tr><th scope="col">#</th><th scope="col">${thLabel('Player','Player')}</th>${showLeagues ? `<th scope="col">${thLabel('Leagues','Lg')}</th>` : ''}<th scope="col">${escapeHtml(valueLabel)}</th></tr></thead><tbody>`;
-    for (const r of rows) {
+    for (const r of rows.filter(r => !_allMeta[r.name]?.hidden)) {
         const isSelf = r.name === playerName;
         const valFmt = (meta.kind === 'pr')
             ? formatNumber(r.value)
@@ -434,6 +432,10 @@ async function showAchievementType(body, playerName, type) {
 // ---- G4: League history table ----
 
 function renderLeaguesTable(section, perLeague) {
+    if (perLeague.length === 0) {
+        section.innerHTML += '<div class="pg-note">No data</div>';
+        return;
+    }
     let html = `
     <div class="pg-leagues-table-wrapper">
         <table class="pg-leagues-table">
@@ -632,7 +634,7 @@ function renderMatchHistory(section, playerName, perLeague) {
                     <td>${date}</td>
                     <td><a href="${dashboardUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
                     <td><span class="pg-lt pg-lt-${escapeHtml(r.leagueType)}">${escapeHtml(r.leagueType)}</span></td>
-                    <td><img class="flag" src="${flagUrl(getFlagCode(r.opponent, _mergedCustomFlags))}" alt="flag"> ${playerNameLink(r.opponent, _allMeta[r.opponent])}</td>
+                    <td>${_allMeta[r.opponent]?.hidden ? '' : `<img class="flag" src="${flagUrl(getFlagCode(r.opponent, _mergedCustomFlags))}" alt="flag">`} ${playerNameLink(r.opponent, _allMeta[r.opponent])}</td>
                     <td>${r.scoreSelf}–${r.scoreOpp}</td>
                     <td>${pr}</td>
                     <td>${prOpp}</td>
@@ -1067,7 +1069,7 @@ function renderPlayerRecordTable(title, metricLabel, rows) {
 }
 
 function playerMatchRecordRow(rank, r) {
-    const opponentFlag = flagUrl(getFlagCode(r.opponent, r.customFlags));
+    const opponentFlag = _allMeta[r.opponent]?.hidden ? null : flagUrl(getFlagCode(r.opponent, r.customFlags));
     const resultClass = r.result === 'W' ? 'result-win'
                       : r.result === 'L' ? 'result-loss'
                       : 'result-draw';
@@ -1075,7 +1077,7 @@ function playerMatchRecordRow(rank, r) {
         <tr>
             <td>${rank}</td>
             <td>${formatNumber(r.metric)}</td>
-            <td><img class="flag" src="${opponentFlag}" alt="flag"> ${playerNameLink(r.opponent, _allMeta[r.opponent])}</td>
+            <td>${opponentFlag ? `<img class="flag" src="${opponentFlag}" alt="flag">` : ''} ${playerNameLink(r.opponent, _allMeta[r.opponent])}</td>
             <td>${r.scoreSelf}-${r.scoreOpp}</td>
             <td><span class="${resultClass}">${r.result}</span></td>
             <td><a class="league-link" href="${dashboardUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>

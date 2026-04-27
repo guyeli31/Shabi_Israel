@@ -5,7 +5,9 @@
 import { isLoggedIn, logout, getToken, setToken, getRepo, setRepo, isGitHubConfigured, getUsername } from '../auth.js';
 import { testConnection } from '../githubApi.js';
 import { getChanges, removeChange, removeGroup, removeOverrideFromChange, removePlayerFromGroup, getChangeCount, publishAll, clearChanges } from '../stagingStore.js';
-import { initAdminDrawer } from '../adminDrawer.js';
+import { initAdminDrawer, setTopbarSection } from '../adminDrawer.js';
+
+const VIEW_TITLES = { leagues: 'Leagues', players: 'Players', pending: 'Pending Changes', settings: 'Settings' };
 
 let currentView = 'leagues';
 let onNavigate = null; // callback set by admin.html to handle view switching
@@ -33,6 +35,7 @@ export function initAdminPage(viewCallback) {
  */
 export function navigateTo(view) {
     currentView = view;
+    setTopbarSection(VIEW_TITLES[view] || view);
 
     // Update active nav item
     document.querySelectorAll('.admin-nav-item').forEach(el => {
@@ -114,7 +117,7 @@ function renderAdminShell() {
         location.href = 'index.html';
     });
 
-    initAdminDrawer();
+    initAdminDrawer(getUsername());
 }
 
 // ---- Settings ----

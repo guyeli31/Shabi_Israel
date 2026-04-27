@@ -1181,3 +1181,16 @@
         min-width: 48px;
     }
 }
+
+/* ── Platform credit footer ──────────────────────────────────────────── */
+.platform-credit {
+    margin-top: 56px;
+    padding: 10px 0 14px;
+    text-align: center;
+    font-size: 0.6rem;
+    font-weight: 300;
+    letter-spacing: 0.12em;
+    color: color-mix(in srgb, var(--color-bg) 93%, var(--color-text) 7%);
+    user-select: none;
+    pointer-events: none;
+}

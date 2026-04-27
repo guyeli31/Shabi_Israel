@@ -184,6 +184,7 @@ function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns,
     for (const m of playerMatches) {
         const flagCode = getFlagCode(m.opponent, params.CustomFlags);
         const oppUrl = playerUrl(leagueId, m.opponent);
+        const oppHidden = !!(allMeta[m.opponent] && allMeta[m.opponent].hidden);
 
         if (!m.played) {
             html += `<tr class="unplayed">`;
@@ -192,7 +193,7 @@ function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns,
                 const lbl = col.label;
                 if (col.key === 'opponent') {
                     html += `<td class="player-cell" data-label="${lbl}">
-                            <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
+                            ${oppHidden ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`}
                             ${playerNameLink(m.opponent, allMeta[m.opponent])}
                         </td>`;
                 } else if (i === columns.length - 1) {
@@ -242,7 +243,7 @@ function renderMatchRows(playerMatches, params, leagueId, leagueConfig, columns,
                 }
                 case 'opponent':
                     html += `<td class="player-cell" data-label="${lbl}">
-                            <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
+                            ${oppHidden ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`}
                             ${playerNameLink(m.opponent, allMeta[m.opponent])}
                         </td>`;
                     break;

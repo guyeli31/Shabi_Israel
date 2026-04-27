@@ -14,7 +14,7 @@ import { parseCSVAllWithRounds, parseCSV, getAllPlayersFromCSV } from '../data/c
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { getQueryParam, formatPercent, formatNumber, leagueUrl, playerUrl, dashboardUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
+import { getQueryParam, formatPercent, formatNumber, leagueUrl, playerUrl, dashboardUrl, flagUrl, getFlagCode, thLabel, appendExportCredit } from '../utils/helpers.js';
 import { colorForValueInverted } from '../compute/colorScale.js';
 import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
@@ -349,7 +349,8 @@ function renderSummaryCards(ctx) {
     let leaderHtml = 'N/A';
     if (leader) {
         const flagCode = getFlagCode(leader.player, params.CustomFlags);
-        leaderHtml = `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}" style="vertical-align:middle"> ${playerNameLink(leader.player, ctx.playersMeta[leader.player])}`;
+        const leaderHidden = !!(ctx.playersMeta[leader.player] && ctx.playersMeta[leader.player].hidden);
+        leaderHtml = `${leaderHidden ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}" style="vertical-align:middle">`} ${playerNameLink(leader.player, ctx.playersMeta[leader.player])}`;
     }
     const avgPR = averages && averages.meanPR != null ? formatNumber(averages.meanPR) : 'N/A';
     const startDate = params.StartDate
@@ -490,9 +491,10 @@ function drawHistTable(ctx, dateValue) {
     }
     for (const r of top) {
         const flagCode = getFlagCode(r.player, params.CustomFlags);
+        const rHidden = !!(ctx.playersMeta[r.player] && ctx.playersMeta[r.player].hidden);
         html += `<tr class="${rankClass(r.rank)}">
             <td data-label="Rank">${r.rank}</td>
-            <td class="player-cell" data-label="Player"><img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
+            <td class="player-cell" data-label="Player">${rHidden ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`} ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
             <td data-label="Games">${r.games}</td><td data-label="Wins">${r.wins}</td><td data-label="Losses">${r.losses}</td>`;
         if (leagueConfig.showWinRate) html += `<td data-label="Win Rate">${r.winRate != null ? formatPercent(r.winRate) : 'N/A'}</td>`;
         if (leagueConfig.showPRWins) html += `<td data-label="PR Wins">${r.prWins != null ? r.prWins : 'N/A'}</td><td data-label="Avg Points">${r.avgPoints != null ? formatNumber(r.avgPoints) : 'N/A'}</td>`;
@@ -607,7 +609,7 @@ async function renderPredictor(ctx) {
                 }
                 return `<tr>
                     <td>${i + 1}</td>
-                    <td class="player-cell"><img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
+                    <td class="player-cell">${ctx.playersMeta[r.player]?.hidden ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`} ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
                     <td>${r.games}</td>
                     <td>${r.wins}</td>
                     <td>${r.losses}</td>
@@ -942,7 +944,7 @@ function renderWhatIfSimulator(ctx) {
                     }
                     return `<tr>
                         <td>${i + 1}</td>
-                        <td class="player-cell"><img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}"> ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
+                        <td class="player-cell">${ctx.playersMeta[r.player]?.hidden ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`} ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
                         <td>${r.games}</td>
                         <td>${r.wins}</td>
                         <td>${r.losses}</td>
@@ -1068,9 +1070,11 @@ function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFla
         const rowClass = isPlayed ? '' : 'unplayed-row';
         const flagA = getFlagCode(m.playerA, customFlags);
         const flagB = getFlagCode(m.playerB, customFlags);
+        const hiddenA = !!(playersMeta[m.playerA] && playersMeta[m.playerA].hidden);
+        const hiddenB = !!(playersMeta[m.playerB] && playersMeta[m.playerB].hidden);
         html += `<tr class="${rowClass}">`
-            + `<td class="player-cell"><img class="flag" src="${flagUrl(flagA)}" alt="${flagA}"> ${playerNameLink(m.playerA, playersMeta[m.playerA])}</td>`
-            + `<td class="player-cell"><img class="flag" src="${flagUrl(flagB)}" alt="${flagB}"> ${playerNameLink(m.playerB, playersMeta[m.playerB])}</td>`
+            + `<td class="player-cell">${hiddenA ? '' : `<img class="flag" src="${flagUrl(flagA)}" alt="${flagA}">`} ${playerNameLink(m.playerA, playersMeta[m.playerA])}</td>`
+            + `<td class="player-cell">${hiddenB ? '' : `<img class="flag" src="${flagUrl(flagB)}" alt="${flagB}">`} ${playerNameLink(m.playerB, playersMeta[m.playerB])}</td>`
             + `<td>${isPlayed ? m.scoreA + ' - ' + m.scoreB : '—'}</td>`
             + (showPR ? `<td>${isPlayed && m.prA != null ? formatNumber(m.prA) : '—'}</td><td>${isPlayed && m.prB != null ? formatNumber(m.prB) : '—'}</td>` : '')
             + `<td>${isPlayed && m.luckA != null ? formatNumber(m.luckA) : '—'}</td>`
@@ -1091,6 +1095,12 @@ function renderRemainingMatches(ctx) {
         .filter(m => !m.played)
         .slice()
         .sort((a, b) => (a.round - b.round) || a.playerA.localeCompare(b.playerA) || a.playerB.localeCompare(b.playerB));
+
+    const section = document.getElementById('remaining-section');
+    if (remaining.length === 0) {
+        if (section) section.hidden = true;
+        return;
+    }
 
     const countEl = document.getElementById('remaining-count');
     if (countEl) countEl.textContent = `(${remaining.length})`;
@@ -1324,6 +1334,7 @@ async function exportRemainingMatchesImage(title, matches, customFlags, playersM
         <div style="margin:0 0 12px 0;font-size:13px;opacity:0.75">Remaining Matches (${matches.length})${asOf ? ' \u2014 ' + asOf : ''}</div>
         ${buildRemainingListHtml(matches, customFlags, playersMeta)}`;
     document.body.appendChild(wrap);
+    appendExportCredit(wrap);
     try {
         if (document.fonts && document.fonts.ready) await document.fonts.ready;
         const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: null, useCORS: true });
@@ -1387,6 +1398,7 @@ async function exportB6bImage(title, playerRemainingData, maxRem, minRem, halfTh
     html += '</tbody></table>';
     wrap.innerHTML = html;
     document.body.appendChild(wrap);
+    appendExportCredit(wrap);
     try {
         if (document.fonts && document.fonts.ready) await document.fonts.ready;
         const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: null, useCORS: true });
@@ -1442,6 +1454,7 @@ async function exportB6cImage(title, player, opponents, customFlags, playersMeta
 
     wrap.innerHTML = html;
     document.body.appendChild(wrap);
+    appendExportCredit(wrap);
     try {
         if (document.fonts && document.fonts.ready) await document.fonts.ready;
         const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: null, useCORS: true });
