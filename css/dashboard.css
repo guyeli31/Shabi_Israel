@@ -140,6 +140,15 @@
     color: var(--color-text);
 }
 
+/* Scroll wrapper — overflow-x + corner clipping live here, not on the table.
+   overflow-x:auto triggers border-radius clipping per CSS spec (no overflow:hidden needed). */
+.dash-table-wrap {
+    overflow-x: auto;
+    min-width: 0;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
 /* Theme-aware dash tables */
 .dash-table {
     width: 100%;
@@ -147,7 +156,6 @@
     background: var(--color-surface);
     color: var(--color-text);
     border-radius: var(--radius-md);
-    overflow: hidden;
     box-shadow: var(--shadow-sm);
 }
 
@@ -155,7 +163,7 @@
 .dash-table td {
     padding: 8px 12px;
     border-bottom: 1px solid var(--color-border);
-    text-align: center;
+    text-align: left;
 }
 
 .dash-table th {
@@ -179,16 +187,21 @@
 .dash-table tr.rank-silver td { background: var(--color-silver-bg); color: var(--color-silver-text); }
 .dash-table tr.rank-bronze td { background: var(--color-bronze-bg); color: var(--color-bronze-text); }
 
-/* Player column / cell alignment */
+/* Player column / cell alignment + sticky */
 .dash-table th.player-col,
 .dash-table td.player-cell {
     text-align: left;
     padding-left: var(--space-md);
 }
+.dash-table td.player-cell {
+    position: sticky;
+    left: 0;
+    background: var(--color-surface);
+}
 
 .dash-table .flag {
-    width: 20px;
-    height: 14px;
+    height: 1em;
+    width: auto;
     vertical-align: middle;
     margin-right: 4px;
     object-fit: contain;
@@ -408,9 +421,6 @@
     margin-bottom: var(--space-sm);
 }
 
-#predictor-section thead th {
-    white-space: nowrap;
-}
 
 .predictor-topx-control {
     display: flex;
@@ -434,7 +444,6 @@
 .topx-select:focus { outline: none; border-color: var(--color-accent); }
 
 .predictor-pct-cell {
-    width: 140px;
 }
 
 .predictor-pct-bar {
@@ -443,8 +452,6 @@
     border-radius: var(--radius-sm);
     padding: 2px 8px;
     font-size: inherit;
-    text-align: right;
-    min-width: 60px;
 }
 
 .predictor-expand-btn {
@@ -496,15 +503,12 @@
     color: var(--color-accent);
 }
 
+.prizes-table-wrap {
+    overflow-x: auto;
+    min-width: 0;
+}
 .prizes-table {
-    max-width: 100%;
-}
-@media (min-width: 641px) {
-    .prizes-table { max-width: 400px; }
-}
-.prizes-table td,
-.prizes-table th {
-    text-align: center;
+    max-width: 400px;
 }
 .prize-row-gold td {
     background: rgba(245,158,11,0.1);
@@ -756,7 +760,6 @@
     border: 2px dashed var(--color-accent);
     border-radius: var(--radius-md);
     background: var(--color-surface);
-    overflow-x: auto;
 }
 
 .whatif-ribbon {
@@ -779,11 +782,13 @@
     font-style: italic;
 }
 
+.whatif-table {
+    font-style: italic;
+}
 .whatif-table thead th {
     white-space: nowrap;
 }
 
-.whatif-pct-cell { width: 90px; }
 .whatif-pct-bar {
     position: relative;
     background:
@@ -798,8 +803,8 @@
     border-radius: var(--radius-sm);
     padding: 2px 6px;
     font-weight: 600;
-    font-size: 0.78rem;
-    text-align: right;
+    font-size: inherit;
+    text-align: left;
     min-width: 40px;
     font-style: italic;
 }
@@ -819,57 +824,27 @@
     color: var(--color-text);
 }
 
-/* ── Mobile: compact predictor & what-if tables ──────── */
+/* ── Mobile: compact predictor & what-if bar padding (no min-width — iron rule 1) ──────── */
 @media (max-width: 640px) {
-    /* Historical View: cap Player column width to match Predictor/WhatIf */
-    #hist-table td.player-cell,
-    #hist-table th.player-col {
-        max-width: clamp(70px, 20vw, 110px);
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .predictor-pct-cell { width: 62px; }
     .predictor-pct-bar {
         padding: 2px 4px;
-        min-width: 32px;
     }
 
-    .whatif-pct-cell { width: 52px; }
     .whatif-pct-bar {
-        font-size: 0.65rem;
         padding: 1px 3px;
-        min-width: 28px;
     }
-
-    /* Shrink flags in simulation tables */
-    #predictor-section .flag,
-    .whatif-table .flag {
-        width: 14px;
-        height: 10px;
-        margin-right: 2px;
-    }
-
 }
 
-/* Player column cap — all viewports (matches Historical View proportion) */
-#predictor-section td.player-cell,
-#predictor-section th.player-col,
-.whatif-table td.player-cell,
-.whatif-table th.player-col {
-    max-width: clamp(70px, 20vw, 110px);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
 
 /* --- Scroll wrappers — sticky # and Player columns (all league types, mobile + desktop) --- */
 .predictor-scroll-wrap,
 .whatif-scroll-wrap {
-    --col1-w: 36px;
+    --col1-w: 36px; /* fallback replaced by JS (iron rule 12) */
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    min-width: 0;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
 }
 .predictor-scroll-wrap table,
 .whatif-scroll-wrap table {
@@ -879,21 +854,14 @@
 .whatif-scroll-wrap tbody td:nth-child(1) {
     position: sticky;
     left: 0;
-    width: var(--col1-w);
-    min-width: var(--col1-w);
-    background: var(--color-surface, #1a1a2e);
+    background: var(--color-surface);
     z-index: 3;
 }
 .predictor-scroll-wrap tbody td:nth-child(2),
 .whatif-scroll-wrap tbody td:nth-child(2) {
     position: sticky;
     left: var(--col1-w);
-    min-width: clamp(70px, 20vw, 110px);
-    max-width: clamp(70px, 20vw, 110px);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    background: var(--color-surface, #1a1a2e);
+    background: var(--color-surface);
     z-index: 2;
     border-right: 1px solid var(--color-border);
 }
@@ -902,8 +870,6 @@
 .whatif-scroll-wrap thead th:nth-child(1) {
     position: sticky;
     left: 0;
-    width: var(--col1-w);
-    min-width: var(--col1-w);
     background: var(--header-bg);
     z-index: 4;
 }
@@ -911,31 +877,9 @@
 .whatif-scroll-wrap thead th:nth-child(2) {
     position: sticky;
     left: var(--col1-w);
-    min-width: clamp(70px, 20vw, 110px);
-    max-width: clamp(70px, 20vw, 110px);
     background: var(--header-bg);
     z-index: 3;
     border-right: 1px solid var(--color-border);
-}
-/* Win over ID-scoped `#predictor-section tbody td.player-cell { max-width: 0 }` mobile rule */
-#predictor-section .predictor-scroll-wrap tbody td.player-cell,
-.whatif-scroll-wrap tbody td.player-cell {
-    max-width: clamp(70px, 20vw, 110px);
-}
-
-@media (max-width: 640px) {
-    /* Wider player column on mobile for predictor / what-if */
-    .predictor-scroll-wrap tbody td:nth-child(2),
-    .whatif-scroll-wrap tbody td:nth-child(2),
-    .predictor-scroll-wrap thead th:nth-child(2),
-    .whatif-scroll-wrap thead th:nth-child(2) {
-        min-width: 95px;
-        max-width: 95px;
-    }
-    #predictor-section .predictor-scroll-wrap tbody td.player-cell,
-    .whatif-scroll-wrap tbody td.player-cell {
-        max-width: 95px;
-    }
 }
 
 /* --- B2: Rounds table — Match (sticky) | Score | PR A | PR B | Luck A | Luck B | Played --- */

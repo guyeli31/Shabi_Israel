@@ -1,0 +1,124 @@
+/* theme-picker.css — appearance of the picker menu (panel + swatches + customize).
+   The trigger button is your host app's responsibility. */
+
+.theme-picker {
+    position: fixed;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    right: calc(20px + env(safe-area-inset-right));
+    z-index: 1000;
+    font-family: var(--font-main, system-ui, sans-serif);
+}
+
+.theme-picker-toggle {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 2px solid var(--color-border);
+    background: var(--color-surface); color: var(--color-text);
+    cursor: pointer; font-size: 1.2rem;
+    box-shadow: var(--shadow-md);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.theme-picker-toggle:hover { transform: scale(1.1); box-shadow: var(--shadow-lg); }
+
+.theme-picker-panel {
+    position: absolute; bottom: 52px; right: 0;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 10px);
+    padding: 16px;
+    box-shadow: var(--shadow-lg);
+    min-width: 220px;
+}
+.theme-picker-panel[hidden] { display: none; }
+
+.theme-picker-label {
+    font-size: 0.8rem; font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-bottom: 10px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+.theme-picker-options {
+    display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;
+}
+
+.theme-swatch {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 2px solid var(--color-border);
+    cursor: pointer; padding: 0; outline: none;
+    position: relative;
+    transition: transform 0.15s, border-color 0.15s;
+}
+.theme-swatch:hover { transform: scale(1.1); }
+.theme-swatch.active {
+    border-color: var(--color-accent);
+    transform: scale(1.15);
+    box-shadow: 0 0 0 2px var(--color-accent-light);
+}
+
+/* Per-theme swatch backgrounds — fixed, not theme-dependent */
+.swatch-current { background: linear-gradient(135deg, #f0f2f5 50%, #2563eb 50%); }
+.swatch-dark    { background: linear-gradient(135deg, #1c1c26 50%, #6ba8ff 50%); }
+.swatch-beige   { background: linear-gradient(135deg, #f5efe6 50%, #8b5e3c 50%); }
+.swatch-nature  { background: linear-gradient(135deg, #eaf5e1 50%, #3d8b40 50%); }
+.swatch-vegas   { background: linear-gradient(135deg, #14281a 50%, #f5d76e 50%); }
+.swatch-casino  { background: linear-gradient(135deg, #8b0000 50%, #ffd700 50%); }
+.swatch-rainbow { background: linear-gradient(135deg, #fce4ec 50%, #7c4dff 50%); }
+.swatch-x22 {
+    background:
+        conic-gradient(from 270deg at 50% 100%,
+            #2e7d32 0deg 45deg,  #ff9800 45deg 90deg,
+            #2e7d32 90deg 135deg, #ff9800 135deg 180deg,
+            transparent 180deg 360deg),
+        #0f0f0f;
+}
+
+.theme-picker-divider {
+    height: 1px; background: var(--color-border); margin: 8px 0;
+}
+
+.theme-customize-btn {
+    width: 100%; padding: 6px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm, 6px);
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+    font-size: 0.82rem; font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.theme-customize-btn:hover { background: var(--color-hover); color: var(--color-text); }
+
+.theme-customize-panel { margin-top: 12px; }
+.theme-customize-panel[hidden] { display: none; }
+
+.theme-color-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+}
+.theme-color-row label { font-size: 0.78rem; color: var(--color-text-secondary); }
+.theme-color-row input[type="color"] {
+    width: 32px; height: 26px; padding: 1px;
+    border: 1px solid var(--color-border); border-radius: 4px;
+    cursor: pointer; background: transparent;
+}
+
+.theme-reset-btn {
+    width: 100%; margin-top: 8px; padding: 4px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm, 6px);
+    background: transparent; color: var(--color-text-muted);
+    font-size: 0.75rem; cursor: pointer;
+    transition: color 0.15s;
+}
+.theme-reset-btn:hover { color: var(--color-loss); }
+
+@media (max-width: 768px) {
+    .theme-picker {
+        bottom: calc(12px + env(safe-area-inset-bottom));
+        right: calc(12px + env(safe-area-inset-right));
+    }
+    .theme-picker-toggle { width: 44px; height: 44px; font-size: 1rem; }
+    .theme-picker-panel { min-width: 190px; padding: 12px; }
+    .theme-swatch { width: 30px; height: 30px; }
+}

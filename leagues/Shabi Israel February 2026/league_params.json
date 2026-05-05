@@ -1,5 +1,5 @@
 {
-  "LeagueTitle": "Shabi Israel - February 2026",
+  "LeagueTitle": "February 2026",
   "LeagueType": "doubling",
   "IssueDate": "2026-02-01",
   "EntryFee": 180,
@@ -13,5 +13,7 @@
   "CustomFlags": {
     "Hummus": "BE",
     "Moriarty": "TZ"
-  }
+  },
+
+  "RetiredPlayers": ["Emergi"]
 }

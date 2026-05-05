@@ -1,0 +1,151 @@
+/* themes.css — alternate theme palettes activated by data-theme on <html>.
+   The default ("current") theme has no attribute — it lives on :root in variables.css. */
+
+[data-theme="dark"] {
+    --color-bg: #1c1c26;          --color-surface: #262633;
+    --color-hover: #2f2f3f;       --color-border: #3a3a4d;
+    --color-text: #ececf1;        --color-text-secondary: #c5c9d8;  --color-text-muted: #9ea2b5;
+    --color-accent: #6ba8ff;      --color-accent-light: #1e3a5f;
+    --header-bg: #14141e;         --header-text: #ececf1;           --header-bg-hover: #22222e;
+    --color-win: #34d399;         --color-loss: #f87171;            --color-draw: #9ca3af;
+    --color-running: #34d399;     --color-running-bg: #0f2e22;
+    --color-completed: #9ca3af;   --color-completed-bg: #2f2f3f;
+    --color-gold: #fbbf24;        --color-gold-bg: #5a4a14;         --color-gold-text: #ffe27a;
+    --color-gold-bg-hover: #6a5820;
+    --color-silver: #c9cfde;      --color-silver-bg: #3a3f52;       --color-silver-text: #e8ecf5;
+    --color-silver-bg-hover: #474d63;
+    --color-bronze: #d97706;      --color-bronze-bg: #4a2f12;       --color-bronze-text: #ffb87a;
+    --color-bronze-bg-hover: #5a3a18;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.30);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.40);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,0.50);
+    --chart-grid: rgba(255,255,255,0.10);   --chart-axis: rgba(255,255,255,0.30);
+    --chart-label: rgba(236,236,241,0.75);  --chart-hover-outline: #ffffff;
+}
+
+[data-theme="beige"] {
+    --color-bg: #f5efe6;          --color-surface: #fdf8f0;
+    --color-hover: #f0e6d8;       --color-border: #e0d4c4;
+    --color-text: #3e2c1c;        --color-text-secondary: #5a4436;  --color-text-muted: #7a6654;
+    --color-accent: #8b5e3c;      --color-accent-light: #f0e0cc;
+    --header-bg: #4a3428;         --header-text: #f5efe6;           --header-bg-hover: #5c4438;
+    --color-win: #3a6e46;         --color-loss: #9b2e22;            --color-draw: #5c5144;
+    --color-running: #3a6e46;     --color-running-bg: #dceede;
+    --color-completed: #5c5144;   --color-completed-bg: #ede7dd;
+    --color-gold: #d4a017;        --color-gold-bg: #f5ecd0;         --color-gold-text: #6b4e0a;
+    --color-gold-bg-hover: #efe0b8;
+    --color-silver: #8a7e6e;      --color-silver-bg: #ede7dd;       --color-silver-text: #3e2c1c;
+    --color-silver-bg-hover: #e0d8cc;
+    --color-bronze: #b5651d;      --color-bronze-bg: #f5e8d0;       --color-bronze-text: #5a3408;
+    --color-bronze-bg-hover: rgba(181, 101, 29, 0.14);
+}
+
+[data-theme="nature"] {
+    --color-bg: #eaf5e1;          --color-surface: #ffffff;
+    --color-hover: #dcefcf;       --color-border: #c3dfae;
+    --color-text: #1f3a1a;        --color-text-secondary: #3d5a2f;  --color-text-muted: #5e7548;
+    --color-accent: #2e6b31;      --color-accent-light: #d9efc4;
+    --header-bg: #1f3f1c;         --header-text: #f5c518;           --header-bg-hover: #2a5426;
+    --color-win: #2e6b31;         --color-loss: #9c2e22;            --color-draw: #5e7548;
+    --color-running: #2e6b31;     --color-running-bg: #d9efc4;
+    --color-completed: #5e7548;   --color-completed-bg: #e3efd5;
+    --color-gold: #f5c518;        --color-gold-bg: #fff4c2;         --color-gold-text: #6b5300;
+    --color-gold-bg-hover: #ffea9c;
+    --color-silver: #8aa57a;      --color-silver-bg: #e3efd5;       --color-silver-text: #2f4a25;
+    --color-silver-bg-hover: #d1e4bf;
+    --color-bronze: #b8702a;      --color-bronze-bg: #f3dfc0;       --color-bronze-text: #5a3408;
+    --color-bronze-bg-hover: #ecd0a6;
+    --shadow-sm: 0 1px 2px rgba(31,58,26,0.08);
+    --shadow-md: 0 4px 12px rgba(31,58,26,0.12);
+    --shadow-lg: 0 8px 30px rgba(31,58,26,0.15);
+    --chart-grid: rgba(31,58,26,0.10);    --chart-axis: rgba(31,58,26,0.35);
+    --chart-label: rgba(31,58,26,0.70);   --chart-hover-outline: #1f3a1a;
+}
+
+[data-theme="vegas"] {
+    --color-bg: #0a0d0a;          --color-surface: #14281a;
+    --color-hover: #1c3624;       --color-border: #2a4a32;
+    --color-text: #f8e9c4;        --color-text-secondary: #d4af37;  --color-text-muted: #b09a62;
+    --color-accent: #e8c252;      --color-accent-light: #3a2f10;
+    --header-bg: #4a0a0a;         --header-text: #f5d76e;           --header-bg-hover: #5e1414;
+    --color-win: #2ecc71;         --color-loss: #e74c3c;            --color-draw: #c4a14a;
+    --color-running: #2ecc71;     --color-running-bg: #103a20;
+    --color-completed: #9a8a5a;   --color-completed-bg: #1c2418;
+    --color-gold: #f5d76e;        --color-gold-bg: #4a3a10;         --color-gold-text: #ffe98a;
+    --color-gold-bg-hover: #5e4814;
+    --color-silver: #d0d4de;      --color-silver-bg: #2a3340;       --color-silver-text: #eef2fa;
+    --color-silver-bg-hover: #36404f;
+    --color-bronze: #d97a32;      --color-bronze-bg: #3e2410;       --color-bronze-text: #ffb87a;
+    --color-bronze-bg-hover: #502e14;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.40);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.50);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,0.60);
+    --chart-grid: rgba(245,215,110,0.12); --chart-axis: rgba(245,215,110,0.35);
+    --chart-label: rgba(248,233,196,0.75); --chart-hover-outline: #f5d76e;
+}
+
+[data-theme="casino"] {
+    --color-bg: #1a0a0a;          --color-surface: #2c1414;
+    --color-hover: #3a1a1a;       --color-border: #5a2020;
+    --color-text: #fff8e7;        --color-text-secondary: #ffd700;  --color-text-muted: #c9a84c;
+    --color-accent: #ffd700;      --color-accent-light: #4a3000;
+    --header-bg: #8b0000;         --header-text: #ffd700;           --header-bg-hover: #a01010;
+    --color-win: #00e676;         --color-loss: #ff1744;            --color-draw: #ffd700;
+    --color-running: #00e676;     --color-running-bg: #0a2a14;
+    --color-completed: #c9a84c;   --color-completed-bg: #2a1a0a;
+    --color-gold: #ffd700;        --color-gold-bg: #5c4a00;         --color-gold-text: #ffe44d;
+    --color-gold-bg-hover: #6e5800;
+    --color-silver: #c0c0c0;      --color-silver-bg: #3a3a4a;       --color-silver-text: #e8e8f0;
+    --color-silver-bg-hover: #4a4a5a;
+    --color-bronze: #cd7f32;      --color-bronze-bg: #4a2800;       --color-bronze-text: #ffb366;
+    --color-bronze-bg-hover: #5c3200;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.40);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.50);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,0.60);
+    --chart-grid: rgba(255,215,0,0.15);    --chart-axis: rgba(255,215,0,0.40);
+    --chart-label: rgba(255,248,231,0.80); --chart-hover-outline: #ffd700;
+}
+
+[data-theme="rainbow"] {
+    --color-bg: #fff5f5;          --color-surface: #ffffff;
+    --color-hover: #fce4ec;       --color-border: #e8d5f5;
+    --color-text: #2d1b69;        --color-text-secondary: #5a3f90;  --color-text-muted: #645385;
+    --color-accent: #c2185b;      --color-accent-light: #fce4ec;
+    --header-bg: #5e35e0;         --header-text: #ffffff;           --header-bg-hover: #4a22c0;
+    --color-win: #007a33;         --color-loss: #c7143a;            --color-draw: #b35a00;
+    --color-running: #007a33;     --color-running-bg: #e8f5e9;
+    --color-completed: #8e24a3;   --color-completed-bg: #f3e5f5;
+    --color-gold: #ffd600;        --color-gold-bg: #fff9c4;         --color-gold-text: #6b5b00;
+    --color-gold-bg-hover: #fff176;
+    --color-silver: #ab47bc;      --color-silver-bg: #f3e5f5;       --color-silver-text: #4a148c;
+    --color-silver-bg-hover: #e1bee7;
+    --color-bronze: #ff7043;      --color-bronze-bg: #fbe9e7;       --color-bronze-text: #bf360c;
+    --color-bronze-bg-hover: #ffccbc;
+    --shadow-sm: 0 1px 2px rgba(45,27,105,0.08);
+    --shadow-md: 0 4px 12px rgba(45,27,105,0.12);
+    --shadow-lg: 0 8px 30px rgba(45,27,105,0.15);
+    --chart-grid: rgba(45,27,105,0.10);   --chart-axis: rgba(45,27,105,0.30);
+    --chart-label: rgba(45,27,105,0.70);  --chart-hover-outline: #e91e63;
+}
+
+[data-theme="x22"] {
+    --color-bg: #0f0f0f;          --color-surface: #181818;
+    --color-hover: #1f1f1f;       --color-border: #2a2a2a;
+    --color-text: #f5f5f5;        --color-text-secondary: #ffb74d;  --color-text-muted: #8a8a8a;
+    --color-accent: #ff9800;      --color-accent-light: #1a2e1a;
+    --header-bg: #1b3a1b;         --header-text: #ffffff;           --header-bg-hover: #255025;
+    --color-win: #4caf50;         --color-loss: #e07070;            --color-draw: #ff9800;
+    --color-running: #4caf50;     --color-running-bg: #11241a;
+    --color-completed: #9e9e9e;   --color-completed-bg: #1f1f1f;
+    --color-gold: #ff9800;        --color-gold-bg: #3a2608;         --color-gold-text: #ffc266;
+    --color-gold-bg-hover: #4a3210;
+    --color-silver: #cfcfcf;      --color-silver-bg: #2a2a2a;       --color-silver-text: #eaeaea;
+    --color-silver-bg-hover: #3a3a3a;
+    --color-bronze: #4caf50;      --color-bronze-bg: #15321a;       --color-bronze-text: #8be28f;
+    --color-bronze-bg-hover: #1d4522;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.40);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.50);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,0.60);
+    --chart-grid: rgba(255,255,255,0.10); --chart-axis: rgba(255,255,255,0.30);
+    --chart-label: rgba(245,245,245,0.75); --chart-hover-outline: #ff9800;
+}

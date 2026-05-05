@@ -15,6 +15,7 @@ import { luckBellCurveSvg } from './luckBellCurve.js';
 import { loadLandingSettings } from '../data/leagueLoader.js';
 import { dashboardUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueUrl, thLabel, appendExportCredit } from '../utils/helpers.js';
 import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatches } from '../compute/matchRecords.js';
+import { luckPercentileStats } from '../compute/luckPercentile.js';
 import { getLevel } from '../compute/rankings.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { isLoggedIn } from '../admin/auth.js';
@@ -116,6 +117,7 @@ export async function renderLandingPage() {
         renderAchievementsSection(container, presentTypes);
         renderPRLeadersSection(container, presentTypes);
         renderMatchRecordsSection(container, leagues, presentTypes);
+        renderLeagueRecordsSection(container, leagues, presentTypes);
 
         const credit = document.createElement('div');
         credit.className = 'platform-credit';
@@ -1045,7 +1047,7 @@ function renderLeaderboards(container, leaderboards) {
                 </div>
                 <div class="collapsible-body">
                     <div class="leaderboard-table-wrapper">
-                        <table class="leaderboard-table font-small">
+                        <table class="leaderboard-table font-large">
                             <thead>
                                 <tr>
                                     <th scope="col">#</th>
@@ -1160,7 +1162,7 @@ async function exportLeaderboardImage(lb, title, maxRows) {
     wrap.innerHTML = `
         <h3 style="margin:0 0 12px 0;font-size:20px;color:#1e293b;">${escapeHtml(title)}</h3>
         <div class="leaderboard-table-wrapper" style="max-height:none;overflow:visible">
-            <table class="leaderboard-table font-small">
+            <table class="leaderboard-table font-large">
                 <thead>
                     <tr>
                         <th scope="col">#</th>
@@ -1622,4 +1624,300 @@ function formatShortDate(iso) {
     const mon = MONTH_SHORT[d.getUTCMonth()];
     const yr  = d.getUTCFullYear();
     return `${day} ${mon} ${yr}`;
+}
+
+/* ── League Records (A6): top 100 appearances by Mean PR ───── */
+
+function collectLeagueRecords(typeLeagues) {
+    const rows = [];
+    for (const league of typeLeagues) {
+        if (league.params.Running === true) continue;
+        const goldCount   = league.params.GoldCount   ?? 1;
+        const silverCount = league.params.SilverCount ?? 1;
+        const bronzeCount = league.params.BronzeCount ?? 1;
+        const customFlags = league.params.CustomFlags || {};
+
+        const played = league.rankings.filter(r => r.games > 0);
+        const totalPlayers = played.length;
+
+        played.forEach((r, idx) => {
+            const stats = league.statsMap.get(r.player);
+            if (!stats || stats.meanPR == null) return;
+            if (_playersMeta[r.player]?.hidden) return;
+            rows.push({
+                player: r.player,
+                meanPR: stats.meanPR,
+                level: getLevel(stats.meanPR),
+                playerRank: idx + 1,
+                totalPlayers,
+                goldCount,
+                silverCount,
+                bronzeCount,
+                leagueId: league.id,
+                leagueTitle: league.title,
+                date: league.params.IssueDate || '',
+                customFlags
+            });
+        });
+    }
+    rows.sort((a, b) => a.meanPR - b.meanPR);
+    return rows.slice(0, 100);
+}
+
+function renderLeagueRecordsSection(container, allLeagues, presentTypes) {
+    const types = sortPresentTypes(presentTypes).filter(t => t === 'doubling' || t === 'ubc');
+    if (types.length === 0) return;
+
+    const leaguesByType = {};
+    for (const t of types) {
+        leaguesByType[t] = allLeagues.filter(l => l.leagueType === t);
+    }
+
+    const hasData = types.some(t =>
+        leaguesByType[t].some(l => l.params.Running !== true)
+    );
+    if (!hasData) return;
+
+    const section = document.createElement('div');
+    section.className = 'dash-section league-records-section';
+
+    const tabsHtml = types.map((t, i) => {
+        const label = TYPE_LABELS[t] || t;
+        return `<button class="achv-tab${i === 0 ? ' active' : ''}" data-type="${t}">${label}</button>`;
+    }).join('');
+
+    const panelsHtml = types.map((t, i) => {
+        const prRows       = collectLeagueRecords(leaguesByType[t]);
+        const luckRows     = collectLeagueLuckRecords(leaguesByType[t]);
+        const worstRows    = collectLeagueWorstLuckRecords(leaguesByType[t]);
+        return `
+            <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${t}">
+                ${renderLeagueRecordsPanel(prRows, luckRows, worstRows)}
+            </div>`;
+    }).join('');
+
+    section.innerHTML = `
+        <div class="collapsible-section">
+            <h2 class="collapsible-header">League Records</h2>
+            <div class="collapsible-body">
+                <div class="achv-tabs">${tabsHtml}</div>
+                <div class="achv-panels">${panelsHtml}</div>
+            </div>
+        </div>`;
+
+    const header = section.querySelector('.collapsible-header');
+    header.addEventListener('click', () => {
+        header.closest('.collapsible-section').classList.toggle('collapsed');
+    });
+
+    section.querySelectorAll('.achv-tab').forEach(tab => {
+        tab.addEventListener('click', e => {
+            e.stopPropagation();
+            const type = tab.dataset.type;
+            section.querySelectorAll('.achv-tab').forEach(b => b.classList.toggle('active', b === tab));
+            section.querySelectorAll('.achv-panel').forEach(p => {
+                p.classList.toggle('hidden', p.dataset.type !== type);
+            });
+            requestAnimationFrame(() => applyLeagueRecordsStickyOffsets(section));
+        });
+    });
+
+    container.appendChild(section);
+
+    section.querySelectorAll('.achv-table').forEach(t => applyShowTopN(t));
+
+    requestAnimationFrame(() => applyLeagueRecordsStickyOffsets(section));
+
+    let _lrRafId;
+    window.addEventListener('resize', () => {
+        cancelAnimationFrame(_lrRafId);
+        _lrRafId = requestAnimationFrame(() => applyLeagueRecordsStickyOffsets(section));
+    });
+}
+
+function applyLeagueRecordsStickyOffsets(root) {
+    root.querySelectorAll('.league-records-table').forEach(table => {
+        const th1 = table.querySelector('thead th:nth-child(1)');
+        const th2 = table.querySelector('thead th:nth-child(2)');
+        if (!th1 || !th2) return;
+        const w1 = th1.getBoundingClientRect().width;
+        const w2 = th2.getBoundingClientRect().width;
+        if (w1 > 0) table.style.setProperty('--lr-col1-w', w1 + 'px');
+        if (w2 > 0) table.style.setProperty('--lr-col2-w', w2 + 'px');
+    });
+}
+
+function collectLeagueLuckRecords(typeLeagues) {
+    const rows = [];
+    for (const league of typeLeagues) {
+        if (league.params.Running === true) continue;
+        const goldCount   = league.params.GoldCount   ?? 1;
+        const silverCount = league.params.SilverCount ?? 1;
+        const bronzeCount = league.params.BronzeCount ?? 1;
+        const customFlags = league.params.CustomFlags || {};
+        const matchLength = league.params.MatchLength ?? 7;
+
+        const played = league.rankings.filter(r => r.games > 0);
+        const totalPlayers = played.length;
+
+        played.forEach((r, idx) => {
+            if (_playersMeta[r.player]?.hidden) return;
+            const matchRefs = league.matches
+                .filter(m => m.playerA === r.player || m.playerB === r.player)
+                .map(m => ({ m, matchLength }));
+            const lp = luckPercentileStats({ matchRefs, playerName: r.player });
+            if (lp.percentile == null) return;
+            rows.push({
+                player: r.player,
+                percentile: lp.percentile,
+                unstable: lp.unstableSample,
+                playerRank: idx + 1,
+                totalPlayers,
+                goldCount,
+                silverCount,
+                bronzeCount,
+                leagueId: league.id,
+                leagueTitle: league.title,
+                date: league.params.IssueDate || '',
+                customFlags
+            });
+        });
+    }
+    rows.sort((a, b) => b.percentile - a.percentile);
+    return rows.slice(0, 100);
+}
+
+function collectLeagueWorstLuckRecords(typeLeagues) {
+    const rows = [];
+    for (const league of typeLeagues) {
+        if (league.params.Running === true) continue;
+        const goldCount   = league.params.GoldCount   ?? 1;
+        const silverCount = league.params.SilverCount ?? 1;
+        const bronzeCount = league.params.BronzeCount ?? 1;
+        const customFlags = league.params.CustomFlags || {};
+        const matchLength = league.params.MatchLength ?? 7;
+
+        const played = league.rankings.filter(r => r.games > 0);
+        const totalPlayers = played.length;
+
+        played.forEach((r, idx) => {
+            if (_playersMeta[r.player]?.hidden) return;
+            const matchRefs = league.matches
+                .filter(m => m.playerA === r.player || m.playerB === r.player)
+                .map(m => ({ m, matchLength }));
+            const lp = luckPercentileStats({ matchRefs, playerName: r.player });
+            if (lp.percentile == null) return;
+            rows.push({
+                player: r.player,
+                percentile: lp.percentile,
+                unstable: lp.unstableSample,
+                playerRank: idx + 1,
+                totalPlayers,
+                goldCount,
+                silverCount,
+                bronzeCount,
+                leagueId: league.id,
+                leagueTitle: league.title,
+                date: league.params.IssueDate || '',
+                customFlags
+            });
+        });
+    }
+    rows.sort((a, b) => a.percentile - b.percentile); // lowest first = unluckiest
+    return rows.slice(0, 100);
+}
+
+function renderLeagueRecordsPanel(prRows, luckRows, worstRows) {
+    const prHtml    = prRows.map((r, i)    => leaguePRRecordRow(i + 1, r)).join('');
+    const luckHtml  = luckRows.map((r, i)  => leagueLuckRecordRow(i + 1, r)).join('');
+    const worstHtml = worstRows.map((r, i) => leagueLuckRecordRow(i + 1, r)).join('');
+    return `
+        <div class="match-records-stack">
+            <div class="achv-table-card">
+                <h3>Best PR Appearances</h3>
+                <div class="achv-table-wrapper">
+                    <table class="achv-table league-records-table font-small">
+                        <thead><tr>
+                            <th scope="col">#</th>
+                            <th scope="col">Player</th>
+                            <th scope="col">PR</th>
+                            <th scope="col">Level</th>
+                            <th scope="col">Rank</th>
+                            <th scope="col">League</th>
+                            <th scope="col">Date</th>
+                        </tr></thead>
+                        <tbody>${prHtml || '<tr><td colspan="7">No data</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="achv-table-card">
+                <h3>Best Luck Appearances</h3>
+                <div class="achv-table-wrapper">
+                    <table class="achv-table league-records-table font-small">
+                        <thead><tr>
+                            <th scope="col">#</th>
+                            <th scope="col">Player</th>
+                            <th scope="col">Luck %ile</th>
+                            <th scope="col">Rank</th>
+                            <th scope="col">League</th>
+                            <th scope="col">Date</th>
+                        </tr></thead>
+                        <tbody>${luckHtml || '<tr><td colspan="6">No data</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="achv-table-card">
+                <h3>Worst Luck Appearances</h3>
+                <div class="achv-table-wrapper">
+                    <table class="achv-table league-records-table font-small">
+                        <thead><tr>
+                            <th scope="col">#</th>
+                            <th scope="col">Player</th>
+                            <th scope="col">Luck %ile</th>
+                            <th scope="col">Rank</th>
+                            <th scope="col">League</th>
+                            <th scope="col">Date</th>
+                        </tr></thead>
+                        <tbody>${worstHtml || '<tr><td colspan="6">No data</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>
+        </div>`;
+}
+
+function leagueRankCell(r) {
+    const cls = r.playerRank <= r.goldCount                                 ? 'lr-rank-gold'
+              : r.playerRank <= r.goldCount + r.silverCount                 ? 'lr-rank-silver'
+              : r.playerRank <= r.goldCount + r.silverCount + r.bronzeCount ? 'lr-rank-bronze'
+              : '';
+    return `<td class="${cls}">${r.playerRank} / ${r.totalPlayers}</td>`;
+}
+
+function leaguePRRecordRow(rowRank, r) {
+    const playerFlag = flagUrl(getFlagCode(r.player, r.customFlags));
+    return `
+        <tr>
+            <td>${rowRank}</td>
+            <td><img class="flag" src="${playerFlag}" alt="flag"> ${playerNameLink(r.player, _playersMeta[r.player])}</td>
+            <td>${formatNumber(r.meanPR)}</td>
+            <td>${escapeHtml(r.level)}</td>
+            ${leagueRankCell(r)}
+            <td><a class="league-link" href="${leagueUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
+            <td>${formatShortDate(r.date)}</td>
+        </tr>`;
+}
+
+function leagueLuckRecordRow(rowRank, r) {
+    const playerFlag = flagUrl(getFlagCode(r.player, r.customFlags));
+    const color = colorForValue(r.percentile, 0, 100);
+    const unstableCls = r.unstable ? 'unstable-sample' : '';
+    return `
+        <tr class="${unstableCls}">
+            <td>${rowRank}</td>
+            <td><img class="flag" src="${playerFlag}" alt="flag"> ${playerNameLink(r.player, _playersMeta[r.player])}</td>
+            <td style="color:${color};font-weight:600;">${r.percentile}</td>
+            ${leagueRankCell(r)}
+            <td><a class="league-link" href="${leagueUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
+            <td>${formatShortDate(r.date)}</td>
+        </tr>`;
 }

@@ -1,0 +1,33 @@
+{
+  "overrides": [
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "GS18671",        "winner": "GS18671",        "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "mirob",          "winner": "mirob",          "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "ys",             "winner": "ys",             "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "Avshalom",       "winner": "Avshalom",       "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "Efi",            "winner": "Efi",            "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "sasha_er",       "winner": "sasha_er",       "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "Nissimb",        "winner": "Nissimb",        "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "GuyEliyahu",     "winner": "GuyEliyahu",     "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "nadavd",         "winner": "nadavd",         "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "YossiEliezer23", "winner": "YossiEliezer23", "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "MarcelDana",     "winner": "MarcelDana",     "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "Danny_kondrea",  "winner": "Danny_kondrea",  "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "Rahamimeli",     "winner": "Rahamimeli",     "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "fridlich",       "winner": "fridlich",       "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "Hummus",         "winner": "Hummus",         "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "Tezka11",        "winner": "Tezka11",        "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "UziMutsafy",     "winner": "UziMutsafy",     "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "hmualem",        "winner": "hmualem",        "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "bardak65",       "winner": "bardak65",       "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "Moriarty",       "winner": "Moriarty",       "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "YKwin",          "winner": "YKwin",          "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "gidio",          "winner": "gidio",          "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi", "playerB": "Aviv",           "winner": "Aviv",           "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Emergi",  "playerB": "OvedBenZeev", "winner": "OvedBenZeev", "reason": "Emergi retired — technical loss", "timestamp": "2026-05-03T00:00:00.000Z" },
+
+    { "type": "technical_win", "playerA": "Nissimb", "playerB": "gidio",       "winner": "Nissimb",     "reason": "PR data not recorded", "timestamp": "2026-05-05T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "mirob",   "playerB": "Tezka11",     "winner": "Tezka11",     "reason": "PR data not recorded", "timestamp": "2026-05-05T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "mirob",   "playerB": "gidio",       "winner": "gidio",       "reason": "PR data not recorded", "timestamp": "2026-05-05T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "nadavd",  "playerB": "gidio",       "winner": "nadavd",      "reason": "PR data not recorded", "timestamp": "2026-05-05T00:00:00.000Z" }
+  ]
+}

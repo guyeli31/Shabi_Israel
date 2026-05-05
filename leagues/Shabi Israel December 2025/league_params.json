@@ -1,5 +1,5 @@
 {
-  "LeagueTitle": "Shabi Israel - December 2025",
+  "LeagueTitle": "December 2025",
   "LeagueType": "doubling",
   "IssueDate": "2025-12-01",
   "EntryFee": 180,
@@ -13,5 +13,6 @@
   "CustomFlags": {
     "Moriarty": "TZ",
 	  "HeartGammon": "RU"
-  }
+  },
+  "RetiredPlayers": ["Yehuda"]
 }

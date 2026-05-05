@@ -1,0 +1,7 @@
+{
+  "overrides": [
+    { "type": "technical_win", "playerA": "nadavd",   "playerB": "Amiros",   "winner": "nadavd",   "reason": "PR data not recorded", "timestamp": "2026-05-05T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "nadavd",   "playerB": "sasha_er", "winner": "nadavd",   "reason": "PR data not recorded", "timestamp": "2026-05-05T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "sasha_er", "playerB": "Amiros",   "winner": "Amiros",   "reason": "PR data not recorded", "timestamp": "2026-05-05T00:00:00.000Z" }
+  ]
+}

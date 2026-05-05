@@ -18,6 +18,7 @@
 | A3 | Achievements | `.achv-table` |
 | A4 | PR Leaders | `.achv-table` |
 | A5 | Match Records | `.achv-table.match-records-table` |
+| A6 | League Records | `.achv-table.league-records-table` |
 
 קובץ רינדור: [js/render/landingPage.js](../js/render/landingPage.js)
 
@@ -60,7 +61,31 @@
 - קובץ רינדור: [js/render/playerPage.js](../js/render/playerPage.js)
 - **מחוץ לסקופ של איחוד העיצוב**
 
-### F — טבלת הזנת תוצאות לליגה (ADMIN — Round Editor)
+### F1 — Leagues (ADMIN — League Manager)
+
+- סלקטור: `.admin-table.font-large` בתוך `<div class="table-scroll">` ב-`.admin-card` בדף [admin.html](../admin.html) (תצוגת *Leagues*)
+- קובץ רינדור: [js/admin/leagueManager.js](../js/admin/leagueManager.js)
+
+#### פרמטרים פר-טבלה (14)
+
+| # | פרמטר | ערך עבור F1 |
+|---|---|---|
+| 1 | רוחב הטבלה | `width: 100%` בתוך `.admin-card` |
+| 2 | מיקום בעמוד | מרכז (יורש מקלף האדמין) — DESKTOP ו-MOBILE זהים |
+| 3 | מסגרת | פינות `var(--radius-md)` + הצללה רכה — מהקלף, לא מהטבלה |
+| 4 | שורות STICKY | אין |
+| 5 | עמודות STICKY | `NAME` (השמאלית). הקסקדה מופעלת תמיד (הטבלה עשויה לגלוש). |
+| 6 | כותרת STICKY לגג | לא |
+| 7 | סגנון שורת כותרת | A5 (כותרות UPPERCASE קומפקטיות) |
+| 8 | גודל פונט | `.font-large` (0.93rem) |
+| 9 | עמודות BOLD | אין |
+| 10 | עמודות עם גוון טוב→רע | אין |
+| 11 | מדליות זהב/כסף/ארד | לא |
+| 12 | שורות ברירת מחדל | הצג הכל |
+| 13 | סגנון SHOW ALL | לא רלוונטי |
+| 14 | מסגור חיצוני | A5 (קלף `.admin-card`) |
+
+### F2 — טבלת הזנת תוצאות לליגה (ADMIN — Round Editor)
 
 - סלקטור: `.admin-round-table` בדף [admin.html](../admin.html) (תצוגת *Match Results* בליגה ידנית)
 - קובץ רינדור: [js/admin/roundEditor.js](../js/admin/roundEditor.js)
@@ -71,7 +96,7 @@
 
 #### פרמטרים פר-טבלה (14)
 
-| # | פרמטר | ערך עבור F |
+| # | פרמטר | ערך עבור F2 |
 |---|---|---|
 | 1 | רוחב הטבלה | `min-width: max-content` בתוך `.round-editor-scroll`, רוחב המיכל = רוחב הקלף (`.admin-card`) |
 | 2 | מיקום בעמוד | מרכז (יורש מקלף האדמין) — DESKTOP ו-MOBILE זהים |
@@ -183,28 +208,82 @@
 
 ## חלק 5 — שלבי וריפיקציה (זהים ל-DESKTOP ו-MOBILE)
 
-כלי האפיון חייב לאמת לכל טבלה:
+כלי האפיון חייב לאמת לכל טבלה לפי הסדר הבא: **קודם בדיקות סטטיות (CSS + DOM), אחר כך בדיקות runtime בדפדפן.**
 
-1. **אין טבלה רחבה מהמיכל ללא STICKY** — בסוף הקסקדה, STICKY חייב להיות מופעל.
+---
 
-   **איך לבדוק בפועל (Playwright — לא רק קריאת CSS):** אודיט סטטי של `position: sticky` לא מספיק — סטיקי יכול להיות שבור ב-runtime (ראה כלל ברזל 11, תקלות שקטות). הבדיקה חייבת לגלול את ה-wrapper ולמדוד את מיקום התא בפועל:
-   ```js
-   const w  = document.querySelector('<wrapper-selector>');
-   const td = document.querySelector('<table-selector> tbody td:first-child');
-   const wrect0 = w.getBoundingClientRect();
-   w.scrollLeft = 50;            // גלילה אופקית אמיתית
-   const rect = td.getBoundingClientRect();
-   const stickyHolds = Math.abs(rect.left - wrect0.left) < 1;
-   // stickyHolds === true → עובד. false → STICKY שבור.
-   ```
-   יש להריץ גם ב-DESKTOP (רוחב ברירת מחדל) וגם ב-MOBILE (≤390px), לאחר ההפעלה לוודא שהטבלה אכן גולשת (`table.scrollWidth > wrapper.clientWidth`), אחרת אין מה לבדוק.
+### שלב א׳ — בדיקות CSS סטטיות (לפני פתיחת הדפדפן)
 
-2. **אין דליפה ויזואלית** — תוכן של תאים לא-STICKY לא משתקף מתחת לתאי STICKY בגלילה. בדיקה: לאחר `scrollLeft = 50`, צלם והסתכל שהתוכן לשמאל של התא הסטיקי אטום ולא מראה טקסט גולש.
-3. **צבע רקע של תא STICKY** זהה לתאים לא-STICKY באותה שורה (אין "עמודה/שורה מוארת"). בדיקה: `getComputedStyle(td_sticky).backgroundColor === getComputedStyle(td_non_sticky).backgroundColor` עבור אותה שורה.
-4. **HOVER** מכסה שורה שלמה כולל STICKY, אחיד בכל הטבלאות.
-5. **אייקונים** (TITLE, מדליה) לא מגדילים גובה שורה או רוחב עמודה מעבר לטקסט של התא.
+1. **אין שינויי CSS hard-coded ב-`@media` לטבלה** — עבור כל סלקטור `@media` שחל על הטבלה, ה-wrapper, ה-`th`, ה-`td` — בדוק שאין:
+    - `font-size` — כלל ברזל 3 (גודל פונט קבוע בכל viewport)
+    - `white-space` — כלל ברזל 10 (mobile יורש desktop)
+    - `padding` — גורם לקפיצה חדה בגובה שורה בנקודת ה-breakpoint
+    - `min-width` / `width` / `max-width` בערך `px`/`rem` — כלל ברזל 1
+
+    היחיד המותר בתוך `@media` לתאי טבלה: `display` (הצגה/הסתרה של אלמנטים).
+
+    בנוסף — ללא קשר ל-`@media` — סרוק כל סלקטור שחל על `th`, `td`, או אלמנט פנימי בתא (bar, badge, pill) ובדוק שאין `text-align` שאינו `left` (כלל ברזל 7). חריג מותר יחיד: `text-align: center` על שורת הפרדה עיצובית (למשל `player-remaining-divider`).
+
+2. **אין `width`/`min-width`/`max-width` קבוע על עמודות STICKY** (כלל ברזל 12) — רוחב עמודת STICKY נקבע ע"י הדפדפן לפי `max-content`; אסור לכפות עליה ממד קבוע ב-CSS. בדיקה: סרוק את קוד ה-CSS לכל סלקטור שמיקומו `sticky` — אם קיים `width`, `min-width`, או `max-width` בערך `px`/`rem` קבוע, זו הפרה. חריג מותר יחיד: CSS fallback לטעינה ראשונה בלבד, שמוחלף מיד ב-JS (כדוגמת `--mr-col1-w: 36px`). ה-fallback לא יכול להיות `max-width` שחוסם גדילה.
+
+3. **אין hard-code למימדים** — שינוי תוכן / פונט / שורות ברירת מחדל מעדכן את המימדים אוטומטית, ללא CSS קבוע.
+
+---
+
+### שלב ב׳ — בדיקות DOM סטטיות (דפדפן פתוח, ללא אינטראקציה)
+
+4. **אין `overflow: hidden/auto/scroll` על אלמנט הטבלה עצמו** — הטבלה חייבת להיות `overflow: visible`. בדיקה:
+    ```js
+    getComputedStyle(document.querySelector('<table-selector>')).overflow
+    // חייב להיות "visible"
+    ```
+    כל `overflow` שאינו `visible` על הטבלה עצמה הופך אותה ל-scroll container חדש ו"הורג" את ה-STICKY בשקט (כלל ברזל 11). ה-`overflow-x: auto` שייך ל-wrapper בלבד.
+
+5. **אין כותרות עמודה שמשתנות כפונקציה של רוחב המסך** — כל `<th>` חייב להכיל טקסט סטטי יחיד, זהה בכל viewport. בדיקה:
+    ```js
+    const dual = document.querySelectorAll('thead .th-full, thead .th-abbr');
+    // dual.length חייב להיות 0
+    ```
+    אם נעשה שימוש ב-`thLabel()` בבניית ה-thead של הטבלה — זו הפרה. כותרות מקוצרות קבועות (כגון `GP`, `Win%`, `Ch%`) מותרות ומועדפות על פני מנגנון dual-span.
+
 6. **תאים עם עיצוב מיוחד** (TYPE/STATUS/pills/badges) — גודל הטקסט זהה לשאר תאי הטבלה.
-7. **אין hard-code למימדים** — שינוי תוכן / פונט / שורות ברירת מחדל מעדכן את המימדים אוטומטית, ללא CSS קבוע.
+
+7. **אייקונים** (TITLE, מדליה) לא מגדילים גובה שורה או רוחב עמודה מעבר לטקסט של התא.
+
+---
+
+### שלב ג׳ — בדיקות פריסה ויזואלית
+
 8. **עודף רוחב** מתחלק פרופורציונלית בין כל העמודות לפי תוכן (לא מוגבל לעמודות שחקנים).
+
 9. **פרמטר 2 (מיקום)** — ערך MOBILE זהה ל-DESKTOP אלא אם הוגדר במפורש אחרת.
-10. **תוכן עמודת STICKY לא נחתך** — כאשר עמודה מכילה טקסט דינמי (שם שחקן + badge/title), יש לוודא שאין `max-width` קבוע שחוסם את ה-`max-content`. הבדיקה: לאחר SHOW ALL (מצב עם מקסימום שורות), בדוק שאין תוכן שנחתך או דולף מחוץ לתא. אם הרוחב נקבע ב-JS (כלל ברזל 12), חובה לוודא שה-JS אכן רץ ועדכן את ה-CSS variable לפני שנמדד ה-sticky — ולא נשאר ערך ה-fallback של ה-CSS.
+
+---
+
+### שלב ד׳ — בדיקות STICKY ב-runtime (דורשות גלילה)
+
+10. **אין טבלה רחבה מהמיכל ללא STICKY** — בסוף הקסקדה, STICKY חייב להיות מופעל.
+
+    **איך לבדוק בפועל (Playwright — לא רק קריאת CSS):** אודיט סטטי של `position: sticky` לא מספיק — סטיקי יכול להיות שבור ב-runtime (ראה כלל ברזל 11, תקלות שקטות). הבדיקה חייבת לגלול את ה-wrapper ולמדוד את מיקום התא בפועל:
+    ```js
+    const w  = document.querySelector('<wrapper-selector>');
+    const td = document.querySelector('<table-selector> tbody td:first-child');
+    const wrect0 = w.getBoundingClientRect();
+    w.scrollLeft = 50;            // גלילה אופקית אמיתית
+    const rect = td.getBoundingClientRect();
+    const stickyHolds = Math.abs(rect.left - wrect0.left) < 1;
+    // stickyHolds === true → עובד. false → STICKY שבור.
+    ```
+    יש להריץ גם ב-DESKTOP (רוחב ברירת מחדל) וגם ב-MOBILE (≤390px), לאחר ההפעלה לוודא שהטבלה אכן גולשת (`table.scrollWidth > wrapper.clientWidth`), אחרת אין מה לבדוק.
+
+11. **אין דליפה ויזואלית** — תוכן של תאים לא-STICKY לא משתקף מתחת לתאי STICKY בגלילה. בדיקה: לאחר `scrollLeft = 50`, צלם והסתכל שהתוכן לשמאל של התא הסטיקי אטום ולא מראה טקסט גולש.
+
+12. **צבע רקע של תא STICKY** זהה לתאים לא-STICKY באותה שורה (אין "עמודה/שורה מוארת"). בדיקה: `getComputedStyle(td_sticky).backgroundColor === getComputedStyle(td_non_sticky).backgroundColor` עבור אותה שורה.
+
+13. **תוכן עמודת STICKY לא נחתך** — כאשר עמודה מכילה טקסט דינמי (שם שחקן + badge/title), יש לוודא שאין `max-width` קבוע שחוסם את ה-`max-content`. הבדיקה: לאחר SHOW ALL (מצב עם מקסימום שורות), בדוק שאין תוכן שנחתך או דולף מחוץ לתא. אם הרוחב נקבע ב-JS (כלל ברזל 12), חובה לוודא שה-JS אכן רץ ועדכן את ה-CSS variable לפני שנמדד ה-sticky — ולא נשאר ערך ה-fallback של ה-CSS.
+
+---
+
+### שלב ה׳ — בדיקות אינטראקציה
+
+14. **HOVER** מכסה שורה שלמה כולל STICKY, אחיד בכל הטבלאות.

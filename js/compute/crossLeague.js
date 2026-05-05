@@ -578,6 +578,7 @@ export function flattenAllMatches(perLeagueData) {
                 leagueId: entry.league.id,
                 leagueTitle: entry.league.title,
                 leagueType: entry.league.leagueType,
+                matchLength: entry.league.params?.MatchLength ?? 7,
                 year,
                 leagueOrderIdx: li,
                 ...m,

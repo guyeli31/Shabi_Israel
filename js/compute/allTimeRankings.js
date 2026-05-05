@@ -94,22 +94,19 @@ export async function buildAllTimeRankings(leagueType) {
                 const matchLength = league.params.MatchLength || 7;
                 for (const m of league.matches) {
                     if (m._technical) continue;
-                    // PR Leaders (totalPR / last300PR) only from completed leagues.
-                    if (!isRunning) {
-                        if (m.prA != null) {
-                            bump(m.playerA).prMatches.push({
-                                prSelf: m.prA,
-                                updatedAt: m.updatedAt || null,
-                                leagueOrderIdx
-                            });
-                        }
-                        if (m.prB != null) {
-                            bump(m.playerB).prMatches.push({
-                                prSelf: m.prB,
-                                updatedAt: m.updatedAt || null,
-                                leagueOrderIdx
-                            });
-                        }
+                    if (m.prA != null) {
+                        bump(m.playerA).prMatches.push({
+                            prSelf: m.prA,
+                            updatedAt: m.updatedAt || null,
+                            leagueOrderIdx
+                        });
+                    }
+                    if (m.prB != null) {
+                        bump(m.playerB).prMatches.push({
+                            prSelf: m.prB,
+                            updatedAt: m.updatedAt || null,
+                            leagueOrderIdx
+                        });
                     }
                     // PR-win rate (UBC only): count non-technical matches, includes running leagues.
                     if (isUBC) {

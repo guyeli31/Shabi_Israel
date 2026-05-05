@@ -536,17 +536,17 @@ tr.retired {
 
     /* Matrix compression — small font, minimal padding, center.
        A1 (.completed-leagues-table) is excluded: its font-size is user-controlled
-       per iron rule 3 and must not be auto-reduced on mobile. */
-    #leagueTable, #playerTable, .dash-table,
-    .admin-table, .pg-rank-table, .pg-matches-table, .pg-mr-table {
+       per iron rule 3 and must not be auto-reduced on mobile.
+       .dash-table is also excluded: font-size is controlled per-table via .font-large/.font-small
+       (iron rule 3 — must not change via media query). */
+    #leagueTable, #playerTable,
+    .pg-rank-table, .pg-matches-table, .pg-mr-table {
         font-size: 0.65rem;
         width: 100%;
         table-layout: auto;
     }
     #leagueTable thead th,
     #playerTable thead th,
-    .dash-table thead th,
-    .admin-table thead th,
     .pg-rank-table thead th,
     .pg-matches-table thead th,
     .pg-mr-table thead th {
@@ -556,8 +556,6 @@ tr.retired {
     }
     #leagueTable tbody td,
     #playerTable tbody td,
-    .dash-table tbody td,
-    .admin-table tbody td,
     .pg-rank-table tbody td,
     .pg-matches-table tbody td,
     .pg-mr-table tbody td {
@@ -567,8 +565,7 @@ tr.retired {
 
     /* Allow player cell to wrap so long names don't force overflow */
     #leagueTable tbody td.player-cell,
-    #playerTable tbody td.player-cell,
-    .dash-table tbody td.player-cell {
+    #playerTable tbody td.player-cell {
         text-align: left;
         white-space: normal;
         word-break: break-word;

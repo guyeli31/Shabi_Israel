@@ -1,18 +1,15 @@
 {
-  "LeagueTitle": "January 2026",
+  "LeagueTitle": "May 2026",
   "LeagueType": "doubling",
-  "IssueDate": "2026-01-01",
+  "IssueDate": "2026-05-01",
   "EntryFee": 180,
   "Prizes": { "Gold": 2200, "Silver": 800, "Bronze": 180 },
-
   "BronzeCount": 4,
   "MatchLength": 7,
-
-  "Running": false,
-
+  "Running": true,
   "CustomFlags": {
-    "Hummus": "BE",
-    "Moriarty": "TZ",
-	"HeartGammon": "RU"
-  }
+    "Moriarty": "TZ"
+  },
+  "GoldCount": 1,
+  "SilverCount": 1
 }

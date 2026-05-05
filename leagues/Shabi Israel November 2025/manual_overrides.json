@@ -1,0 +1,9 @@
+{
+  "overrides": [
+    { "type": "technical_win", "playerA": "Aviado",        "playerB": "gidio",          "winner": "Aviado",        "reason": "PR data not recorded", "timestamp": "2026-05-05T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Moriarty",      "playerB": "Nissimb",        "winner": "Nissimb",       "reason": "PR data not recorded", "timestamp": "2026-05-05T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Ran1976",       "playerB": "gidio",          "winner": "Ran1976",       "reason": "PR data not recorded", "timestamp": "2026-05-05T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "Roni1122",      "playerB": "YossiEliezer23", "winner": "YossiEliezer23","reason": "PR data not recorded", "timestamp": "2026-05-05T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "YossiEliezer23","playerB": "Masteroy",       "winner": "Masteroy",      "reason": "PR data not recorded", "timestamp": "2026-05-05T00:00:00.000Z" }
+  ]
+}

@@ -95,7 +95,7 @@ function renderLeagueList(container, leagues, displayOrder) {
         const statusPill = running
             ? '<span class="status-pill status-running">Running</span>'
             : '<span class="status-pill status-completed">Completed</span>';
-        const hiddenBadge = hidden ? ' <span style="color:var(--color-text-muted);font-size:0.8rem">(Hidden)</span>' : '';
+        const hiddenBadge = hidden ? ' <span style="color:var(--color-text-muted);font-size:0.8em">(Hidden)</span>' : '';
 
         rows += `
             <tr>
@@ -116,12 +116,14 @@ function renderLeagueList(container, leagues, displayOrder) {
             <button class="btn btn-success" id="add-league-btn">+ Add League</button>
         </div>
         <div class="admin-card">
-            <table class="admin-table">
-                <thead>
-                    <tr><th scope="col">${thLabel('Name', 'Name')}</th><th scope="col">${thLabel('Type', 'T')}</th><th scope="col">${thLabel('Issue Date', 'Date')}</th><th scope="col">${thLabel('Status', 'Stat')}</th><th scope="col">${thLabel('Actions', 'Act')}</th></tr>
-                </thead>
-                <tbody>${rows}</tbody>
-            </table>
+            <div class="table-scroll">
+                <table class="admin-table font-large">
+                    <thead>
+                        <tr><th scope="col">${thLabel('Name', 'Name')}</th><th scope="col">${thLabel('Type', 'T')}</th><th scope="col">${thLabel('Issue Date', 'Date')}</th><th scope="col">${thLabel('Status', 'Stat')}</th><th scope="col">${thLabel('Actions', 'Act')}</th></tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
         </div>`;
 
     // Add league
@@ -944,7 +946,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     `;
 
     // Match Results sub-tabs — same pattern as dashboard "Remaining Matches" tabs.
-    // Round Editor renders Table F for ALL leagues; manual overrides win over CSV.
+    // Round Editor renders Table F2 for ALL leagues; manual overrides win over CSV.
     setupMatchResultsTabs(leagueId, params, refreshBadgeFn);
 
     // Status toggle label update

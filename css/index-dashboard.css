@@ -761,21 +761,16 @@
 
 /* ── Match Records: 3-col horizontal sticky (# | Player | Metric) ──
    --mr-col1-w / --mr-col2-w are JS-measured on render and resize (Iron Rule 12).
-   Values below are CSS fallbacks only; JS overwrites them on the <table> element. */
+   Values below are CSS fallbacks only; JS overwrites them on the <table> element.
+   All 3 cols: no hard-coded width — browser sizes to max-content, JS reads actual px. */
 .match-records-table {
     --mr-col1-w: 36px;
     --mr-col2-w: 156px;
-    --mr-col3-w: 70px;
 }
-.match-records-table tbody td:nth-child(2) {
-    white-space: nowrap;
-}
-/* Cols 1 and 2: no hard-coded width — browser sizes to max-content, JS reads actual px. */
+.match-records-table tbody td:nth-child(2),
 .match-records-table thead th:nth-child(3),
 .match-records-table tbody td:nth-child(3) {
-    width: var(--mr-col3-w);
-    min-width: var(--mr-col3-w);
-    max-width: var(--mr-col3-w);
+    white-space: nowrap;
 }
 
 /* tbody sticky cells — use surface background */
@@ -819,12 +814,6 @@
     border-right: 1px solid var(--color-border);
 }
 
-@media (max-width: 640px) {
-    .match-records-table {
-        /* col1/col2 set by JS on resize; only col3 needs a CSS override */
-        --mr-col3-w: 52px;
-    }
-}
 
 .achv-table .league-link,
 .achv-table .league-link:visited {
@@ -835,6 +824,62 @@
 .achv-table .league-link:hover {
     text-decoration: underline;
 }
+
+/* ── League Records (A6): 3-col horizontal sticky (# | Player | PR) ──
+   --lr-col1-w / --lr-col2-w are JS-measured on render and resize.
+   All 3 cols: no hard-coded width — browser sizes to max-content, JS reads actual px. */
+.league-records-table {
+    --lr-col1-w: 36px;
+    --lr-col2-w: 156px;
+}
+.league-records-table tbody td:nth-child(2),
+.league-records-table thead th:nth-child(3),
+.league-records-table tbody td:nth-child(3) {
+    white-space: nowrap;
+}
+
+.league-records-table tbody td:nth-child(1) {
+    position: sticky; left: 0; z-index: 3;
+    background: var(--color-surface);
+}
+.league-records-table tbody td:nth-child(2) {
+    position: sticky; left: var(--lr-col1-w); z-index: 2;
+    background: var(--color-surface);
+}
+.league-records-table tbody td:nth-child(3) {
+    position: sticky;
+    left: calc(var(--lr-col1-w) + var(--lr-col2-w));
+    z-index: 2;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+}
+
+.league-records-table tbody tr:hover td:nth-child(1),
+.league-records-table tbody tr:hover td:nth-child(2),
+.league-records-table tbody tr:hover td:nth-child(3) {
+    background: var(--color-hover);
+}
+
+.league-records-table thead th:nth-child(1) {
+    position: sticky; left: 0; top: 0; z-index: 5;
+    background: var(--color-surface);
+}
+.league-records-table thead th:nth-child(2) {
+    position: sticky; left: var(--lr-col1-w); top: 0; z-index: 4;
+    background: var(--color-surface);
+}
+.league-records-table thead th:nth-child(3) {
+    position: sticky;
+    left: calc(var(--lr-col1-w) + var(--lr-col2-w));
+    top: 0; z-index: 4;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+}
+
+
+.lr-rank-gold   { color: var(--color-gold-text);   font-weight: 700; }
+.lr-rank-silver { color: var(--color-silver-text); font-weight: 600; }
+.lr-rank-bronze { color: var(--color-bronze-text); font-weight: 600; }
 
 .achv-tables-loading {
     color: var(--color-text-muted);

@@ -1,16 +1,16 @@
 {
-  "LeagueTitle": "Shabi Israel - April 2026",
-  "LeagueType": "ubc",
+  "LeagueTitle": "April 2026",
+  "LeagueType": "doubling",
   "IssueDate": "2026-04-01",
   "EntryFee": 180,
   "Prizes": { "Gold": 2200, "Silver": 800, "Bronze": 180 },
-  "BronzeCount": 3,
+  "BronzeCount": 4,
   "MatchLength": 7,
-  "Running": true,
+  "Running": false,
   "CustomFlags": {
-    "Moriarty": "TZ",
-    "Danny_kondrea": "UN"
+    "Moriarty": "TZ"
   },
   "GoldCount": 1,
-  "SilverCount": 1
+  "SilverCount": 1,
+  "RetiredPlayers": ["Yehuda", "Danny_kondrea"]
 }

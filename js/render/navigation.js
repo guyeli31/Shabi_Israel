@@ -78,7 +78,7 @@ export async function initNavBar() {
 
         leagueIndex = allParams.map((lp, i) => ({
             id: lp.id,
-            title: displayOrder[i],
+            title: lp.params?.LeagueTitle || displayOrder[i],
             running: lp.params?.Running === true,
             hidden: lp.params?.Hidden === true
         }));
@@ -205,7 +205,7 @@ async function buildPlayerIndex() {
             leagues = allParams
                 .map((lp, i) => ({
                     id: lp.id,
-                    title: displayOrder[i],
+                    title: lp.params?.LeagueTitle || displayOrder[i],
                     hidden: lp.params?.Hidden === true
                 }))
                 .filter(l => !l.hidden);

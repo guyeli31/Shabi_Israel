@@ -380,6 +380,22 @@ function renderSummaryCards(ctx) {
     attachPlayerNameInteractions(cardsHost, ctx.leagueId);
 }
 
+// Measures the rendered width of sticky col-1 and writes --col1-w on the wrapper
+// so sticky col-2's left: var(--col1-w) aligns correctly (iron rule 12).
+function measureScrollWrapStickyCols(wrap) {
+    if (!wrap) return;
+    const th1 = wrap.querySelector('thead th:nth-child(1)');
+    if (!th1) return;
+    const write = () => {
+        const w = th1.getBoundingClientRect().width;
+        if (w > 0) wrap.style.setProperty('--col1-w', w + 'px');
+    };
+    write();
+    if (typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(write).observe(wrap);
+    }
+}
+
 // ---------- Prizes ----------
 function renderPrizes(ctx) {
     const { params } = ctx;
@@ -398,11 +414,11 @@ function renderPrizes(ctx) {
     if (params.BronzeCount) rows.push({ medal: '🥉', tier: 'Bronze', count: params.BronzeCount, prize: prizes.Bronze != null ? `₪${prizes.Bronze.toLocaleString()}` : '—' });
 
     let html = `<div class="prizes-info"><span class="prizes-entry">Entry Fee: <b>₪${entryFee}</b></span></div>`;
-    html += '<table class="dash-table prizes-table"><thead><tr><th scope="col"></th><th scope="col">Tier</th><th scope="col">Places</th><th scope="col">Prize</th></tr></thead><tbody>';
+    html += '<div class="prizes-table-wrap"><table class="dash-table prizes-table font-small"><thead><tr><th scope="col"></th><th scope="col">Tier</th><th scope="col">Places</th><th scope="col">Prize</th></tr></thead><tbody>';
     for (const r of rows) {
         html += `<tr class="prize-row-${r.tier.toLowerCase()}"><td>${r.medal}</td><td>${r.tier}</td><td>${r.count}</td><td>${r.prize}</td></tr>`;
     }
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     content.innerHTML = html;
 
     toggleBtn.addEventListener('click', () => {
@@ -481,10 +497,10 @@ function drawHistTable(ctx, dateValue) {
         return '';
     }
 
-    let html = `<table class="dash-table"><thead><tr><th scope="col">${thLabel('Rank','#')}</th><th scope="col" class="player-col">${thLabel('Player','Player')}</th><th scope="col">${thLabel('Games','G')}</th><th scope="col">${thLabel('Wins','W')}</th><th scope="col">${thLabel('Losses','L')}</th>`;
-    if (leagueConfig.showWinRate) html += `<th scope="col">${thLabel('Win Rate','WR%')}</th>`;
-    if (leagueConfig.showPRWins) html += `<th scope="col">${thLabel('PR Wins','PRW')}</th><th scope="col">${thLabel('Avg Points','APts')}</th>`;
-    if (leagueConfig.showPR) html += `<th scope="col">${thLabel('Mean PR','PR')}</th>`;
+    let html = `<table class="dash-table font-large"><thead><tr><th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">GP</th><th scope="col">W</th><th scope="col">L</th>`;
+    if (leagueConfig.showWinRate) html += `<th scope="col">Win%</th>`;
+    if (leagueConfig.showPRWins) html += `<th scope="col">PRW</th><th scope="col">Avg PTS</th>`;
+    if (leagueConfig.showPR) html += `<th scope="col">PR</th>`;
     html += '</tr></thead><tbody>';
     if (top.length === 0) {
         html += `<tr><td colspan="9" style="text-align:center;color:var(--color-text-muted)">No matches played yet</td></tr>`;
@@ -503,7 +519,7 @@ function drawHistTable(ctx, dateValue) {
     }
     html += '</tbody></table>';
     const host = document.getElementById('hist-table');
-    host.innerHTML = html;
+    host.innerHTML = `<div class="dash-table-wrap">${html}</div>`;
     attachPlayerNameInteractions(host, ctx.leagueId);
 }
 
@@ -623,26 +639,25 @@ async function renderPredictor(ctx) {
                 </tr>`;
             }).join('');
 
-            const prHeader = showPR ? 'Mean PR' : 'Win Rate';
+            const prHeader = showPR ? 'PR' : 'Win%';
             let ubcHeaders = '';
             if (showPRWins) {
-                ubcHeaders = `<th scope="col">${thLabel('Points','Pts')}</th><th scope="col">${thLabel('Avg Points','APts')}</th>`;
+                ubcHeaders = `<th scope="col">PTS</th><th scope="col">Avg PTS</th>`;
             }
-            const pctHeader = currentX === 1 ? 'Championship %' : `Top ${currentX} %`;
             const pctShortHeader = currentX === 1 ? 'Ch%' : `T${currentX}%`;
-            const scrollClass = ' predictor-scroll-wrap';
             host.innerHTML = `
-                <div class="${scrollClass}">
-                <table class="dash-table">
+                <div class="predictor-scroll-wrap">
+                <table class="dash-table font-small">
                     <thead><tr>
-                        <th scope="col">#</th><th scope="col">${thLabel('Player','Player')}</th><th scope="col">G</th><th scope="col">W</th><th scope="col">L</th>
+                        <th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">GP</th><th scope="col">W</th><th scope="col">L</th>
                         ${ubcHeaders}
-                        <th scope="col">${thLabel(prHeader, prHeader === 'Mean PR' ? 'PR' : prHeader)}</th><th scope="col">${thLabel(pctHeader, pctShortHeader)}</th>
+                        <th scope="col">${prHeader}</th><th scope="col">${pctShortHeader}</th>
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
                 </div>`;
             attachPlayerNameInteractions(host, ctx.leagueId);
+            measureScrollWrapStickyCols(host.querySelector('.predictor-scroll-wrap'));
         };
 
         renderTable(false);
@@ -958,26 +973,25 @@ function renderWhatIfSimulator(ctx) {
                     </tr>`;
                 }).join('');
 
-                const prHeader = showPR ? 'Mean PR' : 'Win Rate';
+                const prHeader = showPR ? 'PR' : 'Win%';
                 let ubcHeaders = '';
                 if (showPRWins) {
-                    ubcHeaders = `<th scope="col">${thLabel('Points','Pts')}</th><th scope="col">${thLabel('Avg Points','APts')}</th>`;
+                    ubcHeaders = `<th scope="col">PTS</th><th scope="col">Avg PTS</th>`;
                 }
-                const pctHeader = currentX === 1 ? 'Champ%' : `Top ${currentX} %`;
                 const pctShortHeader = currentX === 1 ? 'Ch%' : `T${currentX}%`;
-                const scrollClass = ' whatif-scroll-wrap';
                 tableHost.innerHTML = `
-                    <div class="${scrollClass}">
-                    <table class="dash-table whatif-table">
+                    <div class="whatif-scroll-wrap">
+                    <table class="dash-table whatif-table font-small">
                         <thead><tr>
-                            <th scope="col">#</th><th scope="col">${thLabel('Player','Player')}</th><th scope="col">G</th><th scope="col">W</th><th scope="col">L</th>
+                            <th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">GP</th><th scope="col">W</th><th scope="col">L</th>
                             ${ubcHeaders}
-                            <th scope="col">${thLabel(prHeader, prHeader === 'Mean PR' ? 'PR' : prHeader)}</th><th scope="col">${thLabel(pctHeader, pctShortHeader)}</th>
+                            <th scope="col">${prHeader}</th><th scope="col">${pctShortHeader}</th>
                         </tr></thead>
                         <tbody>${rows}</tbody>
                     </table>
                     </div>`;
                 attachPlayerNameInteractions(tableHost, ctx.leagueId);
+                measureScrollWrapStickyCols(tableHost.querySelector('.whatif-scroll-wrap'));
             };
 
             renderTable(false);

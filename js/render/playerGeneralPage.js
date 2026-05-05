@@ -465,13 +465,21 @@ function renderLeaguesTable(section, perLeague) {
         const primaryLabel = isUbc ? 'Avg Points' : 'Win Rate';
         const meanPR = (s.meanPR != null && cfg.showPR) ? formatNumber(s.meanPR) : '—';
         const running = e.league.params?.Running === true;
+        const goldCount   = e.league.params?.GoldCount   ?? 1;
+        const silverCount = e.league.params?.SilverCount ?? 1;
+        const bronzeCount = e.league.params?.BronzeCount ?? 1;
+        const rankClass = e.playerRank == null ? ''
+            : e.playerRank <= goldCount                            ? 'rank-cell-gold'
+            : e.playerRank <= goldCount + silverCount              ? 'rank-cell-silver'
+            : e.playerRank <= goldCount + silverCount + bronzeCount ? 'rank-cell-bronze'
+            : '';
         html += `
             <tr>
                 <td>${formatLeagueDate(e.league)}</td>
                 <td><a href="${dashboardUrl(e.league.id)}">${escapeHtml(e.league.title)}</a></td>
                 <td><span class="league-type-pill type-${escapeHtml(e.league.leagueType)}">${escapeHtml(LEAGUE_TYPE_LABELS[e.league.leagueType] || e.league.leagueType)}</span></td>
                 <td>${running ? '<span class="status-pill status-running">Running</span>' : '<span class="status-pill status-completed">Completed</span>'}</td>
-                <td class="${e.playerRank === 1 ? 'rank-cell-gold' : e.playerRank === 2 ? 'rank-cell-silver' : e.playerRank === 3 ? 'rank-cell-bronze' : ''}">${e.playerRank != null ? `${e.playerRank} / ${e.totalPlayers}` : '—'}</td>
+                <td class="${rankClass}">${e.playerRank != null ? `${e.playerRank} / ${e.totalPlayers}` : '—'}</td>
                 <td>${s.games || 0}</td>
                 <td>${s.wins || 0}</td>
                 <td>${s.losses || 0}</td>
@@ -635,7 +643,7 @@ function renderMatchHistory(section, playerName, perLeague) {
                     <td><a href="${dashboardUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
                     <td><span class="pg-lt pg-lt-${escapeHtml(r.leagueType)}">${escapeHtml(r.leagueType)}</span></td>
                     <td>${_allMeta[r.opponent]?.hidden ? '' : `<img class="flag" src="${flagUrl(getFlagCode(r.opponent, _mergedCustomFlags))}" alt="flag">`} ${playerNameLink(r.opponent, _allMeta[r.opponent])}</td>
-                    <td>${r.scoreSelf}–${r.scoreOpp}</td>
+                    <td>${r._technical ? (r.scoreSelf > r.scoreOpp ? `${r.matchLength}–0` : `0–${r.matchLength}`) : `${r.scoreSelf}–${r.scoreOpp}`}</td>
                     <td>${pr}</td>
                     <td>${prOpp}</td>
                     <td>${luck}</td>
@@ -681,17 +689,20 @@ function renderMatchup(section, playerName, allRows) {
     const header = document.createElement('div');
     header.className = 'matchup-header';
     header.innerHTML =
-        `<span class="matchup-arrow" id="mu-arrow">&#x25B8;</span>` +
-        `<span class="matchup-title">Matchup</span>`;
+        `<span class="matchup-arrow open" id="mu-arrow">&#x25B8;</span>` +
+        `<span class="matchup-title">Head to Head</span>`;
 
     const body = document.createElement('div');
     body.className = 'matchup-body';
-    body.hidden = true;
 
     section.appendChild(header);
     section.appendChild(body);
 
     let initialized = false;
+
+    // Initialize immediately (open by default)
+    initialized = true;
+    _initMatchupBody(body, playerName, allRows, LIMIT);
 
     header.addEventListener('click', async () => {
         const opening = body.hidden;
@@ -877,7 +888,12 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
             const won = r.scoreSelf > r.scoreOpp;
             const winnerName = won ? playerName : opponent;
             const winnerClass = won ? 'matchup-winner-win' : 'matchup-winner-loss';
-            const score = `${r.scoreSelf}–${r.scoreOpp}`;
+            const winnerLabel = r._technical
+                ? `${escapeHtml(winnerName)} <small>(T)</small>`
+                : escapeHtml(winnerName);
+            const score = r._technical
+                ? (won ? `${r.matchLength}–0` : `0–${r.matchLength}`)
+                : `${r.scoreSelf}–${r.scoreOpp}`;
 
             // PR: bold the lower value (lower = better)
             const prA = r._technical ? null : r.prSelf;
@@ -895,7 +911,7 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
             const luckB = r._technical ? null : r.luckOpp;
             let luckAHtml, luckBHtml;
             if (luckA != null && luckB != null) {
-                const fmtLuck = v => (v > 0 ? '+' : '') + formatNumber(v);
+                const fmtLuck = v => formatNumber(v);
                 luckAHtml = `<span class="${luckA >= luckB ? 'matchup-luck-best' : 'matchup-luck-other'}">${fmtLuck(luckA)}</span>`;
                 luckBHtml = `<span class="${luckB >= luckA ? 'matchup-luck-best' : 'matchup-luck-other'}">${fmtLuck(luckB)}</span>`;
             } else {
@@ -907,8 +923,8 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
                 `<td>${escapeHtml(date)}</td>` +
                 `<td style="text-align:left"><a href="${dashboardUrl(r.leagueId)}">${escapeHtml(r.leagueTitle || r.leagueId)}</a></td>` +
                 `<td>${typePill}</td>` +
-                `<td class="${winnerClass}">${escapeHtml(winnerName)}</td>` +
-                `<td style="font-family:var(--font-mono);font-size:0.85rem">${escapeHtml(score)}</td>` +
+                `<td class="${winnerClass}">${winnerLabel}</td>` +
+                `<td style="font-family:var(--font-mono);font-size:0.85rem">${score}</td>` +
                 `<td>${prAHtml}</td>` +
                 `<td>${prBHtml}</td>` +
                 `<td>${luckAHtml}</td>` +
@@ -994,6 +1010,12 @@ function renderPlayerMatchRecords(container, perLeague) {
     });
 
     showMatchRecordsType(body, perLeague, types[0]);
+
+    let _pgMrRafId;
+    window.addEventListener('resize', () => {
+        cancelAnimationFrame(_pgMrRafId);
+        _pgMrRafId = requestAnimationFrame(() => applyPgMrTableStickyOffsets(body));
+    });
 }
 
 function showMatchRecordsType(body, perLeague, type) {
@@ -1009,6 +1031,16 @@ function showMatchRecordsType(body, perLeague, type) {
         </div>`;
 
     body.querySelectorAll('table.pg-mr-table').forEach(t => applyShowTopN(t, 5));
+    requestAnimationFrame(() => applyPgMrTableStickyOffsets(body));
+}
+
+function applyPgMrTableStickyOffsets(root) {
+    root.querySelectorAll('.pg-mr-table').forEach(table => {
+        const th1 = table.querySelector('thead th:nth-child(1)');
+        if (!th1) return;
+        const w1 = th1.getBoundingClientRect().width;
+        if (w1 > 0) table.style.setProperty('--pg-col1-w', w1 + 'px');
+    });
 }
 
 /* Show-top-N: hide rows beyond N and add a Show all / Show top N toggle.

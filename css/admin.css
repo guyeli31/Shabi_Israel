@@ -510,6 +510,9 @@
 }
 
 /* ---- Admin Table ---- */
+/* font-large mirrors components.css — admin.html doesn't load components.css */
+table.font-large { font-size: 0.93rem; }
+
 .admin-table {
     width: 100%;
     border-collapse: collapse;
@@ -537,7 +540,24 @@
     color: var(--color-text);
 }
 
+.admin-table td[data-label="Actions"] {
+    white-space: nowrap;
+}
+
+/* F1 — NAME column sticky (single leftmost, no JS measurement needed per iron rule 12) */
+.admin-table.font-large th:first-child,
+.admin-table.font-large td:first-child {
+    position: sticky;
+    left: 0;
+    background: var(--color-surface);
+    z-index: 1;
+}
+
 .admin-table tbody tr:hover {
+    background: var(--color-hover);
+}
+
+.admin-table.font-large tbody tr:hover td:first-child {
     background: var(--color-hover);
 }
 
@@ -1180,10 +1200,9 @@
     .admin-backdrop { display: none !important; }
 }
 
-/* ---- Home link (replaces View Site) ---- */
+/* ---- Home link + Logout button footer items ---- */
 .admin-home-link {
     text-decoration: none;
-    color: var(--color-text-muted);
     display: flex;
     align-items: center;
     gap: var(--space-sm);
@@ -1193,10 +1212,20 @@
     opacity: 0.7;
     transition: opacity 0.2s;
 }
-.admin-home-link:hover {
-    color: var(--color-accent);
-}
 .admin-home-link:hover svg {
+    opacity: 1;
+}
+.admin-logout-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+.admin-logout-btn svg {
+    opacity: 0.7;
+    flex-shrink: 0;
+    transition: opacity 0.2s;
+}
+.admin-logout-btn:hover svg {
     opacity: 1;
 }
 
@@ -1432,13 +1461,13 @@
     .th-full { display: none; }
     .th-abbr { display: inline; }
 
-    /* Admin table compression — mirrors components.css values */
-    .admin-table {
+    /* Admin table compression — font-large tables keep their enum size (iron rule 3) */
+    .admin-table:not(.font-large) {
         font-size: 0.7rem;
         width: 100%;
         table-layout: auto;
     }
-    .admin-table thead th {
+    .admin-table:not(.font-large) thead th {
         padding: 3px 2px;
         font-size: 0.65rem;
         white-space: nowrap;
@@ -1473,7 +1502,7 @@
 .league-type-pill {
     display: inline-block;
     padding: 2px 10px;
-    font-size: 0.75rem;
+    font-size: 0.8em;
     font-weight: 600;
     border-radius: var(--radius-full);
     text-transform: uppercase;

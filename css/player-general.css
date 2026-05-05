@@ -594,7 +594,7 @@
 /* Unified Date + League column widths in both tables */
 .pg-leagues-table             { --pg-date-w: 90px; --pg-col1-w: 250px; }
 .pg-matches-table             { --pg-date-w: 90px; --pg-col1-w: 200px; }
-.achv-table.pg-mr-table       { --pg-col1-w: 36px; --pg-mr-col2-w: 70px; }
+.achv-table.pg-mr-table       { --pg-col1-w: 36px; }
 
 /* Override components.css `.pg-mr-table thead th { font-size: 0.65rem }` (specificity 0,1,2)
    with a two-class + element selector (0,2,2). Matches dashboard .achv-table = 0.85rem. */
@@ -650,21 +650,18 @@
     z-index: 2;
     border-right: 1px solid var(--color-border);
 }
-/* Match Records (achv-table.pg-mr-table): 2-col sticky on # and Metric. */
+/* Match Records (achv-table.pg-mr-table): 2-col sticky on # and Metric.
+   No hard-coded width — browser sizes to max-content, JS measures col1 and writes --pg-col1-w. */
 .achv-table.pg-mr-table thead th:nth-child(1),
 .achv-table.pg-mr-table tbody td:nth-child(1) {
-    width: var(--pg-col1-w);
-    min-width: var(--pg-col1-w);
-    max-width: var(--pg-col1-w);
+    white-space: nowrap;
     position: sticky;
     left: 0;
     z-index: 2;
 }
 .achv-table.pg-mr-table thead th:nth-child(2),
 .achv-table.pg-mr-table tbody td:nth-child(2) {
-    width: var(--pg-mr-col2-w);
-    min-width: var(--pg-mr-col2-w);
-    max-width: var(--pg-mr-col2-w);
+    white-space: nowrap;
     position: sticky;
     left: var(--pg-col1-w);
     z-index: 2;
@@ -848,14 +845,8 @@
         --pg-date-w: 62px;
         --pg-col1-w: 110px;
     }
-    .achv-table.pg-mr-table {
-        font-size: 0.7rem;
-        --pg-col1-w: 28px;
-        --pg-mr-col2-w: 56px;
-    }
     .achv-table.pg-mr-table thead th,
     .achv-table.pg-mr-table tbody td {
-        font-size: 0.7rem;
         padding: 3px 5px;
     }
     .pg-matches-table th,
