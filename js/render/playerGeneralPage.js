@@ -333,9 +333,9 @@ function renderRankTable(rows, playerName, meta) {
     if (!rows.length) return '<div class="pg-note">No data.</div>';
     const valueLabel = meta.kind === 'pr'
         ? (meta.metric === 'totalPR' ? 'Total PR' : 'Last 300 PR')
-        : (meta.metric === 'gold' ? 'Gold' : meta.metric === 'silver' ? 'Silver' : meta.metric === 'bronze' ? 'Bronze' : meta.metric === 'avgRank' ? 'Avg Rank' : meta.metric === 'winRate' ? 'Win Rate' : 'Value');
+        : (meta.metric === 'gold' ? 'Gold' : meta.metric === 'silver' ? 'Silver' : meta.metric === 'bronze' ? 'Bronze' : meta.metric === 'avgRank' ? 'Avg Rank' : meta.metric === 'winRate' ? 'Win%' : 'Value');
     const showLeagues = meta.kind === 'medal';
-    let html = `<div class="pg-rank-table-wrap"><table class="pg-rank-table"><thead><tr><th scope="col">#</th><th scope="col">${thLabel('Player','Player')}</th>${showLeagues ? `<th scope="col">${thLabel('Leagues','Lg')}</th>` : ''}<th scope="col">${escapeHtml(valueLabel)}</th></tr></thead><tbody>`;
+    let html = `<div class="pg-rank-table-wrap"><table class="pg-rank-table font-small"><thead><tr><th scope="col">#</th><th scope="col">Player</th>${showLeagues ? `<th scope="col">Leagues</th>` : ''}<th scope="col">${escapeHtml(valueLabel)}</th></tr></thead><tbody>`;
     for (const r of rows.filter(r => !_allMeta[r.name]?.hidden)) {
         const isSelf = r.name === playerName;
         const valFmt = (meta.kind === 'pr')
@@ -438,19 +438,19 @@ function renderLeaguesTable(section, perLeague) {
     }
     let html = `
     <div class="pg-leagues-table-wrapper">
-        <table class="pg-leagues-table">
+        <table class="pg-leagues-table font-large">
             <thead>
                 <tr>
-                    <th scope="col">${thLabel('Date','Date')}</th>
-                    <th scope="col">${thLabel('League','League')}</th>
-                    <th scope="col">${thLabel('Type','Tp')}</th>
-                    <th scope="col">${thLabel('Status','St')}</th>
-                    <th scope="col">${thLabel('Rank','#')}</th>
-                    <th scope="col">${thLabel('Games','G')}</th>
-                    <th scope="col">${thLabel('W','W')}</th>
-                    <th scope="col">${thLabel('L','L')}</th>
-                    <th scope="col">${thLabel('Primary','Pr')}</th>
-                    <th scope="col">${thLabel('Mean PR','PR')}</th>
+                    <th scope="col">Date</th>
+                    <th scope="col">League</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Rank</th>
+                    <th scope="col">GP</th>
+                    <th scope="col">W</th>
+                    <th scope="col">L</th>
+                    <th scope="col">Primary</th>
+                    <th scope="col">PR</th>
                 </tr>
             </thead>
             <tbody>
@@ -490,6 +490,20 @@ function renderLeaguesTable(section, perLeague) {
     }
     html += '</tbody></table></div>';
     section.innerHTML += html;
+
+    const wrapper = section.querySelector('.pg-leagues-table-wrapper');
+    if (wrapper) {
+        const th1 = wrapper.querySelector('thead th:nth-child(1)');
+        const th2 = wrapper.querySelector('thead th:nth-child(2)');
+        const measure = () => {
+            const w1 = th1 && th1.getBoundingClientRect().width;
+            const w2 = th2 && th2.getBoundingClientRect().width;
+            if (w1 > 0) wrapper.style.setProperty('--pg-date-w', w1 + 'px');
+            if (w2 > 0) wrapper.style.setProperty('--pg-col1-w', w2 + 'px');
+        };
+        measure();
+        if (typeof ResizeObserver !== 'undefined') new ResizeObserver(measure).observe(wrapper);
+    }
 }
 
 function formatLeagueDate(league) {
@@ -518,14 +532,12 @@ function renderMatchHistory(section, playerName, perLeague) {
     const leagueTypes = [...new Set(allRows.map(r => r.leagueType))];
 
     const controls = document.createElement('div');
-    controls.className = 'pg-filters';
+    controls.className = 'dash-controls';
 
-    // Year filter
     const yearSel = document.createElement('select');
     yearSel.innerHTML =
         '<option value="all">All years</option>' +
         years.map(y => `<option value="${y}"${y === CURRENT_YEAR ? ' selected' : ''}>${y}</option>`).join('');
-    // If no years include CURRENT_YEAR, default to "all"
     if (!years.includes(CURRENT_YEAR)) yearSel.value = 'all';
 
     const typeSel = document.createElement('select');
@@ -538,18 +550,46 @@ function renderMatchHistory(section, playerName, perLeague) {
         '<option value="all">All</option>' +
         [5, 10, 20, 50].map(n => `<option value="${n}">Last ${n}</option>`).join('');
 
-    controls.appendChild(labelWrap('Year', yearSel));
-    controls.appendChild(labelWrap('Type', typeSel));
-    controls.appendChild(labelWrap('Games', countSel));
-    section.appendChild(controls);
+    const metricSel = document.createElement('select');
+    metricSel.innerHTML = '<option value="pr">PR</option><option value="luck">Luck</option>';
+
+    function inlineLbl(text) {
+        const l = document.createElement('label');
+        l.textContent = text;
+        return l;
+    }
+    controls.appendChild(inlineLbl('Year:'));
+    controls.appendChild(yearSel);
+    controls.appendChild(inlineLbl('Type:'));
+    controls.appendChild(typeSel);
+    controls.appendChild(inlineLbl('Games:'));
+    controls.appendChild(countSel);
+    controls.appendChild(inlineLbl('Metric:'));
+    controls.appendChild(metricSel);
+
+    const chartCard = document.createElement('div');
+    chartCard.className = 'chart-panel';
+    chartCard.appendChild(controls);
 
     const chartHost = document.createElement('div');
     chartHost.className = 'pg-chart-host';
-    section.appendChild(chartHost);
+    chartCard.appendChild(chartHost);
+    section.appendChild(chartCard);
 
     const tableWrap = document.createElement('div');
     tableWrap.className = 'pg-matches-table-wrapper';
     section.appendChild(tableWrap);
+
+    if (typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(() => {
+            const t1 = tableWrap.querySelector('thead th:nth-child(1)');
+            const t2 = tableWrap.querySelector('thead th:nth-child(2)');
+            const rw1 = t1 && t1.getBoundingClientRect().width;
+            const rw2 = t2 && t2.getBoundingClientRect().width;
+            if (rw1 > 0) tableWrap.style.setProperty('--pg-date-w', rw1 + 'px');
+            if (rw2 > 0) tableWrap.style.setProperty('--pg-col1-w', rw2 + 'px');
+        }).observe(tableWrap);
+    }
 
     let sortKey = 'updatedAt';
     let sortDir = 'desc';
@@ -602,7 +642,7 @@ function renderMatchHistory(section, playerName, perLeague) {
                 return b.leagueOrderIdx - a.leagueOrderIdx;
             });
         if (chartMatches.length > 0) {
-            drawPlayerBarChart(chartHost, chartMatches, 'pr', Math.max(chartMatches.length, 1));
+            drawPlayerBarChart(chartHost, chartMatches, metricSel.value, Math.max(chartMatches.length, 1));
         } else {
             chartHost.innerHTML = '<div class="pg-note">No PR data for current filters.</div>';
         }
@@ -620,10 +660,10 @@ function renderMatchHistory(section, playerName, perLeague) {
             { key: 'luckSelf', label: 'Luck', abbr: 'Luck' },
             { key: 'result', label: 'Result', abbr: 'Result' }
         ];
-        let html = '<table class="pg-matches-table"><thead><tr>';
+        let html = '<table class="pg-matches-table font-small"><thead><tr>';
         for (const h of headers) {
             const arrow = sortKey === h.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
-            html += `<th scope="col" data-key="${h.key}">${thLabel(h.label, h.abbr)}${arrow}</th>`;
+            html += `<th scope="col" data-key="${h.key}">${escapeHtml(h.label)}${arrow}</th>`;
         }
         html += '</tr></thead><tbody>';
         for (const r of rows) {
@@ -655,6 +695,13 @@ function renderMatchHistory(section, playerName, perLeague) {
         host.innerHTML = html;
         attachPlayerNameInteractions(host, null);
 
+        const th1 = host.querySelector('thead th:nth-child(1)');
+        const th2 = host.querySelector('thead th:nth-child(2)');
+        const w1 = th1 && th1.getBoundingClientRect().width;
+        const w2 = th2 && th2.getBoundingClientRect().width;
+        if (w1 > 0) host.style.setProperty('--pg-date-w', w1 + 'px');
+        if (w2 > 0) host.style.setProperty('--pg-col1-w', w2 + 'px');
+
         const tableEl = host.querySelector('table.pg-matches-table');
         if (tableEl) applyShowTopN(tableEl, 10);
 
@@ -675,6 +722,7 @@ function renderMatchHistory(section, playerName, perLeague) {
     yearSel.addEventListener('change', renderAll);
     typeSel.addEventListener('change', renderAll);
     countSel.addEventListener('change', renderAll);
+    metricSel.addEventListener('change', renderAll);
     renderAll();
 
     renderMatchup(section, playerName, allRows);
@@ -818,6 +866,12 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
         }
     });
 
+    let _muRafId;
+    window.addEventListener('resize', () => {
+        cancelAnimationFrame(_muRafId);
+        _muRafId = requestAnimationFrame(() => applyMatchupStickyOffsets(resultsArea));
+    });
+
     function renderResults(opponent) {
         if (!opponent) {
             resultsArea.innerHTML = '';
@@ -863,16 +917,16 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
 
         let html =
             `<div class="matchup-table-wrapper">` +
-            `<table class="matchup-table"><thead><tr>` +
-            `<th scope="col">DATE</th>` +
-            `<th scope="col">LEAGUE</th>` +
-            `<th scope="col">TYPE</th>` +
-            `<th scope="col">WINNER</th>` +
-            `<th scope="col">SCORE</th>` +
+            `<table class="matchup-table font-small"><thead><tr>` +
+            `<th scope="col">Date</th>` +
+            `<th scope="col">League</th>` +
+            `<th scope="col">Type</th>` +
+            `<th scope="col">Winner</th>` +
+            `<th scope="col">Score</th>` +
             `<th scope="col">PR A</th>` +
             `<th scope="col">PR B</th>` +
-            `<th scope="col">LUCK A</th>` +
-            `<th scope="col">LUCK B</th>` +
+            `<th scope="col">Luck A</th>` +
+            `<th scope="col">Luck B</th>` +
             `</tr></thead><tbody>`;
 
         for (const r of visible) {
@@ -924,7 +978,7 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
                 `<td style="text-align:left"><a href="${dashboardUrl(r.leagueId)}">${escapeHtml(r.leagueTitle || r.leagueId)}</a></td>` +
                 `<td>${typePill}</td>` +
                 `<td class="${winnerClass}">${winnerLabel}</td>` +
-                `<td style="font-family:var(--font-mono);font-size:0.85rem">${score}</td>` +
+                `<td class="matchup-score">${score}</td>` +
                 `<td>${prAHtml}</td>` +
                 `<td>${prBHtml}</td>` +
                 `<td>${luckAHtml}</td>` +
@@ -939,6 +993,7 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
 
         resultsArea.innerHTML = html;
         attachPlayerNameInteractions(resultsArea, null);
+        requestAnimationFrame(() => applyMatchupStickyOffsets(resultsArea));
 
         if (!showAll && count > LIMIT) {
             resultsArea.querySelector('#mu-show-all').addEventListener('click', () => {
@@ -1032,6 +1087,15 @@ function showMatchRecordsType(body, perLeague, type) {
 
     body.querySelectorAll('table.pg-mr-table').forEach(t => applyShowTopN(t, 5));
     requestAnimationFrame(() => applyPgMrTableStickyOffsets(body));
+}
+
+function applyMatchupStickyOffsets(root) {
+    const table = root.querySelector('table.matchup-table');
+    if (!table) return;
+    const th1 = table.querySelector('thead th:nth-child(1)');
+    if (!th1) return;
+    const w1 = th1.getBoundingClientRect().width;
+    if (w1 > 0) table.style.setProperty('--mu-col1-w', w1 + 'px');
 }
 
 function applyPgMrTableStickyOffsets(root) {

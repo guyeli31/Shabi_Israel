@@ -219,6 +219,7 @@
     - `white-space` — כלל ברזל 10 (mobile יורש desktop)
     - `padding` — גורם לקפיצה חדה בגובה שורה בנקודת ה-breakpoint
     - `min-width` / `width` / `max-width` בערך `px`/`rem` — כלל ברזל 1
+    - `width` בערך `%` על wrapper/מיכל — כאשר רוחב המיכל מוגדר כ-% קבוע בבסיס, **כל** override ב-`@media` (כולל `width: 100%`) גורם לקפיצה חדה בנקודת ה-breakpoint. אם נדרש רוחב יחסי קבוע, הוא חייב להופיע בבסיס בלבד ללא override.
 
     היחיד המותר בתוך `@media` לתאי טבלה: `display` (הצגה/הסתרה של אלמנטים).
 

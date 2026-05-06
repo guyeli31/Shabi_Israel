@@ -318,8 +318,8 @@ tr.rank-bronze:hover { background: var(--color-bronze-bg-hover); }
 /* ---- League-type pill (unified: Main Dashboard, Player General, Admin) ---- */
 .league-type-pill {
     display: inline-block;
-    padding: 2px 10px;
-    font-size: 0.75rem;
+    padding: clamp(1px, 0.3vw, 2px) clamp(6px, 1vw, 10px);
+    font-size: 0.8em;
     font-weight: 600;
     border-radius: var(--radius-full);
     text-transform: uppercase;
@@ -537,18 +537,16 @@ tr.retired {
     /* Matrix compression — small font, minimal padding, center.
        A1 (.completed-leagues-table) is excluded: its font-size is user-controlled
        per iron rule 3 and must not be auto-reduced on mobile.
-       .dash-table is also excluded: font-size is controlled per-table via .font-large/.font-small
-       (iron rule 3 — must not change via media query). */
+       .dash-table, .pg-rank-table, .pg-matches-table are also excluded: font-size is
+       controlled per-table via .font-large/.font-small (iron rule 3). */
     #leagueTable, #playerTable,
-    .pg-rank-table, .pg-matches-table, .pg-mr-table {
+    .pg-mr-table {
         font-size: 0.65rem;
         width: 100%;
         table-layout: auto;
     }
     #leagueTable thead th,
     #playerTable thead th,
-    .pg-rank-table thead th,
-    .pg-matches-table thead th,
     .pg-mr-table thead th {
         padding: 3px 2px;
         font-size: 0.65rem;
@@ -556,8 +554,6 @@ tr.retired {
     }
     #leagueTable tbody td,
     #playerTable tbody td,
-    .pg-rank-table tbody td,
-    .pg-matches-table tbody td,
     .pg-mr-table tbody td {
         padding: 2px 3px;
         white-space: nowrap;
@@ -742,10 +738,11 @@ tr.retired {
     align-items: center;
     gap: var(--space-sm);
     margin-bottom: var(--space-md);
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    width: 50%;
 }
 .matchup-selector-label {
-    font-size: 0.78rem;
+    font-size: clamp(0.72rem, 0.6rem + 0.5vw, 0.85rem);
     font-weight: 700;
     color: var(--color-text-secondary);
     text-transform: uppercase;
@@ -755,14 +752,14 @@ tr.retired {
 .matchup-search-wrap {
     position: relative;
     flex: 1;
-    max-width: 280px;
+    min-width: 0;
 }
 .matchup-search-input {
     width: 100%;
     padding: 7px 12px;
     border: 1.5px solid var(--color-border);
     border-radius: var(--radius-sm);
-    font-size: 16px;
+    font-size: clamp(0.72rem, 0.6rem + 0.5vw, 0.85rem);
     color: var(--color-text);
     background: var(--color-surface);
     outline: none;
@@ -848,23 +845,27 @@ tr.retired {
 }
 
 table.matchup-table {
+    --mu-col1-w: 88px;
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    font-size: 0.87rem;
+}
+/* Fluid font — overrides font-small (0.85rem) at desktop, compresses smoothly to 0.65rem */
+table.matchup-table.font-small {
+    font-size: clamp(0.65rem, 0.51rem + 0.71vw, 0.85rem);
 }
 table.matchup-table thead th {
     background: var(--header-bg);
     color: var(--header-text);
-    padding: var(--space-sm) var(--space-md);
+    padding: clamp(0.125rem, -0.1rem + 1vw, 0.5rem) clamp(0.2rem, -0.3rem + 2vw, 1rem);
     font-weight: 600;
-    text-align: center;
+    text-align: left;
     white-space: nowrap;
     position: relative;
 }
 table.matchup-table tbody td {
-    padding: var(--space-sm) var(--space-md);
-    text-align: center;
+    padding: clamp(0.125rem, -0.1rem + 1vw, 0.5rem) clamp(0.2rem, -0.3rem + 2vw, 1rem);
+    text-align: left;
     border-bottom: 1px solid var(--color-border);
     white-space: nowrap;
     background: var(--color-surface);
@@ -884,7 +885,7 @@ table.matchup-table tbody  td:nth-child(1) {
 table.matchup-table thead th:nth-child(2),
 table.matchup-table tbody  td:nth-child(2) {
     position: sticky;
-    left: 88px;
+    left: var(--mu-col1-w);
     z-index: 2;
     min-width: 150px;
 }
@@ -915,6 +916,9 @@ table.matchup-table a:hover {
     color: var(--color-accent);
     text-decoration: underline;
 }
+
+/* Score cell — mono font, size inherits from table */
+.matchup-score { font-family: var(--font-mono); }
 
 /* PR / Luck emphasis */
 .matchup-pr-best   { font-weight: 700; }
@@ -970,14 +974,13 @@ table.matchup-table a:hover {
         padding: var(--space-xs) 0 var(--space-md);
     }
 
-    /* Selector row: small inset, full-width input, badge wraps */
+    /* Selector row: minor compact adjustments on mobile (width handled by 50% base) */
     .matchup-selector-row {
         padding: 0 var(--space-xs);
         gap: 6px;
         margin-bottom: var(--space-sm);
     }
     .matchup-search-wrap {
-        max-width: 100%;
         flex: 1;
         min-width: 0;
     }
@@ -986,15 +989,9 @@ table.matchup-table a:hover {
         font-size: 0.7rem;
     }
 
-    /* Table: compress like pg-matches-table on mobile */
+    /* Table: horizontal scroll only — font + padding are fluid (no hard override) */
     table.matchup-table {
-        font-size: 0.65rem;
         min-width: max-content;
-    }
-    table.matchup-table thead th,
-    table.matchup-table tbody td {
-        padding: 2px 3px;
-        white-space: nowrap;
     }
     table.matchup-table .pg-lt {
         font-size: 0.55rem;
@@ -1008,8 +1005,8 @@ table.matchup-table a:hover {
     }
     table.matchup-table thead th:nth-child(2),
     table.matchup-table tbody  td:nth-child(2) {
-        left: 62px;
         min-width: 90px;
+        /* left is var(--mu-col1-w) — JS measures col-1 and updates the variable */
     }
 
     /* Table wrapper: full-bleed edge-to-edge */

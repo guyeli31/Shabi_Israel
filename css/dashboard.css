@@ -6,7 +6,7 @@
     color: var(--color-accent);
     text-decoration: none;
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: clamp(0.72rem, 0.6rem + 0.5vw, 0.85rem);
     transition: color 0.15s;
 }
 .forward-link:hover {
@@ -109,13 +109,13 @@
 
 .dash-controls label {
     color: var(--color-text-secondary);
-    font-size: 0.9rem;
+    font-size: clamp(0.72rem, 0.6rem + 0.5vw, 0.85rem);
 }
 
 .dash-controls select,
 .dash-controls button {
     padding: 6px 12px;
-    font-size: 0.95rem;
+    font-size: clamp(0.72rem, 0.6rem + 0.5vw, 0.85rem);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     background: var(--color-surface);
@@ -286,7 +286,7 @@
     color: #fff;
     border-radius: var(--radius-sm);
     text-decoration: none;
-    font-size: 0.9rem;
+    font-size: clamp(0.72rem, 0.6rem + 0.5vw, 0.85rem);
     font-weight: 500;
     transition: background 0.15s;
 }
@@ -480,7 +480,7 @@
     padding: var(--space-xs) var(--space-md);
     color: var(--color-accent);
     cursor: pointer;
-    font-size: 1rem;
+    font-size: clamp(0.72rem, 0.6rem + 0.5vw, 0.85rem);
     font-weight: 600;
     transition: border-color 0.15s, color 0.15s;
 }
@@ -506,9 +506,11 @@
 .prizes-table-wrap {
     overflow-x: auto;
     min-width: 0;
+    width: 40vw;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
 }
 .prizes-table {
-    max-width: 400px;
 }
 .prize-row-gold td {
     background: rgba(245,158,11,0.1);
@@ -882,12 +884,13 @@
     border-right: 1px solid var(--color-border);
 }
 
-/* --- B2: Rounds table — Match (sticky) | Score | PR A | PR B | Luck A | Luck B | Played --- */
+/* --- B5: Rounds table — Player A (sticky) | Player B (sticky) | Score | PR A | PR B | Luck A | Luck B | Date --- */
+/* --col1-w and --col2-w are written by JS after render (iron rule 12) */
 .rounds-scroll-wrap {
-    --col1-w: 120px;
-    --col2-w: 120px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
 }
 .rounds-scroll-wrap table {
     table-layout: auto;
@@ -898,9 +901,6 @@
     left: 0;
     width: var(--col1-w);
     min-width: var(--col1-w);
-    max-width: var(--col1-w);
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
     background: var(--color-surface, #1a1a2e);
     z-index: 3;
@@ -910,7 +910,6 @@
     left: 0;
     width: var(--col1-w);
     min-width: var(--col1-w);
-    max-width: var(--col1-w);
     background: var(--header-bg);
     z-index: 4;
 }
@@ -920,9 +919,6 @@
     left: var(--col1-w);
     width: var(--col2-w);
     min-width: var(--col2-w);
-    max-width: var(--col2-w);
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
     background: var(--color-surface, #1a1a2e);
     z-index: 3;
@@ -933,32 +929,10 @@
     left: var(--col1-w);
     width: var(--col2-w);
     min-width: var(--col2-w);
-    max-width: var(--col2-w);
     background: var(--header-bg);
     z-index: 4;
     border-right: 1px solid var(--color-border);
 }
-/* Score */
-.rounds-scroll-wrap th:nth-child(3),
-.rounds-scroll-wrap td:nth-child(3) {
-    width: 60px;
-    min-width: 60px;
-}
-/* PR A, PR B, Luck A, Luck B */
-.rounds-scroll-wrap th:nth-child(4),
-.rounds-scroll-wrap td:nth-child(4),
-.rounds-scroll-wrap th:nth-child(5),
-.rounds-scroll-wrap td:nth-child(5),
-.rounds-scroll-wrap th:nth-child(6),
-.rounds-scroll-wrap td:nth-child(6),
-.rounds-scroll-wrap th:nth-child(7),
-.rounds-scroll-wrap td:nth-child(7) {
-    width: 56px;
-    min-width: 56px;
-}
-/* Played */
-.rounds-scroll-wrap th:nth-child(8),
-.rounds-scroll-wrap td:nth-child(8) { width: 80px; }
 
 /* ── B6 Remaining Matches sub-tabs (B6a / B6b / B6c) ──── */
 .rem-tab-bar {
@@ -978,7 +952,7 @@
     border-radius: var(--radius-sm);
     color: var(--color-accent);
     font-family: var(--font-main);
-    font-size: 0.9rem;
+    font-size: clamp(0.72rem, 0.6rem + 0.5vw, 0.85rem);
     font-weight: 600;
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s, color 0.15s;
@@ -1010,31 +984,42 @@
     box-shadow: var(--shadow-sm);
 }
 
-/* B6a — All Remaining (50% viewport width, centered) */
+/* B6a — All Remaining */
 .rem-b6a-wrap {
-    width: 50%;
+    width: 80%;
     margin: 0 auto;
+    overflow-x: auto;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
 }
 
-/* B6b — Remaining Report (centered) */
+/* B6b — Remaining Report */
 .rem-b6b-wrap {
-    display: flex;
-    justify-content: center;
+    width: 60%;
+    margin: 0 auto;
+    overflow-x: auto;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    background: var(--color-surface);
 }
 .rem-b6b-wrap .player-remaining-table {
-    width: auto;
-    min-width: 280px;
     margin-top: 0;
 }
 
-/* B6c — Per Player (30% viewport width, centered) */
+/* B6c — Per Player */
 .rem-b6c-outer {
     display: flex;
     justify-content: center;
 }
+.rem-b6c-content {
+    width: 60%;
+}
 .rem-b6c-wrap {
-    width: 30%;
-    min-width: 280px;
+    width: 100%;
+    overflow-x: auto;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    background: var(--color-surface);
 }
 .rem-b6c-search-row {
     margin-bottom: var(--space-sm);
@@ -1095,36 +1080,7 @@
     color: var(--color-text) !important;
 }
 
-@media (max-width: 640px) {
-    .rem-b6a-wrap,
-    .rem-b6c-wrap {
-        width: 100%;
-        min-width: 0;
-    }
-}
 
-@media (max-width: 640px) {
-    .rounds-scroll-wrap {
-        --col1-w: 100px;
-        --col2-w: 100px;
-    }
-    .rounds-scroll-wrap th:nth-child(3),
-    .rounds-scroll-wrap td:nth-child(3) {
-        width: 52px;
-        min-width: 52px;
-    }
-    .rounds-scroll-wrap th:nth-child(4),
-    .rounds-scroll-wrap td:nth-child(4),
-    .rounds-scroll-wrap th:nth-child(5),
-    .rounds-scroll-wrap td:nth-child(5),
-    .rounds-scroll-wrap th:nth-child(6),
-    .rounds-scroll-wrap td:nth-child(6),
-    .rounds-scroll-wrap th:nth-child(7),
-    .rounds-scroll-wrap td:nth-child(7) {
-        width: 48px;
-        min-width: 48px;
-    }
-}
 
 /* ── Platform credit footer ──────────────────────────────────────────── */
 .platform-credit {

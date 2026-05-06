@@ -386,7 +386,7 @@
 
 .leaderboard-table th,
 .leaderboard-table td {
-    padding: 8px 10px;
+    padding: clamp(3px, 0.8vw, 8px) clamp(4px, 1vw, 10px);
     border-bottom: 1px solid var(--color-border);
     text-align: left;
     white-space: nowrap;
@@ -475,7 +475,7 @@
 
 .completed-leagues-table th,
 .completed-leagues-table td {
-    padding: 8px 14px;
+    padding: clamp(4px, 0.8vw, 8px) clamp(6px, 1.4vw, 14px);
     border-bottom: 1px solid var(--color-border);
     text-align: left;
     font-size: inherit;
@@ -552,16 +552,6 @@
 
     .index-info-cards {
         grid-template-columns: repeat(2, 1fr);
-    }
-
-    /* Mobile density — padding only. font-size stays constant (iron rule 3). */
-    .leaderboard-table th,
-    .leaderboard-table td {
-        padding: 6px 6px;
-    }
-
-    .leaderboard-table .month-col {
-        min-width: 34px;
     }
 
     .leaderboard-header-row {
@@ -713,9 +703,10 @@
 
 .achv-table th,
 .achv-table td {
-    padding: 6px 8px;
+    padding: clamp(3px, 0.6vw, 6px) clamp(5px, 0.8vw, 8px);
     text-align: left;
     border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
 }
 
 .achv-table thead th {
@@ -1118,34 +1109,18 @@ body:has(.edit-bar) .theme-picker {
  * MOBILE (≤640px) — Step 6.6 compression for landing + achievements
  * ============================================================ */
 @media (max-width: 640px) {
-    /* Leaderboard table mobile — density only (padding). font-size is locked
-       by `.font-small` on the <table>, sticky col-2 offset is JS-measured. */
-    .leaderboard-table th,
-    .leaderboard-table td {
-        padding: 3px 4px;
-    }
-    .leaderboard-table .month-col {
-        min-width: 24px;
-    }
     .leaderboard-table th.player-col,
     .leaderboard-table td.player-cell {
         padding-left: 4px;
-        max-width: 110px;
-        overflow: hidden;
-        text-overflow: ellipsis;
     }
 
-    /* Achievement + match-records tables — compress, allow horizontal scroll */
+    /* Achievement + match-records tables — allow horizontal scroll.
+       Padding scales via clamp() on base rule; white-space set in base rule. */
     .achv-table-wrapper {
         overflow-x: auto;
     }
     .achv-table {
         min-width: max-content;
-    }
-    .achv-table th,
-    .achv-table td {
-        padding: 3px 5px;
-        white-space: nowrap;
     }
     .achv-tables-grid {
         gap: 8px;
@@ -1154,20 +1129,10 @@ body:has(.edit-bar) .theme-picker {
         padding: 8px;
     }
 
-    /* Completed-leagues mobile: only padding differs (density).
+    /* Completed-leagues mobile: padding scales via clamp() on base rule — no override needed.
        Font-size, column width, and icon height inherit desktop per iron rules 1–5. */
-    .completed-leagues-table th,
-    .completed-leagues-table td {
-        padding: 4px 6px;
-    }
     .completed-leagues-table .flag {
         margin-right: 3px;
-    }
-
-    /* League-type pill — smaller to match compressed row */
-    .league-type-pill {
-        font-size: 0.65rem;
-        padding: 1px 6px;
     }
 
     /* Notable Figures — reduce fonts by ~10% */

@@ -815,7 +815,7 @@ function renderCompletedLeagues(container, completed) {
             <div class="collapsible-body">
                 <div class="completed-table-wrapper table-scroll">
                     <table class="completed-leagues-table font-large">
-                        <thead><tr><th scope="col">${thLabel('Date','Date')}</th><th scope="col">${thLabel('League','League')}</th><th scope="col">${thLabel('Type','Type')}</th><th scope="col">${thLabel('Winner','Win')}</th></tr></thead>
+                        <thead><tr><th scope="col">Date</th><th scope="col">League</th><th scope="col">Type</th><th scope="col">Winner</th></tr></thead>
                         <tbody>${rowsHtml}</tbody>
                     </table>
                 </div>
@@ -993,10 +993,10 @@ function renderLeaderboards(container, leaderboards) {
 
         // Header row (full label desktop, abbreviated mobile)
         let thMonths = lb.months.map(m => `<th scope="col" class="month-col">${m}</th>`).join('');
-        let thExtra = `<th scope="col" class="total-col"><span class="th-full">Total</span><span class="th-abbr">Tot</span></th>`;
-        if (showWinRate) thExtra += `<th scope="col"><span class="th-full">Win Rate</span><span class="th-abbr">WR</span></th>`;
-        if (showAvgPoints) thExtra += `<th scope="col"><span class="th-full">Avg Pts</span><span class="th-abbr">APts</span></th>`;
-        thExtra += `<th scope="col"><span class="th-full">Mean PR</span><span class="th-abbr">PR</span></th>`;
+        let thExtra = `<th scope="col" class="total-col">Tot</th>`;
+        if (showWinRate) thExtra += `<th scope="col">Win%</th>`;
+        if (showAvgPoints) thExtra += `<th scope="col">Avg PTS</th>`;
+        thExtra += `<th scope="col">PR</th>`;
 
         // Data rows — skip hidden players entirely
         let rowsHtml = '';
@@ -1230,7 +1230,7 @@ const ACHIEVEMENT_METRICS = [
     { key: 'silver',    label: 'Silver',       medal: '🥈', fmt: v => v },
     { key: 'bronze',    label: 'Bronze',       medal: '🥉', fmt: v => v },
     { key: 'avgRank',   label: 'Avg Rank',     fmt: v => formatNumber(v) },
-    { key: 'winRate',   label: 'Avg Win Rate', fmt: v => formatPercent(v) },
+    { key: 'winRate',   label: 'Avg Win%',     fmt: v => formatPercent(v) },
     { key: 'prWinRate', label: 'Avg PR Win',   fmt: v => formatPercent(v) }
 ];
 

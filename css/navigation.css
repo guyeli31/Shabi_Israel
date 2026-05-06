@@ -150,27 +150,27 @@
     background: rgba(255,255,255,0.08);
     border: 1px solid rgba(255,255,255,0.15);
     white-space: nowrap;
-    font-size: 0.8rem;
+    font-size: clamp(0.72rem, calc(0.25vw + 10.6px), 0.85rem);
     flex-shrink: 0;
 }
 
 .nav-admin-logo {
-    height: 24px;
-    width: 24px;
+    height: clamp(18px, calc(0.71vw + 15.4px), 24px);
+    width: clamp(18px, calc(0.71vw + 15.4px), 24px);
     object-fit: contain;
     border-radius: 50%;
     flex-shrink: 0;
 }
 
 .nav-admin-avatar {
-    width: 24px;
-    height: 24px;
+    width: clamp(18px, calc(0.71vw + 15.4px), 24px);
+    height: clamp(18px, calc(0.71vw + 15.4px), 24px);
     border-radius: 50%;
     background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.68rem;
+    font-size: clamp(0.55rem, calc(0.25vw + 7.9px), 0.68rem);
     font-weight: 800;
     color: #fff;
     flex-shrink: 0;
@@ -288,7 +288,7 @@
     flex-wrap: wrap;
     list-style: none;
     gap: 0;
-    font-size: 0.85rem;
+    font-size: clamp(0.72rem, 0.6rem + 0.5vw, 0.85rem);
 }
 
 .breadcrumbs li {

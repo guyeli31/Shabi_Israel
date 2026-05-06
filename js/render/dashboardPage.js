@@ -1066,14 +1066,14 @@ function renderRounds(ctx) {
 function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFlags = {}, leagueConfig = null) {
     const showPR = leagueConfig ? leagueConfig.showPR : true;
     const colCount = showPR ? 8 : 6;
-    let html = `<div class="rounds-scroll-wrap"><table class="dash-table"><thead><tr>`
-        + `<th scope="col" class="player-col">${thLabel('Player A','A')}</th>`
-        + `<th scope="col" class="player-col">${thLabel('Player B','B')}</th>`
-        + `<th scope="col">${thLabel('Score','Sc')}</th>`
-        + (showPR ? `<th scope="col">${thLabel('PR A','pA')}</th><th scope="col">${thLabel('PR B','pB')}</th>` : '')
-        + `<th scope="col">${thLabel('Luck A','lA')}</th>`
-        + `<th scope="col">${thLabel('Luck B','lB')}</th>`
-        + `<th scope="col">${thLabel('Played','On')}</th>`
+    let html = `<div class="rounds-scroll-wrap"><table class="dash-table font-small"><thead><tr>`
+        + `<th scope="col" class="player-col">Player A</th>`
+        + `<th scope="col" class="player-col">Player B</th>`
+        + `<th scope="col">Score</th>`
+        + (showPR ? `<th scope="col">PR A</th><th scope="col">PR B</th>` : '')
+        + `<th scope="col">Luck A</th>`
+        + `<th scope="col">Luck B</th>`
+        + `<th scope="col">Date</th>`
         + `</tr></thead><tbody>`;
     for (const m of matches) {
         const isPlayed = m.played;
@@ -1100,6 +1100,19 @@ function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFla
     const host = document.getElementById('round-table');
     host.innerHTML = html;
     attachPlayerNameInteractions(host, leagueId);
+    const wrap = host.querySelector('.rounds-scroll-wrap');
+    if (wrap) {
+        const th1 = wrap.querySelector('thead th:nth-child(1)');
+        const th2 = wrap.querySelector('thead th:nth-child(2)');
+        const measure = () => {
+            const w1 = th1 && th1.getBoundingClientRect().width;
+            const w2 = th2 && th2.getBoundingClientRect().width;
+            if (w1 > 0) wrap.style.setProperty('--col1-w', w1 + 'px');
+            if (w2 > 0) wrap.style.setProperty('--col2-w', w2 + 'px');
+        };
+        measure();
+        if (typeof ResizeObserver !== 'undefined') new ResizeObserver(measure).observe(wrap);
+    }
 }
 
 // ---------- Remaining Matches (B6a / B6b / B6c) ----------
@@ -1213,9 +1226,9 @@ function buildB6bPanel(panel, ctx, remaining, lastModified) {
 }
 
 function buildB6bTableHtml(playerRemainingData, maxRem, minRem, halfThreshold, hasAnyBelowHalf, maxGames) {
-    let html = '<table class="dash-table player-remaining-table"><thead><tr>'
+    let html = '<table class="dash-table font-small player-remaining-table"><thead><tr>'
         + '<th scope="col" class="player-col">Player</th>'
-        + '<th scope="col">Remaining / Total</th>'
+        + '<th scope="col">Remaining</th>'
         + '</tr></thead><tbody>';
     let separatorInserted = false;
     for (const p of playerRemainingData) {
@@ -1251,7 +1264,7 @@ function buildB6cPanel(panel, ctx, remaining, lastModified) {
     const outer = document.createElement('div');
     outer.className = 'rem-b6c-outer';
     outer.innerHTML = `
-        <div class="rem-b6c-wrap">
+        <div class="rem-b6c-content">
             <div class="rem-b6c-search-row">
                 <input type="text" id="rem-b6c-input" class="rem-b6c-input"
                     placeholder="Search player…" autocomplete="off" list="rem-b6c-list">
@@ -1282,7 +1295,7 @@ function buildB6cPanel(panel, ctx, remaining, lastModified) {
             <div class="rem-b6c-export-row">
                 <button class="img-export-btn" id="rem-b6c-export-btn">Export Image</button>
             </div>
-            ${buildB6cTableHtml(opponents, params.CustomFlags, playersMeta)}`;
+            <div class="rem-b6c-wrap">${buildB6cTableHtml(opponents, params.CustomFlags, playersMeta)}</div>`;
 
         result.querySelector('#rem-b6c-export-btn').addEventListener('click', () => {
             exportB6cImage(title, player, opponents, params.CustomFlags, playersMeta, lastModified);
@@ -1297,7 +1310,7 @@ function buildB6cTableHtml(opponents, customFlags, playersMeta) {
     if (opponents.length === 0) {
         return `<div style="color:var(--color-text-muted);padding:var(--space-sm);text-align:center">All matches played!</div>`;
     }
-    let html = '<table class="dash-table rem-b6c-table"><thead><tr>'
+    let html = '<table class="dash-table font-small rem-b6c-table"><thead><tr>'
         + '<th scope="col" class="player-col">Unplayed Opponent</th>'
         + '</tr></thead><tbody>';
     for (const opp of opponents) {
@@ -1310,11 +1323,10 @@ function buildB6cTableHtml(opponents, customFlags, playersMeta) {
 }
 
 function buildRemainingListHtml(matches, customFlags, playersMeta) {
-    let html = `<table class="dash-table"><thead><tr>`
-             + `<th scope="col">${thLabel('Round','R')}</th>`
-             + `<th scope="col" class="player-col">${thLabel('Player A','A')}</th>`
-             + `<th scope="col"></th>`
-             + `<th scope="col" class="player-col">${thLabel('Player B','B')}</th>`
+    let html = `<table class="dash-table font-small"><thead><tr>`
+             + `<th scope="col">Round</th>`
+             + `<th scope="col" class="player-col">Player A</th>`
+             + `<th scope="col" class="player-col">Player B</th>`
              + `</tr></thead><tbody>`;
     for (const m of matches) {
         const flagA = getFlagCode(m.playerA, customFlags);
@@ -1324,7 +1336,6 @@ function buildRemainingListHtml(matches, customFlags, playersMeta) {
         html += `<tr class="unplayed-row">`
              +  `<td>${m.round}</td>`
              +  `<td class="player-cell"><img class="flag" src="${flagUrl(flagA)}" alt="${flagA}"> ${m.playerA}${titlesA}</td>`
-             +  `<td></td>`
              +  `<td class="player-cell"><img class="flag" src="${flagUrl(flagB)}" alt="${flagB}"> ${m.playerB}${titlesB}</td>`
              +  `</tr>`;
     }

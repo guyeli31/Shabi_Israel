@@ -218,12 +218,15 @@
     overflow-y: auto;
 }
 .pg-rank-table-wrap {
+    width: 80vw;
+    margin: 0 auto;
     overflow-x: auto;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
 }
 .pg-rank-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.85rem;
 }
 .pg-rank-table th,
 .pg-rank-table td {
@@ -261,19 +264,21 @@
 
 /* G3 — PR cards */
 .pg-pr-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    display: flex;
+    flex-direction: column;
     gap: 16px;
+    width: 50vw;
 }
 .pg-pr-card {
     border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 14px 16px;
     background: var(--color-surface);
+    font-size: 1rem;
 }
 .pg-pr-type {
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 0.9em;
     letter-spacing: 0.06em;
     margin-bottom: 10px;
 }
@@ -291,7 +296,7 @@
 }
 .pg-pr-type.pg-lt {
     padding: 4px 12px;
-    font-size: 0.8rem;
+    font-size: 0.8em;
 }
 .pg-lt-doubling {
     background: var(--lt-doubling-bg);
@@ -314,12 +319,12 @@
     min-width: 0;
 }
 .pg-pr-label {
-    font-size: 0.8rem;
+    font-size: 0.8em;
     text-transform: uppercase;
     color: var(--color-text-muted);
 }
 .pg-pr-value {
-    font-size: 1.8rem;
+    font-size: 1.8em;
     font-weight: 700;
     margin: 2px 0 4px;
 }
@@ -328,12 +333,12 @@
     padding: 2px 8px;
     border-radius: 10px;
     color: #fff;
-    font-size: 0.75rem;
+    font-size: 0.75em;
     font-weight: 600;
 }
 .pg-pr-rank {
     margin-top: 6px;
-    font-size: 0.85rem;
+    font-size: 0.85em;
     color: var(--color-text-secondary);
 }
 .pg-rank-dim {
@@ -407,7 +412,6 @@
     width: 100%;
     border-collapse: collapse;
     background: var(--color-surface);
-    font-size: 0.9rem;
 }
 .pg-leagues-table th,
 .pg-leagues-table td,
@@ -422,7 +426,6 @@
     background: var(--header-bg, #1e293b);
     color: var(--header-text, #fff);
     font-weight: 600;
-    font-size: 0.85rem;
     position: sticky;
     top: 0;
     z-index: 3;  /* above body sticky (z=2) so header covers cols 1&2 when scrolling vertically */
@@ -435,32 +438,56 @@
 }
 
 
-/* G5 — Matches */
-.pg-filters {
-    display: flex;
-    gap: 14px;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
-}
-.pg-filter {
-    display: flex;
-    flex-direction: column;
-    font-size: 0.8rem;
-    color: var(--color-text-secondary);
-    font-weight: 600;
-}
-.pg-filter select {
-    margin-top: 2px;
-    padding: 4px 8px;
-    font-size: 0.9rem;
+/* G5 — Matches chart card */
+.pg-section .chart-panel {
     background: var(--color-surface);
-    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    margin-bottom: 16px;
+}
+
+.chart-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--color-text);
+    color: var(--color-surface);
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 0.82rem;
+    line-height: 1.4;
+    box-shadow: var(--shadow-md);
+    z-index: 10;
+    white-space: nowrap;
+}
+
+.pg-section .dash-controls {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+.pg-section .dash-controls label {
+    color: var(--color-text-secondary);
+    font-size: clamp(0.72rem, 0.6rem + 0.5vw, 0.85rem);
+}
+.pg-section .dash-controls select {
+    padding: 6px 12px;
+    font-size: clamp(0.72rem, 0.6rem + 0.5vw, 0.85rem);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: var(--font-main);
 }
 .pg-chart-host {
-    margin: 12px 0;
-    max-width: 900px;
+    max-width: 100%;
+    overflow: hidden;
+}
+.pg-chart-host .bar-chart-canvas {
+    width: 100%;
+    height: auto;
 }
 .pg-matches-table .na {
     color: var(--color-text-muted);
@@ -592,8 +619,6 @@
  *   pg-mr-table       : col1 = #,    col2 = Metric  (uses --pg-col1-w only)
  * ============================================================ */
 /* Unified Date + League column widths in both tables */
-.pg-leagues-table             { --pg-date-w: 90px; --pg-col1-w: 250px; }
-.pg-matches-table             { --pg-date-w: 90px; --pg-col1-w: 200px; }
 .achv-table.pg-mr-table       { --pg-col1-w: 36px; }
 
 /* Override components.css `.pg-mr-table thead th { font-size: 0.65rem }` (specificity 0,1,2)
@@ -603,28 +628,6 @@
     font-size: 0.85rem;
 }
 
-/* Leagues table — explicit widths on remaining (post-Date) columns. */
-.pg-leagues-table thead th:nth-child(3),    /* Type pill */
-.pg-leagues-table tbody td:nth-child(3)   { width: 110px; }
-.pg-leagues-table thead th:nth-child(4),    /* Status pill */
-.pg-leagues-table tbody td:nth-child(4)   { width: 110px; }
-.pg-leagues-table thead th:nth-child(5),    /* Rank */
-.pg-leagues-table tbody td:nth-child(5)   { width: 70px; }
-.pg-leagues-table thead th:nth-child(6),    /* Games */
-.pg-leagues-table tbody td:nth-child(6),
-.pg-leagues-table thead th:nth-child(7),    /* W */
-.pg-leagues-table tbody td:nth-child(7),
-.pg-leagues-table thead th:nth-child(8),    /* L */
-.pg-leagues-table tbody td:nth-child(8)   { width: 54px; text-align: center; }
-.pg-leagues-table thead th:nth-child(9),    /* Primary (%) */
-.pg-leagues-table tbody td:nth-child(9)   { width: 80px; }
-.pg-leagues-table thead th:nth-child(10),   /* Mean PR */
-.pg-leagues-table tbody td:nth-child(10)  { width: 80px; }
-
-/* Match History col 3 = Type — pill max content is "DOUBLING" */
-.pg-matches-table:not(.pg-mr-table) thead th:nth-child(3),
-.pg-matches-table:not(.pg-mr-table) tbody td:nth-child(3) { width: 85px; }
-
 /* Col 1 = Date (leagues + matches) */
 .pg-leagues-table thead th:nth-child(1),
 .pg-leagues-table tbody td:nth-child(1),
@@ -632,7 +635,7 @@
 .pg-matches-table:not(.pg-mr-table) tbody td:nth-child(1) {
     width: var(--pg-date-w);
     min-width: var(--pg-date-w);
-    max-width: var(--pg-date-w);
+    white-space: nowrap;
     position: sticky;
     left: 0;
     z-index: 2;
@@ -644,7 +647,7 @@
 .pg-matches-table:not(.pg-mr-table) tbody td:nth-child(2) {
     width: var(--pg-col1-w);
     min-width: var(--pg-col1-w);
-    max-width: var(--pg-col1-w);
+    white-space: nowrap;
     position: sticky;
     left: var(--pg-date-w);
     z-index: 2;
@@ -789,74 +792,11 @@
         height: 18px;
     }
 
-    /* Chart never wider than viewport */
-    .pg-chart-host {
-        max-width: 100%;
-        overflow: hidden;
-    }
-    .bar-chart-canvas {
-        max-width: 100%;
-        height: auto;
-    }
+    /* Chart never wider than viewport — already enforced at base level */
 
-    /* Leagues table: horizontal scroll; 2-col sticky is applied in F3 block above. */
-    .pg-leagues-table {
-        font-size: 0.65rem;
-        min-width: max-content;
-        --pg-date-w: 62px;
-        --pg-col1-w: 110px;
-    }
-    .pg-leagues-table th,
-    .pg-leagues-table td {
-        padding: 3px 4px;
-        white-space: nowrap;
-    }
-    .pg-leagues-table .pg-lt,
-    .pg-leagues-table .league-type-pill {
-        font-size: 0.55rem;
-        padding: 1px 5px;
-    }
-    .pg-leagues-table .status-pill {
-        font-size: 0.6rem;
-        padding: 1px 5px;
-    }
-    /* Narrow fixed-width non-sticky columns on mobile */
-    .pg-leagues-table thead th:nth-child(3),
-    .pg-leagues-table tbody td:nth-child(3) { width: 56px; }   /* Type */
-    .pg-leagues-table thead th:nth-child(4),
-    .pg-leagues-table tbody td:nth-child(4) { width: 60px; }   /* Status */
-    .pg-leagues-table thead th:nth-child(5),
-    .pg-leagues-table tbody td:nth-child(5) { width: 44px; }   /* Rank */
-    .pg-leagues-table thead th:nth-child(6),
-    .pg-leagues-table tbody td:nth-child(6),
-    .pg-leagues-table thead th:nth-child(7),
-    .pg-leagues-table tbody td:nth-child(7),
-    .pg-leagues-table thead th:nth-child(8),
-    .pg-leagues-table tbody td:nth-child(8) { width: 22px; padding-left: 2px; padding-right: 2px; } /* G W L */
-    .pg-leagues-table thead th:nth-child(9),
-    .pg-leagues-table tbody td:nth-child(9) { width: 44px; }   /* Primary */
-    .pg-leagues-table thead th:nth-child(10),
-    .pg-leagues-table tbody td:nth-child(10) { width: 36px; }  /* PR */
-
-    /* Match history table: same sticky vars as leagues */
-    .pg-matches-table {
-        font-size: 0.65rem;
-        min-width: max-content;
-        --pg-date-w: 62px;
-        --pg-col1-w: 110px;
-    }
     .achv-table.pg-mr-table thead th,
     .achv-table.pg-mr-table tbody td {
         padding: 3px 5px;
-    }
-    .pg-matches-table th,
-    .pg-matches-table td {
-        padding: 2px 4px;
-        white-space: nowrap;
-    }
-    .pg-matches-table .pg-lt {
-        font-size: 0.55rem;
-        padding: 1px 4px;
     }
 
     /* Match-record card tables: compress + horizontal scroll */
@@ -872,20 +812,7 @@
         white-space: nowrap;
     }
 
-    /* Rank table inside achievement tiles */
-    .pg-rank-table th,
-    .pg-rank-table td {
-        padding: 2px 4px;
-        font-size: 0.65rem;
-    }
-
-    /* Filter controls */
-    .pg-filters { gap: 8px; }
-    .pg-filter select { font-size: 0.75rem; padding: 2px 4px; }
-
-    /* PR cards — single column */
-    .pg-pr-grid { grid-template-columns: 1fr; gap: 10px; }
-    .pg-tiles { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.pg-tiles { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .pg-tile-value { font-size: 1.35rem; }
     .pg-tile { padding: 8px 10px; }
 
