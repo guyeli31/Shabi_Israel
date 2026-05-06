@@ -24,6 +24,7 @@ import { addChange, getChangeCount } from '../admin/stagingStore.js';
 import { mountAdminSidebar, refreshBadge as refreshSidebarBadge } from '../admin/render/adminSidebar.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { hasTitles, compareTitlePriority, getFullTitleDescription } from '../data/titleConstants.js';
+import { startSplash, updateSplashLogo, endSplash } from '../utils/splash.js';
 
 /* ── Helpers ─────────────────────────────────────────── */
 
@@ -54,13 +55,13 @@ export async function renderLandingPage() {
     const container = document.getElementById('content');
     container.innerHTML = '<div class="loading">Loading leagues...</div>';
 
-    const logoEl = document.getElementById('site-logo');
-    if (logoEl) logoEl.classList.add('logo-loading');
+    startSplash();
 
     try {
         // Load landing settings and populate header
         _landingSettings = await loadLandingSettings();
         populateHeader(_landingSettings);
+        updateSplashLogo(_landingSettings.logoPath);
 
         const [allLeagues, playersMeta] = await Promise.all([
             loadAllLeagues(),
@@ -131,7 +132,7 @@ export async function renderLandingPage() {
     } catch (err) {
         container.innerHTML = `<div class="error">Failed to load leagues: ${err.message}</div>`;
     } finally {
-        if (logoEl) logoEl.classList.remove('logo-loading');
+        endSplash();
     }
 }
 

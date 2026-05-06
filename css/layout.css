@@ -58,22 +58,43 @@ body {
     border-radius: var(--radius-md);
 }
 
-@media (max-width: 640px) {
-    @keyframes logo-breathe {
-        0%   { transform: scale(1);    filter: drop-shadow(0 0 0px transparent); }
-        50%  { transform: scale(1.12); filter: drop-shadow(0 4px 14px rgba(0,0,0,0.22)); }
-        100% { transform: scale(1);    filter: drop-shadow(0 0 0px transparent); }
-    }
-
-    .page-header .logo.logo-loading {
-        animation: logo-breathe 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-        transform-origin: center;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        .page-header .logo.logo-loading { animation: none; }
-    }
+@keyframes logo-breathe {
+    0%   { transform: scale(1);    filter: drop-shadow(0 0 0px transparent); }
+    50%  { transform: scale(1.12); filter: drop-shadow(0 6px 24px rgba(0,0,0,0.28)); }
+    100% { transform: scale(1);    filter: drop-shadow(0 0 0px transparent); }
 }
+
+/* Full-screen splash — hidden by default, shown only when load takes >60 ms */
+.logo-splash {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg, #fff);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.logo-splash.splash-visible {
+    opacity: 1;
+    pointer-events: none;
+}
+
+.logo-splash-img {
+    width: min(72vw, 72vh);
+    height: auto;
+    border-radius: var(--radius-md);
+    animation: logo-breathe 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+    transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .logo-splash-img { animation: none; }
+}
+
 
 .table-wrapper {
     background: var(--color-surface);

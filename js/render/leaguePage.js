@@ -11,6 +11,7 @@ import { getQueryParam, formatPercent, formatNumber, flagUrl, getFlagCode, playe
 import { renderBreadcrumbs } from './navigation.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
+import { startSplash, endSplash } from '../utils/splash.js';
 
 let currentSortCol = -1;
 let currentSortDir = 'desc';
@@ -27,6 +28,7 @@ export async function renderLeaguePage() {
 
     container.innerHTML = '<div class="loading">Loading league data...</div>';
 
+    startSplash();
     try {
         const [{ params, matches, lastModified, totalPlayers, allPlayers }, playersMeta] = await Promise.all([
             loadLeague(leagueId),
@@ -76,6 +78,8 @@ export async function renderLeaguePage() {
         }
     } catch (err) {
         container.innerHTML = `<div class="error">Failed to load league: ${err.message}</div>`;
+    } finally {
+        endSplash();
     }
 }
 

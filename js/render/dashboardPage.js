@@ -22,6 +22,7 @@ import { predictChampionship, computeTopXPct } from '../compute/championshipPred
 import { batchLast300PR } from '../compute/crossLeague.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
+import { startSplash, endSplash } from '../utils/splash.js';
 
 export async function renderDashboardPage() {
     const container = document.getElementById('content');
@@ -33,6 +34,7 @@ export async function renderDashboardPage() {
 
     container.innerHTML = '<div class="loading">Loading dashboard...</div>';
 
+    startSplash();
     try {
         const encoded = encodeURIComponent(leagueId);
         const csvResp = await fetch(`leagues/${encoded}/leaguedata.csv`);
@@ -107,6 +109,8 @@ export async function renderDashboardPage() {
     } catch (err) {
         container.innerHTML = `<div class="error">Failed to load dashboard: ${err.message}</div>`;
         console.error(err);
+    } finally {
+        endSplash();
     }
 }
 

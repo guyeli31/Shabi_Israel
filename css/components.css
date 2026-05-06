@@ -85,7 +85,7 @@ thead th.sorted .sort-icon {
 tbody td {
     padding: var(--space-sm) var(--space-md);
     text-align: center;
-    border-bottom: 1px solid var(--color-border);
+    box-shadow: inset 0 -1px 0 var(--color-border);
     white-space: nowrap;
 }
 
@@ -221,7 +221,7 @@ tbody tr:hover {
 }
 
 tbody tr:last-child td {
-    border-bottom: none;
+    box-shadow: none;
 }
 
 /* Player name cell */
@@ -358,7 +358,7 @@ tr.avg-row {
 tr.avg-row td {
     background: var(--color-avg-bg);
     border-top: 2px solid var(--color-avg-border);
-    border-bottom: none;
+    box-shadow: none;
     padding: var(--space-sm) var(--space-md);
 }
 
@@ -374,7 +374,7 @@ tr.stat-row td {
     padding: var(--space-sm) var(--space-md);
     color: var(--color-text-secondary);
     font-size: 0.88rem;
-    border-bottom: none;
+    box-shadow: none;
 }
 
 .last-updated {
@@ -866,12 +866,12 @@ table.matchup-table thead th {
 table.matchup-table tbody td {
     padding: clamp(0.125rem, -0.1rem + 1vw, 0.5rem) clamp(0.2rem, -0.3rem + 2vw, 1rem);
     text-align: left;
-    border-bottom: 1px solid var(--color-border);
+    box-shadow: inset 0 -1px 0 var(--color-border);
     white-space: nowrap;
     background: var(--color-surface);
     position: relative;
 }
-table.matchup-table tbody tr:last-child td { border-bottom: none; }
+table.matchup-table tbody tr:last-child td { box-shadow: none; }
 table.matchup-table tbody tr:hover td { background: var(--color-hover); }
 
 /* Sticky DATE (col 1) + LEAGUE (col 2) */
