@@ -388,7 +388,8 @@
 
 .leaderboard-table th,
 .leaderboard-table td {
-    padding: var(--space-sm) var(--space-md);
+    /* Vertical padding scales linearly with viewport (matches global tables). */
+    padding: clamp(3px, 0.6vw, 8px) var(--space-md);
     box-shadow: inset 0 -1px 0 var(--color-border);
     text-align: left;
     white-space: nowrap;
@@ -476,20 +477,22 @@
     box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
 
-/* Medal row tints disabled to mirror D — neutralize the global
-   `tr.rank-gold/silver/bronze { background: ... }` rules from
-   components.css that would otherwise leak through transparent
-   non-sticky cells and create a mismatch against the sticky cell
-   surface bg. Result: every row in A2 has uniform background, so
-   the inset bottom hairline reads identically across all cells. */
-.leaderboard-table tbody tr.rank-gold,
-.leaderboard-table tbody tr.rank-silver,
-.leaderboard-table tbody tr.rank-bronze { background: transparent; }
-.leaderboard-table tbody tr.rank-gold:hover,
-.leaderboard-table tbody tr.rank-silver:hover,
-.leaderboard-table tbody tr.rank-bronze:hover { background: transparent; }
+/* Medal row tints — applied uniformly to ALL cells (sticky included)
+   so the row reads as a single solid color, matching D's behavior.
+   Non-sticky cells inherit via the global `tr.rank-* { background }`
+   in components.css (transparent td shows tr); sticky cells need an
+   explicit override here because they have their own opaque bg. */
+.leaderboard-table tbody tr.rank-gold td:first-child,
+.leaderboard-table tbody tr.rank-gold td:nth-child(2) { background: var(--color-gold-bg); }
+.leaderboard-table tbody tr.rank-silver td:first-child,
+.leaderboard-table tbody tr.rank-silver td:nth-child(2) { background: var(--color-silver-bg); }
+.leaderboard-table tbody tr.rank-bronze td:first-child,
+.leaderboard-table tbody tr.rank-bronze td:nth-child(2) { background: var(--color-bronze-bg); }
 
 .leaderboard-table tr:hover td { background: var(--color-hover); }
+.leaderboard-table tbody tr.rank-gold:hover td   { background: var(--color-gold-bg-hover); }
+.leaderboard-table tbody tr.rank-silver:hover td { background: var(--color-silver-bg-hover); }
+.leaderboard-table tbody tr.rank-bronze:hover td { background: var(--color-bronze-bg-hover); }
 
 /* Completed leagues table (compact).
    NOTE: no `overflow: hidden` on the table itself — it would become the
@@ -510,7 +513,8 @@
    so the line stitches across the sticky/non-sticky boundary seamlessly. */
 .completed-leagues-table th,
 .completed-leagues-table td {
-    padding: clamp(4px, 0.8vw, 8px) clamp(6px, 1.4vw, 14px);
+    /* Vertical padding scales linearly with viewport (unified across all tables). */
+    padding: clamp(3px, 0.6vw, 8px) var(--space-md);
     box-shadow: inset 0 -1px 0 var(--color-border);
     text-align: left;
     font-size: inherit;

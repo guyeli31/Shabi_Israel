@@ -59,7 +59,9 @@ thead {
 thead th {
     background: var(--header-bg);
     color: var(--header-text);
-    padding: var(--space-sm) var(--space-md);
+    /* Vertical padding scales linearly with viewport (mirrors the fluid
+       html font-size in layout.css). Mobile ≤500px → 3px; desktop ≥1334px → 8px. */
+    padding: clamp(3px, 0.6vw, 8px) var(--space-md);
     font-weight: 600;
     text-align: center;
     white-space: nowrap;
@@ -83,7 +85,7 @@ thead th.sorted .sort-icon {
 }
 
 tbody td {
-    padding: var(--space-sm) var(--space-md);
+    padding: clamp(3px, 0.6vw, 8px) var(--space-md);
     text-align: center;
     box-shadow: inset 0 -1px 0 var(--color-border);
     white-space: nowrap;
