@@ -359,6 +359,7 @@
     max-width: 100%;
     min-width: 0;
     border-radius: var(--radius-md);
+    background: var(--color-surface);
 }
 
 /* Completed leagues table wrapper with scroll.
@@ -376,13 +377,15 @@
 
 /* font-size comes from `.font-large` / `.font-small` on the <table>
    (see components.css). No font-size here or in media queries. */
+/* Mirror Table D's structure: no table-level drop-shadow, no per-cell
+   default background — opaque background is applied to sticky cells only.
+   This is what makes D's bottom hairline "stitch" seamlessly across the
+   sticky/non-sticky boundary; A2 now uses the same pattern. */
 .leaderboard-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    background: var(--color-surface);
     color: var(--color-text);
-    box-shadow: var(--shadow-sm);
 }
 
 .leaderboard-table th,
@@ -392,7 +395,6 @@
     text-align: left;
     white-space: nowrap;
     font-size: inherit;
-    background: var(--color-surface);
 }
 
 .leaderboard-table tbody tr:last-child td {
@@ -437,22 +439,24 @@
 }
 
 /* Sticky first two columns (rank + player).
-   Col-2 offset is a JS-measured CSS variable — no hard-coded px. */
+   Col-2 offset is a JS-measured CSS variable — no hard-coded px.
+   Opaque background only on sticky cells (mirrors D), so non-sticky
+   content does not leak through during horizontal scroll. */
 .leaderboard-table tbody td:first-child,
-.leaderboard-table thead th:first-child {
+.leaderboard-table tbody td:nth-child(2) {
     position: sticky;
-    left: 0;
     z-index: 2;
+    background: var(--color-surface);
 }
-.leaderboard-table thead th:first-child { z-index: 4; }
-
-.leaderboard-table tbody td:nth-child(2),
+.leaderboard-table thead th:first-child,
 .leaderboard-table thead th:nth-child(2) {
     position: sticky;
-    left: var(--sticky-col-1-width, 0);
-    z-index: 2;
+    z-index: 4;
 }
-.leaderboard-table thead th:nth-child(2) { z-index: 4; }
+.leaderboard-table tbody td:first-child,
+.leaderboard-table thead th:first-child { left: 0; }
+.leaderboard-table tbody td:nth-child(2),
+.leaderboard-table thead th:nth-child(2) { left: var(--sticky-col-1-width, 0); }
 
 /* Sticky boundary drop-shadow on col 2 right edge — Google-style cue.
    Visible ONLY when wrapper has `.is-scrolled-x`. The bottom hairline
