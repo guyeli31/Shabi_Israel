@@ -1053,18 +1053,20 @@ function renderLeaderboards(container, leaderboards) {
                     </div>
                 </div>
                 <div class="collapsible-body">
-                    <div class="leaderboard-table-wrapper">
-                        <table class="leaderboard-table font-large">
-                            <thead>
-                                <tr>
-                                    <th scope="col">#</th>
-                                    <th scope="col" class="player-col">Player</th>
-                                    ${thMonths}
-                                    ${thExtra}
-                                </tr>
-                            </thead>
-                            <tbody>${rowsHtml}</tbody>
-                        </table>
+                    <div class="table-wrapper">
+                        <div class="leaderboard-table-wrapper">
+                            <table class="leaderboard-table font-small">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">#</th>
+                                        <th scope="col" class="player-col">Player</th>
+                                        ${thMonths}
+                                        ${thExtra}
+                                    </tr>
+                                </thead>
+                                <tbody>${rowsHtml}</tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>`;
@@ -1172,7 +1174,7 @@ async function exportLeaderboardImage(lb, title, maxRows) {
     wrap.innerHTML = `
         <h3 style="margin:0 0 12px 0;font-size:20px;color:#1e293b;">${escapeHtml(title)}</h3>
         <div class="leaderboard-table-wrapper" style="max-height:none;overflow:visible">
-            <table class="leaderboard-table font-large">
+            <table class="leaderboard-table font-small">
                 <thead>
                     <tr>
                         <th scope="col">#</th>

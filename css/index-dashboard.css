@@ -348,18 +348,16 @@
     background: var(--color-hover);
 }
 
-/* Wrapper is the sole scroll container. Rounded-corner clipping lives here
-   (not on the table) so the table's overflow stays `visible` and sticky
-   columns keep working. */
+/* Inner scroll container — mirrors D's `.table-scroll`. Rounded corners
+   and background live on the outer `.table-wrapper` (layout.css) so the
+   scroll context here doesn't clip the bottom hairline of sticky cells
+   at the rounded edge. */
 .leaderboard-table-wrapper {
     overflow-x: auto;
     overflow-y: auto;
     max-height: 440px;
-    margin-bottom: var(--space-lg);
     max-width: 100%;
     min-width: 0;
-    border-radius: var(--radius-md);
-    background: var(--color-surface);
 }
 
 /* Completed leagues table wrapper with scroll.
@@ -390,7 +388,7 @@
 
 .leaderboard-table th,
 .leaderboard-table td {
-    padding: clamp(3px, 0.8vw, 8px) clamp(4px, 1vw, 10px);
+    padding: var(--space-sm) var(--space-md);
     box-shadow: inset 0 -1px 0 var(--color-border);
     text-align: left;
     white-space: nowrap;
@@ -478,16 +476,20 @@
     box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
 
-/* Opaque row tint applied to every td (incl. sticky) so sticky matches
-   row and non-sticky content cannot leak through during scroll. */
-.leaderboard-table tr.rank-gold td { background: var(--color-gold-bg); color: var(--color-gold-text); }
-.leaderboard-table tr.rank-silver td { background: var(--color-silver-bg); color: var(--color-silver-text); }
-.leaderboard-table tr.rank-bronze td { background: var(--color-bronze-bg); color: var(--color-bronze-text); }
+/* Medal row tints disabled to mirror D — neutralize the global
+   `tr.rank-gold/silver/bronze { background: ... }` rules from
+   components.css that would otherwise leak through transparent
+   non-sticky cells and create a mismatch against the sticky cell
+   surface bg. Result: every row in A2 has uniform background, so
+   the inset bottom hairline reads identically across all cells. */
+.leaderboard-table tbody tr.rank-gold,
+.leaderboard-table tbody tr.rank-silver,
+.leaderboard-table tbody tr.rank-bronze { background: transparent; }
+.leaderboard-table tbody tr.rank-gold:hover,
+.leaderboard-table tbody tr.rank-silver:hover,
+.leaderboard-table tbody tr.rank-bronze:hover { background: transparent; }
 
 .leaderboard-table tr:hover td { background: var(--color-hover); }
-.leaderboard-table tr.rank-gold:hover td   { background: var(--color-gold-bg-hover); }
-.leaderboard-table tr.rank-silver:hover td { background: var(--color-silver-bg-hover); }
-.leaderboard-table tr.rank-bronze:hover td { background: var(--color-bronze-bg-hover); }
 
 /* Completed leagues table (compact).
    NOTE: no `overflow: hidden` on the table itself — it would become the
