@@ -182,7 +182,7 @@ function renderHeader(playerName, perLeague, meta = {}) {
             ${avatarHtml}
             <div class="pg-header-text">
                 <div class="pg-name-line">
-                    ${flagsHtml} ${dot}
+                    ${dot} ${flagsHtml}
                     <span class="pg-player-name">${escapeHtml(displayName)}</span>
                 </div>
                 ${badgesHtml}
@@ -441,8 +441,8 @@ function renderLeaguesTable(section, perLeague) {
         <table class="pg-leagues-table font-large">
             <thead>
                 <tr>
-                    <th scope="col">Date</th>
                     <th scope="col">League</th>
+                    <th scope="col">Date</th>
                     <th scope="col">Type</th>
                     <th scope="col">Status</th>
                     <th scope="col">Rank</th>
@@ -475,8 +475,8 @@ function renderLeaguesTable(section, perLeague) {
             : '';
         html += `
             <tr>
-                <td>${formatLeagueDate(e.league)}</td>
                 <td><a href="${dashboardUrl(e.league.id)}">${escapeHtml(e.league.title)}</a></td>
+                <td>${formatLeagueDate(e.league)}</td>
                 <td><span class="league-type-pill type-${escapeHtml(e.league.leagueType)}">${escapeHtml(LEAGUE_TYPE_LABELS[e.league.leagueType] || e.league.leagueType)}</span></td>
                 <td>${running ? '<span class="status-pill status-running">Running</span>' : '<span class="status-pill status-completed">Completed</span>'}</td>
                 <td class="${rankClass}">${e.playerRank != null ? `${e.playerRank} / ${e.totalPlayers}` : '—'}</td>
@@ -491,19 +491,6 @@ function renderLeaguesTable(section, perLeague) {
     html += '</tbody></table></div>';
     section.innerHTML += html;
 
-    const wrapper = section.querySelector('.pg-leagues-table-wrapper');
-    if (wrapper) {
-        const th1 = wrapper.querySelector('thead th:nth-child(1)');
-        const th2 = wrapper.querySelector('thead th:nth-child(2)');
-        const measure = () => {
-            const w1 = th1 && th1.getBoundingClientRect().width;
-            const w2 = th2 && th2.getBoundingClientRect().width;
-            if (w1 > 0) wrapper.style.setProperty('--pg-date-w', w1 + 'px');
-            if (w2 > 0) wrapper.style.setProperty('--pg-col1-w', w2 + 'px');
-        };
-        measure();
-        if (typeof ResizeObserver !== 'undefined') new ResizeObserver(measure).observe(wrapper);
-    }
 }
 
 function formatLeagueDate(league) {
@@ -580,17 +567,6 @@ function renderMatchHistory(section, playerName, perLeague) {
     tableWrap.className = 'pg-matches-table-wrapper';
     section.appendChild(tableWrap);
 
-    if (typeof ResizeObserver !== 'undefined') {
-        new ResizeObserver(() => {
-            const t1 = tableWrap.querySelector('thead th:nth-child(1)');
-            const t2 = tableWrap.querySelector('thead th:nth-child(2)');
-            const rw1 = t1 && t1.getBoundingClientRect().width;
-            const rw2 = t2 && t2.getBoundingClientRect().width;
-            if (rw1 > 0) tableWrap.style.setProperty('--pg-date-w', rw1 + 'px');
-            if (rw2 > 0) tableWrap.style.setProperty('--pg-col1-w', rw2 + 'px');
-        }).observe(tableWrap);
-    }
-
     let sortKey = 'updatedAt';
     let sortDir = 'desc';
 
@@ -650,8 +626,8 @@ function renderMatchHistory(section, playerName, perLeague) {
 
     function renderTable(host, rows) {
         const headers = [
-            { key: 'updatedAt', label: 'Date', abbr: 'Date' },
             { key: 'leagueTitle', label: 'League', abbr: 'League' },
+            { key: 'updatedAt', label: 'Date', abbr: 'Date' },
             { key: 'leagueType', label: 'Type', abbr: 'Type' },
             { key: 'opponent', label: 'Opponent', abbr: 'Opponent' },
             { key: 'scoreSelf', label: 'Score', abbr: 'Score' },
@@ -679,8 +655,8 @@ function renderMatchHistory(section, playerName, perLeague) {
                 : 'result-draw';
             html += `
                 <tr>
-                    <td>${date}</td>
                     <td><a href="${dashboardUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
+                    <td>${date}</td>
                     <td><span class="pg-lt pg-lt-${escapeHtml(r.leagueType)}">${escapeHtml(r.leagueType)}</span></td>
                     <td>${_allMeta[r.opponent]?.hidden ? '' : `<img class="flag" src="${flagUrl(getFlagCode(r.opponent, _mergedCustomFlags))}" alt="flag">`} ${playerNameLink(r.opponent, _allMeta[r.opponent])}</td>
                     <td>${r._technical ? (r.scoreSelf > r.scoreOpp ? `${r.matchLength}–0` : `0–${r.matchLength}`) : `${r.scoreSelf}–${r.scoreOpp}`}</td>
@@ -694,13 +670,6 @@ function renderMatchHistory(section, playerName, perLeague) {
         html += '</tbody></table>';
         host.innerHTML = html;
         attachPlayerNameInteractions(host, null);
-
-        const th1 = host.querySelector('thead th:nth-child(1)');
-        const th2 = host.querySelector('thead th:nth-child(2)');
-        const w1 = th1 && th1.getBoundingClientRect().width;
-        const w2 = th2 && th2.getBoundingClientRect().width;
-        if (w1 > 0) host.style.setProperty('--pg-date-w', w1 + 'px');
-        if (w2 > 0) host.style.setProperty('--pg-col1-w', w2 + 'px');
 
         const tableEl = host.querySelector('table.pg-matches-table');
         if (tableEl) applyShowTopN(tableEl, 10);

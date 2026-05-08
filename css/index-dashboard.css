@@ -378,7 +378,8 @@
    (see components.css). No font-size here or in media queries. */
 .leaderboard-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     background: var(--color-surface);
     color: var(--color-text);
     box-shadow: var(--shadow-sm);
@@ -387,11 +388,15 @@
 .leaderboard-table th,
 .leaderboard-table td {
     padding: clamp(3px, 0.8vw, 8px) clamp(4px, 1vw, 10px);
-    border-bottom: 1px solid var(--color-border);
+    box-shadow: inset 0 -1px 0 var(--color-border);
     text-align: left;
     white-space: nowrap;
     font-size: inherit;
     background: var(--color-surface);
+}
+
+.leaderboard-table tbody tr:last-child td {
+    box-shadow: none;
 }
 
 .leaderboard-table th {
@@ -490,7 +495,7 @@
     z-index: 1;
 }
 
-/* DATE column: sticky left on both viewports.
+/* LEAGUE column: sticky left on both viewports.
    Width derives from content (no hard-coded width). */
 .completed-leagues-table thead th:first-child,
 .completed-leagues-table tbody td:first-child {

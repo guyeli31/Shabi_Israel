@@ -51,9 +51,32 @@
 
 ### D — טבלת ליגה כללית
 
-- `#leagueTable` בדף [league.html](../league.html)
+- סלקטור: `#leagueTable.font-small` בתוך `.table-scroll` ב-`.table-wrapper` בדף [league.html](../league.html)
 - קובץ רינדור: [js/render/leaguePage.js](../js/render/leaguePage.js)
-- **מחוץ לסקופ של איחוד העיצוב**
+- **כותרות עמודה סטטיות מקוצרות:**
+  - Doubling: `#`, `Player`, `GP`, `W`, `L`, `Win%`, `PR`, `Level`, `Luck`
+  - UBC: `#`, `Player`, `GP`, `W`, `L`, `PRW`, `PTS`, `Avg PTS`, `PR`, `Level`
+  - Regular: `#`, `Player`, `GP`, `W`, `L`
+- **STICKY דינמי (כלל ברזל 12):** רוחב עמודת `#` נמדד ב-JS (`measureLeagueStickyCols` ב-leaguePage.js) ונכתב ל-`--sticky-col-1-width` על `.table-scroll`. ה-`left:` של עמודת `Player` נגזר מהמשתנה. בעת טעינה ובעת `resize` (window + ResizeObserver על הטבלה).
+
+#### פרמטרים פר-טבלה (14)
+
+| # | פרמטר | ערך עבור D |
+|---|---|---|
+| 1 | רוחב הטבלה | `width: max-content` (גזירה אוטומטית מתוכן) — `.table-scroll` הוא ה-scroll container עם `overflow: auto` |
+| 2 | מיקום בעמוד | מרכז (יורש מ-`.page-container`) — DESKTOP ו-MOBILE זהים |
+| 3 | מסגרת | `var(--radius-lg)` + `var(--shadow-md)` מ-`.table-wrapper` (לא מהטבלה) |
+| 4 | שורות STICKY | `tr.avg-row` (Averages — sticky bottom 0). ה-summary של "Games Played" הוצא מהטבלה ומוצג כשורה ב-`.page-header` (`.games-played`) מתחת לכותרת. |
+| 5 | עמודות STICKY | `#` (השמאלית) + `Player`. הקסקדה מופעלת תמיד. עמודה 2 מקבלת `left: var(--sticky-col-1-width)`. |
+| 6 | כותרת STICKY לגג | כן — `thead { position: sticky; top: 0 }` (גלובלי) |
+| 7 | סגנון שורת כותרת | A5 (UPPERCASE קומפקטי) |
+| 8 | גודל פונט | `.font-small` (C4, 0.85rem) |
+| 9 | עמודות BOLD | מינימום ומקסימום של כל עמודה נומרית מודגשים ב-`<b>` (כדי שהעין תתפוס את החריגים) |
+| 10 | עמודות עם גוון טוב→רע | `games`/`wins`/`winRate`/`luck`/`prWins`/`avgPoints` (טוב→רע) · `losses`/`meanPR` (הפוך) · `Level` לפי `colorForLevel` |
+| 11 | מדליות זהב/כסף/ארד | כן — `tr.rank-gold`/`-silver`/`-bronze` (`GoldCount`/`SilverCount`/`BronzeCount` מ-`league_params.json`) |
+| 12 | שורות ברירת מחדל | הצג הכל |
+| 13 | סגנון SHOW ALL | לא רלוונטי (פרמטר 12 = הצג הכל) |
+| 14 | מסגור חיצוני | A5 (`.table-wrapper`) |
 
 ### E — טבלת שחקן בליגה
 
@@ -187,6 +210,7 @@
     - **ה-scroll container היחיד הוא ה-wrapper.** ה-wrapper מקבל `overflow-x: auto` + `min-width: 0`. הטבלה עצמה חייבת להישאר `overflow: visible`. כל `overflow: hidden/auto/scroll` על אב כלשהו בין תא ה-STICKY לבין ה-wrapper הופך אותו ל-scroll container חדש; אם הוא עצמו לא גולל בפועל — ה-STICKY "מת בשקט" ללא שגיאה ב-DevTools.
     - **`border-radius` + clipping** שייכים ל-wrapper, לא לטבלה. זו דרך לעגל פינות מבלי לפגוע ב-STICKY. לעולם אל תשים `overflow: hidden` על הטבלה רק כדי לחתוך פינות.
     - **רקע STICKY חייב להיות אטום.** צבע חצי-שקוף (rgba/alpha) גורם לתוכן לא-STICKY להיראות "דולף" דרך התא הסטיקי בגלילה. השתמש ב-`color-mix(in srgb, surface N%, tint M%)` לצבע שורה, והחל אותו על **כל ה-td** (כולל הסטיקי) — לא על `tr`.
+    - **`z-index` של תא הסטיקי חייב לנצח את התאים שגולשים — היזהר ממלכודות specificity.** ה-`z-index` המיועד לתא סטיקי-לרוחב (לרוב 4 ב-thead corner, 2 ב-tbody) לעיתים קרובות נקבע ב-override מאוחר. אם חוק "בסיס" קודם ממנו (זה שמגדיר `position: sticky; left: 0; z-index: 2`) משתמש בסלקטור עם specificity גבוהה יותר — למשל `:not(.x)`, `:is(...)`, או class נוסף בשרשרת — ה-`z-index: 2` יגבר על ה-override של `z-index: 4` בלי שום אזהרה. התוצאה: תאים לא-סטיקיים (z=3) נצבעים *מעל* תא הסטיקי בגלילה. מלכודת קלאסית: `:not()` מוסיף specificity של ה-class שבתוכו. כלל אצבע — שרשרות הסלקטורים של "בסיס סטיקי" ושל "z-index override" של אותו תא חייבות להיות באותה specificity, כך שמיקום בקובץ יקבע את הזוכה. בדיקת runtime ב-Stage D Rule 11(ב) תופסת זאת.
 12. **מימוש STICKY דינמי** — אסור לקבוע רוחב קבוע לעמודת STICKY כדי "לפתור" את ההצמדה.
     - עמודת STICKY יחידה: `position: sticky; left: 0;` — פועל ישירות עם רוחב דינמי (`max-content`), ללא תלות במדידה.
     - מספר עמודות STICKY צמודות: חובה למדוד ב-JS את רוחב כל עמודת STICKY קודמת בעת טעינה ובעת `resize`, ולכתוב את הערכים ל-CSS variables (למשל `--sticky-col-1-width`, `--sticky-col-2-width`) שמהם נגזר ה-`left:` של העמודות הבאות. לעולם לא ערך `px` קבוע ב-CSS.
@@ -277,9 +301,55 @@
     ```
     יש להריץ גם ב-DESKTOP (רוחב ברירת מחדל) וגם ב-MOBILE (≤390px), לאחר ההפעלה לוודא שהטבלה אכן גולשת (`table.scrollWidth > wrapper.clientWidth`), אחרת אין מה לבדוק.
 
-11. **אין דליפה ויזואלית** — תוכן של תאים לא-STICKY לא משתקף מתחת לתאי STICKY בגלילה. בדיקה: לאחר `scrollLeft = 50`, צלם והסתכל שהתוכן לשמאל של התא הסטיקי אטום ולא מראה טקסט גולש.
+11. **אין דליפה ויזואלית — שני מקרים נפרדים שניהם חייבים להיבדק:**
 
-12. **צבע רקע של תא STICKY** זהה לתאים לא-STICKY באותה שורה (אין "עמודה/שורה מוארת"). בדיקה: `getComputedStyle(td_sticky).backgroundColor === getComputedStyle(td_non_sticky).backgroundColor` עבור אותה שורה.
+    **(א) דליפה דרך התא הסטיקי (transparency leak)** — תוכן של תאים לא-STICKY לא משתקף מתחת לתאי STICKY בגלילה. נגרם מ: רקע סטיקי לא אטום (`rgba` עם alpha < 1, `transparent`, או רקע חסר). מכוסה ע"י כלל 12 (כל תא חייב רקע אטום) ובדיקת ה-`backgroundColor` בה.
+
+    **(ב) צביעה מעל לתא הסטיקי (z-stack paint)** — תאים לא-STICKY לא נצבעים *על-גבי* התא הסטיקי בגלילה. נגרם מ-`z-index` נמוך מדי על תא הסטיקי לעומת התאים שגולשים. תקלה שקטה נפוצה: סלקטור עם `:not(.x)`, `:is(.x, .y)`, או class נוסף בשרשרת מעלה specificity של חוק "בסיס" ושובר את ה-`z-index: 4` שמוגדר ב-override מאוחר יותר עם specificity נמוכה יותר. אודיט סטטי של ערכי `z-index` ב-CSS לא יתפוס זאת — חובה בדיקת runtime.
+
+    **בדיקה ל-(ב) — `elementFromPoint` במרכז התא הסטיקי לאחר גלילה אופקית:**
+
+    ```js
+    const wrapper = document.querySelector('<wrapper-selector>');
+    const table   = document.querySelector('<table-selector>');
+    wrapper.scrollLeft = 80;  // מספיק כדי שתאים לא-סטיקיים יחפו על האזור של תא הסטיקי
+
+    // עוברים על thead+tbody. ב-thead כל התאים סטיקי-top — אבל רק תאי הפינה הם גם סטיקי-left,
+    // ולכן הם המועמדים שייצבעו עליהם.
+    const rows = [...table.querySelectorAll('thead tr'), ...table.querySelectorAll('tbody tr')];
+    for (const row of rows) {
+      const cells = [...row.querySelectorAll('th,td')];
+      // תא סטיקי-לרוחב: position:sticky עם left מוגדר (לא auto)
+      const sticky = cells.find(c => {
+        const cs = getComputedStyle(c);
+        return cs.position === 'sticky' && cs.left !== 'auto';
+      });
+      if (!sticky) continue;
+      const r = sticky.getBoundingClientRect();
+      const x = r.left + r.width / 2;
+      const y = r.top  + r.height / 2;
+      const topEl = document.elementFromPoint(x, y);
+      const ok = topEl === sticky || sticky.contains(topEl);
+      // ok === true → התא הסטיקי על-גבי בערימת ה-paint. false → תא לא-סטיקי גולש מעליו (z-stack שבור).
+    }
+    ```
+
+    אם הבדיקה נכשלת: בדוק את ה-`z-index` המחושב על תא הסטיקי לעומת התאים השכנים (`getComputedStyle(cell).zIndex`). אם הסטיקי קטן מהשכנים — חפש סלקטור עם specificity גבוהה שקובע ערך נמוך וגובר על ה-override המיועד. הפתרון לרוב **השוואת specificity** ולא הוספת `!important`.
+
+12. **צבע רקע של תא STICKY** זהה לתאים לא-STICKY באותה שורה (אין "עמודה/שורה מוארת").
+
+    **חל על כל שורה — כולל שורת הכותרות.** תאי `thead > th` לרוב מקבלים רקע משלהם (למשל `var(--color-bg)`), בעוד שתא ה-STICKY מקבל רקע נפרד (למשל `var(--color-surface)`). אם הבדיקה מצמצמת ל-`tbody td` בלבד — אי-ההתאמה בשורת הכותרות עוברת בלי שתיתפס. הבדיקה חייבת לעבור על שורות `thead` *ו*-`tbody`:
+
+    ```js
+    const rows = [...table.querySelectorAll('thead tr'), ...table.querySelectorAll('tbody tr')];
+    for (const row of rows) {
+      const cells = [...row.querySelectorAll('th,td')];
+      const sticky    = cells.find(c => getComputedStyle(c).position === 'sticky');
+      const nonSticky = cells.find(c => getComputedStyle(c).position !== 'sticky');
+      if (!sticky || !nonSticky) continue;
+      // חייב: getComputedStyle(sticky).backgroundColor === getComputedStyle(nonSticky).backgroundColor
+    }
+    ```
 
 13. **תוכן עמודת STICKY לא נחתך** — כאשר עמודה מכילה טקסט דינמי (שם שחקן + badge/title), יש לוודא שאין `max-width` קבוע שחוסם את ה-`max-content`. הבדיקה: לאחר SHOW ALL (מצב עם מקסימום שורות), בדוק שאין תוכן שנחתך או דולף מחוץ לתא. אם הרוחב נקבע ב-JS (כלל ברזל 12), חובה לוודא שה-JS אכן רץ ועדכן את ה-CSS variable לפני שנמדד ה-sticky — ולא נשאר ערך ה-fallback של ה-CSS.
 

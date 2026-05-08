@@ -1,4 +1,4 @@
-const SHOW_DELAY_MS = 60;
+const SHOW_DELAY_MS = 500;
 
 let _timerId = null;
 let _splashEl = null;

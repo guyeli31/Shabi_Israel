@@ -119,7 +119,7 @@ function renderLeagueList(container, leagues, displayOrder) {
             <div class="table-scroll">
                 <table class="admin-table font-large">
                     <thead>
-                        <tr><th scope="col">${thLabel('Name', 'Name')}</th><th scope="col">${thLabel('Type', 'T')}</th><th scope="col">${thLabel('Issue Date', 'Date')}</th><th scope="col">${thLabel('Status', 'Stat')}</th><th scope="col">${thLabel('Actions', 'Act')}</th></tr>
+                        <tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Date</th><th scope="col">Status</th><th scope="col">Actions</th></tr>
                     </thead>
                     <tbody>${rows}</tbody>
                 </table>

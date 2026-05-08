@@ -89,26 +89,15 @@ tbody td {
     white-space: nowrap;
 }
 
-/* ---- League table: sticky left 2 columns (Rank + Player) ---- */
-#leagueTable thead th:nth-child(1),
-#leagueTable tbody td:nth-child(1) {
-    width: 56px;
-    min-width: 56px;
-    max-width: 56px;
-}
-#leagueTable thead th:nth-child(2),
-#leagueTable tbody td:nth-child(2) {
-    width: 180px;
-    min-width: 180px;
-    max-width: 180px;
-}
-
-/* UBC tables have more columns competing for space — give Player a readable minimum */
-#leagueTable[data-league-type="ubc"] thead th:nth-child(2),
-#leagueTable[data-league-type="ubc"] tbody td:nth-child(2) {
-    width: clamp(140px, 22vw, 200px);
-    min-width: clamp(140px, 22vw, 200px);
-    max-width: clamp(140px, 22vw, 200px);
+/* ---- League table (D): font enum + sticky left 2 cols (Rank + Player) ----
+   Iron rule 1/12: no hard-coded widths. Cols size by max-content.
+   Iron rule 12: col-2 left offset comes from JS-measured CSS variable
+   --sticky-col-1-width (set on .table-scroll by measureLeagueStickyCols).
+   The 36px fallback is a one-frame seed before JS runs.
+   Iron rule 7: content aligned left. */
+#leagueTable thead th,
+#leagueTable tbody td {
+    text-align: left;
 }
 
 #leagueTable thead th:nth-child(1),
@@ -118,7 +107,7 @@ tbody td {
     z-index: 4;
 }
 #leagueTable thead th:nth-child(2) {
-    left: 56px;
+    left: var(--sticky-col-1-width, 36px);
 }
 
 #leagueTable tbody td:nth-child(1),
@@ -129,7 +118,7 @@ tbody td {
     background: var(--color-surface);
 }
 #leagueTable tbody td:nth-child(2) {
-    left: 56px;
+    left: var(--sticky-col-1-width, 36px);
 }
 #leagueTable tbody tr:hover td:nth-child(1),
 #leagueTable tbody tr:hover td:nth-child(2) {
@@ -159,10 +148,6 @@ tbody td {
     left: 0;
     z-index: 3;
 }
-#leagueTable tr.stat-row td:first-child {
-    left: 0;
-    z-index: 3;
-}
 
 /* ---- Player table: sticky left 1 column (Opponent); Date is 2nd, not sticky ---- */
 #playerTable thead th:nth-child(1),
@@ -178,9 +163,9 @@ tbody td {
     max-width: 95px;
 }
 
-/* Tighten numeric columns (cols 3+) in both tables to reclaim horizontal space */
-#leagueTable thead th:nth-child(n+3),
-#leagueTable tbody td:nth-child(n+3),
+/* Tighten numeric columns (cols 3+) on player table to reclaim horizontal space.
+   #leagueTable is excluded: per iron rule 4, all cells share the table's font enum
+   (.font-small = 0.85rem); per iron rule 1, no fixed col widths. */
 #playerTable thead th:nth-child(n+3),
 #playerTable tbody td:nth-child(n+3) {
     padding-left: 6px;
@@ -188,15 +173,6 @@ tbody td {
     font-size: 0.88rem;
 }
 
-/* Games column is always ≤2 digits — narrow it */
-#leagueTable thead th:nth-child(3),
-#leagueTable tbody td:nth-child(3) {
-    width: 36px;
-    min-width: 36px;
-    max-width: 36px;
-    padding-left: 3px;
-    padding-right: 3px;
-}
 #playerTable thead th:nth-child(1) {
     position: sticky;
     left: 0;
@@ -351,9 +327,6 @@ tr.avg-row {
     bottom: 0;
     z-index: 2;
 }
-#leagueTable tr.avg-row {
-    bottom: var(--stat-row-height);
-}
 
 tr.avg-row td {
     background: var(--color-avg-bg);
@@ -380,6 +353,13 @@ tr.stat-row td {
 .last-updated {
     font-size: 0.82rem;
     color: var(--color-text-muted);
+    margin-top: var(--space-xs);
+}
+
+.games-played {
+    font-size: 0.95rem;
+    color: var(--color-text-secondary);
+    font-weight: 600;
     margin-top: var(--space-xs);
 }
 
@@ -538,21 +518,21 @@ tr.retired {
        A1 (.completed-leagues-table) is excluded: its font-size is user-controlled
        per iron rule 3 and must not be auto-reduced on mobile.
        .dash-table, .pg-rank-table, .pg-matches-table are also excluded: font-size is
-       controlled per-table via .font-large/.font-small (iron rule 3). */
-    #leagueTable, #playerTable,
+       controlled per-table via .font-large/.font-small (iron rule 3).
+       #leagueTable (Table D) is also excluded: it owns .font-small enum and obeys
+       iron rules 3/10 — no @media font-size or width override. */
+    #playerTable,
     .pg-mr-table {
         font-size: 0.65rem;
         width: 100%;
         table-layout: auto;
     }
-    #leagueTable thead th,
     #playerTable thead th,
     .pg-mr-table thead th {
         padding: 3px 2px;
         font-size: 0.65rem;
         white-space: nowrap;
     }
-    #leagueTable tbody td,
     #playerTable tbody td,
     .pg-mr-table tbody td {
         padding: 2px 3px;
@@ -560,52 +540,12 @@ tr.retired {
     }
 
     /* Allow player cell to wrap so long names don't force overflow */
-    #leagueTable tbody td.player-cell,
     #playerTable tbody td.player-cell {
         text-align: left;
         white-space: normal;
         word-break: break-word;
     }
 
-    /* Override desktop fixed widths so cols can shrink to fit 375 */
-    #leagueTable thead th:nth-child(1),
-    #leagueTable tbody td:nth-child(1) {
-        width: 28px;
-        min-width: 28px;
-        max-width: 28px;
-    }
-    #leagueTable thead th:nth-child(2),
-    #leagueTable tbody td:nth-child(2) {
-        width: auto;
-        min-width: 0;
-        max-width: none;
-    }
-    #leagueTable thead th:nth-child(3),
-    #leagueTable tbody td:nth-child(3) {
-        width: auto;
-        min-width: 0;
-        max-width: none;
-    }
-
-    /* UBC mobile: guarantee Player col has enough room for longest name + 1 title */
-    #leagueTable[data-league-type="ubc"] thead th:nth-child(2),
-    #leagueTable[data-league-type="ubc"] tbody td:nth-child(2) {
-        min-width: 120px;
-        width: 120px;
-        max-width: 120px;
-    }
-    /* UBC mobile: narrow GAMES col (nth-child(3)) to match Doubling's G width */
-    #leagueTable[data-league-type="ubc"] thead th:nth-child(3),
-    #leagueTable[data-league-type="ubc"] tbody td:nth-child(3) {
-        width: 28px;
-        min-width: 28px;
-        max-width: 28px;
-        font-size: 0.62rem;
-        padding-left: 2px;
-        padding-right: 2px;
-    }
-    #leagueTable thead th:nth-child(n+3),
-    #leagueTable tbody td:nth-child(n+3),
     #playerTable thead th:nth-child(n+3),
     #playerTable tbody td:nth-child(n+3) {
         padding-left: 3px;
@@ -645,23 +585,6 @@ tr.retired {
         margin-left: 2px;
     }
 
-    /* Conditional sticky — engages only when parent overflows (zoom) */
-    #leagueTable thead th:nth-child(1) {
-        position: sticky; left: 0; z-index: 4;
-        background: var(--header-bg);
-    }
-    #leagueTable thead th:nth-child(2) {
-        position: sticky; left: 28px; z-index: 4;
-        background: var(--header-bg);
-    }
-    #leagueTable tbody td:nth-child(1) {
-        position: sticky; left: 0; z-index: 2;
-        background: var(--color-surface);
-    }
-    #leagueTable tbody td:nth-child(2) {
-        position: sticky; left: 28px; z-index: 2;
-        background: var(--color-surface);
-    }
     #playerTable thead th:nth-child(1) {
         position: sticky; left: 0; z-index: 4;
         background: var(--header-bg);
@@ -671,28 +594,14 @@ tr.retired {
         background: var(--color-surface);
     }
 
-    /* Medal tints still apply to sticky cells */
-    #leagueTable tbody tr.rank-gold td:nth-child(1),
-    #leagueTable tbody tr.rank-gold td:nth-child(2) { background: var(--color-gold-bg); }
-    #leagueTable tbody tr.rank-silver td:nth-child(1),
-    #leagueTable tbody tr.rank-silver td:nth-child(2) { background: var(--color-silver-bg); }
-    #leagueTable tbody tr.rank-bronze td:nth-child(1),
-    #leagueTable tbody tr.rank-bronze td:nth-child(2) { background: var(--color-bronze-bg); }
-
     /* Avg row — keep visible but compress */
-    #leagueTable tr.avg-row td,
     #playerTable tr.avg-row td {
         padding: 3px 3px;
         font-size: 0.65rem;
     }
-    /* Fix 3: sticky cols on avg-row inherit surface bg from sticky rule above —
-       force avg-bg on sticky cells so the whole row reads consistently. */
-    #leagueTable tr.avg-row td:nth-child(1),
-    #leagueTable tr.avg-row td:nth-child(2),
     #playerTable tr.avg-row td:nth-child(1) {
         background: var(--color-avg-bg) !important;
     }
-    #leagueTable tr.stat-row td,
     #playerTable tr.stat-row td {
         padding: 3px 3px;
         font-size: 0.65rem;

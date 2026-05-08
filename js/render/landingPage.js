@@ -55,6 +55,9 @@ export async function renderLandingPage() {
     const container = document.getElementById('content');
     container.innerHTML = '<div class="loading">Loading leagues...</div>';
 
+    const logoEl = document.getElementById('site-logo');
+    if (logoEl) logoEl.classList.add('logo-loading');
+
     startSplash();
 
     try {
@@ -132,6 +135,7 @@ export async function renderLandingPage() {
     } catch (err) {
         container.innerHTML = `<div class="error">Failed to load leagues: ${err.message}</div>`;
     } finally {
+        if (logoEl) logoEl.classList.remove('logo-loading');
         endSplash();
     }
 }
@@ -803,8 +807,8 @@ function renderCompletedLeagues(container, completed) {
         const typeCell = `<span class="league-type-pill type-${l.leagueType}">${typeLabel}</span>`;
         rowsHtml += `
             <tr class="row-type-${l.leagueType}" data-league-id="${escapeHtml(l.id)}">
-                <td data-label="Date">${dateStr}</td>
                 <td data-label="League"><a href="${dashboardUrl(l.id)}">${escapeHtml(l.title)}</a></td>
+                <td data-label="Date">${dateStr}</td>
                 <td data-label="Type">${typeCell}</td>
                 <td data-label="Winner">${leaderHtml}</td>
             </tr>`;
@@ -816,7 +820,7 @@ function renderCompletedLeagues(container, completed) {
             <div class="collapsible-body">
                 <div class="completed-table-wrapper table-scroll">
                     <table class="completed-leagues-table font-large">
-                        <thead><tr><th scope="col">Date</th><th scope="col">League</th><th scope="col">Type</th><th scope="col">Winner</th></tr></thead>
+                        <thead><tr><th scope="col">League</th><th scope="col">Date</th><th scope="col">Type</th><th scope="col">Winner</th></tr></thead>
                         <tbody>${rowsHtml}</tbody>
                     </table>
                 </div>

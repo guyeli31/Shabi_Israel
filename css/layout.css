@@ -84,7 +84,7 @@ body {
 }
 
 .logo-splash-img {
-    width: min(72vw, 72vh);
+    width: min(36vw, 36vh);
     height: auto;
     border-radius: var(--radius-md);
     animation: logo-breathe 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
@@ -93,6 +93,17 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
     .logo-splash-img { animation: none; }
+}
+
+@media (max-width: 640px) {
+    .page-header .logo.logo-loading {
+        animation: logo-breathe 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+        transform-origin: center;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .page-header .logo.logo-loading { animation: none; }
+    }
 }
 
 

@@ -605,20 +605,26 @@
 .achv-table .result-win  { color: var(--color-win);  font-weight: 600; }
 .achv-table .result-loss { color: var(--color-loss); font-weight: 600; }
 .achv-table .result-draw { color: var(--color-draw); font-weight: 600; }
-.pg-matches-table tbody tr:nth-child(even) {
-    background: var(--row-alt-bg, rgba(0,0,0,0.025));
+/* C2 row colors applied per-cell (not on tr) and opaque, so the sticky col1
+   carries the same color as the rest of the row and rule 12 holds across all
+   states (base / stripe / hover). Order matters — later rule wins at equal
+   specificity (0,2,3 for stripe and hover; 0,1,2 for base). */
+.pg-matches-table tbody td {
+    background: var(--color-surface);
 }
-.pg-matches-table tbody tr:hover {
-    background: var(--row-hover-bg, rgba(0,0,0,0.05));
+.pg-matches-table tbody tr:nth-child(even) td {
+    background: color-mix(in srgb, var(--color-surface) 97.5%, black 2.5%);
+}
+.pg-matches-table tbody tr:hover td {
+    background: var(--color-hover);
 }
 
 /* ============================================================
- * F3 — 2-column sticky on player-general tables (desktop + mobile)
- *   pg-leagues-table  : col1 = Date, col2 = League
- *   pg-matches-table  : col1 = Date, col2 = League
+ * F3 — sticky on player-general tables (desktop + mobile)
+ *   pg-leagues-table  : col1 = League (sticky, left:0)
+ *   pg-matches-table  : col1 = League (sticky, left:0)
  *   pg-mr-table       : col1 = #,    col2 = Metric  (uses --pg-col1-w only)
  * ============================================================ */
-/* Unified Date + League column widths in both tables */
 .achv-table.pg-mr-table       { --pg-col1-w: 36px; }
 
 /* Override components.css `.pg-mr-table thead th { font-size: 0.65rem }` (specificity 0,1,2)
@@ -628,28 +634,19 @@
     font-size: 0.85rem;
 }
 
-/* Col 1 = Date (leagues + matches) */
+/* Col 1 = League — single sticky col (left:0, no JS offset measurement needed).
+   The :not(.pg-mr-table) defensive guard was removed — pg-mr-table is only ever
+   combined with .achv-table, never with .pg-matches-table. Keeping it here bumps
+   specificity from (0,2,2) → (0,3,2) and silently beats the z-index:4 corner
+   override below (0,2,2), letting non-sticky thead ths paint over sticky col1
+   during horizontal scroll. */
 .pg-leagues-table thead th:nth-child(1),
 .pg-leagues-table tbody td:nth-child(1),
-.pg-matches-table:not(.pg-mr-table) thead th:nth-child(1),
-.pg-matches-table:not(.pg-mr-table) tbody td:nth-child(1) {
-    width: var(--pg-date-w);
-    min-width: var(--pg-date-w);
+.pg-matches-table thead th:nth-child(1),
+.pg-matches-table tbody td:nth-child(1) {
     white-space: nowrap;
     position: sticky;
     left: 0;
-    z-index: 2;
-}
-/* Col 2 = League (leagues + matches) */
-.pg-leagues-table thead th:nth-child(2),
-.pg-leagues-table tbody td:nth-child(2),
-.pg-matches-table:not(.pg-mr-table) thead th:nth-child(2),
-.pg-matches-table:not(.pg-mr-table) tbody td:nth-child(2) {
-    width: var(--pg-col1-w);
-    min-width: var(--pg-col1-w);
-    white-space: nowrap;
-    position: sticky;
-    left: var(--pg-date-w);
     z-index: 2;
     border-right: 1px solid var(--color-border);
 }
@@ -672,31 +669,26 @@
 }
 
 /* Sticky body cells: fully opaque so scroll content doesn't bleed through.
-   !important defeats the row-stripe rule (mirrors .match-records-table). */
+   For C2 (.pg-matches-table) the per-cell row-stripe (color-mix above) overrides
+   this on even rows via higher specificity, keeping rule 12 satisfied. */
 .pg-leagues-table tbody td:nth-child(1),
-.pg-leagues-table tbody td:nth-child(2),
 .pg-matches-table tbody td:nth-child(1),
-.pg-matches-table tbody td:nth-child(2),
 .achv-table.pg-mr-table tbody td:nth-child(1),
 .achv-table.pg-mr-table tbody td:nth-child(2) {
-    background: var(--color-surface) !important;
+    background: var(--color-surface);
 }
 /* Hover wins over background. */
 .pg-leagues-table tbody tr:hover td:nth-child(1),
-.pg-leagues-table tbody tr:hover td:nth-child(2),
 .pg-matches-table tbody tr:hover td:nth-child(1),
-.pg-matches-table tbody tr:hover td:nth-child(2),
 .achv-table.pg-mr-table tbody tr:hover td:nth-child(1),
 .achv-table.pg-mr-table tbody tr:hover td:nth-child(2) {
     background: var(--color-hover) !important;
 }
 
-/* Sticky-on-both-axes header cells (top-left corner): bump z above
+/* Sticky-on-both-axes header cell (top-left corner): bump z above
    the sticky-top-only header (z=3) AND sticky-left-only body cells (z=2). */
 .pg-leagues-table thead th:nth-child(1),
-.pg-leagues-table thead th:nth-child(2),
-.pg-matches-table thead th:nth-child(1),
-.pg-matches-table thead th:nth-child(2) {
+.pg-matches-table thead th:nth-child(1) {
     background: var(--header-bg, #1e293b) !important;
     z-index: 4;
 }

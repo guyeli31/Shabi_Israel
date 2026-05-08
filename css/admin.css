@@ -544,8 +544,15 @@ table.font-large { font-size: 0.93rem; }
     white-space: nowrap;
 }
 
-/* F1 — NAME column sticky (single leftmost, no JS measurement needed per iron rule 12) */
-.admin-table.font-large th:first-child,
+/* F1 — NAME column sticky (single leftmost, no JS measurement needed per iron rule 12).
+   th and td get separate backgrounds so each matches the rest of its row
+   (header row uses --color-bg; body rows are transparent over admin-card surface). */
+.admin-table.font-large th:first-child {
+    position: sticky;
+    left: 0;
+    background: var(--color-bg);
+    z-index: 1;
+}
 .admin-table.font-large td:first-child {
     position: sticky;
     left: 0;
@@ -1472,12 +1479,12 @@ table.font-large { font-size: 0.93rem; }
         font-size: 0.65rem;
         white-space: nowrap;
     }
-    .admin-table tbody td {
+    .admin-table:not(.font-large) tbody td {
         padding: 2px 3px;
     }
-    .admin-table tbody td input[type="text"],
-    .admin-table tbody td input[type="number"],
-    .admin-table tbody td select {
+    .admin-table:not(.font-large) tbody td input[type="text"],
+    .admin-table:not(.font-large) tbody td input[type="number"],
+    .admin-table:not(.font-large) tbody td select {
         font-size: 0.7rem;
         padding: 1px 3px;
     }
@@ -1520,4 +1527,22 @@ table.font-large { font-size: 0.93rem; }
 .league-type-pill.type-ubc {
     background: var(--lt-ubc-bg);
     color: var(--lt-ubc-text);
+}
+
+/* ---- Status pill (mirrors components.css for admin page) ---- */
+.status-pill {
+    display: inline-block;
+    padding: 2px 12px;
+    border-radius: var(--radius-full);
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+.status-running {
+    background: var(--color-running-bg);
+    color: var(--color-running);
+}
+.status-completed {
+    background: var(--color-completed-bg);
+    color: var(--color-completed);
 }

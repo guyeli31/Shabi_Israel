@@ -403,25 +403,14 @@ FodyWeavers.xsd
 # Playwright MCP trace/snapshot artifacts
 .playwright-mcp/
 
-# Ad-hoc verification screenshots at repo root
-/step*.png
-/dashboard-*.png
-/pg-*.png
-/admin_*.png
-/nav_*.png
-/round_editor_*.png
-/preview_*.png
-/match_results_*.png
-/csv_upload_*.png
-/pending_*.png
-/player_card_*.png
-/credit_*.png
-/dashboard_*.png
-/league_*.png
-/spinner_*.png
-/view_*.png
-/b6b_*.png
-/b6c_*.png
+# Screenshots and ad-hoc images are NEVER kept at the repo root.
+# Use .playwright-mcp/ (Playwright MCP output dir) for verification artifacts,
+# or docs/audit-*/screenshots/ for ones that need to be committed.
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+/*.webp
 
 # Claude / Superpowers internal files
 .claude/scheduled_tasks.lock

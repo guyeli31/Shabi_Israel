@@ -7,7 +7,7 @@ import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages, computeMatchStats, LEVELS } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { colorForValue, colorForValueInverted, colorForGames, colorForLevel } from '../compute/colorScale.js';
-import { getQueryParam, formatPercent, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl, thLabel, appendExportCredit } from '../utils/helpers.js';
+import { getQueryParam, formatPercent, formatNumber, flagUrl, getFlagCode, playerUrl, dashboardUrl, appendExportCredit } from '../utils/helpers.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
@@ -15,6 +15,32 @@ import { startSplash, endSplash } from '../utils/splash.js';
 
 let currentSortCol = -1;
 let currentSortDir = 'desc';
+let stickyResizeObserver = null;
+let stickyResizeListenerAttached = false;
+
+function measureLeagueStickyCols() {
+    const tbl = document.getElementById('leagueTable');
+    const scroll = tbl?.closest('.table-scroll');
+    if (!tbl || !scroll) return;
+    const firstTh = tbl.querySelector('thead th:nth-child(1)');
+    if (!firstTh) return;
+    const w = firstTh.getBoundingClientRect().width;
+    scroll.style.setProperty('--sticky-col-1-width', `${Math.ceil(w)}px`);
+}
+
+function bindStickyMeasurement() {
+    measureLeagueStickyCols();
+    const tbl = document.getElementById('leagueTable');
+    if (tbl && typeof ResizeObserver !== 'undefined') {
+        stickyResizeObserver?.disconnect();
+        stickyResizeObserver = new ResizeObserver(measureLeagueStickyCols);
+        stickyResizeObserver.observe(tbl);
+    }
+    if (!stickyResizeListenerAttached) {
+        window.addEventListener('resize', measureLeagueStickyCols);
+        stickyResizeListenerAttached = true;
+    }
+}
 
 
 export async function renderLeaguePage() {
@@ -48,9 +74,6 @@ export async function renderLeaguePage() {
             { label: 'League Table' }
         ]);
 
-        // Show last updated below title
-        renderLastUpdated(lastModified);
-
         // Widen container for league types with many columns (e.g. UBC has 11)
         if (leagueConfig.type === 'ubc') {
             document.querySelector('.page-container').classList.add('wide-table');
@@ -61,8 +84,13 @@ export async function renderLeaguePage() {
         const averages = computeAverages(rankings, leagueConfig);
         const matchStats = computeMatchStats(rankings, totalPlayers);
 
+        // Header summary lines: Games Played first, then Last updated.
+        renderGamesPlayed(matchStats);
+        renderLastUpdated(lastModified);
+
         renderSummaryTable(container, rankings, averages, matchStats, params, leagueId, leagueConfig, playersMeta);
         setupSorting(rankings, averages, matchStats, params, leagueId, leagueConfig, playersMeta);
+        bindStickyMeasurement();
 
         // Re-render table colors on theme change (colorScale reads isDarkTheme at render time)
         window.addEventListener('themechange', () => {
@@ -94,32 +122,41 @@ function renderLastUpdated(lastModified) {
     document.querySelector('.page-header').appendChild(el);
 }
 
+function renderGamesPlayed(matchStats) {
+    if (!matchStats) return;
+    const pct = formatPercent(matchStats.playedRatio);
+    const el = document.createElement('div');
+    el.className = 'games-played';
+    el.textContent = `Games Played: ${matchStats.playedMatches} / ${matchStats.totalMatches} (${pct})`;
+    document.querySelector('.page-header').appendChild(el);
+}
+
 /**
  * Build the ordered list of columns for the league table based on config.
  * Each column: { key, sortKey, label }
  */
 function getColumns(config) {
     const cols = [
-        { key: 'rank', sortKey: 'rank', label: 'Rank', abbr: '#' },
-        { key: 'player', sortKey: 'player', label: 'Player', abbr: 'Player' },
-        { key: 'games', sortKey: 'games', label: 'Games', abbr: 'G' },
-        { key: 'wins', sortKey: 'wins', label: 'Wins', abbr: 'W' },
-        { key: 'losses', sortKey: 'losses', label: 'Losses', abbr: 'L' },
+        { key: 'rank', sortKey: 'rank', label: '#', dataLabel: 'Rank' },
+        { key: 'player', sortKey: 'player', label: 'Player', dataLabel: 'Player' },
+        { key: 'games', sortKey: 'games', label: 'GP', dataLabel: 'Games' },
+        { key: 'wins', sortKey: 'wins', label: 'W', dataLabel: 'Wins' },
+        { key: 'losses', sortKey: 'losses', label: 'L', dataLabel: 'Losses' },
     ];
     if (config.showWinRate) {
-        cols.push({ key: 'winRate', sortKey: 'winRate', label: 'Win Rate', abbr: 'WR%' });
+        cols.push({ key: 'winRate', sortKey: 'winRate', label: 'Win%', dataLabel: 'Win Rate' });
     }
     if (config.showPRWins) {
-        cols.push({ key: 'prWins', sortKey: 'prWins', label: 'PR Wins', abbr: 'PRW' });
-        cols.push({ key: 'points', sortKey: 'points', label: 'Points', abbr: 'Pts' });
-        cols.push({ key: 'avgPoints', sortKey: 'avgPoints', label: 'Avg Points', abbr: 'APts' });
+        cols.push({ key: 'prWins', sortKey: 'prWins', label: 'PRW', dataLabel: 'PR Wins' });
+        cols.push({ key: 'points', sortKey: 'points', label: 'PTS', dataLabel: 'Points' });
+        cols.push({ key: 'avgPoints', sortKey: 'avgPoints', label: 'Avg PTS', dataLabel: 'Avg Points' });
     }
     if (config.showPR) {
-        cols.push({ key: 'meanPR', sortKey: 'meanPR', label: 'Mean PR', abbr: 'PR' });
-        cols.push({ key: 'level', sortKey: 'meanPR', label: 'Level', abbr: 'Lv' });
+        cols.push({ key: 'meanPR', sortKey: 'meanPR', label: 'PR', dataLabel: 'Mean PR' });
+        cols.push({ key: 'level', sortKey: 'meanPR', label: 'Level', dataLabel: 'Level' });
     }
     if (config.showLuck) {
-        cols.push({ key: 'luck', sortKey: 'luck', label: 'Luck', abbr: 'Lk' });
+        cols.push({ key: 'luck', sortKey: 'luck', label: 'Luck', dataLabel: 'Luck' });
     }
     return cols;
 }
@@ -146,8 +183,8 @@ function renderSummaryTable(container, rankings, averages, matchStats, params, l
     const bronzeCount = params.BronzeCount || 4;
 
     const headerCells = columns.map((col, i) => {
-        if (i === 0) return `<th scope="col" data-col="${i}" style="cursor:default">${thLabel(col.label, col.abbr)}</th>`;
-        return `<th scope="col" data-col="${i}">${thLabel(col.label, col.abbr)} <span class="sort-icon">&#x25B2;</span></th>`;
+        if (i === 0) return `<th scope="col" data-col="${i}" style="cursor:default">${col.label}</th>`;
+        return `<th scope="col" data-col="${i}">${col.label} <span class="sort-icon">&#x25B2;</span></th>`;
     }).join('\n                        ');
 
     let html = `
@@ -156,7 +193,7 @@ function renderSummaryTable(container, rankings, averages, matchStats, params, l
     </div>
     <div class="table-wrapper">
         <div class="table-scroll">
-            <table id="leagueTable" data-league-type="${leagueConfig.type}">
+            <table id="leagueTable" class="font-small" data-league-type="${leagueConfig.type}">
                 <thead>
                     <tr>
                         ${headerCells}
@@ -166,7 +203,6 @@ function renderSummaryTable(container, rankings, averages, matchStats, params, l
 
     html += renderDataRows(rankings, extents, params, leagueId, goldCount, silverCount, bronzeCount, columns, leagueConfig, playersMeta);
     html += renderAverageRow(averages, columns, leagueConfig);
-    html += renderStatRow(matchStats, columns.length);
 
     html += `
                 </tbody>
@@ -254,7 +290,7 @@ function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCo
             html += `
                     <tr class="${rankClass}">`;
             for (const col of columns) {
-                const lbl = col.label;
+                const lbl = col.dataLabel;
                 if (col.key === 'rank') {
                     html += `<td data-label="${lbl}">${displayPos}</td>`;
                 } else if (col.key === 'player') {
@@ -281,7 +317,7 @@ function renderDataRows(rankings, extents, params, leagueId, goldCount, silverCo
         html += `
                     <tr class="${rankClass}" data-wr="${r.winRate}" data-pr="${r.meanPR}">`;
         for (const col of columns) {
-            const lbl = col.label;
+            const lbl = col.dataLabel;
             if (col.key === 'rank') {
                 html += `<td data-label="${lbl}">${getMedalHtml(r.originalRank, goldCount, silverCount, bronzeCount, displayPos)}</td>`;
             } else if (col.key === 'player') {
@@ -351,16 +387,6 @@ function renderAverageRow(averages, columns, leagueConfig) {
     return html;
 }
 
-function renderStatRow(matchStats, colCount) {
-    const pct = formatPercent(matchStats.playedRatio);
-    return `
-                    <tr class="stat-row">
-                        <td colspan="${colCount}">
-                            Games Played: ${matchStats.playedMatches} / ${matchStats.totalMatches} (${pct})
-                        </td>
-                    </tr>`;
-}
-
 // ---- Sorting ----
 
 function setupSorting(rankings, averages, matchStats, params, leagueId, leagueConfig, playersMeta = {}) {
@@ -407,8 +433,8 @@ function sortAndRerender(rankings, averages, matchStats, params, leagueId, col, 
     const extents = getColumnExtents(sorted, columns);
     const body = document.getElementById('leagueBody');
     body.innerHTML = renderDataRows(sorted, extents, params, leagueId, goldCount, silverCount, bronzeCount, columns, leagueConfig, playersMeta)
-        + renderAverageRow(averages, columns, leagueConfig)
-        + renderStatRow(matchStats, columns.length);
+        + renderAverageRow(averages, columns, leagueConfig);
+    measureLeagueStickyCols();
 }
 
 // ---- Export Image ----

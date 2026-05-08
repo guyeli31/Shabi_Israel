@@ -63,6 +63,10 @@ Playwright MCP uses a single Chrome profile at `C:\Users\User\AppData\Local\ms-p
 
 Pages already navigated in the shared browser persist across windows — a new window's first `browser_navigate` just reuses the same tab.
 
+### Playwright MCP — output directory (NEVER write to repo root)
+
+Playwright MCP is configured in `.mcp.json` to write all artifacts (screenshots, traces, sessions) into `.playwright-mcp/`, which is gitignored. **Never** save MCP-generated files at the repo root — and never pass an absolute path or a bare filename like `"foo.png"` to `browser_take_screenshot` that would land in the project root. If you need a tracked screenshot (e.g. for a design audit), explicitly write it under `docs/audit-*/screenshots/`. Repo root has a blanket `/*.png /*.jpg /*.jpeg /*.gif /*.webp` ignore rule — even an accidental drop won't be committed, but it also won't appear in `git status`, so be deliberate.
+
 No build, no dependencies, no package.json. All JS uses ES modules (`type="module"`).
 
 ## Key Conventions

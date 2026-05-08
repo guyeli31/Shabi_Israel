@@ -40,8 +40,11 @@
     margin: 0 auto;
     display: flex;
     align-items: center;
-    height: var(--nav-height);
-    padding: 0 var(--space-md);
+    /* Nav height scales with brand text size — `em` is relative to the nav-bar's
+       inherited font-size, so resizing the brand link or any nav text grows the
+       bar in step. The min-height keeps a sensible floor at default font sizes. */
+    min-height: var(--nav-height);
+    padding: 0.6em var(--space-md);
     gap: var(--space-md);
 }
 

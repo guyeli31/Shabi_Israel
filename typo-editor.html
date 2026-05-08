@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Typography Editor — Shabi Israel</title>
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/themes.css">
+    <link rel="stylesheet" href="css/typoEditor.css">
+    <script>
+      (function(){
+        var t=localStorage.getItem('shabi-theme');
+        if(t==='modern')t='nature';if(t==='royal')t='vegas';if(t&&t!=='current'){document.documentElement.dataset.theme=t;localStorage.setItem('shabi-theme',t);}
+      })();
+    </script>
+</head>
+<body class="te-shell">
+    <aside id="te-sidebar" aria-label="Typography editor controls">
+        <header class="te-header">
+            <div class="te-title">Typography Editor</div>
+
+            <div class="te-row">
+                <label class="te-mini-label">Page</label>
+                <select class="te-page-select">
+                    <option value="index.html">Index</option>
+                    <option value="league.html">League</option>
+                    <option value="dashboard.html">Dashboard</option>
+                    <option value="player_general.html">Player (general)</option>
+                    <option value="player.html">Player (per-league)</option>
+                    <option value="admin.html">Admin</option>
+                </select>
+            </div>
+
+            <div class="te-row">
+                <label class="te-mini-label">Device</label>
+                <select class="te-device-select" title="Pick a device — both width and height are simulated">
+                    <optgroup label="Desktop / Tablet">
+                        <option value="desktop">🖥 Desktop (full)</option>
+                        <option value="ipad">▭ iPad — 820×1180</option>
+                        <option value="ipad-mini">▭ iPad Mini — 768×1024</option>
+                    </optgroup>
+                    <optgroup label="iPhone (Apple)">
+                        <option value="iphone-14">📱 iPhone 13/14 — 390×844</option>
+                        <option value="iphone-15-pro">📱 iPhone 15 Pro — 393×852</option>
+                        <option value="iphone-14-pro-max">📱 iPhone 14 Pro Max — 430×932</option>
+                        <option value="iphone-16-pro-max">📱 iPhone 16 Pro Max — 440×956</option>
+                        <option value="iphone-17">📱 iPhone 17 — 402×874</option>
+                    </optgroup>
+                    <optgroup label="Samsung Galaxy">
+                        <option value="galaxy-s22">📱 Galaxy S22 — 360×780</option>
+                        <option value="galaxy-s23-ultra">📱 Galaxy S23 Ultra — 384×824</option>
+                        <option value="galaxy-s24">📱 Galaxy S24 — 360×780</option>
+                        <option value="galaxy-s25-63">📱 Galaxy S25 (6.3″) — 360×780</option>
+                        <option value="galaxy-s25-67">📱 Galaxy S25+ (6.7″) — 384×832</option>
+                        <option value="galaxy-s26-63">📱 Galaxy S26 (6.3″) — 360×780</option>
+                        <option value="galaxy-s26-67">📱 Galaxy S26+ (6.7″) — 384×832</option>
+                        <option value="galaxy-zfold5">📱 Galaxy Z Fold 5 (folded) — 344×882</option>
+                    </optgroup>
+                    <optgroup label="Google">
+                        <option value="pixel-8">📱 Pixel 8 — 412×915</option>
+                    </optgroup>
+                </select>
+                <button type="button" class="te-vp-rotate" title="Rotate (portrait ↔ landscape)">↻</button>
+            </div>
+
+            <div class="te-row">
+                <label class="te-mini-label" title="OS / browser accessibility text-size simulator (applies to every device uniformly)">A11y zoom</label>
+                <select class="te-a11y-select" title="Simulate OS / browser accessibility font-size — uniform across all devices">
+                    <option value="0.85">85% — Compact</option>
+                    <option value="1" selected>100% — Default</option>
+                    <option value="1.15">115% — Slightly larger</option>
+                    <option value="1.30">130% — Larger</option>
+                    <option value="1.50">150% — Large</option>
+                    <option value="1.75">175% — Extra large</option>
+                    <option value="2.00">200% — Largest</option>
+                </select>
+            </div>
+
+            <div class="te-row">
+                <label class="te-mini-label">Preset</label>
+                <select class="te-preset-select">
+                    <option value="a1">A1 — Major Second</option>
+                    <option value="b1">B1 — Perfect Fourth</option>
+                    <option value="c1">C1 — Tailwind</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+
+            <div class="te-bar">
+                <button class="te-reset" type="button" title="Reset all to current preset defaults">Reset</button>
+                <button class="te-save"  type="button" title="Save typography-overrides.css">💾 Save</button>
+                <button class="te-pending te-bell" type="button" hidden title="Review newly-detected rules">🔔 <span class="te-pending-count">0</span></button>
+            </div>
+
+            <div class="te-status">Loading…</div>
+        </header>
+
+        <section class="te-scale">
+            <button class="te-scale-toggle" type="button">Edit scale ▾</button>
+            <div class="te-scale-rows" hidden></div>
+        </section>
+
+        <section class="te-history">
+            <button class="te-history-toggle" type="button">History (<span class="te-history-count">0</span>) ▾</button>
+            <div class="te-history-list" hidden></div>
+        </section>
+
+        <section class="te-groups" aria-label="Editable groups">
+            <div class="te-empty-state">Loading editor…</div>
+        </section>
+
+        <footer class="te-footer">
+            <a href="index.html" class="te-exit" title="Exit editor">← Exit to live site</a>
+        </footer>
+    </aside>
+
+    <main class="te-frame-host">
+        <div class="te-frame-wrap" data-vp="desktop">
+            <iframe id="te-iframe" name="te-iframe" src="index.html" title="Live preview"></iframe>
+        </div>
+    </main>
+
+    <!-- Review dialog (hidden until pending count > 0 + bell clicked) -->
+    <div class="te-modal-backdrop" hidden></div>
+    <dialog class="te-review-dialog" hidden>
+        <header>
+            <h2>New rules detected</h2>
+            <button class="te-review-close" type="button" aria-label="Close">×</button>
+        </header>
+        <p class="te-review-hint">The auto-scanner found CSS rules that aren't in your manual list. For each one, give it a name and tier — or skip / ignore forever.</p>
+        <div class="te-review-list"></div>
+        <footer>
+            <button class="te-review-done" type="button">Done</button>
+        </footer>
+    </dialog>
+
+    <script type="module">
+        import { initTypoEditor } from './js/render/typoEditor.js';
+        initTypoEditor();
+    </script>
+</body>
+</html>
