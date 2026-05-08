@@ -205,55 +205,80 @@ function renderHeader(playerName, perLeague, meta = {}) {
 // ---- G3: PR stats ----
 
 async function renderPRStats(section, playerName, perLeague) {
-    const typesWithPR = [...new Set(
-        perLeague
-            .filter(e => e.league.config.showPR)
-            .map(e => e.league.leagueType)
-    )];
+    const PR_TYPE_ORDER = ['doubling', 'regular', 'ubc'];
+    const typesWithPR = PR_TYPE_ORDER.filter(t =>
+        perLeague.some(e => e.league.config.showPR && e.league.leagueType === t)
+    );
 
     if (typesWithPR.length === 0) {
         section.innerHTML += '<div class="pg-note">No leagues with PR tracking.</div>';
         return;
     }
 
-    const grid = document.createElement('div');
-    grid.className = 'pg-pr-grid';
-    section.appendChild(grid);
+    const tabs = document.createElement('div');
+    tabs.className = 'pg-tabs';
+    const body = document.createElement('div');
+    body.className = 'pg-tabs-body';
+    section.appendChild(tabs);
+    section.appendChild(body);
 
-    for (const type of typesWithPR) {
-        const agg = aggregatePR(perLeague, type);
-        if (!agg) continue;
+    typesWithPR.forEach((type, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'pg-tab' + (i === 0 ? ' active' : '');
+        btn.textContent = type.toUpperCase();
+        btn.addEventListener('click', () => {
+            tabs.querySelectorAll('.pg-tab').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            showPRType(body, playerName, perLeague, type);
+        });
+        tabs.appendChild(btn);
+    });
 
-        // All-time ranking (across full history)
-        const [totalRank, last300Rank] = await Promise.all([
-            rankAllTime(playerName, type, 'totalPR'),
-            rankAllTime(playerName, type, 'last300PR')
-        ]);
+    await showPRType(body, playerName, perLeague, typesWithPR[0]);
+    wireRankToggles(body, playerName);
+}
 
-        const card = document.createElement('div');
-        card.className = 'pg-pr-card';
-        card.innerHTML = `
-            <div class="pg-pr-type pg-lt pg-lt-${escapeHtml(type)}">${escapeHtml(type.toUpperCase())}</div>
-            <div class="pg-pr-row">
-                <div class="pg-pr-metric">
-                    <div class="pg-pr-label">Total PR</div>
-                    <div class="pg-pr-value">${formatNumber(agg.totalPR)}</div>
-                    ${levelBadge(agg.totalLevel)}
-                    <div class="pg-pr-rank">${rankToggleHtml(totalRank, { kind: 'pr', type, metric: 'totalPR' })}</div>
-                </div>
-                <div class="pg-pr-metric">
-                    <div class="pg-pr-label">Last 300 PR</div>
-                    <div class="pg-pr-value">${formatNumber(agg.last300PR)}</div>
-                    ${levelBadge(agg.last300Level)}
-                    <div class="pg-pr-rank">${rankToggleHtml(last300Rank, { kind: 'pr', type, metric: 'last300PR' })}</div>
-                </div>
-            </div>
-            <div class="pg-rank-expanded" hidden></div>
-        `;
-        grid.appendChild(card);
+async function showPRType(body, playerName, perLeague, type) {
+    body.innerHTML = '<div class="loading">Loading…</div>';
+
+    const agg = aggregatePR(perLeague, type);
+    if (!agg) {
+        body.innerHTML = '<div class="pg-note">No data.</div>';
+        return;
     }
 
-    wireRankToggles(section, playerName);
+    const [totalRank, last300Rank] = await Promise.all([
+        rankAllTime(playerName, type, 'totalPR'),
+        rankAllTime(playerName, type, 'last300PR')
+    ]);
+
+    const grid = document.createElement('div');
+    grid.className = 'pg-pr-grid';
+
+    const card = document.createElement('div');
+    card.className = 'pg-pr-card';
+    card.innerHTML = `
+        <div class="pg-pr-row">
+            <div class="pg-pr-metric">
+                <div class="pg-pr-label">Total PR</div>
+                <div class="pg-pr-value">${formatNumber(agg.totalPR)}</div>
+                ${levelBadge(agg.totalLevel)}
+                <div class="pg-pr-rank">${rankToggleHtml(totalRank, { kind: 'pr', type, metric: 'totalPR' })}</div>
+            </div>
+            <div class="pg-pr-metric">
+                <div class="pg-pr-label">Last 300 PR</div>
+                <div class="pg-pr-value">${formatNumber(agg.last300PR)}</div>
+                ${levelBadge(agg.last300Level)}
+                <div class="pg-pr-rank">${rankToggleHtml(last300Rank, { kind: 'pr', type, metric: 'last300PR' })}</div>
+            </div>
+        </div>
+        <div class="pg-rank-expanded" hidden></div>
+    `;
+    grid.appendChild(card);
+
+    body.innerHTML = '';
+    body.appendChild(grid);
+    wireRankToggles(body, playerName);
 }
 
 /**

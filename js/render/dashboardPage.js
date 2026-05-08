@@ -526,6 +526,7 @@ function drawHistTable(ctx, dateValue) {
     const host = document.getElementById('hist-table');
     host.innerHTML = `<div class="dash-table-wrap">${html}</div>`;
     attachPlayerNameInteractions(host, ctx.leagueId);
+    measureScrollWrapStickyCols(host.querySelector('.dash-table-wrap'));
     attachStickyShadow(host.querySelector('.dash-table-wrap'));
 }
 

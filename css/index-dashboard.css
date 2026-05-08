@@ -416,6 +416,11 @@
     color: var(--color-text-secondary);
 }
 
+.leaderboard-table th.total-col,
+.leaderboard-table td.total-col {
+    font-weight: 700;
+}
+
 
 /* Sticky first two columns (rank + player).
    Col-2 offset is a JS-measured CSS variable — no hard-coded px.

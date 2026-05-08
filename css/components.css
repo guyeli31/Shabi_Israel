@@ -190,6 +190,9 @@ tbody td {
 #playerTable tr.avg-row td:nth-child(1) {
     background: var(--color-avg-bg);
 }
+#playerTable tbody tr.unplayed td:nth-child(1) {
+    background: var(--color-unplayed-bg);
+}
 
 /* Sticky boundary drop-shadow on col 1 (Opponent) — visible ONLY when
    `.table-scroll` has `.is-scrolled-x`. Static state: no separator. */

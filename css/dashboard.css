@@ -143,29 +143,55 @@
 /* Scroll wrapper — overflow-x + corner clipping live here, not on the table.
    overflow-x:auto triggers border-radius clipping per CSS spec (no overflow:hidden needed). */
 .dash-table-wrap {
+    --col1-w: 36px; /* fallback replaced by JS (iron rule 12) */
     overflow-x: auto;
     min-width: 0;
     box-shadow: var(--shadow-sm);
 }
 
-/* B2 Historical — make th.player-col sticky-left to match tbody td.player-cell */
-.dash-table-wrap .dash-table th.player-col {
+/* B2 rank column — sticky col 1 */
+.dash-table-wrap .dash-table thead th:nth-child(1) {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    background: var(--header-bg);
+}
+.dash-table-wrap .dash-table tbody td:nth-child(1) {
     position: sticky;
     left: 0;
     z-index: 4;
+    background: var(--color-surface);
+}
+.dash-table-wrap tbody tr:hover td:nth-child(1) {
+    background: var(--color-hover);
+}
+/* B2 sticky col 1 — row tint overrides (iron rule 11) */
+.dash-table-wrap .dash-table tbody tr.rank-gold td:nth-child(1)   { background: var(--color-gold-bg); }
+.dash-table-wrap .dash-table tbody tr.rank-silver td:nth-child(1) { background: var(--color-silver-bg); }
+.dash-table-wrap .dash-table tbody tr.rank-bronze td:nth-child(1) { background: var(--color-bronze-bg); }
+.dash-table-wrap .dash-table tbody tr.unplayed-row td:nth-child(1) { background: var(--color-unplayed-bg); }
+
+/* B2 Historical — player col is sticky col 2 (offset by col 1 width) */
+.dash-table-wrap .dash-table th.player-col {
+    position: sticky;
+    left: var(--col1-w);
+    z-index: 4;
+}
+.dash-table-wrap .dash-table td.player-cell {
+    left: var(--col1-w);
 }
 
 /* B2 sticky column boundary drop-shadow — Google-style, appears only on scroll */
 .dash-table-wrap .dash-table thead th.player-col {
     box-shadow: inset 0 -1px 0 var(--color-border);
 }
-.is-scrolled-x .dash-table-wrap .dash-table thead th.player-col {
+.dash-table-wrap.is-scrolled-x .dash-table thead th.player-col {
     box-shadow: inset 0 -1px 0 var(--color-border), 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
-.is-scrolled-x .dash-table-wrap .dash-table tbody td.player-cell {
+.dash-table-wrap.is-scrolled-x .dash-table tbody td.player-cell {
     box-shadow: inset 0 -1px 0 var(--color-border), 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
-.is-scrolled-x .dash-table-wrap .dash-table tbody tr:last-child td.player-cell {
+.dash-table-wrap.is-scrolled-x .dash-table tbody tr:last-child td.player-cell {
     box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
 
@@ -529,7 +555,8 @@
 .prizes-table-wrap {
     overflow-x: auto;
     min-width: 0;
-    width: 40vw;
+    width: 70%;
+    margin: 0 auto;
     box-shadow: var(--shadow-sm);
 }
 .prizes-table {
@@ -907,16 +934,16 @@
 }
 
 /* B3/B4 sticky col-2 boundary drop-shadow — Google-style, appears only on scroll */
-.is-scrolled-x .predictor-scroll-wrap thead th:nth-child(2),
-.is-scrolled-x .whatif-scroll-wrap thead th:nth-child(2) {
+.predictor-scroll-wrap.is-scrolled-x thead th:nth-child(2),
+.whatif-scroll-wrap.is-scrolled-x thead th:nth-child(2) {
     box-shadow: inset 0 -1px 0 var(--color-border), 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
-.is-scrolled-x .predictor-scroll-wrap tbody td:nth-child(2),
-.is-scrolled-x .whatif-scroll-wrap tbody td:nth-child(2) {
+.predictor-scroll-wrap.is-scrolled-x tbody td:nth-child(2),
+.whatif-scroll-wrap.is-scrolled-x tbody td:nth-child(2) {
     box-shadow: inset 0 -1px 0 var(--color-border), 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
-.is-scrolled-x .predictor-scroll-wrap tbody tr:last-child td:nth-child(2),
-.is-scrolled-x .whatif-scroll-wrap tbody tr:last-child td:nth-child(2) {
+.predictor-scroll-wrap.is-scrolled-x tbody tr:last-child td:nth-child(2),
+.whatif-scroll-wrap.is-scrolled-x tbody tr:last-child td:nth-child(2) {
     box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
 
@@ -967,13 +994,13 @@
 }
 
 /* B5 sticky col-2 boundary drop-shadow — Google-style, appears only on scroll */
-.is-scrolled-x .rounds-scroll-wrap thead th:nth-child(2) {
+.rounds-scroll-wrap.is-scrolled-x thead th:nth-child(2) {
     box-shadow: inset 0 -1px 0 var(--color-border), 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
-.is-scrolled-x .rounds-scroll-wrap tbody td:nth-child(2) {
+.rounds-scroll-wrap.is-scrolled-x tbody td:nth-child(2) {
     box-shadow: inset 0 -1px 0 var(--color-border), 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
-.is-scrolled-x .rounds-scroll-wrap tbody tr:last-child td:nth-child(2) {
+.rounds-scroll-wrap.is-scrolled-x tbody tr:last-child td:nth-child(2) {
     box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
 
