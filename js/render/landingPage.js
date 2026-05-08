@@ -18,6 +18,7 @@ import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatc
 import { luckPercentileStats } from '../compute/luckPercentile.js';
 import { getLevel } from '../compute/rankings.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
+import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { isLoggedIn } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
 import { addChange, getChangeCount } from '../admin/stagingStore.js';
@@ -846,6 +847,7 @@ function renderCompletedLeagues(container, completed) {
     // Limit to top 10 with Show-all toggle (same pattern as Match Records)
     const tableEl = section.querySelector('.completed-leagues-table');
     if (tableEl) applyShowTopN(tableEl, 10);
+    section.querySelectorAll('.completed-table-wrapper').forEach(w => attachStickyShadow(w));
 }
 
 /* ── H2 — Annual leaderboards ─────────────────────────── */
@@ -1091,7 +1093,10 @@ function renderLeaderboards(container, leaderboards) {
         container.appendChild(section);
 
         section.querySelectorAll('.leaderboard-table').forEach(t => applyShowTopN(t));
-        section.querySelectorAll('.leaderboard-table-wrapper').forEach(w => measureLeaderboardStickyCols(w));
+        section.querySelectorAll('.leaderboard-table-wrapper').forEach(w => {
+            measureLeaderboardStickyCols(w);
+            attachStickyShadow(w);
+        });
     }
 }
 

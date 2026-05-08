@@ -11,6 +11,7 @@ import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleBadgesHtml, getHighestTier } from '../data/titleConstants.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { startSplash, endSplash } from '../utils/splash.js';
+import { attachStickyShadow } from '../utils/stickyShadow.js';
 
 let currentSortCol = -1;
 let currentSortDir = 'asc';
@@ -113,6 +114,7 @@ export async function renderPlayerPage() {
         const playerMatches = getPlayerMatches(matches, playerName, allPlayers);
         renderMatchTable(container, playerMatches, params, leagueId, playerName, leagueConfig, allMeta);
         setupSorting(playerMatches, params, leagueId, playerName, leagueConfig);
+        attachStickyShadow(document.querySelector('#playerTable')?.closest('.table-scroll'));
 
         // "Also plays in" — load cross-league index
         renderAlsoPlaysIn(container, playerName, leagueId);

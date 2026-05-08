@@ -12,6 +12,7 @@ import { renderBreadcrumbs } from './navigation.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { startSplash, endSplash } from '../utils/splash.js';
+import { attachStickyShadow } from '../utils/stickyShadow.js';
 
 let currentSortCol = -1;
 let currentSortDir = 'desc';
@@ -91,6 +92,7 @@ export async function renderLeaguePage() {
         renderSummaryTable(container, rankings, averages, matchStats, params, leagueId, leagueConfig, playersMeta);
         setupSorting(rankings, averages, matchStats, params, leagueId, leagueConfig, playersMeta);
         bindStickyMeasurement();
+        attachStickyShadow(document.querySelector('#leagueTable')?.closest('.table-scroll'));
 
         // Re-render table colors on theme change (colorScale reads isDarkTheme at render time)
         window.addEventListener('themechange', () => {
