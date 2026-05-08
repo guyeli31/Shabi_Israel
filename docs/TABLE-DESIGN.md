@@ -80,9 +80,29 @@
 
 ### E — טבלת שחקן בליגה
 
-- `#playerTable` בדף [player.html](../player.html)
+- סלקטור: `#playerTable.font-small` בתוך `.table-scroll` ב-`.table-wrapper` בדף [player.html](../player.html)
 - קובץ רינדור: [js/render/playerPage.js](../js/render/playerPage.js)
-- **מחוץ לסקופ של איחוד העיצוב**
+- **כותרות עמודה סטטיות:** `Opponent`, `Date`, `Score`, `PR`, `Opp PR`, `Luck`, `Result` (או `Points` כש-LeagueType=UBC)
+- **STICKY:** עמודה אחת בלבד — `Opponent` (השמאלית). לפי כלל ברזל 12 אין צורך במדידת JS עבור עמודה יחידה: `position: sticky; left: 0;` עובד עם `max-content` ישירות.
+
+#### פרמטרים פר-טבלה (14)
+
+| # | פרמטר | ערך עבור E |
+|---|---|---|
+| 1 | רוחב הטבלה | `width: max-content` (גזירה אוטומטית מתוכן) — `.table-scroll` הוא ה-scroll container עם `overflow: auto` |
+| 2 | מיקום בעמוד | מרכז (יורש מ-`.page-container`) — DESKTOP ו-MOBILE זהים |
+| 3 | מסגרת | `var(--radius-lg)` + `var(--shadow-md)` מ-`.table-wrapper` (לא מהטבלה) |
+| 4 | שורות STICKY | `tr.avg-row` בלבד (sticky bottom 0) |
+| 5 | עמודות STICKY | `Opponent` (השמאלית). הקסקדה מופעלת תמיד. עמודה יחידה — אין צורך ב-JS measurement. |
+| 6 | כותרת STICKY לגג | כן — `thead { position: sticky; top: 0 }` (גלובלי) |
+| 7 | סגנון שורת כותרת | A5 (UPPERCASE קומפקטי) |
+| 8 | גודל פונט | `.font-small` (C4, 0.85rem) |
+| 9 | עמודות BOLD | `Score` ו-`PR`/`Opp PR` — צד הניצח/הנמוך מודגש פר־שורה (head-to-head). `Luck` חיובי מודגש |
+| 10 | עמודות עם גוון טוב→רע | אין (זו טבלת היסטוריית משחקים אישית — אין סקאלת ערכים גלובלית) |
+| 11 | מדליות זהב/כסף/ארד | לא |
+| 12 | שורות ברירת מחדל | הצג הכל |
+| 13 | סגנון SHOW ALL | לא רלוונטי |
+| 14 | מסגור חיצוני | A5 (`.table-wrapper`) |
 
 ### F1 — Leagues (ADMIN — League Manager)
 

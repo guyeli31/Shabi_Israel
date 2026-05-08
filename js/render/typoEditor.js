@@ -49,7 +49,7 @@ const GROUPS = [
     // ── Cross-page (header / nav / breadcrumb) ──
     { id: 'page-h1',           pages: ALL_PAGES, tier: 't1', bold: true,  label: 'Page H1',                 sel: '.page-header h1' },
     { id: 'page-subtitle',     pages: ALL_PAGES, tier: 't4', bold: false, label: 'Page subtitle',           sel: '.page-header .subtitle' },
-    { id: 'section-heading',   pages: ALL_PAGES, tier: 't3', bold: true,  label: 'Section heading (all)',   sel: '.dash-section h2, .leaderboard-section h2, .notable-header, .collapsible-header' },
+    { id: 'section-heading',   pages: ALL_PAGES, tier: 't3', bold: true,  label: 'Section heading (all)',   sel: '.dash-section h2, .leaderboard-section h2, .pg-section > h2, .notable-header, .collapsible-header' },
     { id: 'card-h3',           pages: ALL_PAGES, tier: 't4', bold: true,  label: 'Card sub-heading',        sel: '.achv-table-card h3' },
     { id: 'show-more-btn',     pages: ALL_PAGES, tier: 't6', bold: false, label: 'Show all/top button',     sel: '.show-more-btn' },
     { id: 'tab-button',        pages: ALL_PAGES, tier: 't6', bold: false, label: 'Tab button',              sel: '.achv-tab' },
@@ -68,9 +68,11 @@ const GROUPS = [
     { id: 'nav-admin-label',   pages: ALL_PAGES, tier: 't7', bold: false, label: 'Nav: admin badge',        sel: '.nav-admin-label, .nav-admin-name' },
     { id: 'breadcrumbs',       pages: ALL_PAGES, tier: 't6', bold: false, label: 'Breadcrumbs',             sel: '.breadcrumbs ol' },
 
+    // ── Stat cards (shared by index + dashboard) ──
+    { id: 'stat-numbers',      pages: ALL_PAGES, tier: 't2', bold: true,  label: 'Stat numbers',            sel: '.dash-card-value' },
+    { id: 'stat-labels',       pages: ALL_PAGES, tier: 't6', bold: false, label: 'Stat labels',             sel: '.dash-card-label' },
+
     // ── Index page ──
-    { id: 'stat-numbers',      pages: ['index'], tier: 't2', bold: true,  label: 'Stat numbers',            sel: '.dash-card-value' },
-    { id: 'stat-labels',       pages: ['index'], tier: 't6', bold: false, label: 'Stat labels',             sel: '.dash-card-label' },
     { id: 'league-card-title', pages: ['index'], tier: 't4', bold: true,  label: 'League-card title',       sel: '.league-card-title' },
     { id: 'league-card-body',  pages: ['index'], tier: 't5', bold: false, label: 'League-card meta+leader', sel: '.league-card-meta, .league-card-leader' },
     { id: 'notable-name',      pages: ['index'], tier: 't4', bold: true,  label: 'Notable: player name',    sel: '.notable-row .player-name-link' },
@@ -82,16 +84,15 @@ const GROUPS = [
     { id: 'a1-table', pages: ['index'], tier: 't5', bold: false, label: 'A1 — Completed Leagues', sel: '.completed-leagues-table th, .completed-leagues-table td', isTable: true, tableSel: '.completed-leagues-table' },
     { id: 'a2-table', pages: ['index'], tier: 't5', bold: false, label: 'A2 — Annual Leaderboard', sel: '.leaderboard-table th, .leaderboard-table td', isTable: true, tableSel: '.leaderboard-table' },
     { id: 'a3-table', pages: ['index'], tier: 't6', bold: false, label: 'A3 — Achievements',
-      sel: '.achv-table:not(.pr-leaders-table):not(.match-records-table):not(.league-records-table) th, .achv-table:not(.pr-leaders-table):not(.match-records-table):not(.league-records-table) td',
-      isTable: true, tableSel: '.achv-table:not(.pr-leaders-table):not(.match-records-table):not(.league-records-table)' },
+      sel: '.achv-table:not(.pr-leaders-table):not(.match-records-table):not(.league-records-table):not(.pg-mr-table) th, .achv-table:not(.pr-leaders-table):not(.match-records-table):not(.league-records-table):not(.pg-mr-table) td',
+      isTable: true, tableSel: '.achv-table:not(.pr-leaders-table):not(.match-records-table):not(.league-records-table):not(.pg-mr-table)' },
     { id: 'a4-table', pages: ['index'], tier: 't6', bold: false, label: 'A4 — PR Leaders',         sel: '.pr-leaders-table th, .pr-leaders-table td', isTable: true, tableSel: '.pr-leaders-table' },
     { id: 'a5-table', pages: ['index'], tier: 't6', bold: false, label: 'A5 — Match Records',      sel: '.match-records-table th, .match-records-table td', isTable: true, tableSel: '.match-records-table' },
     { id: 'a6-table', pages: ['index'], tier: 't6', bold: false, label: 'A6 — League Records',     sel: '.league-records-table th, .league-records-table td', isTable: true, tableSel: '.league-records-table' },
 
     // B1-B6 — dashboard
-    { id: 'dash-card-value',   pages: ['dashboard'], tier: 't2', bold: true,  label: 'Stat numbers',            sel: '.dash-card-value' },
-    { id: 'dash-card-label',   pages: ['dashboard'], tier: 't6', bold: false, label: 'Stat labels',             sel: '.dash-card-label' },
-    { id: 'dash-section-h2',   pages: ['dashboard'], tier: 't3', bold: true,  label: 'Dashboard section H2',    sel: '.dash-section h2' },
+    // NOTE: dash-card-value/-label/-section-h2 were removed — they duplicated
+    // stat-numbers / stat-labels / section-heading and produced cascade conflicts.
     { id: 'dash-controls',     pages: ['dashboard'], tier: 't7', bold: false, label: 'Dashboard controls',      sel: '.dash-controls label, .dash-controls select, .dash-controls button' },
     { id: 'b-table',           pages: ['dashboard'], tier: 't5', bold: false, label: 'B-tables (any .dash-table)', sel: '.dash-table th, .dash-table td', isTable: true, tableSel: '.dash-table' },
     { id: 'forward-link',      pages: ['dashboard', 'league'], tier: 't7', bold: false, label: 'Forward link',  sel: '.forward-link' },

@@ -149,28 +149,13 @@ tbody td {
     z-index: 3;
 }
 
-/* ---- Player table: sticky left 1 column (Opponent); Date is 2nd, not sticky ---- */
-#playerTable thead th:nth-child(1),
-#playerTable tbody td:nth-child(1) {
-    width: 180px;
-    min-width: 180px;
-    max-width: 180px;
-}
-#playerTable thead th:nth-child(2),
-#playerTable tbody td:nth-child(2) {
-    width: 95px;
-    min-width: 95px;
-    max-width: 95px;
-}
-
-/* Tighten numeric columns (cols 3+) on player table to reclaim horizontal space.
-   #leagueTable is excluded: per iron rule 4, all cells share the table's font enum
-   (.font-small = 0.85rem); per iron rule 1, no fixed col widths. */
-#playerTable thead th:nth-child(n+3),
-#playerTable tbody td:nth-child(n+3) {
-    padding-left: 6px;
-    padding-right: 6px;
-    font-size: 0.88rem;
+/* ---- Player table (E): font enum + sticky left col (Opponent only) ----
+   Iron rule 1/12: no hard-coded widths — single sticky col uses
+   `position: sticky; left: 0;` directly with content-based width.
+   Iron rule 7: content aligned left. */
+#playerTable thead th,
+#playerTable tbody td {
+    text-align: left;
 }
 
 #playerTable thead th:nth-child(1) {
@@ -514,55 +499,25 @@ tr.retired {
     .th-full { display: none; }
     .th-abbr { display: inline; }
 
-    /* Matrix compression — small font, minimal padding, center.
-       A1 (.completed-leagues-table) is excluded: its font-size is user-controlled
-       per iron rule 3 and must not be auto-reduced on mobile.
-       .dash-table, .pg-rank-table, .pg-matches-table are also excluded: font-size is
-       controlled per-table via .font-large/.font-small (iron rule 3).
-       #leagueTable (Table D) is also excluded: it owns .font-small enum and obeys
-       iron rules 3/10 — no @media font-size or width override. */
-    #playerTable,
+    /* Matrix compression — small font, minimal padding.
+       Excluded from this @media font-size/width override (per iron rules 3/10):
+         A1 (.completed-leagues-table) — font-size is user-controlled.
+         .dash-table, .pg-rank-table, .pg-matches-table — font enum per-table.
+         #leagueTable (Table D) — owns .font-small enum.
+         #playerTable (Table E) — owns .font-small enum. */
     .pg-mr-table {
         font-size: 0.65rem;
         width: 100%;
         table-layout: auto;
     }
-    #playerTable thead th,
     .pg-mr-table thead th {
         padding: 3px 2px;
         font-size: 0.65rem;
         white-space: nowrap;
     }
-    #playerTable tbody td,
     .pg-mr-table tbody td {
         padding: 2px 3px;
         white-space: nowrap;
-    }
-
-    /* Allow player cell to wrap so long names don't force overflow */
-    #playerTable tbody td.player-cell {
-        text-align: left;
-        white-space: normal;
-        word-break: break-word;
-    }
-
-    #playerTable thead th:nth-child(n+3),
-    #playerTable tbody td:nth-child(n+3) {
-        padding-left: 3px;
-        padding-right: 3px;
-        font-size: 0.62rem;
-    }
-    #playerTable thead th:nth-child(1),
-    #playerTable tbody td:nth-child(1) {
-        width: auto;
-        min-width: 0;
-        max-width: none;
-    }
-    #playerTable thead th:nth-child(2),
-    #playerTable tbody td:nth-child(2) {
-        width: auto;
-        min-width: 0;
-        max-width: none;
     }
 
     /* Smaller medals + flag on mobile */
@@ -583,28 +538,6 @@ tr.retired {
     .retired-mark, .retired-badge {
         font-size: 0.65rem;
         margin-left: 2px;
-    }
-
-    #playerTable thead th:nth-child(1) {
-        position: sticky; left: 0; z-index: 4;
-        background: var(--header-bg);
-    }
-    #playerTable tbody td:nth-child(1) {
-        position: sticky; left: 0; z-index: 2;
-        background: var(--color-surface);
-    }
-
-    /* Avg row — keep visible but compress */
-    #playerTable tr.avg-row td {
-        padding: 3px 3px;
-        font-size: 0.65rem;
-    }
-    #playerTable tr.avg-row td:nth-child(1) {
-        background: var(--color-avg-bg) !important;
-    }
-    #playerTable tr.stat-row td {
-        padding: 3px 3px;
-        font-size: 0.65rem;
     }
 }
 
