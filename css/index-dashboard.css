@@ -348,29 +348,23 @@
     background: var(--color-hover);
 }
 
-/* Inner scroll container — mirrors D's `.table-scroll`. Rounded corners
-   and background live on the outer `.table-wrapper` (layout.css) so the
-   scroll context here doesn't clip the bottom hairline of sticky cells
-   at the rounded edge. */
 .leaderboard-table-wrapper {
     overflow-x: auto;
-    overflow-y: auto;
-    max-height: 440px;
     max-width: 100%;
     min-width: 0;
+    margin-bottom: var(--space-xl);
+    box-shadow: var(--shadow-sm);
 }
 
-/* Completed leagues table wrapper with scroll.
-   Rounded-corner clipping moved here from the table so the table's
-   overflow stays `visible` and left-column `position: sticky` works. */
+/* Completed leagues table wrapper — MF-compliant: overflow-x only, box-shadow
+   on wrapper (not table), no border-radius, no vertical scroll cap.
+   Row visibility is controlled by .table-row-hidden (Show Top N mechanism). */
 .completed-table-wrapper {
     overflow-x: auto;
-    overflow-y: auto;
-    max-height: 440px;
     margin-bottom: var(--space-lg);
     max-width: 100%;
     min-width: 0;
-    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
 }
 
 /* font-size comes from `.font-large` / `.font-small` on the <table>
@@ -383,13 +377,13 @@
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
+    background: var(--color-surface);
     color: var(--color-text);
 }
 
 .leaderboard-table th,
 .leaderboard-table td {
-    /* Vertical padding scales linearly with viewport (matches global tables). */
-    padding: clamp(3px, 0.6vw, 8px) var(--space-md);
+    padding: 0.45em var(--space-md);
     box-shadow: inset 0 -1px 0 var(--color-border);
     text-align: left;
     white-space: nowrap;
@@ -409,10 +403,6 @@
     z-index: 3;
 }
 
-.leaderboard-table td.player-cell {
-    padding-left: var(--space-md);
-    font-weight: 600;
-}
 
 .leaderboard-table td.player-cell .flag {
     height: 1em;
@@ -421,21 +411,11 @@
     object-fit: cover;
 }
 
-.leaderboard-table th.player-col {
-    padding-left: var(--space-md);
-}
-
-.leaderboard-table .month-col {
-    min-width: 42px;
-}
 
 .leaderboard-table td.month-col {
     color: var(--color-text-secondary);
 }
 
-.leaderboard-table .total-col {
-    font-weight: 700;
-}
 
 /* Sticky first two columns (rank + player).
    Col-2 offset is a JS-measured CSS variable — no hard-coded px.
@@ -505,7 +485,7 @@
     border-collapse: separate;
     border-spacing: 0;
     background: var(--color-surface);
-    box-shadow: var(--shadow-sm);
+    color: var(--color-text);
 }
 
 /* Bottom hairline mechanism mirrors Table D (#leagueTable):
@@ -513,10 +493,10 @@
    so the line stitches across the sticky/non-sticky boundary seamlessly. */
 .completed-leagues-table th,
 .completed-leagues-table td {
-    /* Vertical padding scales linearly with viewport (unified across all tables). */
-    padding: clamp(3px, 0.6vw, 8px) var(--space-md);
+    padding: 0.45em var(--space-md);
     box-shadow: inset 0 -1px 0 var(--color-border);
     text-align: left;
+    white-space: nowrap;
     font-size: inherit;
 }
 .completed-leagues-table tbody tr:last-child td {
@@ -529,7 +509,7 @@
     font-weight: 600;
     position: sticky;
     top: 0;
-    z-index: 1;
+    z-index: 3;
 }
 
 /* LEAGUE column: sticky left on both viewports.
@@ -552,17 +532,6 @@
     z-index: 2;
     background: var(--color-surface);
 }
-/* Row tint applied opaquely to every td (incl. sticky) so sticky matches row
-   and non-sticky content cannot leak through during horizontal scroll. */
-.completed-leagues-table tr.row-type-doubling td {
-    background: color-mix(in srgb, var(--color-surface) 94%, rgb(59,130,246) 6%);
-}
-.completed-leagues-table tr.row-type-regular td {
-    background: color-mix(in srgb, var(--color-surface) 94%, rgb(16,185,129) 6%);
-}
-.completed-leagues-table tr.row-type-ubc td {
-    background: color-mix(in srgb, var(--color-surface) 94%, rgb(245,158,11) 6%);
-}
 .completed-leagues-table tr:hover td {
     background: var(--color-hover);
 }
@@ -574,7 +543,7 @@
 }
 
 .completed-leagues-table td a {
-    color: var(--color-accent);
+    color: var(--color-text);
     text-decoration: none;
 }
 
@@ -1159,11 +1128,6 @@ body:has(.edit-bar) .theme-picker {
  * MOBILE (≤640px) — Step 6.6 compression for landing + achievements
  * ============================================================ */
 @media (max-width: 640px) {
-    .leaderboard-table th.player-col,
-    .leaderboard-table td.player-cell {
-        padding-left: 4px;
-    }
-
     /* Achievement + match-records tables — allow horizontal scroll.
        Padding scales via clamp() on base rule; white-space set in base rule. */
     .achv-table-wrapper {
@@ -1217,11 +1181,6 @@ body:has(.edit-bar) .theme-picker {
         margin-left: 0;
         margin-right: 0;
     }
-    /* A2 leaderboard wrapper takes the full available width on mobile. */
-    .leaderboard-table-wrapper {
-        width: 100%;
-        max-width: 100%;
-    }
 }
 
 /* ── Show-more / Show-top-N toggle ─────────────────── */
@@ -1229,18 +1188,30 @@ body:has(.edit-bar) .theme-picker {
 
 .show-more-btn {
     display: block;
-    margin: var(--space-sm) auto 0;
+    margin: var(--space-sm) auto var(--space-xl);
     padding: 4px 16px;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     font-family: var(--font-main);
+    color: var(--color-text);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     background: var(--color-surface);
-    color: var(--color-accent);
     cursor: pointer;
     transition: background 0.15s;
 }
 .show-more-btn:hover { background: var(--color-hover); }
+
+/* When a show-more button immediately follows the table wrapper,
+   collapse the wrapper's bottom margin so the button sits flush. */
+.leaderboard-table-wrapper:has(+ .show-more-btn),
+.completed-table-wrapper:has(+ .show-more-btn) {
+    margin-bottom: 0;
+}
+.leaderboard-table-wrapper + .show-more-btn,
+.completed-table-wrapper + .show-more-btn {
+    margin-top: 0.45em;
+    margin-bottom: var(--space-xl);
+}
 
 /* ── Edit-mode: drag-handle narrow + Date+League sticky (mobile) ─── */
 

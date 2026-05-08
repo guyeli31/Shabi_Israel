@@ -167,7 +167,79 @@
 
 ---
 
-## חלק 2 — פרמטרים פר־טבלה (14)
+## חלק 2 — MF (Main Format)
+
+The standard table variant used by: **A1, A2, D, E, all B, C1, C2, C3.**
+
+To convert a table to MF in a future session, say:
+> "עדכן את טבלה X כך שתפעל על פי הוואריאנט MF, הבן לבד מהם הפרמטרים הייחודיים לטבלה זו שאיתם תבנה את הטבלה ושאל אותי במידת הצורך שאלות"
+
+---
+
+### General parameters (shared — no per-table override)
+
+| Parameter | Value |
+|---|---|
+| Collapse | `border-collapse: separate; border-spacing: 0` |
+| Row hairlines | `inset 0 -1px 0 var(--color-border)` on all cells; removed on last row |
+| Text alignment | `text-align: left` |
+| Wrapping | `white-space: nowrap` |
+| Table background | `var(--color-surface)` |
+| Text color | `var(--color-text)` |
+| Header background | `var(--header-bg)` |
+| Header text | `var(--header-text)` |
+| Border / hairline color | `var(--color-border)` |
+| Hover | `var(--color-hover)` — applied to all cells in the hovered row |
+| Cell padding | `0.45em var(--space-md)` — vertical scales proportionally with font-size |
+| Sticky header | `thead { position: sticky; top: 0 }` |
+| Scroll shadow | `attachStickyShadow()` toggles `.is-scrolled-x` → drop-shadow on sticky col boundary, only during horizontal scroll |
+| Frame shadow | `box-shadow: var(--shadow-sm)` on wrapper — no `border-radius` |
+
+---
+
+### Configuration parameters (per-table variants)
+
+| # | Parameter | Options |
+|---|---|---|
+| 1 | **Font size** | `font-small` (0.85rem) / `font-large` — class on `<table>`; padding and Show All button font-size derive automatically. Configurable via [typo-editor](../typo-editor.html). |
+| 2 | **Bold columns** | Per-selector `font-weight` toggle. Configurable via [typo-editor](../typo-editor.html). |
+| 3 | **Sticky cols** | None / col 1 only (`left: 0`) / cols 1+2 (col 2 offset JS-measured via `--sticky-col-1-width`) |
+| 4 | **Medal rows** | Off / On — gold/silver/bronze tints on rows 1–3, all cells including sticky |
+| 5 | **Summary row** | Off / On — `tr.avg-row`, sticky to bottom |
+| 6 | **Show All** | Disabled (show all rows) / Top N — `applyShowTopN(table, N)` |
+| 7 | **Column colors** | Per-column gradient scale (e.g. green→red for Win%, inverted for Losses) |
+| 8 | **Sort** | Sortable columns + default sort column and direction |
+
+---
+
+### Implementation
+
+**HTML structure**
+```html
+<div class="mf-wrapper">                        <!-- overflow-x: auto, box-shadow -->
+  <table class="font-small">                    <!-- or font-large -->
+    <thead><tr>...</tr></thead>
+    <tbody>...</tbody>
+  </table>
+</div>
+```
+
+**JS wiring (after render)**
+```js
+// Sticky col 2 offset — only when 2 sticky cols
+measureStickyCols(wrapper);          // sets --sticky-col-1-width on wrapper
+window.addEventListener('resize', () => measureStickyCols(wrapper));
+
+// Scroll drop-shadow
+attachStickyShadow(wrapper);         // js/utils/stickyShadow.js
+
+// Show All — omit if showing all rows
+applyShowTopN(table, N);
+```
+
+---
+
+## חלק 2ב — פרמטרים פר־טבלה (14)
 
 כשנדרש להגדיר טבלה חדשה או לשנות קיימת, חובה לענות על 14 הפרמטרים הבאים.
 

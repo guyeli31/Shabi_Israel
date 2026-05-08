@@ -22,6 +22,7 @@ import { predictChampionship, computeTopXPct } from '../compute/championshipPred
 import { batchLast300PR } from '../compute/crossLeague.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
+import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { startSplash, endSplash } from '../utils/splash.js';
 
 export async function renderDashboardPage() {
@@ -525,6 +526,7 @@ function drawHistTable(ctx, dateValue) {
     const host = document.getElementById('hist-table');
     host.innerHTML = `<div class="dash-table-wrap">${html}</div>`;
     attachPlayerNameInteractions(host, ctx.leagueId);
+    attachStickyShadow(host.querySelector('.dash-table-wrap'));
 }
 
 // ---------- Championship Predictor ----------
@@ -662,17 +664,20 @@ async function renderPredictor(ctx) {
                 </div>`;
             attachPlayerNameInteractions(host, ctx.leagueId);
             measureScrollWrapStickyCols(host.querySelector('.predictor-scroll-wrap'));
+            attachStickyShadow(host.querySelector('.predictor-scroll-wrap'));
         };
 
         renderTable(false);
 
         // Show expand button if more than 5 players
         if (result.rankings.length > 5) {
+            const total = result.rankings.length;
             expandBtn.style.display = '';
+            expandBtn.textContent = `Show all (${total})`;
             expandBtn.onclick = () => {
                 expanded = !expanded;
                 renderTable(expanded);
-                expandBtn.textContent = expanded ? 'Show Top 5' : 'Show Full Table';
+                expandBtn.textContent = expanded ? 'Show top 5' : `Show all (${total})`;
             };
         }
     } catch (err) {
@@ -996,16 +1001,19 @@ function renderWhatIfSimulator(ctx) {
                     </div>`;
                 attachPlayerNameInteractions(tableHost, ctx.leagueId);
                 measureScrollWrapStickyCols(tableHost.querySelector('.whatif-scroll-wrap'));
+                attachStickyShadow(tableHost.querySelector('.whatif-scroll-wrap'));
             };
 
             renderTable(false);
 
             if (result.rankings.length > 5) {
+                const total = result.rankings.length;
                 expandBtn.style.display = '';
+                expandBtn.textContent = `Show all (${total})`;
                 expandBtn.onclick = () => {
                     expanded = !expanded;
                     renderTable(expanded);
-                    expandBtn.textContent = expanded ? 'Show Top 5' : 'Show Full Table';
+                    expandBtn.textContent = expanded ? 'Show top 5' : `Show all (${total})`;
                 };
             } else {
                 expandBtn.style.display = 'none';
@@ -1116,6 +1124,7 @@ function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFla
         };
         measure();
         if (typeof ResizeObserver !== 'undefined') new ResizeObserver(measure).observe(wrap);
+        attachStickyShadow(wrap);
     }
 }
 

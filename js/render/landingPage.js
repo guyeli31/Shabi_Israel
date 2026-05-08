@@ -1053,20 +1053,18 @@ function renderLeaderboards(container, leaderboards) {
                     </div>
                 </div>
                 <div class="collapsible-body">
-                    <div class="table-wrapper">
-                        <div class="leaderboard-table-wrapper">
-                            <table class="leaderboard-table font-small">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">#</th>
-                                        <th scope="col" class="player-col">Player</th>
-                                        ${thMonths}
-                                        ${thExtra}
-                                    </tr>
-                                </thead>
-                                <tbody>${rowsHtml}</tbody>
-                            </table>
-                        </div>
+                    <div class="leaderboard-table-wrapper">
+                        <table class="leaderboard-table font-small">
+                            <thead>
+                                <tr>
+                                    <th scope="col">#</th>
+                                    <th scope="col" class="player-col">Player</th>
+                                    ${thMonths}
+                                    ${thExtra}
+                                </tr>
+                            </thead>
+                            <tbody>${rowsHtml}</tbody>
+                        </table>
                     </div>
                 </div>
             </div>`;
