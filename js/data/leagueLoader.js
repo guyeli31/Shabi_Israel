@@ -5,7 +5,8 @@
 import { parseCSV, parseCSVAll, countAllPlayers, getAllPlayersFromCSV } from './csvParser.js';
 import { loadMatchHistory, mergeHistoryIntoMatches } from '../compute/matchHistory.js';
 
-const LEAGUES_BASE = 'leagues';
+let LEAGUES_BASE = 'leagues';
+export function setLeaguesBase(path) { LEAGUES_BASE = path; }
 
 /**
  * Load full landing settings (title, subtitle, logo, display order).

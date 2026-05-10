@@ -407,7 +407,11 @@ tr.unplayed td {
 }
 
 tr.unplayed td.player-cell {
-    font-style: normal;
+    font-style: italic;
+}
+
+tr.unplayed td.player-cell a {
+    color: var(--color-text-muted);
 }
 
 /* ---- Retired players ---- */
