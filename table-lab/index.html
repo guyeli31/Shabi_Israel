@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MF Table Lab</title>
+    <!-- Project design tokens + global table styles -->
+    <link rel="stylesheet" href="../css/variables.css">
+    <link rel="stylesheet" href="../css/layout.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/themes.css">
+    <!-- Lab UI chrome + .mf-wrap definition -->
+    <link rel="stylesheet" href="./lab.css">
+    <link rel="stylesheet" href="../css/theme-picker.css">
+    <!-- Apply saved theme before first paint -->
+    <script>
+        (function () {
+            var t = localStorage.getItem('shabi-theme');
+            if (t === 'modern') t = 'nature';
+            if (t === 'royal')  t = 'vegas';
+            if (t && t !== 'current') document.documentElement.dataset.theme = t;
+            var c = localStorage.getItem('shabi-custom-vars');
+            if (c) { try { var v = JSON.parse(c); for (var k in v) document.documentElement.style.setProperty(k, v[k]); } catch(e){} }
+        })();
+    </script>
+</head>
+<body>
+
+<header class="lab-header">
+    <button class="args-toggle" id="args-toggle" title="Toggle args panel" aria-pressed="false">☰ Args</button>
+    <span class="lab-title">MF Table Lab</span>
+    <nav class="preset-tabs" role="tablist">
+        <button class="preset-tab active" data-preset="A1" role="tab">A1 — Completed Leagues</button>
+        <button class="preset-tab"        data-preset="A2" role="tab">A2 — Annual Leaderboard</button>
+        <button class="preset-tab"        data-preset="D"  role="tab">D — League Table</button>
+        <button class="preset-tab"        data-preset="E"  role="tab">E — Match History</button>
+    </nav>
+</header>
+
+<main class="lab-workspace">
+
+    <!-- LEFT: argument panel -->
+    <aside class="args-column">
+        <div id="args-panel"></div>
+    </aside>
+
+    <!-- RIGHT: live table preview -->
+    <section class="preview-column">
+        <div id="mf-table-wrap" class="mf-wrap"></div>
+    </section>
+
+</main>
+
+<script type="module" src="./lab.js"></script>
+<script>
+    const toggleBtn = document.getElementById('args-toggle');
+    const workspace = document.querySelector('.lab-workspace');
+    toggleBtn.addEventListener('click', () => {
+        const collapsed = workspace.classList.toggle('args-collapsed');
+        toggleBtn.setAttribute('aria-pressed', collapsed);
+        toggleBtn.textContent = collapsed ? '☰ Args' : '✕ Args';
+    });
+</script>
+</body>
+</html>

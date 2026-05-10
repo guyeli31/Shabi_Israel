@@ -1,0 +1,297 @@
+/* lab.css — Table Lab UI chrome only. Table styles come from components.css. */
+
+/* ── Layout ─────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+/* ── Header / tabs ───────────────────────────── */
+
+.lab-header {
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    padding: 0 var(--space-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--space-xl);
+}
+
+.lab-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.preset-tabs {
+    display: flex;
+    gap: 2px;
+}
+
+.preset-tab {
+    padding: 0.7em 1.2em;
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.preset-tab:hover {
+    color: var(--color-text);
+}
+
+.preset-tab.active {
+    color: var(--color-accent, #2563eb);
+    border-bottom-color: var(--color-accent, #2563eb);
+}
+
+/* ── Args toggle button ──────────────────────── */
+
+.args-toggle {
+    padding: 0.4em 0.8em;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s, background 0.15s;
+}
+.args-toggle:hover {
+    color: var(--color-text);
+    background: var(--color-hover);
+}
+
+/* ── Two-column workspace ────────────────────── */
+
+.lab-workspace {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    overflow: hidden;
+    transition: grid-template-columns 0.2s ease;
+}
+
+.lab-workspace.args-collapsed {
+    grid-template-columns: 0px 1fr;
+}
+
+.args-column {
+    min-width: 0; /* allow grid to shrink this track below min-content */
+}
+
+.lab-workspace.args-collapsed .args-column {
+    overflow: hidden;
+    padding: 0;
+    border-right: none;
+}
+
+/* ── Args panel (left) ───────────────────────── */
+
+.args-column {
+    border-right: 1px solid var(--color-border);
+    overflow-y: auto;
+    padding: var(--space-lg);
+    background: var(--color-surface);
+}
+
+.args-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-md);
+}
+
+.arg-row {
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.arg-row:last-child { border-bottom: none; }
+
+.arg-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: 4px;
+}
+
+.arg-name {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--color-text);
+    background: none;
+    padding: 0;
+}
+
+.arg-value {
+    font-size: 0.78rem;
+    font-family: monospace;
+    color: var(--color-accent, #2563eb);
+    background: color-mix(in srgb, var(--color-accent, #2563eb) 8%, transparent);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+.arg-null {
+    font-size: 0.78rem;
+    font-family: monospace;
+    color: var(--color-text-muted);
+}
+
+.arg-true {
+    font-size: 0.78rem;
+    font-family: monospace;
+    color: var(--color-win, #15803d);
+}
+
+.arg-false {
+    font-size: 0.78rem;
+    font-family: monospace;
+    color: var(--color-loss, #b91c1c);
+}
+
+.arg-base-doc {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin: 0 0 3px;
+    line-height: 1.4;
+}
+
+.arg-extra-doc {
+    font-size: 0.75rem;
+    color: var(--color-text);
+    margin: 0;
+    line-height: 1.4;
+    padding-left: var(--space-sm);
+    border-left: 2px solid var(--color-accent, #2563eb);
+}
+
+/* ── Preview column (right) ──────────────────── */
+
+.preview-column {
+    overflow: auto;
+    padding: var(--space-xl);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+/* ── .mf-wrap — the unified MF scroll wrapper ── */
+
+.mf-wrap {
+    overflow-x: auto;
+    min-width: 0;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: var(--mf-mb, var(--space-lg));
+    width: var(--mf-width, 100%);
+    max-width: var(--mf-max-width, 1100px);
+    background: var(--mf-bg, transparent);
+}
+
+/* Iron Rule 7: left-align all cells */
+.mf-wrap thead th,
+.mf-wrap tbody td {
+    text-align: left;
+}
+
+/* Flag height controlled per-table via CSS variable (A1/A2 use 1em, D/E use 16px) */
+.mf-wrap .flag {
+    height: var(--mf-flag-height, 16px);
+}
+
+/* Total column (A2 TOT) — matches .total-col in index-dashboard.css */
+.mf-wrap .total-col {
+    font-weight: 700;
+}
+
+/* Default opaque background on ALL body cells — including sticky ones.
+   This prevents non-sticky content bleeding through on scroll (iron rule 11).
+   Must be in CSS (not inline) so the cascade below can override it per row-state. */
+.mf-wrap tbody td {
+    background: var(--color-surface);
+}
+
+/* Medal row tints — apply to ALL td (sticky + non-sticky) so the full row matches. */
+.mf-wrap tbody tr.rank-gold   td { background: var(--color-gold-bg); }
+.mf-wrap tbody tr.rank-silver td { background: var(--color-silver-bg); }
+.mf-wrap tbody tr.rank-bronze td { background: var(--color-bronze-bg); }
+
+/* Avg-row background — must beat the generic tbody td rule (same specificity, later source wins against us).
+   Use the extra .mf-wrap selector to raise specificity above .mf-wrap tbody td. */
+.mf-wrap tbody tr.avg-row td       { background: var(--color-avg-bg); }
+.mf-wrap tbody tr.avg-row:hover td { background: var(--color-avg-bg); }
+
+/* Hover — all td including sticky */
+.mf-wrap tbody tr:hover td {
+    background: var(--color-hover);
+}
+.mf-wrap tbody tr.rank-gold:hover   td { background: var(--color-gold-bg-hover); }
+.mf-wrap tbody tr.rank-silver:hover td { background: var(--color-silver-bg-hover); }
+.mf-wrap tbody tr.rank-bronze:hover td { background: var(--color-bronze-bg-hover); }
+
+/* Drop-shadow on sticky column boundary — only during horizontal scroll.
+   .is-scrolled-x is toggled by attachStickyShadow() when scrollLeft > 0.
+   .sticky-last marks the rightmost sticky column's cells (set by applyStickyLeftCols). */
+.mf-wrap.is-scrolled-x thead .sticky-last {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.mf-wrap.is-scrolled-x tbody .sticky-last {
+    box-shadow: inset 0 -1px 0 var(--color-border), 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.mf-wrap.is-scrolled-x tbody tr:last-child .sticky-last,
+.mf-wrap.is-scrolled-x tbody tr.avg-row .sticky-last {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+
+/* Row visibility toggle (Show Top N mechanism) */
+.table-row-hidden { display: none !important; }
+
+/* Unplayed match rows (E table) */
+.mf-wrap tbody tr.unplayed td { background: var(--color-unplayed-bg, var(--color-surface)); }
+.mf-wrap tbody tr.unplayed:hover td { background: var(--color-hover); }
+
+/* Show-all button — matches real app (index-dashboard.css) */
+.show-more-btn {
+    display: block;
+    padding: 4px 16px;
+    font-size: 0.85rem;
+    font-family: var(--font-main);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.show-more-btn:hover {
+    background: var(--color-hover);
+}
+
+/* Collapse wrapper bottom margin when Show All follows; button provides its own spacing */
+.mf-wrap:has(+ .show-more-btn) {
+    margin-bottom: 0;
+}
+.mf-wrap + .show-more-btn {
+    margin: 0.45em 0 var(--space-xl) 0;
+}
