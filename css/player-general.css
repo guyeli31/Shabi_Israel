@@ -440,28 +440,8 @@
 }
 
 
-/* G5 — Matches chart card */
-.pg-section .chart-panel {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    padding: var(--space-md);
-    margin-bottom: 16px;
-}
-
-.chart-tooltip {
-    position: absolute;
-    pointer-events: none;
-    background: var(--color-text);
-    color: var(--color-surface);
-    padding: 8px 10px;
-    border-radius: var(--radius-sm);
-    font-size: 0.82rem;
-    line-height: 1.4;
-    box-shadow: var(--shadow-md);
-    z-index: 10;
-    white-space: nowrap;
-}
+/* G5 — Matches chart card: uses shared .chart-panel from components.css */
+/* .chart-tooltip removed — chart now uses .chart-info-panel below canvas (defined in components.css) */
 
 .pg-section .dash-controls {
     display: flex;
@@ -486,10 +466,6 @@
 .pg-chart-host {
     max-width: 100%;
     overflow: hidden;
-}
-.pg-chart-host .bar-chart-canvas {
-    width: 100%;
-    height: auto;
 }
 .pg-matches-table .na {
     color: var(--color-text-muted);

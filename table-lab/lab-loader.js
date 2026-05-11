@@ -9,9 +9,10 @@ import { computeAllStats } from '../js/compute/stats.js';
 import { buildRankings, computeAverages } from '../js/compute/rankings.js';
 import { getLeagueConfig } from '../js/compute/leagueTypes.js';
 import { getFlagCode } from '../js/utils/helpers.js';
-import { getPlayerMatches } from '../js/data/csvParser.js';
-import { colorForLevel } from '../js/compute/colorScale.js';
+import { getPlayerMatches, parseCSVAllWithRounds } from '../js/data/csvParser.js';
+import { colorForValue, colorForValueInverted, colorForLevel } from '../js/compute/colorScale.js';
 import { LEVELS } from '../js/compute/rankings.js';
+import { loadPlayerAcrossLeagues, flattenAllMatches } from '../js/compute/crossLeague.js';
 
 // Lab pages sit one level deep — redirect fetches to the correct root
 setLeaguesBase('../leagues');
@@ -61,22 +62,27 @@ function buildGlobalFlags(leagues) {
     return flags;
 }
 
+function avg(arr, key) {
+    const vals = arr.filter(r => typeof r[key] === 'number');
+    if (!vals.length) return null;
+    return vals.reduce((s, r) => s + r[key], 0) / vals.length;
+}
+
 // ─── A1: Completed Leagues ────────────────────────
 // Matches real: League | Date | Type | Winner
 
 function buildA1(completedResults, globalFlags) {
     const cols = [
-        { key: 'league',  label: 'League',  type: 'string', sortable: true,  colorScale: null },
-        { key: 'date',    label: 'Date',     type: 'string', sortable: true,  colorScale: null },
-        { key: 'type',    label: 'Type',     type: 'string', sortable: true,  colorScale: null,
-          format: v => v },  // pre-built HTML badge
-        { key: 'winner',  label: 'Winner',   type: 'string', sortable: true,  colorScale: null,
+        { key: 'league', label: 'League', type: 'string', sortable: false, colorFn: null },
+        { key: 'date',   label: 'Date',   type: 'string', sortable: false, colorFn: null },
+        { key: 'type',   label: 'Type',   type: 'string', sortable: false, colorFn: null },
+        { key: 'winner', label: 'Winner', type: 'string', sortable: false, colorFn: null,
           tdClass: 'player-cell', format: v => playerCell(v, globalFlags) },
     ];
 
     const data = completedResults.map(({ league, rankings }) => {
-        const winner   = rankings[0];
-        const type     = league.params.LeagueType || 'doubling';
+        const winner    = rankings[0];
+        const type      = league.params.LeagueType || 'doubling';
         const typeLabel = TYPE_LABELS[type] || type;
         return {
             league: league.params.LeagueTitle || league.id,
@@ -86,7 +92,7 @@ function buildA1(completedResults, globalFlags) {
         };
     });
 
-    return { data, cols, summary: null };
+    return { data, cols };
 }
 
 // ─── A2: Annual Leaderboard ───────────────────────
@@ -94,7 +100,7 @@ function buildA1(completedResults, globalFlags) {
 
 function buildA2(allResults, globalFlags) {
     // Group by (year, leagueType) — same logic as real buildAnnualLeaderboard
-    const groups = new Map(); // key "year|type" → { year, type, results[] }
+    const groups = new Map();
     for (const result of allResults) {
         const iso  = result.league.params.IssueDate || '';
         const year = iso.slice(0, 4);
@@ -110,7 +116,7 @@ function buildA2(allResults, globalFlags) {
         b.year !== a.year ? b.year.localeCompare(a.year) : 0
     );
     const group = sorted.find(g => g.type === 'doubling') || sorted[0];
-    if (!group) return { data: [], cols: [], summary: null };
+    if (!group) return { data: [], cols: [] };
 
     // Sort leagues within group by month (ascending)
     group.results.sort((a, b) => {
@@ -164,31 +170,35 @@ function buildA2(allResults, globalFlags) {
     rows.forEach((r, i) => { r.rank = i + 1; });
 
     const cols = [
-        { key: 'rank',   label: '#',      type: 'number', sortable: false, colorScale: null,
-          format: v => rankBadge(v) },
-        { key: 'player', label: 'Player', type: 'string', sortable: true,  colorScale: null,
+        { key: 'rank',   label: '#',      type: 'number', sortable: false, colorFn: null,
+          format: v => rankBadge(v, 1, 1, 1) },
+        { key: 'player', label: 'Player', type: 'string', sortable: true,  colorFn: null,
           tdClass: 'player-cell', format: (v, row) => playerCell(v, globalFlags) },
         ...monthEntries.map(({ abbr }) => ({
-            key: abbr.toLowerCase(), label: abbr, type: 'number', sortable: true, colorScale: 'good-to-bad',
+            key: abbr.toLowerCase(), label: abbr, type: 'number', sortable: true,
+            colorFn: null,
         })),
-        { key: 'total',   label: 'Tot',   type: 'number', sortable: true,  colorScale: 'good-to-bad',
+        { key: 'total',   label: '<b>Tot</b>', type: 'number', sortable: true,
+          colorFn: null,
           tdClass: 'total-col' },
-        { key: 'winRate', label: 'Win%',  type: 'number', sortable: true,  colorScale: 'good-to-bad',
+        { key: 'winRate', label: 'Win%',  type: 'number', sortable: true,
+          colorFn: null,
           format: v => formatPercent2(v) },
-        { key: 'meanPR',  label: 'PR',    type: 'number', sortable: true,  colorScale: 'bad-to-good',
+        { key: 'meanPR',  label: 'PR',    type: 'number', sortable: true,
+          colorFn: null,
           format: v => v.toFixed(2) },
     ];
 
-    return { data: rows, cols, summary: null };
+    return { data: rows, cols, medalCounts: { gold: 1, silver: 1, bronze: 1 } };
 }
 
 // ─── D: League Table ──────────────────────────────
-// Matches real: # (badge) | Player | GP | W | L | Win% (2dp) | PR | Level | Luck
+// Matches real: # (badge) | Player | GP | W | L | Win% | PR | Level | Luck
 
 function buildD(allResults) {
     const result = allResults.find(r => r.league.params.Running)
                 || allResults.find(r => !r.league.params.Running);
-    if (!result) return { data: [], cols: [], summary: null, leagueTitle: '?' };
+    if (!result) return { data: [], cols: [], leagueTitle: '?' };
 
     const { league, config, rankings, avgRow } = result;
     const cf          = league.params.CustomFlags || {};
@@ -199,145 +209,640 @@ function buildD(allResults) {
     const levelEdges = new Set([LEVELS[0].label, LEVELS[LEVELS.length - 1].label]);
 
     const cols = [
-        { key: 'rank',    label: '#',      type: 'number', sortable: false, colorScale: null,
+        { key: 'rank',   label: '#',      type: 'number', sortable: false, colorFn: null,
           format: v => rankBadge(v, goldCount, silverCount, bronzeCount) },
-        { key: 'player',  label: 'Player', type: 'string', sortable: true,  colorScale: null,
+        { key: 'player', label: 'Player', type: 'string', sortable: true,  colorFn: null,
           tdClass: 'player-cell', format: v => playerCell(v, cf) },
-        { key: 'gp',      label: 'GP',     type: 'number', sortable: true,  colorScale: 'good-to-bad', boldExtreme: true },
-        { key: 'wins',    label: 'W',      type: 'number', sortable: true,  colorScale: 'good-to-bad', boldExtreme: true },
-        { key: 'losses',  label: 'L',      type: 'number', sortable: true,  colorScale: 'bad-to-good', boldExtreme: true },
-        { key: 'winRate', label: 'Win%',   type: 'number', sortable: true,  colorScale: 'good-to-bad', boldExtreme: true,
-          format: v => formatPercent2(v) },
-        { key: 'meanPR',  label: 'PR',     type: 'number', sortable: true,  colorScale: 'bad-to-good', boldExtreme: true,
+        { key: 'gp',     label: 'GP',     type: 'number', sortable: true,
+          colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true },
+        { key: 'wins',   label: 'W',      type: 'number', sortable: true,
+          colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true },
+        { key: 'losses', label: 'L',      type: 'number', sortable: true,
+          colorFn: (v, min, max) => colorForValueInverted(v, min, max), boldExtreme: true },
+        ...(config.showWinRate ? [
+            { key: 'winRate', label: 'Win%', type: 'number', sortable: true,
+              colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true,
+              format: v => formatPercent2(v) },
+        ] : []),
+        ...(config.showPRWins ? [
+            { key: 'prWins',    label: 'PRW',     type: 'number', sortable: true,
+              colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true },
+            { key: 'points',    label: 'Pts',     type: 'number', sortable: true,
+              colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true },
+            { key: 'avgPoints', label: 'Avg Pts', type: 'number', sortable: true,
+              colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true,
+              format: v => v.toFixed(2) },
+        ] : []),
+        ...(config.showPR ? [
+            { key: 'meanPR', label: 'PR',    type: 'number', sortable: true,
+              colorFn: (v, min, max) => colorForValueInverted(v, min, max), boldExtreme: true,
+              format: v => v.toFixed(2) },
+            { key: 'level',  label: 'Level', type: 'string', sortable: true, colorFn: null,
+              sortKey: row => row.meanPR,
+              format: v => {
+                  const color = colorForLevel(v);
+                  const text  = levelEdges.has(v) ? `<b>${v}</b>` : v;
+                  return color ? `<span style="color:${color}">${text}</span>` : text;
+              } },
+        ] : []),
+        { key: 'luck', label: 'Luck', type: 'number', sortable: true,
+          colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true,
           format: v => v.toFixed(2) },
-        { key: 'level',   label: 'Level',  type: 'string', sortable: true,  colorScale: null,
-          format: v => {
-              const color = colorForLevel(v);
-              const text  = levelEdges.has(v) ? `<b>${v}</b>` : v;
-              return color ? `<span style="color:${color}">${text}</span>` : text;
-          } },
-        { key: 'luck',    label: 'Luck',   type: 'number', sortable: true,  colorScale: 'good-to-bad', boldExtreme: true,
-          format: v => (v >= 0 ? '+' : '') + v.toFixed(2) },
     ];
 
     const data = rankings.map(row => ({
-        rank:    row.rank,
-        player:  row.player,
-        gp:      row.games,
-        wins:    row.wins,
-        losses:  row.losses,
-        winRate: row.winRate,
-        meanPR:  row.meanPR,
-        level:   row.level,
-        luck:    row.luck,
+        rank:      row.rank,
+        player:    row.player,
+        gp:        row.games,
+        wins:      row.wins,
+        losses:    row.losses,
+        winRate:   row.winRate,
+        prWins:    row.prWins,
+        points:    row.points,
+        avgPoints: row.avgPoints,
+        meanPR:    row.meanPR,
+        level:     row.level,
+        luck:      row.luck,
     }));
 
-    const summary = avgRow ? {
-        rank:    '',
-        player:  '<b>AVERAGES</b>',
-        gp:      avgRow.games,
-        wins:    avgRow.wins,
-        losses:  avgRow.losses,
-        winRate: avgRow.winRate  != null ? formatPercent2(avgRow.winRate) : null,
-        meanPR:  avgRow.meanPR   != null ? avgRow.meanPR.toFixed(2) : null,
-        level:   '',
-        luck:    avgRow.luck     != null ? (avgRow.luck >= 0 ? '+' : '') + avgRow.luck.toFixed(2) : null,
-    } : null;
+    // Summary row builder — closes over avgRow (pre-computed league averages)
+    const buildSummaryRow = avgRow
+        ? (_data) => ({
+            rank:      '',
+            player:    '<b>AVERAGES</b>',
+            gp:        avgRow.games,
+            wins:      avgRow.wins,
+            losses:    avgRow.losses,
+            winRate:   config.showWinRate && avgRow.winRate   != null ? formatPercent2(avgRow.winRate)    : null,
+            prWins:    config.showPRWins  && avgRow.prWins    != null ? avgRow.prWins.toFixed(1)          : null,
+            points:    config.showPRWins  && avgRow.points    != null ? avgRow.points.toFixed(1)          : null,
+            avgPoints: config.showPRWins  && avgRow.avgPoints != null ? avgRow.avgPoints.toFixed(2)       : null,
+            meanPR:    config.showPR      && avgRow.meanPR    != null ? avgRow.meanPR.toFixed(2)          : null,
+            level:     '',
+            luck:      avgRow.luck        != null ? avgRow.luck.toFixed(2) : null,
+        })
+        : null;
 
-    return { data, cols, summary, leagueTitle: league.params.LeagueTitle || league.id };
+    return { data, cols, buildSummaryRow, leagueTitle: league.params.LeagueTitle || league.id,
+             medalCounts: { gold: goldCount, silver: silverCount, bronze: bronzeCount } };
 }
 
 // ─── E: Player Match History ──────────────────────
 // Matches real: Opponent | Date | Score | PR | Opp PR | Luck | Result
-// Includes unplayed rows (tr.unplayed, Result = "Not played")
 
 function buildE(allResults) {
     const result = allResults.find(r => r.league.params.Running)
                 || allResults.find(r => !r.league.params.Running);
-    if (!result) return { data: [], cols: [], summary: null, playerName: '?', leagueTitle: '?' };
+    if (!result) return { data: [], cols: [], playerName: '?', leagueTitle: '?' };
 
-    const { league, rankings } = result;
+    const { league, config, rankings } = result;
     const cf        = league.params.CustomFlags || {};
     const topPlayer = rankings[0]?.player;
-    if (!topPlayer) return { data: [], cols: [], summary: null, playerName: '?', leagueTitle: '?' };
+    if (!topPlayer) return { data: [], cols: [], playerName: '?', leagueTitle: '?' };
 
-    // Include ALL matches — played and unplayed
     const allMatches = getPlayerMatches(league.matches, topPlayer, league.allPlayers);
 
     const cols = [
-        { key: 'opponent', label: 'Opponent', type: 'string', sortable: true, colorScale: null,
+        { key: 'opponent', label: 'Opponent', type: 'string', sortable: true, colorFn: null,
           tdClass: 'player-cell',
-          format: (v, row) => playerCell(v, cf, row._rowClass === 'unplayed' ? { italic: true } : {}) },
-        { key: 'date',   label: 'Date',   type: 'string', sortable: true, colorScale: null },
-        { key: 'score',  label: 'Score',  type: 'string', sortable: true, colorScale: null,
+          format: (v, row) => playerCell(v, cf, row.unplayed ? { italic: true } : {}) },
+        { key: 'date',   label: 'Date',   type: 'string', sortable: true, colorFn: null },
+        { key: 'score',  label: 'Score',  type: 'string', sortable: true, colorFn: null,
           format: (v, row) => row.result === 'WIN' ? `<b>${v}</b>` : v },
-        { key: 'pr',     label: 'PR',     type: 'number', sortable: true, colorScale: null,
-          format: (v, row) => {
-              if (typeof v !== 'number') return '—';
-              return (typeof row.oppPR === 'number' && v < row.oppPR)
-                  ? `<b>${v.toFixed(2)}</b>` : v.toFixed(2);
-          } },
-        { key: 'oppPR',  label: 'Opp PR', type: 'number', sortable: true, colorScale: null,
-          format: (v, row) => {
-              if (typeof v !== 'number') return '—';
-              return (typeof row.pr === 'number' && v < row.pr)
-                  ? `<b>${v.toFixed(2)}</b>` : v.toFixed(2);
-          } },
-        { key: 'luck',   label: 'Luck',   type: 'number', sortable: true, colorScale: null,
+        ...(config.showPR ? [
+            { key: 'pr',    label: 'PR',     type: 'number', sortable: true, colorFn: null,
+              format: (v, row) => {
+                  if (typeof v !== 'number') return '—';
+                  return (typeof row.oppPR === 'number' && v < row.oppPR)
+                      ? `<b>${v.toFixed(2)}</b>` : v.toFixed(2);
+              } },
+            { key: 'oppPR', label: 'Opp PR', type: 'number', sortable: true, colorFn: null,
+              format: (v, row) => {
+                  if (typeof v !== 'number') return '—';
+                  return (typeof row.pr === 'number' && v < row.pr)
+                      ? `<b>${v.toFixed(2)}</b>` : v.toFixed(2);
+              } },
+        ] : []),
+        { key: 'luck',   label: 'Luck',   type: 'number', sortable: true, colorFn: null,
+          sortKey: row => typeof row.luck === 'number' ? row.luck : null,
           format: v => {
               if (typeof v !== 'number') return '—';
               const str = v.toFixed(2);
               return v > 0 ? `<b>${str}</b>` : str;
           } },
-        { key: 'result', label: 'Result', type: 'string', sortable: true, colorScale: null,
-          sortKey: row => row.result === 'WIN' ? 2 : row.result === 'LOSS' ? 0 : 1,
-          format: v => v === 'WIN'  ? `<b style="color:var(--color-win)">WIN</b>`
-                     : v === 'LOSS' ? `<b style="color:var(--color-loss)">LOSS</b>`
-                     : v },
+        // UBC: replace Result with Points (matchWin + prWin); other modes: show WIN/LOSS/DRAW
+        ...(config.playerResultMode === 'points' ? [
+            { key: 'matchPoints', label: 'Points', type: 'number', sortable: true, colorFn: null,
+              sortKey: row => typeof row.matchPoints === 'number' ? row.matchPoints : null,
+              format: v => {
+                  if (typeof v !== 'number') return '';
+                  if (v === 2) return `<b style="color:var(--color-win)">${v}</b>`;
+                  if (v === 0) return `<b style="color:var(--color-loss)">${v}</b>`;
+                  return String(v);
+              } },
+        ] : [
+            { key: 'result', label: 'Result', type: 'string', sortable: true, colorFn: null,
+              sortKey: row => row.result === 'WIN' ? 2 : row.result === 'LOSS' ? 0 : row.result === 'DRAW' ? 1 : -1,
+              format: v => v === 'WIN'  ? `<b style="color:var(--color-win)">WIN</b>`
+                         : v === 'LOSS' ? `<b style="color:var(--color-loss)">LOSS</b>`
+                         : v === 'DRAW' ? `<b>DRAW</b>`
+                         : v },
+        ]),
     ];
 
     const data = allMatches.map(m => {
         if (!m.played) {
             return {
-                opponent:  m.opponent,
-                date:      '', score: '', pr: '', oppPR: '', luck: '',
-                result:    'Not played',
-                _rowClass: 'unplayed',
+                opponent: m.opponent,
+                date: '', score: '', pr: null, oppPR: null, luck: null,
+                result: 'Not played', matchPoints: null,
+                unplayed: true,
             };
         }
+        const isTechnical = m._technical || false;
+        const isDraw      = m._draw || false;
+        const matchWin    = m.scoreSelf > m.scoreOpp ? 1 : 0;
+        const prWin       = (!isTechnical && typeof m.prSelf === 'number' && typeof m.prOpp === 'number' && m.prSelf < m.prOpp) ? 1 : 0;
+        const result      = isDraw ? 'DRAW' : matchWin ? 'WIN' : 'LOSS';
         return {
-            opponent: m.opponent,
-            date:     m.updatedAt ? m.updatedAt.slice(0, 10) : '—',
-            score:    `${m.scoreSelf}-${m.scoreOpp}`,
-            pr:       m.prSelf,
-            oppPR:    m.prOpp,
-            luck:     m.luckSelf - m.luckOpp,
-            result:   m.scoreSelf > m.scoreOpp ? 'WIN' : 'LOSS',
+            opponent:    m.opponent,
+            date:        m.updatedAt ? new Date(m.updatedAt).toLocaleDateString('en-GB') : '—',
+            score:       isTechnical ? '—' : `${m.scoreSelf}-${m.scoreOpp}`,
+            pr:          isTechnical ? null : m.prSelf,
+            oppPR:       isTechnical ? null : m.prOpp,
+            luck:        isTechnical ? null : m.luckSelf - m.luckOpp,
+            result,
+            matchPoints: matchWin + prWin,
         };
     });
 
-    // Avg row — only from played matches with PR data
-    const played      = data.filter(m => m.pr != null && m.pr !== '');
-    const wins        = data.filter(m => m.result === 'WIN').length;
-    const losses      = data.filter(m => m.result === 'LOSS').length;
-    const n           = played.length;
-    const avg         = (arr, key) => arr.reduce((s, m) => s + m[key], 0) / arr.length;
-    const winPct      = played.length ? ((wins / played.length) * 100).toFixed(1) : '0.0';
+    // Row class — unplayed matches get the 'unplayed' class
+    const getRowClass = (row) => row.unplayed ? 'unplayed' : null;
 
-    const summary = {
-        opponent: '<b>AVERAGES</b>',
-        date: '', score: '',
-        pr:     n ? avg(played, 'pr').toFixed(2)    : null,
-        oppPR:  n ? avg(played, 'oppPR').toFixed(2) : null,
-        luck:   n ? avg(played, 'luck').toFixed(2)  : null,
-        result: `${n} games<br>${winPct}% wins`,
+    // Summary row — mirrors renderPlayerAverages in playerPage.js
+    const buildSummaryRow = (data) => {
+        const played = data.filter(r => !r.unplayed);
+        const n      = played.length;
+        if (!n) return { opponent: '<b>AVERAGES</b>', date: '', score: '', pr: null, oppPR: null, luck: null, result: '0 games', matchPoints: null };
+        const nonTech = played.filter(r => r.pr !== null);
+        const nt      = nonTech.length;
+        const avgPR    = nt ? (nonTech.reduce((s, r) => s + r.pr,    0) / nt).toFixed(2) : null;
+        const avgOppPR = nt ? (nonTech.reduce((s, r) => s + r.oppPR, 0) / nt).toFixed(2) : null;
+        const avgLuck  = nt ? (nonTech.reduce((s, r) => s + r.luck,  0) / nt).toFixed(2) : null;
+        const wins     = played.filter(r => r.result === 'WIN').length;
+        const winPct   = ((wins / n) * 100).toFixed(1);
+        const totalPts = played.reduce((s, r) => s + (r.matchPoints ?? 0), 0);
+        const avgPts   = (totalPts / n).toFixed(2);
+        const statLine = config.playerResultMode === 'points'
+            ? `${n} games<br>${avgPts} avg pts`
+            : `${n} games<br>${winPct}% wins`;
+        return {
+            opponent: '<b>AVERAGES</b>',
+            date: '', score: '',
+            ...(config.showPR ? { pr: avgPR, oppPR: avgOppPR } : {}),
+            luck: avgLuck,
+            result:      statLine,
+            matchPoints: statLine,
+        };
     };
 
     return {
-        data, cols, summary,
+        data, cols, getRowClass, buildSummaryRow,
         playerName:  topPlayer,
         leagueTitle: league.params.LeagueTitle || league.id,
     };
+}
+
+// ─── B1: Prizes & Medals ──────────────────────────
+// Matches real: medal | Tier | Places | Prize
+
+function buildB1(runningResult) {
+    if (!runningResult) return { data: [], cols: [] };
+    const { params } = runningResult.league;
+    const prizes = params.Prizes || {};
+    const fmtPrize = v => (v == null || v === 0) ? '—' : `₪${Number(v).toLocaleString()}`;
+
+    const rows = [];
+    if (params.GoldCount)   rows.push({ medal: '🥇', tier: 'Gold',   count: params.GoldCount,   prize: prizes.Gold });
+    if (params.SilverCount) rows.push({ medal: '🥈', tier: 'Silver', count: params.SilverCount, prize: prizes.Silver });
+    if (params.BronzeCount) rows.push({ medal: '🥉', tier: 'Bronze', count: params.BronzeCount, prize: prizes.Bronze });
+
+    const cols = [
+        { key: 'medal', label: '',       type: 'string', sortable: false, colorFn: null },
+        { key: 'tier',  label: 'Tier',   type: 'string', sortable: false, colorFn: null },
+        { key: 'count', label: 'Places', type: 'number', sortable: false, colorFn: null },
+        { key: 'prize', label: 'Prize',  type: 'number', sortable: false, colorFn: null, format: fmtPrize },
+    ];
+
+    // One row per medal tier — counts are 1/1/1 (or 0 if a tier is absent)
+    const medalCounts = {
+        gold:   params.GoldCount   ? 1 : 0,
+        silver: params.SilverCount ? 1 : 0,
+        bronze: params.BronzeCount ? 1 : 0,
+    };
+
+    return { data: rows, cols, medalCounts, leagueTitle: params.LeagueTitle || runningResult.league.id };
+}
+
+// ─── B2: Historical view (medal top) ──────────────
+// Matches real: # | Player | GP | W | L | [Win%] | [PRW|Avg PTS] | [PR]
+
+function buildB2(runningResult) {
+    if (!runningResult) return { data: [], cols: [] };
+    const { league, config, rankings } = runningResult;
+    const cf          = league.params.CustomFlags || {};
+    const goldCount   = league.params.GoldCount   ?? 1;
+    const silverCount = league.params.SilverCount ?? 1;
+    const bronzeCount = league.params.BronzeCount ?? 4;
+    const medalLimit  = goldCount + silverCount + bronzeCount;
+    const top         = rankings.filter(r => r.rank <= medalLimit && r.games > 0);
+
+    const cols = [
+        { key: 'rank',   label: '#',      type: 'number', sortable: false, colorFn: null },
+        { key: 'player', label: 'Player', type: 'string', sortable: false, colorFn: null,
+          tdClass: 'player-cell', format: v => playerCell(v, cf) },
+        { key: 'gp',     label: 'GP',     type: 'number', sortable: false, colorFn: null },
+        { key: 'wins',   label: 'W',      type: 'number', sortable: false, colorFn: null },
+        { key: 'losses', label: 'L',      type: 'number', sortable: false, colorFn: null },
+        ...(config.showWinRate ? [
+            { key: 'winRate', label: 'Win%', type: 'number', sortable: false, colorFn: null,
+              format: v => v != null ? formatPercent2(v) : '—' },
+        ] : []),
+        ...(config.showPRWins ? [
+            { key: 'prWins',    label: 'PRW',     type: 'number', sortable: false, colorFn: null,
+              format: v => v != null ? v : '—' },
+            { key: 'avgPoints', label: 'Avg PTS', type: 'number', sortable: false, colorFn: null,
+              format: v => v != null ? v.toFixed(2) : '—' },
+        ] : []),
+        ...(config.showPR ? [
+            { key: 'meanPR', label: 'PR', type: 'number', sortable: false, colorFn: null,
+              format: v => v != null ? v.toFixed(2) : '—' },
+        ] : []),
+    ];
+
+    const data = top.map(r => ({
+        rank: r.rank, player: r.player, gp: r.games, wins: r.wins, losses: r.losses,
+        winRate: r.winRate, prWins: r.prWins, avgPoints: r.avgPoints, meanPR: r.meanPR,
+    }));
+
+    return { data, cols, leagueTitle: league.params.LeagueTitle,
+             medalCounts: { gold: goldCount, silver: silverCount, bronze: bronzeCount } };
+}
+
+// ─── B5: Rounds — show round 1 of the running league ──
+// Matches real: Player A | Player B | Score | [PR A | PR B] | Luck A | Luck B | Date
+
+function buildB5(runningResult, allMatchesIncUnplayed) {
+    if (!runningResult || !allMatchesIncUnplayed) return { data: [], cols: [] };
+    const { league, config } = runningResult;
+    const cf = league.params.CustomFlags || {};
+    const round1 = allMatchesIncUnplayed.filter(m => m.round === 1);
+
+    // Map from matchKey → updatedAt (from history.matches)
+    const histMatches = league.history?.matches || [];
+    const playedAt = new Map();
+    for (const h of histMatches) {
+        if (h.updatedAt) playedAt.set([h.playerA, h.playerB].sort().join('|'), h.updatedAt);
+    }
+    const fmtDate = iso => iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }) : null;
+
+    const cols = [
+        { key: 'playerA', label: 'Player A', type: 'string', sortable: true, colorFn: null,
+          tdClass: 'player-cell', format: v => playerCell(v, cf) },
+        { key: 'playerB', label: 'Player B', type: 'string', sortable: true, colorFn: null,
+          tdClass: 'player-cell', format: v => playerCell(v, cf) },
+        { key: 'score', label: 'Score', type: 'string', sortable: false, colorFn: null },
+        ...(config.showPR ? [
+            { key: 'prA', label: 'PR A', type: 'number', sortable: true, colorFn: null,
+              format: v => typeof v === 'number' ? v.toFixed(2) : '—' },
+            { key: 'prB', label: 'PR B', type: 'number', sortable: true, colorFn: null,
+              format: v => typeof v === 'number' ? v.toFixed(2) : '—' },
+        ] : []),
+        { key: 'luckA', label: 'Luck A', type: 'number', sortable: true, colorFn: null,
+          format: v => typeof v === 'number' ? v.toFixed(2) : '—' },
+        { key: 'luckB', label: 'Luck B', type: 'number', sortable: true, colorFn: null,
+          format: v => typeof v === 'number' ? v.toFixed(2) : '—' },
+        { key: 'date', label: 'Date', type: 'string', sortable: true, colorFn: null,
+          format: v => v || '<span style="color:var(--color-text-muted)">unplayed</span>' },
+    ];
+
+    const data = round1.map(m => ({
+        playerA: m.playerA, playerB: m.playerB,
+        score: m.played ? `${m.scoreA} - ${m.scoreB}` : '—',
+        prA:   m.played && m.prA != null ? m.prA : null,
+        prB:   m.played && m.prB != null ? m.prB : null,
+        luckA: m.played && m.luckA != null ? m.luckA : null,
+        luckB: m.played && m.luckB != null ? m.luckB : null,
+        date:  fmtDate(playedAt.get([m.playerA, m.playerB].sort().join('|'))),
+        _unplayed: !m.played,
+    }));
+
+    const getRowClass = row => row._unplayed ? 'unplayed' : null;
+
+    return { data, cols, getRowClass, leagueTitle: league.params.LeagueTitle };
+}
+
+// ─── B6a: All Remaining Matches ───────────────────
+// Matches real: Round | Player A | Player B
+
+function buildB6a(runningResult, allMatchesIncUnplayed) {
+    if (!runningResult || !allMatchesIncUnplayed) return { data: [], cols: [] };
+    const { league } = runningResult;
+    const cf = league.params.CustomFlags || {};
+    const remaining = allMatchesIncUnplayed
+        .filter(m => !m.played)
+        .slice()
+        .sort((a, b) => (a.round - b.round) || a.playerA.localeCompare(b.playerA) || a.playerB.localeCompare(b.playerB));
+
+    const cols = [
+        { key: 'round',   label: 'Round',    type: 'number', sortable: true, colorFn: null },
+        { key: 'playerA', label: 'Player A', type: 'string', sortable: true, colorFn: null,
+          tdClass: 'player-cell', format: v => playerCell(v, cf) },
+        { key: 'playerB', label: 'Player B', type: 'string', sortable: true, colorFn: null,
+          tdClass: 'player-cell', format: v => playerCell(v, cf) },
+    ];
+
+    const data = remaining.map(m => ({ round: m.round, playerA: m.playerA, playerB: m.playerB }));
+    const getRowClass = () => 'unplayed';
+
+    return { data, cols, getRowClass, leagueTitle: league.params.LeagueTitle };
+}
+
+// ─── B6b: Remaining Per Player ────────────────────
+// Matches real: Player | Remaining (count / total)
+
+function buildB6b(runningResult) {
+    if (!runningResult) return { data: [], cols: [] };
+    const { league, rankings } = runningResult;
+    const cf = league.params.CustomFlags || {};
+    const n  = league.allPlayers.size;
+    const maxGames = n > 0 ? n - 1 : 0;
+    const halfThreshold = maxGames / 2;
+
+    const baseRows = rankings.map(r => ({
+        player:    r.player,
+        games:     r.games,
+        remaining: Math.max(0, maxGames - r.games),
+        total:     maxGames,
+    })).sort((a, b) => b.remaining - a.remaining);
+
+    const maxRem = baseRows.length ? baseRows[0].remaining : 0;
+    const minRem = baseRows.length ? baseRows[baseRows.length - 1].remaining : 0;
+    const hasAnyBelowHalf = baseRows.some(p => p.games <= halfThreshold);
+
+    // Build data with the "played ≥ half" divider injected at the boundary
+    const rows = [];
+    let separatorInserted = false;
+    for (const p of baseRows) {
+        if (!separatorInserted && hasAnyBelowHalf && p.games > halfThreshold) {
+            rows.push({ _divider: true, _dividerClass: 'player-remaining-divider player-remaining-divider--bold', _dividerText: '— played ≥ half —' });
+            separatorInserted = true;
+        }
+        rows.push({ ...p, _bold: !separatorInserted });
+    }
+
+    const cols = [
+        { key: 'player', label: 'Player', type: 'string', sortable: false, colorFn: null,
+          tdClass: 'player-cell', format: v => playerCell(v, cf) },
+        { key: 'remaining', label: 'Remaining', type: 'number', sortable: false, colorFn: null,
+          format: (v, row) => {
+              const color = colorForValueInverted(v, minRem, maxRem);
+              const weight = row._bold ? ';font-weight:700' : '';
+              return `<span style="color:${color}${weight}">${v}</span> / ${row.total}`;
+          } },
+    ];
+
+    const getRowClass = row => row._bold ? 'b6b-bold' : null;
+
+    return { data: rows, cols, getRowClass, leagueTitle: league.params.LeagueTitle };
+}
+
+// ─── B6c: Unplayed Opponents (for the top player) ──
+// Matches real: Unplayed Opponent
+
+function buildB6c(runningResult, allMatchesIncUnplayed) {
+    if (!runningResult || !allMatchesIncUnplayed) return { data: [], cols: [] };
+    const { league, rankings } = runningResult;
+    const cf        = league.params.CustomFlags || {};
+    const topPlayer = rankings[0]?.player;
+    if (!topPlayer) return { data: [], cols: [] };
+
+    const remaining = allMatchesIncUnplayed.filter(m => !m.played);
+    const opponents = [];
+    for (const m of remaining) {
+        if (m.playerA === topPlayer && m.playerB !== 'Bye') opponents.push(m.playerB);
+        else if (m.playerB === topPlayer && m.playerA !== 'Bye') opponents.push(m.playerA);
+    }
+    opponents.sort();
+
+    const cols = [
+        { key: 'opponent', label: 'Unplayed Opponent', type: 'string', sortable: false, colorFn: null,
+          tdClass: 'player-cell', format: v => playerCell(v, cf) },
+    ];
+
+    return { data: opponents.map(o => ({ opponent: o })), cols,
+             playerName: topPlayer, leagueTitle: league.params.LeagueTitle };
+}
+
+// ─── C1: Player Leagues ───────────────────────────
+// Matches real: League | Date | Type | Status | Rank | GP | W | L | Primary | PR
+
+function buildC1(playerData, playerName) {
+    if (!playerData || !playerData.length) return { data: [], cols: [] };
+
+    const cols = [
+        { key: 'leagueTitle', label: 'League', type: 'string', sortable: true, colorFn: null },
+        { key: 'date',        label: 'Date',   type: 'string', sortable: true, colorFn: null },
+        { key: 'type',        label: 'Type',   type: 'string', sortable: true, colorFn: null,
+          sortKey: row => row._type,
+          format: v => v },
+        { key: 'status',      label: 'Status', type: 'string', sortable: true, colorFn: null,
+          format: v => v === 'Running'
+              ? '<span class="status-pill status-running">Running</span>'
+              : '<span class="status-pill status-completed">Completed</span>' },
+        { key: 'rank',        label: 'Rank',   type: 'string', sortable: true, colorFn: null,
+          sortKey: row => row._rank ?? 9999 },
+        { key: 'gp',          label: 'GP',     type: 'number', sortable: true, colorFn: null },
+        { key: 'wins',        label: 'W',      type: 'number', sortable: true, colorFn: null },
+        { key: 'losses',      label: 'L',      type: 'number', sortable: true, colorFn: null },
+        { key: 'primary',     label: 'Primary',type: 'string', sortable: true, colorFn: null,
+          sortKey: row => row._primary ?? -1 },
+        { key: 'pr',          label: 'PR',     type: 'string', sortable: true, colorFn: null,
+          sortKey: row => row._pr ?? 9999 },
+    ];
+
+    const data = playerData.map(e => {
+        const s         = e.playerStats || {};
+        const cfg       = e.league.config;
+        const isUbc     = cfg.type === 'ubc';
+        const primary   = isUbc
+            ? (s.avgPoints != null ? s.avgPoints.toFixed(2) : '—')
+            : (s.winRate   != null ? `${(s.winRate * 100).toFixed(1)}%` : '—');
+        const meanPR    = (s.meanPR != null && cfg.showPR) ? s.meanPR.toFixed(2) : '—';
+        const running   = e.league.params?.Running === true;
+        const typeLabel = TYPE_LABELS[cfg.type] || cfg.type;
+        return {
+            leagueTitle: e.league.title,
+            date:        formatIssueDate(e.league.params?.IssueDate),
+            type:        `<span class="league-type-pill type-${cfg.type}">${typeLabel}</span>`,
+            _type:       cfg.type,
+            status:      running ? 'Running' : 'Completed',
+            rank:        e.playerRank != null ? `${e.playerRank} / ${e.totalPlayers}` : '—',
+            _rank:       e.playerRank,
+            gp:          s.games  || 0,
+            wins:        s.wins   || 0,
+            losses:      s.losses || 0,
+            primary,
+            _primary:    isUbc ? s.avgPoints : s.winRate,
+            pr:          meanPR,
+            _pr:         s.meanPR,
+        };
+    });
+
+    return { data, cols, playerName };
+}
+
+// ─── C2: Player Match History (cross-league) ──────
+// Matches real: League | Date | Type | Opponent | Score | PR | Opp PR | Luck | Result
+
+function buildC2(playerData, playerName, globalFlags) {
+    if (!playerData || !playerData.length) return { data: [], cols: [] };
+    const allRows = flattenAllMatches(playerData);
+
+    const cols = [
+        { key: 'leagueTitle', label: 'League',   type: 'string', sortable: true, colorFn: null },
+        { key: 'date',        label: 'Date',     type: 'string', sortable: true, colorFn: null,
+          sortKey: row => row._timestamp ?? 0 },
+        { key: 'leagueType',  label: 'Type',     type: 'string', sortable: true, colorFn: null,
+          format: v => `<span class="league-type-pill type-${v}">${TYPE_LABELS[v] || v}</span>` },
+        { key: 'opponent',    label: 'Opponent', type: 'string', sortable: true, colorFn: null,
+          tdClass: 'player-cell', format: v => playerCell(v, globalFlags) },
+        { key: 'score',       label: 'Score',    type: 'string', sortable: false, colorFn: null },
+        { key: 'prSelf',      label: 'PR',       type: 'number', sortable: true, colorFn: null,
+          sortKey: row => typeof row.prSelf === 'number' ? row.prSelf : null,
+          format: (v, row) => row._technical || v == null ? '<span style="color:var(--color-text-muted)">N/A</span>' : v.toFixed(2) },
+        { key: 'prOpp',       label: 'Opp PR',   type: 'number', sortable: true, colorFn: null,
+          sortKey: row => typeof row.prOpp === 'number' ? row.prOpp : null,
+          format: (v, row) => row._technical || v == null ? '<span style="color:var(--color-text-muted)">N/A</span>' : v.toFixed(2) },
+        { key: 'luck',        label: 'Luck',     type: 'number', sortable: true, colorFn: null,
+          sortKey: row => typeof row.luck === 'number' ? row.luck : null,
+          format: (v, row) => row._technical || v == null ? '<span style="color:var(--color-text-muted)">N/A</span>' : v.toFixed(2) },
+        { key: 'result',      label: 'Result',   type: 'string', sortable: true, colorFn: null,
+          sortKey: row => row.result === 'WIN' ? 2 : row.result === 'LOSS' ? 0 : 1,
+          format: (v, row) => v === 'WIN'  ? `<b style="color:var(--color-win)">WIN</b>${row._technical ? ' <small>(T)</small>' : ''}`
+                            : v === 'LOSS' ? `<b style="color:var(--color-loss)">LOSS</b>${row._technical ? ' <small>(T)</small>' : ''}`
+                            : v === 'DRAW' ? `<b>DRAW</b>` : v },
+    ];
+
+    const data = allRows.map(r => {
+        const matchLen = r.matchLength ?? 7;
+        const score = r._technical
+            ? (r.scoreSelf > r.scoreOpp ? `${matchLen}–0` : `0–${matchLen}`)
+            : `${r.scoreSelf}–${r.scoreOpp}`;
+        return {
+            leagueTitle: r.leagueTitle,
+            leagueId:    r.leagueId,
+            date:        r.updatedAt ? new Date(r.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—',
+            _timestamp:  r.updatedAt ? new Date(r.updatedAt).getTime() : 0,
+            leagueType:  r.leagueType,
+            opponent:    r.opponent,
+            score,
+            prSelf:      r._technical ? null : r.prSelf,
+            prOpp:       r._technical ? null : r.prOpp,
+            luck:        r._technical || r.luckSelf == null || r.luckOpp == null ? null : r.luckSelf - r.luckOpp,
+            result:      r.result,
+            _technical:  r._technical || false,
+        };
+    });
+
+    return { data, cols, playerName, allRows };
+}
+
+// ─── C3: Matchup (head-to-head) ───────────────────
+// Matches real: Date | League | Type | Winner | Score | PR A | PR B | Luck A | Luck B
+
+function buildC3(playerData, playerName, globalFlags) {
+    if (!playerData || !playerData.length) return { data: [], cols: [] };
+    const allRows = flattenAllMatches(playerData);
+    if (!allRows.length) return { data: [], cols: [] };
+
+    // Pick the opponent with most matches
+    const counts = new Map();
+    for (const r of allRows) counts.set(r.opponent, (counts.get(r.opponent) || 0) + 1);
+    const opponent = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (!opponent) return { data: [], cols: [] };
+
+    const rows = allRows.filter(r => r.opponent === opponent)
+        .sort((a, b) => (b.updatedAt ? new Date(b.updatedAt).getTime() : 0) - (a.updatedAt ? new Date(a.updatedAt).getTime() : 0));
+
+    const cols = [
+        { key: 'leagueTitle',label: 'League',  type: 'string', sortable: true, colorFn: null },
+        { key: 'date',       label: 'Date',    type: 'string', sortable: true, colorFn: null,
+          sortKey: row => row._timestamp ?? 0 },
+        { key: 'leagueType', label: 'Type',    type: 'string', sortable: true, colorFn: null,
+          format: v => `<span class="league-type-pill type-${v}">${TYPE_LABELS[v] || v}</span>` },
+        { key: 'winner',     label: 'Winner',  type: 'string', sortable: false, colorFn: null,
+          tdClass: 'player-cell',
+          format: (v, row) => {
+              const color = row._selfWon ? 'var(--color-win)' : 'var(--color-loss)';
+              const t = row._technical ? ' <small>(T)</small>' : '';
+              return `<b style="color:${color}">${v}</b>${t}`;
+          } },
+        { key: 'score', label: 'Score', type: 'string', sortable: false, colorFn: null },
+        { key: 'prA',   label: 'PR A',  type: 'number', sortable: true, colorFn: null,
+          format: (v, row) => {
+              if (typeof v !== 'number') return '—';
+              const better = typeof row.prB === 'number' && v < row.prB;
+              return better ? `<b>${v.toFixed(2)}</b>` : v.toFixed(2);
+          } },
+        { key: 'prB',   label: 'PR B',  type: 'number', sortable: true, colorFn: null,
+          format: (v, row) => {
+              if (typeof v !== 'number') return '—';
+              const better = typeof row.prA === 'number' && v < row.prA;
+              return better ? `<b>${v.toFixed(2)}</b>` : v.toFixed(2);
+          } },
+        { key: 'luckA', label: 'Luck A', type: 'number', sortable: true, colorFn: null,
+          format: v => typeof v === 'number' ? v.toFixed(2) : '—' },
+        { key: 'luckB', label: 'Luck B', type: 'number', sortable: true, colorFn: null,
+          format: v => typeof v === 'number' ? v.toFixed(2) : '—' },
+    ];
+
+    const data = rows.map(r => {
+        const matchLen = r.matchLength ?? 7;
+        const won      = r.scoreSelf > r.scoreOpp;
+        const winnerName = won ? playerName : opponent;
+        const score    = r._technical
+            ? (won ? `${matchLen}–0` : `0–${matchLen}`)
+            : `${r.scoreSelf}–${r.scoreOpp}`;
+        return {
+            date:        r.updatedAt ? new Date(r.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—',
+            _timestamp:  r.updatedAt ? new Date(r.updatedAt).getTime() : 0,
+            leagueTitle: r.leagueTitle,
+            leagueType:  r.leagueType,
+            winner:      winnerName,
+            _selfWon:    won,
+            _technical:  r._technical || false,
+            score,
+            prA: r._technical ? null : r.prSelf,
+            prB: r._technical ? null : r.prOpp,
+            luckA: r._technical || r.luckSelf == null ? null : r.luckSelf,
+            luckB: r._technical || r.luckOpp  == null ? null : r.luckOpp,
+        };
+    });
+
+    return { data, cols, playerName, opponent };
+}
+
+// ─── Helper: load allMatchesIncUnplayed for one league ──
+
+async function loadAllMatchesForLeague(leagueId) {
+    try {
+        const encoded = encodeURIComponent(leagueId);
+        const resp = await fetch(`../leagues/${encoded}/leaguedata.csv`);
+        if (!resp.ok) return null;
+        const text = await resp.text();
+        return parseCSVAllWithRounds(text).matches;
+    } catch { return null; }
 }
 
 // ─── Main export ──────────────────────────────────
@@ -360,11 +865,30 @@ export async function loadAllPresetData() {
     });
 
     const completedResults = allResults.filter(r => !r.league.params.Running);
+    const runningResult    = allResults.find(r => r.league.params.Running) || allResults[0] || null;
+
+    // Load allMatchesIncUnplayed for the running league (needed for B5/B6a/B6c)
+    const allMatchesIncUnplayed = runningResult
+        ? await loadAllMatchesForLeague(runningResult.league.id)
+        : null;
+
+    // Top player of the running league — used for C tables
+    const topPlayer = runningResult?.rankings?.[0]?.player || null;
+    const playerAcrossLeagues = topPlayer ? await loadPlayerAcrossLeagues(topPlayer) : [];
 
     return {
-        A1: buildA1(completedResults, globalFlags),
-        A2: buildA2(allResults, globalFlags),
-        D:  buildD(allResults),
-        E:  buildE(allResults),
+        A1:  buildA1(completedResults, globalFlags),
+        A2:  buildA2(allResults, globalFlags),
+        B1:  buildB1(runningResult),
+        B2:  buildB2(runningResult),
+        B5:  buildB5(runningResult, allMatchesIncUnplayed),
+        B6a: buildB6a(runningResult, allMatchesIncUnplayed),
+        B6b: buildB6b(runningResult),
+        B6c: buildB6c(runningResult, allMatchesIncUnplayed),
+        C1:  buildC1(playerAcrossLeagues, topPlayer),
+        C2:  buildC2(playerAcrossLeagues, topPlayer, globalFlags),
+        C3:  buildC3(playerAcrossLeagues, topPlayer, globalFlags),
+        D:   buildD(allResults),
+        E:   buildE(allResults),
     };
 }

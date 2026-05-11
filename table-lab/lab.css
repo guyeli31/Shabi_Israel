@@ -7,8 +7,10 @@
 body {
     margin: 0;
     display: grid;
+    grid-template-columns: minmax(0, 1fr);    /* allow child to shrink below content width */
     grid-template-rows: auto 1fr;
     height: 100vh;
+    width: 100vw;
     overflow: hidden;
     background: var(--color-bg);
     color: var(--color-text);
@@ -85,13 +87,14 @@ body {
 
 .lab-workspace {
     display: grid;
-    grid-template-columns: 320px 1fr;
+    grid-template-columns: 320px minmax(0, 1fr);
     overflow: hidden;
+    min-width: 0;           /* allow body grid row to shrink below content width */
     transition: grid-template-columns 0.2s ease;
 }
 
 .lab-workspace.args-collapsed {
-    grid-template-columns: 0px 1fr;
+    grid-template-columns: 0px minmax(0, 1fr);
 }
 
 .args-column {
@@ -190,22 +193,31 @@ body {
 /* ── Preview column (right) ──────────────────── */
 
 .preview-column {
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;     /* match production: no page-level horizontal scroll */
+    min-width: 0;           /* allow grid item to shrink below content width */
     padding: var(--space-xl);
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;   /* children take full column width, like production .page-container */
+}
+
+#mf-mount {
+    width: 100%;
+    max-width: 1100px;
+    min-width: 0;           /* allow flex item to shrink below content width */
 }
 
 /* ── .mf-wrap — the unified MF scroll wrapper ── */
 
 .mf-wrap {
     overflow-x: auto;
+    overflow-y: clip;  /* prevents mf-wrap from becoming a vertical scroll context, so thead/avg-row sticky works relative to .preview-column */
     min-width: 0;
     box-shadow: var(--shadow-sm);
     margin-bottom: var(--mf-mb, var(--space-lg));
     width: var(--mf-width, 100%);
-    max-width: var(--mf-max-width, 1100px);
+    max-width: 1100px;
     background: var(--mf-bg, transparent);
 }
 
@@ -271,6 +283,27 @@ body {
 .mf-wrap tbody tr.unplayed td { background: var(--color-unplayed-bg, var(--color-surface)); }
 .mf-wrap tbody tr.unplayed:hover td { background: var(--color-hover); }
 
+/* B6b divider row "— played ≥ half —" (mirrors dashboard.css) */
+.mf-wrap tbody tr.player-remaining-divider td {
+    padding: 4px 12px !important;
+    border-top: 2px dashed var(--color-border) !important;
+    border-bottom: none !important;
+    box-shadow: none !important;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    font-style: italic;
+    text-align: center;
+    background: transparent !important;
+}
+.mf-wrap tbody tr.player-remaining-divider--bold td {
+    font-weight: 700 !important;
+    color: var(--color-text) !important;
+}
+.mf-wrap tbody tr.player-remaining-divider:hover td { background: transparent !important; }
+
+/* B6b — bold rows for players who have NOT played half yet */
+.mf-wrap tbody tr.b6b-bold td { font-weight: 700; }
+
 /* Show-all button — matches real app (index-dashboard.css) */
 .show-more-btn {
     display: block;
@@ -293,5 +326,6 @@ body {
     margin-bottom: 0;
 }
 .mf-wrap + .show-more-btn {
-    margin: 0.45em 0 var(--space-xl) 0;
+    margin: 0.45em auto var(--space-xl);
+    align-self: center;
 }

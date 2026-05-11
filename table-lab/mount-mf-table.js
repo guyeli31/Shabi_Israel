@@ -1,91 +1,106 @@
 /**
- * mount-mf-table.js — The single MF table "function".
+ * mount-mf-table.js — The single MF table renderer.
  *
  * Implements ALL shared MF principles internally:
- *   • border-collapse: separate / border-spacing: 0  (via CSS in lab.css + components.css)
- *   • row hairlines  (via global tbody td rule in components.css)
- *   • sticky thead   (via global thead rule in components.css)
- *   • sticky left cols  (applied per-cell here in JS)
+ *   • border-collapse: separate / border-spacing: 0  (via CSS)
+ *   • row hairlines  (via global tbody td rule)
+ *   • sticky thead   (via global thead rule)
+ *   • sticky left cols  (applied per-cell in JS)
  *   • sticky col measurement  (--sticky-col-1-width written to wrapper)
- *   • drop-shadow on sticky boundary, only during horizontal scroll  (attachStickyShadow)
- *   • hover  (via global tbody tr:hover rule in components.css)
+ *   • drop-shadow on sticky boundary during horizontal scroll  (attachStickyShadow)
+ *   • hover  (via global tbody tr:hover rule)
  *   • medal rows  (rank-gold / rank-silver / rank-bronze classes)
  *   • avg summary row  (tr.avg-row — sticky bottom via global CSS rule)
- *   • column color gradient  (colorScale per col descriptor)
+ *   • column color gradient  (colorFn per col descriptor)
  *   • sort  (click on th)
- *   • show top N  (with Show All toggle)
+ *   • show top N  (with Show All toggle — state preserved across re-sorts)
  *
- * Caller only provides what is UNIQUE to the table (args).
+ * Caller provides only what is UNIQUE to the table (args).
+ * All per-table logic (row classes, summary calculation, cell colors)
+ * is passed as functions — the renderer calls them at the right moment.
  */
 
 import { attachStickyShadow } from '../js/utils/stickyShadow.js';
-import { colorForValue, colorForValueInverted } from '../js/compute/colorScale.js';
 
 // ─────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────
 
 /**
- * @param {HTMLElement} wrapper   — .mf-wrap div (already in DOM, will be populated)
- * @param {object}      args      — table arguments (see below)
+ * @param {HTMLElement} mountPoint  — plain empty container the caller owns;
+ *                                   the function creates all DOM inside it.
+ * @param {object}      args        — table configuration (see below)
  *
  * args:
- *   data        {object[]}   row objects
- *   cols        {ColDef[]}   column descriptors
- *   summary     {object|null} avg row data object (same shape as data row), or null
- *   fontClass   {'font-small'|'font-large'}   default: 'font-small'
- *   stickyCols  {0|1|2}      how many left columns are pinned, default: 1
- *   medalRows   {boolean}    gold/silver/bronze tints on rows 1–3, default: false
- *   showTopN    {number|null} hide rows after N + show "Show all" btn; null = show all
- *   mfWidth     {string|null} CSS width on wrapper (e.g. '70%'), null = auto
- *   mfMb        {string|null} CSS margin-bottom on wrapper, null = default
- *   mfBg        {string|null} CSS background on wrapper, null = transparent
+ *   data            {object[]}          row objects
+ *   cols            {ColDef[]}          column descriptors
+ *   fontClass       {'font-small'|'font-large'}   default: 'font-small'
+ *   stickyCols      {0|1|2}            how many left columns are pinned
+ *   medalRows       {boolean}          gold/silver/bronze tints on rows
+ *   medalCounts     {{gold,silver,bronze}}  row counts per medal tier; default 1/1/1
+ *   showTopN        {number|null}      hide rows after N; null = show all
+ *   mfWidth         {string|null}      CSS width on wrapper, null = auto
+ *   mfMb            {string|null}      CSS margin-bottom on wrapper
+ *   mfBg            {string|null}      CSS background on wrapper
+ *   flagSize        {string|null}      CSS height for flag images
+ *   getRowClass     {function|null}    (row, index) => string|null — extra row class
+ *   buildSummaryRow {function|null}    (data) => object — summary row data
  *
  * ColDef:
- *   key         {string}     property name in data row
- *   label       {string}     column header text
+ *   key         {string}
+ *   label       {string}
  *   type        {'number'|'string'}
  *   sortable    {boolean}
- *   colorScale  {'good-to-bad'|'bad-to-good'|null}
- *   format      {function|null}  value → display string
+ *   colorFn     {function|null}   (value, min, max) => CSS color string
+ *   format      {function|null}   (value, row) => display HTML string
+ *   tdClass     {string|null}
+ *   sortKey     {function|null}   (row) => sort value override
+ *   boldExtreme {boolean}         bold min and max numeric values
  */
-export function mountMFTable(wrapper, args) {
+export function mountMFTable(mountPoint, args) {
     const {
-        data       = [],
-        cols       = [],
-        summary    = null,
-        fontClass  = 'font-small',
-        stickyCols = 1,
-        medalRows  = false,
-        showTopN   = null,
-        mfWidth    = null,
-        mfMb       = null,
-        mfBg       = null,
-        flagSize = null,
+        data            = [],
+        cols            = [],
+        fontClass       = 'font-small',
+        stickyCols      = 1,
+        medalRows       = false,
+        medalCounts     = { gold: 1, silver: 1, bronze: 1 },
+        showTopN        = null,
+        mfWidth         = null,
+        mfMb            = null,
+        mfBg            = null,
+        flagSize        = null,
+        getRowClass     = null,
+        buildSummaryRow = null,
     } = args;
 
-    // 1. Apply CSS variable args onto the wrapper
-    wrapper.style.removeProperty('--mf-width');
-    wrapper.style.removeProperty('--mf-mb');
-    wrapper.style.removeProperty('--mf-bg');
-    wrapper.style.removeProperty('--mf-flag-height');
+    // 1. Create fresh wrapper inside mountPoint (replaces external wrapper pattern)
+    mountPoint.innerHTML = '';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'mf-wrap';
+    mountPoint.appendChild(wrapper);
+
+    // 2. Apply CSS variable args onto the wrapper
     if (mfWidth)  wrapper.style.setProperty('--mf-width', mfWidth);
     if (mfMb)     wrapper.style.setProperty('--mf-mb', mfMb);
     if (mfBg)     wrapper.style.setProperty('--mf-bg', mfBg);
     if (flagSize) wrapper.style.setProperty('--mf-flag-height', flagSize);
 
-    // 2. Compute column extents for color scales
+    // 3. Compute column extents for colorFn (min/max per column across all rows)
     const extents = computeExtents(data, cols);
 
-    // 3. Build + inject table HTML
-    wrapper.innerHTML = buildTableHTML(data, cols, summary, fontClass, medalRows, extents);
+    // 4. Compute summary row data if caller provided a builder function
+    const summaryData = buildSummaryRow ? buildSummaryRow(data) : null;
+
+    // 5. Build + inject table HTML
+    wrapper.innerHTML = buildTableHTML(data, cols, summaryData, fontClass, medalRows, medalCounts, getRowClass, extents);
 
     const table = wrapper.querySelector('table');
 
-    // 4. Apply sticky left columns (position/left/z-index/background per cell)
+    // 6. Apply sticky left columns (position/left/z-index per cell)
     if (stickyCols > 0) applyStickyLeftCols(table, stickyCols);
 
-    // 5. Measure + keep sticky col-2 offset updated (only when 2 sticky cols)
+    // 7. Measure + keep sticky col-2 offset updated (only when 2 sticky cols)
     if (stickyCols >= 2) {
         const measure = () => measureStickyCols(wrapper, table);
         measure();
@@ -94,23 +109,23 @@ export function mountMFTable(wrapper, args) {
             new ResizeObserver(measure).observe(table);
     }
 
-    // 6. Drop-shadow on sticky boundary — appears ONLY during horizontal scroll
+    // 8. Drop-shadow on sticky boundary — only during horizontal scroll
     attachStickyShadow(wrapper);
 
-    // 7. Sorting
-    attachSort(wrapper, table, cols, data, summary, fontClass, medalRows, extents, stickyCols);
+    // 9. Show top N — set up controls first so sort can re-sync collapsed state
+    const topNControls = showTopN !== null ? applyShowTopN(mountPoint, table, showTopN) : null;
 
-    // 8. Show top N
-    if (showTopN !== null) applyShowTopN(wrapper, table, showTopN);
+    // 10. Sorting — receives topNControls to preserve collapsed/expanded after each sort
+    attachSort(wrapper, table, cols, data, summaryData, medalRows, medalCounts, getRowClass, extents, stickyCols, topNControls);
 }
 
 // ─────────────────────────────────────────────
 // HTML builder
 // ─────────────────────────────────────────────
 
-function buildTableHTML(data, cols, summary, fontClass, medalRows, extents) {
+function buildTableHTML(data, cols, summaryData, fontClass, medalRows, medalCounts, getRowClass, extents) {
     const thead = buildThead(cols);
-    const tbody = buildTbody(data, cols, summary, medalRows, extents);
+    const tbody = buildTbody(data, cols, summaryData, medalRows, medalCounts, getRowClass, extents);
     return `<table class="${fontClass}" data-sort-col="-1" data-sort-dir="desc">
 ${thead}
 ${tbody}
@@ -126,64 +141,70 @@ function buildThead(cols) {
     return `<thead><tr>${cells}</tr></thead>`;
 }
 
-function buildTbody(data, cols, summary, medalRows, extents) {
-    const goldCount   = medalRows ? 1 : 0;
-    const silverCount = medalRows ? 1 : 0;
-    const bronzeCount = medalRows ? 3 : 0;
+function buildTbody(data, cols, summaryData, medalRows, medalCounts, getRowClass, extents) {
+    const goldCount   = medalRows ? (medalCounts.gold   ?? 1) : 0;
+    const silverCount = medalRows ? (medalCounts.silver ?? 1) : 0;
+    const bronzeCount = medalRows ? (medalCounts.bronze ?? 1) : 0;
 
     const rows = data.map((row, i) => {
+        // Divider row — spans all columns with a single <td colspan>
+        if (row._divider) {
+            const dividerClass = row._dividerClass || 'mf-divider';
+            const text = row._dividerText || '';
+            return `<tr class="${dividerClass}"><td colspan="${cols.length}">${text}</td></tr>`;
+        }
+
         let cls = '';
         if (medalRows) {
-            if (i < goldCount)                              cls = 'rank-gold';
-            else if (i < goldCount + silverCount)           cls = 'rank-silver';
-            else if (i < goldCount + silverCount + bronzeCount) cls = 'rank-bronze';
+            if (i < goldCount)                                   cls = 'rank-gold';
+            else if (i < goldCount + silverCount)                cls = 'rank-silver';
+            else if (i < goldCount + silverCount + bronzeCount)  cls = 'rank-bronze';
         }
-        // Support arbitrary extra row classes via _rowClass (e.g. 'unplayed')
-        if (row._rowClass) cls = cls ? `${cls} ${row._rowClass}` : row._rowClass;
+        const callerClass = getRowClass ? getRowClass(row, i) : null;
+        if (callerClass) cls = cls ? `${cls} ${callerClass}` : callerClass;
+
         return buildDataRow(row, cols, extents, cls);
     });
 
-    if (summary) rows.push(buildSummaryRow(summary, cols));
+    if (summaryData) rows.push(buildSummaryRowHTML(summaryData, cols));
 
     return `<tbody>${rows.join('')}</tbody>`;
 }
 
 function buildDataRow(row, cols, extents, rowClass) {
-    const cells = cols.map((col, i) => {
+    const cells = cols.map(col => {
         const raw = row[col.key];
-        // null → '—'  |  '' → empty cell (used for unplayed rows)
         let display = raw == null ? '—' : raw === '' ? '' : (col.format ? col.format(raw, row) : raw);
-        // Bold max and min values when col has boldExtreme
+
+        // Bold extreme (min/max) values when col has boldExtreme
         if (col.boldExtreme && typeof raw === 'number' && extents[col.key]) {
             const { min, max } = extents[col.key];
             if (raw === min || raw === max) display = `<b>${display}</b>`;
         }
+
         const style = getCellColorStyle(col, raw, extents);
-        const cls = col.tdClass ? ` class="${col.tdClass}"` : '';
+        const cls   = col.tdClass ? ` class="${col.tdClass}"` : '';
         return `<td${cls}${style ? ` style="${style}"` : ''}>${display}</td>`;
     }).join('');
     return `<tr${rowClass ? ` class="${rowClass}"` : ''}>${cells}</tr>`;
 }
 
-function buildSummaryRow(summary, cols) {
+// Renders summary row — values are pre-formatted strings, no col.format applied
+function buildSummaryRowHTML(summary, cols) {
     const cells = cols.map(col => {
-        const raw = summary[col.key];
-        // Values in summary are pre-formatted strings — render as-is, no col.format
+        const raw     = summary[col.key];
         const display = raw == null || raw === '' ? '' : String(raw);
-        const cls = col.tdClass ? ` class="${col.tdClass}"` : '';
+        const cls     = col.tdClass ? ` class="${col.tdClass}"` : '';
         return `<td${cls}>${display}</td>`;
     }).join('');
     return `<tr class="avg-row">${cells}</tr>`;
 }
 
 function getCellColorStyle(col, value, extents) {
-    if (!col.colorScale || value == null || typeof value !== 'number') return '';
+    if (!col.colorFn || value == null || typeof value !== 'number') return '';
     const { min, max } = extents[col.key] || {};
     if (min == null) return '';
-    const color = col.colorScale === 'good-to-bad'
-        ? colorForValue(value, min, max)
-        : colorForValueInverted(value, min, max);
-    return `color:${color}`;
+    return `color:${col.colorFn(value, min, max)}`;
 }
 
 // ─────────────────────────────────────────────
@@ -195,17 +216,15 @@ function applyStickyLeftCols(table, stickyCols) {
     rows.forEach(row => {
         const cells = [...row.querySelectorAll('th, td')];
         for (let c = 0; c < stickyCols && c < cells.length; c++) {
-            const cell = cells[c];
+            const cell        = cells[c];
             const isLastSticky = (c === stickyCols - 1);
-            const inThead = cell.tagName === 'TH';
+            const inThead     = cell.tagName === 'TH';
 
             cell.style.position = 'sticky';
-            cell.style.left = c === 0 ? '0' : 'var(--sticky-col-1-width, 0px)';
-            // z-index only — background is intentionally left to CSS so that
-            // medal tints, hover, and avg-row can override it via normal cascade.
-            cell.style.zIndex = inThead ? '4' : (row.classList.contains('avg-row') ? '3' : '2');
+            cell.style.left     = c === 0 ? '0' : 'var(--sticky-col-1-width, 0px)';
+            // z-index only — background left to CSS so medal tints, hover, avg-row cascade normally
+            cell.style.zIndex   = inThead ? '4' : (row.classList.contains('avg-row') ? '3' : '2');
 
-            // Mark last sticky col for the drop-shadow CSS rule
             if (isLastSticky) cell.classList.add('sticky-last');
         }
     });
@@ -219,21 +238,21 @@ function measureStickyCols(wrapper, table) {
     const th1 = table.querySelector('thead th:first-child');
     if (!th1) return;
     const w = th1.getBoundingClientRect().width;
-    if (w > 0) wrapper.style.setProperty('--sticky-col-1-width', w + 'px');
+    if (w > 0) wrapper.style.setProperty('--sticky-col-1-width', `${w}px`);
 }
 
 // ─────────────────────────────────────────────
 // Sort
 // ─────────────────────────────────────────────
 
-function attachSort(wrapper, table, cols, data, summary, fontClass, medalRows, extents, stickyCols) {
-    let sortCol = -1;
-    let sortDir = 'asc';
-
+function attachSort(wrapper, table, cols, data, summaryData, medalRows, medalCounts, getRowClass, extents, stickyCols, topNControls) {
     table.querySelectorAll('thead th[data-col]').forEach(th => {
         const colIdx = parseInt(th.dataset.col, 10);
-        const col = cols[colIdx];
+        const col    = cols[colIdx];
         if (!col?.sortable) return;
+
+        let sortCol = -1;
+        let sortDir = 'asc';
 
         th.addEventListener('click', () => {
             if (sortCol === colIdx) {
@@ -243,7 +262,7 @@ function attachSort(wrapper, table, cols, data, summary, fontClass, medalRows, e
                 sortDir = 'asc';
             }
 
-            // Update sort icon
+            // Update sort icons
             table.querySelectorAll('thead th .sort-icon').forEach(icon => icon.textContent = '▲');
             table.querySelectorAll('thead th').forEach(h => h.classList.remove('sorted'));
             th.classList.add('sorted');
@@ -251,26 +270,29 @@ function attachSort(wrapper, table, cols, data, summary, fontClass, medalRows, e
 
             // Sort data
             const sorted = [...data].sort((a, b) => {
-                // col.sortKey(row) overrides raw value for custom orderings (e.g. result WIN/LOSS)
                 const va = col.sortKey ? col.sortKey(a) : a[col.key];
                 const vb = col.sortKey ? col.sortKey(b) : b[col.key];
-
                 if (va == null && vb == null) return 0;
                 if (va == null) return 1;
                 if (vb == null) return -1;
-                if (typeof va === 'string') return sortDir === 'asc' ? va.localeCompare(vb, 'en') : vb.localeCompare(va, 'en');
+                if (typeof va === 'string') return sortDir === 'asc'
+                    ? va.localeCompare(vb, 'en')
+                    : vb.localeCompare(va, 'en');
                 return sortDir === 'asc' ? va - vb : vb - va;
             });
 
-            // Rebuild tbody (keep avg-row at bottom)
-            const tbody = table.querySelector('tbody');
+            // Rebuild tbody (summary row stays at bottom)
+            const tbody      = table.querySelector('tbody');
             const newExtents = computeExtents(sorted, cols);
-            tbody.innerHTML = buildTbody(sorted, cols, summary, medalRows, newExtents)
+            tbody.innerHTML  = buildTbody(sorted, cols, summaryData, medalRows, medalCounts, getRowClass, newExtents)
                 .replace(/^<tbody>|<\/tbody>$/g, '');
 
             // Re-apply sticky
             if (stickyCols > 0) applyStickyLeftCols(table, stickyCols);
             if (stickyCols >= 2) measureStickyCols(wrapper, table);
+
+            // Re-sync Show Top N collapsed/expanded state
+            if (topNControls) topNControls.syncHiddenRows();
         });
     });
 }
@@ -279,29 +301,34 @@ function attachSort(wrapper, table, cols, data, summary, fontClass, medalRows, e
 // Show top N
 // ─────────────────────────────────────────────
 
-function applyShowTopN(wrapper, table, n) {
+function applyShowTopN(mountPoint, table, n) {
     const tbody = table.querySelector('tbody');
-    if (!tbody) return;
-    // Exclude avg-row from the count
-    const rows = [...tbody.querySelectorAll('tr:not(.avg-row)')];
-    if (rows.length <= n) return;
+    if (!tbody) return null;
+    const totalRows = [...tbody.querySelectorAll('tr:not(.avg-row)')].length;
+    if (totalRows <= n) return null;
 
-    rows.forEach((row, i) => {
-        if (i >= n) row.classList.add('table-row-hidden');
-    });
+    let isExpanded = false;
+
+    // Re-queries tbody on every call so it works after sort rebuilds
+    function syncHiddenRows() {
+        const rows = [...tbody.querySelectorAll('tr:not(.avg-row)')];
+        rows.forEach((row, i) => row.classList.toggle('table-row-hidden', !isExpanded && i >= n));
+    }
+
+    syncHiddenRows();
 
     const btn = document.createElement('button');
-    btn.className = 'show-more-btn';
-    btn.textContent = `Show all (${rows.length})`;
-    btn.addEventListener('click', () => {
-        const isCollapsed = rows[n]?.classList.contains('table-row-hidden');
-        rows.forEach((row, i) => {
-            if (i >= n) row.classList.toggle('table-row-hidden', !isCollapsed);
-        });
-        btn.textContent = isCollapsed ? `Show top ${n}` : `Show all (${rows.length})`;
+    btn.className   = 'show-more-btn';
+    btn.textContent = `Show all (${totalRows})`;
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        isExpanded = !isExpanded;
+        syncHiddenRows();
+        btn.textContent = isExpanded ? `Show top ${n}` : `Show all (${totalRows})`;
     });
 
-    wrapper.parentNode.insertBefore(btn, wrapper.nextSibling);
+    mountPoint.appendChild(btn);
+    return { syncHiddenRows };
 }
 
 // ─────────────────────────────────────────────
@@ -311,7 +338,7 @@ function applyShowTopN(wrapper, table, n) {
 function computeExtents(data, cols) {
     const extents = {};
     cols.forEach(col => {
-        if (!col.colorScale) return;
+        if (!col.colorFn) return;
         let min = Infinity, max = -Infinity;
         data.forEach(row => {
             const v = row[col.key];

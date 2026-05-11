@@ -906,3 +906,72 @@ table.matchup-table a:hover {
 
     .matchup-show-all-btn { font-size: 0.72rem; }
 }
+
+/* ============================================================
+   Bar chart (shared by dashboard F4 and player-general G5)
+   ============================================================ */
+
+.chart-panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    margin-bottom: var(--space-md);
+    box-shadow: var(--shadow-sm);
+    position: relative;
+}
+
+.chart-host {
+    position: relative;
+}
+
+.bar-chart-canvas {
+    display: block;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.chart-info-panel {
+    margin-top: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-hover);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-main);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--color-text);
+    min-height: 56px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+}
+.chart-info-panel .cip-title {
+    font-weight: 600;
+    color: var(--color-text);
+}
+.chart-info-panel .cip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+}
+.chart-info-panel .cip-item {
+    display: inline-flex;
+    gap: 6px;
+    align-items: baseline;
+}
+.chart-info-panel .cip-k {
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.chart-info-panel .cip-v {
+    font-weight: 600;
+}
+.chart-info-panel .chart-info-placeholder {
+    color: var(--color-text-muted);
+    font-style: italic;
+}

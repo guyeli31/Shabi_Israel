@@ -555,7 +555,7 @@ function renderMatchHistory(section, playerName, perLeague) {
     const typeSel = document.createElement('select');
     typeSel.innerHTML =
         '<option value="all">All types</option>' +
-        leagueTypes.map(t => `<option value="${t}">${t}</option>`).join('');
+        leagueTypes.map(t => `<option value="${t}">${t.toUpperCase()}</option>`).join('');
 
     const countSel = document.createElement('select');
     countSel.innerHTML =
@@ -1130,13 +1130,14 @@ function applyShowTopN(tableEl, defaultN = 5) {
         if (wrapper) wrapper.style.maxHeight = isCollapsed ? 'none' : savedMaxH;
     });
 
-    const insertParent = wrapper ? wrapper.parentNode : tableEl.parentNode;
-    const insertBefore = wrapper ? wrapper.nextSibling : tableEl.nextSibling;
-
-    // Remove any stale button from a previous render of the same table
+    // Remove any stale button from a previous render of the same table FIRST,
+    // so the captured `insertBefore` reference is still a live child of the parent.
     const anchor = wrapper || tableEl;
     const stale = anchor.nextElementSibling;
     if (stale && stale.classList.contains('show-more-btn')) stale.remove();
+
+    const insertParent = wrapper ? wrapper.parentNode : tableEl.parentNode;
+    const insertBefore = wrapper ? wrapper.nextSibling : tableEl.nextSibling;
 
     if (insertParent) insertParent.insertBefore(btn, insertBefore);
 }
