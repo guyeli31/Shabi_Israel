@@ -687,13 +687,11 @@
 .rank-cell-silver { color: var(--color-silver-text, #475569); font-weight: 600; }
 .rank-cell-bronze { color: var(--color-bronze-text, #b45309); font-weight: 600; }
 
-/* Leagues table wrapper — card shell (rounds corners, shadow) + horizontal scroll */
+/* Leagues table wrapper — plain layout container.
+   Card visual (radius, shadow, scroll) lives on the inner .mf-wrap now,
+   so the show-more button (sibling of .mf-wrap) sits OUTSIDE the card. */
 .pg-leagues-table-wrapper {
     width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;   /* clip to border-radius without creating a y-scroll context */
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-md);
 }
 
 /* Match History table wrapper — identical card shell.
@@ -701,10 +699,6 @@
    relative to the viewport scroll, not this container. */
 .pg-matches-table-wrapper {
     width: 100%;
-    overflow-x: auto;
-    overflow-y: clip;
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-md);
 }
 
 /* Show-top-N toggle (mirrors index-dashboard.css `.show-more-btn`).

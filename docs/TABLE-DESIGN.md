@@ -66,6 +66,18 @@ Table code mapping for the app. All future references to a table use the code be
 
 ## Part 2 — Formats
 
+The project has **five** table formats. Each format is owned by `table-lab/` and exposes a dedicated `mount*` function. Production pages do not render tables directly — they call the appropriate format's mount function with a preset.
+
+| Format | Code | Used by |
+|---|---|---|
+| Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3 |
+| Secondary Format | **SF** | A3, A4, A5, A6, C4 |
+| Expandable Format | **exp** | C0 |
+| Form Format 1 | **FF1** | F1 (League Manager) |
+| Form Format 2 | **FF2** | F2 (Round Editor) |
+
+---
+
 ### MF (Main Format)
 
 The standard table variant used by: **A1, A2, D, E, all B, C1, C2, C3.**
@@ -179,3 +191,103 @@ mountMFTable(mountPoint, {
     buildSummaryRow: (data) => ({ pr: avg(data, 'pr'), luck: avg(data, 'luck') }),
 });
 ```
+
+---
+
+### SF (Secondary Format)
+
+The compact-records / leaderboards-snippet variant used by: **A3, A4, A5, A6, C4.**
+
+Rendered by `mountSFTable(mountPoint, args)` (`table-lab/formats/sf/mount.js` — to be created). Same contract as MF: caller provides an empty `<div>` and a configuration object; the function owns all DOM creation.
+
+> **Status:** format is **declared** but not yet implemented. Per-table parameters, args schema, and visual rules to be derived from the existing render code for A3, A4, A5, A6, C4 during Phase 1 of the table-lab unification plan (see `docs/plans/table-lab-unification.md`).
+
+#### General parameters
+*To be defined when SF is canonicalized in Phase 1. Source material: current render code for A3 (Achievements), A4 (PR Leaders), A5 (Match Records), A6 (League Records), C4 (Match Records on player-general).*
+
+#### Args
+*To be defined.*
+
+#### ColDef
+*To be defined.*
+
+#### HTML structure
+*To be defined.*
+
+#### Usage
+*To be defined.*
+
+---
+
+### exp (Expandable Format)
+
+Collapsible-row / expandable-content variant used by: **C0** (Expandable tables in PR STATISTICS and ACHIEVEMENTS cards on player-general).
+
+Rendered by `mountExpTable(mountPoint, args)` (`table-lab/formats/exp/mount.js` — to be created).
+
+> **Status:** format is **declared** but not yet implemented. Per-table parameters, args schema, and visual rules to be derived from the existing C0 render code during Phase 1 of the table-lab unification plan.
+
+#### General parameters
+*To be defined when exp is canonicalized in Phase 1.*
+
+#### Args
+*To be defined — must include an `expand`/`collapse` row interaction model.*
+
+#### ColDef
+*To be defined.*
+
+#### HTML structure
+*To be defined.*
+
+#### Usage
+*To be defined.*
+
+---
+
+### FF1 (Form Format 1 — League Manager)
+
+Admin CRUD table used by: **F1 (League Manager on admin.html).**
+
+Rendered by `mountFF1Table(mountPoint, args)` (`table-lab/formats/ff1/mount.js` — to be created). FF1 is purpose-built for the League Manager — inline-edit cells, Save/Delete actions, mobile `data-label` card pattern, status/type pills.
+
+> **Status:** format is **declared** but not yet implemented. Per-table parameters, args schema, and visual rules to be derived from `js/admin/leagueManager.js` during a later phase (admin tables are not in scope for the initial table-lab MF migration — see plan).
+
+#### General parameters
+*To be defined.*
+
+#### Args
+*To be defined — must include edit-mode wiring, save/delete callbacks, and validation hooks.*
+
+#### ColDef
+*To be defined.*
+
+#### HTML structure
+*To be defined.*
+
+#### Usage
+*To be defined.*
+
+---
+
+### FF2 (Form Format 2 — Round Editor)
+
+Admin match-results editor used by: **F2 (Round Editor on admin.html).**
+
+Rendered by `mountFF2Table(mountPoint, args)` (`table-lab/formats/ff2/mount.js` — to be created). FF2 is purpose-built for the Round Editor — score-entry cells, result inference, per-row validation, round navigation.
+
+> **Status:** format is **declared** but not yet implemented. Per-table parameters, args schema, and visual rules to be derived from `js/admin/roundEditor.js` during a later phase (admin tables are not in scope for the initial table-lab MF migration — see plan).
+
+#### General parameters
+*To be defined.*
+
+#### Args
+*To be defined — must include round/match data model, score input handlers, and per-cell validation.*
+
+#### ColDef
+*To be defined.*
+
+#### HTML structure
+*To be defined.*
+
+#### Usage
+*To be defined.*

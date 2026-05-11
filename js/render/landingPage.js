@@ -19,6 +19,9 @@ import { luckPercentileStats } from '../compute/luckPercentile.js';
 import { getLevel } from '../compute/rankings.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
+import { mountMFTable } from './mountMFTable.js';
+import { buildCompletedLeaguesPreset } from '../presets/completedLeaguesPreset.js';
+import { buildAnnualLeaderboardPreset } from '../presets/annualLeaderboardPreset.js';
 import { isLoggedIn } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
 import { addChange, getChangeCount } from '../admin/stagingStore.js';
@@ -793,40 +796,29 @@ function renderCompletedLeagues(container, completed) {
     const hasCurrentYear = withDates.some(l => l.year >= currentYear);
     const collapsed = hasCurrentYear ? '' : ' collapsed';
 
-    let rowsHtml = '';
-    for (const l of withDates) {
-        const dateStr = l.params.IssueDate
-            ? `${l.day} ${l.monthShort} ${l.year}`
-            : `${l.monthShort} ${l.year}`;
-        let leaderHtml = '—';
-        if (l.leader) {
-            const flagCode = getFlagCode(l.leader.player, l.params.CustomFlags);
-            const leaderIsHidden = !!_playersMeta[l.leader.player]?.hidden;
-            leaderHtml = `${leaderIsHidden ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`} ${playerNameLink(l.leader.player, _playersMeta[l.leader.player])}`;
-        }
-        const typeLabel = TYPE_LABELS[l.leagueType] || l.leagueType;
-        const typeCell = `<span class="league-type-pill type-${l.leagueType}">${typeLabel}</span>`;
-        rowsHtml += `
-            <tr class="row-type-${l.leagueType}" data-league-id="${escapeHtml(l.id)}">
-                <td data-label="League"><a href="${dashboardUrl(l.id)}">${escapeHtml(l.title)}</a></td>
-                <td data-label="Date">${dateStr}</td>
-                <td data-label="Type">${typeCell}</td>
-                <td data-label="Winner">${leaderHtml}</td>
-            </tr>`;
-    }
-
     section.innerHTML = `
         <div class="collapsible-section${collapsed}">
             <h2 class="collapsible-header">Completed Leagues</h2>
             <div class="collapsible-body">
-                <div class="completed-table-wrapper table-scroll">
-                    <table class="completed-leagues-table font-large" data-mf-table-id="A1">
-                        <thead><tr><th scope="col">League</th><th scope="col">Date</th><th scope="col">Type</th><th scope="col">Winner</th></tr></thead>
-                        <tbody>${rowsHtml}</tbody>
-                    </table>
-                </div>
+                <div class="completed-leagues-mount"></div>
             </div>
         </div>`;
+
+    const mountPoint = section.querySelector('.completed-leagues-mount');
+    const rows = withDates.map(l => ({
+        league:          l.title,
+        dateStr:         l.params.IssueDate ? `${l.day} ${l.monthShort} ${l.year}` : `${l.monthShort} ${l.year}`,
+        leagueType:      l.leagueType,
+        leagueId:        l.id,
+        leaderName:      l.leader?.player ?? null,
+        leaderHidden:    !!_playersMeta[l.leader?.player]?.hidden,
+        leaderFlagCode:  l.leader ? getFlagCode(l.leader.player, l.params.CustomFlags) : null,
+        leaderMeta:      l.leader ? _playersMeta[l.leader.player] : null,
+    }));
+    const preset = buildCompletedLeaguesPreset({ rows, flagUrl, dashboardUrl });
+    const { table } = mountMFTable(mountPoint, preset);
+    // Preserve legacy class so existing CSS (.completed-leagues-table) continues to apply.
+    table.classList.add('completed-leagues-table');
 
     // Attach collapsible toggle
     const header = section.querySelector('.collapsible-header');
@@ -834,20 +826,14 @@ function renderCompletedLeagues(container, completed) {
         header.closest('.collapsible-section').classList.toggle('collapsed');
     });
 
-    // Attach context menu to winner player links
-    for (const l of withDates) {
-        if (l.leader) {
-            const row = section.querySelector(`tr[data-league-id="${CSS.escape(l.id)}"]`);
-            if (row) attachPlayerNameInteractions(row, l.id);
-        }
-    }
+    // Wire context menu on each winner link, mapping row index → leagueId.
+    const dataRows = mountPoint.querySelectorAll('tbody tr:not(.avg-row)');
+    dataRows.forEach((tr, i) => {
+        const leagueId = rows[i]?.leagueId;
+        if (leagueId) attachPlayerNameInteractions(tr, leagueId);
+    });
 
     container.appendChild(section);
-
-    // Limit to top 10 with Show-all toggle (same pattern as Match Records)
-    const tableEl = section.querySelector('.completed-leagues-table');
-    if (tableEl) applyShowTopN(tableEl, 10);
-    section.querySelectorAll('.completed-table-wrapper').forEach(w => attachStickyShadow(w));
 }
 
 /* ── H2 — Annual leaderboards ─────────────────────────── */
@@ -993,48 +979,12 @@ function renderLeaderboards(container, leaderboards) {
         const section = document.createElement('div');
         section.className = 'leaderboard-section';
 
-        const metricLabel = lb.isUBC ? 'Points' : 'Wins';
-        const showWinRate = !lb.isUBC;
-        const showAvgPoints = lb.isUBC;
         const collapsed = lb.year >= currentYear ? '' : ' collapsed';
 
-        // Header row (full label desktop, abbreviated mobile)
-        let thMonths = lb.months.map(m => `<th scope="col" class="month-col">${m}</th>`).join('');
-        let thExtra = `<th scope="col" class="total-col">Tot</th>`;
-        if (showWinRate) thExtra += `<th scope="col">Win%</th>`;
-        if (showAvgPoints) thExtra += `<th scope="col">Avg PTS</th>`;
-        thExtra += `<th scope="col">PR</th>`;
-
-        // Data rows — skip hidden players entirely
-        let rowsHtml = '';
-        for (const row of lb.rows) {
-            if (_playersMeta[row.player]?.hidden) continue;
-            let rankClass = '';
-            if (row.rank === 1) rankClass = 'rank-gold';
-            else if (row.rank === 2) rankClass = 'rank-silver';
-            else if (row.rank === 3) rankClass = 'rank-bronze';
-
-            const monthCells = lb.months.map(m => {
-                const val = row.monthly[m];
-                return `<td class="month-col">${val != null ? val : '–'}</td>`;
-            }).join('');
-
-            let extraCells = `<td class="total-col">${row.total}</td>`;
-            if (showWinRate) extraCells += `<td>${formatPercent(row.winRate)}</td>`;
-            if (showAvgPoints) extraCells += `<td>${formatNumber(row.avgPoints)}</td>`;
-            extraCells += `<td>${row.meanPR !== null ? formatNumber(row.meanPR) : 'N/A'}</td>`;
-
-            rowsHtml += `
-                <tr class="${rankClass}">
-                    <td>${row.rank}</td>
-                    <td class="player-cell">
-                        <img class="flag" src="${flagUrl(row.flagCode)}" alt="${row.flagCode}">
-                        ${playerNameLink(row.player, _playersMeta[row.player])}
-                    </td>
-                    ${monthCells}
-                    ${extraCells}
-                </tr>`;
-        }
+        // Filter out hidden players up-front (live behaviour: skip entirely)
+        const visibleRows = lb.rows
+            .filter(row => !_playersMeta[row.player]?.hidden)
+            .map(row => ({ ...row, meta: _playersMeta[row.player] }));
 
         const title = `${lb.year} ${lb.typeName} Leaderboard`;
 
@@ -1053,21 +1003,20 @@ function renderLeaderboards(container, leaderboards) {
                     </div>
                 </div>
                 <div class="collapsible-body">
-                    <div class="leaderboard-table-wrapper">
-                        <table class="leaderboard-table font-small" data-mf-table-id="A2">
-                            <thead>
-                                <tr>
-                                    <th scope="col">#</th>
-                                    <th scope="col" class="player-col">Player</th>
-                                    ${thMonths}
-                                    ${thExtra}
-                                </tr>
-                            </thead>
-                            <tbody>${rowsHtml}</tbody>
-                        </table>
-                    </div>
+                    <div class="leaderboard-mount"></div>
                 </div>
             </div>`;
+
+        const mountPoint = section.querySelector('.leaderboard-mount');
+        const preset = buildAnnualLeaderboardPreset({
+            rows:    visibleRows,
+            months:  lb.months,
+            isUBC:   lb.isUBC,
+            flagUrl,
+        });
+        const { table } = mountMFTable(mountPoint, preset);
+        // Preserve legacy class so existing .leaderboard-table CSS still applies.
+        table.classList.add('leaderboard-table');
 
         // Collapsible toggle
         const header = section.querySelector('.collapsible-header');
@@ -1079,7 +1028,6 @@ function renderLeaderboards(container, leaderboards) {
         const exportBtn = section.querySelector('.img-export-btn');
         exportBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            // Re-query input at click time to avoid stale references
             const currentInput = exportBtn.closest('.leaderboard-section').querySelector('.img-export-rows');
             let maxRows = parseInt(currentInput.value, 10);
             if (!Number.isFinite(maxRows) || maxRows < 1) maxRows = 1;
@@ -1090,13 +1038,13 @@ function renderLeaderboards(container, leaderboards) {
         // Don't toggle collapsible when interacting with the export controls.
         section.querySelector('.img-export-group').addEventListener('click', e => e.stopPropagation());
 
-        container.appendChild(section);
+        // Wire context menu on each player name link (sortable table — re-attach after sort).
+        attachPlayerNameInteractions(mountPoint);
+        const tbody = table.querySelector('tbody');
+        new MutationObserver(() => attachPlayerNameInteractions(mountPoint))
+            .observe(tbody, { childList: true });
 
-        section.querySelectorAll('.leaderboard-table').forEach(t => applyShowTopN(t));
-        section.querySelectorAll('.leaderboard-table-wrapper').forEach(w => {
-            measureLeaderboardStickyCols(w);
-            attachStickyShadow(w);
-        });
+        container.appendChild(section);
     }
 }
 

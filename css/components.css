@@ -89,6 +89,21 @@ tbody td {
     white-space: nowrap;
 }
 
+/* mountMFTable wrapper — self-contained visual + scroll + alignment, matching
+   the lab canon (lab.css `.mf-wrap`). Outer wrappers (.pg-leagues-table-wrapper,
+   .pg-matches-table-wrapper, .matchup-table-wrapper) are plain layout containers
+   so the show-more button sits OUTSIDE the card. */
+.mf-wrap {
+    overflow-x: auto;
+    overflow-y: clip;
+    min-width: 0;
+    box-shadow: var(--shadow-sm);
+}
+.mf-wrap thead th,
+.mf-wrap tbody td {
+    text-align: left;
+}
+
 /* ---- League table (D): font enum + sticky left 2 cols (Rank + Player) ----
    Iron rule 1/12: no hard-coded widths. Cols size by max-content.
    Iron rule 12: col-2 left offset comes from JS-measured CSS variable
@@ -717,9 +732,7 @@ tr.retired {
 }
 
 .matchup-table-wrapper {
-    overflow-x: auto;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--color-border);
+    /* plain layout container — card visual lives on inner .mf-wrap */
 }
 
 table.matchup-table {
