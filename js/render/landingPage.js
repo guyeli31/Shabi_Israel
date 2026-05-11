@@ -820,7 +820,7 @@ function renderCompletedLeagues(container, completed) {
             <h2 class="collapsible-header">Completed Leagues</h2>
             <div class="collapsible-body">
                 <div class="completed-table-wrapper table-scroll">
-                    <table class="completed-leagues-table font-large">
+                    <table class="completed-leagues-table font-large" data-mf-table-id="A1">
                         <thead><tr><th scope="col">League</th><th scope="col">Date</th><th scope="col">Type</th><th scope="col">Winner</th></tr></thead>
                         <tbody>${rowsHtml}</tbody>
                     </table>
@@ -1054,7 +1054,7 @@ function renderLeaderboards(container, leaderboards) {
                 </div>
                 <div class="collapsible-body">
                     <div class="leaderboard-table-wrapper">
-                        <table class="leaderboard-table font-small">
+                        <table class="leaderboard-table font-small" data-mf-table-id="A2">
                             <thead>
                                 <tr>
                                     <th scope="col">#</th>
@@ -1172,7 +1172,7 @@ async function exportLeaderboardImage(lb, title, maxRows) {
     wrap.innerHTML = `
         <h3 style="margin:0 0 12px 0;font-size:20px;color:#1e293b;">${escapeHtml(title)}</h3>
         <div class="leaderboard-table-wrapper" style="max-height:none;overflow:visible">
-            <table class="leaderboard-table font-small">
+            <table class="leaderboard-table font-small" data-mf-table-id="A2">
                 <thead>
                     <tr>
                         <th scope="col">#</th>
@@ -1344,7 +1344,7 @@ function renderAchievementTables(data, leagueType) {
             <div class="achv-table-card">
                 <h3>${heading}</h3>
                 <div class="achv-table-wrapper">
-                    <table class="achv-table font-small">
+                    <table class="achv-table font-small" data-mf-table-id="A3">
                         <thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">${m.label}</th></tr></thead>
                         <tbody>${rowsHtml || '<tr><td colspan="3">No data</td></tr>'}</tbody>
                     </table>
@@ -1391,7 +1391,7 @@ function renderLuckPercentileCard(data, leagueType) {
                 ${luckBellCurveSvg()}
             </div>
             <div class="achv-table-wrapper">
-                <table class="achv-table achv-luck-table font-small">
+                <table class="achv-table achv-luck-table font-small" data-mf-table-id="A3">
                     <thead>
                         <tr>
                             <th scope="col">#</th>
@@ -1486,7 +1486,7 @@ function renderPRTables(data) {
             <div class="achv-table-card">
                 <h3>${m.label}</h3>
                 <div class="achv-table-wrapper">
-                    <table class="achv-table pr-leaders-table font-small">
+                    <table class="achv-table pr-leaders-table font-small" data-mf-table-id="A4">
                         <thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">PR</th><th scope="col">Level</th></tr></thead>
                         <tbody>${rowsHtml || '<tr><td colspan="4">No data</td></tr>'}</tbody>
                     </table>
@@ -1583,7 +1583,7 @@ function renderMatchRecordsTables(luckRows, prRows) {
             <div class="achv-table-card">
                 <h3>Best PR Matches</h3>
                 <div class="achv-table-wrapper">
-                    <table class="achv-table match-records-table font-small">
+                    <table class="achv-table match-records-table font-small" data-mf-table-id="A5">
                         <thead><tr>
                             <th scope="col">#</th><th scope="col">Player</th><th scope="col">PR</th><th scope="col">Opponent</th>
                             <th scope="col">Score</th><th scope="col">Result</th><th scope="col">League</th><th scope="col">Date</th>
@@ -1595,7 +1595,7 @@ function renderMatchRecordsTables(luckRows, prRows) {
             <div class="achv-table-card">
                 <h3>Luckiest Matches</h3>
                 <div class="achv-table-wrapper">
-                    <table class="achv-table match-records-table font-small">
+                    <table class="achv-table match-records-table font-small" data-mf-table-id="A5">
                         <thead><tr>
                             <th scope="col">#</th><th scope="col">Player</th><th scope="col">Luck Gap</th><th scope="col">Opponent</th>
                             <th scope="col">Score</th><th scope="col">Result</th><th scope="col">League</th><th scope="col">Date</th>
@@ -1846,7 +1846,7 @@ function renderLeagueRecordsPanel(prRows, luckRows, worstRows) {
             <div class="achv-table-card">
                 <h3>Best PR Appearances</h3>
                 <div class="achv-table-wrapper">
-                    <table class="achv-table league-records-table font-small">
+                    <table class="achv-table league-records-table font-small" data-mf-table-id="A6">
                         <thead><tr>
                             <th scope="col">#</th>
                             <th scope="col">Player</th>
@@ -1863,7 +1863,7 @@ function renderLeagueRecordsPanel(prRows, luckRows, worstRows) {
             <div class="achv-table-card">
                 <h3>Best Luck Appearances</h3>
                 <div class="achv-table-wrapper">
-                    <table class="achv-table league-records-table font-small">
+                    <table class="achv-table league-records-table font-small" data-mf-table-id="A6">
                         <thead><tr>
                             <th scope="col">#</th>
                             <th scope="col">Player</th>
@@ -1879,7 +1879,7 @@ function renderLeagueRecordsPanel(prRows, luckRows, worstRows) {
             <div class="achv-table-card">
                 <h3>Worst Luck Appearances</h3>
                 <div class="achv-table-wrapper">
-                    <table class="achv-table league-records-table font-small">
+                    <table class="achv-table league-records-table font-small" data-mf-table-id="A6">
                         <thead><tr>
                             <th scope="col">#</th>
                             <th scope="col">Player</th>

@@ -37,6 +37,10 @@ import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { getTitleBadgesHtml, getTitleAbbreviationsHtml, getHighestTier } from '../data/titleConstants.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
+import { mountMFTable } from './mountMFTable.js';
+import { buildPlayerLeaguesPreset } from '../presets/playerLeaguesPreset.js';
+import { buildPlayerAllMatchesPreset } from '../presets/playerAllMatchesPreset.js';
+import { buildMatchupPreset } from '../presets/matchupPreset.js';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
@@ -360,7 +364,7 @@ function renderRankTable(rows, playerName, meta) {
         ? (meta.metric === 'totalPR' ? 'Total PR' : 'Last 300 PR')
         : (meta.metric === 'gold' ? 'Gold' : meta.metric === 'silver' ? 'Silver' : meta.metric === 'bronze' ? 'Bronze' : meta.metric === 'avgRank' ? 'Avg Rank' : meta.metric === 'winRate' ? 'Win%' : 'Value');
     const showLeagues = meta.kind === 'medal';
-    let html = `<div class="pg-rank-table-wrap"><table class="pg-rank-table font-small"><thead><tr><th scope="col">#</th><th scope="col">Player</th>${showLeagues ? `<th scope="col">Leagues</th>` : ''}<th scope="col">${escapeHtml(valueLabel)}</th></tr></thead><tbody>`;
+    let html = `<div class="pg-rank-table-wrap"><table class="pg-rank-table font-small" data-mf-table-id="C0"><thead><tr><th scope="col">#</th><th scope="col">Player</th>${showLeagues ? `<th scope="col">Leagues</th>` : ''}<th scope="col">${escapeHtml(valueLabel)}</th></tr></thead><tbody>`;
     for (const r of rows.filter(r => !_allMeta[r.name]?.hidden)) {
         const isSelf = r.name === playerName;
         const valFmt = (meta.kind === 'pr')
@@ -461,74 +465,18 @@ function renderLeaguesTable(section, perLeague) {
         section.innerHTML += '<div class="pg-note">No data</div>';
         return;
     }
-    let html = `
-    <div class="pg-leagues-table-wrapper">
-        <table class="pg-leagues-table font-large">
-            <thead>
-                <tr>
-                    <th scope="col">League</th>
-                    <th scope="col">Date</th>
-                    <th scope="col">Type</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Rank</th>
-                    <th scope="col">GP</th>
-                    <th scope="col">W</th>
-                    <th scope="col">L</th>
-                    <th scope="col">Primary</th>
-                    <th scope="col">PR</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
-    for (const e of perLeague) {
-        const s = e.playerStats || {};
-        const cfg = e.league.config;
-        const isUbc = cfg.type === 'ubc';
-        const primary = isUbc
-            ? (s.avgPoints != null ? formatNumber(s.avgPoints) : '—')
-            : (s.winRate != null ? (s.winRate * 100).toFixed(1) + '%' : '—');
-        const primaryLabel = isUbc ? 'Avg Points' : 'Win Rate';
-        const meanPR = (s.meanPR != null && cfg.showPR) ? formatNumber(s.meanPR) : '—';
-        const running = e.league.params?.Running === true;
-        const goldCount   = e.league.params?.GoldCount   ?? 1;
-        const silverCount = e.league.params?.SilverCount ?? 1;
-        const bronzeCount = e.league.params?.BronzeCount ?? 1;
-        const rankClass = e.playerRank == null ? ''
-            : e.playerRank <= goldCount                            ? 'rank-cell-gold'
-            : e.playerRank <= goldCount + silverCount              ? 'rank-cell-silver'
-            : e.playerRank <= goldCount + silverCount + bronzeCount ? 'rank-cell-bronze'
-            : '';
-        html += `
-            <tr>
-                <td><a href="${dashboardUrl(e.league.id)}">${escapeHtml(e.league.title)}</a></td>
-                <td>${formatLeagueDate(e.league)}</td>
-                <td><span class="league-type-pill type-${escapeHtml(e.league.leagueType)}">${escapeHtml(LEAGUE_TYPE_LABELS[e.league.leagueType] || e.league.leagueType)}</span></td>
-                <td>${running ? '<span class="status-pill status-running">Running</span>' : '<span class="status-pill status-completed">Completed</span>'}</td>
-                <td class="${rankClass}">${e.playerRank != null ? `${e.playerRank} / ${e.totalPlayers}` : '—'}</td>
-                <td>${s.games || 0}</td>
-                <td>${s.wins || 0}</td>
-                <td>${s.losses || 0}</td>
-                <td title="${primaryLabel}">${primary}</td>
-                <td>${meanPR}</td>
-            </tr>
-        `;
-    }
-    html += '</tbody></table></div>';
-    section.innerHTML += html;
+    const mountPoint = document.createElement('div');
+    mountPoint.className = 'pg-leagues-table-wrapper';
+    section.appendChild(mountPoint);
 
-}
-
-function formatLeagueDate(league) {
-    const iso = league.params?.IssueDate || league.params?.StartDate;
-    if (iso) {
-        const d = new Date(iso);
-        if (!isNaN(d)) {
-            return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-        }
-    }
-    const parsed = parseLeagueDate(league.id);
-    if (parsed.year != null) return `${parsed.monthShort} ${parsed.year}`;
-    return '—';
+    const preset = buildPlayerLeaguesPreset({
+        perLeague,
+        parseLeagueDate,
+        enrich: {
+            leagueLink: (id, title) => `<a href="${dashboardUrl(id)}">${escapeHtml(title)}</a>`,
+        },
+    });
+    mountMFTable(mountPoint, preset);
 }
 
 // ---- G5: Match history ----
@@ -592,9 +540,6 @@ function renderMatchHistory(section, playerName, perLeague) {
     tableWrap.className = 'pg-matches-table-wrapper';
     section.appendChild(tableWrap);
 
-    let sortKey = 'updatedAt';
-    let sortDir = 'desc';
-
     function applyFilters() {
         const yv = yearSel.value;
         const tv = typeSel.value;
@@ -614,28 +559,11 @@ function renderMatchHistory(section, playerName, perLeague) {
 
     function renderAll() {
         const rows = applyFilters();
+        renderTable(tableWrap, rows);
 
-        // Sort
-        const sorted = [...rows].sort((a, b) => {
-            let va = a[sortKey], vb = b[sortKey];
-            if (sortKey === 'updatedAt') {
-                va = va ? new Date(va).getTime() : 0;
-                vb = vb ? new Date(vb).getTime() : 0;
-            }
-            if (va == null) va = '';
-            if (vb == null) vb = '';
-            if (typeof va === 'string') {
-                return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-            }
-            return sortDir === 'asc' ? va - vb : vb - va;
-        });
-
-        renderTable(tableWrap, sorted);
-
-        // Bar chart — include only non-technical played matches
-        const chartMatches = sorted
+        // Bar chart — include only non-technical played matches, chronological asc
+        const chartMatches = rows
             .filter(r => !r._technical && r.prSelf != null)
-            // chart expects chronological ascending
             .sort((a, b) => {
                 const at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
                 const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
@@ -650,67 +578,20 @@ function renderMatchHistory(section, playerName, perLeague) {
     }
 
     function renderTable(host, rows) {
-        const headers = [
-            { key: 'leagueTitle', label: 'League', abbr: 'League' },
-            { key: 'updatedAt', label: 'Date', abbr: 'Date' },
-            { key: 'leagueType', label: 'Type', abbr: 'Type' },
-            { key: 'opponent', label: 'Opponent', abbr: 'Opponent' },
-            { key: 'scoreSelf', label: 'Score', abbr: 'Score' },
-            { key: 'prSelf', label: 'PR', abbr: 'PR' },
-            { key: 'prOpp', label: 'Opp PR', abbr: 'Opp PR' },
-            { key: 'luckSelf', label: 'Luck', abbr: 'Luck' },
-            { key: 'result', label: 'Result', abbr: 'Result' }
-        ];
-        let html = '<table class="pg-matches-table font-small"><thead><tr>';
-        for (const h of headers) {
-            const arrow = sortKey === h.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
-            html += `<th scope="col" data-key="${h.key}">${escapeHtml(h.label)}${arrow}</th>`;
-        }
-        html += '</tr></thead><tbody>';
-        for (const r of rows) {
-            const date = r.updatedAt ? new Date(r.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-            const pr = (r.prSelf != null && !r._technical) ? formatNumber(r.prSelf) : '<span class="na">N/A</span>';
-            const prOpp = (r.prOpp != null && !r._technical) ? formatNumber(r.prOpp) : '<span class="na">N/A</span>';
-            const luck = (!r._technical && r.luckSelf != null && r.luckOpp != null)
-                ? formatNumber(r.luckSelf - r.luckOpp)
-                : '<span class="na">N/A</span>';
-            const resultClass =
-                r.result === 'WIN' ? 'result-win'
-                : r.result === 'LOSS' ? 'result-loss'
-                : 'result-draw';
-            html += `
-                <tr>
-                    <td><a href="${dashboardUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
-                    <td>${date}</td>
-                    <td><span class="pg-lt pg-lt-${escapeHtml(r.leagueType)}">${escapeHtml(r.leagueType)}</span></td>
-                    <td>${_allMeta[r.opponent]?.hidden ? '' : `<img class="flag" src="${flagUrl(getFlagCode(r.opponent, _mergedCustomFlags))}" alt="flag">`} ${playerNameLink(r.opponent, _allMeta[r.opponent])}</td>
-                    <td>${r._technical ? (r.scoreSelf > r.scoreOpp ? `${r.matchLength}–0` : `0–${r.matchLength}`) : `${r.scoreSelf}–${r.scoreOpp}`}</td>
-                    <td>${pr}</td>
-                    <td>${prOpp}</td>
-                    <td>${luck}</td>
-                    <td class="${resultClass}">${r.result}${r._technical ? ' <small>(T)</small>' : ''}</td>
-                </tr>
-            `;
-        }
-        html += '</tbody></table>';
-        host.innerHTML = html;
-        attachPlayerNameInteractions(host, null);
-
-        const tableEl = host.querySelector('table.pg-matches-table');
-        if (tableEl) applyShowTopN(tableEl, 10);
-
-        host.querySelectorAll('th[data-key]').forEach(th => {
-            th.addEventListener('click', () => {
-                const k = th.dataset.key;
-                if (k === sortKey) {
-                    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-                } else {
-                    sortKey = k;
-                    sortDir = 'asc';
-                }
-                renderAll();
-            });
+        const preset = buildPlayerAllMatchesPreset({
+            rows,
+            enrich: {
+                leagueLink: (id, title) => `<a href="${dashboardUrl(id)}">${escapeHtml(title)}</a>`,
+                opponentCell: (name) => {
+                    const flagHtml = _allMeta[name]?.hidden
+                        ? ''
+                        : `<img class="flag" src="${flagUrl(getFlagCode(name, _mergedCustomFlags))}" alt="flag">`;
+                    return `${flagHtml} ${playerNameLink(name, _allMeta[name])}`;
+                },
+            },
         });
+        mountMFTable(host, preset);
+        attachPlayerNameInteractions(host, null);
     }
 
     yearSel.addEventListener('change', renderAll);
@@ -814,8 +695,6 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
     body.appendChild(selectorRow);
     body.appendChild(resultsArea);
 
-    let showAll = false;
-
     function filterDropdown(query) {
         const q = query.trim().toLowerCase();
         if (q.length < 1) { dropdown.hidden = true; return; }
@@ -846,7 +725,6 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
     function selectOpponent(name) {
         input.value = name;
         dropdown.hidden = true;
-        showAll = false;
         renderResults(name);
     }
 
@@ -858,12 +736,6 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
             const first = dropdown.querySelector('.matchup-search-option');
             if (first) { e.preventDefault(); selectOpponent(first.textContent); }
         }
-    });
-
-    let _muRafId;
-    window.addEventListener('resize', () => {
-        cancelAnimationFrame(_muRafId);
-        _muRafId = requestAnimationFrame(() => applyMatchupStickyOffsets(resultsArea));
     });
 
     function renderResults(opponent) {
@@ -887,9 +759,8 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
         }
 
         const matchText   = count === 0 ? '0 matches' : `${count} match${count === 1 ? '' : 'es'}`;
-        const limitText   = !showAll && count > LIMIT ? ` · showing ${LIMIT}` : '';
         const summaryText = headToHead ? ` · ${headToHead}` : '';
-        badge.textContent = matchText + limitText + summaryText;
+        badge.textContent = matchText + summaryText;
         badge.hidden = false;
 
         if (count === 0) {
@@ -907,106 +778,25 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
             const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
             return bt - at;
         });
-        const visible = showAll ? sorted : sorted.slice(0, LIMIT);
 
-        let html =
-            `<div class="matchup-table-wrapper">` +
-            `<table class="matchup-table font-small"><thead><tr>` +
-            `<th scope="col">Date</th>` +
-            `<th scope="col">League</th>` +
-            `<th scope="col">Type</th>` +
-            `<th scope="col">Winner</th>` +
-            `<th scope="col">Score</th>` +
-            `<th scope="col">PR A</th>` +
-            `<th scope="col">PR B</th>` +
-            `<th scope="col">Luck A</th>` +
-            `<th scope="col">Luck B</th>` +
-            `</tr></thead><tbody>`;
+        resultsArea.innerHTML = '';
+        const mountPoint = document.createElement('div');
+        mountPoint.className = 'matchup-table-wrapper';
+        resultsArea.appendChild(mountPoint);
 
-        for (const r of visible) {
-            const date = r.updatedAt
-                ? new Date(r.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                : '—';
-
-            const typePill =
-                `<span class="pg-lt pg-lt-${escapeHtml(r.leagueType)}">` +
-                `${escapeHtml(LEAGUE_TYPE_LABELS[r.leagueType] || r.leagueType)}` +
-                `</span>`;
-
-            const won = r.scoreSelf > r.scoreOpp;
-            const winnerName = won ? playerName : opponent;
-            const winnerClass = won ? 'matchup-winner-win' : 'matchup-winner-loss';
-            const winnerLabel = r._technical
-                ? `${escapeHtml(winnerName)} <small>(T)</small>`
-                : escapeHtml(winnerName);
-            const score = r._technical
-                ? (won ? `${r.matchLength}–0` : `0–${r.matchLength}`)
-                : `${r.scoreSelf}–${r.scoreOpp}`;
-
-            // PR: bold the lower value (lower = better)
-            const prA = r._technical ? null : r.prSelf;
-            const prB = r._technical ? null : r.prOpp;
-            let prAHtml, prBHtml;
-            if (prA != null && prB != null) {
-                prAHtml = `<span class="${prA <= prB ? 'matchup-pr-best' : 'matchup-pr-other'}">${formatNumber(prA)}</span>`;
-                prBHtml = `<span class="${prB <= prA ? 'matchup-pr-best' : 'matchup-pr-other'}">${formatNumber(prB)}</span>`;
-            } else {
-                prAHtml = prBHtml = '<span class="na">N/A</span>';
-            }
-
-            // LUCK: bold the higher value (no color tinting)
-            const luckA = r._technical ? null : r.luckSelf;
-            const luckB = r._technical ? null : r.luckOpp;
-            let luckAHtml, luckBHtml;
-            if (luckA != null && luckB != null) {
-                const fmtLuck = v => formatNumber(v);
-                luckAHtml = `<span class="${luckA >= luckB ? 'matchup-luck-best' : 'matchup-luck-other'}">${fmtLuck(luckA)}</span>`;
-                luckBHtml = `<span class="${luckB >= luckA ? 'matchup-luck-best' : 'matchup-luck-other'}">${fmtLuck(luckB)}</span>`;
-            } else {
-                luckAHtml = luckBHtml = '<span class="na">N/A</span>';
-            }
-
-            html +=
-                `<tr>` +
-                `<td>${escapeHtml(date)}</td>` +
-                `<td style="text-align:left"><a href="${dashboardUrl(r.leagueId)}">${escapeHtml(r.leagueTitle || r.leagueId)}</a></td>` +
-                `<td>${typePill}</td>` +
-                `<td class="${winnerClass}">${winnerLabel}</td>` +
-                `<td class="matchup-score">${score}</td>` +
-                `<td>${prAHtml}</td>` +
-                `<td>${prBHtml}</td>` +
-                `<td>${luckAHtml}</td>` +
-                `<td>${luckBHtml}</td>` +
-                `</tr>`;
-        }
-        html += '</tbody></table></div>';
-
-        if (!showAll && count > LIMIT) {
-            html += `<div class="matchup-footer"><button class="matchup-show-all-btn" id="mu-show-all">SHOW ALL ${count} MATCHES</button></div>`;
-        }
-
-        resultsArea.innerHTML = html;
-        attachPlayerNameInteractions(resultsArea, null);
-        requestAnimationFrame(() => applyMatchupStickyOffsets(resultsArea));
-
-        if (!showAll && count > LIMIT) {
-            resultsArea.querySelector('#mu-show-all').addEventListener('click', () => {
-                showAll = true;
-                renderResults(opponent);
-            });
-        }
+        const preset = buildMatchupPreset({
+            rows: sorted,
+            playerName,
+            opponent,
+            enrich: {
+                leagueLink: (id, title) => `<a href="${dashboardUrl(id)}">${escapeHtml(title)}</a>`,
+            },
+        });
+        mountMFTable(mountPoint, preset);
     }
 }
 
 // ---- helpers ----
-
-function labelWrap(label, el) {
-    const w = document.createElement('label');
-    w.className = 'pg-filter';
-    w.innerHTML = `<span>${label}</span>`;
-    w.appendChild(el);
-    return w;
-}
 
 function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
@@ -1083,15 +873,6 @@ function showMatchRecordsType(body, perLeague, type) {
     requestAnimationFrame(() => applyPgMrTableStickyOffsets(body));
 }
 
-function applyMatchupStickyOffsets(root) {
-    const table = root.querySelector('table.matchup-table');
-    if (!table) return;
-    const th1 = table.querySelector('thead th:nth-child(1)');
-    if (!th1) return;
-    const w1 = th1.getBoundingClientRect().width;
-    if (w1 > 0) table.style.setProperty('--mu-col1-w', w1 + 'px');
-}
-
 function applyPgMrTableStickyOffsets(root) {
     root.querySelectorAll('.pg-mr-table').forEach(table => {
         const th1 = table.querySelector('thead th:nth-child(1)');
@@ -1148,7 +929,7 @@ function renderPlayerRecordTable(title, metricLabel, rows) {
         <div class="achv-table-card">
             <h3>${title}</h3>
             <div class="achv-table-wrapper">
-                <table class="achv-table pg-mr-table">
+                <table class="achv-table pg-mr-table" data-mf-table-id="C4">
                     <thead><tr>
                         <th scope="col">#</th><th scope="col">${metricLabel}</th><th scope="col">Opponent</th>
                         <th scope="col">Score</th><th scope="col">Result</th><th scope="col">League</th><th scope="col">Date</th>

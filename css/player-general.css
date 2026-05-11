@@ -475,16 +475,21 @@
 .pg-matches-table .result-loss { color: var(--color-loss); font-weight: 600; }
 .pg-matches-table .result-draw { color: var(--color-draw); font-weight: 600; }
 
-/* Visited-link fix: keep link color consistent after clicking */
+/* Visited-link fix: keep link color consistent after clicking.
+   Covers both legacy class-based tables and mountMFTable wrappers
+   (C1/C2/C3 use only .mf-wrap + data-mf-table-id, not .pg-*-table). */
 .pg-leagues-table a,
 .pg-leagues-table a:visited,
 .pg-matches-table a,
-.pg-matches-table a:visited {
+.pg-matches-table a:visited,
+.pg-section .mf-wrap a,
+.pg-section .mf-wrap a:visited {
     color: var(--color-text, #222);
     text-decoration: none;
 }
 .pg-leagues-table a:hover,
-.pg-matches-table a:hover {
+.pg-matches-table a:hover,
+.pg-section .mf-wrap a:hover {
     color: var(--color-accent, #1c4e80);
     text-decoration: underline;
 }

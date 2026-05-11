@@ -419,7 +419,7 @@ function renderPrizes(ctx) {
     if (params.BronzeCount) rows.push({ medal: '🥉', tier: 'Bronze', count: params.BronzeCount, prize: prizes.Bronze != null ? `₪${prizes.Bronze.toLocaleString()}` : '—' });
 
     let html = `<div class="prizes-info"><span class="prizes-entry">Entry Fee: <b>₪${entryFee}</b></span></div>`;
-    html += '<div class="prizes-table-wrap"><table class="dash-table prizes-table font-small"><thead><tr><th scope="col"></th><th scope="col">Tier</th><th scope="col">Places</th><th scope="col">Prize</th></tr></thead><tbody>';
+    html += '<div class="prizes-table-wrap"><table class="dash-table prizes-table font-small" data-mf-table-id="B1"><thead><tr><th scope="col"></th><th scope="col">Tier</th><th scope="col">Places</th><th scope="col">Prize</th></tr></thead><tbody>';
     for (const r of rows) {
         html += `<tr class="prize-row-${r.tier.toLowerCase()}"><td>${r.medal}</td><td>${r.tier}</td><td>${r.count}</td><td>${r.prize}</td></tr>`;
     }
@@ -502,7 +502,7 @@ function drawHistTable(ctx, dateValue) {
         return '';
     }
 
-    let html = `<table class="dash-table font-large"><thead><tr><th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">GP</th><th scope="col">W</th><th scope="col">L</th>`;
+    let html = `<table class="dash-table font-large" data-mf-table-id="B2"><thead><tr><th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">GP</th><th scope="col">W</th><th scope="col">L</th>`;
     if (leagueConfig.showWinRate) html += `<th scope="col">Win%</th>`;
     if (leagueConfig.showPRWins) html += `<th scope="col">PRW</th><th scope="col">Avg PTS</th>`;
     if (leagueConfig.showPR) html += `<th scope="col">PR</th>`;
@@ -654,7 +654,7 @@ async function renderPredictor(ctx) {
             const pctShortHeader = currentX === 1 ? 'Ch%' : `T${currentX}%`;
             host.innerHTML = `
                 <div class="predictor-scroll-wrap">
-                <table class="dash-table font-small">
+                <table class="dash-table font-small" data-mf-table-id="B3">
                     <thead><tr>
                         <th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">GP</th><th scope="col">W</th><th scope="col">L</th>
                         ${ubcHeaders}
@@ -991,7 +991,7 @@ function renderWhatIfSimulator(ctx) {
                 const pctShortHeader = currentX === 1 ? 'Ch%' : `T${currentX}%`;
                 tableHost.innerHTML = `
                     <div class="whatif-scroll-wrap">
-                    <table class="dash-table whatif-table font-small">
+                    <table class="dash-table whatif-table font-small" data-mf-table-id="B4">
                         <thead><tr>
                             <th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">GP</th><th scope="col">W</th><th scope="col">L</th>
                             ${ubcHeaders}
@@ -1079,7 +1079,7 @@ function renderRounds(ctx) {
 function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFlags = {}, leagueConfig = null) {
     const showPR = leagueConfig ? leagueConfig.showPR : true;
     const colCount = showPR ? 8 : 6;
-    let html = `<div class="rounds-scroll-wrap"><table class="dash-table font-small"><thead><tr>`
+    let html = `<div class="rounds-scroll-wrap"><table class="dash-table font-small" data-mf-table-id="B5"><thead><tr>`
         + `<th scope="col" class="player-col">Player A</th>`
         + `<th scope="col" class="player-col">Player B</th>`
         + `<th scope="col">Score</th>`
@@ -1240,7 +1240,7 @@ function buildB6bPanel(panel, ctx, remaining, lastModified) {
 }
 
 function buildB6bTableHtml(playerRemainingData, maxRem, minRem, halfThreshold, hasAnyBelowHalf, maxGames) {
-    let html = '<table class="dash-table font-small player-remaining-table"><thead><tr>'
+    let html = '<table class="dash-table font-small player-remaining-table" data-mf-table-id="B6b"><thead><tr>'
         + '<th scope="col" class="player-col">Player</th>'
         + '<th scope="col">Remaining</th>'
         + '</tr></thead><tbody>';
@@ -1324,7 +1324,7 @@ function buildB6cTableHtml(opponents, customFlags, playersMeta) {
     if (opponents.length === 0) {
         return `<div style="color:var(--color-text-muted);padding:var(--space-sm);text-align:center">All matches played!</div>`;
     }
-    let html = '<table class="dash-table font-small rem-b6c-table"><thead><tr>'
+    let html = '<table class="dash-table font-small rem-b6c-table" data-mf-table-id="B6c"><thead><tr>'
         + '<th scope="col" class="player-col">Unplayed Opponent</th>'
         + '</tr></thead><tbody>';
     for (const opp of opponents) {
@@ -1337,7 +1337,7 @@ function buildB6cTableHtml(opponents, customFlags, playersMeta) {
 }
 
 function buildRemainingListHtml(matches, customFlags, playersMeta) {
-    let html = `<table class="dash-table font-small"><thead><tr>`
+    let html = `<table class="dash-table font-small" data-mf-table-id="B6a"><thead><tr>`
              + `<th scope="col">Round</th>`
              + `<th scope="col" class="player-col">Player A</th>`
              + `<th scope="col" class="player-col">Player B</th>`
