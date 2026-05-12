@@ -4,12 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MF Table Lab</title>
-    <!-- Project design tokens + global table styles -->
+    <!-- Project design tokens -->
     <link rel="stylesheet" href="../css/variables.css">
     <link rel="stylesheet" href="../css/layout.css">
-    <link rel="stylesheet" href="../css/components.css">
     <link rel="stylesheet" href="../css/themes.css">
-    <!-- Lab UI chrome + .mf-wrap definition -->
+    <!-- Shared atoms (Group B): .flag, .medal-*, .title-abbr-* etc.
+         Group A table rules in this file are cascade-equal duplicates of mf.css;
+         Phase 7 deletes Group A from components.css. -->
+    <link rel="stylesheet" href="../css/components.css">
+    <!-- Canonical MF table styles (auto-imports formats/_base/base.css) -->
+    <link rel="stylesheet" href="./formats/mf/mf.css">
+    <!-- Lab UI chrome only -->
     <link rel="stylesheet" href="./lab.css">
     <link rel="stylesheet" href="../css/theme-picker.css">
     <!-- Apply saved theme before first paint -->
@@ -34,6 +39,8 @@
         <button class="preset-tab"        data-preset="A2"  role="tab">A2 — Annual Leaderboard</button>
         <button class="preset-tab"        data-preset="B1"  role="tab">B1 — Prizes</button>
         <button class="preset-tab"        data-preset="B2"  role="tab">B2 — Historical</button>
+        <button class="preset-tab"        data-preset="B3"  role="tab">B3 — Predictor</button>
+        <button class="preset-tab"        data-preset="B4"  role="tab">B4 — What If</button>
         <button class="preset-tab"        data-preset="B5"  role="tab">B5 — Rounds</button>
         <button class="preset-tab"        data-preset="B6a" role="tab">B6a — Remaining</button>
         <button class="preset-tab"        data-preset="B6b" role="tab">B6b — Per Player</button>

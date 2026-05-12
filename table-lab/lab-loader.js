@@ -489,6 +489,71 @@ function buildB2(runningResult) {
              medalCounts: { gold: goldCount, silver: silverCount, bronze: bronzeCount } };
 }
 
+// ─── B3 / B4 shared helper ────────────────────────
+// Both tables share the same row shape (rank, player, GP, W, L, [PTS/AvgPTS], PR-or-Win%, pct bar).
+// The lab can't run the real Monte-Carlo predictor / what-if simulator, so we fake a
+// championship-style probability distribution over the current rankings. This is a
+// visual snapshot, not real math — the point of the lab is to lock the table look.
+
+function pctDistribution(n, topX) {
+    // Geometric-ish decay over top players, peaking near `topX` finishers.
+    // Sum of pct over players approximates topX * 100 (each finishing slot is one "share").
+    const weights = Array.from({ length: n }, (_, i) => Math.exp(-i / Math.max(1, n / 4)));
+    const total   = weights.reduce((a, b) => a + b, 0);
+    return weights.map(w => Math.min(100, (w / total) * topX * 100));
+}
+
+function buildB3orB4(runningResult, barClass, fixedX) {
+    if (!runningResult) return { data: [], cols: [] };
+    const { league, config, rankings } = runningResult;
+    const cf       = league.params.CustomFlags || {};
+    const showPR   = config.showPR;
+    const showPRW  = config.showPRWins;
+    const playing  = rankings.filter(r => r.games > 0);
+    const pcts     = pctDistribution(playing.length, fixedX);
+
+    const pctHeader = fixedX === 1 ? 'Ch%' : `T${fixedX}%`;
+    const prHeader  = showPR ? 'PR' : 'Win%';
+
+    const fmtPctBar = (pct) => {
+        const barColor = pct > Math.min(20 * fixedX, 80) ? 'var(--color-success)'
+                       : pct > Math.min(5  * fixedX, 30) ? 'var(--color-warning)'
+                       : 'var(--color-text-muted)';
+        return `<div class="${barClass}" style="--pct:${Math.min(pct, 100)}%;--bar-color:${barColor}">${pct.toFixed(1)}%</div>`;
+    };
+
+    const cols = [
+        { key: 'rank',   label: '#',      type: 'number', sortable: false, colorFn: null },
+        { key: 'player', label: 'Player', type: 'string', sortable: false, colorFn: null,
+          tdClass: 'player-cell', format: v => playerCell(v, cf) },
+        { key: 'gp',     label: 'GP',     type: 'number', sortable: false, colorFn: null },
+        { key: 'wins',   label: 'W',      type: 'number', sortable: false, colorFn: null },
+        { key: 'losses', label: 'L',      type: 'number', sortable: false, colorFn: null },
+        ...(showPRW ? [
+            { key: 'prWins',    label: 'PTS',     type: 'number', sortable: false, colorFn: null,
+              format: v => v != null ? v : '—' },
+            { key: 'avgPoints', label: 'Avg PTS', type: 'number', sortable: false, colorFn: null,
+              format: v => v != null ? v.toFixed(2) : '—' },
+        ] : []),
+        { key: showPR ? 'meanPR' : 'winRate', label: prHeader, type: 'number', sortable: false, colorFn: null,
+          format: v => v == null ? '—' : (showPR ? v.toFixed(2) : formatPercent2(v)) },
+        { key: 'pct', label: pctHeader, type: 'number', sortable: false, colorFn: null,
+          tdClass: barClass === 'predictor-pct-bar' ? 'predictor-pct-cell' : 'whatif-pct-cell',
+          format: fmtPctBar },
+    ];
+
+    const data = playing.map((r, i) => ({
+        rank: i + 1, player: r.player, gp: r.games, wins: r.wins, losses: r.losses,
+        winRate: r.winRate, prWins: r.prWins, avgPoints: r.avgPoints, meanPR: r.meanPR,
+        pct: pcts[i] ?? 0,
+    }));
+
+    return { data, cols, leagueTitle: league.params.LeagueTitle };
+}
+
+function buildB3(runningResult) { return buildB3orB4(runningResult, 'predictor-pct-bar', 1); }
+function buildB4(runningResult) { return buildB3orB4(runningResult, 'whatif-pct-bar',    3); }
+
 // ─── B5: Rounds — show round 1 of the running league ──
 // Matches real: Player A | Player B | Score | [PR A | PR B] | Luck A | Luck B | Date
 
@@ -881,6 +946,8 @@ export async function loadAllPresetData() {
         A2:  buildA2(allResults, globalFlags),
         B1:  buildB1(runningResult),
         B2:  buildB2(runningResult),
+        B3:  buildB3(runningResult),
+        B4:  buildB4(runningResult),
         B5:  buildB5(runningResult, allMatchesIncUnplayed),
         B6a: buildB6a(runningResult, allMatchesIncUnplayed),
         B6b: buildB6b(runningResult),

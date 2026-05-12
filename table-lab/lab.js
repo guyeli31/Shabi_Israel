@@ -6,7 +6,7 @@
  * and receives data/cols/summary after the async load completes.
  */
 
-import { mountMFTable } from './mount-mf-table.js';
+import { mountMFTable } from './formats/mf/mount.js';
 import { loadAllPresetData } from './lab-loader.js';
 import { initThemePicker } from '../js/render/themePicker.js';
 
@@ -114,6 +114,44 @@ export const PRESETS = {
             medalRows:  'Only the medal-eligible rows are shown. Gold/silver/bronze counts come from league_params.json.',
             medalCounts:'Read from league_params.json — defines which rows render in this filtered view.',
             showTopN:   'null — already pre-filtered to medal-eligible rows; no further trimming.',
+        },
+    },
+
+    B3: {
+        label: 'B3 — Championship Predictor',
+        args: {
+            data: [], cols: [],
+            fontClass:  'font-small',
+            stickyCols: 2,
+            medalRows:  false,
+            showTopN:   5,
+            mfWidth:    null,
+            mfMb:       null,
+            mfBg:       null,
+        },
+        argDocs: {
+            stickyCols: 'Rank (#) and Player pinned — keeps each row anchored while scrolling through GP/W/L/PR/Ch%.',
+            showTopN:   'Top 5 contenders shown by default; "Show all" reveals the full field. Matches the live predictor UX.',
+            medalRows:  'false — predictor rows are not the league podium; their ordering is by championship probability, not final standing.',
+        },
+    },
+
+    B4: {
+        label: 'B4 — What If Simulator',
+        args: {
+            data: [], cols: [],
+            fontClass:  'font-small',
+            stickyCols: 2,
+            medalRows:  false,
+            showTopN:   5,
+            mfWidth:    null,
+            mfMb:       null,
+            mfBg:       null,
+        },
+        argDocs: {
+            stickyCols: 'Same as B3 — rank and name pinned.',
+            showTopN:   'Top 5 shown by default. Snapshot uses a T3% distribution (probability of finishing in top 3 under the simulated scenario).',
+            medalRows:  'false — simulated standings, not the canonical podium.',
         },
     },
 
@@ -392,7 +430,7 @@ argsPanel.innerHTML  = '<p style="color:var(--color-text-muted);font-size:0.85re
 mountPoint.innerHTML = '<p style="color:var(--color-text-muted);font-size:0.85rem;padding:var(--space-xl)">Loading league data…</p>';
 
 loadAllPresetData().then(loaded => {
-    const allKeys = ['A1', 'A2', 'B1', 'B2', 'B5', 'B6a', 'B6b', 'B6c', 'C1', 'C2', 'C3', 'D', 'E'];
+    const allKeys = ['A1', 'A2', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6a', 'B6b', 'B6c', 'C1', 'C2', 'C3', 'D', 'E'];
     for (const key of allKeys) {
         if (!loaded[key]) continue;
         const { data, cols, buildSummaryRow, getRowClass, medalCounts } = loaded[key];
@@ -408,6 +446,8 @@ loadAllPresetData().then(loaded => {
     };
     if (loaded.B1?.leagueTitle)  setTab('B1',  `B1 — Prizes (${loaded.B1.leagueTitle})`);
     if (loaded.B2?.leagueTitle)  setTab('B2',  `B2 — Historical (${loaded.B2.leagueTitle})`);
+    if (loaded.B3?.leagueTitle)  setTab('B3',  `B3 — Predictor (${loaded.B3.leagueTitle})`);
+    if (loaded.B4?.leagueTitle)  setTab('B4',  `B4 — What If (${loaded.B4.leagueTitle})`);
     if (loaded.B5?.leagueTitle)  setTab('B5',  `B5 — Round 1 (${loaded.B5.leagueTitle})`);
     if (loaded.B6a?.leagueTitle) setTab('B6a', `B6a — Remaining (${loaded.B6a.leagueTitle})`);
     if (loaded.B6b?.leagueTitle) setTab('B6b', `B6b — Per Player (${loaded.B6b.leagueTitle})`);
