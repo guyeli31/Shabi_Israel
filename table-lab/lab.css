@@ -11,8 +11,7 @@ body {
     display: grid;
     grid-template-columns: minmax(0, 1fr);    /* allow child to shrink below content width */
     grid-template-rows: auto 1fr;
-    height: 100vh;
-    width: 100vw;
+    height: 100dvh;
     overflow: hidden;
     background: var(--color-bg);
     color: var(--color-text);
@@ -23,7 +22,7 @@ body {
 .lab-header {
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
-    padding: 0 var(--space-lg);
+    padding: var(--space-md) var(--space-lg);
     display: flex;
     align-items: center;
     gap: var(--space-lg);
@@ -47,6 +46,25 @@ body {
     gap: 2px;
     overflow-x: auto;
     cursor: grab;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+}
+
+.preset-tabs::-webkit-scrollbar {
+    height: 3px;
+}
+
+.preset-tabs::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.preset-tabs::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 99px;
+}
+
+.preset-tabs::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-muted);
 }
 
 .preset-tabs.is-dragging {
@@ -228,7 +246,7 @@ body {
     .lab-header {
         flex-wrap: wrap;
         gap: var(--space-sm);
-        padding: var(--space-sm) var(--space-md);
+        padding: var(--space-md) var(--space-md);
     }
 
     .lab-title {

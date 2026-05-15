@@ -687,12 +687,12 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
 
     selectorRow.appendChild(label);
     selectorRow.appendChild(inputWrap);
-    selectorRow.appendChild(badge);
 
     const resultsArea = document.createElement('div');
 
     body.innerHTML = '';
     body.appendChild(selectorRow);
+    body.appendChild(badge);
     body.appendChild(resultsArea);
 
     function filterDropdown(query) {
