@@ -1,58 +1,11 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Shabi Israel</title>
-    <link rel="stylesheet" href="css/variables.css">
-    <link rel="stylesheet" href="css/layout.css">
-    <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/theme.css">
-    <link rel="stylesheet" href="css/themes.css">
-    <link rel="stylesheet" href="css/theme-picker.css">
-    <link rel="stylesheet" href="css/admin-button.css">
-    <link rel="stylesheet" href="css/navigation.css">
-    <link rel="stylesheet" href="css/dashboard.css">
-    <link rel="stylesheet" href="css/index-dashboard.css">
-    <link rel="stylesheet" href="css/admin.css">
-    <link rel="stylesheet" href="css/typography-overrides.css">
-    <script>
-      (function(){
-        var t=localStorage.getItem('shabi-theme');
-        if(t==='modern')t='nature';if(t==='royal')t='vegas';if(t&&t!=='current'){document.documentElement.dataset.theme=t;localStorage.setItem('shabi-theme',t);}
-        var c=localStorage.getItem('shabi-custom-vars');
-        if(c){try{var v=JSON.parse(c);for(var k in v)document.documentElement.style.setProperty(k,v[k])}catch(e){}}
-      })();
-    </script>
+    <meta http-equiv="refresh" content="0; url=table-lab/index.html">
+    <title>Redirecting...</title>
 </head>
 <body>
-    <div class="page-container" id="main" role="main">
-        <div class="page-header" id="page-header">
-            <img class="logo" id="site-logo" src="assets/logo/logo.png" alt="Logo">
-            <h1 id="site-title"></h1>
-            <p class="subtitle" id="site-subtitle"></p>
-        </div>
-        <div id="content">
-            <div class="loading">Loading leagues...</div>
-        </div>
-    </div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script type="module">
-        import { isPreviewMode, installPreviewInterceptor } from './js/admin/previewMode.js';
-        if (isPreviewMode()) installPreviewInterceptor();
-
-        import { renderLandingPage } from './js/render/landingPage.js';
-        import { initThemePicker } from './js/render/themePicker.js';
-        import { initAdminButton } from './js/render/adminButton.js';
-        import { initNavBar, initKeyboardShortcuts } from './js/render/navigation.js';
-        await initNavBar();
-        renderLandingPage();
-        initThemePicker();
-        // Skip admin gear button when already in admin edit mode
-        if (new URLSearchParams(location.search).get('edit') !== '1' && !isPreviewMode()) {
-            initAdminButton();
-        }
-        initKeyboardShortcuts();
-    </script>
+    <script>window.location.replace('table-lab/index.html');</script>
 </body>
 </html>
