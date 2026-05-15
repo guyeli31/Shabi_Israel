@@ -249,8 +249,8 @@ body {
         padding: var(--space-md) var(--space-md);
     }
 
-    .lab-title {
-        flex: 1;
+    .args-toggle {
+        display: none;
     }
 
     .preset-tabs {
@@ -261,5 +261,11 @@ body {
 
     .lab-workspace {
         grid-template-columns: 0px minmax(0, 1fr) !important;
+    }
+
+    .args-column {
+        overflow: hidden !important;
+        padding: 0 !important;
+        border-right: none !important;
     }
 }

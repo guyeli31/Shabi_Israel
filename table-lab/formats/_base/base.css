@@ -8,7 +8,9 @@
 /* ---- Global table font-size classes (iron rule 3) ---- */
 table.font-large  { font-size: 0.93rem; }
 table.font-small  { font-size: 0.85rem; }
-table.font-italic { font-style: italic; }
+table.font-italic,
+table.font-italic th,
+table.font-italic td { font-style: italic; }
 
 /* ---- Data Table ---- */
 table {
