@@ -6,8 +6,9 @@
    the duplicate rules in components.css will be deleted in Phase 7. */
 
 /* ---- Global table font-size classes (iron rule 3) ---- */
-table.font-large { font-size: 0.93rem; }
-table.font-small { font-size: 0.85rem; }
+table.font-large  { font-size: 0.93rem; }
+table.font-small  { font-size: 0.85rem; }
+table.font-italic { font-style: italic; }
 
 /* ---- Data Table ---- */
 table {

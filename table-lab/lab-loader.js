@@ -31,10 +31,14 @@ function playerCell(name, customFlags, opts = {}) {
     return `${img}${text}`;
 }
 
-function rankBadge(rank, goldCount = 1, silverCount = 1, bronzeCount = 3) {
-    if (rank <= goldCount)                              return `<span class="medal medal-gold">${rank}</span>`;
-    if (rank <= goldCount + silverCount)                return `<span class="medal medal-silver">${rank}</span>`;
-    if (rank <= goldCount + silverCount + bronzeCount)  return `<span class="medal medal-bronze">${rank}</span>`;
+function rankBadge(rank, goldCount = 1, silverCount = 1, bronzeCount = 3, medalRank) {
+    // medalRank: the rank used to pick the medal colour (defaults to rank).
+    // Separating them lets callers show a positional number while keeping the
+    // player's original medal colour when the table is re-sorted.
+    const mr = medalRank ?? rank;
+    if (mr <= goldCount)                              return `<span class="medal medal-gold">${rank}</span>`;
+    if (mr <= goldCount + silverCount)                return `<span class="medal medal-silver">${rank}</span>`;
+    if (mr <= goldCount + silverCount + bronzeCount)  return `<span class="medal medal-bronze">${rank}</span>`;
     return String(rank);
 }
 
@@ -210,7 +214,8 @@ function buildD(allResults) {
 
     const cols = [
         { key: 'rank',   label: '#',      type: 'number', sortable: false, colorFn: null,
-          format: v => rankBadge(v, goldCount, silverCount, bronzeCount) },
+          // idx+1 = visual position (always 1…N top-to-bottom); v = original rank (drives medal colour).
+          format: (v, row, idx) => rankBadge(idx + 1, goldCount, silverCount, bronzeCount, v) },
         { key: 'player', label: 'Player', type: 'string', sortable: true,  colorFn: null,
           tdClass: 'player-cell', format: v => playerCell(v, cf) },
         { key: 'gp',     label: 'GP',     type: 'number', sortable: true,
@@ -620,7 +625,6 @@ function buildB6a(runningResult, allMatchesIncUnplayed) {
         .sort((a, b) => (a.round - b.round) || a.playerA.localeCompare(b.playerA) || a.playerB.localeCompare(b.playerB));
 
     const cols = [
-        { key: 'round',   label: 'Round',    type: 'number', sortable: true, colorFn: null },
         { key: 'playerA', label: 'Player A', type: 'string', sortable: true, colorFn: null,
           tdClass: 'player-cell', format: v => playerCell(v, cf) },
         { key: 'playerB', label: 'Player B', type: 'string', sortable: true, colorFn: null,
@@ -726,7 +730,16 @@ function buildC1(playerData, playerName) {
               ? '<span class="status-pill status-running">Running</span>'
               : '<span class="status-pill status-completed">Completed</span>' },
         { key: 'rank',        label: 'Rank',   type: 'string', sortable: true, colorFn: null,
-          sortKey: row => row._rank ?? 9999 },
+          sortKey: row => row._rank ?? 9999,
+          format: (v, row) => {
+              if (!row._rank) return v;
+              const g = row._goldCount, s = row._silverCount, b = row._bronzeCount;
+              let color = null;
+              if      (row._rank <= g)             color = 'var(--color-gold)';
+              else if (row._rank <= g + s)         color = 'var(--color-silver)';
+              else if (row._rank <= g + s + b)     color = 'var(--color-bronze)';
+              return color ? `<b style="color:${color}">${v}</b>` : v;
+          } },
         { key: 'gp',          label: 'GP',     type: 'number', sortable: true, colorFn: null },
         { key: 'wins',        label: 'W',      type: 'number', sortable: true, colorFn: null },
         { key: 'losses',      label: 'L',      type: 'number', sortable: true, colorFn: null },
@@ -754,6 +767,9 @@ function buildC1(playerData, playerName) {
             status:      running ? 'Running' : 'Completed',
             rank:        e.playerRank != null ? `${e.playerRank} / ${e.totalPlayers}` : '—',
             _rank:       e.playerRank,
+            _goldCount:   e.league.params?.GoldCount   ?? 1,
+            _silverCount: e.league.params?.SilverCount ?? 1,
+            _bronzeCount: e.league.params?.BronzeCount ?? 3,
             gp:          s.games  || 0,
             wins:        s.wins   || 0,
             losses:      s.losses || 0,

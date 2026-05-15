@@ -71,11 +71,57 @@
 <script>
     const toggleBtn = document.getElementById('args-toggle');
     const workspace = document.querySelector('.lab-workspace');
+
+    // Args panel open by default only on wide screens
+    const startCollapsed = window.innerWidth < 960;
+    if (startCollapsed) {
+        workspace.classList.add('args-collapsed');
+        toggleBtn.textContent = '☰';
+        toggleBtn.setAttribute('aria-pressed', 'false');
+    } else {
+        toggleBtn.textContent = '✕ Args';
+        toggleBtn.setAttribute('aria-pressed', 'true');
+    }
+
     toggleBtn.addEventListener('click', () => {
         const collapsed = workspace.classList.toggle('args-collapsed');
-        toggleBtn.setAttribute('aria-pressed', collapsed);
-        toggleBtn.textContent = collapsed ? '☰ Args' : '✕ Args';
+        toggleBtn.textContent = collapsed ? '☰' : '✕ Args';
+        toggleBtn.setAttribute('aria-pressed', String(!collapsed));
     });
+
+    // Drag-to-scroll on tab strip
+    const tabs = document.querySelector('.preset-tabs');
+    let isDragging = false, dragStartX = 0, dragScrollLeft = 0, hasMoved = false;
+
+    tabs.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
+        isDragging = true;
+        hasMoved = false;
+        dragStartX = e.pageX - tabs.getBoundingClientRect().left;
+        dragScrollLeft = tabs.scrollLeft;
+    });
+
+    document.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        const x = e.pageX - tabs.getBoundingClientRect().left;
+        const delta = x - dragStartX;
+        if (Math.abs(delta) > 4) {
+            hasMoved = true;
+            tabs.classList.add('is-dragging');
+            tabs.scrollLeft = dragScrollLeft - delta;
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!isDragging) return;
+        isDragging = false;
+        tabs.classList.remove('is-dragging');
+    });
+
+    // Prevent tab click after drag
+    tabs.addEventListener('click', e => {
+        if (hasMoved) e.stopImmediatePropagation();
+    }, true);
 </script>
 </body>
 </html>

@@ -62,6 +62,7 @@ export function mountMFTable(mountPoint, args) {
         data            = [],
         cols            = [],
         fontClass       = 'font-small',
+        fontItalic      = false,
         stickyCols      = 1,
         medalRows       = false,
         medalCounts     = { gold: 1, silver: 1, bronze: 1 },
@@ -95,7 +96,7 @@ export function mountMFTable(mountPoint, args) {
     const summaryData = buildSummaryRow ? buildSummaryRow(data) : null;
 
     // 5. Build + inject HTML
-    wrapper.innerHTML = buildTableHTML(data, cols, summaryData, fontClass, medalRows, medalCounts, getRowClass, extents);
+    wrapper.innerHTML = buildTableHTML(data, cols, summaryData, fontClass, fontItalic, medalRows, medalCounts, getRowClass, extents);
 
     const table = wrapper.querySelector('table');
     if (tableId) table.setAttribute('data-mf-table-id', tableId);
@@ -142,10 +143,11 @@ export function listMountedMFTables() {
 // HTML builder
 // ─────────────────────────────────────────────
 
-function buildTableHTML(data, cols, summaryData, fontClass, medalRows, medalCounts, getRowClass, extents) {
-    const thead = buildThead(cols);
-    const tbody = buildTbody(data, cols, summaryData, medalRows, medalCounts, getRowClass, extents);
-    return `<table class="${fontClass}" data-sort-col="-1" data-sort-dir="desc">
+function buildTableHTML(data, cols, summaryData, fontClass, fontItalic, medalRows, medalCounts, getRowClass, extents) {
+    const thead    = buildThead(cols);
+    const tbody    = buildTbody(data, cols, summaryData, medalRows, medalCounts, getRowClass, extents);
+    const tablecls = fontItalic ? `${fontClass} font-italic` : fontClass;
+    return `<table class="${tablecls}" data-sort-col="-1" data-sort-dir="desc">
 ${thead}
 ${tbody}
 </table>`;
@@ -174,14 +176,17 @@ function buildTbody(data, cols, summaryData, medalRows, medalCounts, getRowClass
 
         let cls = '';
         if (medalRows) {
-            if (i < goldCount)                                   cls = 'rank-gold';
-            else if (i < goldCount + silverCount)                cls = 'rank-silver';
-            else if (i < goldCount + silverCount + bronzeCount)  cls = 'rank-bronze';
+            // Use row.rank when available so medal tint follows the player during sort,
+            // not the visual position. Fall back to position for tables without a rank field.
+            const rankForMedal = typeof row.rank === 'number' ? row.rank : i + 1;
+            if (rankForMedal <= goldCount)                                      cls = 'rank-gold';
+            else if (rankForMedal <= goldCount + silverCount)                   cls = 'rank-silver';
+            else if (rankForMedal <= goldCount + silverCount + bronzeCount)     cls = 'rank-bronze';
         }
         const callerClass = getRowClass ? getRowClass(row, i) : null;
         if (callerClass) cls = cls ? `${cls} ${callerClass}` : callerClass;
 
-        return buildDataRow(row, cols, extents, cls);
+        return buildDataRow(row, cols, extents, cls, i);
     });
 
     if (summaryData) rows.push(buildSummaryRowHTML(summaryData, cols));
@@ -189,10 +194,10 @@ function buildTbody(data, cols, summaryData, medalRows, medalCounts, getRowClass
     return `<tbody>${rows.join('')}</tbody>`;
 }
 
-function buildDataRow(row, cols, extents, rowClass) {
+function buildDataRow(row, cols, extents, rowClass, rowIndex = 0) {
     const cells = cols.map(col => {
         const raw = row[col.key];
-        let display = raw == null ? '—' : raw === '' ? '' : (col.format ? col.format(raw, row) : raw);
+        let display = raw == null ? '—' : raw === '' ? '' : (col.format ? col.format(raw, row, rowIndex) : raw);
 
         if (col.boldExtreme && typeof raw === 'number' && extents[col.key]) {
             const { min, max } = extents[col.key];

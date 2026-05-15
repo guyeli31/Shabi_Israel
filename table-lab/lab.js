@@ -141,6 +141,7 @@ export const PRESETS = {
         args: {
             data: [], cols: [],
             fontClass:  'font-small',
+            fontItalic: true,
             stickyCols: 2,
             medalRows:  false,
             showTopN:   5,
@@ -188,7 +189,7 @@ export const PRESETS = {
             mfBg:       null,
         },
         argDocs: {
-            stickyCols:  'Round pinned — easy to scan multi-round backlog.',
+            stickyCols:  'Player A pinned — keeps the first player visible while scrolling.',
             mfWidth:     '80% of the max display width — narrower than full so the list reads as a focused card.',
             getRowClass: 'All rows are unplayed by definition — all rows tagged "unplayed".',
         },
