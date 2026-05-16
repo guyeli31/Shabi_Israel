@@ -19,7 +19,7 @@ import { luckPercentileStats } from '../compute/luckPercentile.js';
 import { getLevel } from '../compute/rankings.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
-import { mountMFTable } from './mountMFTable.js';
+import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildCompletedLeaguesPreset } from '../presets/completedLeaguesPreset.js';
 import { buildAnnualLeaderboardPreset } from '../presets/annualLeaderboardPreset.js';
 import { isLoggedIn } from '../admin/auth.js';

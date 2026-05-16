@@ -16,7 +16,7 @@ import { renderBreadcrumbs } from './navigation.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { startSplash, endSplash } from '../utils/splash.js';
-import { mountMFTable } from './mountMFTable.js';
+import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildLeagueTablePreset } from '../presets/leagueTablePreset.js';
 
 export async function renderLeaguePage() {

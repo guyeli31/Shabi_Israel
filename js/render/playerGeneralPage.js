@@ -37,7 +37,7 @@ import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { getTitleBadgesHtml, getTitleAbbreviationsHtml, getHighestTier } from '../data/titleConstants.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
-import { mountMFTable } from './mountMFTable.js';
+import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildPlayerLeaguesPreset } from '../presets/playerLeaguesPreset.js';
 import { buildPlayerAllMatchesPreset } from '../presets/playerAllMatchesPreset.js';
 import { buildMatchupPreset } from '../presets/matchupPreset.js';

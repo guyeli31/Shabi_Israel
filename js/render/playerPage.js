@@ -13,7 +13,7 @@ import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleBadgesHtml, getHighestTier, getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { startSplash, endSplash } from '../utils/splash.js';
-import { mountMFTable } from './mountMFTable.js';
+import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildPlayerMatchHistoryPreset } from '../presets/playerMatchHistoryPreset.js';
 
 export async function renderPlayerPage() {
