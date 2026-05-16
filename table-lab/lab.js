@@ -340,6 +340,17 @@ function renderPreset(key) {
     if (!preset) return;
     // mountMFTable clears mountPoint and rebuilds everything internally
     mountMFTable(mountPoint, preset.args);
+    // Mobile browsers (iOS Safari) drop font-style on compositor-promoted sticky cells.
+    // applyStickyLeftCols sets position:sticky via inline JS after initial paint, which
+    // can break CSS cascade for text properties in compositing layers.
+    // Fix: set font-style directly as inline style on each sticky cell.
+    // Scoped to presets that explicitly request italic (B4 only currently).
+    // Safe because B4 has no sortable columns — tbody never rebuilds.
+    if (preset.args.fontItalic) {
+        mountPoint.querySelectorAll('td').forEach(td => {
+            if (td.style.position === 'sticky') td.style.fontStyle = 'italic';
+        });
+    }
     renderArgsPanel(preset);
 }
 
