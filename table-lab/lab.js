@@ -288,6 +288,7 @@ export const PRESETS = {
     D: {
         label: 'D — League Table',
         args: {
+            tableId:    'D',
             data: [], cols: [],
             fontClass:  'font-small',
             stickyCols: 2,
@@ -309,6 +310,7 @@ export const PRESETS = {
     E: {
         label: 'E — Player Match History',
         args: {
+            tableId:    'E',
             data: [], cols: [],
             fontClass:  'font-small',
             stickyCols: 1,

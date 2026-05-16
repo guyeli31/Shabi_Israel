@@ -20,12 +20,6 @@ table {
     font-size: 0.93rem;
 }
 
-thead {
-    position: sticky;
-    top: 0;
-    z-index: 3;
-}
-
 thead th {
     background: var(--header-bg);
     color: var(--header-text);

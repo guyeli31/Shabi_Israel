@@ -140,6 +140,19 @@ tr.stat-row td {
     box-shadow: none;
 }
 
+/* ── Sticky thead (D + E only) ──
+   Pinned header is a per-preset choice, not a default for every MF table.
+   Lab tables use [data-mf-table-id="D"|"E"] (set via tableId arg);
+   production pages use the legacy #leagueTable / #playerTable IDs. ── */
+#leagueTable thead,
+#playerTable thead,
+[data-mf-table-id="D"] thead,
+[data-mf-table-id="E"] thead {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+
 /* ── League table (D) — font enum + sticky left 2 cols (Rank + Player).
    ID selectors retained as-is for the first pass; long-term target is
    [data-mf-table-id="D"] (tracked as tech debt). ── */
