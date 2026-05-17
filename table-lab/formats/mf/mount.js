@@ -77,7 +77,11 @@ export function mountMFTable(mountPoint, args) {
 
     // 1. Fresh wrapper
     mountPoint.innerHTML = '';
+    // Always reset the data attribute — leaving a stale id from a previous
+    // mount lets the next preset accidentally inherit the prior preset's
+    // CSS scope (e.g. sticky rules keyed off [data-mf-table-id]).
     if (tableId) mountPoint.setAttribute('data-mf-table-id', tableId);
+    else         mountPoint.removeAttribute('data-mf-table-id');
     const wrapper = document.createElement('div');
     wrapper.className = 'mf-wrap';
     if (tableId) wrapper.setAttribute('data-mf-table-id', tableId);
