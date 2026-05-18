@@ -113,16 +113,13 @@ thead th.sorted .sort-icon {
 tr.avg-row {
     background: var(--color-avg-bg) !important;
     font-weight: 700;
-    position: sticky;
-    bottom: 0;
-    z-index: 2;
 }
 
 tr.avg-row td {
     background: var(--color-avg-bg);
     border-top: 2px solid var(--color-avg-border);
     box-shadow: none;
-    padding: 0.45em 1em;
+    padding: 0.45em 0.5em;
     font-weight: 900;
 }
 
