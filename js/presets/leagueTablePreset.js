@@ -55,7 +55,7 @@ export function buildLeagueTablePreset({ rankings, averages, params, leagueConfi
 
     const cols = [
         { key: 'rank',   label: '#',      type: 'number', sortable: false, colorFn: null,
-          format: (v, row) => rankBadge(row._origRank ?? v, goldCount, silverCount, bronzeCount, v) },
+          format: (v, row, idx) => rankBadge(row._origRank ?? v, goldCount, silverCount, bronzeCount, idx + 1) },
         { key: 'player', label: 'Player', type: 'string', sortable: true, colorFn: null,
           tdClass: 'player-cell',
           format: (v, row) => {

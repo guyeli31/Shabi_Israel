@@ -122,7 +122,8 @@ tr.avg-row td {
     background: var(--color-avg-bg);
     border-top: 2px solid var(--color-avg-border);
     box-shadow: none;
-    padding: var(--space-sm) var(--space-md);
+    padding: 0.45em 1em;
+    font-weight: 900;
 }
 
 tr.stat-row {
