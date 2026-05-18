@@ -161,22 +161,14 @@ tr.stat-row td {
    element and not pin during scroll.
    For D and E we promote the wrapper to a genuine scroll container with
    a viewport-bound max-height, so the table scrolls inside the wrapper
-   and sticky resolves against an element that actually moves.
+   and sticky resolves against an element that actually moves — the
+   same wrapper-scroll pattern applies on every viewport.
    The lab overrides max-height to none (lab.css) — it uses a flex
-   layout that sizes the wrapper from its parent instead.
-   On phones we drop the cap so the page scrolls naturally; on a 360px-
-   tall slice the double-scroll feels worse than losing sticky pinning. */
+   layout that sizes the wrapper from its parent instead. */
 .mf-wrap[data-mf-table-id="D"],
 .mf-wrap[data-mf-table-id="E"] {
     overflow: auto;
     max-height: calc(100dvh - 280px);
-}
-
-@media (max-width: 640px) {
-    .mf-wrap[data-mf-table-id="D"],
-    .mf-wrap[data-mf-table-id="E"] {
-        max-height: none;
-    }
 }
 
 /* ── League table (D) — font enum + sticky left 2 cols (Rank + Player).
