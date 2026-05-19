@@ -44,7 +44,7 @@ th[data-col]:focus-visible {
 
 /* ---- Data Table ---- */
 table {
-    width: 100%;
+    width: auto;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 0.93rem;
