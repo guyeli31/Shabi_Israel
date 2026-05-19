@@ -119,7 +119,7 @@ tr.avg-row td {
     background: var(--color-avg-bg);
     border-top: 2px solid var(--color-avg-border);
     box-shadow: none;
-    padding: 0.45em 4em;
+    padding: 0.45em 0em;
     font-weight: 900;
 }
 
