@@ -274,17 +274,17 @@ function buildD(allResults) {
     const buildSummaryRow = avgRow
         ? (_data) => ({
             rank:      '',
-            player:    '',
-            gp:        '',
-            wins:      '',
-            losses:    '',
-            winRate:   '',
-            prWins:    '',
-            points:    '',
-            avgPoints: '',
-            meanPR:    '',
+            player:    '<b>AVERAGES</b>',
+            gp:        avgRow.games,
+            wins:      avgRow.wins,
+            losses:    avgRow.losses,
+            winRate:   config.showWinRate && avgRow.winRate   != null ? formatPercent2(avgRow.winRate)    : null,
+            prWins:    config.showPRWins  && avgRow.prWins    != null ? avgRow.prWins.toFixed(1)          : null,
+            points:    config.showPRWins  && avgRow.points    != null ? avgRow.points.toFixed(1)          : null,
+            avgPoints: config.showPRWins  && avgRow.avgPoints != null ? avgRow.avgPoints.toFixed(2)       : null,
+            meanPR:    config.showPR      && avgRow.meanPR    != null ? avgRow.meanPR.toFixed(2)          : null,
             level:     '',
-            luck:      '',
+            luck:      avgRow.luck        != null ? avgRow.luck.toFixed(2) : null,
         })
         : null;
 

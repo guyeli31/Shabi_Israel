@@ -44,7 +44,7 @@ th[data-col]:focus-visible {
 
 /* ---- Data Table ---- */
 table {
-    width: auto;
+    width: 100%;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 0.93rem;
@@ -349,6 +349,9 @@ tr.rank-bronze:hover { background: var(--color-bronze-bg-hover); }
 tr.avg-row {
     background: var(--color-avg-bg) !important;
     font-weight: 700;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
 }
 
 tr.avg-row td {

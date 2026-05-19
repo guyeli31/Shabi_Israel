@@ -1,21 +1,19 @@
 /* mf.css — Group A-MF: Main Format canon.
    Loaded by both the lab and (in Phase 3+) the production HTML pages.
-   Base layer must be linked separately in HTML (no @import — iOS Safari
-   sometimes drops the imported file with query strings). */
+   Auto-imports the shared base layer. */
+
+@import url("../base/base.css");
 
 /* ── .mf-wrap — the unified MF scroll wrapper ── */
 
 .mf-wrap {
     overflow-x: auto;
-    overflow-y: clip;
+    overflow-y: clip;  /* prevents mf-wrap from becoming a vertical scroll context, so thead/avg-row sticky works relative to .preview-column */
     min-width: 0;
     box-shadow: var(--shadow-sm);
     margin-bottom: var(--mf-mb, var(--space-lg));
-    /* Wrapper always matches the viewport width, escaping any parent container padding. */
-    width: 100vw;
-    max-width: 100vw;
-    margin-left: calc(50% - 50vw);
-    margin-right: calc(50% - 50vw);
+    width: var(--mf-width, 100%);
+    max-width: 1100px;
     background: var(--mf-bg, transparent);
 }
 
@@ -115,13 +113,16 @@ thead th.sorted .sort-icon {
 tr.avg-row {
     background: var(--color-avg-bg) !important;
     font-weight: 700;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
 }
 
 tr.avg-row td {
     background: var(--color-avg-bg);
     border-top: 2px solid var(--color-avg-border);
     box-shadow: none;
-    padding: 0.45em 0em;
+    padding: 0.45em 1em;
     font-weight: 900;
 }
 
@@ -138,6 +139,45 @@ tr.stat-row td {
     color: var(--color-text-secondary);
     font-size: 0.88rem;
     box-shadow: none;
+}
+
+/* ── Sticky thead (D + E only) ──
+   Pinned header is a per-preset choice, not a default for every MF table.
+   Lab tables use [data-mf-table-id="D"|"E"] (set via tableId arg);
+   production pages use the legacy #leagueTable / #playerTable IDs. ── */
+#leagueTable thead,
+#playerTable thead,
+[data-mf-table-id="D"] thead,
+[data-mf-table-id="E"] thead {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+
+/* ── Make .mf-wrap the real scroll container for D and E ──
+   The default .mf-wrap rules use overflow-x:auto + overflow-y:clip, but
+   the browser silently converts that combination so .mf-wrap ends up as
+   a vertical scroll ancestor that can't actually scroll vertically.
+   That makes the sticky thead/avg-row above resolve against the wrong
+   element and not pin during scroll.
+   For D and E we promote the wrapper to a genuine scroll container with
+   a viewport-bound max-height, so the table scrolls inside the wrapper
+   and sticky resolves against an element that actually moves.
+   The lab overrides max-height to none (lab.css) — it uses a flex
+   layout that sizes the wrapper from its parent instead.
+   On phones we drop the cap so the page scrolls naturally; on a 360px-
+   tall slice the double-scroll feels worse than losing sticky pinning. */
+.mf-wrap[data-mf-table-id="D"],
+.mf-wrap[data-mf-table-id="E"] {
+    overflow: auto;
+    max-height: calc(100dvh - 280px);
+}
+
+@media (max-width: 640px) {
+    .mf-wrap[data-mf-table-id="D"],
+    .mf-wrap[data-mf-table-id="E"] {
+        max-height: none;
+    }
 }
 
 /* ── League table (D) — font enum + sticky left 2 cols (Rank + Player).

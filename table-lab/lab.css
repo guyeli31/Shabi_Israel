@@ -1,6 +1,6 @@
 /* lab.css — Table Lab UI chrome only.
    Table styles (.mf-wrap, .show-more-btn, sticky rules, etc.) now live in
-   ./formats/mf/mf.css, which auto-imports ./formats/_base/base.css. */
+   ./formats/mf/mf.css, which auto-imports ./formats/base/base.css. */
 
 /* ── Layout ─────────────────────────────────── */
 
