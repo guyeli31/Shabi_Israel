@@ -1,8 +1,7 @@
 /* mf.css — Group A-MF: Main Format canon.
    Loaded by both the lab and (in Phase 3+) the production HTML pages.
-   Auto-imports the shared base layer. */
-
-@import url("../_base/base.css?v=20260520-1");
+   Base layer must be linked separately in HTML (no @import — iOS Safari
+   sometimes drops the imported file with query strings). */
 
 /* ── .mf-wrap — the unified MF scroll wrapper ── */
 
