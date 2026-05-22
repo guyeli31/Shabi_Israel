@@ -482,6 +482,7 @@ async function savePlayer(container, name) {
     }
 
     const existingPhotoPath = _state.metadata[name] && _state.metadata[name].photoPath;
+    const oldEntry = _state.metadata[name] || {};
 
     const entry = { ..._state.metadata[name] };
     if (fullName) entry.fullName = fullName; else delete entry.fullName;
@@ -489,6 +490,18 @@ async function savePlayer(container, name) {
     if (championships.length > 0) entry.championshipTitles = championships; else delete entry.championshipTitles;
     const isHidden = document.getElementById('pe-hidden')?.checked || false;
     if (isHidden) entry.hidden = true; else delete entry.hidden;
+
+    // Detect "photo-only" save: only the photo changed (no other metadata fields,
+    // not a rename). In that case we fold the metadata JSON + photo binary into
+    // one group so PENDING shows a single "Player photo (X)" row instead of two.
+    const sameJson = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+    const nonPhotoFieldsChanged =
+        (oldEntry.fullName || '') !== (entry.fullName || '')
+        || (oldEntry.bmabTitle || '') !== (entry.bmabTitle || '')
+        || !sameJson(oldEntry.championshipTitles, entry.championshipTitles)
+        || !!oldEntry.hidden !== !!entry.hidden;
+    const photoChanged = !!_state.photoData || (_state.removePhoto && !!existingPhotoPath);
+    const photoOnly = !renaming && photoChanged && !nonPhotoFieldsChanged;
 
     // Photo handling
     if (_state.removePhoto) {
@@ -528,9 +541,17 @@ async function savePlayer(container, name) {
         }
     }
 
-    // Stage metadata JSON change. For renames, fold into the rename group with no
-    // editedPlayers so PENDING shows a single consolidated row.
+    // Build photo labels (used by both photo-only metadata staging and photo binary staging)
+    const photoLabelText = _state.removePhoto
+        ? `Remove player photo (${finalName})`
+        : `Player photo (${finalName})`;
+    const photoLabelHtml = _state.removePhoto
+        ? `Remove player photo (<b>${esc(finalName)}</b>)`
+        : `Player photo (<b>${esc(finalName)}</b>)`;
+
+    // Stage metadata JSON change.
     if (renaming) {
+        // Fold into the rename group — PENDING shows a single consolidated row.
         addChange({
             type: 'update',
             path: 'leagues/players_metadata.json',
@@ -540,6 +561,31 @@ async function savePlayer(container, name) {
             group: renameGroupId,
             groupDescription: renameGroupDesc
         });
+    } else if (photoOnly) {
+        // Photo-only: fold metadata JSON into the photo group so PENDING shows
+        // ONE row labelled "Player photo (X)" instead of separate metadata + photo rows.
+        // If there's already a metadata.json change in staging (from earlier edits of
+        // other players), keep that entry's group/editedPlayers intact and just refresh
+        // its content — otherwise we'd lose tracking of those edits.
+        const existingMeta = getChanges().find(c => c.path === 'leagues/players_metadata.json');
+        if (existingMeta && existingMeta.editedPlayers) {
+            addChange({
+                ...existingMeta,
+                type: 'update',
+                content: JSON.stringify(_state.metadata, null, 2)
+            });
+        } else {
+            addChange({
+                type: 'update',
+                path: 'leagues/players_metadata.json',
+                content: JSON.stringify(_state.metadata, null, 2),
+                binary: false,
+                description: photoLabelText,
+                group: `players-meta-${finalName}`,
+                groupDescription: photoLabelText,
+                groupDescriptionHtml: photoLabelHtml
+            });
+        }
     } else {
         let editedPlayers = [finalName];
         const existingChange = getChanges().find(c => c.path === 'leagues/players_metadata.json');
@@ -557,18 +603,21 @@ async function savePlayer(container, name) {
         });
     }
 
-    // Stage binary photo if picked — fold into rename group when renaming.
+    // Stage binary photo if picked — fold into rename group when renaming,
+    // otherwise into the per-player photo group (shared with photo-only metadata above).
     const photoGroupId = renaming ? renameGroupId : `players-meta-${finalName}`;
-    const photoGroupDesc = renaming ? renameGroupDesc : undefined;
+    const photoGroupExtras = renaming
+        ? { groupDescription: renameGroupDesc }
+        : { groupDescription: photoLabelText, groupDescriptionHtml: photoLabelHtml };
     if (_state.photoData && photoPath) {
         addChange({
             type: 'update',
             path: photoPath,
             content: _state.photoData,
             binary: true,
-            description: renaming ? renameGroupDesc : `Player photo (${finalName})`,
+            description: renaming ? renameGroupDesc : photoLabelText,
             group: photoGroupId,
-            ...(photoGroupDesc ? { groupDescription: photoGroupDesc } : {})
+            ...photoGroupExtras
         });
     } else if (_state.removePhoto && existingPhotoPath) {
         addChange({
@@ -576,9 +625,9 @@ async function savePlayer(container, name) {
             path: existingPhotoPath,
             content: null,
             binary: true,
-            description: renaming ? renameGroupDesc : `Remove player photo (${finalName})`,
+            description: renaming ? renameGroupDesc : photoLabelText,
             group: photoGroupId,
-            ...(photoGroupDesc ? { groupDescription: photoGroupDesc } : {})
+            ...photoGroupExtras
         });
     }
 

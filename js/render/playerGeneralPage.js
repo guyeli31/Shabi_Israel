@@ -447,9 +447,9 @@ async function showAchievementType(body, playerName, type) {
         </div>`;
     body.innerHTML = `
         <div class="pg-tiles">
-            ${tile('🥇', 'Gold', m.goldRank, m.self.gold, '', 'gold')}
-            ${tile('🥈', 'Silver', m.silverRank, m.self.silver, '', 'silver')}
-            ${tile('🥉', 'Bronze', m.bronzeRank, m.self.bronze, '', 'bronze')}
+            ${tile('🥇', 'Gold', m.goldRank, m.self.gold, '<div class="pg-tile-sub">&nbsp;</div>', 'gold')}
+            ${tile('🥈', 'Silver', m.silverRank, m.self.silver, '<div class="pg-tile-sub">&nbsp;</div>', 'silver')}
+            ${tile('🥉', 'Bronze', m.bronzeRank, m.self.bronze, '<div class="pg-tile-sub">&nbsp;</div>', 'bronze')}
             ${tile('🏆', 'Win Rate', m.winRateRank, (m.self.winRate * 100).toFixed(1) + '%', `<div class="pg-tile-sub">${m.self.totalWins}W / ${m.self.totalGames}G</div>`, 'winRate')}
             ${tile('📊', 'Avg Rank', m.avgRankRank, isFinite(m.self.avgRank) ? m.self.avgRank.toFixed(1) : '—', `<div class="pg-tile-sub">${m.self.participations} league${m.self.participations === 1 ? '' : 's'}</div>`, 'avgRank')}
         </div>

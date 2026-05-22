@@ -372,6 +372,7 @@ function buildDisplayItems(changes) {
                     indices: [],
                     timestamp: c.timestamp,
                     description: c.groupDescription || c.description,
+                    descriptionHtml: c.groupDescriptionHtml || null,
                     editedPlayers: c.editedPlayers || null
                 });
             }
@@ -379,6 +380,7 @@ function buildDisplayItems(changes) {
             g.indices.push(i);
             if (c.timestamp > g.timestamp) g.timestamp = c.timestamp;
             if (c.editedPlayers) g.editedPlayers = c.editedPlayers;
+            if (c.groupDescriptionHtml) g.descriptionHtml = c.groupDescriptionHtml;
         } else if (c.path && c.path.endsWith('manual_overrides.json') && c.content) {
             // Expand each override as a separate display line
             try {
@@ -439,7 +441,7 @@ function buildDisplayItems(changes) {
                 group: g.group,
                 indices: g.indices,
                 timestamp: g.timestamp,
-                displayText: escHtml(g.description)
+                displayText: g.descriptionHtml || escHtml(g.description)
             });
         }
     }

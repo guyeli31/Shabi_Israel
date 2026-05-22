@@ -4,7 +4,7 @@
  * "also plays in" links) live here.
  */
 
-import { loadLeague } from '../data/leagueLoader.js';
+import { loadLeague, loadLeagueOrder, loadAllLeagueParams } from '../data/leagueLoader.js';
 import { getPlayerMatches } from '../data/csvParser.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { getQueryParam, flagUrl, getFlagCode, playerUrl, dashboardUrl, leagueUrl, playerGeneralUrl, getLeagueYear } from '../utils/helpers.js';
@@ -30,10 +30,15 @@ export async function renderPlayerPage() {
 
     startSplash();
     try {
-        const [{ params, matches, allPlayers }, allMeta] = await Promise.all([
+        const [{ params, matches, allPlayers }, allMeta, playerIndex, leagueOrder] = await Promise.all([
             loadLeague(leagueId),
-            loadPlayersMetadata()
+            loadPlayersMetadata(),
+            ensurePlayerIndex(),
+            loadLeagueOrder().catch(() => [])
         ]);
+        const folderNames = leagueOrder.map(t => t.replace(' - ', ' '));
+        const allParams = await loadAllLeagueParams(folderNames).catch(() => []);
+
         const leagueConfig = getLeagueConfig(params);
         const title = params.LeagueTitle || leagueId;
         const flagCode = getFlagCode(playerName, params.CustomFlags);
@@ -43,20 +48,12 @@ export async function renderPlayerPage() {
         const isRetired = retiredPlayers.includes(playerName);
         const retiredBadge = isRetired ? ' <span class="retired-badge">Retired</span>' : '';
 
-        const running = params.Running === true;
         const CURRENT_YEAR = new Date().getFullYear();
-        const leagueYear = getLeagueYear({ params, id: leagueId });
-        let dotClass, dotTitle;
-        if (running) {
-            dotClass = 'pg-dot pg-dot-green';
-            dotTitle = 'Active in this running league';
-        } else if (leagueYear === CURRENT_YEAR) {
-            dotClass = 'pg-dot pg-dot-orange';
-            dotTitle = `League from ${CURRENT_YEAR}, now completed`;
-        } else {
-            dotClass = 'pg-dot pg-dot-gray';
-            dotTitle = 'Completed league';
-        }
+        const { dotClass, dotTitle } = computePlayerStatusDot({
+            playerName, playerIndex, allParams,
+            currentLeagueId: leagueId, currentParams: params,
+            currentYear: CURRENT_YEAR
+        });
         const dotHtml = `<span class="pg-dot-wrap" tabindex="0" data-tip="${escapeHtml(dotTitle)}"><span class="${dotClass}" aria-label="${escapeHtml(dotTitle)}"></span></span>`;
 
         const avatarHtml = meta.photoPath
@@ -99,6 +96,12 @@ export async function renderPlayerPage() {
             { label: playerName }
         ]);
 
+        installPlayerLeagueNavArrows({
+            leagueId, playerName,
+            currentType: params.LeagueType || 'doubling',
+            playerIndex, allParams
+        });
+
         const playerMatches = getPlayerMatches(matches, playerName, allPlayers);
 
         container.innerHTML = `
@@ -116,7 +119,7 @@ export async function renderPlayerPage() {
                 enrich: {
                     isHidden: (name) => !!(allMeta[name] && allMeta[name].hidden),
                     opponentLink: (name) => ({
-                        open:  `<a href="${playerUrl(leagueId, name)}" class="player-name-link" data-name="${escapeHtml(name)}">`,
+                        open:  `<a href="${playerUrl(leagueId, name)}" class="player-name-link" data-player="${escapeHtml(name)}">`,
                         close: `</a>`,
                     }),
                     opponentSuffix: (name) => getTitleAbbreviationsHtml(allMeta[name]),
@@ -135,6 +138,58 @@ export async function renderPlayerPage() {
     } finally {
         endSplash();
     }
+}
+
+function installPlayerLeagueNavArrows({ leagueId, playerName, currentType, playerIndex, allParams }) {
+    const playerLeagueIds = new Set((playerIndex.get(playerName) || []).map(l => l.leagueId));
+    if (playerLeagueIds.size === 0) return;
+
+    const folders = allParams
+        .filter(({ params }) => (params.LeagueType || 'doubling') === currentType)
+        .map(({ id }) => id)
+        .filter(id => playerLeagueIds.has(id));
+
+    const idx = folders.indexOf(leagueId);
+    if (idx === -1) return;
+
+    const header = document.querySelector('.page-header');
+    if (!header || header.querySelector('.league-nav')) return;
+
+    const prev = idx > 0 ? folders[idx - 1] : null;
+    const next = idx < folders.length - 1 ? folders[idx + 1] : null;
+
+    const nav = document.createElement('div');
+    nav.className = 'league-nav';
+    nav.innerHTML = `
+        <a class="nav-arrow ${prev ? '' : 'disabled'}" ${prev ? `href="${playerUrl(prev, playerName)}" title="Previous league: ${prev}"` : 'title="No previous league"'}>&lsaquo;</a>
+        <a class="nav-arrow ${next ? '' : 'disabled'}" ${next ? `href="${playerUrl(next, playerName)}" title="Next league: ${next}"` : 'title="No next league"'}>&rsaquo;</a>
+    `;
+    header.querySelector('h1').insertAdjacentElement('afterend', nav);
+}
+
+function computePlayerStatusDot({ playerName, playerIndex, allParams, currentLeagueId, currentParams, currentYear }) {
+    const paramsById = new Map(allParams.map(({ id, params }) => [id, params]));
+    paramsById.set(currentLeagueId, currentParams);
+
+    const playerLeagueIds = new Set((playerIndex.get(playerName) || []).map(l => l.leagueId));
+    playerLeagueIds.add(currentLeagueId);
+
+    let inRunning = false;
+    let inCurrentYearLeague = false;
+    for (const id of playerLeagueIds) {
+        const p = paramsById.get(id);
+        if (!p) continue;
+        if (p.Running === true) inRunning = true;
+        if (getLeagueYear({ params: p, id }) === currentYear) inCurrentYearLeague = true;
+    }
+
+    if (inRunning) {
+        return { dotClass: 'pg-dot pg-dot-green', dotTitle: 'Active in a running league' };
+    }
+    if (inCurrentYearLeague) {
+        return { dotClass: 'pg-dot pg-dot-orange', dotTitle: `Played this year (${currentYear}), not in a running league` };
+    }
+    return { dotClass: 'pg-dot pg-dot-gray', dotTitle: `Inactive in ${currentYear}` };
 }
 
 async function renderAlsoPlaysIn(container, playerName, currentLeagueId) {

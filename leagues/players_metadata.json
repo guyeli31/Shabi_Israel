@@ -1,0 +1,48 @@
+{
+  "GuyEliyahu": {
+    "fullName": "Guy Eliyahu",
+    "bmabTitle": "",
+    "championshipTitles": [],
+    "joined": "2025-09",
+    "photoPath": "assets/players/GuyEliyahu.png"
+  },
+  "YossiEliezer23": {
+    "fullName": "Yossi Eliezer",
+    "championshipTitles": [
+      {
+        "type": "national",
+        "country": "Israel",
+        "year": 2018,
+        "doubles": false
+      }
+    ]
+  },
+  "boutsky": {
+    "fullName": "Ido Levi",
+    "bmabTitle": "G2"
+  },
+  "OMRAD": {
+    "fullName": "Yakov Omrad",
+    "championshipTitles": [
+      {
+        "type": "world",
+        "country": "",
+        "year": 1990,
+        "doubles": true,
+        "location": "Monte Carlo"
+      }
+    ]
+  },
+  "Hummus": {
+    "fullName": "Itzhak Solsky",
+    "bmabTitle": "M1",
+    "championshipTitles": [
+      {
+        "type": "national",
+        "country": "Belgium",
+        "year": 2023,
+        "doubles": false
+      }
+    ]
+  }
+}

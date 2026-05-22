@@ -17,7 +17,6 @@
 .league-nav {
     display: inline-flex;
     gap: var(--space-xs);
-    margin-left: var(--space-md);
     vertical-align: middle;
 }
 

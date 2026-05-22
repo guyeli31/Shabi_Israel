@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Player Page Lab — Shabi Israel</title>
+
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/themes.css">
+    <link rel="stylesheet" href="css/theme-picker.css">
+    <link rel="stylesheet" href="css/navigation.css">
+    <link rel="stylesheet" href="css/player-general.css">
+    <link rel="stylesheet" href="css/typography-overrides.css">
+    <link rel="stylesheet" href="table-lab/formats/mf/mf.css">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Playfair+Display:ital,wght@0,700;1,500&display=swap" rel="stylesheet">
+
+    <script>
+      (function(){
+        var t=localStorage.getItem('shabi-theme');
+        if(t==='modern')t='nature';if(t==='royal')t='vegas';if(t&&t!=='current'){document.documentElement.dataset.theme=t;localStorage.setItem('shabi-theme',t);}
+        var c=localStorage.getItem('shabi-custom-vars');
+        if(c){try{var v=JSON.parse(c);for(var k in v)document.documentElement.style.setProperty(k,v[k])}catch(e){}}
+      })();
+    </script>
+
+    <style>
+        /* ============================================================
+           LAB CONTROL STRIP
+           ============================================================ */
+        .pl-controls { background: var(--color-surface); border-bottom: 1px solid var(--color-border); box-shadow: var(--shadow-sm); }
+        .pl-controls-inner {
+            max-width: 1100px; margin: 0 auto;
+            padding: 0.625em var(--space-md);
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 1em; flex-wrap: wrap;
+        }
+        .pl-meta { display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap; min-width: 0; }
+        .pl-tag {
+            display: inline-flex; align-items: center;
+            font-size: 0.625em; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.18em;
+            background: var(--color-accent); color: #fff;
+            padding: 0.25em 0.625em; border-radius: 0.25em;
+        }
+        .pl-title-label { font-size: 0.95em; font-weight: 700; color: var(--color-text); }
+        .pl-sub { font-size: 0.8em; color: var(--color-text-muted); }
+        .pl-viewing-name { color: var(--color-text); font-weight: 600; }
+        .pl-fields { display: flex; align-items: center; gap: 0.75em; flex-wrap: wrap; }
+        .pl-field { display: inline-flex; flex-direction: column; gap: 0.2em; }
+        .pl-field label {
+            font-size: 0.625em; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--color-text-muted);
+        }
+        .pl-field select {
+            min-width: 13em;
+            padding: 0.35em 0.55em;
+            font: inherit; font-size: 0.8125em;
+            color: var(--color-text); background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-sm); cursor: pointer;
+        }
+        .pl-field select:focus { outline: 2px solid var(--color-accent); outline-offset: -1px; }
+
+        #league-subtitle { display: none; }
+
+        .pl-header-variant, .pl-nav-variant { margin: 0 0 var(--space-sm); }
+        .pl-header-variant { display: flex; justify-content: center; }
+        .pl-nav-variant { padding: var(--space-sm) 0; }
+
+        /* ============================================================
+           FLAG — production-style: just the image, no background,
+           no border. Height matches production's .flag-title (~24px
+           at 16px base via 1.4em) and width is auto so the source
+           image's aspect ratio is preserved.
+           ============================================================ */
+        .pl-flag {
+            display: inline-block;
+            height: 1.4em;
+            width: auto;
+            border-radius: 3px;
+            vertical-align: middle;
+            flex-shrink: 0;
+            image-rendering: crisp-edges;
+        }
+
+        /* Title chip */
+        .pl-title-chip {
+            display: inline-flex; align-items: center; gap: 0.4em;
+            font-size: 0.7em; font-weight: 700;
+            padding: 0.25em 0.7em;
+            border-radius: 0.4em;
+            font-family: -apple-system, "Segoe UI", Inter, sans-serif;
+            white-space: nowrap;
+        }
+        .pl-tier-gold   { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #4a2700; box-shadow: 0 1px 4px rgba(245,158,11,0.25); }
+        .pl-tier-silver { background: linear-gradient(135deg, #94a3b8, #cbd5e1); color: #1e293b; }
+        .pl-tier-bronze { background: linear-gradient(135deg, #d97706, #f59e0b); color: #451a03; }
+        .pl-tier-white  { background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; }
+        .pl-chip-icon { font-size: 1.1em; line-height: 1; }
+        .pl-chip-row { display: flex; align-items: center; gap: 0.4em; flex-wrap: wrap; }
+
+        /* Status dot */
+        .pl-status-dot { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%; }
+        .pl-dot-green  { background: #2ecc40; box-shadow: 0 0 0.4em rgba(46,204,64,0.65); }
+        .pl-dot-orange { background: #f59e0b; box-shadow: 0 0 0.4em rgba(245,158,11,0.6); }
+        .pl-dot-gray   { background: #9ca3af; box-shadow: 0 0 0.3em rgba(156,163,175,0.4); }
+
+        /* ============================================================
+           NAVIGATION VARIANTS (theme-aware)
+           ============================================================ */
+        .v0-crumbs { display: flex; align-items: center; font-size: 0.875em; }
+        .v0-crumbs a { color: var(--color-accent); text-decoration: none; }
+        .v0-crumbs a:hover { text-decoration: underline; }
+        .v0-crumbs .sep { margin: 0 0.5em; color: var(--color-text-muted); }
+        .v0-crumbs .current { color: var(--color-text-secondary); font-weight: 500; }
+
+        .v1-trail { display: inline-flex; font-size: 0.8125em; font-weight: 600; isolation: isolate; }
+        .v1-trail .seg {
+            position: relative;
+            display: inline-flex; align-items: center;
+            padding: 0.55em 1.4em 0.55em 1.1em;
+            background: var(--header-bg); color: var(--header-text);
+            opacity: 0.7; text-decoration: none;
+            clip-path: polygon(0 0, calc(100% - 0.75em) 0, 100% 50%, calc(100% - 0.75em) 100%, 0 100%, 0.75em 50%);
+            margin-left: -0.625em;
+        }
+        .v1-trail .seg:first-child {
+            clip-path: polygon(0 0, calc(100% - 0.75em) 0, 100% 50%, calc(100% - 0.75em) 100%, 0 100%);
+            margin-left: 0; padding-left: 1.1em;
+        }
+        .v1-trail .seg:hover { opacity: 1; }
+        .v1-trail .seg.current {
+            opacity: 1;
+            background: var(--color-accent); color: #fff;
+            box-shadow: 0 0.25em 0.75em rgba(0,0,0,0.18);
+            z-index: 1;
+        }
+        .v1-trail .seg.l2 { z-index: 2; opacity: 0.85; }
+        .v1-trail .seg.l3 { z-index: 3; }
+
+        .v2-wrap {
+            display: inline-flex; align-items: center; gap: 0.375em;
+            padding: 0.375em;
+            background: var(--color-surface); border: 1px solid var(--color-border);
+            border-radius: 0.75em;
+        }
+        .v2-pill {
+            display: inline-flex; align-items: center; gap: 0.45em;
+            padding: 0.4em 0.7em;
+            background: transparent; color: var(--color-text-muted);
+            text-decoration: none;
+            font-size: 0.8125em; font-weight: 500;
+            border-radius: 0.5em; border: 1px solid transparent;
+            cursor: pointer;
+        }
+        .v2-pill:hover { background: var(--color-hover); color: var(--color-text); border-color: var(--color-border); }
+        .v2-pill.current { background: var(--color-accent-light); color: var(--color-accent); border-color: var(--color-accent); }
+        .v2-pill .ico { width: 1em; height: 1em; display: inline-flex; align-items: center; justify-content: center; }
+        .v2-pill .caret { color: var(--color-text-muted); font-size: 0.75em; margin-left: 0.15em; }
+        .v2-avatar-mini {
+            width: 1.125em; height: 1.125em; border-radius: 50%;
+            background: var(--color-text-muted); color: var(--color-surface);
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 0.6em; font-weight: 700;
+        }
+        .v2-sep { color: var(--color-text-muted); font-size: 0.75em; }
+
+        .v3-capsule {
+            display: inline-flex; align-items: center;
+            padding: 0.625em 0.375em;
+            background: var(--color-surface); border: 1px solid var(--color-border);
+            border-radius: 999px; box-shadow: var(--shadow-md);
+        }
+        .v3-step {
+            display: inline-flex; align-items: center; gap: 0.5em;
+            padding: 0.25em 0.875em;
+            color: var(--color-text-muted); text-decoration: none;
+            font-size: 0.8125em; font-weight: 500;
+        }
+        .v3-step:hover { color: var(--color-text); }
+        .v3-step.current { color: var(--color-accent); font-weight: 600; }
+        .v3-dot { width: 0.4em; height: 0.4em; border-radius: 50%; background: var(--color-border); }
+        .v3-step.current .v3-dot { background: var(--color-accent); box-shadow: 0 0 0 0.25em rgba(37, 99, 235, 0.18); }
+        .v3-connector { width: 1.75em; height: 1px; background: var(--color-border); }
+
+        .v4-back {
+            display: inline-flex; align-items: center; gap: 0.4em;
+            padding: 0.5em 0.8em;
+            background: var(--color-surface); color: var(--color-text-muted);
+            text-decoration: none;
+            font-size: 0.8125em; font-weight: 500;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-sm);
+        }
+        .v4-back:hover { background: var(--color-hover); color: var(--color-text); }
+
+        .v5-path { display: inline-flex; align-items: center; font-size: 0.875em; font-family: var(--font-mono); }
+        .v5-seg {
+            display: inline-flex; align-items: center; gap: 0.25em;
+            color: var(--color-accent); text-decoration: none;
+            padding: 0.25em 0.4em; border-radius: 0.3em; cursor: pointer;
+        }
+        .v5-seg:hover { background: var(--color-accent-light); }
+        .v5-seg .switch { font-size: 0.7em; color: var(--color-text-muted); margin-left: 0.15em; }
+        .v5-seg.current { color: var(--color-text); font-weight: 600; }
+        .v5-slash { color: var(--color-text-muted); margin: 0 0.15em; }
+
+        .v6-bar {
+            display: inline-flex; align-items: center; gap: 0.625em;
+            padding: 0.5em 0.875em;
+            background: var(--color-surface); border: 1px solid var(--color-border);
+            border-left: 3px solid var(--color-accent);
+            border-radius: 0.25em; font-size: 0.8125em;
+        }
+        .v6-crumb { display: inline-flex; align-items: center; gap: 0.4em; color: var(--color-accent); text-decoration: none; }
+        .v6-crumb:hover { text-decoration: underline; }
+        .v6-crumb.current { color: var(--color-text); font-weight: 600; text-decoration: none; cursor: default; }
+        .v6-crumb .badge {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1.15em; height: 1.15em;
+            background: var(--color-bg); border-radius: 0.2em; font-size: 0.85em;
+        }
+        .v6-crumb .v6-flag { height: 1em; }
+        .v6-sep { color: var(--color-text-muted); font-size: 0.7em; }
+
+        /* ============================================================
+           HEADER VARIANTS
+           - Cards capped at 80vw so they never span the full width.
+           - All flags inherit .pl-flag (no bg, no border, ~24px tall).
+           ============================================================ */
+
+        /* V7 — Lichess-enriched horizontal */
+        .v7-card { display: flex; align-items: center; gap: 1.125em; text-align: left; max-width: 80vw; }
+        .v7-avatar-wrap { position: relative; flex-shrink: 0; }
+        .v7-avatar {
+            width: 3.75em; height: 3.75em; border-radius: 50%;
+            background: linear-gradient(135deg, var(--color-text-muted), var(--color-text-secondary));
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 1.25em; font-weight: 700; color: var(--color-surface);
+            border: 2px solid var(--color-accent);
+        }
+        .v7-avatar-img {
+            width: 3.75em; height: 3.75em; border-radius: 50%; object-fit: cover;
+            border: 2px solid var(--color-accent);
+        }
+        .v7-dot-wrap {
+            position: absolute; right: 0; bottom: 0;
+            width: 0.95em; height: 0.95em; border-radius: 50%;
+            border: 2.5px solid var(--color-surface);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .v7-dot-wrap > .pl-status-dot { width: 100%; height: 100%; }
+        .v7-info { min-width: 0; }
+        .v7-name-line { display: flex; align-items: center; gap: 0.6em; flex-wrap: wrap; }
+        .v7-name {
+            font-size: 1.2em; font-weight: 700; color: var(--color-text);
+            letter-spacing: -0.01em;
+        }
+        .v7-meta {
+            margin-top: 0.4em;
+            font-size: 0.85em; color: var(--color-text-muted);
+            display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap;
+        }
+        .v7-meta .sep { color: var(--color-text-muted); opacity: 0.4; }
+        .v7-meta .leagues { color: var(--color-accent); font-weight: 600; }
+
+        /* V8 — FIDE passport */
+        .v8-card {
+            width: min(22em, 80vw);
+            background: var(--color-surface); color: var(--color-text);
+            border: 1px solid var(--color-border);
+            border-radius: 0.5em; overflow: hidden;
+            box-shadow: var(--shadow-md); text-align: left;
+        }
+        .v8-ribbon {
+            background: linear-gradient(90deg, #92400e, #fbbf24 50%, #92400e);
+            color: #2a1700;
+            font-family: "Playfair Display", Georgia, serif;
+            font-weight: 700; font-size: 0.85em;
+            text-align: center; padding: 0.5em 0.875em;
+            letter-spacing: 0.07em;
+            border-bottom: 1px solid rgba(0,0,0,0.25);
+            text-transform: uppercase;
+        }
+        .v8-ribbon.silver { background: linear-gradient(90deg, #475569, #cbd5e1 50%, #475569); color: #0f172a; }
+        .v8-ribbon.bronze { background: linear-gradient(90deg, #78350f, #f59e0b 50%, #78350f); color: #1f0a00; }
+        .v8-extra-titles {
+            padding: 0.5em 0.875em;
+            display: flex; gap: 0.4em; flex-wrap: wrap;
+            background: var(--color-hover);
+            border-bottom: 1px solid var(--color-border);
+        }
+        .v8-body { padding: 1.125em; display: flex; gap: 1em; }
+        .v8-photo-wrap { position: relative; flex-shrink: 0; }
+        .v8-photo {
+            width: 4.875em; height: 6.25em;
+            background: linear-gradient(135deg, var(--color-text-muted), var(--color-text-secondary));
+            border-radius: 0.25em;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--color-surface);
+            font-size: 1.625em; font-weight: 700;
+            border: 1px solid var(--color-border);
+        }
+        .v8-photo-img {
+            width: 4.875em; height: 6.25em; object-fit: cover;
+            border-radius: 0.25em; border: 1px solid var(--color-border);
+        }
+        /* Corner flag — no background, no border. */
+        .v8-photo-flag {
+            position: absolute;
+            right: 0.25em; bottom: 0.25em;
+            height: 0.9em; width: auto;
+            border-radius: 2px;
+        }
+        .v8-info { margin: 0; display: grid; gap: 0.55em; flex: 1; min-width: 0; }
+        .v8-info > div { display: grid; grid-template-columns: 4em 1fr; gap: 0.5em; }
+        .v8-info dt {
+            color: var(--color-text-muted); text-transform: uppercase;
+            font-size: 0.6em; font-weight: 700;
+            letter-spacing: 0.08em; padding-top: 0.2em; margin: 0;
+        }
+        .v8-info dd { margin: 0; color: var(--color-text); font-weight: 500; font-size: 0.8125em; }
+        .v8-status {
+            display: inline-block; width: 0.55em; height: 0.55em;
+            border-radius: 50%; margin-left: 0.4em; vertical-align: middle;
+        }
+        .v8-status-green  { background: #2ecc40; box-shadow: 0 0 0.3em rgba(46,204,64,0.65); }
+        .v8-status-orange { background: #f59e0b; box-shadow: 0 0 0.3em rgba(245,158,11,0.6); }
+        .v8-status-gray   { background: #9ca3af; }
+
+        /* V9 — Glassmorphism dashboard tile */
+        .v9-tile {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 1.375em;
+            align-items: center;
+            width: min(45em, 80vw);
+            padding: 1em 1.375em;
+            background:
+                linear-gradient(135deg, rgba(245, 158, 11, 0.07), transparent 65%),
+                var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 0.875em;
+            box-shadow: var(--shadow-lg);
+            color: var(--color-text);
+            text-align: left;
+        }
+        .v9-left { display: flex; align-items: center; gap: 0.875em; min-width: 0; }
+        .v9-avatar {
+            width: 3.125em; height: 3.125em; border-radius: 50%;
+            background: linear-gradient(135deg, #fbbf24, #b88a2c);
+            display: flex; align-items: center; justify-content: center;
+            color: #1a1305; font-size: 1.05em; font-weight: 800;
+            font-family: "Playfair Display", Georgia, serif;
+            letter-spacing: 0.02em;
+            box-shadow: 0 0.3em 0.875em rgba(245,158,11,0.28);
+            flex-shrink: 0;
+        }
+        .v9-avatar-img {
+            width: 3.125em; height: 3.125em; border-radius: 50%;
+            object-fit: cover; border: 2px solid #fbbf24;
+            flex-shrink: 0;
+        }
+        .v9-name-row {
+            display: flex; align-items: center; gap: 0.5em;
+            flex-wrap: wrap;
+            justify-content: flex-start;  /* username is anchored to the left */
+        }
+        .v9-name { font-size: 1em; font-weight: 700; color: var(--color-text); }
+        .v9-fullname {
+            font-size: 0.78em; color: var(--color-text-muted);
+            margin-top: 0.25em;
+            text-align: left;             /* full name sits flush-left under the username */
+        }
+        .v9-center {
+            display: flex; flex-direction: column; align-items: flex-start;
+            gap: 0.35em;
+            padding: 0 1.125em;
+            border-left: 1px solid var(--color-border);
+            border-right: 1px solid var(--color-border);
+            min-width: 0;
+        }
+        .v9-title-row {
+            display: flex; align-items: center; gap: 0.5em;
+            font-size: 0.8125em;
+            color: #d4a942;
+            font-family: "Playfair Display", Georgia, serif;
+            font-weight: 700; white-space: nowrap;
+        }
+        .v9-title-row .icon { font-size: 1.4em; line-height: 1; text-shadow: 0 2px 0.5em rgba(212,169,66,0.4); }
+        .v9-right { display: flex; gap: 1.125em; justify-content: flex-end; }
+        .v9-stat { display: flex; flex-direction: column; align-items: center; }
+        .v9-stat-num { font-size: 1em; font-weight: 700; color: var(--color-text); font-variant-numeric: tabular-nums; }
+        .v9-stat-lbl {
+            font-size: 0.62em; color: var(--color-text-muted);
+            text-transform: uppercase; letter-spacing: 0.09em; margin-top: 0.15em;
+        }
+
+        /* V10 — Trading card.
+           Width scales smoothly: ~22 vw on wide screens (keeps the
+           same proportional size as on a desktop), with a 15em floor
+           so the card stays readable on mid-width viewports, and an
+           80 vw ceiling so it never overflows on phones. No abrupt
+           media-query jump. */
+        .v10-card {
+            position: relative;
+            width: min(80vw, max(15em, 22vw));
+            padding: 1.375em 1.375em 1.125em;
+            background:
+                radial-gradient(ellipse at top, rgba(212, 169, 66, 0.16), transparent 60%),
+                var(--color-surface);
+            color: var(--color-text);
+            border: 1px solid var(--color-border);
+            border-top: 3px solid #d4a942;
+            border-radius: 0.625em;
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+            text-align: left;
+        }
+        .v10-piece {
+            position: absolute;
+            right: -1.75em; bottom: -3.5em;
+            font-size: 13.75em;
+            color: rgba(212, 169, 66, 0.10);
+            line-height: 1;
+            pointer-events: none; user-select: none;
+            font-family: serif;
+        }
+        /* Corner pennant — uses the production flag image and clips
+           it into a flag/pennant shape. No background or extra border. */
+        .v10-flag-corner {
+            position: absolute;
+            top: 0; right: 0.875em;
+            height: 2.5em; width: 1.75em;
+            object-fit: cover;
+            clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+            border-radius: 0;
+        }
+        .v10-content { position: relative; z-index: 1; }
+        /* Small circular avatar at the top of the content area —
+           gives V10 a clear photo position without crowding the
+           narrow card. Sits to the left of the flag pennant. */
+        .v10-avatar, .v10-avatar-img {
+            width: 2.875em; height: 2.875em;
+            border-radius: 50%;
+            display: block;
+            margin-bottom: 0.625em;
+            border: 2px solid #d4a942;
+            flex-shrink: 0;
+        }
+        .v10-avatar {
+            background: linear-gradient(135deg, var(--color-text-muted), var(--color-text-secondary));
+            color: var(--color-surface);
+            font-size: 0.95em; font-weight: 700;
+            font-family: "Playfair Display", Georgia, serif;
+            display: flex; align-items: center; justify-content: center;
+            line-height: 1;
+        }
+        .v10-avatar-img { object-fit: cover; }
+        .v10-status {
+            display: inline-flex; align-items: center; gap: 0.4em;
+            font-size: 0.625em;
+            text-transform: uppercase; letter-spacing: 0.16em;
+            font-weight: 700; margin-bottom: 0.875em;
+        }
+        .v10-titles { display: flex; flex-direction: column; gap: 0.25em; margin-bottom: 0.4em; }
+        .v10-title-line {
+            font-family: "Cinzel", "Playfair Display", Georgia, serif;
+            font-size: 0.7em; font-weight: 700;
+            color: #d4a942;
+            text-transform: uppercase; letter-spacing: 0.2em;
+            display: flex; align-items: center; gap: 0.5em;
+        }
+        .v10-title-icon { font-size: 1.4em; letter-spacing: 0; }
+        .v10-name {
+            font-size: 1.5em; font-weight: 800;
+            color: var(--color-text);
+            font-family: "Playfair Display", Georgia, serif;
+            line-height: 1.1; letter-spacing: -0.01em;
+        }
+        .v10-fullname {
+            font-size: 0.82em; color: var(--color-text-muted);
+            margin-top: 0.3em; font-style: italic;
+        }
+        .v10-foot {
+            margin-top: 1em; padding-top: 0.75em;
+            border-top: 1px solid var(--color-border);
+            display: flex; justify-content: space-between;
+            font-size: 0.72em; color: var(--color-text-muted);
+            flex-wrap: wrap; gap: 0.5em;
+        }
+        .v10-leagues { color: var(--color-accent); font-weight: 700; }
+
+        /* V11 — Single-line capsule (font bumped to 1em per request) */
+        .v11-line {
+            display: inline-flex; align-items: center;
+            gap: 0.625em;
+            padding: 0.625em 1em;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 999px;
+            font-size: 1em;
+            max-width: 80vw;
+            flex-wrap: wrap;
+        }
+        .v11-avatar {
+            /* Slightly larger than the flag (1.4em tall) so the avatar
+               sits as the primary identifier on the left of the line. */
+            width: 1.85em; height: 1.85em; border-radius: 50%;
+            background: var(--color-text-muted); color: var(--color-surface);
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 0.78em; font-weight: 700;
+            border: 1px solid var(--color-border);
+            flex-shrink: 0;
+        }
+        .v11-name { font-weight: 700; color: var(--color-text); }
+        .v11-sep { color: var(--color-text-muted); opacity: 0.5; }
+        .v11-meta { color: var(--color-text-muted); font-size: 0.9em; }
+        .v11-leagues { color: var(--color-accent); font-weight: 600; font-size: 0.9em; }
+
+        /* V12 — Hero banner */
+        .v12-hero {
+            width: min(35em, 80vw);
+            padding: 1.125em 1.375em;
+            background:
+                radial-gradient(ellipse at top right, rgba(212, 169, 66, 0.16), transparent 65%),
+                var(--color-surface);
+            color: var(--color-text);
+            border: 1px solid var(--color-border);
+            border-radius: 0.75em;
+            box-shadow: var(--shadow-md);
+            text-align: left;
+        }
+        .v12-top {
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 0.625em;
+            margin-bottom: 0.875em;
+            flex-wrap: wrap;
+        }
+        .v12-titles-row { display: flex; gap: 0.4em; flex-wrap: wrap; margin-bottom: 0.875em; }
+        .v12-titleribbon {
+            display: inline-flex; align-items: center; gap: 0.55em;
+            font-family: "Bebas Neue", "Impact", "Arial Narrow", sans-serif;
+            font-size: 0.95em; letter-spacing: 0.18em;
+            background: linear-gradient(90deg, #d4a942, #fbbf24);
+            color: #2a1c00;
+            padding: 0.35em 0.875em;
+            border-radius: 0.2em; font-weight: 400;
+        }
+        .v12-titleribbon.silver { background: linear-gradient(90deg, #94a3b8, #cbd5e1); color: #1e293b; }
+        .v12-titleribbon.bronze { background: linear-gradient(90deg, #d97706, #f59e0b); color: #451a03; }
+        .v12-titleicon { font-size: 1.15em; }
+        .v12-statuschip {
+            display: inline-flex; align-items: center; gap: 0.4em;
+            font-size: 0.65em;
+            text-transform: uppercase; letter-spacing: 0.1em;
+            font-weight: 700;
+            padding: 0.3em 0.7em;
+            border-radius: 999px;
+            color: #2ecc40;
+            background: rgba(46,204,64,0.1);
+            border: 1px solid rgba(46,204,64,0.28);
+        }
+        .v12-statuschip.orange { color: #f59e0b; background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.28); }
+        .v12-statuschip.gray   { color: #9ca3af; background: rgba(156,163,175,0.1); border-color: rgba(156,163,175,0.28); }
+        .v12-bodyrow { display: flex; align-items: center; gap: 1em; margin-bottom: 1em; flex-wrap: wrap; }
+        .v12-photo {
+            width: 3.875em; height: 3.875em;
+            border-radius: 0.75em;
+            background: linear-gradient(135deg, var(--color-text-muted), var(--color-text-secondary));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.375em; font-weight: 800;
+            color: var(--color-surface);
+            border: 1px solid var(--color-border);
+            flex-shrink: 0;
+        }
+        .v12-photo-img {
+            width: 3.875em; height: 3.875em;
+            border-radius: 0.75em; object-fit: cover;
+            border: 1px solid var(--color-border);
+            flex-shrink: 0;
+        }
+        .v12-display {
+            margin: 0;
+            font-family: "Bebas Neue", "Impact", sans-serif;
+            font-size: 2em;
+            font-weight: 400;
+            letter-spacing: 0.08em;
+            color: var(--color-text);
+            line-height: 1;
+            display: flex; align-items: center; gap: 0.45em; flex-wrap: wrap;
+        }
+        .v12-real {
+            margin-top: 0.4em;
+            font-size: 0.85em;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+        .v12-statgrid {
+            display: grid; grid-template-columns: repeat(2, 1fr);
+            gap: 0.5em;
+            padding-top: 0.875em;
+            border-top: 1px solid var(--color-border);
+        }
+        .v12-stat { text-align: center; }
+        .v12-statnum {
+            font-size: 1em; font-weight: 700;
+            color: var(--color-accent);
+            font-variant-numeric: tabular-nums;
+        }
+        .v12-statlbl {
+            font-size: 0.62em; color: var(--color-text-muted);
+            text-transform: uppercase; letter-spacing: 0.13em;
+            margin-top: 0.2em;
+        }
+
+        /* ============================================================
+           RESPONSIVE BREAKPOINTS
+           V9 in particular needs an earlier breakpoint than the
+           default 640px because its 3-column grid (avatar | title |
+           stats) gets cramped well before then.
+           ============================================================ */
+        @media (max-width: 880px) {
+            .v9-tile {
+                grid-template-columns: 1fr;
+                gap: 1em;
+                text-align: left;             /* keep names + fullname left-aligned */
+            }
+            .v9-left { justify-content: flex-start; }
+            .v9-center {
+                border-left: none; border-right: none;
+                border-top: 1px solid var(--color-border);
+                border-bottom: 1px solid var(--color-border);
+                padding: 0.75em 0;
+                align-items: flex-start;
+            }
+            .v9-right { justify-content: flex-start; }
+        }
+        @media (max-width: 640px) {
+            .pl-controls-inner { gap: 0.625em; }
+            .pl-fields { width: 100%; }
+            .pl-field { flex: 1; }
+            .pl-field select { min-width: 0; width: 100%; }
+
+            /* Cards can use a bit more of the viewport on tiny screens.
+               V10 is excluded — it has its own fluid width formula
+               (min(80vw, max(15em, 22vw))) that scales smoothly without
+               an abrupt jump at this breakpoint. */
+            .v8-card, .v9-tile, .v12-hero, .v11-line, .v7-card {
+                max-width: 92vw;
+                width: min(var(--w, 100%), 92vw);
+            }
+            .v8-body { gap: 0.75em; }
+            .v8-info > div { grid-template-columns: 3.5em 1fr; }
+
+            /* V12 hero — let the display name wrap and reduce its size
+               on phones so it never overflows its card. */
+            .v12-display { font-size: 1.7em; gap: 0.35em; }
+            .v12-bodyrow { gap: 0.75em; }
+
+            /* V11 single-line — already wraps via flex-wrap, just
+               keep paddings tight. */
+            .v11-line { padding: 0.5em 0.875em; gap: 0.5em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container" id="main" role="main">
+        <div class="page-header">
+            <h1 id="page-title">Loading…</h1>
+            <div id="league-subtitle" class="subtitle"></div>
+        </div>
+        <div id="content">
+            <div class="loading">Loading player profile…</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initThemePicker } from './js/render/themePicker.js';
+        import { initNavBar } from './js/render/navigation.js';
+        import { renderPlayerGeneralPage } from './js/render/playerGeneralPage.js';
+        import { loadPlayersMetadata, clearPlayersMetadataCache } from './js/data/playersMetadata.js';
+        import { getBmabInfo, getChampionshipInfo, getChampionshipTooltip } from './js/data/titleConstants.js';
+        import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches } from './js/data/leagueLoader.js';
+        import { getFlagCode, parseLeagueDate, flagUrl } from './js/utils/helpers.js';
+
+        const DEFAULT_PLAYER = 'GuyEliyahu';
+        const TIER_ICONS = { gold: '♛', silver: '♜', bronze: '♝', white: '♞' };
+        const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+        function escapeHtml(s) {
+            const div = document.createElement('div');
+            div.textContent = s == null ? '' : String(s);
+            return div.innerHTML;
+        }
+
+        function formatJoined(iso) {
+            if (!iso) return '';
+            const [y, m] = String(iso).split('-').map(x => parseInt(x, 10));
+            if (!y || !m || m < 1 || m > 12) return iso;
+            return `${MONTHS_FULL[m - 1]} ${y}`;
+        }
+
+        /* Two-letter monogram for the avatar fallback.
+           Priority:
+             1. Full name → first letter of first + first letter of last word
+                ("Guy Eliyahu" → "GE")
+             2. Single-word full name → first two letters
+             3. Username with ≥2 capital letters (camelCase/PascalCase) →
+                first + last capital ("GuyEliyahu" → "GE", "YKwin" → "YK")
+             4. Username fallback → first two letters ("Moriarty" → "MO") */
+        function getInitials(name, fullName) {
+            if (fullName) {
+                const parts = fullName.trim().split(/\s+/);
+                if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                if (parts[0].length >= 2) return parts[0].slice(0, 2).toUpperCase();
+            }
+            if (name) {
+                const caps = name.match(/[A-Z]/g) || [];
+                if (caps.length >= 2) return (caps[0] + caps[caps.length - 1]).toUpperCase();
+                return name.slice(0, 2).toUpperCase();
+            }
+            return '';
+        }
+
+        function buildTitles(meta) {
+            const out = [];
+            for (const t of (meta.championshipTitles || [])) {
+                const info = getChampionshipInfo(t);
+                const tooltip = getChampionshipTooltip(t);
+                const fullLabel = t.type === 'world'
+                    ? `${t.year || ''} World Champion`.trim()
+                    : `${t.year || ''} ${t.country || ''} National Champion`.replace(/\s+/g, ' ').trim();
+                out.push({ fullLabel, shortLabel: t.type === 'world' ? 'World Champion' : 'National Champion', icon: '♚', tier: info.tier, tooltip, kind: 'champ' });
+            }
+            if (meta.bmabTitle) {
+                const info = getBmabInfo(meta.bmabTitle);
+                if (info) out.push({ fullLabel: info.label, shortLabel: info.label, icon: TIER_ICONS[info.tier] || '♛', tier: info.tier, tooltip: info.label, kind: 'bmab' });
+            }
+            return out;
+        }
+
+        /* Build the lab-side player snapshot. Computes from the league
+           data: the flag (player's flag in his most recently active
+           league via CustomFlags), the joined date (the earliest
+           league he appears in — month + year), the league count, and
+           the status dot. */
+        async function computeLabPlayer(playerName) {
+            const allMeta = await loadPlayersMetadata();
+            const meta = allMeta[playerName] || {};
+
+            let leagueCount = 0;
+            let dotClass = 'pl-dot-gray';
+            let dotTitle = `Inactive in ${new Date().getFullYear()}`;
+            let breadLabel = '';
+            let computedJoinedIso = '';
+            let flagCode = 'IL';
+
+            try {
+                const displayOrder = await loadLeagueOrder();
+                const folderNames = displayOrder.map(t => t.replace(' - ', ' '));
+                const allParams = await loadAllLeagueParams(folderNames);
+                const visible = allParams.filter(lp => lp.params?.Hidden !== true);
+
+                const memberships = await Promise.all(visible.map(async lp => {
+                    try {
+                        const { allPlayers } = await loadLeagueMatches(lp.id);
+                        return { lp, isMember: allPlayers && allPlayers.has(playerName) };
+                    } catch { return { lp, isMember: false }; }
+                }));
+
+                const playerLeagues = memberships.filter(m => m.isMember).map(m => m.lp);
+                leagueCount = playerLeagues.length;
+
+                /* Sort by (year, monthIndex) ascending so [0] is earliest,
+                   last is latest. */
+                const dated = playerLeagues.map(lp => {
+                    const d = parseLeagueDate(lp.id);
+                    return { lp, year: d.year, monthIndex: d.monthIndex };
+                }).filter(x => x.year != null && x.monthIndex >= 0)
+                  .sort((a, b) => (a.year - b.year) || (a.monthIndex - b.monthIndex));
+
+                /* Earliest league → joined date (month + year). */
+                if (dated.length) {
+                    const e = dated[0];
+                    computedJoinedIso = `${e.year}-${String(e.monthIndex + 1).padStart(2, '0')}`;
+                }
+
+                /* Flag: prefer the running league's CustomFlags entry,
+                   otherwise the most recent league the player appeared
+                   in. Falls back to IL via getFlagCode default. */
+                const runningLeague = playerLeagues.find(lp => lp.params?.Running === true);
+                const latestLeague = dated.length ? dated[dated.length - 1].lp : null;
+                const flagSourceLeague = runningLeague || latestLeague;
+                if (flagSourceLeague) {
+                    flagCode = getFlagCode(playerName, flagSourceLeague.params?.CustomFlags);
+                }
+
+                /* Status dot logic — identical to production. */
+                const inRunning = !!runningLeague;
+                const thisYear = new Date().getFullYear();
+                const inCurrentYear = playerLeagues.some(lp => {
+                    const m = /\b(\d{4})\b/.exec(lp.id || '');
+                    return m && parseInt(m[1], 10) === thisYear;
+                });
+                if (inRunning)          { dotClass = 'pl-dot-green';  dotTitle = 'Active in a running league'; }
+                else if (inCurrentYear) { dotClass = 'pl-dot-orange'; dotTitle = `Played this year (${thisYear}), not in a running league`; }
+                else                    { dotClass = 'pl-dot-gray';   dotTitle = `Inactive in ${thisYear}`; }
+
+                const breadLeague = runningLeague || latestLeague;
+                if (breadLeague) {
+                    const m = /Shabi Israel\s+(.+)/.exec(breadLeague.id);
+                    breadLabel = breadLeague.params?.LeagueTitle?.replace(' - ', ' ')
+                              || (m ? m[1] : breadLeague.id);
+                }
+            } catch (e) { /* fall through with defaults */ }
+
+            /* Metadata `joined` is treated as an override (e.g. for
+               pre-registered players who haven't played yet). When
+               absent, fall back to the computed earliest-league date. */
+            const joinedIso = meta.joined || computedJoinedIso;
+
+            return {
+                name: playerName,
+                fullName: meta.fullName || '',
+                photoPath: meta.photoPath || '',
+                joinedFormatted: formatJoined(joinedIso),
+                initials: getInitials(playerName, meta.fullName),
+                titles: buildTitles(meta),
+                leagueCount,
+                statusDotClass: dotClass,
+                statusDotTitle: dotTitle,
+                statusKind: dotClass.replace('pl-dot-', ''),
+                breadcrumbLabel: breadLabel || playerName,
+                flagCode,
+            };
+        }
+
+        /* Flag <img> with the right src for the player's country code.
+           Pass extra classes via `cls`. */
+        function flagImg(cls, code) {
+            const c = code || 'IL';
+            return `<img class="pl-flag ${cls}" src="${flagUrl(c)}" alt="${escapeHtml(c)}" title="${escapeHtml(c)}">`;
+        }
+
+        /* ── Variant renderers ────────────────────────────────────── */
+        const NAV_RENDERERS = {
+            current() { return ''; },
+            v1(p) {
+                return `<nav class="v1-trail" aria-label="Breadcrumb">
+                    <a class="seg" href="#">Home</a>
+                    <a class="seg l2" href="#">${escapeHtml(p.breadcrumbLabel)}</a>
+                    <span class="seg l3 current">${escapeHtml(p.name)}</span>
+                </nav>`;
+            },
+            v2(p) {
+                return `<nav class="v2-wrap" aria-label="Breadcrumb">
+                    <a class="v2-pill" href="#"><span class="ico">⌂</span>Home</a>
+                    <span class="v2-sep">›</span>
+                    <a class="v2-pill" href="#"><span class="ico">♟</span>${escapeHtml(p.breadcrumbLabel)}<span class="caret">▾</span></a>
+                    <span class="v2-sep">›</span>
+                    <span class="v2-pill current"><span class="v2-avatar-mini">${escapeHtml(p.initials)}</span>${escapeHtml(p.name)}<span class="caret">▾</span></span>
+                </nav>`;
+            },
+            v3(p) {
+                return `<nav class="v3-capsule" aria-label="Breadcrumb">
+                    <a class="v3-step" href="#"><span class="v3-dot"></span>Home</a>
+                    <span class="v3-connector"></span>
+                    <a class="v3-step" href="#"><span class="v3-dot"></span>${escapeHtml(p.breadcrumbLabel)}</a>
+                    <span class="v3-connector"></span>
+                    <span class="v3-step current"><span class="v3-dot"></span>${escapeHtml(p.name)}</span>
+                </nav>`;
+            },
+            v4(p) { return `<a class="v4-back" href="#">‹ ${escapeHtml(p.breadcrumbLabel)}</a>`; },
+            v5(p) {
+                return `<nav class="v5-path" aria-label="Breadcrumb">
+                    <a class="v5-seg" href="#">Home</a>
+                    <span class="v5-slash">/</span>
+                    <a class="v5-seg" href="#">${escapeHtml(p.breadcrumbLabel)}<span class="switch">▾</span></a>
+                    <span class="v5-slash">/</span>
+                    <span class="v5-seg current">${escapeHtml(p.name)}<span class="switch">▾</span></span>
+                </nav>`;
+            },
+            v6(p) {
+                return `<nav class="v6-bar" aria-label="Breadcrumb">
+                    <a class="v6-crumb" href="#"><span class="badge">⌂</span>Home</a>
+                    <span class="v6-sep">›</span>
+                    <a class="v6-crumb" href="#"><span class="badge">♟</span>${escapeHtml(p.breadcrumbLabel)}</a>
+                    <span class="v6-sep">›</span>
+                    <span class="v6-crumb current">${flagImg('v6-flag', p.flagCode)}${escapeHtml(p.name)}</span>
+                </nav>`;
+            },
+        };
+
+        const HEADER_RENDERERS = {
+            v7(p) {
+                const avatar = p.photoPath
+                    ? `<img class="v7-avatar-img" src="${escapeHtml(p.photoPath)}" alt="${escapeHtml(p.name)}">`
+                    : `<div class="v7-avatar">${escapeHtml(p.initials)}</div>`;
+                const dot = `<span class="v7-dot-wrap"><span class="pl-status-dot ${p.statusDotClass}" title="${escapeHtml(p.statusDotTitle)}"></span></span>`;
+                const meta = [
+                    p.fullName && escapeHtml(p.fullName),
+                    p.joinedFormatted && `Joined ${escapeHtml(p.joinedFormatted)}`,
+                    `<span class="leagues">${p.leagueCount} ${p.leagueCount === 1 ? 'league' : 'leagues'}</span>`,
+                ].filter(Boolean).join(' <span class="sep">·</span> ');
+                return `<div class="v7-card">
+                    <div class="v7-avatar-wrap">${avatar}${dot}</div>
+                    <div class="v7-info">
+                        <div class="v7-name-line">
+                            ${flagImg('v7-flag', p.flagCode)}
+                            <span class="v7-name">${escapeHtml(p.name)}</span>
+                            ${p.titles.map(t =>
+                                `<span class="pl-title-chip pl-tier-${t.tier}" title="${escapeHtml(t.tooltip)}"><span class="pl-chip-icon">${t.icon}</span>${escapeHtml(t.fullLabel)}</span>`
+                            ).join('')}
+                        </div>
+                        <div class="v7-meta">${meta}</div>
+                    </div>
+                </div>`;
+            },
+
+            v8(p) {
+                const topTitle = p.titles[0];
+                const extraTitles = p.titles.slice(1);
+                const ribbonCls = topTitle ? (topTitle.tier === 'silver' ? 'silver' : topTitle.tier === 'bronze' ? 'bronze' : '') : '';
+                const ribbon = topTitle
+                    ? `<div class="v8-ribbon ${ribbonCls}">${topTitle.icon} ${escapeHtml(topTitle.fullLabel)}</div>`
+                    : '';
+                const extras = extraTitles.length
+                    ? `<div class="v8-extra-titles">${extraTitles.map(t =>
+                        `<span class="pl-title-chip pl-tier-${t.tier}" title="${escapeHtml(t.tooltip)}"><span class="pl-chip-icon">${t.icon}</span>${escapeHtml(t.fullLabel)}</span>`
+                      ).join('')}</div>`
+                    : '';
+                const statusCls = `v8-status-${p.statusKind}`;
+                const photo = p.photoPath
+                    ? `<img class="v8-photo-img" src="${escapeHtml(p.photoPath)}" alt="${escapeHtml(p.name)}">`
+                    : `<div class="v8-photo">${escapeHtml(p.initials)}</div>`;
+                return `<div class="v8-card">
+                    ${ribbon}
+                    ${extras}
+                    <div class="v8-body">
+                        <div class="v8-photo-wrap">
+                            ${photo}
+                            <img class="v8-photo-flag" src="${flagUrl(p.flagCode)}" alt="${escapeHtml(p.flagCode)}" title="${escapeHtml(p.flagCode)}">
+                        </div>
+                        <dl class="v8-info">
+                            <div><dt>Player</dt><dd>${escapeHtml(p.name)} <span class="v8-status ${statusCls}" title="${escapeHtml(p.statusDotTitle)}"></span></dd></div>
+                            ${p.fullName       ? `<div><dt>Name</dt><dd>${escapeHtml(p.fullName)}</dd></div>` : ''}
+                            ${p.joinedFormatted? `<div><dt>Joined</dt><dd>${escapeHtml(p.joinedFormatted)}</dd></div>` : ''}
+                            <div><dt>Leagues</dt><dd>${p.leagueCount}</dd></div>
+                        </dl>
+                    </div>
+                </div>`;
+            },
+
+            v9(p) {
+                const avatar = p.photoPath
+                    ? `<img class="v9-avatar-img" src="${escapeHtml(p.photoPath)}" alt="${escapeHtml(p.name)}">`
+                    : `<div class="v9-avatar">${escapeHtml(p.initials)}</div>`;
+                const titleRows = p.titles.map(t =>
+                    `<div class="v9-title-row" title="${escapeHtml(t.tooltip)}"><span class="icon">${t.icon}</span>${escapeHtml(t.fullLabel)}</div>`
+                ).join('');
+                return `<div class="v9-tile">
+                    <div class="v9-left">
+                        ${avatar}
+                        <div>
+                            <div class="v9-name-row">
+                                <span class="v9-name">${escapeHtml(p.name)}</span>
+                                <span class="pl-status-dot ${p.statusDotClass}" title="${escapeHtml(p.statusDotTitle)}" style="width:0.5em;height:0.5em"></span>
+                                ${flagImg('v9-flag', p.flagCode)}
+                            </div>
+                            ${p.fullName ? `<div class="v9-fullname">${escapeHtml(p.fullName)}</div>` : ''}
+                        </div>
+                    </div>
+                    <div class="v9-center">${titleRows}</div>
+                    <div class="v9-right">
+                        <div class="v9-stat"><span class="v9-stat-num">${p.leagueCount}</span><span class="v9-stat-lbl">Leagues</span></div>
+                        ${p.joinedFormatted ? `<div class="v9-stat"><span class="v9-stat-num">${escapeHtml(p.joinedFormatted)}</span><span class="v9-stat-lbl">Joined</span></div>` : ''}
+                    </div>
+                </div>`;
+            },
+
+            v10(p) {
+                const heroIcon = p.titles[0]?.icon || '♛';
+                const titles = p.titles.length
+                    ? `<div class="v10-titles">${p.titles.map(t =>
+                        `<div class="v10-title-line" title="${escapeHtml(t.tooltip)}"><span class="v10-title-icon">${t.icon}</span>${escapeHtml(t.fullLabel)}</div>`
+                      ).join('')}</div>`
+                    : '';
+                const statusLabel = p.statusKind === 'green' ? 'Active' : p.statusKind === 'orange' ? 'This year' : 'Inactive';
+                const statusColor = p.statusKind === 'green' ? '#2ecc40' : p.statusKind === 'orange' ? '#f59e0b' : '#9ca3af';
+                const avatar = p.photoPath
+                    ? `<img class="v10-avatar-img" src="${escapeHtml(p.photoPath)}" alt="${escapeHtml(p.name)}">`
+                    : `<div class="v10-avatar">${escapeHtml(p.initials)}</div>`;
+                return `<div class="v10-card">
+                    <div class="v10-piece">${heroIcon}</div>
+                    <img class="v10-flag-corner" src="${flagUrl(p.flagCode)}" alt="${escapeHtml(p.flagCode)}" title="${escapeHtml(p.flagCode)}">
+                    <div class="v10-content">
+                        ${avatar}
+                        <div class="v10-status" style="color:${statusColor}">
+                            <span class="pl-status-dot ${p.statusDotClass}" style="width:0.45em;height:0.45em"></span> ${statusLabel}
+                        </div>
+                        ${titles}
+                        <div class="v10-name">${escapeHtml(p.name)}</div>
+                        ${p.fullName ? `<div class="v10-fullname">${escapeHtml(p.fullName)}</div>` : ''}
+                        <div class="v10-foot">
+                            ${p.joinedFormatted ? `<span>Joined ${escapeHtml(p.joinedFormatted)}</span>` : '<span></span>'}
+                            <span class="v10-leagues">${p.leagueCount} ${p.leagueCount === 1 ? 'League' : 'Leagues'}</span>
+                        </div>
+                    </div>
+                </div>`;
+            },
+
+            v11(p) {
+                const meta = [
+                    p.fullName && escapeHtml(p.fullName),
+                    p.joinedFormatted && `Joined ${escapeHtml(p.joinedFormatted)}`,
+                    `<span class="v11-leagues">${p.leagueCount} ${p.leagueCount === 1 ? 'league' : 'leagues'}</span>`,
+                ].filter(Boolean);
+                return `<div class="v11-line">
+                    <span class="pl-status-dot ${p.statusDotClass}" title="${escapeHtml(p.statusDotTitle)}"></span>
+                    <div class="v11-avatar">${escapeHtml(p.initials)}</div>
+                    ${flagImg('v11-flag', p.flagCode)}
+                    <span class="v11-name">${escapeHtml(p.name)}</span>
+                    ${p.titles.map(t =>
+                        `<span class="pl-title-chip pl-tier-${t.tier}" title="${escapeHtml(t.tooltip)}"><span class="pl-chip-icon">${t.icon}</span>${escapeHtml(t.fullLabel)}</span>`
+                    ).join('')}
+                    ${meta.map(m => `<span class="v11-sep">·</span><span class="v11-meta">${m}</span>`).join('')}
+                </div>`;
+            },
+
+            v12(p) {
+                const topTitle = p.titles[0];
+                const extraTitles = p.titles.slice(1);
+                const tierCls = topTitle ? (topTitle.tier === 'silver' ? 'silver' : topTitle.tier === 'bronze' ? 'bronze' : '') : '';
+                const ribbon = topTitle
+                    ? `<span class="v12-titleribbon ${tierCls}" title="${escapeHtml(topTitle.tooltip)}">
+                            <span class="v12-titleicon">${topTitle.icon}</span> ${escapeHtml(topTitle.fullLabel.toUpperCase())}
+                        </span>`
+                    : '';
+                const extras = extraTitles.length
+                    ? `<div class="v12-titles-row">${extraTitles.map(t =>
+                        `<span class="pl-title-chip pl-tier-${t.tier}" title="${escapeHtml(t.tooltip)}"><span class="pl-chip-icon">${t.icon}</span>${escapeHtml(t.fullLabel)}</span>`
+                      ).join('')}</div>`
+                    : '';
+                const statusCls = p.statusKind === 'green' ? '' : p.statusKind;
+                const statusLabel = p.statusKind === 'green' ? 'Active' : p.statusKind === 'orange' ? 'This year' : 'Inactive';
+                const photo = p.photoPath
+                    ? `<img class="v12-photo-img" src="${escapeHtml(p.photoPath)}" alt="${escapeHtml(p.name)}">`
+                    : `<div class="v12-photo">${escapeHtml(p.initials)}</div>`;
+                const topRow = `<div class="v12-top">
+                    ${ribbon || '<span></span>'}
+                    <span class="v12-statuschip ${statusCls}" title="${escapeHtml(p.statusDotTitle)}">
+                        <span class="pl-status-dot ${p.statusDotClass}" style="width:0.55em;height:0.55em"></span> ${statusLabel}
+                    </span>
+                </div>`;
+                return `<div class="v12-hero">
+                    ${topRow}
+                    ${extras}
+                    <div class="v12-bodyrow">
+                        ${photo}
+                        <div>
+                            <h3 class="v12-display">${flagImg('v12-flag', p.flagCode)} ${escapeHtml(p.name)}</h3>
+                            ${p.fullName ? `<div class="v12-real">${escapeHtml(p.fullName)}</div>` : ''}
+                        </div>
+                    </div>
+                    <div class="v12-statgrid">
+                        <div class="v12-stat"><div class="v12-statnum">${p.leagueCount}</div><div class="v12-statlbl">Leagues</div></div>
+                        ${p.joinedFormatted ? `<div class="v12-stat"><div class="v12-statnum">${escapeHtml(p.joinedFormatted)}</div><div class="v12-statlbl">Joined</div></div>` : ''}
+                    </div>
+                </div>`;
+            },
+        };
+
+        /* ── Lab state + DOM helpers ──────────────────────────────── */
+        let labPlayer = null;
+        let currentPlayerName = new URLSearchParams(window.location.search).get('player') || DEFAULT_PLAYER;
+
+        function getNavKey()    { return document.getElementById('pl-nav-select')?.value    || 'current'; }
+        function getHeaderKey() { return document.getElementById('pl-header-select')?.value || 'current'; }
+
+        function applyNavVariant() {
+            const container = document.querySelector('.page-container');
+            if (!container) return;
+            const prodBreadcrumb = container.querySelector('.breadcrumbs');
+            container.querySelectorAll('.pl-nav-variant').forEach(el => el.remove());
+
+            const key = getNavKey();
+            if (key === 'current') {
+                if (prodBreadcrumb) prodBreadcrumb.style.display = '';
+            } else if (labPlayer) {
+                if (prodBreadcrumb) prodBreadcrumb.style.display = 'none';
+                const variant = document.createElement('div');
+                variant.className = 'pl-nav-variant';
+                variant.innerHTML = NAV_RENDERERS[key](labPlayer);
+                container.insertBefore(variant, container.firstChild);
+            }
+        }
+
+        function applyHeaderVariant() {
+            const pageHeader = document.querySelector('.page-header');
+            if (!pageHeader) return;
+            const h1 = document.getElementById('page-title');
+            pageHeader.querySelectorAll('.pl-header-variant').forEach(el => el.remove());
+
+            const key = getHeaderKey();
+            if (key === 'current') {
+                if (h1) h1.style.display = '';
+            } else if (labPlayer) {
+                if (h1) h1.style.display = 'none';
+                const variant = document.createElement('div');
+                variant.className = 'pl-header-variant';
+                variant.innerHTML = HEADER_RENDERERS[key](labPlayer);
+                pageHeader.insertBefore(variant, h1);
+            }
+        }
+
+        async function loadPlayer(playerName) {
+            currentPlayerName = playerName;
+
+            const url = new URL(window.location.href);
+            url.searchParams.set('player', playerName);
+            window.history.replaceState(null, '', url.toString());
+
+            document.querySelectorAll('.pl-header-variant, .pl-nav-variant').forEach(el => el.remove());
+            const h1 = document.getElementById('page-title');
+            if (h1) { h1.textContent = 'Loading…'; h1.style.display = ''; h1.className = ''; }
+            const content = document.getElementById('content');
+            if (content) content.innerHTML = '<div class="loading">Loading player profile…</div>';
+
+            clearPlayersMetadataCache();
+
+            const viewing = document.getElementById('pl-viewing');
+            if (viewing) viewing.textContent = playerName;
+
+            try {
+                const [labData] = await Promise.all([
+                    computeLabPlayer(playerName),
+                    renderPlayerGeneralPage(),
+                ]);
+                labPlayer = labData;
+                applyNavVariant();
+                applyHeaderVariant();
+            } catch (err) {
+                console.error('Failed to load player:', err);
+                if (content) content.innerHTML = `<div class="error">Failed to load player: ${escapeHtml(err.message)}</div>`;
+            }
+        }
+
+        function setupSearchInterception() {
+            document.addEventListener('click', (e) => {
+                const link = e.target.closest('.nav-search-results a');
+                if (!link) return;
+                let player = null;
+                try {
+                    const url = new URL(link.href, window.location.href);
+                    player = url.searchParams.get('player');
+                } catch { return; }
+                if (!player) return;
+                e.preventDefault();
+                const results = document.querySelector('.nav-search-results');
+                const input   = document.querySelector('.nav-search input');
+                if (results) results.hidden = true;
+                if (input)   input.value = '';
+                loadPlayer(player);
+            }, true);
+        }
+
+        function buildLabStrip() {
+            const strip = document.createElement('div');
+            strip.className = 'pl-controls';
+            strip.innerHTML = `
+                <div class="pl-controls-inner">
+                    <div class="pl-meta">
+                        <span class="pl-tag">Lab</span>
+                        <strong class="pl-title-label">Player Page Lab</strong>
+                        <span class="pl-sub">— viewing <span class="pl-viewing-name" id="pl-viewing">${escapeHtml(currentPlayerName)}</span> · use the search above to switch</span>
+                    </div>
+                    <div class="pl-fields">
+                        <div class="pl-field">
+                            <label for="pl-nav-select">Navigation</label>
+                            <select id="pl-nav-select">
+                                <option value="current">Current — text trail</option>
+                                <option value="v1">V1 — Segmented pill trail</option>
+                                <option value="v2">V2 — Contextual pills + dropdowns</option>
+                                <option value="v3">V3 — Glass capsule</option>
+                                <option value="v4">V4 — Lichess (back button only)</option>
+                                <option value="v5">V5 — GitHub / Linear</option>
+                                <option value="v6">V6 — Transfermarkt</option>
+                            </select>
+                        </div>
+                        <div class="pl-field">
+                            <label for="pl-header-select">Header</label>
+                            <select id="pl-header-select">
+                                <option value="current">Current — production</option>
+                                <option value="v7">V7 — Lichess-enriched</option>
+                                <option value="v8">V8 — FIDE passport</option>
+                                <option value="v9">V9 — Glassmorphism tile</option>
+                                <option value="v10">V10 — Trading card</option>
+                                <option value="v11">V11 — Minimal single-line</option>
+                                <option value="v12">V12 — Hero banner</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            `;
+            const nav = document.querySelector('.site-nav');
+            if (nav) nav.insertAdjacentElement('afterend', strip);
+            else     document.body.insertBefore(strip, document.body.firstChild);
+
+            document.getElementById('pl-nav-select').addEventListener('change', applyNavVariant);
+            document.getElementById('pl-header-select').addEventListener('change', applyHeaderVariant);
+        }
+
+        await initNavBar();
+        buildLabStrip();
+        setupSearchInterception();
+        await loadPlayer(currentPlayerName);
+        initThemePicker();
+    </script>
+</body>
+</html>

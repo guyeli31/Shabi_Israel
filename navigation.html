@@ -1,0 +1,1515 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navigation Design Showcase — Shabi Israel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Playfair+Display:ital,wght@0,700;1,500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f1217;
+            --bg-elev: #161b22;
+            --bg-card: #1c2230;
+            --border: #2a3140;
+            --border-soft: #232938;
+            --text: #e6edf3;
+            --text-muted: #8b95a7;
+            --text-dim: #5a6478;
+            --accent: #d4a942;
+            --accent-soft: rgba(212, 169, 66, 0.12);
+            --accent-line: rgba(212, 169, 66, 0.35);
+            --success: #3fb950;
+            --info: #58a6ff;
+            --maroon: #8c2f2f;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", sans-serif;
+            background: var(--bg);
+            background-image:
+                radial-gradient(ellipse at top left, rgba(212, 169, 66, 0.05), transparent 50%),
+                radial-gradient(ellipse at bottom right, rgba(88, 166, 255, 0.04), transparent 50%);
+            background-attachment: fixed;
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        .page {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 56px 32px 96px;
+        }
+
+        .page-header {
+            margin-bottom: 56px;
+            padding-bottom: 28px;
+            border-bottom: 1px solid var(--border-soft);
+        }
+
+        .eyebrow {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-size: 36px;
+            font-weight: 700;
+            margin: 0 0 12px;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 15px;
+            max-width: 640px;
+            margin: 0;
+        }
+
+        .grid {
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+        }
+
+        .variant {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+            transition: border-color 0.2s, transform 0.2s;
+        }
+        .variant:hover {
+            border-color: var(--accent-line);
+        }
+
+        .variant-meta {
+            padding: 18px 24px 14px;
+            border-bottom: 1px solid var(--border-soft);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .variant-num {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .variant-num .num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 7px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 12px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+        .variant-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            background: rgba(88, 166, 255, 0.1);
+            color: var(--info);
+            border: 1px solid rgba(88, 166, 255, 0.2);
+        }
+        .tag.chess { background: rgba(212, 169, 66, 0.1); color: var(--accent); border-color: rgba(212, 169, 66, 0.25); }
+        .tag.dev   { background: rgba(63, 185, 80, 0.08); color: var(--success); border-color: rgba(63, 185, 80, 0.22); }
+
+        .stage {
+            padding: 36px 28px;
+            background:
+                linear-gradient(135deg, rgba(255,255,255,0.02), transparent),
+                #11151c;
+            border-bottom: 1px solid var(--border-soft);
+            min-height: 110px;
+            display: flex;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .stage::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+            background-size: 24px 24px;
+            pointer-events: none;
+        }
+        .stage > * { position: relative; z-index: 1; }
+
+        .caption {
+            padding: 18px 24px 20px;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 24px;
+            align-items: start;
+        }
+        .caption p {
+            margin: 0;
+            font-size: 13.5px;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+        .tradeoff {
+            font-size: 12px;
+            color: var(--text-dim);
+            padding-left: 14px;
+            border-left: 2px solid var(--border);
+            max-width: 260px;
+            line-height: 1.55;
+        }
+        .tradeoff strong {
+            color: var(--text-muted);
+            font-weight: 600;
+            display: block;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+            font-size: 10px;
+            letter-spacing: 1px;
+        }
+
+        /* ============================================================
+           VARIANT 0 — CURRENT (baseline)
+           ============================================================ */
+        .v0-crumbs {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            font-size: 14px;
+        }
+        .v0-crumbs a {
+            color: var(--info);
+            text-decoration: none;
+        }
+        .v0-crumbs a:hover { text-decoration: underline; }
+        .v0-crumbs .sep {
+            margin: 0 8px;
+            color: var(--text-dim);
+        }
+        .v0-crumbs .current {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* ============================================================
+           VARIANT 1 — SEGMENTED PILL TRAIL (chevron cuts)
+           ============================================================ */
+        .v1-trail {
+            display: inline-flex;
+            font-size: 13px;
+            font-weight: 600;
+            isolation: isolate;
+        }
+        .v1-trail .seg {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            padding: 9px 22px 9px 18px;
+            background: var(--bg-elev);
+            color: var(--text-muted);
+            text-decoration: none;
+            clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%);
+            margin-left: -10px;
+            transition: background 0.15s, color 0.15s;
+        }
+        .v1-trail .seg:first-child {
+            clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%);
+            margin-left: 0;
+            padding-left: 18px;
+        }
+        .v1-trail .seg:hover {
+            background: #232b3a;
+            color: var(--text);
+        }
+        .v1-trail .seg.current {
+            background: linear-gradient(135deg, var(--accent), #b88a2c);
+            color: #1a1305;
+            box-shadow: 0 4px 12px rgba(212, 169, 66, 0.22);
+            z-index: 1;
+        }
+        .v1-trail .seg.l2 { z-index: 2; background: #1f2532; }
+        .v1-trail .seg.l3 { z-index: 3; }
+
+        /* ============================================================
+           VARIANT 2 — CONTEXTUAL PILLS WITH ICONS + DROPDOWN AFFORDANCES
+           ============================================================ */
+        .v2-wrap {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px;
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+        .v2-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 6px 11px;
+            background: transparent;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+            cursor: pointer;
+        }
+        .v2-pill:hover {
+            background: rgba(255,255,255,0.04);
+            color: var(--text);
+            border-color: var(--border);
+        }
+        .v2-pill.current {
+            background: var(--accent-soft);
+            color: var(--accent);
+            border-color: rgba(212, 169, 66, 0.25);
+        }
+        .v2-pill .ico {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            font-size: 14px;
+        }
+        .v2-pill .caret {
+            color: var(--text-dim);
+            font-size: 10px;
+            margin-left: 2px;
+        }
+        .v2-pill.current .caret { color: rgba(212, 169, 66, 0.6); }
+        .v2-avatar {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4a5868, #2a3140);
+            color: var(--text);
+            font-size: 9px;
+            font-weight: 700;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .v2-sep {
+            color: var(--text-dim);
+            font-size: 11px;
+            user-select: none;
+        }
+
+        /* ============================================================
+           VARIANT 3 — FLOATING GLASS CAPSULE WITH PROGRESS LINE
+           ============================================================ */
+        .v3-capsule {
+            display: inline-flex;
+            align-items: center;
+            gap: 0;
+            padding: 10px 6px;
+            background: rgba(28, 34, 48, 0.7);
+            backdrop-filter: blur(20px) saturate(140%);
+            -webkit-backdrop-filter: blur(20px) saturate(140%);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 999px;
+            box-shadow:
+                0 8px 24px rgba(0,0,0,0.35),
+                inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+        .v3-step {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 14px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            transition: color 0.15s;
+        }
+        .v3-step:hover { color: var(--text); }
+        .v3-step.current {
+            color: var(--accent);
+            font-weight: 600;
+        }
+        .v3-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--border);
+        }
+        .v3-step.current .v3-dot {
+            background: var(--accent);
+            box-shadow: 0 0 0 4px rgba(212, 169, 66, 0.18), 0 0 12px rgba(212, 169, 66, 0.5);
+        }
+        .v3-connector {
+            width: 28px;
+            height: 1px;
+            background: linear-gradient(90deg, var(--border), var(--border-soft));
+        }
+
+        /* ============================================================
+           VARIANT 4 — LICHESS / CHESS.COM STYLE (rich header, no crumbs)
+           ============================================================ */
+        .v4-wrap {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            width: 100%;
+            max-width: 540px;
+        }
+        .v4-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 13px;
+            background: var(--bg-elev);
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 12.5px;
+            font-weight: 500;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            transition: background 0.15s, color 0.15s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .v4-back:hover {
+            background: #232b3a;
+            color: var(--text);
+        }
+        .v4-back .arr { font-size: 14px; }
+        .v4-divider {
+            width: 1px;
+            height: 38px;
+            background: var(--border-soft);
+            flex-shrink: 0;
+        }
+        .v4-player {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+        .v4-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4a5868, #1f2532);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text);
+            border: 1.5px solid var(--accent-line);
+            flex-shrink: 0;
+        }
+        .v4-info { min-width: 0; }
+        .v4-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .v4-flag {
+            display: inline-block;
+            font-size: 14px;
+            line-height: 1;
+        }
+        .v4-meta {
+            font-size: 11.5px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+        .v4-meta .pill {
+            display: inline-block;
+            padding: 1px 7px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            border-radius: 4px;
+            font-weight: 600;
+            margin-right: 6px;
+            font-size: 10px;
+        }
+
+        /* ============================================================
+           VARIANT 5 — GITHUB / LINEAR STYLE (sibling switcher per segment)
+           ============================================================ */
+        .v5-path {
+            display: inline-flex;
+            align-items: center;
+            font-size: 14px;
+            font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        }
+        .v5-seg {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--info);
+            text-decoration: none;
+            padding: 4px 6px;
+            border-radius: 5px;
+            transition: background 0.15s;
+            cursor: pointer;
+        }
+        .v5-seg:hover {
+            background: rgba(88, 166, 255, 0.1);
+        }
+        .v5-seg .switch {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 14px;
+            color: var(--text-dim);
+            font-size: 10px;
+            border-radius: 3px;
+            margin-left: 2px;
+        }
+        .v5-seg:hover .switch {
+            background: rgba(88, 166, 255, 0.15);
+            color: var(--info);
+        }
+        .v5-seg.current {
+            color: var(--text);
+            font-weight: 600;
+        }
+        .v5-slash {
+            color: var(--text-dim);
+            margin: 0 2px;
+            user-select: none;
+        }
+
+        /* ============================================================
+           VARIANT 6 — TRANSFERMARKT STYLE (rich icons, traditional crumb)
+           ============================================================ */
+        .v6-bar {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            background: linear-gradient(180deg, #1a1f2c, #141821);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .v6-crumb {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--info);
+            text-decoration: none;
+        }
+        .v6-crumb:hover { text-decoration: underline; }
+        .v6-crumb.current {
+            color: var(--text);
+            font-weight: 600;
+            text-decoration: none;
+            cursor: default;
+        }
+        .v6-crumb .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            background: var(--bg-elev);
+            border-radius: 3px;
+            font-size: 11px;
+        }
+        .v6-crumb .flag {
+            width: 16px;
+            height: 11px;
+            background: linear-gradient(180deg, #0038b8 0%, #0038b8 33%, #fff 33%, #fff 66%, #0038b8 66%);
+            position: relative;
+            border-radius: 1px;
+            overflow: hidden;
+        }
+        .v6-crumb .flag::after {
+            content: '✡';
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #0038b8;
+            font-size: 7px;
+            line-height: 1;
+        }
+        .v6-sep {
+            color: var(--text-dim);
+            font-size: 11px;
+            user-select: none;
+        }
+
+        /* ============================================================
+           SUMMARY TABLE
+           ============================================================ */
+        .summary {
+            margin-top: 56px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+        .summary-head {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border-soft);
+        }
+        .summary-head h2 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .summary-head p {
+            margin: 4px 0 0;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th, td {
+            padding: 12px 24px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-soft);
+        }
+        th {
+            background: rgba(255,255,255,0.02);
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        td { color: var(--text-muted); }
+        tr:last-child td { border-bottom: none; }
+        td:first-child {
+            color: var(--text);
+            font-weight: 500;
+        }
+        .yes { color: var(--success); font-weight: 600; }
+        .no  { color: var(--text-dim); }
+        .mid { color: var(--accent); }
+
+        @media (max-width: 720px) {
+            .page { padding: 32px 18px 64px; }
+            h1 { font-size: 26px; }
+            .stage { padding: 24px 18px; }
+            .caption { grid-template-columns: 1fr; }
+            .tradeoff { max-width: 100%; }
+            th, td { padding: 10px 14px; }
+        }
+
+        /* ============================================================
+           PLAYER HEADER SHOWCASE — Section divider
+           ============================================================ */
+        .section-divider {
+            margin: 80px 0 40px;
+            padding-top: 40px;
+            border-top: 1px solid var(--border-soft);
+        }
+        .section-divider h2 {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 6px 0 10px;
+            letter-spacing: -0.02em;
+        }
+        .stage.tall { min-height: 180px; }
+
+        /* Israeli flag — reusable shape */
+        .il-flag {
+            display: inline-block;
+            background:
+                linear-gradient(180deg,
+                    #fff 0%, #fff 28%,
+                    #0038b8 28%, #0038b8 38%,
+                    #fff 38%, #fff 62%,
+                    #0038b8 62%, #0038b8 72%,
+                    #fff 72%);
+            border-radius: 2px;
+            border: 1px solid rgba(0,0,0,0.25);
+            position: relative;
+            flex-shrink: 0;
+        }
+        .il-flag::after {
+            content: '✡';
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #0038b8;
+            line-height: 1;
+        }
+
+        /* ============================================================
+           V7 — LICHESS-ENRICHED HORIZONTAL CARD
+           ============================================================ */
+        .v7-card { display: flex; align-items: center; gap: 18px; }
+        .v7-avatar-wrap { position: relative; flex-shrink: 0; }
+        .v7-avatar {
+            width: 60px; height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4a5868, #1f2532);
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 20px; font-weight: 700;
+            color: var(--text);
+            border: 2px solid rgba(212, 169, 66, 0.35);
+        }
+        .v7-dot {
+            position: absolute; right: 1px; bottom: 1px;
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            border: 2.5px solid #11151c;
+        }
+        .v7-dot-green { background: #2ecc40; box-shadow: 0 0 6px rgba(46,204,64,0.6); }
+        .v7-info { min-width: 0; }
+        .v7-name-line {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        }
+        .v7-flag { width: 22px; height: 15px; }
+        .v7-flag::after { font-size: 8px; }
+        .v7-name {
+            font-size: 19px; font-weight: 700; color: var(--text);
+            letter-spacing: -0.01em;
+        }
+        .v7-title {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 11.5px; font-weight: 700;
+            padding: 4px 11px;
+            border-radius: 6px;
+            font-family: -apple-system, "Segoe UI", Inter, sans-serif;
+        }
+        .v7-title-gold {
+            background: linear-gradient(135deg, #f59e0b, #fbbf24);
+            color: #4a2700;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.28);
+        }
+        .v7-meta {
+            margin-top: 7px;
+            font-size: 12.5px;
+            color: var(--text-muted);
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        }
+        .v7-sep { color: var(--text-dim); }
+        .v7-leagues { color: var(--accent); font-weight: 600; }
+
+        /* ============================================================
+           V8 — FIDE PASSPORT CARD
+           ============================================================ */
+        .v8-card {
+            width: 360px;
+            background: linear-gradient(180deg, #1a1f2c, #14181f);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 10px 26px rgba(0,0,0,0.35);
+        }
+        .v8-ribbon {
+            background: linear-gradient(90deg, #92400e, #fbbf24 50%, #92400e);
+            color: #2a1700;
+            font-family: "Playfair Display", Georgia, serif;
+            font-weight: 700;
+            font-size: 13.5px;
+            text-align: center;
+            padding: 8px 14px;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(0,0,0,0.35);
+            text-transform: uppercase;
+        }
+        .v8-body { padding: 18px; display: flex; gap: 16px; }
+        .v8-photo-wrap { position: relative; flex-shrink: 0; }
+        .v8-photo {
+            width: 78px; height: 100px;
+            background: linear-gradient(135deg, #4a5868, #1f2532);
+            border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text);
+            font-size: 26px; font-weight: 700;
+            border: 1px solid var(--border);
+        }
+        .v8-photo-flag {
+            position: absolute; left: 0; right: 0; bottom: 0;
+            height: 14px;
+            border-radius: 0 0 3px 3px;
+            border-top: 1px solid rgba(0,0,0,0.4);
+        }
+        .v8-photo-flag::after { font-size: 8px; }
+        .v8-info {
+            margin: 0; display: grid; gap: 9px; flex: 1;
+        }
+        .v8-info > div {
+            display: grid;
+            grid-template-columns: 62px 1fr;
+            gap: 8px;
+        }
+        .v8-info dt {
+            color: var(--text-dim);
+            text-transform: uppercase;
+            font-size: 9.5px; font-weight: 700;
+            letter-spacing: 1px;
+            padding-top: 3px;
+            margin: 0;
+        }
+        .v8-info dd {
+            margin: 0;
+            color: var(--text);
+            font-weight: 500;
+            font-size: 13px;
+        }
+        .v8-status {
+            display: inline-block;
+            width: 9px; height: 9px;
+            border-radius: 50%;
+            margin-left: 7px;
+            vertical-align: middle;
+        }
+        .v8-status-green { background: #2ecc40; box-shadow: 0 0 5px rgba(46,204,64,0.65); }
+
+        /* ============================================================
+           V9 — GLASSMORPHISM DASHBOARD TILE
+           ============================================================ */
+        .v9-tile {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 22px;
+            align-items: center;
+            width: 100%;
+            max-width: 720px;
+            padding: 16px 22px;
+            background:
+                linear-gradient(135deg, rgba(212, 169, 66, 0.08), rgba(28, 34, 48, 0.7));
+            backdrop-filter: blur(18px) saturate(140%);
+            -webkit-backdrop-filter: blur(18px) saturate(140%);
+            border: 1px solid rgba(212, 169, 66, 0.2);
+            border-radius: 14px;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+        }
+        .v9-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+        .v9-avatar {
+            width: 50px; height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #fbbf24, #b88a2c);
+            display: flex; align-items: center; justify-content: center;
+            color: #1a1305; font-size: 22px; font-weight: 800;
+            font-family: "Playfair Display", Georgia, serif;
+            box-shadow: 0 5px 14px rgba(212,169,66,0.3);
+            flex-shrink: 0;
+        }
+        .v9-name-row { display: flex; align-items: center; gap: 8px; }
+        .v9-name { font-size: 16px; font-weight: 700; color: var(--text); }
+        .v9-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .v9-dot-green { background: #2ecc40; box-shadow: 0 0 6px rgba(46,204,64,0.7); }
+        .v9-flag { width: 18px; height: 12px; }
+        .v9-flag::after { font-size: 6px; }
+        .v9-fullname { font-size: 11.5px; color: var(--text-muted); margin-top: 3px; }
+        .v9-center {
+            display: flex; align-items: center; gap: 11px;
+            padding: 0 18px;
+            border-left: 1px solid rgba(255,255,255,0.08);
+            border-right: 1px solid rgba(255,255,255,0.08);
+        }
+        .v9-title-icon {
+            font-size: 30px;
+            color: #fbbf24;
+            text-shadow: 0 2px 10px rgba(245,158,11,0.45);
+            line-height: 1;
+        }
+        .v9-title-label {
+            font-size: 13.5px; font-weight: 700;
+            color: #fbbf24;
+            font-family: "Playfair Display", Georgia, serif;
+            letter-spacing: 0.4px;
+            line-height: 1.2;
+        }
+        .v9-title-sub {
+            font-size: 9.5px; color: var(--text-dim);
+            text-transform: uppercase; letter-spacing: 1.4px;
+            margin-top: 2px;
+        }
+        .v9-right { display: flex; gap: 18px; justify-content: flex-end; }
+        .v9-stat { display: flex; flex-direction: column; align-items: center; }
+        .v9-stat-num {
+            font-size: 16px; font-weight: 700; color: var(--text);
+            font-variant-numeric: tabular-nums;
+        }
+        .v9-stat-lbl {
+            font-size: 9px; color: var(--text-dim);
+            text-transform: uppercase; letter-spacing: 1.4px; margin-top: 2px;
+        }
+
+        /* ============================================================
+           V10 — CHESS-PIECE MONOGRAM (trading card)
+           ============================================================ */
+        .v10-card {
+            position: relative;
+            width: 290px;
+            padding: 22px 22px 18px;
+            background:
+                radial-gradient(ellipse at top, rgba(212, 169, 66, 0.18), transparent 60%),
+                linear-gradient(180deg, #1d2230, #14181f);
+            border: 1px solid rgba(212, 169, 66, 0.28);
+            border-top: 3px solid #d4a942;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 14px 32px rgba(0,0,0,0.4);
+        }
+        .v10-piece {
+            position: absolute;
+            right: -28px; bottom: -56px;
+            font-size: 220px;
+            color: rgba(212, 169, 66, 0.08);
+            line-height: 1;
+            pointer-events: none; user-select: none;
+            font-family: serif;
+        }
+        .v10-flag-corner {
+            position: absolute;
+            top: 0; right: 14px;
+            width: 26px; height: 38px;
+            clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+        }
+        .v10-flag-corner::after { font-size: 8px; }
+        .v10-content { position: relative; z-index: 1; }
+        .v10-status {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 10px;
+            text-transform: uppercase; letter-spacing: 1.6px;
+            color: #2ecc40; font-weight: 700;
+            margin-bottom: 14px;
+        }
+        .v10-dot { width: 7px; height: 7px; border-radius: 50%; }
+        .v10-dot-green { background: #2ecc40; box-shadow: 0 0 6px rgba(46,204,64,0.7); }
+        .v10-title {
+            font-family: "Cinzel", "Playfair Display", Georgia, serif;
+            font-size: 11px; font-weight: 700;
+            color: #fbbf24;
+            text-transform: uppercase; letter-spacing: 3px;
+            margin-bottom: 5px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .v10-title-icon { font-size: 16px; letter-spacing: 0; }
+        .v10-name {
+            font-size: 24px; font-weight: 800;
+            color: var(--text);
+            font-family: "Playfair Display", Georgia, serif;
+            line-height: 1.1; letter-spacing: -0.01em;
+        }
+        .v10-fullname {
+            font-size: 12.5px;
+            color: var(--text-muted);
+            margin-top: 5px;
+            font-style: italic;
+        }
+        .v10-foot {
+            margin-top: 16px; padding-top: 12px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            display: flex; justify-content: space-between;
+            font-size: 11px; color: var(--text-dim);
+        }
+        .v10-leagues { color: var(--accent); font-weight: 700; }
+
+        /* ============================================================
+           V11 — MINIMAL SINGLE LINE
+           ============================================================ */
+        .v11-line {
+            display: inline-flex; align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            font-size: 13px;
+            flex-wrap: wrap;
+        }
+        .v11-dot {
+            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+        }
+        .v11-dot-green { background: #2ecc40; box-shadow: 0 0 5px rgba(46,204,64,0.7); }
+        .v11-avatar {
+            width: 26px; height: 26px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4a5868, #2a3140);
+            color: var(--text);
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 10px; font-weight: 700;
+            border: 1px solid rgba(255,255,255,0.1);
+            flex-shrink: 0;
+        }
+        .v11-flag { width: 18px; height: 12px; }
+        .v11-flag::after { font-size: 6px; }
+        .v11-name { font-weight: 700; color: var(--text); }
+        .v11-title {
+            font-size: 11px; font-weight: 700;
+            padding: 3px 9px;
+            border-radius: 5px;
+            background: linear-gradient(135deg, #f59e0b, #fbbf24);
+            color: #4a2700;
+            display: inline-flex; align-items: center; gap: 4px;
+        }
+        .v11-sep { color: var(--text-dim); }
+        .v11-meta { color: var(--text-muted); font-size: 12px; }
+        .v11-leagues { color: var(--accent); font-weight: 600; font-size: 12px; }
+
+        /* ============================================================
+           V12 — HERO BANNER WITH STATS GRID
+           ============================================================ */
+        .v12-hero {
+            width: 100%;
+            max-width: 560px;
+            padding: 18px 22px;
+            background:
+                radial-gradient(ellipse at top right, rgba(212, 169, 66, 0.18), transparent 65%),
+                linear-gradient(135deg, #1c2230 0%, #131822 100%);
+            border: 1px solid rgba(212, 169, 66, 0.18);
+            border-radius: 12px;
+        }
+        .v12-top {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 16px;
+        }
+        .v12-titleribbon {
+            display: inline-flex; align-items: center; gap: 9px;
+            font-family: "Bebas Neue", "Impact", "Arial Narrow", sans-serif;
+            font-size: 15px; letter-spacing: 3px;
+            background: linear-gradient(90deg, #d4a942, #fbbf24);
+            color: #2a1c00;
+            padding: 5px 14px;
+            border-radius: 3px;
+            font-weight: 400;
+        }
+        .v12-titleicon { font-size: 17px; }
+        .v12-statuschip {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 10.5px;
+            color: #2ecc40;
+            text-transform: uppercase; letter-spacing: 1.4px;
+            font-weight: 700;
+            padding: 4px 11px;
+            background: rgba(46,204,64,0.1);
+            border: 1px solid rgba(46,204,64,0.28);
+            border-radius: 999px;
+        }
+        .v12-dot { width: 7px; height: 7px; border-radius: 50%; }
+        .v12-dot-green { background: #2ecc40; box-shadow: 0 0 4px rgba(46,204,64,0.7); }
+        .v12-bodyrow {
+            display: flex; align-items: center; gap: 16px;
+            margin-bottom: 16px;
+        }
+        .v12-photo {
+            width: 62px; height: 62px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #4a5868, #1f2532);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; font-weight: 800;
+            color: var(--text);
+            border: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .v12-display {
+            margin: 0;
+            font-family: "Bebas Neue", "Impact", sans-serif;
+            font-size: 32px;
+            font-weight: 400;
+            letter-spacing: 1.5px;
+            color: var(--text);
+            line-height: 1;
+            display: flex; align-items: center; gap: 11px;
+        }
+        .v12-flag { width: 26px; height: 18px; }
+        .v12-flag::after { font-size: 9px; }
+        .v12-real {
+            margin-top: 5px;
+            font-size: 13px;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+        .v12-statgrid {
+            display: grid; grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            padding-top: 14px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+        }
+        .v12-stat { text-align: center; }
+        .v12-statnum {
+            font-size: 16px; font-weight: 700;
+            color: var(--accent);
+            font-variant-numeric: tabular-nums;
+        }
+        .v12-statlbl {
+            font-size: 9.5px; color: var(--text-dim);
+            text-transform: uppercase; letter-spacing: 1.2px;
+            margin-top: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <header class="page-header">
+            <div class="eyebrow">Navigation Design Showcase</div>
+            <h1>Seven ways to render <span style="color:var(--accent)">Home › May 2026 › YossiEliezer23</span></h1>
+            <p class="subtitle">A side-by-side comparison of breadcrumb patterns — from the current text trail to interactive sibling-switchers used by GitHub, Linear, Lichess, and Transfermarkt.</p>
+        </header>
+
+        <div class="grid">
+
+            <!-- ===== VARIANT 0 — CURRENT ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">0</span>
+                        <span class="variant-title">Current — plain text trail</span>
+                    </div>
+                    <span class="tag">Baseline</span>
+                </div>
+                <div class="stage">
+                    <nav class="v0-crumbs">
+                        <a href="#">Home</a>
+                        <span class="sep">›</span>
+                        <a href="#">May 2026</a>
+                        <span class="sep">›</span>
+                        <span class="current">YossiEliezer23</span>
+                    </nav>
+                </div>
+                <div class="caption">
+                    <p>The version live today. Three text labels with ASCII chevrons. Functional, low visual weight, easy to ignore.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Zero personality, no use of the brand palette.</div>
+                </div>
+            </article>
+
+            <!-- ===== VARIANT 1 — SEGMENTED PILL TRAIL ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">1</span>
+                        <span class="variant-title">Segmented pill trail with chevron cuts</span>
+                    </div>
+                    <span class="tag">Visual upgrade</span>
+                </div>
+                <div class="stage">
+                    <nav class="v1-trail">
+                        <a class="seg" href="#">Home</a>
+                        <a class="seg l2" href="#">May 2026</a>
+                        <span class="seg l3 current">YossiEliezer23</span>
+                    </nav>
+                </div>
+                <div class="caption">
+                    <p>Each level is a flat pill with an angled right edge that feeds into the next, like a quest tracker. The current step is filled with the accent gold. Zero new behavior, pure visual hierarchy.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Decorative only — same clicks as today.</div>
+                </div>
+            </article>
+
+            <!-- ===== VARIANT 2 — CONTEXTUAL PILLS WITH DROPDOWNS ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">2</span>
+                        <span class="variant-title">Contextual pills with icons + sibling dropdowns</span>
+                    </div>
+                    <span class="tag">Highest utility</span>
+                </div>
+                <div class="stage">
+                    <nav class="v2-wrap">
+                        <a class="v2-pill" href="#"><span class="ico">⌂</span>Home</a>
+                        <span class="v2-sep">›</span>
+                        <a class="v2-pill" href="#"><span class="ico">♟</span>May 2026<span class="caret">▾</span></a>
+                        <span class="v2-sep">›</span>
+                        <span class="v2-pill current"><span class="v2-avatar">YE</span>YossiEliezer23<span class="caret">▾</span></span>
+                    </nav>
+                </div>
+                <div class="caption">
+                    <p>Pills with chess-piece + house icons, plus a chevron on middle/last segments that opens a sibling switcher (jump to another league, or another player in this league) without going up a level.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Two small dropdowns to build, but biggest UX win.</div>
+                </div>
+            </article>
+
+            <!-- ===== VARIANT 3 — FLOATING GLASS CAPSULE ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">3</span>
+                        <span class="variant-title">Floating glass capsule with progress line</span>
+                    </div>
+                    <span class="tag">Most distinctive</span>
+                </div>
+                <div class="stage">
+                    <nav class="v3-capsule">
+                        <a class="v3-step" href="#"><span class="v3-dot"></span>Home</a>
+                        <span class="v3-connector"></span>
+                        <a class="v3-step" href="#"><span class="v3-dot"></span>May 2026</a>
+                        <span class="v3-connector"></span>
+                        <span class="v3-step current"><span class="v3-dot"></span>YossiEliezer23</span>
+                    </nav>
+                </div>
+                <div class="caption">
+                    <p>A single translucent capsule with backdrop blur, three steps connected by a thin line, and a glowing dot on the current step. Feels like Linear / Vercel's app shell.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Backdrop blur has render cost on long tables — needs perf check.</div>
+                </div>
+            </article>
+
+            <!-- ===== VARIANT 4 — LICHESS / CHESS.COM STYLE ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">4</span>
+                        <span class="variant-title">Rich entity header + single "back to" — no breadcrumb</span>
+                    </div>
+                    <span class="tag chess">Lichess · Chess.com · Sofascore</span>
+                </div>
+                <div class="stage">
+                    <div class="v4-wrap">
+                        <a class="v4-back" href="#"><span class="arr">‹</span> May 2026</a>
+                        <div class="v4-divider"></div>
+                        <div class="v4-player">
+                            <div class="v4-avatar">YE</div>
+                            <div class="v4-info">
+                                <div class="v4-name">YossiEliezer23 <span class="v4-flag">🇮🇱</span></div>
+                                <div class="v4-meta"><span class="pill">CM</span>Joined April 2026 · 5 leagues</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>The dominant pattern on major chess sites. Drop the breadcrumb entirely; the player header carries the identity, and a single back-button covers navigation. Hierarchy is implicit.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Loses the explicit "Home" link — assumes users use the top nav for that.</div>
+                </div>
+            </article>
+
+            <!-- ===== VARIANT 5 — GITHUB / LINEAR STYLE ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">5</span>
+                        <span class="variant-title">GitHub / Linear — every segment is a sibling switcher</span>
+                    </div>
+                    <span class="tag dev">GitHub · Linear · Notion</span>
+                </div>
+                <div class="stage">
+                    <nav class="v5-path">
+                        <a class="v5-seg" href="#">Home</a>
+                        <span class="v5-slash">/</span>
+                        <a class="v5-seg" href="#">May 2026<span class="switch">▾</span></a>
+                        <span class="v5-slash">/</span>
+                        <span class="v5-seg current">YossiEliezer23<span class="switch">▾</span></span>
+                    </nav>
+                </div>
+                <div class="caption">
+                    <p>Monospace, slash-separated, productivity-app aesthetic. Each segment is both a link (click name = go up) AND a switcher (click chevron = pick sibling). Lean and very keyboard-friendly.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Reads as "developer tool" not "sports site" — feels off-brand for chess.</div>
+                </div>
+            </article>
+
+            <!-- ===== VARIANT 6 — TRANSFERMARKT STYLE ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">6</span>
+                        <span class="variant-title">Transfermarkt — bordered bar with crest/flag icons</span>
+                    </div>
+                    <span class="tag chess">Transfermarkt · FIDE</span>
+                </div>
+                <div class="stage">
+                    <nav class="v6-bar">
+                        <a class="v6-crumb" href="#"><span class="badge">⌂</span>Home</a>
+                        <span class="v6-sep">›</span>
+                        <a class="v6-crumb" href="#"><span class="badge">♟</span>May 2026</a>
+                        <span class="v6-sep">›</span>
+                        <span class="v6-crumb current"><span class="flag" title="Israel"></span>YossiEliezer23</span>
+                    </nav>
+                </div>
+                <div class="caption">
+                    <p>Classic sports-stats site treatment: bordered bar, accent stripe down the left edge, and small badge/flag icons for each level. Feels authoritative and data-dense.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Old-school aesthetic; can feel heavy on top of the existing site nav.</div>
+                </div>
+            </article>
+
+        </div>
+
+        <!-- ===== COMPARISON TABLE ===== -->
+        <section class="summary">
+            <header class="summary-head">
+                <h2>At a glance</h2>
+                <p>How each option scores on the dimensions that matter for this codebase.</p>
+            </header>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Option</th>
+                        <th>Visual impact</th>
+                        <th>New utility</th>
+                        <th>Build effort</th>
+                        <th>On-brand for chess</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>0 — Current text</td><td class="no">Low</td><td class="no">None</td><td class="no">—</td><td class="no">Neutral</td></tr>
+                    <tr><td>1 — Pill trail</td><td class="mid">Medium</td><td class="no">None</td><td class="yes">Low</td><td class="mid">OK</td></tr>
+                    <tr><td>2 — Contextual pills + dropdowns</td><td class="mid">Medium</td><td class="yes">High</td><td class="mid">Medium</td><td class="yes">Yes</td></tr>
+                    <tr><td>3 — Glass capsule</td><td class="yes">High</td><td class="no">None</td><td class="yes">Low</td><td class="mid">Modern, not chess</td></tr>
+                    <tr><td>4 — No breadcrumb (Lichess)</td><td class="yes">High</td><td class="mid">Medium</td><td class="yes">Low</td><td class="yes">Strongest match</td></tr>
+                    <tr><td>5 — GitHub / Linear</td><td class="mid">Medium</td><td class="yes">High</td><td class="mid">Medium</td><td class="no">Off-brand</td></tr>
+                    <tr><td>6 — Transfermarkt bar</td><td class="mid">Medium</td><td class="no">None</td><td class="yes">Low</td><td class="yes">Yes</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- ============================================================
+             PLAYER HEADER SHOWCASE
+             ============================================================ -->
+        <header class="section-divider">
+            <div class="eyebrow">Player Header Styles</div>
+            <h2>Six layouts for the same player profile</h2>
+            <p class="subtitle">Same eight data points — username, full BMAB title with chess-piece icon, photo (or initials fallback), Israeli flag, status dot, full name, join date, league count — rendered in six different visual idioms.</p>
+        </header>
+
+        <div class="grid">
+
+            <!-- ===== V7 — LICHESS-ENRICHED HORIZONTAL ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">7</span>
+                        <span class="variant-title">Lichess-enriched — avatar with corner status dot</span>
+                    </div>
+                    <span class="tag chess">With photo</span>
+                </div>
+                <div class="stage tall">
+                    <div class="v7-card">
+                        <div class="v7-avatar-wrap">
+                            <div class="v7-avatar">YE</div>
+                            <span class="v7-dot v7-dot-green" title="Active in a running league"></span>
+                        </div>
+                        <div class="v7-info">
+                            <div class="v7-name-line">
+                                <span class="il-flag v7-flag" title="Israel"></span>
+                                <span class="v7-name">YossiEliezer23</span>
+                                <span class="v7-title v7-title-gold">♛ Grandmaster G0</span>
+                            </div>
+                            <div class="v7-meta">
+                                <span>Yossi Eliezer</span>
+                                <span class="v7-sep">·</span>
+                                <span>Joined April 2026</span>
+                                <span class="v7-sep">·</span>
+                                <span class="v7-leagues">5 leagues</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>Large circular avatar with a green corner dot indicating active status. Flag sits inline before the name; gold title pill with queen glyph (Grandmaster tier). Full name, join date, and league count in muted meta line.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Closest to current Lichess/Chess.com aesthetic.</div>
+                </div>
+            </article>
+
+            <!-- ===== V8 — FIDE PASSPORT CARD ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">8</span>
+                        <span class="variant-title">FIDE passport — gold ribbon + labeled rows</span>
+                    </div>
+                    <span class="tag chess">Initials fallback</span>
+                </div>
+                <div class="stage tall">
+                    <div class="v8-card">
+                        <div class="v8-ribbon">♛ Grandmaster G0</div>
+                        <div class="v8-body">
+                            <div class="v8-photo-wrap">
+                                <div class="v8-photo">YE</div>
+                                <div class="v8-photo-flag il-flag" title="Israel"></div>
+                            </div>
+                            <dl class="v8-info">
+                                <div><dt>Player</dt><dd>YossiEliezer23 <span class="v8-status v8-status-green" title="Active"></span></dd></div>
+                                <div><dt>Name</dt><dd>Yossi Eliezer</dd></div>
+                                <div><dt>Joined</dt><dd>April 2026</dd></div>
+                                <div><dt>Leagues</dt><dd>5</dd></div>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>Authoritative ID-card with a gold serif ribbon naming the full title across the top, photo (or initials) on the left with a small Israeli flag strip overlaid on the bottom edge, and labeled key-value rows on the right. Status dot tucked next to the username.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Tall and dense — best at the top of the page, not inline.</div>
+                </div>
+            </article>
+
+            <!-- ===== V9 — GLASSMORPHISM DASHBOARD TILE ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">9</span>
+                        <span class="variant-title">Glassmorphism tile — 3-column with stats</span>
+                    </div>
+                    <span class="tag">First-letter fallback</span>
+                </div>
+                <div class="stage tall">
+                    <div class="v9-tile">
+                        <div class="v9-left">
+                            <div class="v9-avatar">Y</div>
+                            <div>
+                                <div class="v9-name-row">
+                                    <span class="v9-name">YossiEliezer23</span>
+                                    <span class="v9-dot v9-dot-green" title="Active"></span>
+                                    <span class="il-flag v9-flag" title="Israel"></span>
+                                </div>
+                                <div class="v9-fullname">Yossi Eliezer · Joined April 2026</div>
+                            </div>
+                        </div>
+                        <div class="v9-center">
+                            <span class="v9-title-icon">♛</span>
+                            <div>
+                                <div class="v9-title-label">Grandmaster G0</div>
+                                <div class="v9-title-sub">BMAB Title</div>
+                            </div>
+                        </div>
+                        <div class="v9-right">
+                            <div class="v9-stat"><span class="v9-stat-num">5</span><span class="v9-stat-lbl">Leagues</span></div>
+                            <div class="v9-stat"><span class="v9-stat-num">April 2026</span><span class="v9-stat-lbl">Joined</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>Wide translucent tile with backdrop blur. Identity on the left (avatar shows first letter "Y" since no photo), full title centered with large queen glyph, stat boxes on the right. Feels like a modern app shell (Linear, Vercel).</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Backdrop blur is GPU-bound — verify scroll perf on long tables.</div>
+                </div>
+            </article>
+
+            <!-- ===== V10 — CHESS-PIECE MONOGRAM (trading card) ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">10</span>
+                        <span class="variant-title">Trading-card monogram — chess piece watermark</span>
+                    </div>
+                    <span class="tag chess">Initials fallback</span>
+                </div>
+                <div class="stage tall">
+                    <div class="v10-card">
+                        <div class="v10-piece">♛</div>
+                        <div class="v10-flag-corner il-flag" title="Israel"></div>
+                        <div class="v10-content">
+                            <div class="v10-status">
+                                <span class="v10-dot v10-dot-green"></span> Active
+                            </div>
+                            <div class="v10-title"><span class="v10-title-icon">♛</span> Grandmaster G0</div>
+                            <div class="v10-name">YossiEliezer23</div>
+                            <div class="v10-fullname">Yossi Eliezer</div>
+                            <div class="v10-foot">
+                                <span>Joined April 2026</span>
+                                <span class="v10-leagues">5 Leagues</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>Compact "trading card" with the title's chess piece as a giant translucent watermark, a Cinzel-serif title in small caps, the username in Playfair Display, and a pennant-shaped Israeli flag tucked into the top-right corner. Status pill at the top, footer with join date + league count.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Strong personality — possibly too "fancy" for a stats table context.</div>
+                </div>
+            </article>
+
+            <!-- ===== V11 — MINIMAL SINGLE LINE ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">11</span>
+                        <span class="variant-title">Minimal single-line capsule</span>
+                    </div>
+                    <span class="tag">Initials fallback</span>
+                </div>
+                <div class="stage tall">
+                    <div class="v11-line">
+                        <span class="v11-dot v11-dot-green" title="Active"></span>
+                        <div class="v11-avatar">YE</div>
+                        <span class="il-flag v11-flag" title="Israel"></span>
+                        <span class="v11-name">YossiEliezer23</span>
+                        <span class="v11-title">♛ Grandmaster G0</span>
+                        <span class="v11-sep">·</span>
+                        <span class="v11-meta">Yossi Eliezer</span>
+                        <span class="v11-sep">·</span>
+                        <span class="v11-meta">Joined April 2026</span>
+                        <span class="v11-sep">·</span>
+                        <span class="v11-leagues">5 leagues</span>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>Everything in a single rounded pill: status dot, tiny avatar, flag, name, title chip, then meta points separated by dots. Wraps gracefully on narrow screens. Best for embedded contexts where vertical space is tight.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Title fights for attention with the name at this size.</div>
+                </div>
+            </article>
+
+            <!-- ===== V12 — HERO BANNER WITH STATS GRID ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">12</span>
+                        <span class="variant-title">Hero banner — display type + stat tiles</span>
+                    </div>
+                    <span class="tag chess">Initials fallback</span>
+                </div>
+                <div class="stage tall">
+                    <div class="v12-hero">
+                        <div class="v12-top">
+                            <div class="v12-titleribbon">
+                                <span class="v12-titleicon">♛</span> GRANDMASTER G0
+                            </div>
+                            <span class="v12-statuschip"><span class="v12-dot v12-dot-green"></span> Active</span>
+                        </div>
+                        <div class="v12-bodyrow">
+                            <div class="v12-photo">YE</div>
+                            <div>
+                                <h3 class="v12-display"><span class="il-flag v12-flag" title="Israel"></span> YossiEliezer23</h3>
+                                <div class="v12-real">Yossi Eliezer</div>
+                            </div>
+                        </div>
+                        <div class="v12-statgrid">
+                            <div class="v12-stat"><div class="v12-statnum">5</div><div class="v12-statlbl">Leagues</div></div>
+                            <div class="v12-stat"><div class="v12-statnum">April 2026</div><div class="v12-statlbl">Joined</div></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>Title pinned at the top in condensed Bebas Neue with the chess-piece icon and gold background; status chip beside it. Username rendered in oversized display type with the flag inline. Photo/initials block on the left, stats grid below the divider. Most "presentation-mode" of the bunch.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>High visual weight — only suits the main player page, not list rows.</div>
+                </div>
+            </article>
+
+        </div>
+    </div>
+</body>
+</html>
