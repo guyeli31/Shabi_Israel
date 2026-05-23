@@ -275,9 +275,10 @@
     margin-right: auto;
 }
 .pg-pr-card {
+    --card-fs: clamp(1.4rem, 1rem + 1.5vw, 1.9rem);
     border: 1px solid var(--color-border);
     border-radius: 8px;
-    padding: 14px 16px;
+    padding: calc(var(--card-fs) * 0.46) calc(var(--card-fs) * 0.53);
     background: var(--color-surface);
     font-size: clamp(0.85rem, 0.7rem + 0.6vw, 1.05rem);
 }
@@ -382,15 +383,32 @@
 }
 .pg-tiles {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     grid-auto-rows: 1fr;
     gap: 12px;
 }
+.pg-tile-block {
+    min-width: 0;
+}
 .pg-tile {
+    --tile-fs: clamp(1.35rem, 1rem + 1.25vw, 2rem);
     border: 1px solid var(--color-border);
     border-radius: 8px;
-    padding: 12px 14px;
+    padding: calc(var(--tile-fs) * 0.375) calc(var(--tile-fs) * 0.4375);
     background: var(--color-surface);
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* When the viewport is too narrow for 5-per-row to fit the title+rank
+   without overflowing, switch to a 3+2 layout: 3 medal tiles on top,
+   Win Rate + Avg Rank on the bottom row. */
+@media (max-width: 830px) {
+    .pg-tiles {
+        grid-template-columns: repeat(6, 1fr);
+    }
+    .pg-tiles > .pg-tile-block:nth-child(-n+3) { grid-column: span 2; }
+    .pg-tiles > .pg-tile-block:nth-child(n+4) { grid-column: span 3; }
 }
 .pg-tile-title {
     font-size: clamp(0.72rem, 0.6rem + 0.5vw, 0.95rem);
@@ -398,9 +416,14 @@
     font-weight: 600;
 }
 .pg-tile-rank {
+    display: block;
     color: var(--color-text-muted);
     font-weight: 400;
     font-size: clamp(0.65rem, 0.55rem + 0.4vw, 0.8rem);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 .pg-tile-value {
     font-size: clamp(1.35rem, 1rem + 1.25vw, 2rem);
@@ -728,8 +751,6 @@
  * MOBILE (≤640px) — Step 6.6 compression for player-general
  * ============================================================ */
 @media (max-width: 640px) {
-    .pg-pr-grid { width: 100%; }
-
     /* Player card header — stack vertically, compact badges */
     .pg-header-row {
         flex-direction: column;
@@ -787,10 +808,4 @@
         white-space: nowrap;
     }
 
-.pg-tiles { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-    .pg-tile { padding: 8px 10px; }
-
-    /* Fix 9 (mobile): force Win Rate (4th tile) to start row 3 col 1
-       so Avg Rank (5th tile) sits to its right on the same row. */
-    .pg-tiles > .pg-tile-block:nth-child(4) { grid-column-start: 1; }
 }

@@ -90,7 +90,11 @@
             image-rendering: crisp-edges;
         }
 
-        /* Title chip */
+        /* Chip pill used by V7 and V11 — tier-colour background.
+           The chip background itself carries the tier colour
+           (gold/silver/bronze/white); other variants implement their
+           own title style (ribbon for V8/V12, serif text for V9,
+           Cinzel small-caps for V10). */
         .pl-title-chip {
             display: inline-flex; align-items: center; gap: 0.4em;
             font-size: 0.7em; font-weight: 700;
@@ -99,12 +103,16 @@
             font-family: -apple-system, "Segoe UI", Inter, sans-serif;
             white-space: nowrap;
         }
-        .pl-tier-gold   { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #4a2700; box-shadow: 0 1px 4px rgba(245,158,11,0.25); }
-        .pl-tier-silver { background: linear-gradient(135deg, #94a3b8, #cbd5e1); color: #1e293b; }
-        .pl-tier-bronze { background: linear-gradient(135deg, #d97706, #f59e0b); color: #451a03; }
-        .pl-tier-white  { background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; }
         .pl-chip-icon { font-size: 1.1em; line-height: 1; }
-        .pl-chip-row { display: flex; align-items: center; gap: 0.4em; flex-wrap: wrap; }
+        .pl-chip-row  { display: flex; align-items: center; gap: 0.4em; flex-wrap: wrap; }
+
+        /* Tier-coloured backgrounds for chips. Scoped to .pl-title-chip
+           so the same .pl-tier-X class can drive a different visual
+           treatment (text-colour only) on V9 / V10 title rows. */
+        .pl-title-chip.pl-tier-gold   { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #4a2700; box-shadow: 0 1px 4px rgba(245,158,11,0.25); }
+        .pl-title-chip.pl-tier-silver { background: linear-gradient(135deg, #94a3b8, #cbd5e1); color: #1e293b; }
+        .pl-title-chip.pl-tier-bronze { background: linear-gradient(135deg, #d97706, #f59e0b); color: #451a03; }
+        .pl-title-chip.pl-tier-white  { background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; }
 
         /* Status dot */
         .pl-status-dot { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%; }
@@ -260,7 +268,10 @@
         .v7-info { min-width: 0; }
         .v7-name-line { display: flex; align-items: center; gap: 0.6em; flex-wrap: wrap; }
         .v7-name {
-            font-size: 1.2em; font-weight: 700; color: var(--color-text);
+            /* Fluid size matching the PR-Statistics section heading
+               (~1.25rem); linearly scales with viewport width. */
+            font-size: clamp(1.1rem, 1rem + 0.35vw, 1.4rem);
+            font-weight: 700; color: var(--color-text);
             letter-spacing: -0.01em;
         }
         .v7-meta {
@@ -271,14 +282,21 @@
         .v7-meta .sep { color: var(--color-text-muted); opacity: 0.4; }
         .v7-meta .leagues { color: var(--color-accent); font-weight: 600; }
 
-        /* V8 — FIDE passport */
+        /* V8 — Modern hero card with the original FIDE-passport gold
+           ribbon restored at the top. Round avatar with overlay flag
+           on the left, name + extras + meta on the right. */
         .v8-card {
-            width: min(22em, 80vw);
-            background: var(--color-surface); color: var(--color-text);
+            width: min(28em, 80vw);
+            background: var(--color-surface);
+            color: var(--color-text);
             border: 1px solid var(--color-border);
-            border-radius: 0.5em; overflow: hidden;
-            box-shadow: var(--shadow-md); text-align: left;
+            border-radius: 1em;
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+            text-align: left;
         }
+        /* Gold/silver/bronze ribbon naming the player's top title at
+           the very top of the card — original V8 personality. */
         .v8-ribbon {
             background: linear-gradient(90deg, #92400e, #fbbf24 50%, #92400e);
             color: #2a1700;
@@ -289,59 +307,81 @@
             border-bottom: 1px solid rgba(0,0,0,0.25);
             text-transform: uppercase;
         }
-        .v8-ribbon.silver { background: linear-gradient(90deg, #475569, #cbd5e1 50%, #475569); color: #0f172a; }
-        .v8-ribbon.bronze { background: linear-gradient(90deg, #78350f, #f59e0b 50%, #78350f); color: #1f0a00; }
-        .v8-extra-titles {
-            padding: 0.5em 0.875em;
-            display: flex; gap: 0.4em; flex-wrap: wrap;
-            background: var(--color-hover);
-            border-bottom: 1px solid var(--color-border);
+        .v8-ribbon.pl-tier-silver { background: linear-gradient(90deg, #475569, #cbd5e1 50%, #475569); color: #0f172a; }
+        .v8-ribbon.pl-tier-bronze { background: linear-gradient(90deg, #78350f, #f59e0b 50%, #78350f); color: #1f0a00; }
+        .v8-ribbon.pl-tier-white  { background: linear-gradient(90deg, #cbd5e1, #f8fafc 50%, #cbd5e1); color: #475569; }
+        .v8-body {
+            display: flex;
+            gap: 1.125em;
+            padding: 1.125em 1.25em 1em;
+            align-items: flex-start;
         }
-        .v8-body { padding: 1.125em; display: flex; gap: 1em; }
         .v8-photo-wrap { position: relative; flex-shrink: 0; }
+        .v8-photo, .v8-photo-img {
+            width: 4.5em; height: 4.5em;
+            border-radius: 50%;
+            border: 3px solid var(--color-surface);
+            box-shadow: 0 0 0 1px var(--color-border), 0 0.25em 0.6em rgba(0,0,0,0.12);
+        }
         .v8-photo {
-            width: 4.875em; height: 6.25em;
             background: linear-gradient(135deg, var(--color-text-muted), var(--color-text-secondary));
-            border-radius: 0.25em;
-            display: flex; align-items: center; justify-content: center;
             color: var(--color-surface);
-            font-size: 1.625em; font-weight: 700;
-            border: 1px solid var(--color-border);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2em; font-weight: 700;
+            font-family: "Playfair Display", Georgia, serif;
         }
-        .v8-photo-img {
-            width: 4.875em; height: 6.25em; object-fit: cover;
-            border-radius: 0.25em; border: 1px solid var(--color-border);
-        }
-        /* Corner flag — no background, no border. */
+        .v8-photo-img { object-fit: cover; }
         .v8-photo-flag {
             position: absolute;
-            right: 0.25em; bottom: 0.25em;
-            height: 0.9em; width: auto;
-            border-radius: 2px;
+            right: -0.25em; bottom: -0.2em;
+            height: 1.25em; width: auto;
+            border-radius: 3px;
+            border: 2px solid var(--color-surface);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.28);
         }
-        .v8-info { margin: 0; display: grid; gap: 0.55em; flex: 1; min-width: 0; }
-        .v8-info > div { display: grid; grid-template-columns: 4em 1fr; gap: 0.5em; }
-        .v8-info dt {
-            color: var(--color-text-muted); text-transform: uppercase;
-            font-size: 0.6em; font-weight: 700;
-            letter-spacing: 0.08em; padding-top: 0.2em; margin: 0;
+        .v8-main { flex: 1; min-width: 0; }
+        .v8-name {
+            margin: 0;
+            font-size: clamp(1.1rem, 1rem + 0.35vw, 1.4rem);
+            font-weight: 700;
+            color: var(--color-text);
+            line-height: 1.15;
+            letter-spacing: -0.01em;
         }
-        .v8-info dd { margin: 0; color: var(--color-text); font-weight: 500; font-size: 0.8125em; }
-        .v8-status {
-            display: inline-block; width: 0.55em; height: 0.55em;
-            border-radius: 50%; margin-left: 0.4em; vertical-align: middle;
+        .v8-realname {
+            margin-top: 0.2em;
+            font-size: 0.85em;
+            color: var(--color-text-muted);
+            font-style: italic;
         }
-        .v8-status-green  { background: #2ecc40; box-shadow: 0 0 0.3em rgba(46,204,64,0.65); }
-        .v8-status-orange { background: #f59e0b; box-shadow: 0 0 0.3em rgba(245,158,11,0.6); }
-        .v8-status-gray   { background: #9ca3af; }
+        .v8-titles {
+            margin-top: 0.7em;
+            display: flex; gap: 0.4em; flex-wrap: wrap;
+        }
+        .v8-meta {
+            margin: 0;
+            padding: 0.7em 1.25em;
+            border-top: 1px solid var(--color-border);
+            background: var(--color-hover);
+            font-size: 0.8em;
+            color: var(--color-text-muted);
+            display: flex; gap: 0.5em; align-items: center; flex-wrap: wrap;
+        }
+        .v8-meta .v8-status-text {
+            display: inline-flex; align-items: center; gap: 0.4em;
+            color: var(--color-text);
+            font-weight: 500;
+        }
+        .v8-meta .v8-leagues { color: var(--color-accent); font-weight: 600; }
+        .v8-meta .sep { opacity: 0.5; }
 
-        /* V9 — Glassmorphism dashboard tile */
+        /* V9 — Glassmorphism dashboard tile. Up to 80% of viewport, centered. */
         .v9-tile {
             display: grid;
             grid-template-columns: 1fr auto 1fr;
             gap: 1.375em;
             align-items: center;
-            width: min(45em, 80vw);
+            width: 80vw;
             padding: 1em 1.375em;
             background:
                 linear-gradient(135deg, rgba(245, 158, 11, 0.07), transparent 65%),
@@ -373,7 +413,10 @@
             flex-wrap: wrap;
             justify-content: flex-start;  /* username is anchored to the left */
         }
-        .v9-name { font-size: 1em; font-weight: 700; color: var(--color-text); }
+        .v9-name {
+            font-size: clamp(1.1rem, 1rem + 0.35vw, 1.4rem);
+            font-weight: 700; color: var(--color-text);
+        }
         .v9-fullname {
             font-size: 0.78em; color: var(--color-text-muted);
             margin-top: 0.25em;
@@ -387,14 +430,24 @@
             border-right: 1px solid var(--color-border);
             min-width: 0;
         }
+        /* V9 — serif title rows (original treatment). The icon + text
+           share one colour, driven by the title's tier. */
         .v9-title-row {
             display: flex; align-items: center; gap: 0.5em;
             font-size: 0.8125em;
-            color: #d4a942;
             font-family: "Playfair Display", Georgia, serif;
             font-weight: 700; white-space: nowrap;
+            color: var(--color-text);
         }
-        .v9-title-row .icon { font-size: 1.4em; line-height: 1; text-shadow: 0 2px 0.5em rgba(212,169,66,0.4); }
+        .v9-title-row.pl-tier-gold   { color: #d4a942; }
+        .v9-title-row.pl-tier-silver { color: #94a3b8; }
+        .v9-title-row.pl-tier-bronze { color: #b45309; }
+        .v9-title-row.pl-tier-white  { color: #94a3b8; }
+        .v9-title-row .icon {
+            font-size: 1.4em; line-height: 1;
+            text-shadow: 0 2px 0.5em currentColor;
+            opacity: 0.95;
+        }
         .v9-right { display: flex; gap: 1.125em; justify-content: flex-end; }
         .v9-stat { display: flex; flex-direction: column; align-items: center; }
         .v9-stat-num { font-size: 1em; font-weight: 700; color: var(--color-text); font-variant-numeric: tabular-nums; }
@@ -403,15 +456,10 @@
             text-transform: uppercase; letter-spacing: 0.09em; margin-top: 0.15em;
         }
 
-        /* V10 — Trading card.
-           Width scales smoothly: ~22 vw on wide screens (keeps the
-           same proportional size as on a desktop), with a 15em floor
-           so the card stays readable on mid-width viewports, and an
-           80 vw ceiling so it never overflows on phones. No abrupt
-           media-query jump. */
+        /* V10 — Trading card. Up to 80% of viewport, centered. */
         .v10-card {
             position: relative;
-            width: min(80vw, max(15em, 22vw));
+            width: 80vw;
             padding: 1.375em 1.375em 1.125em;
             background:
                 radial-gradient(ellipse at top, rgba(212, 169, 66, 0.16), transparent 60%),
@@ -470,17 +518,27 @@
             text-transform: uppercase; letter-spacing: 0.16em;
             font-weight: 700; margin-bottom: 0.875em;
         }
-        .v10-titles { display: flex; flex-direction: column; gap: 0.25em; margin-bottom: 0.4em; }
+        /* V10 — Cinzel small-caps title lines (original treatment).
+           Icon + text share one colour, driven by the title's tier. */
+        .v10-titles {
+            display: flex; flex-direction: column;
+            gap: 0.25em; margin-bottom: 0.4em;
+        }
         .v10-title-line {
             font-family: "Cinzel", "Playfair Display", Georgia, serif;
             font-size: 0.7em; font-weight: 700;
-            color: #d4a942;
             text-transform: uppercase; letter-spacing: 0.2em;
             display: flex; align-items: center; gap: 0.5em;
+            color: var(--color-text);
         }
+        .v10-title-line.pl-tier-gold   { color: #d4a942; }
+        .v10-title-line.pl-tier-silver { color: #94a3b8; }
+        .v10-title-line.pl-tier-bronze { color: #b45309; }
+        .v10-title-line.pl-tier-white  { color: #94a3b8; }
         .v10-title-icon { font-size: 1.4em; letter-spacing: 0; }
         .v10-name {
-            font-size: 1.5em; font-weight: 800;
+            font-size: clamp(1.1rem, 1rem + 0.35vw, 1.4rem);
+            font-weight: 800;
             color: var(--color-text);
             font-family: "Playfair Display", Georgia, serif;
             line-height: 1.1; letter-spacing: -0.01em;
@@ -520,7 +578,10 @@
             border: 1px solid var(--color-border);
             flex-shrink: 0;
         }
-        .v11-name { font-weight: 700; color: var(--color-text); }
+        .v11-name {
+            font-size: clamp(1.1rem, 1rem + 0.35vw, 1.4rem);
+            font-weight: 700; color: var(--color-text);
+        }
         .v11-sep { color: var(--color-text-muted); opacity: 0.5; }
         .v11-meta { color: var(--color-text-muted); font-size: 0.9em; }
         .v11-leagues { color: var(--color-accent); font-weight: 600; font-size: 0.9em; }
@@ -544,7 +605,9 @@
             margin-bottom: 0.875em;
             flex-wrap: wrap;
         }
-        .v12-titles-row { display: flex; gap: 0.4em; flex-wrap: wrap; margin-bottom: 0.875em; }
+        /* V12 — every title renders in the same Bebas-Neue ribbon;
+           multiple ribbons wrap horizontally inside the .v12-top row. */
+        .v12-titles-row { display: flex; gap: 0.4em; flex-wrap: wrap; }
         .v12-titleribbon {
             display: inline-flex; align-items: center; gap: 0.55em;
             font-family: "Bebas Neue", "Impact", "Arial Narrow", sans-serif;
@@ -554,8 +617,9 @@
             padding: 0.35em 0.875em;
             border-radius: 0.2em; font-weight: 400;
         }
-        .v12-titleribbon.silver { background: linear-gradient(90deg, #94a3b8, #cbd5e1); color: #1e293b; }
-        .v12-titleribbon.bronze { background: linear-gradient(90deg, #d97706, #f59e0b); color: #451a03; }
+        .v12-titleribbon.pl-tier-silver { background: linear-gradient(90deg, #94a3b8, #cbd5e1); color: #1e293b; }
+        .v12-titleribbon.pl-tier-bronze { background: linear-gradient(90deg, #d97706, #f59e0b); color: #451a03; }
+        .v12-titleribbon.pl-tier-white  { background: linear-gradient(90deg, #cbd5e1, #f8fafc); color: #475569; }
         .v12-titleicon { font-size: 1.15em; }
         .v12-statuschip {
             display: inline-flex; align-items: center; gap: 0.4em;
@@ -590,7 +654,7 @@
         .v12-display {
             margin: 0;
             font-family: "Bebas Neue", "Impact", sans-serif;
-            font-size: 2em;
+            font-size: clamp(1.1rem, 1rem + 0.35vw, 1.4rem);
             font-weight: 400;
             letter-spacing: 0.08em;
             color: var(--color-text);
@@ -628,10 +692,17 @@
            stats) gets cramped well before then.
            ============================================================ */
         @media (max-width: 880px) {
+            /* V9 switches from horizontal 3-column layout to vertical
+               stacked layout below 880px. In vertical mode the tile is
+               narrower than 80 vw (so it doesn't span the full viewport)
+               and gets extra left padding so left-aligned text appears
+               near the centre of the viewport. */
             .v9-tile {
                 grid-template-columns: 1fr;
                 gap: 1em;
-                text-align: left;             /* keep names + fullname left-aligned */
+                text-align: left;
+                width: min(28em, 80vw);
+                padding-left: 2.5em;
             }
             .v9-left { justify-content: flex-start; }
             .v9-center {
@@ -649,24 +720,15 @@
             .pl-field { flex: 1; }
             .pl-field select { min-width: 0; width: 100%; }
 
-            /* Cards can use a bit more of the viewport on tiny screens.
-               V10 is excluded — it has its own fluid width formula
-               (min(80vw, max(15em, 22vw))) that scales smoothly without
-               an abrupt jump at this breakpoint. */
-            .v8-card, .v9-tile, .v12-hero, .v11-line, .v7-card {
-                max-width: 92vw;
-                width: min(var(--w, 100%), 92vw);
-            }
+            /* The abrupt 92vw width override that used to live here for
+               V7/V8/V11/V12 has been removed — every header variant now
+               relies on its own smooth width formula (min(Xem, 80vw)
+               for V8/V12, content-width with max 80vw for V7/V11,
+               80vw for V9/V10) which scales continuously across all
+               viewport widths. Only non-width tweaks remain below. */
             .v8-body { gap: 0.75em; }
             .v8-info > div { grid-template-columns: 3.5em 1fr; }
-
-            /* V12 hero — let the display name wrap and reduce its size
-               on phones so it never overflows its card. */
-            .v12-display { font-size: 1.7em; gap: 0.35em; }
             .v12-bodyrow { gap: 0.75em; }
-
-            /* V11 single-line — already wraps via flex-wrap, just
-               keep paddings tight. */
             .v11-line { padding: 0.5em 0.875em; gap: 0.5em; }
         }
     </style>
@@ -730,21 +792,39 @@
             return '';
         }
 
+        /* Each title becomes { label, icon, tier, tooltip, kind }.
+           `label` is the SHORT display text only ("World Champion",
+           "National Champion", "Grandmaster M2"). The full prose with
+           year + country lives in `tooltip` and surfaces on hover. */
         function buildTitles(meta) {
             const out = [];
             for (const t of (meta.championshipTitles || [])) {
                 const info = getChampionshipInfo(t);
-                const tooltip = getChampionshipTooltip(t);
-                const fullLabel = t.type === 'world'
-                    ? `${t.year || ''} World Champion`.trim()
-                    : `${t.year || ''} ${t.country || ''} National Champion`.replace(/\s+/g, ' ').trim();
-                out.push({ fullLabel, shortLabel: t.type === 'world' ? 'World Champion' : 'National Champion', icon: '♚', tier: info.tier, tooltip, kind: 'champ' });
+                out.push({
+                    label: t.type === 'world' ? 'World Champion' : 'National Champion',
+                    icon: '♚',
+                    tier: info.tier,
+                    tooltip: getChampionshipTooltip(t),
+                    kind: 'champ',
+                });
             }
             if (meta.bmabTitle) {
                 const info = getBmabInfo(meta.bmabTitle);
-                if (info) out.push({ fullLabel: info.label, shortLabel: info.label, icon: TIER_ICONS[info.tier] || '♛', tier: info.tier, tooltip: info.label, kind: 'bmab' });
+                if (info) out.push({
+                    label: info.label,
+                    icon: TIER_ICONS[info.tier] || '♛',
+                    tier: info.tier,
+                    tooltip: info.label,
+                    kind: 'bmab',
+                });
             }
             return out;
+        }
+
+        /* Single source of truth for how a title chip is rendered.
+           Every variant pulls this so chip styling stays uniform. */
+        function titleChip(t) {
+            return `<span class="pl-title-chip pl-tier-${t.tier}" title="${escapeHtml(t.tooltip)}"><span class="pl-chip-icon">${t.icon}</span>${escapeHtml(t.label)}</span>`;
         }
 
         /* Build the lab-side player snapshot. Computes from the league
@@ -916,9 +996,7 @@
                         <div class="v7-name-line">
                             ${flagImg('v7-flag', p.flagCode)}
                             <span class="v7-name">${escapeHtml(p.name)}</span>
-                            ${p.titles.map(t =>
-                                `<span class="pl-title-chip pl-tier-${t.tier}" title="${escapeHtml(t.tooltip)}"><span class="pl-chip-icon">${t.icon}</span>${escapeHtml(t.fullLabel)}</span>`
-                            ).join('')}
+                            ${p.titles.map(titleChip).join('')}
                         </div>
                         <div class="v7-meta">${meta}</div>
                     </div>
@@ -926,36 +1004,35 @@
             },
 
             v8(p) {
-                const topTitle = p.titles[0];
-                const extraTitles = p.titles.slice(1);
-                const ribbonCls = topTitle ? (topTitle.tier === 'silver' ? 'silver' : topTitle.tier === 'bronze' ? 'bronze' : '') : '';
-                const ribbon = topTitle
-                    ? `<div class="v8-ribbon ${ribbonCls}">${topTitle.icon} ${escapeHtml(topTitle.fullLabel)}</div>`
-                    : '';
-                const extras = extraTitles.length
-                    ? `<div class="v8-extra-titles">${extraTitles.map(t =>
-                        `<span class="pl-title-chip pl-tier-${t.tier}" title="${escapeHtml(t.tooltip)}"><span class="pl-chip-icon">${t.icon}</span>${escapeHtml(t.fullLabel)}</span>`
-                      ).join('')}</div>`
-                    : '';
-                const statusCls = `v8-status-${p.statusKind}`;
                 const photo = p.photoPath
                     ? `<img class="v8-photo-img" src="${escapeHtml(p.photoPath)}" alt="${escapeHtml(p.name)}">`
                     : `<div class="v8-photo">${escapeHtml(p.initials)}</div>`;
+                /* Every title gets its own full-width ribbon, stacked
+                   one below the next. All ribbons share the same
+                   gold/silver/bronze gradient styling driven by their
+                   tier — no mixed "ribbon + small chip" treatment. */
+                const ribbons = p.titles.map(t =>
+                    `<div class="v8-ribbon pl-tier-${t.tier}" title="${escapeHtml(t.tooltip)}">${t.icon} ${escapeHtml(t.label)}</div>`
+                ).join('');
+                const statusLabel = p.statusKind === 'green' ? 'Active' : p.statusKind === 'orange' ? 'This year' : 'Inactive';
+                const meta = [
+                    `<span class="v8-status-text"><span class="pl-status-dot ${p.statusDotClass}" title="${escapeHtml(p.statusDotTitle)}"></span> ${statusLabel}</span>`,
+                    p.joinedFormatted && `Joined ${escapeHtml(p.joinedFormatted)}`,
+                    `<span class="v8-leagues">${p.leagueCount} ${p.leagueCount === 1 ? 'league' : 'leagues'}</span>`,
+                ].filter(Boolean).join(' <span class="sep">·</span> ');
                 return `<div class="v8-card">
-                    ${ribbon}
-                    ${extras}
+                    ${ribbons}
                     <div class="v8-body">
                         <div class="v8-photo-wrap">
                             ${photo}
                             <img class="v8-photo-flag" src="${flagUrl(p.flagCode)}" alt="${escapeHtml(p.flagCode)}" title="${escapeHtml(p.flagCode)}">
                         </div>
-                        <dl class="v8-info">
-                            <div><dt>Player</dt><dd>${escapeHtml(p.name)} <span class="v8-status ${statusCls}" title="${escapeHtml(p.statusDotTitle)}"></span></dd></div>
-                            ${p.fullName       ? `<div><dt>Name</dt><dd>${escapeHtml(p.fullName)}</dd></div>` : ''}
-                            ${p.joinedFormatted? `<div><dt>Joined</dt><dd>${escapeHtml(p.joinedFormatted)}</dd></div>` : ''}
-                            <div><dt>Leagues</dt><dd>${p.leagueCount}</dd></div>
-                        </dl>
+                        <div class="v8-main">
+                            <h3 class="v8-name">${escapeHtml(p.name)}</h3>
+                            ${p.fullName ? `<div class="v8-realname">${escapeHtml(p.fullName)}</div>` : ''}
+                        </div>
                     </div>
+                    <div class="v8-meta">${meta}</div>
                 </div>`;
             },
 
@@ -964,7 +1041,7 @@
                     ? `<img class="v9-avatar-img" src="${escapeHtml(p.photoPath)}" alt="${escapeHtml(p.name)}">`
                     : `<div class="v9-avatar">${escapeHtml(p.initials)}</div>`;
                 const titleRows = p.titles.map(t =>
-                    `<div class="v9-title-row" title="${escapeHtml(t.tooltip)}"><span class="icon">${t.icon}</span>${escapeHtml(t.fullLabel)}</div>`
+                    `<div class="v9-title-row pl-tier-${t.tier}" title="${escapeHtml(t.tooltip)}"><span class="icon">${t.icon}</span>${escapeHtml(t.label)}</div>`
                 ).join('');
                 return `<div class="v9-tile">
                     <div class="v9-left">
@@ -990,7 +1067,7 @@
                 const heroIcon = p.titles[0]?.icon || '♛';
                 const titles = p.titles.length
                     ? `<div class="v10-titles">${p.titles.map(t =>
-                        `<div class="v10-title-line" title="${escapeHtml(t.tooltip)}"><span class="v10-title-icon">${t.icon}</span>${escapeHtml(t.fullLabel)}</div>`
+                        `<div class="v10-title-line pl-tier-${t.tier}" title="${escapeHtml(t.tooltip)}"><span class="v10-title-icon">${t.icon}</span>${escapeHtml(t.label)}</div>`
                       ).join('')}</div>`
                     : '';
                 const statusLabel = p.statusKind === 'green' ? 'Active' : p.statusKind === 'orange' ? 'This year' : 'Inactive';
@@ -1028,41 +1105,34 @@
                     <div class="v11-avatar">${escapeHtml(p.initials)}</div>
                     ${flagImg('v11-flag', p.flagCode)}
                     <span class="v11-name">${escapeHtml(p.name)}</span>
-                    ${p.titles.map(t =>
-                        `<span class="pl-title-chip pl-tier-${t.tier}" title="${escapeHtml(t.tooltip)}"><span class="pl-chip-icon">${t.icon}</span>${escapeHtml(t.fullLabel)}</span>`
-                    ).join('')}
+                    ${p.titles.map(titleChip).join('')}
                     ${meta.map(m => `<span class="v11-sep">·</span><span class="v11-meta">${m}</span>`).join('')}
                 </div>`;
             },
 
             v12(p) {
-                const topTitle = p.titles[0];
-                const extraTitles = p.titles.slice(1);
-                const tierCls = topTitle ? (topTitle.tier === 'silver' ? 'silver' : topTitle.tier === 'bronze' ? 'bronze' : '') : '';
-                const ribbon = topTitle
-                    ? `<span class="v12-titleribbon ${tierCls}" title="${escapeHtml(topTitle.tooltip)}">
-                            <span class="v12-titleicon">${topTitle.icon}</span> ${escapeHtml(topTitle.fullLabel.toUpperCase())}
-                        </span>`
-                    : '';
-                const extras = extraTitles.length
-                    ? `<div class="v12-titles-row">${extraTitles.map(t =>
-                        `<span class="pl-title-chip pl-tier-${t.tier}" title="${escapeHtml(t.tooltip)}"><span class="pl-chip-icon">${t.icon}</span>${escapeHtml(t.fullLabel)}</span>`
-                      ).join('')}</div>`
-                    : '';
+                /* All titles in V12 render in the same Bebas-Neue
+                   ribbon — same size, same shape — and the
+                   tier-driven gradient (gold / silver / bronze /
+                   white) gives each ribbon its own colour. */
+                const ribbons = p.titles.map(t =>
+                    `<span class="v12-titleribbon pl-tier-${t.tier}" title="${escapeHtml(t.tooltip)}"><span class="v12-titleicon">${t.icon}</span> ${escapeHtml(t.label.toUpperCase())}</span>`
+                ).join('');
+                const titlesBlock = ribbons
+                    ? `<div class="v12-titles-row">${ribbons}</div>`
+                    : '<span></span>';
                 const statusCls = p.statusKind === 'green' ? '' : p.statusKind;
                 const statusLabel = p.statusKind === 'green' ? 'Active' : p.statusKind === 'orange' ? 'This year' : 'Inactive';
                 const photo = p.photoPath
                     ? `<img class="v12-photo-img" src="${escapeHtml(p.photoPath)}" alt="${escapeHtml(p.name)}">`
                     : `<div class="v12-photo">${escapeHtml(p.initials)}</div>`;
-                const topRow = `<div class="v12-top">
-                    ${ribbon || '<span></span>'}
-                    <span class="v12-statuschip ${statusCls}" title="${escapeHtml(p.statusDotTitle)}">
-                        <span class="pl-status-dot ${p.statusDotClass}" style="width:0.55em;height:0.55em"></span> ${statusLabel}
-                    </span>
-                </div>`;
                 return `<div class="v12-hero">
-                    ${topRow}
-                    ${extras}
+                    <div class="v12-top">
+                        ${titlesBlock}
+                        <span class="v12-statuschip ${statusCls}" title="${escapeHtml(p.statusDotTitle)}">
+                            <span class="pl-status-dot ${p.statusDotClass}" style="width:0.55em;height:0.55em"></span> ${statusLabel}
+                        </span>
+                    </div>
                     <div class="v12-bodyrow">
                         ${photo}
                         <div>
