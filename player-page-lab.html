@@ -244,18 +244,21 @@
            - All flags inherit .pl-flag (no bg, no border, ~24px tall).
            ============================================================ */
 
-        /* V7 — Lichess-enriched horizontal */
-        .v7-card { display: flex; align-items: center; gap: 1.125em; text-align: left; max-width: 80vw; }
+        /* V7 — Lichess-enriched horizontal.
+           Root font-size: 1.2rem bumps every em-based child (name
+           clamp, meta, avatar) by 20% while preserving the in-card
+           font proportions. Avatar matches V8's 4.5em photo. */
+        .v7-card { display: flex; align-items: center; gap: 1.125em; text-align: left; max-width: 80vw; font-size: 1.2rem; }
         .v7-avatar-wrap { position: relative; flex-shrink: 0; }
         .v7-avatar {
-            width: 3.75em; height: 3.75em; border-radius: 50%;
+            width: 4.5em; height: 4.5em; border-radius: 50%;
             background: linear-gradient(135deg, var(--color-text-muted), var(--color-text-secondary));
             display: inline-flex; align-items: center; justify-content: center;
             font-size: 1.25em; font-weight: 700; color: var(--color-surface);
             border: 2px solid var(--color-accent);
         }
         .v7-avatar-img {
-            width: 3.75em; height: 3.75em; border-radius: 50%; object-fit: cover;
+            width: 4.5em; height: 4.5em; border-radius: 50%; object-fit: cover;
             border: 2px solid var(--color-accent);
         }
         .v7-dot-wrap {
@@ -270,7 +273,7 @@
         .v7-name {
             /* Fluid size matching the PR-Statistics section heading
                (~1.25rem); linearly scales with viewport width. */
-            font-size: clamp(1.1rem, 1rem + 0.35vw, 1.4rem);
+            font-size: clamp(1.1em, 1em + 0.35vw, 1.4em);
             font-weight: 700; color: var(--color-text);
             letter-spacing: -0.01em;
         }
@@ -294,6 +297,9 @@
             overflow: hidden;
             box-shadow: var(--shadow-lg);
             text-align: left;
+            /* Match the shared 1.2rem base used by the other variants
+               so V8's font/photo sizing acts as the visual reference. */
+            font-size: 1.2rem;
         }
         /* Gold/silver/bronze ribbon naming the player's top title at
            the very top of the card — original V8 personality. */
@@ -342,7 +348,7 @@
         .v8-main { flex: 1; min-width: 0; }
         .v8-name {
             margin: 0;
-            font-size: clamp(1.1rem, 1rem + 0.35vw, 1.4rem);
+            font-size: clamp(1.1em, 1em + 0.35vw, 1.4em);
             font-weight: 700;
             color: var(--color-text);
             line-height: 1.15;
@@ -391,10 +397,11 @@
             box-shadow: var(--shadow-lg);
             color: var(--color-text);
             text-align: left;
+            font-size: 1.2rem;
         }
         .v9-left { display: flex; align-items: center; gap: 0.875em; min-width: 0; }
         .v9-avatar {
-            width: 3.125em; height: 3.125em; border-radius: 50%;
+            width: 4.5em; height: 4.5em; border-radius: 50%;
             background: linear-gradient(135deg, #fbbf24, #b88a2c);
             display: flex; align-items: center; justify-content: center;
             color: #1a1305; font-size: 1.05em; font-weight: 800;
@@ -404,7 +411,7 @@
             flex-shrink: 0;
         }
         .v9-avatar-img {
-            width: 3.125em; height: 3.125em; border-radius: 50%;
+            width: 4.5em; height: 4.5em; border-radius: 50%;
             object-fit: cover; border: 2px solid #fbbf24;
             flex-shrink: 0;
         }
@@ -414,7 +421,7 @@
             justify-content: flex-start;  /* username is anchored to the left */
         }
         .v9-name {
-            font-size: clamp(1.1rem, 1rem + 0.35vw, 1.4rem);
+            font-size: clamp(1.1em, 1em + 0.35vw, 1.4em);
             font-weight: 700; color: var(--color-text);
         }
         .v9-fullname {
@@ -471,6 +478,7 @@
             overflow: hidden;
             box-shadow: var(--shadow-lg);
             text-align: left;
+            font-size: 1.2rem;
         }
         .v10-piece {
             position: absolute;
@@ -496,7 +504,7 @@
            gives V10 a clear photo position without crowding the
            narrow card. Sits to the left of the flag pennant. */
         .v10-avatar, .v10-avatar-img {
-            width: 2.875em; height: 2.875em;
+            width: 4.5em; height: 4.5em;
             border-radius: 50%;
             display: block;
             margin-bottom: 0.625em;
@@ -537,7 +545,7 @@
         .v10-title-line.pl-tier-white  { color: #94a3b8; }
         .v10-title-icon { font-size: 1.4em; letter-spacing: 0; }
         .v10-name {
-            font-size: clamp(1.1rem, 1rem + 0.35vw, 1.4rem);
+            font-size: clamp(1.1em, 1em + 0.35vw, 1.4em);
             font-weight: 800;
             color: var(--color-text);
             font-family: "Playfair Display", Georgia, serif;
@@ -556,7 +564,8 @@
         }
         .v10-leagues { color: var(--color-accent); font-weight: 700; }
 
-        /* V11 — Single-line capsule (font bumped to 1em per request) */
+        /* V11 — Single-line capsule. Root sits at 1.2rem to match the
+           other variants; avatar matches V8's 4.5em photo. */
         .v11-line {
             display: inline-flex; align-items: center;
             gap: 0.625em;
@@ -564,14 +573,12 @@
             background: var(--color-surface);
             border: 1px solid var(--color-border);
             border-radius: 999px;
-            font-size: 1em;
+            font-size: 1.2rem;
             max-width: 80vw;
             flex-wrap: wrap;
         }
         .v11-avatar {
-            /* Slightly larger than the flag (1.4em tall) so the avatar
-               sits as the primary identifier on the left of the line. */
-            width: 1.85em; height: 1.85em; border-radius: 50%;
+            width: 4.5em; height: 4.5em; border-radius: 50%;
             background: var(--color-text-muted); color: var(--color-surface);
             display: inline-flex; align-items: center; justify-content: center;
             font-size: 0.78em; font-weight: 700;
@@ -579,14 +586,17 @@
             flex-shrink: 0;
         }
         .v11-name {
-            font-size: clamp(1.1rem, 1rem + 0.35vw, 1.4rem);
+            font-size: clamp(1.1em, 1em + 0.35vw, 1.4em);
             font-weight: 700; color: var(--color-text);
         }
         .v11-sep { color: var(--color-text-muted); opacity: 0.5; }
         .v11-meta { color: var(--color-text-muted); font-size: 0.9em; }
         .v11-leagues { color: var(--color-accent); font-weight: 600; font-size: 0.9em; }
 
-        /* V12 — Hero banner */
+        /* V12 — Hero banner. Root bumped to 1.2rem like the other
+           variants; the rounded-square photo is intentionally left at
+           its existing 3.875em so it stays smaller than V8's circle —
+           V12's distinct compact-photo look is preserved by request. */
         .v12-hero {
             width: min(35em, 80vw);
             padding: 1.125em 1.375em;
@@ -598,6 +608,7 @@
             border-radius: 0.75em;
             box-shadow: var(--shadow-md);
             text-align: left;
+            font-size: 1.2rem;
         }
         .v12-top {
             display: flex; justify-content: space-between; align-items: center;
@@ -654,7 +665,7 @@
         .v12-display {
             margin: 0;
             font-family: "Bebas Neue", "Impact", sans-serif;
-            font-size: clamp(1.1rem, 1rem + 0.35vw, 1.4rem);
+            font-size: clamp(1.1em, 1em + 0.35vw, 1.4em);
             font-weight: 400;
             letter-spacing: 0.08em;
             color: var(--color-text);
@@ -684,6 +695,143 @@
             text-transform: uppercase; letter-spacing: 0.13em;
             margin-top: 0.2em;
         }
+
+        /* ============================================================
+           TABLE-INLINE TITLE ICONS (in-place override)
+           Six standalone styles (A–F) plus a Mix (G) that replace the
+           production `.title-abbr` badges everywhere they appear on
+           the page — leaderboards, rankings, match-history tables.
+
+           Shared base (.pl-ti):
+             • font-size: 1em       → icon text matches the adjacent
+                                       player-name size in the table
+             • margin-left: 0.5em   → ~one-character gap from the name
+             • vertical-align:
+                  text-bottom       → icon's bottom edge sits flush
+                                       with the bottom of the name's
+                                       text (cap-height baseline)
+           Multiple badges on the same row tighten up to 0.25em.
+           ============================================================ */
+        .pl-ti {
+            font-size: 1em;
+            margin-left: 0.5em;
+            vertical-align: text-bottom;
+            line-height: 1;
+        }
+        .pl-ti + .pl-ti { margin-left: 0.25em; }
+
+        /* Option A — Solid pill (refined production style) */
+        .ti-a {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 0.12em 0.45em;
+            border-radius: 0.25em;
+            font-weight: 700;
+            font-family: ui-monospace, "SF Mono", monospace;
+            letter-spacing: 0.04em;
+            min-width: 1.4em;
+        }
+        .ti-a-gold   { background: #d4a942; color: #1a1305; }
+        .ti-a-silver { background: #94a3b8; color: #1e293b; }
+        .ti-a-bronze { background: #b45309; color: #fff; }
+        .ti-a-white  { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+
+        /* Option B — Outlined pill (transparent body) */
+        .ti-b {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 0.05em 0.4em;
+            border-radius: 0.25em;
+            font-weight: 700;
+            font-family: ui-monospace, "SF Mono", monospace;
+            letter-spacing: 0.04em;
+            min-width: 1.4em;
+            background: transparent;
+            border: 1.5px solid currentColor;
+        }
+        .ti-b-gold   { color: #d4a942; }
+        .ti-b-silver { color: #94a3b8; }
+        .ti-b-bronze { color: #b45309; }
+        .ti-b-white  { color: #94a3b8; }
+        /* Bold caption used by option G's BMAB pills (option B styling).
+           Plain B is left at font-weight 700. */
+        .ti-b b { font-weight: 900; font-style: normal; }
+
+        /* Option C — Colored dot (label-free; tooltip on hover) */
+        .ti-c {
+            display: inline-block;
+            width: 0.7em; height: 0.7em;
+            border-radius: 50%;
+            flex-shrink: 0;
+            /* Nudge upward so the dot sits centred on the text x-height
+               rather than at the very bottom of the line box. */
+            vertical-align: 0.15em;
+        }
+        .ti-c-gold   { background: #d4a942; box-shadow: 0 0 0.3em rgba(212,169,66,0.6); }
+        .ti-c-silver { background: #94a3b8; box-shadow: 0 0 0.3em rgba(148,163,184,0.6); }
+        .ti-c-bronze { background: #b45309; box-shadow: 0 0 0.3em rgba(180,83,9,0.6); }
+        .ti-c-white  { background: #cbd5e1; }
+
+        /* Option D — Hexagon badge (gaming / heraldic).
+           Hex must be wider than the 1em caption to clear the slanted
+           top/bottom edges. */
+        .ti-d {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1.8em; height: 1.8em;
+            font-weight: 800;
+            font-family: ui-monospace, "SF Mono", monospace;
+            letter-spacing: 0.02em;
+            clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+            flex-shrink: 0;
+        }
+        .ti-d-gold   { background: #d4a942; color: #1a1305; }
+        .ti-d-silver { background: #94a3b8; color: #1e293b; }
+        .ti-d-bronze { background: #b45309; color: #fff; }
+        .ti-d-white  { background: #cbd5e1; color: #475569; }
+
+        /* Option E — Letter in circle (avatar-badge style) */
+        .ti-e {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1.7em; height: 1.7em;
+            border-radius: 50%;
+            font-weight: 800;
+            font-family: ui-monospace, "SF Mono", monospace;
+            flex-shrink: 0;
+        }
+        .ti-e-gold   { background: #d4a942; color: #1a1305; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.12); }
+        .ti-e-silver { background: #94a3b8; color: #1e293b; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.12); }
+        .ti-e-bronze { background: #b45309; color: #fff;    box-shadow: inset 0 -2px 0 rgba(0,0,0,0.18); }
+        .ti-e-white  { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+
+        /* Option F — Gradient pill with diagonal shine.
+           The caption is wrapped in <b> at font-weight 900 and lifted
+           above the ::before shine via the badge's own stacking
+           context (isolation + z-index: -1 on the overlay). */
+        .ti-f {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 0.12em 0.5em;
+            border-radius: 0.25em;
+            font-family: ui-monospace, "SF Mono", monospace;
+            letter-spacing: 0.04em;
+            min-width: 1.4em;
+            position: relative;
+            overflow: hidden;
+            isolation: isolate;
+        }
+        .ti-f::before {
+            content: '';
+            position: absolute; inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.45), transparent 55%);
+            pointer-events: none;
+            z-index: -1;
+        }
+        .ti-f b {
+            font-weight: 900;
+            font-style: normal;
+            text-shadow: 0 1px 0 rgba(255,255,255,0.18);
+        }
+        .ti-f-gold   { background: linear-gradient(135deg, #fbbf24, #b45309); color: #1a1305; }
+        .ti-f-silver { background: linear-gradient(135deg, #cbd5e1, #64748b); color: #1e293b; }
+        .ti-f-bronze { background: linear-gradient(135deg, #f59e0b, #92400e); color: #fff; }
+        .ti-f-white  { background: linear-gradient(135deg, #f8fafc, #cbd5e1); color: #475569; }
 
         /* ============================================================
            RESPONSIVE BREAKPOINTS
@@ -1154,6 +1302,70 @@
 
         function getNavKey()    { return document.getElementById('pl-nav-select')?.value    || 'current'; }
         function getHeaderKey() { return document.getElementById('pl-header-select')?.value || 'current'; }
+        function getTiKey()     { return document.getElementById('pl-ti-select')?.value     || 'none'; }
+
+        /* Capture the badge's original data (tier / kind / code /
+           tooltip) the first time we touch it, so we can later
+           re-style it for any option — or restore the production
+           look when the user picks "Off". */
+        function snapshotBadge(span) {
+            if (span.dataset.tiSnapshot) return;
+            const tierClass = Array.from(span.classList)
+                .find(c => /^title-abbr-(gold|silver|bronze|white)$/.test(c)) || 'title-abbr-white';
+            span.dataset.tiTier = tierClass.replace('title-abbr-', '');
+            span.dataset.tiKind = span.classList.contains('title-abbr-champ') ? 'champ' : 'bmab';
+            span.dataset.tiCode = span.textContent.trim();
+            span.dataset.tiTip  = span.getAttribute('title') || '';
+            span.dataset.tiSnapshot = '1';
+        }
+
+        /* Apply the picked option to a single badge in-place. */
+        function styleBadge(span, opt) {
+            snapshotBadge(span);
+            const { tiTier: tier, tiKind: kind, tiCode: code, tiTip: tip } = span.dataset;
+
+            if (opt === 'none') {
+                // Restore the original production look on this badge.
+                span.className = `title-abbr title-abbr-${tier}${kind === 'champ' ? ' title-abbr-champ' : ''}`;
+                span.textContent = code;
+                if (tip) span.setAttribute('title', tip); else span.removeAttribute('title');
+                return;
+            }
+
+            // Option G is a mix:
+            //   championship → F (gradient pill, bold)
+            //   BMAB         → B (outlined pill, bold)
+            // Both styles render the caption inside <b> for emphasis.
+            let effOpt = opt;
+            let bold   = (opt === 'f');
+            if (opt === 'g') {
+                effOpt = (kind === 'champ') ? 'f' : 'b';
+                bold   = true;
+            }
+
+            // `pl-ti` carries the shared sizing / spacing / vertical-
+            // alignment rules; the option-specific classes carry the
+            // visual style.
+            span.className = `pl-ti ti-${effOpt} ti-${effOpt}-${tier}`;
+            if (effOpt === 'c') {
+                span.textContent = '';
+            } else if (bold) {
+                span.innerHTML = `<b>${escapeHtml(code)}</b>`;
+            } else {
+                span.textContent = code;
+            }
+            if (tip) span.setAttribute('title', tip);
+        }
+
+        /* Walks every title badge currently on the page (production
+           originals plus any we've already re-styled) and applies the
+           current dropdown selection. Safe to call as many times as
+           we like — snapshot data persists. */
+        function applyTitleIconVariant() {
+            const opt = getTiKey();
+            document.querySelectorAll('.title-abbr, [data-ti-snapshot]')
+                .forEach(span => styleBadge(span, opt));
+        }
 
         function applyNavVariant() {
             const container = document.querySelector('.page-container');
@@ -1217,6 +1429,7 @@
                 labPlayer = labData;
                 applyNavVariant();
                 applyHeaderVariant();
+                applyTitleIconVariant();
             } catch (err) {
                 console.error('Failed to load player:', err);
                 if (content) content.innerHTML = `<div class="error">Failed to load player: ${escapeHtml(err.message)}</div>`;
@@ -1277,6 +1490,19 @@
                                 <option value="v12">V12 — Hero banner</option>
                             </select>
                         </div>
+                        <div class="pl-field">
+                            <label for="pl-ti-select">Title icon (tables)</label>
+                            <select id="pl-ti-select">
+                                <option value="none">Off — production badges</option>
+                                <option value="a">A — Solid pill</option>
+                                <option value="b">B — Outlined pill</option>
+                                <option value="c">C — Colored dot</option>
+                                <option value="d">D — Hexagon badge</option>
+                                <option value="e">E — Letter in circle</option>
+                                <option value="f">F — Gradient pill (bold)</option>
+                                <option value="g">G — Mix · champ → F, BMAB → B (bold)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             `;
@@ -1286,6 +1512,7 @@
 
             document.getElementById('pl-nav-select').addEventListener('change', applyNavVariant);
             document.getElementById('pl-header-select').addEventListener('change', applyHeaderVariant);
+            document.getElementById('pl-ti-select').addEventListener('change', applyTitleIconVariant);
         }
 
         await initNavBar();

@@ -988,6 +988,131 @@
         .v11-leagues { color: var(--accent); font-weight: 600; font-size: 12px; }
 
         /* ============================================================
+           TABLE-INLINE TITLE ICONS (separate showcase) — these sit
+           beside the player's name in leaderboards / match history /
+           rankings tables. All sizes are em-based so they scale with
+           the surrounding text; all options share the same four-tier
+           palette (gold / silver / bronze / white). Inner caption is
+           the tier abbreviation (WC / NC / G0 … I3).
+           ============================================================ */
+        .ti-sample {
+            display: flex; flex-direction: column;
+            gap: 0.45em;
+            font-size: 14px;
+            min-width: 240px;
+        }
+        .ti-row {
+            display: flex; align-items: center;
+            gap: 0.4em;
+            color: var(--text);
+        }
+        .ti-row .ti-name { font-weight: 500; }
+        .ti-row .ti-rank {
+            margin-left: auto;
+            color: var(--text-dim);
+            font-variant-numeric: tabular-nums;
+            font-size: 0.85em;
+        }
+
+        /* Option A — Solid pill (refined production style) */
+        .ti-a {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 0.18em 0.5em;
+            border-radius: 0.3em;
+            font-size: 0.72em; font-weight: 700;
+            font-family: ui-monospace, "SF Mono", monospace;
+            letter-spacing: 0.04em;
+            line-height: 1.2;
+            min-width: 1.5em;
+        }
+        .ti-a-gold   { background: #d4a942; color: #1a1305; }
+        .ti-a-silver { background: #94a3b8; color: #1e293b; }
+        .ti-a-bronze { background: #b45309; color: #fff; }
+        .ti-a-white  { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+
+        /* Option B — Outlined pill (transparent body, colored border + text) */
+        .ti-b {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 0.12em 0.45em;
+            border-radius: 0.3em;
+            font-size: 0.72em; font-weight: 700;
+            font-family: ui-monospace, "SF Mono", monospace;
+            letter-spacing: 0.04em;
+            line-height: 1.2;
+            min-width: 1.5em;
+            background: transparent;
+            border: 1.5px solid currentColor;
+        }
+        .ti-b-gold   { color: #d4a942; }
+        .ti-b-silver { color: #94a3b8; }
+        .ti-b-bronze { color: #b45309; }
+        .ti-b-white  { color: #94a3b8; }
+
+        /* Option C — Colored dot (label-free; tooltip on hover) */
+        .ti-c {
+            display: inline-block;
+            width: 0.62em; height: 0.62em;
+            border-radius: 50%;
+            vertical-align: middle;
+        }
+        .ti-c-gold   { background: #d4a942; box-shadow: 0 0 0.3em rgba(212,169,66,0.6); }
+        .ti-c-silver { background: #94a3b8; box-shadow: 0 0 0.3em rgba(148,163,184,0.6); }
+        .ti-c-bronze { background: #b45309; box-shadow: 0 0 0.3em rgba(180,83,9,0.6); }
+        .ti-c-white  { background: #cbd5e1; }
+
+        /* Option D — Hexagon badge (gaming/heraldic) */
+        .ti-d {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1.65em; height: 1.65em;
+            font-size: 0.62em; font-weight: 800;
+            font-family: ui-monospace, "SF Mono", monospace;
+            letter-spacing: 0.02em;
+            clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+            line-height: 1;
+        }
+        .ti-d-gold   { background: #d4a942; color: #1a1305; }
+        .ti-d-silver { background: #94a3b8; color: #1e293b; }
+        .ti-d-bronze { background: #b45309; color: #fff; }
+        .ti-d-white  { background: #cbd5e1; color: #475569; }
+
+        /* Option E — Letter in circle (avatar-badge style) */
+        .ti-e {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1.55em; height: 1.55em;
+            border-radius: 50%;
+            font-size: 0.65em; font-weight: 800;
+            font-family: ui-monospace, "SF Mono", monospace;
+        }
+        .ti-e-gold   { background: #d4a942; color: #1a1305; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.12); }
+        .ti-e-silver { background: #94a3b8; color: #1e293b; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.12); }
+        .ti-e-bronze { background: #b45309; color: #fff;    box-shadow: inset 0 -2px 0 rgba(0,0,0,0.18); }
+        .ti-e-white  { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+
+        /* Option F — Gradient pill with diagonal shine (premium) */
+        .ti-f {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 0.18em 0.55em;
+            border-radius: 0.3em;
+            font-size: 0.72em; font-weight: 700;
+            font-family: ui-monospace, "SF Mono", monospace;
+            letter-spacing: 0.04em;
+            line-height: 1.2;
+            min-width: 1.5em;
+            position: relative;
+            overflow: hidden;
+        }
+        .ti-f::before {
+            content: '';
+            position: absolute; inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.45), transparent 55%);
+            pointer-events: none;
+        }
+        .ti-f-gold   { background: linear-gradient(135deg, #fbbf24, #b45309); color: #1a1305; }
+        .ti-f-silver { background: linear-gradient(135deg, #cbd5e1, #64748b); color: #1e293b; }
+        .ti-f-bronze { background: linear-gradient(135deg, #f59e0b, #92400e); color: #fff; }
+        .ti-f-white  { background: linear-gradient(135deg, #f8fafc, #cbd5e1); color: #475569; }
+
+        /* ============================================================
            V12 — HERO BANNER WITH STATS GRID
            ============================================================ */
         .v12-hero {
@@ -1506,6 +1631,169 @@
                 <div class="caption">
                     <p>Title pinned at the top in condensed Bebas Neue with the chess-piece icon and gold background; status chip beside it. Username rendered in oversized display type with the flag inline. Photo/initials block on the left, stats grid below the divider. Most "presentation-mode" of the bunch.</p>
                     <div class="tradeoff"><strong>Tradeoff</strong>High visual weight — only suits the main player page, not list rows.</div>
+                </div>
+            </article>
+
+        </div>
+
+        <!-- ============================================================
+             TABLE-INLINE TITLE ICONS
+             ============================================================ -->
+        <header class="section-divider">
+            <div class="eyebrow">Title Icons for Tables</div>
+            <h2>Six in-line title indicators for leaderboards &amp; rankings</h2>
+            <p class="subtitle">Compact icon that sits beside the player's name in tables. All six share the same four-tier palette (gold / silver / bronze / white), all sizes are <code style="background:var(--bg-elev);padding:1px 5px;border-radius:3px;font-size:0.85em">em</code>-based so they scale with the surrounding text, and the inner caption is the tier abbreviation — WC, NC, G0…I3. Hover any icon for the full tooltip.</p>
+        </header>
+
+        <div class="grid">
+
+            <!-- ===== OPTION A — SOLID PILL ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">A</span>
+                        <span class="variant-title">Solid pill — refined production style</span>
+                    </div>
+                    <span class="tag">Baseline</span>
+                </div>
+                <div class="stage tall">
+                    <div class="ti-sample">
+                        <div class="ti-row"><span class="ti-a ti-a-gold"   title="2026 World Champion">WC</span><span class="ti-name">OMRAD</span><span class="ti-rank">1st</span></div>
+                        <div class="ti-row"><span class="ti-a ti-a-silver" title="2018 Israeli National Champion">NC</span><span class="ti-name">YossiEliezer23</span><span class="ti-rank">2nd</span></div>
+                        <div class="ti-row"><span class="ti-a ti-a-gold"   title="Grandmaster G2">G2</span><span class="ti-name">boutsky</span><span class="ti-rank">3rd</span></div>
+                        <div class="ti-row"><span class="ti-a ti-a-silver" title="2023 Belgian National Champion">NC</span><span class="ti-a ti-a-silver" title="Master M1">M1</span><span class="ti-name">Hummus</span><span class="ti-rank">4th</span></div>
+                        <div class="ti-row"><span class="ti-a ti-a-bronze" title="Advanced A1">A1</span><span class="ti-name">AdvancedAri</span><span class="ti-rank">5th</span></div>
+                        <div class="ti-row"><span class="ti-a ti-a-white"  title="Intermediate I2">I2</span><span class="ti-name">FreshFace</span><span class="ti-rank">6th</span></div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>Flat tier-colored pill with the abbreviation in monospace. Familiar to anyone who's seen chess.com/Lichess title badges — the closest evolution of the current production look.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Conservative, low risk of clashing with anything.</div>
+                </div>
+            </article>
+
+            <!-- ===== OPTION B — OUTLINED PILL ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">B</span>
+                        <span class="variant-title">Outlined pill — transparent body</span>
+                    </div>
+                    <span class="tag">Lighter weight</span>
+                </div>
+                <div class="stage tall">
+                    <div class="ti-sample">
+                        <div class="ti-row"><span class="ti-b ti-b-gold"   title="2026 World Champion">WC</span><span class="ti-name">OMRAD</span><span class="ti-rank">1st</span></div>
+                        <div class="ti-row"><span class="ti-b ti-b-silver" title="2018 Israeli National Champion">NC</span><span class="ti-name">YossiEliezer23</span><span class="ti-rank">2nd</span></div>
+                        <div class="ti-row"><span class="ti-b ti-b-gold"   title="Grandmaster G2">G2</span><span class="ti-name">boutsky</span><span class="ti-rank">3rd</span></div>
+                        <div class="ti-row"><span class="ti-b ti-b-silver" title="2023 Belgian National Champion">NC</span><span class="ti-b ti-b-silver" title="Master M1">M1</span><span class="ti-name">Hummus</span><span class="ti-rank">4th</span></div>
+                        <div class="ti-row"><span class="ti-b ti-b-bronze" title="Advanced A1">A1</span><span class="ti-name">AdvancedAri</span><span class="ti-rank">5th</span></div>
+                        <div class="ti-row"><span class="ti-b ti-b-white"  title="Intermediate I2">I2</span><span class="ti-name">FreshFace</span><span class="ti-rank">6th</span></div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>Same shape as A but the body is transparent — only the 1.5px border and the text carry the tier color. Reads as quieter; doesn't compete with row highlights or status pills.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Less prominent — good if many rows have titles.</div>
+                </div>
+            </article>
+
+            <!-- ===== OPTION C — COLORED DOT ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">C</span>
+                        <span class="variant-title">Colored dot — label-free, tooltip on hover</span>
+                    </div>
+                    <span class="tag">Ultra minimal</span>
+                </div>
+                <div class="stage tall">
+                    <div class="ti-sample">
+                        <div class="ti-row"><span class="ti-c ti-c-gold"   title="World Champion (WC)"></span><span class="ti-name">OMRAD</span><span class="ti-rank">1st</span></div>
+                        <div class="ti-row"><span class="ti-c ti-c-silver" title="National Champion (NC)"></span><span class="ti-name">YossiEliezer23</span><span class="ti-rank">2nd</span></div>
+                        <div class="ti-row"><span class="ti-c ti-c-gold"   title="Grandmaster G2"></span><span class="ti-name">boutsky</span><span class="ti-rank">3rd</span></div>
+                        <div class="ti-row"><span class="ti-c ti-c-silver" title="National Champion + Master M1"></span><span class="ti-name">Hummus</span><span class="ti-rank">4th</span></div>
+                        <div class="ti-row"><span class="ti-c ti-c-bronze" title="Advanced A1"></span><span class="ti-name">AdvancedAri</span><span class="ti-rank">5th</span></div>
+                        <div class="ti-row"><span class="ti-c ti-c-white"  title="Intermediate I2"></span><span class="ti-name">FreshFace</span><span class="ti-rank">6th</span></div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>A single colored dot before the name. Encodes only the tier — the exact title appears in the tooltip on hover. Cleanest possible look, ideal when table density matters more than informational richness.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Loses the specific code (G2 vs A1 within the same tier) at a glance.</div>
+                </div>
+            </article>
+
+            <!-- ===== OPTION D — HEXAGON BADGE ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">D</span>
+                        <span class="variant-title">Hexagon badge — gaming / heraldic</span>
+                    </div>
+                    <span class="tag">Distinctive</span>
+                </div>
+                <div class="stage tall">
+                    <div class="ti-sample">
+                        <div class="ti-row"><span class="ti-d ti-d-gold"   title="2026 World Champion">WC</span><span class="ti-name">OMRAD</span><span class="ti-rank">1st</span></div>
+                        <div class="ti-row"><span class="ti-d ti-d-silver" title="2018 Israeli National Champion">NC</span><span class="ti-name">YossiEliezer23</span><span class="ti-rank">2nd</span></div>
+                        <div class="ti-row"><span class="ti-d ti-d-gold"   title="Grandmaster G2">G2</span><span class="ti-name">boutsky</span><span class="ti-rank">3rd</span></div>
+                        <div class="ti-row"><span class="ti-d ti-d-silver" title="2023 Belgian National Champion">NC</span><span class="ti-d ti-d-silver" title="Master M1">M1</span><span class="ti-name">Hummus</span><span class="ti-rank">4th</span></div>
+                        <div class="ti-row"><span class="ti-d ti-d-bronze" title="Advanced A1">A1</span><span class="ti-name">AdvancedAri</span><span class="ti-rank">5th</span></div>
+                        <div class="ti-row"><span class="ti-d ti-d-white"  title="Intermediate I2">I2</span><span class="ti-name">FreshFace</span><span class="ti-rank">6th</span></div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>Hex-shaped badge (clip-path) with the abbreviation inside. Reads as a "medal" — a touch of personality without becoming heavy. Works well alongside a gaming/chess aesthetic.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Hex shape is opinionated — may not fit a strictly utilitarian table.</div>
+                </div>
+            </article>
+
+            <!-- ===== OPTION E — LETTER IN CIRCLE ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">E</span>
+                        <span class="variant-title">Letter in circle — avatar-badge style</span>
+                    </div>
+                    <span class="tag">Friendly</span>
+                </div>
+                <div class="stage tall">
+                    <div class="ti-sample">
+                        <div class="ti-row"><span class="ti-e ti-e-gold"   title="2026 World Champion">WC</span><span class="ti-name">OMRAD</span><span class="ti-rank">1st</span></div>
+                        <div class="ti-row"><span class="ti-e ti-e-silver" title="2018 Israeli National Champion">NC</span><span class="ti-name">YossiEliezer23</span><span class="ti-rank">2nd</span></div>
+                        <div class="ti-row"><span class="ti-e ti-e-gold"   title="Grandmaster G2">G2</span><span class="ti-name">boutsky</span><span class="ti-rank">3rd</span></div>
+                        <div class="ti-row"><span class="ti-e ti-e-silver" title="2023 Belgian National Champion">NC</span><span class="ti-e ti-e-silver" title="Master M1">M1</span><span class="ti-name">Hummus</span><span class="ti-rank">4th</span></div>
+                        <div class="ti-row"><span class="ti-e ti-e-bronze" title="Advanced A1">A1</span><span class="ti-name">AdvancedAri</span><span class="ti-rank">5th</span></div>
+                        <div class="ti-row"><span class="ti-e ti-e-white"  title="Intermediate I2">I2</span><span class="ti-name">FreshFace</span><span class="ti-rank">6th</span></div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>Round badge — like a tiny avatar — with the abbreviation centered and an inset shadow that gives it a button-y, tactile feel. Echoes the avatars used elsewhere in the app.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Slightly heavier visual; pairs well with rounded UI overall.</div>
+                </div>
+            </article>
+
+            <!-- ===== OPTION F — GRADIENT PILL ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">F</span>
+                        <span class="variant-title">Gradient pill — premium / award feel</span>
+                    </div>
+                    <span class="tag chess">Most expressive</span>
+                </div>
+                <div class="stage tall">
+                    <div class="ti-sample">
+                        <div class="ti-row"><span class="ti-f ti-f-gold"   title="2026 World Champion">WC</span><span class="ti-name">OMRAD</span><span class="ti-rank">1st</span></div>
+                        <div class="ti-row"><span class="ti-f ti-f-silver" title="2018 Israeli National Champion">NC</span><span class="ti-name">YossiEliezer23</span><span class="ti-rank">2nd</span></div>
+                        <div class="ti-row"><span class="ti-f ti-f-gold"   title="Grandmaster G2">G2</span><span class="ti-name">boutsky</span><span class="ti-rank">3rd</span></div>
+                        <div class="ti-row"><span class="ti-f ti-f-silver" title="2023 Belgian National Champion">NC</span><span class="ti-f ti-f-silver" title="Master M1">M1</span><span class="ti-name">Hummus</span><span class="ti-rank">4th</span></div>
+                        <div class="ti-row"><span class="ti-f ti-f-bronze" title="Advanced A1">A1</span><span class="ti-name">AdvancedAri</span><span class="ti-rank">5th</span></div>
+                        <div class="ti-row"><span class="ti-f ti-f-white"  title="Intermediate I2">I2</span><span class="ti-name">FreshFace</span><span class="ti-rank">6th</span></div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>Tier-colored linear gradient with a soft diagonal shine across the top-left — reads as a metallic award badge. Most "celebratory" of the six.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Heaviest treatment — best reserved for headline tables (e.g. season leaderboard) where titles are the visual highlight.</div>
                 </div>
             </article>
 
