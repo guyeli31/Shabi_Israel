@@ -248,7 +248,7 @@
            Root font-size: 1.2rem bumps every em-based child (name
            clamp, meta, avatar) by 20% while preserving the in-card
            font proportions. Avatar matches V8's 4.5em photo. */
-        .v7-card { display: flex; align-items: center; gap: 1.125em; text-align: left; max-width: 80vw; font-size: 1.2rem; }
+        .v7-card { display: flex; align-items: center; gap: 1.125em; text-align: left; max-width: 80vw; font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem); }
         .v7-avatar-wrap { position: relative; flex-shrink: 0; }
         .v7-avatar {
             width: 4.5em; height: 4.5em; border-radius: 50%;
@@ -299,7 +299,7 @@
             text-align: left;
             /* Match the shared 1.2rem base used by the other variants
                so V8's font/photo sizing acts as the visual reference. */
-            font-size: 1.2rem;
+            font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
         }
         /* Gold/silver/bronze ribbon naming the player's top title at
            the very top of the card — original V8 personality. */
@@ -397,7 +397,7 @@
             box-shadow: var(--shadow-lg);
             color: var(--color-text);
             text-align: left;
-            font-size: 1.2rem;
+            font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
         }
         .v9-left { display: flex; align-items: center; gap: 0.875em; min-width: 0; }
         .v9-avatar {
@@ -478,7 +478,7 @@
             overflow: hidden;
             box-shadow: var(--shadow-lg);
             text-align: left;
-            font-size: 1.2rem;
+            font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
         }
         .v10-piece {
             position: absolute;
@@ -573,7 +573,7 @@
             background: var(--color-surface);
             border: 1px solid var(--color-border);
             border-radius: 999px;
-            font-size: 1.2rem;
+            font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
             max-width: 80vw;
             flex-wrap: wrap;
         }
@@ -608,7 +608,7 @@
             border-radius: 0.75em;
             box-shadow: var(--shadow-md);
             text-align: left;
-            font-size: 1.2rem;
+            font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
         }
         .v12-top {
             display: flex; justify-content: space-between; align-items: center;
