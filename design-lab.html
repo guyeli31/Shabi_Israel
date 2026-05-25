@@ -324,6 +324,20 @@
         .v7-meta .leagues { color: var(--color-accent); font-weight: 600; }
         .v7-fullname { font-style: italic; }
 
+        /* V7a — V7 with a V12-style rounded-square photo: same 3.875em
+           geometry and 0.75em corner radius as .v12-photo / .v12-photo-img.
+           The font-size:1.375em on the initials wrapper mirrors V12 so the
+           initials variant resolves to the same absolute pixel size as
+           V12's, not V7's smaller 1.25em base. */
+        .v7a-card .v7-avatar,
+        .v7a-card .v7-avatar-img {
+            width: 3.875em; height: 3.875em;
+            border-radius: 0.75em;
+        }
+        .v7a-card .v7-avatar {
+            font-size: 1.375em;
+        }
+
         /* Shared tier-coloured watermark — used by V8/V9/V10/V12 so the
            giant translucent glyph behind every general-card variant
            draws its colour from the player's title tier. Gold for
@@ -801,7 +815,7 @@
             border-radius: 0.75em;
             background: linear-gradient(135deg, var(--color-text-muted), var(--color-text-secondary));
             display: flex; align-items: center; justify-content: center;
-            font-size: 1.375em; font-weight: 800;
+            font-size: 1.375em; font-weight: 700;
             color: var(--color-surface);
             border: 1px solid var(--color-border);
             flex-shrink: 0;
@@ -1606,6 +1620,33 @@
                 </div>`;
             },
 
+            /* V7a — identical to V7 except the avatar uses V12's
+               rounded-square shape and size. Renders the same HTML as
+               V7 (so all inner classes still match) wrapped in an
+               extra `v7a-card` class that drives the CSS override. */
+            v7a(p, opts = {}) {
+                const avatar = p.photoPath
+                    ? `<img class="v7-avatar-img" src="${escapeHtml(p.photoPath)}" alt="${escapeHtml(p.name)}">`
+                    : `<div class="v7-avatar">${escapeHtml(p.initials)}</div>`;
+                const dot = `<span class="v7-dot-wrap"><span class="pl-status-dot ${p.statusDotClass}" title="${escapeHtml(p.statusDotTitle)}"></span></span>`;
+                const meta = [
+                    p.fullName && `<em class="v7-fullname">${escapeHtml(p.fullName)}</em>`,
+                    !opts.inLeague && p.joinedFormatted && `Joined ${escapeHtml(p.joinedFormatted)}`,
+                    !opts.inLeague && `<span class="leagues">${p.leagueCount} ${p.leagueCount === 1 ? 'league' : 'leagues'}</span>`,
+                ].filter(Boolean).join(' <span class="sep">·</span> ');
+                return `<div class="v7-card v7a-card">
+                    <div class="v7-avatar-wrap">${avatar}${dot}</div>
+                    <div class="v7-info">
+                        <div class="v7-name-line">
+                            ${flagImg('v7-flag', p.flagCode)}
+                            <span class="v7-name">${nameLink(p, opts)}</span>
+                            ${p.titles.map(titleChip).join('')}
+                        </div>
+                        <div class="v7-meta">${meta}</div>
+                    </div>
+                </div>`;
+            },
+
             v8(p, opts = {}) {
                 const photo = p.photoPath
                     ? `<img class="v8-photo-img" src="${escapeHtml(p.photoPath)}" alt="${escapeHtml(p.name)}">`
@@ -1924,7 +1965,7 @@
            font-size via the `--pl-scale` CSS variable, so every em-based
            child element inside scales proportionally. */
         const SCALE_FACTORS = [0.7, 0.8, 0.9, 1.0, 1.15];
-        const HEADER_SCALES = { pg: 4, pl: 4, lhDash: 4, lhTable: 4 };
+        const HEADER_SCALES = { pg: 3, pl: 3, lhDash: 3, lhTable: 3 };
         function scaleFactor(key) { return SCALE_FACTORS[HEADER_SCALES[key] - 1]; }
 
         function getNavKey()    { return document.getElementById('pl-nav-select')?.value    || 'current'; }
@@ -2280,7 +2321,7 @@
                             <label for="pl-nav-select">Navigation</label>
                             <select id="pl-nav-select">
                                 <option value="current">Current — text trail</option>
-                                <option value="v1">V1 — Segmented pill trail</option>
+                                <option value="v1" selected>V1 — Segmented pill trail</option>
                                 <option value="v2">V2 — Contextual pills + dropdowns</option>
                                 <option value="v3">V3 — Glass capsule</option>
                                 <option value="v4">V4 — Lichess (back button only)</option>
@@ -2298,11 +2339,11 @@
                                     <option value="v9">V9 — Glassmorphism tile</option>
                                     <option value="v10">V10 — Trading card</option>
                                     <option value="v11">V11 — Minimal single-line</option>
-                                    <option value="v12">V12 — Hero banner</option>
+                                    <option value="v12" selected>V12 — Hero banner</option>
                                 </select>
                                 <span class="pl-scale" data-pl-scale-target="pg" title="Adjust header font size (level 4 = current)">
                                     <button class="pl-scale-btn pl-scale-minus" type="button" aria-label="Decrease font size">−</button>
-                                    <span class="pl-scale-val">4</span>
+                                    <span class="pl-scale-val">3</span>
                                     <button class="pl-scale-btn pl-scale-plus" type="button" aria-label="Increase font size">+</button>
                                 </span>
                             </div>
@@ -2313,6 +2354,7 @@
                                 <select id="pl-header-pl-select">
                                     <option value="current">Current — production</option>
                                     <option value="v7">V7 — Lichess-enriched</option>
+                                    <option value="v7a" selected>V7a — Lichess-enriched (square photo)</option>
                                     <option value="v8">V8 — FIDE passport</option>
                                     <option value="v9">V9 — Glassmorphism tile</option>
                                     <option value="v10">V10 — Trading card</option>
@@ -2321,7 +2363,7 @@
                                 </select>
                                 <span class="pl-scale" data-pl-scale-target="pl" title="Adjust header font size (level 4 = current)">
                                     <button class="pl-scale-btn pl-scale-minus" type="button" aria-label="Decrease font size">−</button>
-                                    <span class="pl-scale-val">4</span>
+                                    <span class="pl-scale-val">3</span>
                                     <button class="pl-scale-btn pl-scale-plus" type="button" aria-label="Increase font size">+</button>
                                 </span>
                             </div>
@@ -2334,12 +2376,12 @@
                                     <option value="v13">V13 — Lichess title bar</option>
                                     <option value="v14">V14 — Stacked card + chip row</option>
                                     <option value="v15">V15 — FIDE passport</option>
-                                    <option value="v16">V16 — Hero banner</option>
+                                    <option value="v16" selected>V16 — Hero banner</option>
                                     <option value="v17">V17 — Minimal capsule</option>
                                 </select>
                                 <span class="pl-scale" data-pl-scale-target="lhDash" title="Adjust header font size (level 4 = current)">
                                     <button class="pl-scale-btn pl-scale-minus" type="button" aria-label="Decrease font size">−</button>
-                                    <span class="pl-scale-val">4</span>
+                                    <span class="pl-scale-val">3</span>
                                     <button class="pl-scale-btn pl-scale-plus" type="button" aria-label="Increase font size">+</button>
                                 </span>
                             </div>
@@ -2349,7 +2391,7 @@
                             <div class="pl-field-controls">
                                 <select id="pl-lh-table-select">
                                     <option value="current">Current — production</option>
-                                    <option value="v13">V13 — Lichess title bar</option>
+                                    <option value="v13" selected>V13 — Lichess title bar</option>
                                     <option value="v14">V14 — Stacked card + chip row</option>
                                     <option value="v15">V15 — FIDE passport</option>
                                     <option value="v16">V16 — Hero banner</option>
@@ -2357,7 +2399,7 @@
                                 </select>
                                 <span class="pl-scale" data-pl-scale-target="lhTable" title="Adjust header font size (level 4 = current)">
                                     <button class="pl-scale-btn pl-scale-minus" type="button" aria-label="Decrease font size">−</button>
-                                    <span class="pl-scale-val">4</span>
+                                    <span class="pl-scale-val">3</span>
                                     <button class="pl-scale-btn pl-scale-plus" type="button" aria-label="Increase font size">+</button>
                                 </span>
                             </div>
