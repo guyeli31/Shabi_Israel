@@ -56,6 +56,7 @@ export function buildHeaderTitles(meta) {
             label: t.type === 'world' ? 'World Champion' : 'National Champion',
             icon: CHAMP_ICON,
             tier: info.tier,
+            kind: 'champ',
             tooltip: getChampionshipTooltip(t),
         });
     }
@@ -66,11 +67,44 @@ export function buildHeaderTitles(meta) {
                 label: info.label,
                 icon: TIER_ICONS[info.tier] || '♛',
                 tier: info.tier,
+                kind: 'bmab',
                 tooltip: info.label,
             });
         }
     }
     return out;
+}
+
+/* Pick the best (most prestigious) tier per kind and assign solo / pair
+   positions for the giant tier-coloured watermark glyphs that sit behind
+   V12. Mirrors the lab's logic — bmab uses ⚜, champ uses ♛, both in
+   text-presentation form (︎) so iOS respects the tier alpha tint. */
+const _TIER_RANK = { gold: 0, silver: 1, bronze: 2, white: 3 };
+export function watermarkLayers(titles) {
+    if (!titles || titles.length === 0) return [];
+    const bestByKind = {};
+    for (const t of titles) {
+        const rank = _TIER_RANK[t.tier] ?? 99;
+        const cur = bestByKind[t.kind];
+        if (!cur || rank < cur.rank) bestByKind[t.kind] = { tier: t.tier, rank };
+    }
+    const layers = [];
+    if (bestByKind.bmab)  layers.push({ icon: '⚜︎', tier: bestByKind.bmab.tier,  kind: 'bmab' });
+    if (bestByKind.champ) layers.push({ icon: '♛︎', tier: bestByKind.champ.tier, kind: 'champ' });
+    if (layers.length === 1) {
+        layers[0].role = 'solo';
+    } else {
+        const primary = layers.find(l => l.kind === 'champ') || layers[0];
+        const secondary = layers.find(l => l !== primary);
+        primary.role = 'pair-1';
+        secondary.role = 'pair-2';
+    }
+    return layers;
+}
+export function cardTier(layers) {
+    if (!layers || layers.length === 0) return null;
+    const champ = layers.find(l => l.kind === 'champ');
+    return (champ || layers[0]).tier;
 }
 
 /**
@@ -199,8 +233,16 @@ export function renderV12Header(target, data) {
                 <div class="pg-v12-stat"><div class="pg-v12-statlbl">Leagues</div><div class="pg-v12-statnum">${data.leagueCount}</div></div>
             </div>`;
 
+    const layers = watermarkLayers(data.titles);
+    const watermarkHtml = layers.map(l =>
+        `<div class="pg-watermark-glyph pg-v12-watermark pg-role-${l.role} pg-wm-${l.tier}">${l.icon}</div>`
+    ).join('');
+    const ct = cardTier(layers);
+    const cardTierCls = ct ? ` pg-card-${ct}` : '';
+
     target.innerHTML = `
-        <div class="pg-v12-hero">
+        <div class="pg-v12-hero${cardTierCls}">
+            ${watermarkHtml}
             <div class="pg-v12-top">
                 ${titlesBlock}
                 <span class="pg-v12-statuschip ${statusVariantClass}" title="${escapeHtml(data.statusDotTitle || '')}">

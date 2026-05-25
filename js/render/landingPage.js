@@ -617,9 +617,9 @@ function renderInfoCards(container, activePlayers, totalPlayers, totalLeagues, l
             <div class="dash-card-label">Total Leagues</div>
             <div class="dash-card-value">${totalLeagues}</div>
         </div>
-        <div class="dash-card">
+        <div class="dash-card dash-card--flex">
             <div class="dash-card-label">Last Updated</div>
-            <div class="dash-card-value" style="font-size:1.1rem">${lastUpdatedStr}</div>
+            <div class="dash-card-value">${lastUpdatedStr}</div>
         </div>`;
 
     container.appendChild(section);

@@ -125,7 +125,6 @@
             border-radius: 3px;
             vertical-align: middle;
             flex-shrink: 0;
-            image-rendering: crisp-edges;
         }
 
         /* Chip pill used by V7 and V11 — tier-colour background.
@@ -1965,7 +1964,7 @@
            font-size via the `--pl-scale` CSS variable, so every em-based
            child element inside scales proportionally. */
         const SCALE_FACTORS = [0.7, 0.8, 0.9, 1.0, 1.15];
-        const HEADER_SCALES = { pg: 3, pl: 3, lhDash: 3, lhTable: 3 };
+        const HEADER_SCALES = { pg: 4, pl: 4, lhDash: 4, lhTable: 4 };
         function scaleFactor(key) { return SCALE_FACTORS[HEADER_SCALES[key] - 1]; }
 
         function getNavKey()    { return document.getElementById('pl-nav-select')?.value    || 'current'; }
@@ -2343,7 +2342,7 @@
                                 </select>
                                 <span class="pl-scale" data-pl-scale-target="pg" title="Adjust header font size (level 4 = current)">
                                     <button class="pl-scale-btn pl-scale-minus" type="button" aria-label="Decrease font size">−</button>
-                                    <span class="pl-scale-val">3</span>
+                                    <span class="pl-scale-val">4</span>
                                     <button class="pl-scale-btn pl-scale-plus" type="button" aria-label="Increase font size">+</button>
                                 </span>
                             </div>
@@ -2363,7 +2362,7 @@
                                 </select>
                                 <span class="pl-scale" data-pl-scale-target="pl" title="Adjust header font size (level 4 = current)">
                                     <button class="pl-scale-btn pl-scale-minus" type="button" aria-label="Decrease font size">−</button>
-                                    <span class="pl-scale-val">3</span>
+                                    <span class="pl-scale-val">4</span>
                                     <button class="pl-scale-btn pl-scale-plus" type="button" aria-label="Increase font size">+</button>
                                 </span>
                             </div>
@@ -2381,7 +2380,7 @@
                                 </select>
                                 <span class="pl-scale" data-pl-scale-target="lhDash" title="Adjust header font size (level 4 = current)">
                                     <button class="pl-scale-btn pl-scale-minus" type="button" aria-label="Decrease font size">−</button>
-                                    <span class="pl-scale-val">3</span>
+                                    <span class="pl-scale-val">4</span>
                                     <button class="pl-scale-btn pl-scale-plus" type="button" aria-label="Increase font size">+</button>
                                 </span>
                             </div>
@@ -2399,7 +2398,7 @@
                                 </select>
                                 <span class="pl-scale" data-pl-scale-target="lhTable" title="Adjust header font size (level 4 = current)">
                                     <button class="pl-scale-btn pl-scale-minus" type="button" aria-label="Decrease font size">−</button>
-                                    <span class="pl-scale-val">3</span>
+                                    <span class="pl-scale-val">4</span>
                                     <button class="pl-scale-btn pl-scale-plus" type="button" aria-label="Increase font size">+</button>
                                 </span>
                             </div>

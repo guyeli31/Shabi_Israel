@@ -52,6 +52,7 @@ export async function renderPlayerPage() {
         const { dotClass: statusDotClass, dotTitle: statusDotTitle } = computePlayerStatusDot({
             playerName, playerIndex, allParams,
             currentLeagueId: leagueId, currentParams: params,
+            currentLeaguePlayers: allPlayers,
             currentYear: CURRENT_YEAR
         });
 
@@ -182,12 +183,17 @@ function installPlayerLeagueNavArrows({ leagueId, playerName, currentType, playe
     (header.querySelector('#page-title') || header.querySelector('h1')).insertAdjacentElement('afterend', nav);
 }
 
-function computePlayerStatusDot({ playerName, playerIndex, allParams, currentLeagueId, currentParams, currentYear }) {
+function computePlayerStatusDot({ playerName, playerIndex, allParams, currentLeagueId, currentParams, currentLeaguePlayers, currentYear }) {
     const paramsById = new Map(allParams.map(({ id, params }) => [id, params]));
     paramsById.set(currentLeagueId, currentParams);
 
     const playerLeagueIds = new Set((playerIndex.get(playerName) || []).map(l => l.leagueId));
-    playerLeagueIds.add(currentLeagueId);
+    // Only count the current league if the player is actually in its
+    // roster — otherwise viewing a non-participant on a Running league
+    // would falsely report them as "Active in a running league".
+    if (currentLeaguePlayers?.has(playerName)) {
+        playerLeagueIds.add(currentLeagueId);
+    }
 
     let inRunning = false;
     let inCurrentYearLeague = false;

@@ -90,7 +90,7 @@
 }
 
 .dash-card-value {
-    font-size: clamp(0.85rem, 0.5rem + 1.6vw, 1.6rem);
+    font-size: clamp(0.595rem, 0.35rem + 1.12vw, 1.12rem);
     font-weight: 700;
     color: var(--color-text);
     line-height: 1.2;
