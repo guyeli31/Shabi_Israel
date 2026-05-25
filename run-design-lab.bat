@@ -2,11 +2,11 @@
 setlocal
 
 REM ============================================================
-REM  run-lab.bat — start the dev server (if needed) and open
-REM  the Player Page Lab in the default browser.
+REM  run-design-lab.bat — start the dev server (if needed) and open
+REM  the Design Lab in the default browser.
 REM ============================================================
 
-set "URL=http://localhost:8090/player-page-lab.html"
+set "URL=http://localhost:8090/design-lab.html"
 set "PROBE=http://localhost:8090/index.html"
 
 REM Probe whether http-server is already up on 8090.

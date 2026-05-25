@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Navigation Design Showcase — Shabi Israel</title>
+    <title>Design Catalogue — Shabi Israel</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Playfair+Display:ital,wght@0,700;1,500&display=swap" rel="stylesheet">
@@ -1202,6 +1202,437 @@
             text-transform: uppercase; letter-spacing: 1.2px;
             margin-top: 3px;
         }
+
+        /* ============================================================
+           LEAGUE PAGE HEADER SHOWCASE (V13–V17)
+           ------------------------------------------------------------
+           Five layouts for the league.html header. All variants share
+           the same fluid root font-size from design-lab.html
+              clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem)
+           and use em-relative sizing inside, so every child scales
+           linearly with viewport width.
+
+           The LEAGUE TYPE and Status "logos" are the same pills used
+           in production (.league-type-pill / .status-pill), inlined
+           here with their light-theme colour tokens so the showcase
+           is independent of the rest of the production CSS.
+           ============================================================ */
+
+        /* ---- Production pills (mirrors css/components.css) ---- */
+        .lph-type-pill {
+            display: inline-block;
+            padding: 0.15em 0.7em;
+            font-size: 0.72em;
+            font-weight: 600;
+            border-radius: 999px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            line-height: 1.5;
+            vertical-align: middle;
+        }
+        .lph-type-doubling { background: #dbeafe; color: #1e40af; }
+        .lph-type-regular  { background: #ccfbf1; color: #115e59; }
+        .lph-type-ubc      { background: #ede9fe; color: #5b21b6; }
+
+        .lph-status-pill {
+            display: inline-flex; align-items: center; gap: 0.4em;
+            padding: 0.18em 0.8em;
+            border-radius: 999px;
+            font-size: 0.72em; font-weight: 600;
+            letter-spacing: 0.3px;
+            vertical-align: middle;
+        }
+        .lph-status-running   { background: #d1fae5; color: #047857; }
+        .lph-status-completed { background: #f3f4f6; color: #4b5563; }
+        .lph-status-pill .dot {
+            width: 0.55em; height: 0.55em; border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 0.45em currentColor;
+        }
+        .lph-status-completed .dot { box-shadow: none; opacity: 0.7; }
+
+        /* ============================================================
+           V13 — LICHESS-STYLE HORIZONTAL TITLE BAR
+           Big league name on the left, pills on the right, meta row
+           with Started + Last updated beneath. Closest production fit.
+           ============================================================ */
+        .v13-card {
+            width: min(38em, 80vw);
+            font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
+        }
+        .v13-top {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 0.75em; flex-wrap: wrap;
+        }
+        .v13-name {
+            font-size: clamp(1.1em, 1em + 0.35vw, 1.4em);
+            font-weight: 700; color: var(--text);
+            letter-spacing: -0.01em;
+        }
+        .v13-pills { display: inline-flex; gap: 0.4em; flex-wrap: wrap; }
+        .v13-meta {
+            margin-top: 0.55em;
+            display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap;
+            font-size: 0.78em; color: var(--text-muted);
+        }
+        .v13-meta .sep { color: var(--text-dim); }
+        .v13-meta .label { color: var(--text-dim); }
+        .v13-meta .value { color: var(--text); font-weight: 500; }
+
+        /* ============================================================
+           V14 — STACKED CARD WITH CHIP ROW
+           Title row with inline status, second row gathers type + dates
+           as compact muted chips with subtle borders.
+           ============================================================ */
+        .v14-card {
+            width: min(36em, 80vw);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 0.75em;
+            padding: 1em 1.25em;
+            font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
+        }
+        .v14-row1 {
+            display: flex; align-items: center; gap: 0.6em;
+            flex-wrap: wrap;
+        }
+        .v14-name {
+            font-size: clamp(1.1em, 1em + 0.35vw, 1.4em);
+            font-weight: 700; color: var(--text);
+            letter-spacing: -0.01em; margin: 0;
+        }
+        .v14-row2 {
+            margin-top: 0.7em;
+            display: flex; align-items: center; gap: 0.4em;
+            flex-wrap: wrap;
+            font-size: 0.78em;
+        }
+        .v14-chip {
+            display: inline-flex; align-items: center; gap: 0.4em;
+            padding: 0.25em 0.65em;
+            background: var(--bg-elev);
+            border: 1px solid var(--border-soft);
+            border-radius: 0.4em;
+            color: var(--text-muted);
+        }
+        .v14-chip .ico { font-size: 1em; opacity: 0.8; }
+        .v14-chip strong { color: var(--text); font-weight: 600; }
+
+        /* ============================================================
+           V15 — FIDE PASSPORT CARD WITH KEY-VALUE GRID
+           Gold serif ribbon with the league title across the top, then
+           a dt/dd grid for Type / Status / Start / Last updated. Most
+           formal — feels like an ID document.
+           ============================================================ */
+        .v15-card {
+            width: min(34em, 80vw);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 0.7em;
+            overflow: hidden;
+            box-shadow: 0 0.5em 1.5em rgba(0,0,0,0.25);
+            font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
+        }
+        .v15-ribbon {
+            background: linear-gradient(90deg, #92400e, #fbbf24 50%, #92400e);
+            color: #2a1700;
+            font-family: "Playfair Display", Georgia, serif;
+            font-weight: 700;
+            font-size: clamp(1em, 0.9em + 0.3vw, 1.25em);
+            text-align: center;
+            padding: 0.5em 0.9em;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(0,0,0,0.25);
+        }
+        .v15-grid {
+            display: grid;
+            grid-template-columns: max-content 1fr;
+            column-gap: 1.25em; row-gap: 0.55em;
+            padding: 1em 1.25em 1.1em;
+            margin: 0;
+            font-size: 0.85em;
+        }
+        .v15-grid dt {
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font-size: 0.72em;
+            font-weight: 700;
+            align-self: center;
+        }
+        .v15-grid dd {
+            margin: 0;
+            color: var(--text);
+            font-weight: 500;
+            display: inline-flex; align-items: center; gap: 0.5em;
+            flex-wrap: wrap;
+        }
+
+        /* ============================================================
+           V16 — HERO BANNER WITH STAT TILES
+           Top ribbon with the type pill, big display title with status
+           chip beside, two stat tiles for Start + Last updated below.
+           Highest visual weight — best as the page-top "spotlight".
+           ============================================================ */
+        .v16-hero {
+            width: min(38em, 80vw);
+            padding: 1em 1.25em 1.1em;
+            background:
+                radial-gradient(ellipse at top right, rgba(212, 169, 66, 0.16), transparent 60%),
+                linear-gradient(135deg, #1c2230 0%, #131822 100%);
+            border: 1px solid rgba(212, 169, 66, 0.2);
+            border-radius: 0.7em;
+            font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
+        }
+        .v16-top {
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 0.6em; flex-wrap: wrap;
+            margin-bottom: 0.65em;
+        }
+        .v16-display {
+            margin: 0;
+            font-family: "Bebas Neue", "Impact", sans-serif;
+            font-size: clamp(1.3em, 1.05em + 0.7vw, 1.8em);
+            font-weight: 400;
+            letter-spacing: 0.05em;
+            color: var(--text);
+            line-height: 1.05;
+            display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap;
+        }
+        .v16-statgrid {
+            display: grid; grid-template-columns: repeat(2, 1fr);
+            gap: 0.5em;
+            margin-top: 0.85em;
+            padding-top: 0.75em;
+            border-top: 1px solid rgba(255,255,255,0.08);
+        }
+        .v16-stat { text-align: left; }
+        .v16-statlbl {
+            font-size: 0.62em; color: var(--text-dim);
+            text-transform: uppercase; letter-spacing: 0.14em;
+            margin-bottom: 0.2em;
+        }
+        .v16-statval {
+            font-size: 0.85em; font-weight: 700;
+            color: var(--accent);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ============================================================
+           V17 — MINIMAL SINGLE-LINE CAPSULE
+           Everything in one wide rounded pill: type, name, status,
+           start, last updated — separated by dots, wraps on narrow.
+           Smallest footprint — fits above a table without taking room.
+           ============================================================ */
+        .v17-line {
+            display: inline-flex; align-items: center; gap: 0.55em;
+            flex-wrap: wrap;
+            padding: 0.55em 1em;
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
+            max-width: 80vw;
+        }
+        .v17-name {
+            font-size: clamp(1em, 0.95em + 0.2vw, 1.15em);
+            font-weight: 700; color: var(--text);
+            letter-spacing: -0.005em;
+        }
+        .v17-sep { color: var(--text-dim); opacity: 0.6; }
+        .v17-meta { font-size: 0.78em; color: var(--text-muted); }
+        .v17-meta .label { color: var(--text-dim); margin-right: 0.25em; }
+
+        /* ============================================================
+           DASHBOARD 3-CARD LAYOUT SHOWCASE
+           Variants 18–22 — five modern arrangements for the three
+           dashboard summary cards (Games Played, Average PR, Leading
+           Player). The recommended long-name treatment (text-wrap:
+           balance + 2-line clamp) is baked into the .lc-name base so
+           every layout handles long usernames gracefully by default.
+           ============================================================ */
+        .lc-stage {
+            width: 100%;
+            container-type: inline-size;
+        }
+        .lc-card {
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: clamp(10px, 0.5rem + 0.8vw, 18px) clamp(8px, 0.4rem + 0.6vw, 16px);
+            text-align: center;
+            min-width: 0;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.18);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .lc-label {
+            font-size: clamp(0.55rem, 0.42rem + 0.45vw, 0.85rem);
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: clamp(2px, 0.1rem + 0.2vw, 6px);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .lc-value {
+            font-size: clamp(0.85rem, 0.5rem + 1.6vw, 1.6rem);
+            font-weight: 700;
+            color: var(--text);
+            line-height: 1.2;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3em;
+            max-width: 100%;
+        }
+        .lc-value .il-flag {
+            width: 1.4em;
+            height: 1em;
+            flex: 0 0 auto;
+        }
+        /* Leader name uses the "recommended" treatment universally:
+           text-wrap: balance + 2-line clamp. Other cards inherit too,
+           harmless for short numeric values. */
+        .lc-name {
+            color: var(--info);
+            min-width: 0;
+            text-wrap: balance;
+            overflow-wrap: anywhere;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            line-height: 1.15;
+        }
+        .lc-card.lc-numeric .lc-name {
+            color: var(--text);
+        }
+
+        /* ===== V18 — Equal grid (production baseline) ===== */
+        .lc-stage.lay-equal {
+            display: grid;
+            grid-auto-flow: column;
+            grid-auto-columns: 1fr;
+            gap: clamp(6px, 0.3rem + 0.6vw, 16px);
+        }
+
+        /* ===== V19 — Asymmetric hero: Leader card gets 2× width ===== */
+        .lc-stage.lay-hero {
+            display: grid;
+            grid-template-columns: 1fr 1fr 2fr;
+            gap: clamp(6px, 0.3rem + 0.6vw, 16px);
+        }
+        .lc-stage.lay-hero .lc-card.lc-leader {
+            background: linear-gradient(135deg,
+                rgba(212, 169, 66, 0.10), rgba(212, 169, 66, 0.02));
+            border-color: var(--accent-line);
+        }
+        .lc-stage.lay-hero .lc-card.lc-leader .lc-label { color: var(--accent); }
+
+        /* ===== V20 — Bento mosaic: leader tall on right, two stacked left ===== */
+        .lc-stage.lay-bento {
+            display: grid;
+            grid-template-columns: 1fr 1.3fr;
+            grid-template-rows: 1fr 1fr;
+            gap: clamp(6px, 0.3rem + 0.6vw, 14px);
+            min-height: 9em;
+        }
+        .lc-stage.lay-bento .lc-card:nth-child(1) { grid-column: 1; grid-row: 1; }
+        .lc-stage.lay-bento .lc-card:nth-child(2) { grid-column: 1; grid-row: 2; }
+        .lc-stage.lay-bento .lc-card.lc-leader {
+            grid-column: 2; grid-row: 1 / span 2;
+            justify-content: center;
+            background:
+                radial-gradient(circle at 100% 0%, rgba(212, 169, 66, 0.18), transparent 55%),
+                var(--bg-elev);
+            border-color: var(--accent-line);
+        }
+        .lc-stage.lay-bento .lc-card.lc-leader .lc-value {
+            font-size: clamp(1rem, 0.6rem + 2vw, 2rem);
+        }
+
+        /* ===== V21 — Pill rail: borderless inline stats with dot separators ===== */
+        .lc-stage.lay-pill {
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            gap: clamp(0.6em, 1cqi, 1.2em);
+            padding: clamp(0.7em, 0.5em + 0.8vw, 1.2em) clamp(0.9em, 0.6em + 1vw, 1.6em);
+            background: linear-gradient(135deg, var(--bg-elev), var(--bg-card));
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+        }
+        .lc-stage.lay-pill .lc-card {
+            background: transparent;
+            border: none;
+            padding: 0;
+            box-shadow: none;
+            flex: 1 1 0;
+            min-width: 0;
+            position: relative;
+            text-align: center;
+        }
+        .lc-stage.lay-pill .lc-card + .lc-card::before {
+            content: '';
+            position: absolute;
+            left: calc(-0.5 * clamp(0.6em, 1cqi, 1.2em));
+            top: 50%; transform: translateY(-50%);
+            width: 4px; height: 4px;
+            border-radius: 50%;
+            background: var(--border);
+        }
+        .lc-stage.lay-pill .lc-label {
+            font-size: clamp(0.5rem, 0.38rem + 0.4vw, 0.72rem);
+        }
+        .lc-stage.lay-pill .lc-value {
+            font-size: clamp(0.8rem, 0.45rem + 1.4vw, 1.35rem);
+        }
+
+        /* ===== V22 — Aurora glass: translucent cards over a gradient backdrop ===== */
+        .lc-stage.lay-aurora {
+            display: grid;
+            grid-auto-flow: column;
+            grid-auto-columns: 1fr;
+            gap: clamp(8px, 0.4rem + 0.7vw, 16px);
+            padding: clamp(14px, 0.6rem + 1vw, 24px);
+            border-radius: 18px;
+            background:
+                radial-gradient(circle at 18% 28%, rgba(212, 169, 66, 0.22), transparent 55%),
+                radial-gradient(circle at 82% 72%, rgba(88, 166, 255, 0.20), transparent 55%),
+                radial-gradient(circle at 60% 110%, rgba(63, 185, 80, 0.12), transparent 55%),
+                linear-gradient(135deg, #161b22, #0f1217);
+        }
+        .lc-stage.lay-aurora .lc-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(18px) saturate(140%);
+            -webkit-backdrop-filter: blur(18px) saturate(140%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow:
+                inset 0 1px 0 rgba(255,255,255,0.08),
+                0 8px 24px rgba(0,0,0,0.25);
+            position: relative;
+            overflow: hidden;
+        }
+        .lc-stage.lay-aurora .lc-card::after {
+            content: '';
+            position: absolute;
+            inset: auto 0 0 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            opacity: 0.55;
+        }
+        .lc-stage.lay-aurora .lc-card.lc-leader::after {
+            background: linear-gradient(90deg, transparent, var(--info), transparent);
+            opacity: 0.8;
+        }
+        .lc-stage.lay-aurora .lc-label {
+            color: rgba(230, 237, 243, 0.65);
+        }
     </style>
 </head>
 <body>
@@ -1794,6 +2225,351 @@
                 <div class="caption">
                     <p>Tier-colored linear gradient with a soft diagonal shine across the top-left — reads as a metallic award badge. Most "celebratory" of the six.</p>
                     <div class="tradeoff"><strong>Tradeoff</strong>Heaviest treatment — best reserved for headline tables (e.g. season leaderboard) where titles are the visual highlight.</div>
+                </div>
+            </article>
+
+        </div>
+
+        <!-- ============================================================
+             LEAGUE PAGE HEADER SHOWCASE
+             ============================================================ -->
+        <header class="section-divider">
+            <div class="eyebrow">League Page Header</div>
+            <h2>Five layouts for the league page top-strip</h2>
+            <p class="subtitle">Same five data points — league name, league type pill, start date, status pill, last-updated timestamp — rendered in five different idioms. Every variant uses the same fluid root <code style="background:var(--bg-elev);padding:1px 5px;border-radius:3px;font-size:0.85em">font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem)</code> from <code style="background:var(--bg-elev);padding:1px 5px;border-radius:3px;font-size:0.85em">design-lab.html</code>, with every child in <code style="background:var(--bg-elev);padding:1px 5px;border-radius:3px;font-size:0.85em">em</code> units so the whole header scales linearly with viewport width. The type and status pills are the actual production components.</p>
+        </header>
+
+        <div class="grid">
+
+            <!-- ===== V13 — LICHESS-STYLE HORIZONTAL TITLE BAR ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">13</span>
+                        <span class="variant-title">Lichess-style title bar — name + pills, meta below</span>
+                    </div>
+                    <span class="tag chess">Closest production fit</span>
+                </div>
+                <div class="stage tall">
+                    <div class="v13-card">
+                        <div class="v13-top">
+                            <span class="v13-name">April 2026</span>
+                            <span class="v13-pills">
+                                <span class="lph-type-pill lph-type-doubling">Doubling</span>
+                                <span class="lph-status-pill lph-status-running"><span class="dot"></span>Running</span>
+                            </span>
+                        </div>
+                        <div class="v13-meta">
+                            <span class="label">Started</span><span class="value">1 Apr 2026</span>
+                            <span class="sep">·</span>
+                            <span class="label">Last updated</span><span class="value">14 Apr 2026, 16:06</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>League name as a clamped heading on the left, type + status pills floated right. The meta line beneath holds Started + Last updated separated by a middle dot. Wraps gracefully — pills drop under the title on narrow screens.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Two-line layout costs vertical space versus the single-line capsule.</div>
+                </div>
+            </article>
+
+            <!-- ===== V14 — STACKED CARD WITH CHIP ROW ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">14</span>
+                        <span class="variant-title">Stacked card — title row, then meta-chip row</span>
+                    </div>
+                    <span class="tag">Compact</span>
+                </div>
+                <div class="stage tall">
+                    <div class="v14-card">
+                        <div class="v14-row1">
+                            <h3 class="v14-name">January 2026</h3>
+                            <span class="lph-status-pill lph-status-completed"><span class="dot"></span>Completed</span>
+                        </div>
+                        <div class="v14-row2">
+                            <span class="lph-type-pill lph-type-regular">Regular</span>
+                            <span class="v14-chip"><span class="ico">📅</span> Started <strong>1 Jan 2026</strong></span>
+                            <span class="v14-chip"><span class="ico">🕒</span> Updated <strong>14 Apr 2026, 16:06</strong></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>League name sits next to the status pill on the first row. The second row is a chip rail — type pill plus two outlined date chips with tiny calendar / clock glyphs. Reads quickly and the chip row line-wraps cleanly on phones.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Three coloured pills + two outlined chips can feel busy on simple themes.</div>
+                </div>
+            </article>
+
+            <!-- ===== V15 — FIDE PASSPORT CARD ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">15</span>
+                        <span class="variant-title">FIDE passport — gold ribbon + key-value grid</span>
+                    </div>
+                    <span class="tag chess">Most formal</span>
+                </div>
+                <div class="stage tall">
+                    <div class="v15-card">
+                        <div class="v15-ribbon">UBC Summer 2026</div>
+                        <dl class="v15-grid">
+                            <dt>Type</dt>
+                            <dd><span class="lph-type-pill lph-type-ubc">UBC</span></dd>
+                            <dt>Status</dt>
+                            <dd><span class="lph-status-pill lph-status-running"><span class="dot"></span>Running</span></dd>
+                            <dt>Start date</dt>
+                            <dd>1 Jun 2026</dd>
+                            <dt>Last updated</dt>
+                            <dd>14 Apr 2026, 16:06</dd>
+                        </dl>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>League name across the top in a gold Playfair-Display ribbon, then a 2-column dt/dd grid presents each field with an uppercase tracked label. Each value can host a pill or plain text. The most "document" of the five — reads like an ID card.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Tallest layout — best for the dashboard hero, overkill for a quick table page.</div>
+                </div>
+            </article>
+
+            <!-- ===== V16 — HERO BANNER ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">16</span>
+                        <span class="variant-title">Hero banner — display title + stat tiles</span>
+                    </div>
+                    <span class="tag chess">Spotlight</span>
+                </div>
+                <div class="stage tall">
+                    <div class="v16-hero">
+                        <div class="v16-top">
+                            <span class="lph-type-pill lph-type-doubling">Doubling</span>
+                            <span class="lph-status-pill lph-status-running"><span class="dot"></span>Running</span>
+                        </div>
+                        <h2 class="v16-display">May 2026</h2>
+                        <div class="v16-statgrid">
+                            <div class="v16-stat">
+                                <div class="v16-statlbl">Start Date</div>
+                                <div class="v16-statval">1 May 2026</div>
+                            </div>
+                            <div class="v16-stat">
+                                <div class="v16-statlbl">Last Updated</div>
+                                <div class="v16-statval">14 Apr 2026, 16:06</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>Type pill top-left, status pill top-right, then the league name in oversized Bebas Neue display type. Two stat tiles below with uppercase labels and accent-coloured values. Highest visual weight of the five.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Display type is dramatic — only suits the marquee league page, not embedded contexts.</div>
+                </div>
+            </article>
+
+            <!-- ===== V17 — MINIMAL SINGLE-LINE CAPSULE ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">17</span>
+                        <span class="variant-title">Minimal capsule — everything on one line</span>
+                    </div>
+                    <span class="tag">Smallest footprint</span>
+                </div>
+                <div class="stage tall">
+                    <div class="v17-line">
+                        <span class="lph-type-pill lph-type-doubling">Doubling</span>
+                        <span class="v17-name">March 2026</span>
+                        <span class="lph-status-pill lph-status-completed"><span class="dot"></span>Completed</span>
+                        <span class="v17-sep">·</span>
+                        <span class="v17-meta"><span class="label">Started</span>1 Mar 2026</span>
+                        <span class="v17-sep">·</span>
+                        <span class="v17-meta"><span class="label">Updated</span>14 Apr 2026, 16:06</span>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>One wide rounded pill carrying all five fields in reading order: type, name, status, then meta dates separated by dots. Wraps onto extra lines on narrow screens. The least-vertical option — works above any table.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>On very narrow viewports the wrap can produce 3+ lines, undoing the "minimal" feel.</div>
+                </div>
+            </article>
+
+        </div>
+
+        <!-- ============================================================
+             DASHBOARD 3-CARD LAYOUT SHOWCASE
+             ============================================================ -->
+        <header class="section-divider">
+            <div class="eyebrow">League Dashboard · 3-Card Strip</div>
+            <h2>Five layouts for the dashboard summary cards</h2>
+            <p class="subtitle">Same three data points — <em>Games Played</em>, <em>Average PR</em>, <em>Leading Player</em> — rendered five different ways above the league dashboard. Equal columns, asymmetric hero, bento mosaic, capsule pill rail, and aurora-glass tiles. Each layout uses the recommended long-name treatment (<code style="background:var(--bg-elev);padding:1px 5px;border-radius:3px;font-size:0.85em">text-wrap: balance</code> + 2-line clamp) so a player called <em>JonathanBenJaminWaltheimer2026</em> stays legible in every variant. Narrow the browser to see how each layout behaves at mobile widths.</p>
+        </header>
+
+        <div class="grid">
+
+            <!-- ===== V18 — EQUAL GRID (production baseline) ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">18</span>
+                        <span class="variant-title">Equal grid — three columns, fluid sizing</span>
+                    </div>
+                    <span class="tag">Baseline · in production</span>
+                </div>
+                <div class="stage tall">
+                    <div class="lc-stage lay-equal">
+                        <div class="lc-card lc-numeric">
+                            <div class="lc-label">Games Played</div>
+                            <div class="lc-value"><span class="lc-name">300 / 300</span></div>
+                        </div>
+                        <div class="lc-card lc-numeric">
+                            <div class="lc-label">Average PR</div>
+                            <div class="lc-value"><span class="lc-name">10.02</span></div>
+                        </div>
+                        <div class="lc-card lc-leader">
+                            <div class="lc-label">Leading Player</div>
+                            <div class="lc-value">
+                                <span class="il-flag"></span>
+                                <span class="lc-name">JonathanBenJaminWaltheimer2026</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>Three equal columns filling the dashboard container width. Calm, symmetric, and the easiest to scan — no card outranks another visually. Card height auto-grows to accommodate the wrapped leader name; PR and Games values centre vertically.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>No visual hierarchy — the Leading Player (the only "story" of the three) reads with the same weight as a static count.</div>
+                </div>
+            </article>
+
+            <!-- ===== V19 — ASYMMETRIC HERO ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">19</span>
+                        <span class="variant-title">Asymmetric hero — Leading Player gets 2× width</span>
+                    </div>
+                    <span class="tag chess">Hierarchy</span>
+                </div>
+                <div class="stage tall">
+                    <div class="lc-stage lay-hero">
+                        <div class="lc-card lc-numeric">
+                            <div class="lc-label">Games Played</div>
+                            <div class="lc-value"><span class="lc-name">300 / 300</span></div>
+                        </div>
+                        <div class="lc-card lc-numeric">
+                            <div class="lc-label">Average PR</div>
+                            <div class="lc-value"><span class="lc-name">10.02</span></div>
+                        </div>
+                        <div class="lc-card lc-leader">
+                            <div class="lc-label">Leading Player</div>
+                            <div class="lc-value">
+                                <span class="il-flag"></span>
+                                <span class="lc-name">JonathanBenJaminWaltheimer2026</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>Two narrow stat columns on the left (1fr each), Leading Player as a 2fr hero on the right with a soft gold tint and accent border. Reads left-to-right as "context → headline". Long names rarely have to wrap because the hero card is wide enough; when they do, the wrap reads naturally.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Picks a single "important" card by default — feels off when the leader's name is short and unremarkable.</div>
+                </div>
+            </article>
+
+            <!-- ===== V20 — BENTO MOSAIC ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">20</span>
+                        <span class="variant-title">Bento mosaic — leader as a tall right-side tile</span>
+                    </div>
+                    <span class="tag chess">Most distinctive</span>
+                </div>
+                <div class="stage tall">
+                    <div class="lc-stage lay-bento">
+                        <div class="lc-card lc-numeric">
+                            <div class="lc-label">Games Played</div>
+                            <div class="lc-value"><span class="lc-name">300 / 300</span></div>
+                        </div>
+                        <div class="lc-card lc-numeric">
+                            <div class="lc-label">Average PR</div>
+                            <div class="lc-value"><span class="lc-name">10.02</span></div>
+                        </div>
+                        <div class="lc-card lc-leader">
+                            <div class="lc-label">Leading Player</div>
+                            <div class="lc-value">
+                                <span class="il-flag"></span>
+                                <span class="lc-name">JonathanBenJaminWaltheimer2026</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>Apple-Bento mosaic: two stat tiles stacked on the left, Leading Player as a tall portrait tile on the right with a corner gradient and a larger value font. The leader effectively becomes the dashboard's hero photo without taking the full strip height. Highest perceived "design quality" of the five.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Two rows tall — costs more vertical space than the single-row layouts. Better for the desktop dashboard hero than for an embedded mini-card.</div>
+                </div>
+            </article>
+
+            <!-- ===== V21 — PILL RAIL ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">21</span>
+                        <span class="variant-title">Pill rail — borderless capsule with dot separators</span>
+                    </div>
+                    <span class="tag">Smallest footprint</span>
+                </div>
+                <div class="stage tall">
+                    <div class="lc-stage lay-pill">
+                        <div class="lc-card lc-numeric">
+                            <div class="lc-label">Games Played</div>
+                            <div class="lc-value"><span class="lc-name">300 / 300</span></div>
+                        </div>
+                        <div class="lc-card lc-numeric">
+                            <div class="lc-label">Average PR</div>
+                            <div class="lc-value"><span class="lc-name">10.02</span></div>
+                        </div>
+                        <div class="lc-card lc-leader">
+                            <div class="lc-label">Leading Player</div>
+                            <div class="lc-value">
+                                <span class="il-flag"></span>
+                                <span class="lc-name">JonathanBenJaminWaltheimer2026</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>The three stats collapse into one rounded capsule — no per-card borders, just micro-dot separators between segments. Reads like a single Stripe / Vercel header strip. Vertical footprint cut roughly in half versus the boxy layouts.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Less affordance that each segment is a "card" — users may not realise the leader name is clickable.</div>
+                </div>
+            </article>
+
+            <!-- ===== V22 — AURORA GLASS ===== -->
+            <article class="variant">
+                <div class="variant-meta">
+                    <div class="variant-num">
+                        <span class="num">22</span>
+                        <span class="variant-title">Aurora glass — translucent tiles over a gradient backdrop</span>
+                    </div>
+                    <span class="tag dev">Most expressive</span>
+                </div>
+                <div class="stage tall">
+                    <div class="lc-stage lay-aurora">
+                        <div class="lc-card lc-numeric">
+                            <div class="lc-label">Games Played</div>
+                            <div class="lc-value"><span class="lc-name">300 / 300</span></div>
+                        </div>
+                        <div class="lc-card lc-numeric">
+                            <div class="lc-label">Average PR</div>
+                            <div class="lc-value"><span class="lc-name">10.02</span></div>
+                        </div>
+                        <div class="lc-card lc-leader">
+                            <div class="lc-label">Leading Player</div>
+                            <div class="lc-value">
+                                <span class="il-flag"></span>
+                                <span class="lc-name">JonathanBenJaminWaltheimer2026</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="caption">
+                    <p>Frosted-glass tiles sit on an aurora gradient backdrop (gold + blue + green radial blobs). A thin coloured underline at the bottom of each tile marks its category — gold-ish for stats, blue for the leader. The most "designed" of the five; pairs well with a vegas / casino theme.</p>
+                    <div class="tradeoff"><strong>Tradeoff</strong>Decorative — the backdrop competes with the surrounding page chrome and can clash with light themes. Backdrop-filter blur has a real GPU cost on low-end devices.</div>
                 </div>
             </article>
 

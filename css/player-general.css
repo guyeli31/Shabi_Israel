@@ -27,7 +27,305 @@
     padding: 8px 0;
 }
 
-/* Header */
+/* ============================================
+   HEADER — "V7" Lichess-enriched horizontal card
+   (Player Page Lab)
+   - Avatar (round, 4.5em) with status-dot overlay bottom-right.
+   - Name line: flag · name · title chips.
+   - Meta line: fullname · Joined Mon YYYY · N leagues.
+   - Root font-size scales linearly with viewport (matches the
+     production tables' clamp pattern); everything inside is em-relative
+     so the in-card proportions hold from phone to desktop.
+   ============================================ */
+#page-title:has(.pg-v7-card),
+#page-title:has(.pg-v12-hero) {
+    /* Strip h1's default block styling when one of the header
+       cards is inside it. */
+    font-size: 1rem;
+    font-weight: normal;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+}
+
+/* ───────────────────────────── V12 — Hero banner ────────────────────
+   Used on player_general.html. Title ribbons (Bebas Neue, gold/silver/
+   bronze gradients) on the left + status chip on the right, then a
+   rounded-square photo + Bebas display name, then a 2-col stat grid
+   (Joined / Leagues) below a thin separator. Tier-coloured ribbons
+   share the same .pg-tier-X tokens used by other surfaces. */
+.pg-v12-hero {
+    display: inline-block;          /* shrink-to-fit so .page-header centres it */
+    width: min(35em, 80vw);
+    padding: 1.125em 1.375em;
+    background:
+        radial-gradient(ellipse at top right, rgba(212, 169, 66, 0.16), transparent 65%),
+        var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 0.75em;
+    box-shadow: var(--shadow-md);
+    text-align: left;
+    font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
+}
+.pg-v12-top {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 0.625em;
+    margin-bottom: 0.875em;
+    flex-wrap: wrap;
+}
+.pg-v12-titles-row { display: flex; gap: 0.4em; flex-wrap: wrap; }
+.pg-v12-titleribbon {
+    display: inline-flex; align-items: center; gap: 0.55em;
+    font-family: "Bebas Neue", "Impact", "Arial Narrow", sans-serif;
+    font-size: 0.82em; letter-spacing: 0.18em;
+    background: linear-gradient(90deg, #d4a942, #fbbf24);
+    color: #2a1c00;
+    padding: 0.35em 0.875em;
+    border-radius: 0.2em; font-weight: 400;
+}
+.pg-v12-titleribbon.pg-tier-silver { background: linear-gradient(90deg, #94a3b8, #cbd5e1); color: #1e293b; }
+.pg-v12-titleribbon.pg-tier-bronze { background: linear-gradient(90deg, #d97706, #f59e0b); color: #451a03; }
+.pg-v12-titleribbon.pg-tier-white  { background: linear-gradient(90deg, #cbd5e1, #f8fafc); color: #475569; }
+.pg-v12-titleicon { font-size: 1em; }
+
+/* Status chip — mirrors V16's status pill so Running / This year /
+   Inactive read at the same scale on all hero surfaces. */
+.pg-v12-statuschip {
+    display: inline-flex; align-items: center; gap: 0.4em;
+    font-size: 0.72em;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1.5;
+    padding: 0.18em 0.8em;
+    border-radius: 999px;
+    background: var(--color-running-bg);
+    color: var(--color-running);
+}
+.pg-v12-statuschip.orange {
+    background: rgba(245, 158, 11, 0.18);
+    color: #b45309;
+}
+.pg-v12-statuschip.gray {
+    background: var(--color-completed-bg);
+    color: var(--color-completed);
+}
+.pg-v12-statuschip .pg-v12-dot {
+    width: 0.55em; height: 0.55em; border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 0.45em currentColor;
+}
+.pg-v12-statuschip.gray .pg-v12-dot { box-shadow: none; opacity: 0.7; }
+
+.pg-v12-bodyrow {
+    display: flex; align-items: center; gap: 1em;
+    margin-bottom: 1em;
+    flex-wrap: wrap;
+}
+.pg-v12-photo {
+    width: 3.875em; height: 3.875em;
+    border-radius: 0.75em;
+    background: linear-gradient(135deg, var(--color-text-muted), var(--color-text-secondary));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.375em; font-weight: 800;
+    color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+.pg-v12-photo-img {
+    width: 3.875em; height: 3.875em;
+    border-radius: 0.75em; object-fit: cover;
+    border: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+.pg-v12-display {
+    margin: 0;
+    font-family: "Bebas Neue", "Impact", sans-serif;
+    font-size: clamp(1.3em, 1.05em + 0.7vw, 1.8em);
+    font-weight: 400;
+    letter-spacing: 0.05em;
+    color: var(--color-text);
+    line-height: 1.05;
+    display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap;
+}
+.pg-v12-name-link {
+    color: inherit;
+    text-decoration: none;
+}
+.pg-v12-name-link:hover { text-decoration: underline; }
+.pg-v12-flag {
+    display: inline-block;
+    height: 1em;
+    width: auto;
+    border-radius: 3px;
+    vertical-align: middle;
+    image-rendering: crisp-edges;
+}
+.pg-v12-real {
+    margin-top: 0.4em;
+    font-size: 0.85em;
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+.pg-v12-statgrid {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 0.5em;
+    margin-top: 0.85em;
+    padding-top: 0.75em;
+    border-top: 1px solid var(--color-border);
+}
+.pg-v12-stat { text-align: left; }
+.pg-v12-statlbl {
+    font-size: 0.62em; color: var(--color-text-muted);
+    text-transform: uppercase; letter-spacing: 0.14em;
+    margin-bottom: 0.2em;
+}
+.pg-v12-statnum {
+    font-size: 0.85em; font-weight: 700;
+    color: var(--color-accent);
+    font-variant-numeric: tabular-nums;
+}
+.pg-v7-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 1.125em;
+    text-align: left;
+    max-width: 80vw;
+    font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
+    color: var(--color-text);
+}
+
+/* Avatar + status-dot overlay */
+.pg-v7-avatar-wrap { position: relative; flex-shrink: 0; }
+.pg-v7-avatar,
+.pg-v7-avatar-img {
+    width: 4.5em;
+    height: 4.5em;
+    border-radius: 50%;
+    border: 2px solid var(--color-accent);
+    display: block;
+}
+.pg-v7-avatar {
+    background: linear-gradient(135deg, var(--color-text-muted), var(--color-text-secondary));
+    color: var(--color-surface);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25em;
+    font-weight: 700;
+    font-family: "Playfair Display", Georgia, serif;
+}
+.pg-v7-avatar-img { object-fit: cover; }
+.pg-v7-dot-wrap {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 0.95em;
+    height: 0.95em;
+    border-radius: 50%;
+    border: 2.5px solid var(--color-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface);
+    cursor: help;
+    outline: none;
+}
+.pg-v7-dot-wrap > .pg-dot {
+    width: 100%;
+    height: 100%;
+}
+.pg-v7-dot-wrap::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 8px);
+    transform: translateX(-50%);
+    background: rgba(20, 24, 33, 0.95);
+    color: #f3f4f6;
+    font-size: 0.7em;
+    line-height: 1.3;
+    padding: 0.4em 0.6em;
+    border-radius: 0.4em;
+    white-space: nowrap;
+    box-shadow: 0 0.25em 0.75em rgba(0,0,0,0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+    z-index: 1000;
+}
+.pg-v7-dot-wrap:hover::after,
+.pg-v7-dot-wrap:focus::after {
+    opacity: 1;
+}
+
+.pg-v7-info { min-width: 0; }
+.pg-v7-name-line {
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+    flex-wrap: wrap;
+}
+.pg-v7-flag {
+    display: inline-block;
+    height: 1.4em;
+    width: auto;
+    border-radius: 3px;
+    vertical-align: middle;
+    flex-shrink: 0;
+    image-rendering: crisp-edges;
+}
+.pg-v7-name {
+    font-size: clamp(1.1em, 1em + 0.35vw, 1.4em);
+    font-weight: 700;
+    color: var(--color-text);
+    letter-spacing: -0.01em;
+}
+.pg-v7-realname {
+    font-style: italic;
+}
+.pg-v7-name-link {
+    color: var(--color-text);
+    text-decoration: none;
+}
+.pg-v7-name-link:hover {
+    color: var(--color-accent);
+    text-decoration: underline;
+}
+
+/* Title chips next to the name — small gradient pill with crown icon.
+   Tier drives the background colour. */
+.pg-v7-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    font-size: 0.7em;
+    font-weight: 700;
+    padding: 0.25em 0.7em;
+    border-radius: 0.4em;
+    font-family: -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+    white-space: nowrap;
+}
+.pg-v7-chip-icon { font-size: 1.1em; line-height: 1; }
+.pg-v7-tier-gold   { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #4a2700; box-shadow: 0 1px 4px rgba(245,158,11,0.25); }
+.pg-v7-tier-silver { background: linear-gradient(135deg, #94a3b8, #cbd5e1); color: #1e293b; }
+.pg-v7-tier-bronze { background: linear-gradient(135deg, #d97706, #f59e0b); color: #451a03; }
+.pg-v7-tier-white  { background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; }
+
+.pg-v7-meta {
+    margin-top: 0.4em;
+    font-size: 0.85em;
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    flex-wrap: wrap;
+}
+.pg-v7-sep { color: var(--color-text-muted); opacity: 0.4; }
+.pg-v7-leagues { color: var(--color-accent); font-weight: 600; }
+
+/* Legacy header (.pg-header-row, .pg-name-line, etc.) is no longer
+   emitted by the header renderers — its rules remain below as inert. */
 .pg-player-name {
     vertical-align: middle;
 }

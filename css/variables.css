@@ -82,8 +82,9 @@
     /* Unplayed */
     --color-unplayed-bg: #fafafa;
 
-    /* Navigation */
-    --nav-height: 48px;
+    /* Navigation — tracks the natural bar height (font * line-height + 2*0.6em padding).
+       48px floor matches the original at narrow viewports; grows ~10px at 1440+ widths. */
+    --nav-height: clamp(48px, calc(0.93vw + 44.7px), 58px);
 
     /* Color scale filter (for theme adaptation of inline colors) */
     --color-scale-filter: none;

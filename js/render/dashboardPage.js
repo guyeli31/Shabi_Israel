@@ -24,6 +24,7 @@ import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { startSplash, endSplash } from '../utils/splash.js';
+import { buildLeagueHeaderData, renderV16Header } from './leagueHeader.js';
 
 export async function renderDashboardPage() {
     const container = document.getElementById('content');
@@ -58,17 +59,13 @@ export async function renderDashboardPage() {
         } catch { allParams = []; }
 
         const title = params.LeagueTitle || leagueId;
-        document.getElementById('page-title').textContent = `${title}`;
         document.title = `${title} — Dashboard`;
 
-        // Status pill — inline after title text
-        const titleEl = document.getElementById('page-title');
-        const statusSpan = document.createElement('span');
-        statusSpan.style.cssText = 'margin-left:10px;vertical-align:middle;font-size:0.75rem;';
-        statusSpan.innerHTML = params.Running
-            ? '<span class="status-pill status-running">Running</span>'
-            : '<span class="status-pill status-completed">Completed</span>';
-        titleEl.appendChild(statusSpan);
+        // V16 hero banner header (production default for the dashboard).
+        renderV16Header(
+            document.getElementById('page-title'),
+            buildLeagueHeaderData(params, lastModified),
+        );
 
         // Breadcrumbs
         renderBreadcrumbs([
@@ -203,7 +200,7 @@ function installLeagueNavArrows(leagueId, allParams, currentType) {
         <a class="nav-arrow ${prev ? '' : 'disabled'}" ${prev ? `href="${dashboardUrl(prev)}" title="Previous league: ${prev}"` : 'title="No previous league"'}>&lsaquo;</a>
         <a class="nav-arrow ${next ? '' : 'disabled'}" ${next ? `href="${dashboardUrl(next)}" title="Next league: ${next}"` : 'title="No next league"'}>&rsaquo;</a>
     `;
-    header.querySelector('h1').insertAdjacentElement('afterend', nav);
+    (header.querySelector('#page-title') || header.querySelector('h1')).insertAdjacentElement('afterend', nav);
 }
 
 function renderShell() {
@@ -358,26 +355,15 @@ function renderSummaryCards(ctx) {
         leaderHtml = `${leaderHidden ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}" style="vertical-align:middle">`} ${playerNameLink(leader.player, ctx.playersMeta[leader.player])}`;
     }
     const avgPR = averages && averages.meanPR != null ? formatNumber(averages.meanPR) : 'N/A';
-    const startDate = params.StartDate
-        ? new Date(params.StartDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-        : 'N/A';
-
-    const typeLabels = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
-    const typeLabel = typeLabels[params.LeagueType] || (params.LeagueType || 'Doubling');
-
     const cards = [
-        { label: 'League Type', value: typeLabel },
         { label: 'Games Played', value: `${matchStats.playedMatches} / ${matchStats.totalMatches}` }
     ];
     if (leagueConfig.showPR) cards.push({ label: 'Average PR', value: avgPR });
-    cards.push(
-        { label: 'Leading Player', value: leaderHtml },
-        { label: 'Start Date', value: startDate }
-    );
+    cards.push({ label: 'Leading Player', value: leaderHtml, flex: true });
 
     const cardsHost = document.getElementById('dash-cards');
     cardsHost.innerHTML = cards.map(c => `
-        <div class="dash-card">
+        <div class="dash-card${c.flex ? ' dash-card--flex' : ''}">
             <div class="dash-card-label">${c.label}</div>
             <div class="dash-card-value">${c.value}</div>
         </div>
@@ -413,9 +399,11 @@ function renderPrizes(ctx) {
     section.style.display = '';
 
     const entryFee = params.EntryFee != null ? params.EntryFee : '—';
+    const goldCount = params.GoldCount ?? 1;
+    const silverCount = params.SilverCount ?? 1;
     const rows = [];
-    if (params.GoldCount) rows.push({ medal: '🥇', tier: 'Gold', count: params.GoldCount, prize: prizes.Gold != null ? `₪${prizes.Gold.toLocaleString()}` : '—' });
-    if (params.SilverCount) rows.push({ medal: '🥈', tier: 'Silver', count: params.SilverCount, prize: prizes.Silver != null ? `₪${prizes.Silver.toLocaleString()}` : '—' });
+    if (goldCount) rows.push({ medal: '🥇', tier: 'Gold', count: goldCount, prize: prizes.Gold != null ? `₪${prizes.Gold.toLocaleString()}` : '—' });
+    if (silverCount) rows.push({ medal: '🥈', tier: 'Silver', count: silverCount, prize: prizes.Silver != null ? `₪${prizes.Silver.toLocaleString()}` : '—' });
     if (params.BronzeCount) rows.push({ medal: '🥉', tier: 'Bronze', count: params.BronzeCount, prize: prizes.Bronze != null ? `₪${prizes.Bronze.toLocaleString()}` : '—' });
 
     let html = `<div class="prizes-info"><span class="prizes-entry">Entry Fee: <b>₪${entryFee}</b></span></div>`;

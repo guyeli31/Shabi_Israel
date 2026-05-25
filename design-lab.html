@@ -3,16 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Player Page Lab — Shabi Israel</title>
+    <title>Design Lab — Shabi Israel</title>
 
     <link rel="stylesheet" href="css/variables.css">
     <link rel="stylesheet" href="css/layout.css">
-    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/components.css?v=3">
     <link rel="stylesheet" href="css/theme.css">
     <link rel="stylesheet" href="css/themes.css">
     <link rel="stylesheet" href="css/theme-picker.css">
-    <link rel="stylesheet" href="css/navigation.css">
-    <link rel="stylesheet" href="css/player-general.css">
+    <link rel="stylesheet" href="css/admin-button.css">
+    <link rel="stylesheet" href="css/navigation.css?v=2">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/index-dashboard.css">
+    <link rel="stylesheet" href="css/league-header.css">
+    <link rel="stylesheet" href="css/player-general.css?v=11">
     <link rel="stylesheet" href="css/typography-overrides.css">
     <link rel="stylesheet" href="table-lab/formats/mf/mf.css">
 
@@ -67,12 +71,46 @@
             border-radius: var(--radius-sm); cursor: pointer;
         }
         .pl-field select:focus { outline: 2px solid var(--color-accent); outline-offset: -1px; }
+        /* Each header dropdown gets a [-  4  +] scale control on the
+           same row as the select. The select keeps its existing min-
+           width; the scale group adds about 5em on the right. */
+        .pl-field-controls { display: flex; align-items: center; gap: 0.4em; }
+        .pl-scale {
+            display: inline-flex; align-items: center; gap: 0.2em;
+            user-select: none;
+        }
+        .pl-scale-btn {
+            width: 1.7em; height: 1.7em; padding: 0;
+            font: inherit; font-size: 0.9em; font-weight: 700; line-height: 1;
+            color: var(--color-text); background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-sm); cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .pl-scale-btn:hover:not(:disabled) { background: var(--color-surface); border-color: var(--color-accent); }
+        .pl-scale-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .pl-scale-val {
+            min-width: 1em; text-align: center;
+            font-size: 0.8125em; font-weight: 600;
+            color: var(--color-text); font-variant-numeric: tabular-nums;
+        }
 
-        #league-subtitle { display: none; }
+        #league-subtitle:empty { display: none; }
 
         .pl-header-variant, .pl-nav-variant { margin: 0 0 var(--space-sm); }
         .pl-header-variant { display: flex; justify-content: center; }
         .pl-nav-variant { padding: var(--space-sm) 0; }
+
+        /* In-league header (table E) — wrap the player name in an anchor
+           that links to the Player Header General card. Inherit the
+           variant's own typography so the link is visually identical to
+           the plain text it replaced; only underline on hover. */
+        .pl-name-link {
+            color: inherit;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .pl-name-link:hover { text-decoration: underline; }
 
         /* ============================================================
            FLAG — production-style: just the image, no background,
@@ -248,7 +286,7 @@
            Root font-size: 1.2rem bumps every em-based child (name
            clamp, meta, avatar) by 20% while preserving the in-card
            font proportions. Avatar matches V8's 4.5em photo. */
-        .v7-card { display: flex; align-items: center; gap: 1.125em; text-align: left; max-width: 80vw; font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem); }
+        .v7-card { display: flex; align-items: center; gap: 1.125em; text-align: left; max-width: 80vw; font-size: calc(var(--pl-scale, 1) * clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem)); }
         .v7-avatar-wrap { position: relative; flex-shrink: 0; }
         .v7-avatar {
             width: 4.5em; height: 4.5em; border-radius: 50%;
@@ -284,11 +322,61 @@
         }
         .v7-meta .sep { color: var(--color-text-muted); opacity: 0.4; }
         .v7-meta .leagues { color: var(--color-accent); font-weight: 600; }
+        .v7-fullname { font-style: italic; }
+
+        /* Shared tier-coloured watermark — used by V8/V9/V10/V12 so the
+           giant translucent glyph behind every general-card variant
+           draws its colour from the player's title tier. Gold for
+           Super-GM / Grandmaster + World Champion, silver for Master +
+           National Champion, etc. Opacity intentionally low so the
+           watermark sits behind the content. */
+        .pl-watermark-glyph {
+            position: absolute;
+            /* Fixed 1em×1em footprint so ♛ and ⚜ — which have
+               different intrinsic em-box anchoring in the serif
+               font — render at the SAME visible dimensions and
+               can be positioned identically. The glyph centres
+               itself inside the box via flex alignment. */
+            width: 1em; height: 1em;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none; user-select: none;
+            font-family: serif;
+        }
+        .pl-wm-gold   { color: rgba(245, 158, 11, 0.12); }
+        .pl-wm-silver { color: rgba(148, 163, 184, 0.18); }
+        .pl-wm-bronze { color: rgba(217, 119, 6, 0.12); }
+        .pl-wm-white  { color: rgba(148, 163, 184, 0.22); }
+
+        /* Tier-themed card surface — applied to V8/V9/V10/V12 card
+           roots when the player carries a title. Replicates the V10
+           "trading card" feel (top-anchored radial glow + accent
+           border-top + faint tier border) and re-tints it in the
+           player's title tier. Each tier sets shared custom props the
+           card rules below consume. */
+        .pl-card-gold   { --pl-tier-accent: #d4a942; --pl-tier-glow: rgba(245, 158, 11, 0.18); --pl-tier-border: rgba(245, 158, 11, 0.28); }
+        .pl-card-silver { --pl-tier-accent: #94a3b8; --pl-tier-glow: rgba(148, 163, 184, 0.22); --pl-tier-border: rgba(148, 163, 184, 0.34); }
+        .pl-card-bronze { --pl-tier-accent: #d97706; --pl-tier-glow: rgba(217, 119, 6, 0.18); --pl-tier-border: rgba(217, 119, 6, 0.30); }
+        .pl-card-white  { --pl-tier-accent: #cbd5e1; --pl-tier-glow: rgba(203, 213, 225, 0.26); --pl-tier-border: rgba(203, 213, 225, 0.40); }
+
+        .v8-card.pl-card-gold, .v8-card.pl-card-silver, .v8-card.pl-card-bronze, .v8-card.pl-card-white,
+        .v9-tile.pl-card-gold, .v9-tile.pl-card-silver, .v9-tile.pl-card-bronze, .v9-tile.pl-card-white,
+        .v10-card.pl-card-gold, .v10-card.pl-card-silver, .v10-card.pl-card-bronze, .v10-card.pl-card-white,
+        .v12-hero.pl-card-gold, .v12-hero.pl-card-silver, .v12-hero.pl-card-bronze, .v12-hero.pl-card-white {
+            background:
+                radial-gradient(ellipse at top, var(--pl-tier-glow), transparent 60%),
+                var(--color-surface);
+            border: 1px solid var(--pl-tier-border);
+            border-top: 3px solid var(--pl-tier-accent);
+        }
 
         /* V8 — Modern hero card with the original FIDE-passport gold
            ribbon restored at the top. Round avatar with overlay flag
            on the left, name + extras + meta on the right. */
         .v8-card {
+            position: relative;
             width: min(28em, 80vw);
             background: var(--color-surface);
             color: var(--color-text);
@@ -299,8 +387,26 @@
             text-align: left;
             /* Match the shared 1.2rem base used by the other variants
                so V8's font/photo sizing acts as the visual reference. */
-            font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
+            font-size: calc(var(--pl-scale, 1) * clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem));
         }
+        /* Watermark sizing — solo and paired glyphs share one size
+           per variant. Solo anchors bottom-right. In the paired case,
+           pair-1 stays at solo's right position and pair-2 sits just
+           to its LEFT with a small ~5% overlap so the pair reads as
+           one decorative motif. */
+        .v8-watermark.role-solo,
+        .v8-watermark.role-pair-1,
+        .v8-watermark.role-pair-2 {
+            font-size: clamp(10rem, 27vw, 17rem);
+        }
+        /* pair-2 offset = (box width in % of card) − 1% overlap.
+           Box width = font-size × 1em. For the 80vw cards (V9/V10)
+           that's ~26-34% of card; for narrower V8/V12 cards it's
+           closer to ~40%. Values tuned visually. */
+        .v8-watermark.role-solo,
+        .v8-watermark.role-pair-1 { right: -2%; bottom: -15%; }
+        .v8-watermark.role-pair-2 { right: 36%; bottom: -15%; }
+        .v8-ribbon, .v8-body, .v8-meta { position: relative; z-index: 1; }
         /* Gold/silver/bronze ribbon naming the player's top title at
            the very top of the card — original V8 personality. */
         .v8-ribbon {
@@ -383,6 +489,7 @@
 
         /* V9 — Glassmorphism dashboard tile. Up to 80% of viewport, centered. */
         .v9-tile {
+            position: relative;
             display: grid;
             grid-template-columns: 1fr auto 1fr;
             gap: 1.375em;
@@ -397,8 +504,18 @@
             box-shadow: var(--shadow-lg);
             color: var(--color-text);
             text-align: left;
-            font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
+            overflow: hidden;
+            font-size: calc(var(--pl-scale, 1) * clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem));
         }
+        .v9-watermark.role-solo,
+        .v9-watermark.role-pair-1,
+        .v9-watermark.role-pair-2 {
+            font-size: clamp(11rem, 29vw, 21rem);
+        }
+        .v9-watermark.role-solo,
+        .v9-watermark.role-pair-1 { right: -3%; bottom: -20%; }
+        .v9-watermark.role-pair-2 { right: 25%; bottom: -20%; }
+        .v9-left, .v9-center, .v9-right { position: relative; z-index: 1; }
         .v9-left { display: flex; align-items: center; gap: 0.875em; min-width: 0; }
         .v9-avatar {
             width: 4.5em; height: 4.5em; border-radius: 50%;
@@ -478,17 +595,19 @@
             overflow: hidden;
             box-shadow: var(--shadow-lg);
             text-align: left;
-            font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
+            font-size: calc(var(--pl-scale, 1) * clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem));
         }
-        .v10-piece {
-            position: absolute;
-            right: -1.75em; bottom: -3.5em;
-            font-size: 13.75em;
-            color: rgba(212, 169, 66, 0.10);
-            line-height: 1;
-            pointer-events: none; user-select: none;
-            font-family: serif;
+        /* Inherits position/colour from .pl-watermark-glyph +
+           .pl-wm-<tier>; only the card-specific size/offset live
+           here. */
+        .v10-piece.role-solo,
+        .v10-piece.role-pair-1,
+        .v10-piece.role-pair-2 {
+            font-size: clamp(13rem, 34vw, 24rem);
         }
+        .v10-piece.role-solo,
+        .v10-piece.role-pair-1 { right: -3%; bottom: -20%; }
+        .v10-piece.role-pair-2 { right: 30%; bottom: -20%; }
         /* Corner pennant — uses the production flag image and clips
            it into a flag/pennant shape. No background or extra border. */
         .v10-flag-corner {
@@ -573,7 +692,7 @@
             background: var(--color-surface);
             border: 1px solid var(--color-border);
             border-radius: 999px;
-            font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
+            font-size: calc(var(--pl-scale, 1) * clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem));
             max-width: 80vw;
             flex-wrap: wrap;
         }
@@ -598,6 +717,7 @@
            its existing 3.875em so it stays smaller than V8's circle —
            V12's distinct compact-photo look is preserved by request. */
         .v12-hero {
+            position: relative;
             width: min(35em, 80vw);
             padding: 1.125em 1.375em;
             background:
@@ -608,8 +728,18 @@
             border-radius: 0.75em;
             box-shadow: var(--shadow-md);
             text-align: left;
-            font-size: clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem);
+            overflow: hidden;
+            font-size: calc(var(--pl-scale, 1) * clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem));
         }
+        .v12-watermark.role-solo,
+        .v12-watermark.role-pair-1,
+        .v12-watermark.role-pair-2 {
+            font-size: clamp(11rem, 29vw, 20rem);
+        }
+        .v12-watermark.role-solo,
+        .v12-watermark.role-pair-1 { right: -2%; bottom: -18%; }
+        .v12-watermark.role-pair-2 { right: 28%; bottom: -18%; }
+        .v12-top, .v12-bodyrow, .v12-statgrid { position: relative; z-index: 1; }
         .v12-top {
             display: flex; justify-content: space-between; align-items: center;
             gap: 0.625em;
@@ -617,12 +747,15 @@
             flex-wrap: wrap;
         }
         /* V12 — every title renders in the same Bebas-Neue ribbon;
-           multiple ribbons wrap horizontally inside the .v12-top row. */
+           multiple ribbons wrap horizontally inside the .v12-top row.
+           Title-icon font-size is locked to 1em so the chess-piece
+           glyph matches the ribbon caption — keeps NATIONAL CHAMPION /
+           MASTER M1 / etc visually consistent across rows. */
         .v12-titles-row { display: flex; gap: 0.4em; flex-wrap: wrap; }
         .v12-titleribbon {
             display: inline-flex; align-items: center; gap: 0.55em;
             font-family: "Bebas Neue", "Impact", "Arial Narrow", sans-serif;
-            font-size: 0.95em; letter-spacing: 0.18em;
+            font-size: 0.82em; letter-spacing: 0.18em;
             background: linear-gradient(90deg, #d4a942, #fbbf24);
             color: #2a1c00;
             padding: 0.35em 0.875em;
@@ -631,20 +764,37 @@
         .v12-titleribbon.pl-tier-silver { background: linear-gradient(90deg, #94a3b8, #cbd5e1); color: #1e293b; }
         .v12-titleribbon.pl-tier-bronze { background: linear-gradient(90deg, #d97706, #f59e0b); color: #451a03; }
         .v12-titleribbon.pl-tier-white  { background: linear-gradient(90deg, #cbd5e1, #f8fafc); color: #475569; }
-        .v12-titleicon { font-size: 1.15em; }
+        .v12-titleicon { font-size: 1em; }
+        /* Status chip — clone of V16's status-pill so Active / This year /
+           Inactive render with the exact same shape, padding, weight and
+           dot styling as V16's Running / Completed. Default = active/green
+           reuses production --color-running tokens; orange is a custom
+           amber for "This year" (no production equivalent). */
         .v12-statuschip {
             display: inline-flex; align-items: center; gap: 0.4em;
-            font-size: 0.65em;
-            text-transform: uppercase; letter-spacing: 0.1em;
-            font-weight: 700;
-            padding: 0.3em 0.7em;
+            font-size: 0.72em;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            line-height: 1.5;
+            padding: 0.18em 0.8em;
             border-radius: 999px;
-            color: #2ecc40;
-            background: rgba(46,204,64,0.1);
-            border: 1px solid rgba(46,204,64,0.28);
+            background: var(--color-running-bg);
+            color: var(--color-running);
         }
-        .v12-statuschip.orange { color: #f59e0b; background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.28); }
-        .v12-statuschip.gray   { color: #9ca3af; background: rgba(156,163,175,0.1); border-color: rgba(156,163,175,0.28); }
+        .v12-statuschip.orange {
+            background: rgba(245, 158, 11, 0.18);
+            color: #b45309;
+        }
+        .v12-statuschip.gray {
+            background: var(--color-completed-bg);
+            color: var(--color-completed);
+        }
+        .v12-statuschip .dot {
+            width: 0.55em; height: 0.55em; border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 0.45em currentColor;
+        }
+        .v12-statuschip.gray .dot { box-shadow: none; opacity: 0.7; }
         .v12-bodyrow { display: flex; align-items: center; gap: 1em; margin-bottom: 1em; flex-wrap: wrap; }
         .v12-photo {
             width: 3.875em; height: 3.875em;
@@ -662,15 +812,18 @@
             border: 1px solid var(--color-border);
             flex-shrink: 0;
         }
+        /* Player name shares the V16 league-name clamp so both heroes
+           feel like one family. Both .v12-display and .lh16-display use
+           the same clamp expression below. */
         .v12-display {
             margin: 0;
             font-family: "Bebas Neue", "Impact", sans-serif;
-            font-size: clamp(1.1em, 1em + 0.35vw, 1.4em);
+            font-size: clamp(1.3em, 1.05em + 0.7vw, 1.8em);
             font-weight: 400;
-            letter-spacing: 0.08em;
+            letter-spacing: 0.05em;
             color: var(--color-text);
-            line-height: 1;
-            display: flex; align-items: center; gap: 0.45em; flex-wrap: wrap;
+            line-height: 1.05;
+            display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap;
         }
         .v12-real {
             margin-top: 0.4em;
@@ -678,22 +831,26 @@
             color: var(--color-text-muted);
             font-style: italic;
         }
+        /* Stat grid mirrors V16 — left-aligned, label-above-value, with
+           V16's exact 0.62em label / 0.85em value sizing. The renderer
+           emits .v12-statlbl before .v12-statnum so the label sits on top. */
         .v12-statgrid {
             display: grid; grid-template-columns: repeat(2, 1fr);
             gap: 0.5em;
-            padding-top: 0.875em;
+            margin-top: 0.85em;
+            padding-top: 0.75em;
             border-top: 1px solid var(--color-border);
         }
-        .v12-stat { text-align: center; }
-        .v12-statnum {
-            font-size: 1em; font-weight: 700;
-            color: var(--color-accent);
-            font-variant-numeric: tabular-nums;
-        }
+        .v12-stat { text-align: left; }
         .v12-statlbl {
             font-size: 0.62em; color: var(--color-text-muted);
-            text-transform: uppercase; letter-spacing: 0.13em;
-            margin-top: 0.2em;
+            text-transform: uppercase; letter-spacing: 0.14em;
+            margin-bottom: 0.2em;
+        }
+        .v12-statnum {
+            font-size: 0.85em; font-weight: 700;
+            color: var(--color-accent);
+            font-variant-numeric: tabular-nums;
         }
 
         /* ============================================================
@@ -735,17 +892,23 @@
         .ti-a-bronze { background: #b45309; color: #fff; }
         .ti-a-white  { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
 
-        /* Option B — Outlined pill (transparent body) */
+        /* Option B — Outlined pill (transparent body).
+           Uses an inset box-shadow rather than a real border so the
+           pill stays the same size as F (champion) at every font-size
+           — a real 1.5px border adds a disproportionate visible
+           offset at small font-sizes (sub-em rounding) and visibly
+           oversizes BMAB pills next to champion pills. */
         .ti-b {
             display: inline-flex; align-items: center; justify-content: center;
-            padding: 0.05em 0.4em;
+            padding: 0.12em 0.5em;
             border-radius: 0.25em;
             font-weight: 700;
             font-family: ui-monospace, "SF Mono", monospace;
             letter-spacing: 0.04em;
             min-width: 1.4em;
             background: transparent;
-            border: 1.5px solid currentColor;
+            border: none;
+            box-shadow: inset 0 0 0 1.5px currentColor;
         }
         .ti-b-gold   { color: #d4a942; }
         .ti-b-silver { color: #94a3b8; }
@@ -867,6 +1030,8 @@
             .pl-fields { width: 100%; }
             .pl-field { flex: 1; }
             .pl-field select { min-width: 0; width: 100%; }
+            .pl-field-controls { width: 100%; }
+            .pl-field-controls select { flex: 1; }
 
             /* The abrupt 92vw width override that used to live here for
                V7/V8/V11/V12 has been removed — every header variant now
@@ -879,31 +1044,247 @@
             .v12-bodyrow { gap: 0.75em; }
             .v11-line { padding: 0.5em 0.875em; gap: 0.5em; }
         }
+
+        /* ============================================================
+           LEAGUE PAGE HEADER VARIANTS (V13–V17)
+           ------------------------------------------------------------
+           All five share the same fluid root font-size used by the
+           player-header variants — clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem)
+           — and use em-based sizing inside, so every child scales
+           linearly with viewport width.
+
+           Type / Status pills are the same .league-type-pill / .status-pill
+           components used in production (loaded via css/components.css),
+           wrapped in a sizing helper that re-scales them to the variant's
+           em context.
+           ============================================================ */
+        .pl-league-variant { margin: 0 0 var(--space-sm); display: flex; justify-content: center; }
+        .pl-league-variant .league-type-pill,
+        .pl-league-variant .status-pill {
+            font-size: 0.72em;
+            line-height: 1.5;
+            vertical-align: middle;
+        }
+        .pl-league-variant .status-pill {
+            display: inline-flex; align-items: center; gap: 0.4em;
+        }
+        .pl-league-variant .status-pill .dot {
+            width: 0.55em; height: 0.55em; border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 0.45em currentColor;
+        }
+        .pl-league-variant .status-completed .dot { box-shadow: none; opacity: 0.7; }
+
+        /* V13 — Lichess-style horizontal title bar. Same root font-size,
+           same name clamp, and same meta line idiom as V7. No avatar (a
+           league has no portrait); the status is shown as a V16-style
+           pill inline with the name (analog of V7's title chip).
+           Centered by its parent .pl-league-variant (justify-content:
+           center) — display:inline-flex shrinks the card to its content
+           so the centering works at any width. */
+        .lh13-card {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 80vw;
+            font-size: calc(var(--pl-scale, 1) * clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem));
+        }
+        .lh13-name-line {
+            display: flex; align-items: center; justify-content: center;
+            gap: 0.6em; flex-wrap: wrap;
+        }
+        .lh13-name {
+            font-size: clamp(1.1em, 1em + 0.35vw, 1.4em);
+            font-weight: 700; color: var(--color-text);
+            letter-spacing: -0.01em;
+        }
+        .lh13-meta {
+            margin-top: 0.4em;
+            font-size: 0.85em; color: var(--color-text-muted);
+            display: flex; align-items: center; justify-content: center;
+            gap: 0.5em; flex-wrap: wrap;
+        }
+        .lh13-meta .sep { color: var(--color-text-muted); opacity: 0.4; }
+
+        /* V14 — Stacked card with chip row */
+        .lh14-card {
+            width: min(36em, 80vw);
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 0.75em;
+            padding: 1em 1.25em;
+            font-size: calc(var(--pl-scale, 1) * clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem));
+        }
+        .lh14-row1 { display: flex; align-items: center; gap: 0.6em; flex-wrap: wrap; }
+        .lh14-name {
+            font-size: clamp(1.1em, 1em + 0.35vw, 1.4em);
+            font-weight: 700; color: var(--color-text);
+            letter-spacing: -0.01em; margin: 0;
+        }
+        .lh14-row2 {
+            margin-top: 0.7em;
+            display: flex; align-items: center; gap: 0.4em; flex-wrap: wrap;
+            font-size: 0.78em;
+        }
+        .lh14-chip {
+            display: inline-flex; align-items: center; gap: 0.4em;
+            padding: 0.25em 0.65em;
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 0.4em;
+            color: var(--color-text-muted);
+        }
+        .lh14-chip .ico { font-size: 1em; opacity: 0.8; }
+        .lh14-chip strong { color: var(--color-text); font-weight: 600; }
+
+        /* V15 — FIDE passport: gold ribbon + dt/dd grid */
+        .lh15-card {
+            width: min(34em, 80vw);
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 0.7em;
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+            font-size: calc(var(--pl-scale, 1) * clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem));
+        }
+        .lh15-ribbon {
+            background: linear-gradient(90deg, #92400e, #fbbf24 50%, #92400e);
+            color: #2a1700;
+            font-family: "Playfair Display", Georgia, serif;
+            font-weight: 700;
+            font-size: clamp(1em, 0.9em + 0.3vw, 1.25em);
+            text-align: center;
+            padding: 0.5em 0.9em;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(0,0,0,0.25);
+        }
+        .lh15-grid {
+            display: grid;
+            grid-template-columns: max-content 1fr;
+            column-gap: 1.25em; row-gap: 0.55em;
+            padding: 1em 1.25em 1.1em;
+            margin: 0;
+            font-size: 0.85em;
+            text-align: left;
+        }
+        .lh15-grid dt {
+            color: var(--color-text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font-size: 0.72em; font-weight: 700;
+            align-self: center;
+        }
+        .lh15-grid dd {
+            margin: 0;
+            color: var(--color-text); font-weight: 500;
+            display: inline-flex; align-items: center; gap: 0.5em; flex-wrap: wrap;
+        }
+
+        /* V16 — Hero banner with stat tiles. Background mirrors V12's
+           golden top-right glow so the league hero feels like part of
+           the same family as the player hero. */
+        .lh16-hero {
+            width: min(38em, 80vw);
+            padding: 1em 1.25em 1.1em;
+            background:
+                radial-gradient(ellipse at top right, rgba(212, 169, 66, 0.16), transparent 65%),
+                var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 0.7em;
+            box-shadow: var(--shadow-sm);
+            font-size: calc(var(--pl-scale, 1) * clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem));
+            text-align: left;
+        }
+        .lh16-top {
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 0.6em; flex-wrap: wrap;
+            margin-bottom: 0.65em;
+        }
+        .lh16-display {
+            margin: 0;
+            font-family: "Bebas Neue", "Impact", sans-serif;
+            font-size: clamp(1.3em, 1.05em + 0.7vw, 1.8em);
+            font-weight: 400;
+            letter-spacing: 0.05em;
+            color: var(--color-text);
+            line-height: 1.05;
+            display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap;
+        }
+        .lh16-statgrid {
+            display: grid; grid-template-columns: repeat(2, 1fr);
+            gap: 0.5em;
+            margin-top: 0.85em;
+            padding-top: 0.75em;
+            border-top: 1px solid var(--color-border);
+        }
+        .lh16-statlbl {
+            font-size: 0.62em; color: var(--color-text-muted);
+            text-transform: uppercase; letter-spacing: 0.14em;
+            margin-bottom: 0.2em;
+        }
+        .lh16-statval {
+            font-size: 0.85em; font-weight: 700;
+            color: var(--color-accent);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* V17 — Minimal single-line capsule */
+        .lh17-line {
+            display: inline-flex; align-items: center; gap: 0.55em;
+            flex-wrap: wrap;
+            padding: 0.55em 1em;
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 999px;
+            font-size: calc(var(--pl-scale, 1) * clamp(1.05rem, 0.85rem + 0.6vw, 1.35rem));
+            max-width: 80vw;
+        }
+        .lh17-name {
+            font-size: clamp(1em, 0.95em + 0.2vw, 1.15em);
+            font-weight: 700; color: var(--color-text);
+            letter-spacing: -0.005em;
+        }
+        .lh17-sep { color: var(--color-text-muted); opacity: 0.5; }
+        .lh17-meta { font-size: 0.78em; color: var(--color-text-muted); }
+        .lh17-meta .label { color: var(--color-text-muted); margin-right: 0.25em; opacity: 0.85; }
     </style>
 </head>
 <body>
     <div class="page-container" id="main" role="main">
-        <div class="page-header">
+        <div class="page-header" id="page-header">
+            <!-- Landing-page heading elements (filled by renderLandingPage) -->
+            <img class="logo" id="site-logo" alt="Logo" style="display:none">
+            <h1 id="site-title" style="display:none"></h1>
+            <p class="subtitle" id="site-subtitle" style="display:none"></p>
+            <!-- Per-page heading elements (filled by league/dashboard/player renderers) -->
             <h1 id="page-title">Loading…</h1>
-            <div id="league-subtitle" class="subtitle"></div>
+            <div id="league-subtitle" class="games-played"></div>
         </div>
         <div id="content">
-            <div class="loading">Loading player profile…</div>
+            <div class="loading">Loading…</div>
         </div>
     </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <script type="module">
         import { initThemePicker } from './js/render/themePicker.js';
-        import { initNavBar } from './js/render/navigation.js';
+        import { initNavBar, initKeyboardShortcuts } from './js/render/navigation.js';
+        import { renderLandingPage } from './js/render/landingPage.js';
+        import { renderLeaguePage } from './js/render/leaguePage.js';
+        import { renderDashboardPage } from './js/render/dashboardPage.js';
+        import { renderPlayerPage } from './js/render/playerPage.js';
         import { renderPlayerGeneralPage } from './js/render/playerGeneralPage.js';
         import { loadPlayersMetadata, clearPlayersMetadataCache } from './js/data/playersMetadata.js';
         import { getBmabInfo, getChampionshipInfo, getChampionshipTooltip } from './js/data/titleConstants.js';
-        import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches } from './js/data/leagueLoader.js';
+        import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches, loadLeague, loadLeagueParams } from './js/data/leagueLoader.js';
         import { getFlagCode, parseLeagueDate, flagUrl } from './js/utils/helpers.js';
 
         const DEFAULT_PLAYER = 'GuyEliyahu';
+        const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
+        const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
         const TIER_ICONS = { gold: '♛', silver: '♜', bronze: '♝', white: '♞' };
-        const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
         function escapeHtml(s) {
             const div = document.createElement('div');
@@ -915,7 +1296,7 @@
             if (!iso) return '';
             const [y, m] = String(iso).split('-').map(x => parseInt(x, 10));
             if (!y || !m || m < 1 || m > 12) return iso;
-            return `${MONTHS_FULL[m - 1]} ${y}`;
+            return `${MONTHS_SHORT[m - 1]} ${y}`;
         }
 
         /* Two-letter monogram for the avatar fallback.
@@ -973,6 +1354,61 @@
            Every variant pulls this so chip styling stays uniform. */
         function titleChip(t) {
             return `<span class="pl-title-chip pl-tier-${t.tier}" title="${escapeHtml(t.tooltip)}"><span class="pl-chip-icon">${t.icon}</span>${escapeHtml(t.label)}</span>`;
+        }
+
+        /* Decide the giant translucent watermark glyphs behind the card.
+           At most TWO glyphs — one per kind (champ / bmab). When the
+           player carries several titles of the same kind, the BEST
+           tier within that kind wins (gold > silver > bronze > white):
+             • NC + WC  → one gold crown (WC's gold beats NC's silver)
+             • NC + GM  → crown silver + fleur-de-lis gold (one of each)
+           Returns an empty array when the player has no titles.
+
+           role= determines positioning:
+             • 'solo'        — only one glyph, anchored bottom-right
+             • 'pair-left'   — paired glyph anchored bottom-left
+             • 'pair-right'  — paired glyph anchored bottom-right */
+        const _TIER_RANK = { gold: 0, silver: 1, bronze: 2, white: 3 };
+        function watermarkLayers(titles) {
+            if (!titles || titles.length === 0) return [];
+
+            // Pick the best tier per kind (lowest TIER_RANK wins).
+            const bestByKind = {};
+            for (const t of titles) {
+                const rank = _TIER_RANK[t.tier] ?? 99;
+                const cur = bestByKind[t.kind];
+                if (!cur || rank < cur.rank) bestByKind[t.kind] = { tier: t.tier, rank };
+            }
+
+            // DOM order is bmab-first then champ-second so the more
+            // prestigious crown renders on TOP of the fleur-de-lis in
+            // the overlap zone.
+            const layers = [];
+            if (bestByKind.bmab)  layers.push({ icon: '⚜', tier: bestByKind.bmab.tier,  kind: 'bmab' });
+            if (bestByKind.champ) layers.push({ icon: '♛', tier: bestByKind.champ.tier, kind: 'champ' });
+
+            if (layers.length === 1) {
+                layers[0].role = 'solo';
+            } else {
+                // The primary (champion if present, otherwise the only
+                // BMAB) sits in the solo bottom-right position; the
+                // secondary glyph appears just to its LEFT, with a
+                // small ~5% overlap so the pair reads as one motif.
+                const primary = layers.find(l => l.kind === 'champ') || layers[0];
+                const secondary = layers.find(l => l !== primary);
+                primary.role = 'pair-1';
+                secondary.role = 'pair-2';
+            }
+            return layers;
+        }
+
+        /* Tier that drives the card-surface theming (border-top, glow,
+           border tint). Higher prestige wins: champion's tier is
+           preferred when present; otherwise the BMAB's tier. */
+        function cardTier(layers) {
+            if (layers.length === 0) return null;
+            const champ = layers.find(l => l.kind === 'champ');
+            return (champ || layers[0]).tier;
         }
 
         /* Build the lab-side player snapshot. Computes from the league
@@ -1127,23 +1563,38 @@
             },
         };
 
+        /* When rendering the in-league card (table E), the player name
+           becomes a link to the general player card. The lab's click
+           interceptor (rewriteToLab) catches `player_general.html?…`
+           and switches the lab view to `view=player-general` without a
+           full reload, so the same variant choice carries over. */
+        function nameLink(p, opts) {
+            const text = escapeHtml(p.name);
+            if (!opts || !opts.inLeague) return text;
+            return `<a class="pl-name-link" href="player_general.html?player=${encodeURIComponent(p.name)}">${text}</a>`;
+        }
+
+        /* All HEADER_RENDERERS take an optional second arg `opts`. When
+           opts.inLeague is true, the renderer omits the "Joined …" and
+           "N leagues" meta items — those belong on the general player
+           card (player_general), not on the per-league player card. */
         const HEADER_RENDERERS = {
-            v7(p) {
+            v7(p, opts = {}) {
                 const avatar = p.photoPath
                     ? `<img class="v7-avatar-img" src="${escapeHtml(p.photoPath)}" alt="${escapeHtml(p.name)}">`
                     : `<div class="v7-avatar">${escapeHtml(p.initials)}</div>`;
                 const dot = `<span class="v7-dot-wrap"><span class="pl-status-dot ${p.statusDotClass}" title="${escapeHtml(p.statusDotTitle)}"></span></span>`;
                 const meta = [
-                    p.fullName && escapeHtml(p.fullName),
-                    p.joinedFormatted && `Joined ${escapeHtml(p.joinedFormatted)}`,
-                    `<span class="leagues">${p.leagueCount} ${p.leagueCount === 1 ? 'league' : 'leagues'}</span>`,
+                    p.fullName && `<em class="v7-fullname">${escapeHtml(p.fullName)}</em>`,
+                    !opts.inLeague && p.joinedFormatted && `Joined ${escapeHtml(p.joinedFormatted)}`,
+                    !opts.inLeague && `<span class="leagues">${p.leagueCount} ${p.leagueCount === 1 ? 'league' : 'leagues'}</span>`,
                 ].filter(Boolean).join(' <span class="sep">·</span> ');
                 return `<div class="v7-card">
                     <div class="v7-avatar-wrap">${avatar}${dot}</div>
                     <div class="v7-info">
                         <div class="v7-name-line">
                             ${flagImg('v7-flag', p.flagCode)}
-                            <span class="v7-name">${escapeHtml(p.name)}</span>
+                            <span class="v7-name">${nameLink(p, opts)}</span>
                             ${p.titles.map(titleChip).join('')}
                         </div>
                         <div class="v7-meta">${meta}</div>
@@ -1151,7 +1602,7 @@
                 </div>`;
             },
 
-            v8(p) {
+            v8(p, opts = {}) {
                 const photo = p.photoPath
                     ? `<img class="v8-photo-img" src="${escapeHtml(p.photoPath)}" alt="${escapeHtml(p.name)}">`
                     : `<div class="v8-photo">${escapeHtml(p.initials)}</div>`;
@@ -1165,10 +1616,17 @@
                 const statusLabel = p.statusKind === 'green' ? 'Active' : p.statusKind === 'orange' ? 'This year' : 'Inactive';
                 const meta = [
                     `<span class="v8-status-text"><span class="pl-status-dot ${p.statusDotClass}" title="${escapeHtml(p.statusDotTitle)}"></span> ${statusLabel}</span>`,
-                    p.joinedFormatted && `Joined ${escapeHtml(p.joinedFormatted)}`,
-                    `<span class="v8-leagues">${p.leagueCount} ${p.leagueCount === 1 ? 'league' : 'leagues'}</span>`,
+                    !opts.inLeague && p.joinedFormatted && `Joined ${escapeHtml(p.joinedFormatted)}`,
+                    !opts.inLeague && `<span class="v8-leagues">${p.leagueCount} ${p.leagueCount === 1 ? 'league' : 'leagues'}</span>`,
                 ].filter(Boolean).join(' <span class="sep">·</span> ');
-                return `<div class="v8-card">
+                const layers = watermarkLayers(p.titles);
+                const watermark = layers.map(l =>
+                    `<div class="pl-watermark-glyph v8-watermark role-${l.role} pl-wm-${l.tier}">${l.icon}</div>`
+                ).join('');
+                const ct = cardTier(layers);
+                const cardTierCls = ct ? ` pl-card-${ct}` : '';
+                return `<div class="v8-card${cardTierCls}">
+                    ${watermark}
                     ${ribbons}
                     <div class="v8-body">
                         <div class="v8-photo-wrap">
@@ -1176,7 +1634,7 @@
                             <img class="v8-photo-flag" src="${flagUrl(p.flagCode)}" alt="${escapeHtml(p.flagCode)}" title="${escapeHtml(p.flagCode)}">
                         </div>
                         <div class="v8-main">
-                            <h3 class="v8-name">${escapeHtml(p.name)}</h3>
+                            <h3 class="v8-name">${nameLink(p, opts)}</h3>
                             ${p.fullName ? `<div class="v8-realname">${escapeHtml(p.fullName)}</div>` : ''}
                         </div>
                     </div>
@@ -1184,19 +1642,30 @@
                 </div>`;
             },
 
-            v9(p) {
+            v9(p, opts = {}) {
                 const avatar = p.photoPath
                     ? `<img class="v9-avatar-img" src="${escapeHtml(p.photoPath)}" alt="${escapeHtml(p.name)}">`
                     : `<div class="v9-avatar">${escapeHtml(p.initials)}</div>`;
                 const titleRows = p.titles.map(t =>
                     `<div class="v9-title-row pl-tier-${t.tier}" title="${escapeHtml(t.tooltip)}"><span class="icon">${t.icon}</span>${escapeHtml(t.label)}</div>`
                 ).join('');
-                return `<div class="v9-tile">
+                const statBlock = opts.inLeague ? '' : `<div class="v9-right">
+                        <div class="v9-stat"><span class="v9-stat-num">${p.leagueCount}</span><span class="v9-stat-lbl">Leagues</span></div>
+                        ${p.joinedFormatted ? `<div class="v9-stat"><span class="v9-stat-num">${escapeHtml(p.joinedFormatted)}</span><span class="v9-stat-lbl">Joined</span></div>` : ''}
+                    </div>`;
+                const layers = watermarkLayers(p.titles);
+                const watermark = layers.map(l =>
+                    `<div class="pl-watermark-glyph v9-watermark role-${l.role} pl-wm-${l.tier}">${l.icon}</div>`
+                ).join('');
+                const ct = cardTier(layers);
+                const cardTierCls = ct ? ` pl-card-${ct}` : '';
+                return `<div class="v9-tile${cardTierCls}">
+                    ${watermark}
                     <div class="v9-left">
                         ${avatar}
                         <div>
                             <div class="v9-name-row">
-                                <span class="v9-name">${escapeHtml(p.name)}</span>
+                                <span class="v9-name">${nameLink(p, opts)}</span>
                                 <span class="pl-status-dot ${p.statusDotClass}" title="${escapeHtml(p.statusDotTitle)}" style="width:0.5em;height:0.5em"></span>
                                 ${flagImg('v9-flag', p.flagCode)}
                             </div>
@@ -1204,15 +1673,17 @@
                         </div>
                     </div>
                     <div class="v9-center">${titleRows}</div>
-                    <div class="v9-right">
-                        <div class="v9-stat"><span class="v9-stat-num">${p.leagueCount}</span><span class="v9-stat-lbl">Leagues</span></div>
-                        ${p.joinedFormatted ? `<div class="v9-stat"><span class="v9-stat-num">${escapeHtml(p.joinedFormatted)}</span><span class="v9-stat-lbl">Joined</span></div>` : ''}
-                    </div>
+                    ${statBlock}
                 </div>`;
             },
 
-            v10(p) {
-                const heroIcon = p.titles[0]?.icon || '♛';
+            v10(p, opts = {}) {
+                const layers = watermarkLayers(p.titles);
+                const watermark = layers.map(l =>
+                    `<div class="pl-watermark-glyph v10-piece role-${l.role} pl-wm-${l.tier}">${l.icon}</div>`
+                ).join('');
+                const ct = cardTier(layers);
+                const cardTierCls = ct ? ` pl-card-${ct}` : '';
                 const titles = p.titles.length
                     ? `<div class="v10-titles">${p.titles.map(t =>
                         `<div class="v10-title-line pl-tier-${t.tier}" title="${escapeHtml(t.tooltip)}"><span class="v10-title-icon">${t.icon}</span>${escapeHtml(t.label)}</div>`
@@ -1223,8 +1694,12 @@
                 const avatar = p.photoPath
                     ? `<img class="v10-avatar-img" src="${escapeHtml(p.photoPath)}" alt="${escapeHtml(p.name)}">`
                     : `<div class="v10-avatar">${escapeHtml(p.initials)}</div>`;
-                return `<div class="v10-card">
-                    <div class="v10-piece">${heroIcon}</div>
+                const foot = opts.inLeague ? '' : `<div class="v10-foot">
+                            ${p.joinedFormatted ? `<span>Joined ${escapeHtml(p.joinedFormatted)}</span>` : '<span></span>'}
+                            <span class="v10-leagues">${p.leagueCount} ${p.leagueCount === 1 ? 'League' : 'Leagues'}</span>
+                        </div>`;
+                return `<div class="v10-card${cardTierCls}">
+                    ${watermark}
                     <img class="v10-flag-corner" src="${flagUrl(p.flagCode)}" alt="${escapeHtml(p.flagCode)}" title="${escapeHtml(p.flagCode)}">
                     <div class="v10-content">
                         ${avatar}
@@ -1232,33 +1707,30 @@
                             <span class="pl-status-dot ${p.statusDotClass}" style="width:0.45em;height:0.45em"></span> ${statusLabel}
                         </div>
                         ${titles}
-                        <div class="v10-name">${escapeHtml(p.name)}</div>
+                        <div class="v10-name">${nameLink(p, opts)}</div>
                         ${p.fullName ? `<div class="v10-fullname">${escapeHtml(p.fullName)}</div>` : ''}
-                        <div class="v10-foot">
-                            ${p.joinedFormatted ? `<span>Joined ${escapeHtml(p.joinedFormatted)}</span>` : '<span></span>'}
-                            <span class="v10-leagues">${p.leagueCount} ${p.leagueCount === 1 ? 'League' : 'Leagues'}</span>
-                        </div>
+                        ${foot}
                     </div>
                 </div>`;
             },
 
-            v11(p) {
+            v11(p, opts = {}) {
                 const meta = [
                     p.fullName && escapeHtml(p.fullName),
-                    p.joinedFormatted && `Joined ${escapeHtml(p.joinedFormatted)}`,
-                    `<span class="v11-leagues">${p.leagueCount} ${p.leagueCount === 1 ? 'league' : 'leagues'}</span>`,
+                    !opts.inLeague && p.joinedFormatted && `Joined ${escapeHtml(p.joinedFormatted)}`,
+                    !opts.inLeague && `<span class="v11-leagues">${p.leagueCount} ${p.leagueCount === 1 ? 'league' : 'leagues'}</span>`,
                 ].filter(Boolean);
                 return `<div class="v11-line">
                     <span class="pl-status-dot ${p.statusDotClass}" title="${escapeHtml(p.statusDotTitle)}"></span>
                     <div class="v11-avatar">${escapeHtml(p.initials)}</div>
                     ${flagImg('v11-flag', p.flagCode)}
-                    <span class="v11-name">${escapeHtml(p.name)}</span>
+                    <span class="v11-name">${nameLink(p, opts)}</span>
                     ${p.titles.map(titleChip).join('')}
                     ${meta.map(m => `<span class="v11-sep">·</span><span class="v11-meta">${m}</span>`).join('')}
                 </div>`;
             },
 
-            v12(p) {
+            v12(p, opts = {}) {
                 /* All titles in V12 render in the same Bebas-Neue
                    ribbon — same size, same shape — and the
                    tier-driven gradient (gold / silver / bronze /
@@ -1274,34 +1746,188 @@
                 const photo = p.photoPath
                     ? `<img class="v12-photo-img" src="${escapeHtml(p.photoPath)}" alt="${escapeHtml(p.name)}">`
                     : `<div class="v12-photo">${escapeHtml(p.initials)}</div>`;
-                return `<div class="v12-hero">
+                const statGrid = opts.inLeague ? '' : `<div class="v12-statgrid">
+                        ${p.joinedFormatted ? `<div class="v12-stat"><div class="v12-statlbl">Joined</div><div class="v12-statnum">${escapeHtml(p.joinedFormatted)}</div></div>` : '<div></div>'}
+                        <div class="v12-stat"><div class="v12-statlbl">Leagues</div><div class="v12-statnum">${p.leagueCount}</div></div>
+                    </div>`;
+                const layers = watermarkLayers(p.titles);
+                const watermark = layers.map(l =>
+                    `<div class="pl-watermark-glyph v12-watermark role-${l.role} pl-wm-${l.tier}">${l.icon}</div>`
+                ).join('');
+                const ct = cardTier(layers);
+                const cardTierCls = ct ? ` pl-card-${ct}` : '';
+                return `<div class="v12-hero${cardTierCls}">
+                    ${watermark}
                     <div class="v12-top">
                         ${titlesBlock}
                         <span class="v12-statuschip ${statusCls}" title="${escapeHtml(p.statusDotTitle)}">
-                            <span class="pl-status-dot ${p.statusDotClass}" style="width:0.55em;height:0.55em"></span> ${statusLabel}
+                            <span class="dot"></span>${statusLabel}
                         </span>
                     </div>
                     <div class="v12-bodyrow">
                         ${photo}
                         <div>
-                            <h3 class="v12-display">${flagImg('v12-flag', p.flagCode)} ${escapeHtml(p.name)}</h3>
+                            <h3 class="v12-display">${flagImg('v12-flag', p.flagCode)} ${nameLink(p, opts)}</h3>
                             ${p.fullName ? `<div class="v12-real">${escapeHtml(p.fullName)}</div>` : ''}
                         </div>
                     </div>
-                    <div class="v12-statgrid">
-                        <div class="v12-stat"><div class="v12-statnum">${p.leagueCount}</div><div class="v12-statlbl">Leagues</div></div>
-                        ${p.joinedFormatted ? `<div class="v12-stat"><div class="v12-statnum">${escapeHtml(p.joinedFormatted)}</div><div class="v12-statlbl">Joined</div></div>` : ''}
+                    ${statGrid}
+                </div>`;
+            },
+        };
+
+        /* ── League header data helper ──────────────────────────────
+           Pulls everything a league-header variant needs (title, type,
+           status, start date, last-updated) from the league's params +
+           CSV Last-Modified header. */
+        function formatStartDate(iso) {
+            if (!iso) return '';
+            const m = String(iso).match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
+            if (!m) return iso;
+            const year = parseInt(m[1], 10);
+            const month = parseInt(m[2], 10);
+            const day = m[3] ? parseInt(m[3], 10) : null;
+            const mn = MONTHS_LONG[month - 1]?.slice(0, 3) || '';
+            return day ? `${day} ${mn} ${year}` : `${mn} ${year}`;
+        }
+        function formatLastUpdated(headerVal) {
+            if (!headerVal) return '';
+            const d = new Date(headerVal);
+            if (isNaN(d)) return headerVal;
+            const date = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+            const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            return `${date}, ${time}`;
+        }
+
+        async function computeLabLeague(leagueId) {
+            if (!leagueId) return null;
+            try {
+                const { params, lastModified } = await loadLeague(leagueId);
+                const type = params.LeagueType || 'doubling';
+                return {
+                    name: params.LeagueTitle || leagueId,
+                    type,
+                    typeLabel: LEAGUE_TYPE_LABELS[type] || type,
+                    running: !!params.Running,
+                    statusLabel: params.Running ? 'Running' : 'Completed',
+                    startDate: formatStartDate(params.IssueDate || ''),
+                    lastUpdated: formatLastUpdated(lastModified),
+                };
+            } catch { return null; }
+        }
+
+        /* ── League-header renderers (V13–V17) ────────────────────── */
+        function typePill(l) {
+            return `<span class="league-type-pill type-${l.type}">${escapeHtml(l.typeLabel)}</span>`;
+        }
+        function statusPill(l) {
+            const cls = l.running ? 'status-running' : 'status-completed';
+            return `<span class="status-pill ${cls}"><span class="dot"></span>${escapeHtml(l.statusLabel)}</span>`;
+        }
+
+        /* LEAGUE_HEADER_RENDERERS also take an optional `opts`.
+           opts.omitStartDate=true hides the "Started …" field — that's
+           the case when the variant runs above the league-table page
+           (table D), since "Last updated" already implies the league
+           has started. The dashboard variant always shows both dates. */
+        const LEAGUE_HEADER_RENDERERS = {
+            v13(l, opts = {}) {
+                const items = [];
+                if (!opts.omitStartDate) items.push(`Started ${escapeHtml(l.startDate)}`);
+                items.push(`Last updated ${escapeHtml(l.lastUpdated)}`);
+                const meta = items.join(' <span class="sep">·</span> ');
+                return `<div class="lh13-card">
+                    <div class="lh13-name-line">
+                        <span class="lh13-name">${escapeHtml(l.name)}</span>
+                        ${typePill(l)}
+                        ${statusPill(l)}
                     </div>
+                    <div class="lh13-meta">${meta}</div>
+                </div>`;
+            },
+            v14(l, opts = {}) {
+                const startedChip = opts.omitStartDate ? '' :
+                    `<span class="lh14-chip"><span class="ico">📅</span> Started <strong>${escapeHtml(l.startDate)}</strong></span>`;
+                return `<div class="lh14-card">
+                    <div class="lh14-row1">
+                        <h3 class="lh14-name">${escapeHtml(l.name)}</h3>
+                        ${statusPill(l)}
+                    </div>
+                    <div class="lh14-row2">
+                        ${typePill(l)}
+                        ${startedChip}
+                        <span class="lh14-chip"><span class="ico">🕒</span> Updated <strong>${escapeHtml(l.lastUpdated)}</strong></span>
+                    </div>
+                </div>`;
+            },
+            v15(l, opts = {}) {
+                const startRow = opts.omitStartDate ? '' :
+                    `<dt>Start date</dt><dd>${escapeHtml(l.startDate)}</dd>`;
+                return `<div class="lh15-card">
+                    <div class="lh15-ribbon">${escapeHtml(l.name)}</div>
+                    <dl class="lh15-grid">
+                        <dt>Type</dt><dd>${typePill(l)}</dd>
+                        <dt>Status</dt><dd>${statusPill(l)}</dd>
+                        ${startRow}
+                        <dt>Last updated</dt><dd>${escapeHtml(l.lastUpdated)}</dd>
+                    </dl>
+                </div>`;
+            },
+            v16(l, opts = {}) {
+                // When start date is omitted, render a single-column grid so the
+                // Last Updated tile stretches across the full width instead of
+                // floating alone on the left.
+                const startTile = opts.omitStartDate ? '' :
+                    `<div><div class="lh16-statlbl">Start Date</div><div class="lh16-statval">${escapeHtml(l.startDate)}</div></div>`;
+                const gridStyle = opts.omitStartDate ? ' style="grid-template-columns:1fr"' : '';
+                return `<div class="lh16-hero">
+                    <div class="lh16-top">
+                        ${typePill(l)}
+                        ${statusPill(l)}
+                    </div>
+                    <h2 class="lh16-display">${escapeHtml(l.name)}</h2>
+                    <div class="lh16-statgrid"${gridStyle}>
+                        ${startTile}
+                        <div><div class="lh16-statlbl">Last Updated</div><div class="lh16-statval">${escapeHtml(l.lastUpdated)}</div></div>
+                    </div>
+                </div>`;
+            },
+            v17(l, opts = {}) {
+                const startedSpan = opts.omitStartDate ? '' : `
+                    <span class="lh17-sep">·</span>
+                    <span class="lh17-meta"><span class="label">Started</span>${escapeHtml(l.startDate)}</span>`;
+                return `<div class="lh17-line">
+                    ${typePill(l)}
+                    <span class="lh17-name">${escapeHtml(l.name)}</span>
+                    ${statusPill(l)}
+                    ${startedSpan}
+                    <span class="lh17-sep">·</span>
+                    <span class="lh17-meta"><span class="label">Updated</span>${escapeHtml(l.lastUpdated)}</span>
                 </div>`;
             },
         };
 
         /* ── Lab state + DOM helpers ──────────────────────────────── */
         let labPlayer = null;
+        let labLeague = null;
+        let currentView = 'player-general';
         let currentPlayerName = new URLSearchParams(window.location.search).get('player') || DEFAULT_PLAYER;
+        let currentLeagueId   = new URLSearchParams(window.location.search).get('league') || '';
+
+        /* Header font-size scale state — one independent level per header
+           dropdown. Level 4 is the production baseline (factor 1.0); 5 is
+           the largest. Factor multiplies the variant card's root
+           font-size via the `--pl-scale` CSS variable, so every em-based
+           child element inside scales proportionally. */
+        const SCALE_FACTORS = [0.7, 0.8, 0.9, 1.0, 1.15];
+        const HEADER_SCALES = { pg: 4, pl: 4, lhDash: 4, lhTable: 4 };
+        function scaleFactor(key) { return SCALE_FACTORS[HEADER_SCALES[key] - 1]; }
 
         function getNavKey()    { return document.getElementById('pl-nav-select')?.value    || 'current'; }
-        function getHeaderKey() { return document.getElementById('pl-header-select')?.value || 'current'; }
+        function getPlayerGeneralHeaderKey() { return document.getElementById('pl-header-pg-select')?.value || 'current'; }
+        function getPlayerLeagueHeaderKey()  { return document.getElementById('pl-header-pl-select')?.value || 'current'; }
+        function getLeagueDashHeaderKey()    { return document.getElementById('pl-lh-dash-select')?.value   || 'current'; }
+        function getLeagueTableHeaderKey()   { return document.getElementById('pl-lh-table-select')?.value  || 'current'; }
         function getTiKey()     { return document.getElementById('pl-ti-select')?.value     || 'none'; }
 
         /* Capture the badge's original data (tier / kind / code /
@@ -1386,86 +2012,266 @@
         }
 
         function applyHeaderVariant() {
+            // Active for both the general player card (player-general) and
+            // the per-league player card (view=player). Each context picks
+            // from its own dropdown; opts.inLeague flags the in-league one
+            // so renderers drop Joined / N-leagues meta.
+            if (currentView !== 'player-general' && currentView !== 'player') return;
             const pageHeader = document.querySelector('.page-header');
             if (!pageHeader) return;
             const h1 = document.getElementById('page-title');
             pageHeader.querySelectorAll('.pl-header-variant').forEach(el => el.remove());
 
-            const key = getHeaderKey();
+            const inLeague = currentView === 'player';
+            const key = inLeague ? getPlayerLeagueHeaderKey() : getPlayerGeneralHeaderKey();
             if (key === 'current') {
                 if (h1) h1.style.display = '';
-            } else if (labPlayer) {
+            } else if (labPlayer && HEADER_RENDERERS[key]) {
                 if (h1) h1.style.display = 'none';
                 const variant = document.createElement('div');
                 variant.className = 'pl-header-variant';
-                variant.innerHTML = HEADER_RENDERERS[key](labPlayer);
+                variant.style.setProperty('--pl-scale', scaleFactor(inLeague ? 'pl' : 'pg'));
+                variant.innerHTML = HEADER_RENDERERS[key](labPlayer, { inLeague });
                 pageHeader.insertBefore(variant, h1);
+            }
+        }
+
+        function applyLeagueHeaderVariant() {
+            // Active for both the league dashboard (view=dashboard) and the
+            // league table page (view=league). Each picks from its own
+            // dropdown; opts.omitStartDate=true for the table-D page so
+            // the "Started …" field is dropped.
+            if (currentView !== 'league' && currentView !== 'dashboard') return;
+            const pageHeader = document.querySelector('.page-header');
+            if (!pageHeader) return;
+            const h1 = document.getElementById('page-title');
+            pageHeader.querySelectorAll('.pl-league-variant').forEach(el => el.remove());
+
+            const omitStartDate = currentView === 'league';
+            const key = omitStartDate ? getLeagueTableHeaderKey() : getLeagueDashHeaderKey();
+            if (key === 'current') {
+                if (h1) h1.style.display = '';
+                pageHeader.querySelectorAll('.last-updated, .games-played').forEach(el => el.style.display = '');
+            } else if (labLeague && LEAGUE_HEADER_RENDERERS[key]) {
+                if (h1) h1.style.display = 'none';
+                // .league-nav (prev/next arrows on dashboard) stays visible — it's
+                // navigation, not part of the header. The .league-nav margin-top
+                // in dashboard.css already gives it breathing room below the variant.
+                pageHeader.querySelectorAll('.last-updated, .games-played').forEach(el => el.style.display = 'none');
+                const variant = document.createElement('div');
+                variant.className = 'pl-league-variant';
+                variant.style.setProperty('--pl-scale', scaleFactor(omitStartDate ? 'lhTable' : 'lhDash'));
+                variant.innerHTML = LEAGUE_HEADER_RENDERERS[key](labLeague, { omitStartDate });
+                pageHeader.insertBefore(variant, h1);
+            }
+        }
+
+        /* ── Reset DOM between views ──────────────────────────────── */
+        function resetPageDom() {
+            document.querySelectorAll('.pl-header-variant, .pl-nav-variant, .pl-league-variant').forEach(el => el.remove());
+
+            const ph = document.getElementById('page-header');
+            if (ph) {
+                ph.classList.remove('landing-header', 'editable');
+                ph.style.display = '';
+            }
+            ['site-logo', 'site-title', 'site-subtitle'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.style.display = 'none';
+                if (el.tagName === 'IMG') el.removeAttribute('src');
+                else el.textContent = '';
+            });
+            const h1 = document.getElementById('page-title');
+            if (h1) { h1.textContent = 'Loading…'; h1.style.display = ''; h1.className = ''; }
+            const sub = document.getElementById('league-subtitle');
+            if (sub) { sub.textContent = ''; sub.style.display = ''; }
+            const pc = document.querySelector('.page-container');
+            if (pc) pc.classList.remove('wide-table');
+            const content = document.getElementById('content');
+            if (content) content.innerHTML = '<div class="loading">Loading…</div>';
+
+            // Strip any prior league-page extras attached to .page-header.
+            // .league-nav is included so prev/next arrows from the player
+            // view (table E) or dashboard view don't survive a switch to
+            // player-general (which has no equivalent in production).
+            document.querySelectorAll('.page-header .last-updated, .page-header .games-played, .page-header .league-nav').forEach(el => {
+                if (el.id !== 'league-subtitle') el.remove();
+            });
+        }
+
+        /* ── Update the "viewing X" subtitle in the lab strip ─────── */
+        function updateViewingLabel() {
+            const viewing = document.getElementById('pl-viewing');
+            if (!viewing) return;
+            if (currentView === 'home')          viewing.textContent = 'Home';
+            else if (currentView === 'league')   viewing.textContent = `League · ${currentLeagueId || '—'}`;
+            else if (currentView === 'dashboard') viewing.textContent = `Dashboard · ${currentLeagueId || '—'}`;
+            else if (currentView === 'player')   viewing.textContent = `${currentPlayerName} · ${currentLeagueId || '—'}`;
+            else                                 viewing.textContent = currentPlayerName;
+        }
+
+        /* ── Render the current view (sync URL → DOM → render) ────── */
+        async function loadView() {
+            resetPageDom();
+            updateViewingLabel();
+            clearPlayersMetadataCache();
+
+            try {
+                if (currentView === 'home') {
+                    // Landing page needs the site-* heading elements visible
+                    ['site-logo', 'site-title', 'site-subtitle'].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.style.display = '';
+                    });
+                    const h1 = document.getElementById('page-title');
+                    if (h1) h1.style.display = 'none';
+                    const sub = document.getElementById('league-subtitle');
+                    if (sub) sub.style.display = 'none';
+                    await renderLandingPage();
+                } else if (currentView === 'league') {
+                    const [, leagueData] = await Promise.all([
+                        renderLeaguePage(),
+                        computeLabLeague(currentLeagueId),
+                    ]);
+                    labLeague = leagueData;
+                    applyLeagueHeaderVariant();
+                } else if (currentView === 'dashboard') {
+                    const [, leagueData] = await Promise.all([
+                        renderDashboardPage(),
+                        computeLabLeague(currentLeagueId),
+                    ]);
+                    labLeague = leagueData;
+                    applyLeagueHeaderVariant();
+                } else if (currentView === 'player') {
+                    const [, labData] = await Promise.all([
+                        renderPlayerPage(),
+                        computeLabPlayer(currentPlayerName),
+                    ]);
+                    labPlayer = labData;
+                    applyNavVariant();
+                    applyHeaderVariant();
+                    applyTitleIconVariant();
+                } else {
+                    // player-general (default)
+                    const [labData] = await Promise.all([
+                        computeLabPlayer(currentPlayerName),
+                        renderPlayerGeneralPage(),
+                    ]);
+                    labPlayer = labData;
+                    applyNavVariant();
+                    applyHeaderVariant();
+                    applyTitleIconVariant();
+                }
+            } catch (err) {
+                console.error('Failed to load view:', err);
+                const content = document.getElementById('content');
+                if (content) content.innerHTML = `<div class="error">Failed to load: ${escapeHtml(err.message)}</div>`;
             }
         }
 
         async function loadPlayer(playerName) {
             currentPlayerName = playerName;
-
+            currentView = 'player-general';
             const url = new URL(window.location.href);
+            url.searchParams.set('view', currentView);
             url.searchParams.set('player', playerName);
+            url.searchParams.delete('league');
             window.history.replaceState(null, '', url.toString());
+            await loadView();
+        }
 
-            document.querySelectorAll('.pl-header-variant, .pl-nav-variant').forEach(el => el.remove());
-            const h1 = document.getElementById('page-title');
-            if (h1) { h1.textContent = 'Loading…'; h1.style.display = ''; h1.className = ''; }
-            const content = document.getElementById('content');
-            if (content) content.innerHTML = '<div class="loading">Loading player profile…</div>';
-
-            clearPlayersMetadataCache();
-
-            const viewing = document.getElementById('pl-viewing');
-            if (viewing) viewing.textContent = playerName;
-
+        /* ── Click interception: rewrite production-page links to
+           keep the lab strip visible across navigation. ──────────── */
+        function rewriteToLab(rawHref) {
             try {
-                const [labData] = await Promise.all([
-                    computeLabPlayer(playerName),
-                    renderPlayerGeneralPage(),
-                ]);
-                labPlayer = labData;
-                applyNavVariant();
-                applyHeaderVariant();
-                applyTitleIconVariant();
-            } catch (err) {
-                console.error('Failed to load player:', err);
-                if (content) content.innerHTML = `<div class="error">Failed to load player: ${escapeHtml(err.message)}</div>`;
-            }
+                const u = new URL(rawHref, window.location.href);
+                if (u.origin !== window.location.origin) return null;
+                const file = u.pathname.split('/').pop();
+                const out = new URL(window.location.href);
+                out.search = '';
+                if (file === 'index.html' || file === '' || file === '/') {
+                    out.searchParams.set('view', 'home');
+                } else if (file === 'league.html') {
+                    out.searchParams.set('view', 'league');
+                    if (u.searchParams.get('league')) out.searchParams.set('league', u.searchParams.get('league'));
+                } else if (file === 'dashboard.html') {
+                    out.searchParams.set('view', 'dashboard');
+                    if (u.searchParams.get('league')) out.searchParams.set('league', u.searchParams.get('league'));
+                } else if (file === 'player.html') {
+                    out.searchParams.set('view', 'player');
+                    if (u.searchParams.get('league')) out.searchParams.set('league', u.searchParams.get('league'));
+                    if (u.searchParams.get('player')) out.searchParams.set('player', u.searchParams.get('player'));
+                } else if (file === 'player_general.html') {
+                    out.searchParams.set('view', 'player-general');
+                    if (u.searchParams.get('player')) out.searchParams.set('player', u.searchParams.get('player'));
+                } else {
+                    return null;
+                }
+                return out.toString();
+            } catch { return null; }
+        }
+
+        async function navigateTo(href) {
+            const u = new URL(href, window.location.href);
+            const view = u.searchParams.get('view') || 'player-general';
+            currentView         = view;
+            currentLeagueId     = u.searchParams.get('league') || '';
+            currentPlayerName   = u.searchParams.get('player') || (view === 'player-general' ? DEFAULT_PLAYER : '');
+            window.history.pushState(null, '', u.toString());
+            await loadView();
         }
 
         function setupSearchInterception() {
             document.addEventListener('click', (e) => {
-                const link = e.target.closest('.nav-search-results a');
+                const link = e.target.closest('a[href]');
                 if (!link) return;
-                let player = null;
-                try {
-                    const url = new URL(link.href, window.location.href);
-                    player = url.searchParams.get('player');
-                } catch { return; }
-                if (!player) return;
+                if (e.defaultPrevented) return;
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                if (link.target && link.target !== '' && link.target !== '_self') return;
+                const rewritten = rewriteToLab(link.href);
+                if (!rewritten) return;
                 e.preventDefault();
+                // Close the nav-search dropdown if the click came from there
                 const results = document.querySelector('.nav-search-results');
                 const input   = document.querySelector('.nav-search input');
-                if (results) results.hidden = true;
-                if (input)   input.value = '';
-                loadPlayer(player);
+                if (link.closest('.nav-search-results')) {
+                    if (results) results.hidden = true;
+                    if (input)   input.value = '';
+                }
+                navigateTo(rewritten);
             }, true);
+
+            window.addEventListener('popstate', () => {
+                const u = new URL(window.location.href);
+                currentView       = u.searchParams.get('view') || 'player-general';
+                currentLeagueId   = u.searchParams.get('league') || '';
+                currentPlayerName = u.searchParams.get('player') || (currentView === 'player-general' ? DEFAULT_PLAYER : '');
+                loadView();
+            });
         }
 
         function buildLabStrip() {
             const strip = document.createElement('div');
             strip.className = 'pl-controls';
+            strip.id = 'design-lab-strip';
             strip.innerHTML = `
                 <div class="pl-controls-inner">
                     <div class="pl-meta">
-                        <span class="pl-tag">Lab</span>
-                        <strong class="pl-title-label">Player Page Lab</strong>
-                        <span class="pl-sub">— viewing <span class="pl-viewing-name" id="pl-viewing">${escapeHtml(currentPlayerName)}</span> · use the search above to switch</span>
+                        <span class="pl-tag">Design Lab</span>
+                        <span class="pl-sub">— viewing <span class="pl-viewing-name" id="pl-viewing"></span></span>
                     </div>
                     <div class="pl-fields">
+                        <div class="pl-field">
+                            <label for="pl-view-select">View</label>
+                            <select id="pl-view-select">
+                                <option value="home">Home — landing page</option>
+                                <option value="league">League table</option>
+                                <option value="dashboard">League dashboard</option>
+                                <option value="player">Player (per-league)</option>
+                                <option value="player-general">Player General</option>
+                            </select>
+                        </div>
                         <div class="pl-field">
                             <label for="pl-nav-select">Navigation</label>
                             <select id="pl-nav-select">
@@ -1479,16 +2285,78 @@
                             </select>
                         </div>
                         <div class="pl-field">
-                            <label for="pl-header-select">Header</label>
-                            <select id="pl-header-select">
-                                <option value="current">Current — production</option>
-                                <option value="v7">V7 — Lichess-enriched</option>
-                                <option value="v8">V8 — FIDE passport</option>
-                                <option value="v9">V9 — Glassmorphism tile</option>
-                                <option value="v10">V10 — Trading card</option>
-                                <option value="v11">V11 — Minimal single-line</option>
-                                <option value="v12">V12 — Hero banner</option>
-                            </select>
+                            <label for="pl-header-pg-select">Player Header — General card</label>
+                            <div class="pl-field-controls">
+                                <select id="pl-header-pg-select">
+                                    <option value="current">Current — production</option>
+                                    <option value="v7">V7 — Lichess-enriched</option>
+                                    <option value="v8">V8 — FIDE passport</option>
+                                    <option value="v9">V9 — Glassmorphism tile</option>
+                                    <option value="v10">V10 — Trading card</option>
+                                    <option value="v11">V11 — Minimal single-line</option>
+                                    <option value="v12">V12 — Hero banner</option>
+                                </select>
+                                <span class="pl-scale" data-pl-scale-target="pg" title="Adjust header font size (level 4 = current)">
+                                    <button class="pl-scale-btn pl-scale-minus" type="button" aria-label="Decrease font size">−</button>
+                                    <span class="pl-scale-val">4</span>
+                                    <button class="pl-scale-btn pl-scale-plus" type="button" aria-label="Increase font size">+</button>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="pl-field">
+                            <label for="pl-header-pl-select">Player Header — In-league card (table E)</label>
+                            <div class="pl-field-controls">
+                                <select id="pl-header-pl-select">
+                                    <option value="current">Current — production</option>
+                                    <option value="v7">V7 — Lichess-enriched</option>
+                                    <option value="v8">V8 — FIDE passport</option>
+                                    <option value="v9">V9 — Glassmorphism tile</option>
+                                    <option value="v10">V10 — Trading card</option>
+                                    <option value="v11">V11 — Minimal single-line</option>
+                                    <option value="v12">V12 — Hero banner</option>
+                                </select>
+                                <span class="pl-scale" data-pl-scale-target="pl" title="Adjust header font size (level 4 = current)">
+                                    <button class="pl-scale-btn pl-scale-minus" type="button" aria-label="Decrease font size">−</button>
+                                    <span class="pl-scale-val">4</span>
+                                    <button class="pl-scale-btn pl-scale-plus" type="button" aria-label="Increase font size">+</button>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="pl-field">
+                            <label for="pl-lh-dash-select">League Header — Dashboard</label>
+                            <div class="pl-field-controls">
+                                <select id="pl-lh-dash-select">
+                                    <option value="current">Current — production</option>
+                                    <option value="v13">V13 — Lichess title bar</option>
+                                    <option value="v14">V14 — Stacked card + chip row</option>
+                                    <option value="v15">V15 — FIDE passport</option>
+                                    <option value="v16">V16 — Hero banner</option>
+                                    <option value="v17">V17 — Minimal capsule</option>
+                                </select>
+                                <span class="pl-scale" data-pl-scale-target="lhDash" title="Adjust header font size (level 4 = current)">
+                                    <button class="pl-scale-btn pl-scale-minus" type="button" aria-label="Decrease font size">−</button>
+                                    <span class="pl-scale-val">4</span>
+                                    <button class="pl-scale-btn pl-scale-plus" type="button" aria-label="Increase font size">+</button>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="pl-field">
+                            <label for="pl-lh-table-select">League Header — Table page (table D)</label>
+                            <div class="pl-field-controls">
+                                <select id="pl-lh-table-select">
+                                    <option value="current">Current — production</option>
+                                    <option value="v13">V13 — Lichess title bar</option>
+                                    <option value="v14">V14 — Stacked card + chip row</option>
+                                    <option value="v15">V15 — FIDE passport</option>
+                                    <option value="v16">V16 — Hero banner</option>
+                                    <option value="v17">V17 — Minimal capsule</option>
+                                </select>
+                                <span class="pl-scale" data-pl-scale-target="lhTable" title="Adjust header font size (level 4 = current)">
+                                    <button class="pl-scale-btn pl-scale-minus" type="button" aria-label="Decrease font size">−</button>
+                                    <span class="pl-scale-val">4</span>
+                                    <button class="pl-scale-btn pl-scale-plus" type="button" aria-label="Increase font size">+</button>
+                                </span>
+                            </div>
                         </div>
                         <div class="pl-field">
                             <label for="pl-ti-select">Title icon (tables)</label>
@@ -1510,16 +2378,78 @@
             if (nav) nav.insertAdjacentElement('afterend', strip);
             else     document.body.insertBefore(strip, document.body.firstChild);
 
+            document.getElementById('pl-view-select').value = currentView;
+            document.getElementById('pl-view-select').addEventListener('change', async (e) => {
+                const v = e.target.value;
+                const out = new URL(window.location.href);
+                out.searchParams.set('view', v);
+                // Default placeholders so league/player views still render something useful
+                if ((v === 'league' || v === 'dashboard') && !out.searchParams.get('league')) {
+                    try {
+                        const order = await loadLeagueOrder();
+                        const first = (order && order[0]) ? order[0].replace(' - ', ' ') : '';
+                        if (first) out.searchParams.set('league', first);
+                    } catch {}
+                }
+                if (v === 'player' && !out.searchParams.get('player')) {
+                    out.searchParams.set('player', DEFAULT_PLAYER);
+                }
+                if (v === 'player-general' && !out.searchParams.get('player')) {
+                    out.searchParams.set('player', DEFAULT_PLAYER);
+                }
+                navigateTo(out.toString());
+            });
             document.getElementById('pl-nav-select').addEventListener('change', applyNavVariant);
-            document.getElementById('pl-header-select').addEventListener('change', applyHeaderVariant);
+            document.getElementById('pl-header-pg-select').addEventListener('change', applyHeaderVariant);
+            document.getElementById('pl-header-pl-select').addEventListener('change', applyHeaderVariant);
+            document.getElementById('pl-lh-dash-select').addEventListener('change', applyLeagueHeaderVariant);
+            document.getElementById('pl-lh-table-select').addEventListener('change', applyLeagueHeaderVariant);
             document.getElementById('pl-ti-select').addEventListener('change', applyTitleIconVariant);
+
+            /* ── Scale controls — five-level +/- per header type ─────
+               Each control owns one entry in HEADER_SCALES. Bumping a
+               level updates the displayed number, toggles button enabled
+               state at the bounds, and re-applies the matching header
+               renderer so the CSS variable refreshes on the variant. */
+            document.querySelectorAll('.pl-scale[data-pl-scale-target]').forEach(wrap => {
+                const key = wrap.dataset.plScaleTarget;
+                const valEl = wrap.querySelector('.pl-scale-val');
+                const minus = wrap.querySelector('.pl-scale-minus');
+                const plus  = wrap.querySelector('.pl-scale-plus');
+                const isLeagueHeader = (key === 'lhDash' || key === 'lhTable');
+                const apply = isLeagueHeader ? applyLeagueHeaderVariant : applyHeaderVariant;
+                function refresh() {
+                    valEl.textContent = String(HEADER_SCALES[key]);
+                    minus.disabled = HEADER_SCALES[key] <= 1;
+                    plus.disabled  = HEADER_SCALES[key] >= SCALE_FACTORS.length;
+                }
+                minus.addEventListener('click', () => {
+                    if (HEADER_SCALES[key] > 1) { HEADER_SCALES[key]--; refresh(); apply(); }
+                });
+                plus.addEventListener('click', () => {
+                    if (HEADER_SCALES[key] < SCALE_FACTORS.length) { HEADER_SCALES[key]++; refresh(); apply(); }
+                });
+                refresh();
+            });
         }
+
+        /* ── Init ─────────────────────────────────────────────────── */
+        (function initFromUrl() {
+            const u = new URL(window.location.href);
+            currentView       = u.searchParams.get('view') || (u.searchParams.get('player') ? 'player-general' : 'home');
+            currentLeagueId   = u.searchParams.get('league') || '';
+            currentPlayerName = u.searchParams.get('player') || DEFAULT_PLAYER;
+            // Persist a normalised URL so future link rewrites work correctly
+            u.searchParams.set('view', currentView);
+            window.history.replaceState(null, '', u.toString());
+        })();
 
         await initNavBar();
         buildLabStrip();
         setupSearchInterception();
-        await loadPlayer(currentPlayerName);
+        await loadView();
         initThemePicker();
+        initKeyboardShortcuts();
     </script>
 </body>
 </html>

@@ -7,10 +7,11 @@
 import { loadLeague, loadLeagueOrder, loadAllLeagueParams } from '../data/leagueLoader.js';
 import { getPlayerMatches } from '../data/csvParser.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { getQueryParam, flagUrl, getFlagCode, playerUrl, dashboardUrl, leagueUrl, playerGeneralUrl, getLeagueYear } from '../utils/helpers.js';
+import { getQueryParam, flagUrl, getFlagCode, playerUrl, dashboardUrl, leagueUrl, playerGeneralUrl, getLeagueYear, parseLeagueDate } from '../utils/helpers.js';
 import { renderBreadcrumbs, ensurePlayerIndex } from './navigation.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleBadgesHtml, getHighestTier, getTitleAbbreviationsHtml } from '../data/titleConstants.js';
+import { renderV7Header, buildHeaderTitles, formatJoinedShort } from './playerHeader.js';
 import { attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { startSplash, endSplash } from '../utils/splash.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
@@ -46,44 +47,58 @@ export async function renderPlayerPage() {
 
         const retiredPlayers = params.RetiredPlayers || [];
         const isRetired = retiredPlayers.includes(playerName);
-        const retiredBadge = isRetired ? ' <span class="retired-badge">Retired</span>' : '';
 
         const CURRENT_YEAR = new Date().getFullYear();
-        const { dotClass, dotTitle } = computePlayerStatusDot({
+        const { dotClass: statusDotClass, dotTitle: statusDotTitle } = computePlayerStatusDot({
             playerName, playerIndex, allParams,
             currentLeagueId: leagueId, currentParams: params,
             currentYear: CURRENT_YEAR
         });
-        const dotHtml = `<span class="pg-dot-wrap" tabindex="0" data-tip="${escapeHtml(dotTitle)}"><span class="${dotClass}" aria-label="${escapeHtml(dotTitle)}"></span></span>`;
 
-        const avatarHtml = meta.photoPath
-            ? `<img class="pg-avatar" src="${escapeHtml(meta.photoPath)}" alt="${escapeHtml(playerName)}">`
-            : '';
+        // ── Aggregate the player's leagues (current + all known) to
+        //    derive joined date and total league count. The cross-league
+        //    index doesn't include the current league if we are the only
+        //    page that has loaded it, so union the two. ──
+        const indexedLeagueIds = new Set(
+            (playerIndex.get(playerName) || []).map(l => l.leagueId)
+        );
+        indexedLeagueIds.add(leagueId);
+        const dated = [...indexedLeagueIds]
+            .map(id => {
+                const d = parseLeagueDate(id);
+                return { id, year: d.year, monthIndex: d.monthIndex };
+            })
+            .filter(x => x.year != null && x.monthIndex >= 0)
+            .sort((a, b) => (a.year - b.year) || (a.monthIndex - b.monthIndex));
 
-        const flagHtml = `<img class="flag-title" src="${flagUrl(flagCode)}" alt="${flagCode}" title="${flagCode}">`;
-        const titleBadgesHtml = getTitleBadgesHtml(meta);
-        const aliasHtml = meta.fullName
-            ? `<div class="pg-player-alias">${escapeHtml(meta.fullName)}</div>`
-            : '';
-        const highestTier = getHighestTier(meta);
+        const joinedFormatted = (meta.joined
+            ? (() => {
+                const [y, m] = String(meta.joined).split('-').map(x => parseInt(x, 10));
+                return formatJoinedShort(y, m - 1);
+            })()
+            : (dated.length ? formatJoinedShort(dated[0].year, dated[0].monthIndex) : '')
+        );
 
-        const badgesHtml = (titleBadgesHtml || retiredBadge)
-            ? `<div class="pg-badges-line">${titleBadgesHtml}${retiredBadge}</div>`
-            : '';
         const pageTitle = document.getElementById('page-title');
-        pageTitle.innerHTML = `
-            <div class="pg-header-row">
-                ${avatarHtml}
-                <div class="pg-header-text">
-                    <div class="pg-name-line">
-                        ${dotHtml} ${flagHtml}
-                        <a class="player-name-link pg-player-name" href="${playerGeneralUrl(playerName)}" title="Open general player card">${escapeHtml(playerName)}</a>
-                    </div>
-                    ${badgesHtml}
-                    ${aliasHtml}
-                </div>
-            </div>
-        `;
+        renderV7Header(pageTitle, {
+            name: playerName,
+            nameHref: playerGeneralUrl(playerName),
+            fullName: meta.fullName,
+            photoPath: meta.photoPath,
+            flagCode,
+            statusDotClass,
+            statusDotTitle,
+            titles: buildHeaderTitles(meta),
+            // inLeague=true drops "Joined …" + "N leagues" from the meta
+            // row — those belong on the cross-league general profile,
+            // not on the per-league surface (table E).
+            inLeague: true,
+            joinedFormatted,
+            leagueCount: indexedLeagueIds.size,
+            extraMetaHtml: isRetired ? '<span class="retired-badge">Retired</span>' : '',
+        });
+
+        const highestTier = getHighestTier(meta);
         pageTitle.classList.remove('pg-titled-gold', 'pg-titled-silver', 'pg-titled-bronze', 'pg-titled-white');
         if (highestTier) pageTitle.classList.add(`pg-titled-${highestTier}`);
 
@@ -164,7 +179,7 @@ function installPlayerLeagueNavArrows({ leagueId, playerName, currentType, playe
         <a class="nav-arrow ${prev ? '' : 'disabled'}" ${prev ? `href="${playerUrl(prev, playerName)}" title="Previous league: ${prev}"` : 'title="No previous league"'}>&lsaquo;</a>
         <a class="nav-arrow ${next ? '' : 'disabled'}" ${next ? `href="${playerUrl(next, playerName)}" title="Next league: ${next}"` : 'title="No next league"'}>&rsaquo;</a>
     `;
-    header.querySelector('h1').insertAdjacentElement('afterend', nav);
+    (header.querySelector('#page-title') || header.querySelector('h1')).insertAdjacentElement('afterend', nav);
 }
 
 function computePlayerStatusDot({ playerName, playerIndex, allParams, currentLeagueId, currentParams, currentYear }) {

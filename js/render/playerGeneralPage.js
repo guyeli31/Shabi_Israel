@@ -36,6 +36,7 @@ import {
 import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { getTitleBadgesHtml, getTitleAbbreviationsHtml, getHighestTier } from '../data/titleConstants.js';
+import { renderV12Header, buildHeaderTitles, formatJoinedShort } from './playerHeader.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildPlayerLeaguesPreset } from '../presets/playerLeaguesPreset.js';
@@ -127,7 +128,7 @@ function renderHeader(playerName, perLeague, meta = {}) {
     const title = document.getElementById('page-title');
     if (!title) return;
 
-    // 3-state activity dot
+    // ── Status dot (Active / This year / Inactive) ──
     const inRunning = perLeague.some(e => e.league.params?.Running === true);
     let playedThisYear = false;
     for (const e of perLeague) {
@@ -138,72 +139,63 @@ function renderHeader(playerName, perLeague, meta = {}) {
         if (playedThisYear) break;
     }
     const inCurrentYearLeague = perLeague.some(e => getLeagueYear(e.league) === CURRENT_YEAR);
-    let dotClass, dotTitle;
+    let statusDotClass, statusDotTitle;
     if (inRunning) {
-        dotClass = 'pg-dot pg-dot-green';
-        dotTitle = 'Active in a running league';
+        statusDotClass = 'pg-dot pg-dot-green';
+        statusDotTitle = 'Active in a running league';
     } else if (playedThisYear || inCurrentYearLeague) {
-        dotClass = 'pg-dot pg-dot-orange';
-        dotTitle = `Played this year (${CURRENT_YEAR}), not in a running league`;
+        statusDotClass = 'pg-dot pg-dot-orange';
+        statusDotTitle = `Played this year (${CURRENT_YEAR}), not in a running league`;
     } else {
-        dotClass = 'pg-dot pg-dot-gray';
-        dotTitle = `Inactive in ${CURRENT_YEAR}`;
+        statusDotClass = 'pg-dot pg-dot-gray';
+        statusDotTitle = `Inactive in ${CURRENT_YEAR}`;
     }
-    const dot = `<span class="pg-dot-wrap" tabindex="0" data-tip="${escapeHtml(dotTitle)}"><span class="${dotClass}" aria-label="${escapeHtml(dotTitle)}"></span></span>`;
 
-    // Distinct flag codes from all leagues; fallback to default when player has no leagues
-    const flagSet = new Set();
-    for (const e of perLeague) {
-        flagSet.add(getFlagCode(playerName, e.league.params?.CustomFlags));
-    }
-    if (flagSet.size === 0) flagSet.add(getFlagCode(playerName, {}));
-    const flagsHtml = [...flagSet]
-        .map(code => `<img class="flag-title" src="${flagUrl(code)}" alt="${code}" title="${code}">`)
-        .join('');
+    // ── Flag: running league wins; otherwise latest league the player
+    //    appeared in (by date). Falls back to default for inactive players. ──
+    const dated = perLeague
+        .map(e => {
+            const d = parseLeagueDate(e.league.id);
+            return { e, year: d.year, monthIndex: d.monthIndex };
+        })
+        .filter(x => x.year != null && x.monthIndex >= 0)
+        .sort((a, b) => (a.year - b.year) || (a.monthIndex - b.monthIndex));
+    const runningEntry = perLeague.find(e => e.league.params?.Running === true);
+    const latestEntry  = dated.length ? dated[dated.length - 1].e : null;
+    const flagSourceEntry = runningEntry || latestEntry;
+    const flagCode = flagSourceEntry
+        ? getFlagCode(playerName, flagSourceEntry.league.params?.CustomFlags)
+        : getFlagCode(playerName, {});
 
-    // Optional avatar
-    const avatarHtml = meta.photoPath
-        ? `<img class="pg-avatar" src="${escapeHtml(meta.photoPath)}" alt="${escapeHtml(playerName)}">`
-        : '';
+    // ── Joined: meta override, else earliest league's month + year ──
+    const joinedFormatted = (meta.joined
+        ? (() => {
+            const [y, m] = String(meta.joined).split('-').map(x => parseInt(x, 10));
+            return formatJoinedShort(y, m - 1);
+        })()
+        : (dated.length ? formatJoinedShort(dated[0].year, dated[0].monthIndex) : '')
+    );
 
-    // Title badges (BMAB + championship) — appear RIGHT of name
-    const titleBadgesHtml = getTitleBadgesHtml(meta);
+    renderV12Header(title, {
+        name: playerName,
+        fullName: meta.fullName,
+        photoPath: meta.photoPath,
+        flagCode,
+        statusDotClass,
+        statusDotTitle,
+        titles: buildHeaderTitles(meta),
+        joinedFormatted,
+        leagueCount: perLeague.length,
+    });
 
-    // Display name + full name beneath
-    const displayName = playerName;
-    const aliasHtml = meta.fullName
-        ? `<div class="pg-player-alias">${escapeHtml(meta.fullName)}</div>`
-        : '';
-
-    // Highest tier for name color styling
-    const highestTier = getHighestTier(meta);
-
-    const badgesHtml = titleBadgesHtml
-        ? `<div class="pg-badges-line">${titleBadgesHtml}</div>`
-        : '';
-    title.innerHTML = `
-        <div class="pg-header-row">
-            ${avatarHtml}
-            <div class="pg-header-text">
-                <div class="pg-name-line">
-                    ${dot} ${flagsHtml}
-                    <span class="pg-player-name">${escapeHtml(displayName)}</span>
-                </div>
-                ${badgesHtml}
-                ${aliasHtml}
-            </div>
-        </div>
-    `;
-    // Apply tier-based name styling
+    // Tier-based name colour toggles via the h1's class (rules in CSS).
     title.classList.remove('pg-titled', 'pg-titled-gold', 'pg-titled-silver', 'pg-titled-bronze', 'pg-titled-white');
+    const highestTier = getHighestTier(meta);
     if (highestTier) title.classList.add(`pg-titled-${highestTier}`);
 
+    // V7 surfaces league count inside the card meta; clear the legacy subtitle.
     const subtitle = document.getElementById('league-subtitle');
-    if (subtitle) {
-        subtitle.textContent = perLeague.length === 0
-            ? 'No league data'
-            : `Active in ${perLeague.length} league${perLeague.length === 1 ? '' : 's'}`;
-    }
+    if (subtitle) subtitle.textContent = '';
 }
 
 // ---- G3: PR stats ----

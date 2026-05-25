@@ -40,11 +40,14 @@
     margin: 0 auto;
     display: flex;
     align-items: center;
-    /* Nav height scales with brand text size — `em` is relative to the nav-bar's
-       inherited font-size, so resizing the brand link or any nav text grows the
-       bar in step. The min-height keeps a sensible floor at default font sizes. */
+    /* Brand size scales linearly (18px @ 360vw → 24px @ 1440vw). Vertical padding
+       is driven by the same variable so the bar grows in step. Scoping the
+       font-size to .nav-home (not the inner) keeps neighbouring wrappers at
+       default line-height — otherwise their inline contents (button, input)
+       would bottom-align inside an inflated line box and look mis-centered. */
+    --brand-size: clamp(18px, calc(0.56vw + 16px), 24px);
     min-height: var(--nav-height);
-    padding: 0.6em var(--space-md);
+    padding: calc(var(--brand-size) * 0.6) var(--space-md);
     gap: var(--space-md);
 }
 
@@ -53,7 +56,8 @@
     color: var(--header-text);
     text-decoration: none;
     font-weight: 700;
-    font-size: 1rem;
+    font-size: var(--brand-size);
+    line-height: 1.1;
     white-space: nowrap;
     transition: opacity 0.15s;
 }
@@ -280,45 +284,80 @@
 /* ============================================
    BREADCRUMBS
    ============================================ */
+/* "V1" segmented pill trail (Player Page Lab).
+   Each <li> becomes a chevron-shaped segment that overlaps the next.
+   The renderer still emits separator <li class="sep"> nodes between
+   items; we hide them since the chevron shape itself does the job. */
 .breadcrumbs {
     padding: var(--space-sm) 0;
     margin-bottom: var(--space-sm);
 }
 
 .breadcrumbs ol {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     flex-wrap: wrap;
     list-style: none;
     gap: 0;
+    margin: 0;
+    padding: 0;
+    isolation: isolate;
     font-size: clamp(0.72rem, 0.6rem + 0.5vw, 0.85rem);
-}
-
-.breadcrumbs li {
-    display: inline-flex;
-    align-items: center;
+    font-weight: 600;
 }
 
 .breadcrumbs .sep {
-    margin: 0 6px;
-    color: var(--color-text-muted);
-    font-size: 0.9em;
-    user-select: none;
+    display: none;
 }
+
+.breadcrumbs li {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.55em 1.4em 0.55em 1.1em;
+    margin-left: -0.625em;
+    background: var(--header-bg, var(--color-surface));
+    color: var(--header-text, var(--color-text));
+    opacity: 0.7;
+    clip-path: polygon(
+        0 0,
+        calc(100% - 0.75em) 0,
+        100% 50%,
+        calc(100% - 0.75em) 100%,
+        0 100%,
+        0.75em 50%
+    );
+    z-index: 1;
+}
+.breadcrumbs li:first-child {
+    margin-left: 0;
+    padding-left: 1.1em;
+    clip-path: polygon(
+        0 0,
+        calc(100% - 0.75em) 0,
+        100% 50%,
+        calc(100% - 0.75em) 100%,
+        0 100%
+    );
+}
+
+.breadcrumbs li:nth-child(3) { z-index: 2; opacity: 0.85; }
 
 .breadcrumbs a {
-    color: var(--color-accent);
+    color: inherit;
     text-decoration: none;
-    transition: color 0.15s;
-}
-.breadcrumbs a:hover {
-    color: var(--color-text);
-    text-decoration: underline;
+    transition: opacity 0.15s;
 }
 
+.breadcrumbs li:hover { opacity: 1; }
+
 .breadcrumbs .current {
-    color: var(--color-text-secondary);
-    font-weight: 500;
+    opacity: 1;
+    background: var(--color-accent);
+    color: #fff;
+    box-shadow: 0 0.25em 0.75em rgba(0, 0, 0, 0.18);
+    z-index: 3;
+    font-weight: 700;
 }
 
 /* ============================================

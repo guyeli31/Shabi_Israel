@@ -13,11 +13,14 @@
     color: var(--color-text);
 }
 
-/* League nav arrows in header */
+/* League nav arrows in header — sit on their own line below the title
+   with reasonable breathing room. The parent .page-header is text-align:center,
+   so inline-flex keeps the pair centered. */
 .league-nav {
     display: inline-flex;
     gap: var(--space-xs);
     vertical-align: middle;
+    margin-top: var(--space-md);
 }
 
 .league-nav .nav-arrow {
@@ -45,11 +48,12 @@
     pointer-events: none;
 }
 
-/* Summary cards */
+/* Summary cards — always one row, equal-width columns, fluid sizing down to mobile. */
 .dashboard-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: var(--space-md);
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: clamp(6px, 0.3rem + 0.6vw, 16px);
     margin-bottom: var(--space-xl);
 }
 
@@ -57,23 +61,52 @@
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    padding: var(--space-md);
+    padding: clamp(8px, 0.4rem + 0.8vw, 18px) clamp(6px, 0.3rem + 0.6vw, 16px);
     box-shadow: var(--shadow-sm);
     text-align: center;
+    min-width: 0;
+}
+
+/* Flex card: stays 1fr when content fits, but expands past 1fr instead of
+   ellipsis-clipping when content is wider — the other (non-flex) cards have
+   min-width:0 so they shrink to make room. */
+.dash-card.dash-card--flex {
+    min-width: max-content;
+}
+.dash-card.dash-card--flex .dash-card-value {
+    overflow: visible;
+    text-overflow: clip;
 }
 
 .dash-card-label {
-    font-size: 0.85rem;
+    font-size: clamp(0.55rem, 0.42rem + 0.45vw, 0.85rem);
     color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    margin-bottom: var(--space-xs);
+    margin-bottom: clamp(2px, 0.1rem + 0.2vw, 6px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .dash-card-value {
-    font-size: 1.5rem;
+    font-size: clamp(0.85rem, 0.5rem + 1.6vw, 1.6rem);
     font-weight: 700;
     color: var(--color-text);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Flag in the Leading Player card — sized in em so it tracks the player-name text,
+   matching the proportion used in the B2 leaderboard cell. */
+.dash-card-value .flag {
+    height: 1em;
+    width: auto;
+    margin-right: 0.3em;
+    vertical-align: middle;
+    border-radius: 2px;
 }
 
 /* Sections */

@@ -9,15 +9,16 @@
 
 import { loadLeague } from '../data/leagueLoader.js';
 import { computeAllStats } from '../compute/stats.js';
-import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
+import { buildRankings, computeAverages } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { getQueryParam, formatPercent, flagUrl, playerUrl, dashboardUrl, appendExportCredit } from '../utils/helpers.js';
+import { getQueryParam, flagUrl, playerUrl, dashboardUrl, appendExportCredit } from '../utils/helpers.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { startSplash, endSplash } from '../utils/splash.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildLeagueTablePreset } from '../presets/leagueTablePreset.js';
+import { buildLeagueHeaderData, renderV13Header } from './leagueHeader.js';
 
 export async function renderLeaguePage() {
     const container = document.getElementById('content');
@@ -39,8 +40,16 @@ export async function renderLeaguePage() {
         const leagueConfig = getLeagueConfig(params);
 
         const title = params.LeagueTitle || leagueId;
-        document.getElementById('page-title').textContent = title;
         document.title = title + ' — Shabi Israel';
+
+        // V13 Lichess title bar (production default for the table-D page).
+        // omitStartDate=true — the "Last updated …" line already implies
+        // the league has started; showing both dates is duplicate.
+        renderV13Header(
+            document.getElementById('page-title'),
+            buildLeagueHeaderData(params, lastModified),
+            { omitStartDate: true },
+        );
 
         renderBreadcrumbs([
             { label: 'Home', url: 'index.html' },
@@ -55,10 +64,8 @@ export async function renderLeaguePage() {
         const statsMap  = computeAllStats(matches, allPlayers);
         const rankings  = buildRankings(statsMap, leagueConfig, matches);
         const averages  = computeAverages(rankings, leagueConfig);
-        const matchStats = computeMatchStats(rankings, totalPlayers);
-
-        renderGamesPlayed(matchStats);
-        renderLastUpdated(lastModified);
+        // matchStats no longer surfaced in the header — V13 already
+        // carries the only timestamp the league-table page needs.
 
         // Build the export-button shell + a mount point for the table
         container.innerHTML = `
@@ -106,26 +113,6 @@ export async function renderLeaguePage() {
     } finally {
         endSplash();
     }
-}
-
-function renderLastUpdated(lastModified) {
-    if (!lastModified) return;
-    const date = new Date(lastModified);
-    const formatted = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-        + ', ' + date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    const el = document.createElement('div');
-    el.className = 'last-updated';
-    el.textContent = `Last updated: ${formatted}`;
-    document.querySelector('.page-header').appendChild(el);
-}
-
-function renderGamesPlayed(matchStats) {
-    if (!matchStats) return;
-    const pct = formatPercent(matchStats.playedRatio);
-    const el = document.createElement('div');
-    el.className = 'games-played';
-    el.textContent = `Games Played: ${matchStats.playedMatches} / ${matchStats.totalMatches} (${pct})`;
-    document.querySelector('.page-header').appendChild(el);
 }
 
 // ---- Export Image ----
