@@ -1384,8 +1384,12 @@
             // prestigious crown renders on TOP of the fleur-de-lis in
             // the overlap zone.
             const layers = [];
-            if (bestByKind.bmab)  layers.push({ icon: '⚜', tier: bestByKind.bmab.tier,  kind: 'bmab' });
-            if (bestByKind.champ) layers.push({ icon: '♛', tier: bestByKind.champ.tier, kind: 'champ' });
+            // ︎ (text variation selector) forces text presentation so
+            // the glyph respects `color`/alpha. Without it, iOS Safari draws
+            // ⚜ as a colour emoji that ignores .pl-wm-* tinting — the crown
+            // ♛ already defaults to text, but we tag it too for consistency.
+            if (bestByKind.bmab)  layers.push({ icon: '⚜︎', tier: bestByKind.bmab.tier,  kind: 'bmab' });
+            if (bestByKind.champ) layers.push({ icon: '♛︎', tier: bestByKind.champ.tier, kind: 'champ' });
 
             if (layers.length === 1) {
                 layers[0].role = 'solo';
