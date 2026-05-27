@@ -21,6 +21,14 @@ body {
     min-height: 100vh;
 }
 
+/* Form controls otherwise default to UA fonts (Arial on Chromium, system-control
+   on others) which breaks visual parity with surrounding text. Opt them back
+   into normal inheritance so buttons/inputs/selects/textareas all render with
+   the page's font, size, weight, and line-height. */
+button, input, select, textarea {
+    font: inherit;
+}
+
 .page-container {
     max-width: 1100px;
     margin: 0 auto;
@@ -45,7 +53,7 @@ body {
 }
 
 .page-header .subtitle {
-    font-size: 1rem;
+    font-size: var(--fs-100);
     color: var(--color-text-secondary);
     margin-top: var(--space-xs);
     font-style: italic;
@@ -124,14 +132,14 @@ body {
     text-align: center;
     padding: var(--space-2xl);
     color: var(--color-text-muted);
-    font-size: 1.1rem;
+    font-size: var(--fs-110);
 }
 
 .error {
     text-align: center;
     padding: var(--space-2xl);
     color: var(--color-loss);
-    font-size: 1.1rem;
+    font-size: var(--fs-110);
 }
 
 /* Responsive */

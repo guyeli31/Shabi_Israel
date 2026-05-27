@@ -116,7 +116,7 @@ To convert a table to MF in a future session, say:
 
 | Arg | Type | Default | Notes |
 |---|---|---|---|
-| `fontClass` | `'font-small' \| 'font-large'` | `'font-small'` | Class on `<table>`; `font-small` = 0.85rem |
+| `fontClass` | `'font-small' \| 'font-large'` | `'font-small'` | Class on `<table>`; both use the unified fluid token family (`font-small` = `var(--fs-085)` max 0.85rem; `font-large` = `var(--fs-093)` max 0.93rem). All textual elements site-wide share the same slope profile, so table cells "breathe" in lockstep with headings, KPI numbers, and chrome — ratios between any two elements stay constant at every viewport width. |
 | `stickyCols` | `0 \| 1 \| 2` | `1` | Pinned left columns; col 2 offset JS-measured via `--sticky-col-1-width` |
 | `medalRows` | `boolean` | `false` | Gold/silver/bronze tints on rows; all cells including sticky |
 | `medalCounts` | `{ gold, silver, bronze }` | `{ 1, 1, 1 }` | Rows per medal tier; only relevant when `medalRows: true`; read from `league_params.json` for D |

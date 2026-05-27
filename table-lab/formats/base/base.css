@@ -5,9 +5,9 @@
    Copied (cascade-equal) from css/components.css. Source-of-truth lives here;
    the duplicate rules in components.css will be deleted in Phase 7. */
 
-/* ---- Global table font-size classes (iron rule 3) ---- */
-table.font-large  { font-size: 0.93rem; }
-table.font-small  { font-size: 0.85rem; }
+/* ---- Global table font-size classes (iron rule 3 — fluid family) ---- */
+table.font-large  { font-size: var(--fs-093); }
+table.font-small  { font-size: var(--fs-085); }
 table.font-italic,
 table.font-italic th,
 table.font-italic td { font-style: italic; }
@@ -17,7 +17,7 @@ table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    font-size: 0.93rem;
+    font-size: var(--fs-093);
 }
 
 thead th {
@@ -113,13 +113,13 @@ tr.retired {
 /* ---- Mobile matrix compression (C-series tables) ---- */
 @media (max-width: 640px) {
     .pg-mr-table {
-        font-size: 0.65rem;
+        font-size: var(--fs-065);
         width: 100%;
         table-layout: auto;
     }
     .pg-mr-table thead th {
         padding: 3px 2px;
-        font-size: 0.65rem;
+        font-size: var(--fs-065);
         white-space: nowrap;
     }
     .pg-mr-table tbody td {

@@ -18,7 +18,7 @@
 .index-search-input {
     width: 100%;
     padding: 12px 16px 12px 40px;
-    font-size: 1rem;
+    font-size: var(--fs-100);
     font-family: var(--font-main);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
@@ -41,7 +41,7 @@
     top: 50%;
     transform: translateY(-50%);
     color: var(--color-text-muted);
-    font-size: 1rem;
+    font-size: var(--fs-100);
     pointer-events: none;
 }
 
@@ -85,7 +85,7 @@
 }
 
 .index-search-results .search-league-hint {
-    font-size: 0.78rem;
+    font-size: var(--fs-078);
     color: var(--color-text-muted);
     margin-left: auto;
 }
@@ -106,7 +106,7 @@
     gap: 8px;
     cursor: pointer;
     user-select: none;
-    font-size: 1.15rem;
+    font-size: var(--fs-115);
     font-weight: 700;
     color: var(--color-text);
     padding: 10px 0;
@@ -147,16 +147,16 @@
 }
 .notable-row .player-name-link {
     font-weight: 700;
-    font-size: 0.95rem;
+    font-size: var(--fs-095);
 }
 .notable-fullname {
     font-style: italic;
     color: var(--color-text-muted);
-    font-size: 0.9rem;
+    font-size: var(--fs-090);
 }
 .notable-titles {
     font-family: Georgia, 'Times New Roman', serif;
-    font-size: 0.88rem;
+    font-size: var(--fs-088);
     color: var(--color-text-secondary, #555);
     margin-left: auto;
 }
@@ -200,7 +200,7 @@
 }
 
 .league-card-title {
-    font-size: 1.05rem;
+    font-size: var(--fs-105);
     font-weight: 700;
 }
 
@@ -217,12 +217,12 @@
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    font-size: 0.9rem;
+    font-size: var(--fs-090);
     color: var(--color-text-secondary);
 }
 
 .league-card-leader {
-    font-size: 0.9rem;
+    font-size: var(--fs-090);
     color: var(--color-text-secondary);
 }
 
@@ -261,7 +261,7 @@
     width: 36px;
     height: 36px;
     cursor: pointer;
-    font-size: 1.4rem;
+    font-size: var(--fs-140);
     line-height: 34px;
     text-align: center;
     box-shadow: var(--shadow-sm);
@@ -308,7 +308,7 @@
 
 .leaderboard-section h2 {
     margin-bottom: var(--space-md);
-    font-size: 1.2rem;
+    font-size: var(--fs-120);
     border-bottom: 2px solid var(--color-border);
     padding-bottom: var(--space-xs);
     color: var(--color-text);
@@ -333,7 +333,7 @@
 }
 
 .pdf-export-btn {
-    font-size: 0.78rem;
+    font-size: var(--fs-078);
     padding: 4px 12px;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
@@ -594,7 +594,7 @@
 }
 
 .img-export-label {
-    font-size: 0.85rem;
+    font-size: var(--fs-085);
     color: var(--color-text-muted);
     display: inline-flex;
     align-items: center;
@@ -604,7 +604,7 @@
 .img-export-rows {
     width: 56px;
     padding: 4px 6px;
-    font-size: 0.85rem;
+    font-size: var(--fs-085);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     background: var(--color-surface);
@@ -613,7 +613,7 @@
 
 .img-export-btn {
     padding: 6px 12px;
-    font-size: 0.85rem;
+    font-size: var(--fs-085);
     font-weight: 600;
     background: var(--color-primary, #1e293b);
     color: #fff;
@@ -642,7 +642,7 @@
 
 .achv-tab {
     padding: 6px 14px;
-    font-size: 0.85rem;
+    font-size: var(--fs-085);
     font-weight: 600;
     background: var(--color-surface);
     color: var(--color-text);
@@ -702,7 +702,7 @@
 
 .achv-table-card h3 {
     margin: 0 0 var(--space-sm) 0;
-    font-size: 1rem;
+    font-size: var(--fs-100);
     color: var(--color-text);
 }
 
@@ -939,8 +939,8 @@
 .luck-bell-curve .bc-fill-right  { fill: var(--color-success, #28a745); opacity: 0.22; }
 .luck-bell-curve .bc-axis        { stroke: var(--color-border); stroke-width: 1; }
 .luck-bell-curve .bc-tick        { stroke: var(--color-border); stroke-width: 1; }
-.luck-bell-curve .bc-label-sigma { fill: var(--color-text-muted); font-size: 10px; }
-.luck-bell-curve .bc-label-pct   { fill: var(--color-text); font-size: 10px; font-weight: 600; }
+.luck-bell-curve .bc-label-sigma { fill: var(--color-text-muted); font-size: var(--fs-065); }
+.luck-bell-curve .bc-label-pct   { fill: var(--color-text); font-size: var(--fs-065); font-weight: 600; }
 
 /* ── Admin Edit Mode (Chunk 7) ─────────────────────────── */
 
@@ -954,7 +954,7 @@
     border-radius: 50%;
     width: 36px;
     height: 36px;
-    font-size: 1.1rem;
+    font-size: var(--fs-110);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -1004,7 +1004,7 @@
     background: rgba(0, 0, 0, 0.45);
     color: #fff;
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: var(--fs-090);
     border-radius: var(--radius-md);
     cursor: pointer;
     opacity: 0;
@@ -1016,7 +1016,7 @@
 /* Drag handles */
 .drag-handle {
     cursor: grab;
-    font-size: 1.1rem;
+    font-size: var(--fs-110);
     color: var(--color-text-muted);
     user-select: none;
     text-align: center;
@@ -1038,7 +1038,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.9rem;
+    font-size: var(--fs-090);
     z-index: 2;
 }
 
@@ -1087,13 +1087,13 @@ tr.drag-over {
 .edit-bar-label {
     margin-right: auto;
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: var(--fs-095);
     color: var(--color-text);
 }
 
 .edit-bar-cancel {
     padding: 8px 20px;
-    font-size: 0.85rem;
+    font-size: var(--fs-085);
     font-weight: 600;
     background: var(--color-surface);
     color: var(--color-text);
@@ -1106,7 +1106,7 @@ tr.drag-over {
 
 .edit-bar-save {
     padding: 8px 20px;
-    font-size: 0.85rem;
+    font-size: var(--fs-085);
     font-weight: 600;
     background: var(--color-primary, #1e293b);
     color: #fff;
@@ -1156,18 +1156,18 @@ body:has(.edit-bar) .theme-picker {
 
     /* Notable Figures — reduce fonts by ~10% */
     .notable-row .player-name-link {
-        font-size: 0.85rem;
+        font-size: var(--fs-085);
     }
     .notable-fullname {
-        font-size: 0.8rem;
+        font-size: var(--fs-080);
     }
     .notable-titles {
-        font-size: 0.78rem;
+        font-size: var(--fs-078);
         white-space: nowrap;
     }
 
     /* PDF export buttons — wrap and shrink */
-    .pdf-export-btn { font-size: 0.7rem; padding: 2px 6px; }
+    .pdf-export-btn { font-size: var(--fs-070); padding: 2px 6px; }
 
     /* Info cards — 2-up at mobile */
     .index-info-cards { gap: 8px; }
@@ -1195,7 +1195,7 @@ body:has(.edit-bar) .theme-picker {
     display: block;
     margin: var(--space-sm) auto var(--space-xl);
     padding: 4px 16px;
-    font-size: 0.85rem;
+    font-size: var(--fs-085);
     font-family: var(--font-main);
     color: var(--color-text);
     border: 1px solid var(--color-border);

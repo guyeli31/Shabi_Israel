@@ -16,7 +16,7 @@
     background: var(--color-surface);
     color: var(--color-text);
     cursor: pointer;
-    font-size: clamp(1rem, calc(0.38vw + 14.6px), 1.2rem);
+    font-size: var(--fs-120);
     box-shadow: var(--shadow-md);
     display: flex;
     align-items: center;
@@ -46,7 +46,7 @@
 }
 
 .theme-picker-label {
-    font-size: 0.8rem;
+    font-size: var(--fs-080);
     font-weight: 600;
     color: var(--color-text-secondary);
     margin-bottom: 10px;
@@ -88,7 +88,7 @@
     bottom: -18px;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 0.65rem;
+    font-size: var(--fs-065);
     color: var(--color-text-muted);
     white-space: nowrap;
     pointer-events: none;
@@ -128,7 +128,7 @@
     border-radius: var(--radius-sm);
     background: var(--color-bg);
     color: var(--color-text-secondary);
-    font-size: 0.82rem;
+    font-size: var(--fs-082);
     font-weight: 600;
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
@@ -156,7 +156,7 @@
 }
 
 .theme-color-row label {
-    font-size: 0.78rem;
+    font-size: var(--fs-078);
     color: var(--color-text-secondary);
 }
 
@@ -178,7 +178,7 @@
     border-radius: var(--radius-sm);
     background: transparent;
     color: var(--color-text-muted);
-    font-size: 0.75rem;
+    font-size: var(--fs-075);
     cursor: pointer;
     transition: color 0.15s;
 }

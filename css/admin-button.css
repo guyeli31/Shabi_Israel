@@ -33,7 +33,7 @@
 }
 
 .admin-login-modal-title {
-    font-size: 1.2rem;
+    font-size: var(--fs-120);
     font-weight: 700;
     margin-bottom: var(--space-lg, 1.5rem);
     color: var(--color-text);
@@ -56,7 +56,7 @@
     background: var(--color-surface);
     color: var(--color-text);
     cursor: pointer;
-    font-size: clamp(1rem, calc(0.38vw + 14.6px), 1.2rem);
+    font-size: var(--fs-120);
     box-shadow: var(--shadow-md);
     display: flex;
     align-items: center;
@@ -81,7 +81,7 @@
     color: var(--color-bg);
     padding: 4px 10px;
     border-radius: 6px;
-    font-size: 0.75rem;
+    font-size: var(--fs-075);
     white-space: nowrap;
     opacity: 0;
     pointer-events: none;

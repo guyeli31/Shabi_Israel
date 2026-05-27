@@ -45,7 +45,7 @@
        font-size to .nav-home (not the inner) keeps neighbouring wrappers at
        default line-height — otherwise their inline contents (button, input)
        would bottom-align inside an inflated line box and look mis-centered. */
-    --brand-size: clamp(18px, calc(0.56vw + 16px), 24px);
+    --brand-size: var(--fs-160);
     min-height: var(--nav-height);
     padding: calc(var(--brand-size) * 0.6) var(--space-md);
     gap: var(--space-md);
@@ -76,7 +76,7 @@
     color: var(--header-text);
     padding: 4px 12px;
     border-radius: var(--radius-sm);
-    font-size: 0.85rem;
+    font-size: var(--fs-085);
     font-weight: 500;
     cursor: pointer;
     transition: background 0.15s;
@@ -107,7 +107,7 @@
 
 .nav-leagues-dropdown .dropdown-section {
     padding: var(--space-xs) var(--space-md);
-    font-size: 0.75rem;
+    font-size: var(--fs-075);
     font-weight: 700;
     text-transform: uppercase;
     color: var(--color-text-muted);
@@ -119,7 +119,7 @@
     padding: 6px var(--space-md);
     color: var(--color-text);
     text-decoration: none;
-    font-size: 0.9rem;
+    font-size: var(--fs-090);
     transition: background 0.1s;
 }
 .nav-leagues-dropdown a:hover {
@@ -157,7 +157,7 @@
     background: rgba(255,255,255,0.08);
     border: 1px solid rgba(255,255,255,0.15);
     white-space: nowrap;
-    font-size: clamp(0.72rem, calc(0.25vw + 10.6px), 0.85rem);
+    font-size: var(--fs-085);
     flex-shrink: 0;
 }
 
@@ -177,7 +177,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: clamp(0.55rem, calc(0.25vw + 7.9px), 0.68rem);
+    font-size: var(--fs-068);
     font-weight: 800;
     color: #fff;
     flex-shrink: 0;
@@ -200,7 +200,7 @@
     border-radius: var(--radius-sm);
     background: rgba(255,255,255,0.1);
     color: var(--header-text);
-    font-size: 0.93rem;
+    font-size: var(--fs-093);
     outline: none;
     transition: width 0.2s, border-color 0.15s;
 }
@@ -240,7 +240,7 @@
     padding: 8px var(--space-md);
     color: var(--color-text);
     text-decoration: none;
-    font-size: 0.9rem;
+    font-size: var(--fs-090);
     transition: background 0.1s;
 }
 .nav-search-results a:hover {
@@ -259,7 +259,7 @@
     white-space: nowrap;
 }
 .nav-search-results .search-player-realname {
-    font-size: 0.8rem;
+    font-size: var(--fs-080);
     color: var(--color-text-muted);
     font-weight: 400;
     overflow: hidden;
@@ -267,7 +267,7 @@
     white-space: nowrap;
 }
 .nav-search-results .search-league-hint {
-    font-size: 0.78rem;
+    font-size: var(--fs-078);
     color: var(--color-text-muted);
     margin-left: auto;
     white-space: nowrap;
@@ -277,7 +277,7 @@
 .nav-search-results .search-empty {
     padding: 12px var(--space-md);
     color: var(--color-text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-085);
     text-align: center;
 }
 
@@ -302,7 +302,7 @@
     margin: 0;
     padding: 0;
     isolation: isolate;
-    font-size: clamp(0.72rem, 0.6rem + 0.5vw, 0.85rem);
+    font-size: var(--fs-085);
     font-weight: 600;
 }
 
@@ -372,7 +372,7 @@
 }
 
 .also-plays-in h3 {
-    font-size: 0.95rem;
+    font-size: var(--fs-095);
     color: var(--color-text-secondary);
     margin-bottom: var(--space-sm);
     font-weight: 600;
@@ -391,7 +391,7 @@
     color: var(--color-accent);
     border-radius: var(--radius-full);
     text-decoration: none;
-    font-size: 0.85rem;
+    font-size: var(--fs-085);
     font-weight: 500;
     transition: background 0.15s, color 0.15s;
 }
@@ -459,6 +459,6 @@ tr.kb-focused {
     }
 
     .breadcrumbs {
-        font-size: 0.8rem;
+        font-size: var(--fs-080);
     }
 }

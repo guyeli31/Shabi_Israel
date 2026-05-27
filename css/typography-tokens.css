@@ -1,0 +1,40 @@
+/* typography-tokens.css — unified fluid font-size tokens.
+   Every token f(M) = clamp(0.765·M·rem, 0.6·M·rem + 0.835·M·vw, M·rem).
+   Slope profile is identical to legacy Table D font-small.
+   Ratios between any two tokens equal their max ratio at every viewport. */
+:root {
+    /* Sub-1rem */
+    --fs-055: clamp(0.421rem, 0.330rem + 0.459vw, 0.55rem);
+    --fs-060: clamp(0.459rem, 0.360rem + 0.501vw, 0.60rem);
+    --fs-062: clamp(0.474rem, 0.372rem + 0.518vw, 0.62rem);
+    --fs-065: clamp(0.497rem, 0.390rem + 0.543vw, 0.65rem);
+    --fs-068: clamp(0.520rem, 0.408rem + 0.568vw, 0.68rem);
+    --fs-070: clamp(0.536rem, 0.420rem + 0.585vw, 0.70rem);
+    --fs-072: clamp(0.551rem, 0.432rem + 0.601vw, 0.72rem);
+    --fs-075: clamp(0.574rem, 0.450rem + 0.626vw, 0.75rem);
+    --fs-078: clamp(0.597rem, 0.468rem + 0.651vw, 0.78rem);
+    --fs-080: clamp(0.612rem, 0.480rem + 0.668vw, 0.80rem);
+    --fs-082: clamp(0.627rem, 0.492rem + 0.685vw, 0.82rem);
+    --fs-085: clamp(0.650rem, 0.510rem + 0.710vw, 0.85rem); /* = legacy font-small */
+    --fs-088: clamp(0.673rem, 0.528rem + 0.735vw, 0.88rem);
+    --fs-090: clamp(0.689rem, 0.540rem + 0.752vw, 0.90rem);
+    --fs-092: clamp(0.704rem, 0.552rem + 0.768vw, 0.92rem);
+    --fs-093: clamp(0.711rem, 0.558rem + 0.777vw, 0.93rem); /* = legacy font-large */
+    --fs-095: clamp(0.727rem, 0.570rem + 0.793vw, 0.95rem);
+
+    /* 1rem and above */
+    --fs-100: clamp(0.765rem, 0.600rem + 0.835vw, 1.00rem);
+    --fs-105: clamp(0.803rem, 0.630rem + 0.877vw, 1.05rem);
+    --fs-110: clamp(0.842rem, 0.660rem + 0.919vw, 1.10rem);
+    --fs-112: clamp(0.857rem, 0.672rem + 0.935vw, 1.12rem);
+    --fs-115: clamp(0.880rem, 0.690rem + 0.960vw, 1.15rem);
+    --fs-120: clamp(0.918rem, 0.720rem + 1.002vw, 1.20rem);
+    --fs-125: clamp(0.956rem, 0.750rem + 1.044vw, 1.25rem);
+    --fs-135: clamp(1.033rem, 0.810rem + 1.127vw, 1.35rem);
+    --fs-140: clamp(1.071rem, 0.840rem + 1.169vw, 1.40rem);
+    --fs-150: clamp(1.148rem, 0.900rem + 1.253vw, 1.50rem);
+    --fs-160: clamp(1.224rem, 0.960rem + 1.336vw, 1.60rem);
+    --fs-180: clamp(1.377rem, 1.080rem + 1.503vw, 1.80rem);
+    --fs-190: clamp(1.453rem, 1.140rem + 1.587vw, 1.90rem);
+    --fs-200: clamp(1.530rem, 1.200rem + 1.670vw, 2.00rem);
+}

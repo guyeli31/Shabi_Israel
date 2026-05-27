@@ -27,7 +27,7 @@ body {
     align-items: center;
     gap: var(--space-lg);
     /* fluid font: scales from 0.75rem (mobile) → 0.93rem (≥740px) */
-    font-size: clamp(0.75rem, 1vw + 0.5rem, 0.93rem);
+    font-size: var(--fs-093);
 }
 
 .lab-title {
@@ -149,7 +149,7 @@ body {
 }
 
 .args-title {
-    font-size: 0.75rem;
+    font-size: var(--fs-075);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -172,7 +172,7 @@ body {
 }
 
 .arg-name {
-    font-size: 0.78rem;
+    font-size: var(--fs-078);
     font-weight: 700;
     color: var(--color-text);
     background: none;
@@ -180,7 +180,7 @@ body {
 }
 
 .arg-value {
-    font-size: 0.78rem;
+    font-size: var(--fs-078);
     font-family: monospace;
     color: var(--color-accent, #2563eb);
     background: color-mix(in srgb, var(--color-accent, #2563eb) 8%, transparent);
@@ -189,32 +189,32 @@ body {
 }
 
 .arg-null {
-    font-size: 0.78rem;
+    font-size: var(--fs-078);
     font-family: monospace;
     color: var(--color-text-muted);
 }
 
 .arg-true {
-    font-size: 0.78rem;
+    font-size: var(--fs-078);
     font-family: monospace;
     color: var(--color-win, #15803d);
 }
 
 .arg-false {
-    font-size: 0.78rem;
+    font-size: var(--fs-078);
     font-family: monospace;
     color: var(--color-loss, #b91c1c);
 }
 
 .arg-base-doc {
-    font-size: 0.75rem;
+    font-size: var(--fs-075);
     color: var(--color-text-muted);
     margin: 0 0 3px;
     line-height: 1.4;
 }
 
 .arg-extra-doc {
-    font-size: 0.75rem;
+    font-size: var(--fs-075);
     color: var(--color-text);
     margin: 0;
     line-height: 1.4;

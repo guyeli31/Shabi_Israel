@@ -12,7 +12,7 @@
 }
 .match-results-section > h2 {
     margin-bottom: var(--space-md);
-    font-size: 1.2rem;
+    font-size: var(--fs-120);
     border-bottom: 2px solid var(--color-border);
     padding-bottom: var(--space-xs);
     color: var(--color-text);
@@ -34,7 +34,7 @@
     border-radius: var(--radius-sm);
     color: var(--color-accent);
     font-family: var(--font-main);
-    font-size: 0.9rem;
+    font-size: var(--fs-090);
     font-weight: 600;
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s, color 0.15s;
@@ -116,7 +116,7 @@
 }
 
 .admin-sidebar h2 {
-    font-size: 1.1rem;
+    font-size: var(--fs-110);
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -164,7 +164,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.05rem;
+    font-size: var(--fs-105);
     font-weight: 800;
     color: #fff;
     flex-shrink: 0;
@@ -178,7 +178,7 @@
 }
 
 .admin-welcome-label {
-    font-size: 0.62rem;
+    font-size: var(--fs-062);
     font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -187,7 +187,7 @@
 }
 
 .admin-welcome-name {
-    font-size: 0.92rem;
+    font-size: var(--fs-092);
     font-weight: 700;
     color: rgba(255,255,255,0.95);
     white-space: nowrap;
@@ -201,7 +201,7 @@
     align-items: center;
     gap: 5px;
     margin-top: 3px;
-    font-size: 0.65rem;
+    font-size: var(--fs-065);
     color: rgba(52,211,153,0.85);
     letter-spacing: 0.04em;
     font-weight: 600;
@@ -235,7 +235,7 @@
     border-radius: var(--radius-sm);
     cursor: pointer;
     margin-bottom: var(--space-xs);
-    font-size: 0.95rem;
+    font-size: var(--fs-095);
     transition: background 0.15s, color 0.15s;
     border: none;
     background: none;
@@ -264,7 +264,7 @@
 }
 
 .admin-main h1 {
-    font-size: 1.6rem;
+    font-size: var(--fs-160);
     margin-bottom: var(--space-lg);
     color: var(--color-text);
 }
@@ -290,7 +290,7 @@
 .admin-login-box h1 {
     text-align: center;
     margin-bottom: var(--space-lg);
-    font-size: 1.5rem;
+    font-size: var(--fs-150);
 }
 
 .admin-login-box .form-group {
@@ -306,7 +306,7 @@
     display: block;
     font-weight: 600;
     margin-bottom: var(--space-xs);
-    font-size: 0.9rem;
+    font-size: var(--fs-090);
     color: var(--color-text-secondary);
 }
 
@@ -320,7 +320,7 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     font-family: inherit;
-    font-size: 0.95rem;
+    font-size: var(--fs-095);
     color: var(--color-text);
     background: var(--color-surface);
     transition: border-color 0.15s;
@@ -343,7 +343,7 @@
     border: none;
     border-radius: var(--radius-sm);
     font-family: inherit;
-    font-size: 0.9rem;
+    font-size: var(--fs-090);
     font-weight: 600;
     cursor: pointer;
     transition: background 0.15s, opacity 0.15s, transform 0.12s, box-shadow 0.15s;
@@ -412,7 +412,7 @@
 
 .btn-sm {
     padding: var(--space-xs) var(--space-sm);
-    font-size: 0.82rem;
+    font-size: var(--fs-082);
 }
 
 .btn-block {
@@ -427,7 +427,7 @@
     justify-content: center;
     background: var(--color-loss);
     color: #fff;
-    font-size: 0.75rem;
+    font-size: var(--fs-075);
     font-weight: 700;
     min-width: 20px;
     height: 20px;
@@ -452,7 +452,7 @@
 
 .pending-panel h3 {
     margin-bottom: var(--space-md);
-    font-size: 1rem;
+    font-size: var(--fs-100);
 }
 
 .pending-list {
@@ -466,7 +466,7 @@
     justify-content: space-between;
     padding: var(--space-sm);
     border-bottom: 1px solid var(--color-border);
-    font-size: 0.9rem;
+    font-size: var(--fs-090);
 }
 
 .pending-item:last-child {
@@ -479,7 +479,7 @@
 
 .pending-item-time {
     color: var(--color-text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-080);
     margin: 0 var(--space-md);
 }
 
@@ -499,7 +499,7 @@
 }
 
 .admin-card h2 {
-    font-size: 0.8rem;
+    font-size: var(--fs-080);
     font-weight: 700;
     letter-spacing: 0.07em;
     text-transform: uppercase;
@@ -510,13 +510,13 @@
 }
 
 /* ---- Admin Table ---- */
-/* font-large mirrors components.css — admin.html doesn't load components.css */
-table.font-large { font-size: 0.93rem; }
+/* font-large mirrors base.css — admin.html doesn't load components.css */
+table.font-large { font-size: var(--fs-093); }
 
 .admin-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9rem;
+    font-size: var(--fs-090);
     color: var(--color-text);
 }
 
@@ -526,7 +526,7 @@ table.font-large { font-size: 0.93rem; }
     background: var(--color-bg);
     font-weight: 700;
     color: var(--color-text-secondary);
-    font-size: 0.78rem;
+    font-size: var(--fs-078);
     letter-spacing: 0.05em;
     text-transform: uppercase;
     border-bottom: 2px solid var(--color-border);
@@ -620,7 +620,7 @@ table.font-large { font-size: 0.93rem; }
     padding: var(--space-sm) var(--space-md);
     border-radius: var(--radius-sm);
     margin-bottom: var(--space-md);
-    font-size: 0.9rem;
+    font-size: var(--fs-090);
 }
 
 .admin-msg-success {
@@ -662,7 +662,7 @@ table.font-large { font-size: 0.93rem; }
 }
 
 .publish-progress-text {
-    font-size: 0.85rem;
+    font-size: var(--fs-085);
     color: var(--color-text-muted);
 }
 
@@ -689,14 +689,14 @@ table.font-large { font-size: 0.93rem; }
     padding: 6px 10px;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
-    font-size: 0.9rem;
+    font-size: var(--fs-090);
     background: var(--color-surface);
     color: var(--color-text);
     min-width: 200px;
 }
 
 .match-filter-bar label {
-    font-size: 0.85rem;
+    font-size: var(--fs-085);
     color: var(--color-text-secondary);
     font-weight: 600;
 }
@@ -705,7 +705,7 @@ table.font-large { font-size: 0.93rem; }
 .admin-table-compact th,
 .admin-table-compact td {
     padding: 4px 5px;
-    font-size: 0.8rem;
+    font-size: var(--fs-080);
 }
 
 .inline-edit-input {
@@ -713,7 +713,7 @@ table.font-large { font-size: 0.93rem; }
     padding: 2px 3px;
     border: 1px solid var(--color-border);
     border-radius: 3px;
-    font-size: 0.8rem;
+    font-size: var(--fs-080);
     text-align: center;
     background: var(--color-surface);
     color: var(--color-text);
@@ -742,7 +742,7 @@ table.font-large { font-size: 0.93rem; }
 
 .btn-xs {
     padding: 2px 6px;
-    font-size: 0.7rem;
+    font-size: var(--fs-070);
     border-radius: 3px;
     cursor: pointer;
     border: 1px solid var(--color-border);
@@ -786,7 +786,7 @@ table.font-large { font-size: 0.93rem; }
 }
 
 .edit-ts {
-    font-size: 0.7rem;
+    font-size: var(--fs-070);
     color: var(--color-text-muted);
 }
 
@@ -932,7 +932,7 @@ table.font-large { font-size: 0.93rem; }
     border-radius: 3px;
     background-color: var(--color-surface);
     color: var(--color-text);
-    font-size: 0.8rem;
+    font-size: var(--fs-080);
     font-family: inherit;
     cursor: pointer;
     accent-color: var(--color-accent);
@@ -994,7 +994,7 @@ table.font-large { font-size: 0.93rem; }
     padding: 2px 4px;
     border: 1px solid var(--color-border);
     border-radius: 3px;
-    font-size: 0.78rem;
+    font-size: var(--fs-078);
     line-height: 1.2;
 }
 .admin-round-table .match-edited-date:focus {
@@ -1043,7 +1043,7 @@ table.font-large { font-size: 0.93rem; }
 
 .admin-topbar-title {
     flex: 1;
-    font-size: 0.88rem;
+    font-size: var(--fs-088);
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -1074,7 +1074,7 @@ table.font-large { font-size: 0.93rem; }
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.72rem;
+    font-size: var(--fs-072);
     font-weight: 800;
     color: #fff;
     flex-shrink: 0;
@@ -1082,7 +1082,7 @@ table.font-large { font-size: 0.93rem; }
 }
 
 .admin-topbar-name {
-    font-size: 0.78rem;
+    font-size: var(--fs-078);
     font-weight: 600;
     color: rgba(255,255,255,0.88);
     white-space: nowrap;
@@ -1168,7 +1168,7 @@ table.font-large { font-size: 0.93rem; }
         display: none;
     }
     .admin-sidebar h2 {
-        font-size: 0.85rem;
+        font-size: var(--fs-085);
         margin-top: 0;
         margin-bottom: var(--space-sm);
         padding-bottom: var(--space-xs, 4px);
@@ -1290,7 +1290,7 @@ table.font-large { font-size: 0.93rem; }
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: var(--fs-085);
     white-space: nowrap;
     color: var(--color-text);
 }
@@ -1298,7 +1298,7 @@ table.font-large { font-size: 0.93rem; }
     background: var(--color-bg);
 }
 .custom-file-input .file-name {
-    font-size: 0.85rem;
+    font-size: var(--fs-085);
     color: var(--color-text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1336,7 +1336,7 @@ table.font-large { font-size: 0.93rem; }
     cursor: grab;
     color: var(--color-text-muted);
     user-select: none;
-    font-size: 1.1rem;
+    font-size: var(--fs-110);
 }
 .dashboard-list .league-name {
     flex: 1;
@@ -1362,7 +1362,7 @@ table.font-large { font-size: 0.93rem; }
     padding: 6px 12px;
     cursor: pointer;
     border-bottom: 1px solid var(--color-border);
-    font-size: 0.9rem;
+    font-size: var(--fs-090);
 }
 .player-search-results li:last-child { border-bottom: none; }
 .player-search-results li:hover { background: var(--color-hover); }
@@ -1378,7 +1378,7 @@ table.font-large { font-size: 0.93rem; }
     background: var(--color-accent-light, #dbeafe);
     color: var(--color-accent, #2563eb);
     border-radius: var(--radius-sm);
-    font-size: 0.7rem;
+    font-size: var(--fs-070);
     font-weight: 600;
 }
 .player-meta-inactive {
@@ -1414,7 +1414,7 @@ table.font-large { font-size: 0.93rem; }
 }
 .player-photo-preview .muted {
     color: var(--color-text-muted);
-    font-size: 0.75rem;
+    font-size: var(--fs-075);
 }
 .player-preview-frame {
     width: 100%;
@@ -1445,7 +1445,7 @@ table.font-large { font-size: 0.93rem; }
 .player-autocomplete li {
     padding: 8px 12px;
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: var(--fs-090);
 }
 .player-autocomplete li:hover {
     background: var(--color-hover);
@@ -1470,13 +1470,13 @@ table.font-large { font-size: 0.93rem; }
 
     /* Admin table compression — font-large tables keep their enum size (iron rule 3) */
     .admin-table:not(.font-large) {
-        font-size: 0.7rem;
+        font-size: var(--fs-070);
         width: 100%;
         table-layout: auto;
     }
     .admin-table:not(.font-large) thead th {
         padding: 3px 2px;
-        font-size: 0.65rem;
+        font-size: var(--fs-065);
         white-space: nowrap;
     }
     .admin-table:not(.font-large) tbody td {
@@ -1485,7 +1485,7 @@ table.font-large { font-size: 0.93rem; }
     .admin-table:not(.font-large) tbody td input[type="text"],
     .admin-table:not(.font-large) tbody td input[type="number"],
     .admin-table:not(.font-large) tbody td select {
-        font-size: 0.7rem;
+        font-size: var(--fs-070);
         padding: 1px 3px;
     }
 
@@ -1534,7 +1534,7 @@ table.font-large { font-size: 0.93rem; }
     display: inline-block;
     padding: 2px 12px;
     border-radius: var(--radius-full);
-    font-size: 0.82rem;
+    font-size: var(--fs-082);
     font-weight: 600;
     letter-spacing: 0.3px;
 }
