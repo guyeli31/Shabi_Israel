@@ -1,0 +1,21 @@
+/* v2/src/index.css — single CSS entrypoint.
+   Declares the cascade layer order ONCE. All other CSS files
+   are assigned to a layer via @import, never via inline @layer.
+   Loaded by every page entry's JS via `import "../index.css"`.
+
+   Layer order (lower = lower priority):
+     reset       — element resets
+     tokens      — design token definitions (--c-*, --fs-*, ...)
+     themes      — theme mappings (--color-bg = var(--c-*) per theme)
+     base        — element defaults (html, body, h1-h6, button, ...)
+     primitives  — atomic components (Flag, Icon, Badge, ...)
+     components  — composed components (PlayerCell, Navigation, ...)
+     tables      — table system (MFTable, SFTable, ...)
+     pages       — page-specific layout only
+     utilities   — utility classes (text-center, hidden, ...)
+     overrides   — typo-editor workspace overlay (development-only)
+*/
+
+@layer reset, tokens, themes, base, primitives, components, tables, pages, utilities, overrides;
+
+/* Phase 0: no actual CSS files yet — layers wired up Phase 1 onward. */

@@ -1,0 +1,54 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "rules": {
+    "indentation": 4,
+    "string-quotes": "double",
+    "selector-class-pattern": null,
+    "custom-property-pattern": null,
+    "no-descending-specificity": null,
+    "color-no-invalid-hex": true,
+
+    "declaration-property-value-disallowed-list": {
+      "/^font-size$/": [
+        "/^\\d+(\\.\\d+)?(px|rem|em|%)$/",
+        "/^clamp\\(/"
+      ],
+      "/^font-weight$/": [
+        "/^[1-9]00$/",
+        "bold",
+        "bolder",
+        "lighter"
+      ],
+      "/^color$/": [
+        "/^#[0-9a-fA-F]+$/",
+        "/^rgb\\(/",
+        "/^rgba\\(/",
+        "/^hsl\\(/",
+        "/^hsla\\(/"
+      ],
+      "/^background$/": [
+        "/^#[0-9a-fA-F]+$/"
+      ],
+      "/^background-color$/": [
+        "/^#[0-9a-fA-F]+$/"
+      ]
+    },
+
+    "declaration-no-important": true
+  },
+  "overrides": [
+    {
+      "files": ["src/tokens/**/*.css", "src/themes/**/*.css"],
+      "rules": {
+        "declaration-property-value-disallowed-list": null,
+        "declaration-no-important": null
+      }
+    },
+    {
+      "files": ["src/tools/typoEditor/workspace.css"],
+      "rules": {
+        "declaration-no-important": null
+      }
+    }
+  ]
+}

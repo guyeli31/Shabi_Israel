@@ -416,3 +416,13 @@ FodyWeavers.xsd
 .claude/scheduled_tasks.lock
 .superpowers/
 docs/superpowers/
+
+# v2 rebuild — build artifacts and per-developer files
+v2/node_modules/
+v2/dist/
+v2/.vite/
+v2/test-results/
+v2/playwright-report/
+v2/playwright/.cache/
+v2/src/tools/typoEditor/workspace.css
+v2/tests/visual/__diff__/

@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.vite/
+.DS_Store
+*.local
+*.log
+.env
+.env.local
+
+# typo-editor workspace overlay (per-developer, not committed)
+src/tools/typoEditor/workspace.css
+
+# Playwright artifacts
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Visual regression baselines (committed; only diffs ignored)
+tests/visual/__diff__/
