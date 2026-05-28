@@ -269,12 +269,16 @@ async function showPRType(body, playerName, perLeague, type) {
                 <div class="pg-pr-rank">${rankToggleHtml(last300Rank, { kind: 'pr', type, metric: 'last300PR' })}</div>
             </div>
         </div>
-        <div class="pg-rank-expanded" hidden></div>
     `;
     grid.appendChild(card);
 
+    const expanded = document.createElement('div');
+    expanded.className = 'pg-rank-expanded';
+    expanded.hidden = true;
+
     body.innerHTML = '';
     body.appendChild(grid);
+    body.appendChild(expanded);
     wireRankToggles(body, playerName);
 }
 
@@ -297,19 +301,11 @@ function wireRankToggles(section, playerName) {
     section.addEventListener('click', async (e) => {
         const btn = e.target.closest('.pg-rank-toggle');
         if (!btn) return;
-        const card = btn.closest('.pg-pr-card, .pg-tile-block');
-        if (!card) return;
-        let expanded;
-        if (card.classList.contains('pg-tile-block')) {
-            // Achievement tile: shared expanded panel is sibling of .pg-tiles
-            const tilesGrid = card.closest('.pg-tiles');
-            expanded = tilesGrid?.nextElementSibling;
-            if (!expanded || !expanded.classList.contains('pg-rank-expanded')) return;
-        } else {
-            // PR card: expanded is inside the card
-            expanded = card.querySelector(':scope > .pg-rank-expanded');
-        }
-        if (!expanded) return;
+        // Unified: PR + Achv both expose a shared .pg-rank-expanded as the
+        // sibling of their containing grid (.pg-pr-grid / .pg-tiles).
+        const grid = btn.closest('.pg-pr-grid, .pg-tiles');
+        const expanded = grid?.nextElementSibling;
+        if (!expanded || !expanded.classList.contains('pg-rank-expanded')) return;
 
         // Toggle off if same button already open
         if (!expanded.hidden && expanded.dataset.openBtn === btn.dataset.rank) {
@@ -345,8 +341,30 @@ function wireRankToggles(section, playerName) {
             }
             expanded.innerHTML = renderRankTable(rows || [], playerName, meta);
             attachPlayerNameInteractions(expanded, null);
+            applyC0StickyAndScroll(expanded);
         } catch (err) {
             expanded.innerHTML = `<div class="pg-note">Failed to load ranking: ${escapeHtml(err.message)}</div>`;
+        }
+    });
+}
+
+function applyC0StickyAndScroll(expanded) {
+    const wrap  = expanded.querySelector('.pg-rank-table-wrap');
+    const table = expanded.querySelector('.pg-rank-table');
+    if (!wrap || !table) return;
+    requestAnimationFrame(() => {
+        const th1 = table.querySelector('thead th:nth-child(1)');
+        if (th1) {
+            const w1 = th1.getBoundingClientRect().width;
+            if (w1 > 0) table.style.setProperty('--c0-col1-w', w1 + 'px');
+        }
+        attachStickyShadow(wrap);
+        const selfRow = table.querySelector('tr.pg-rank-self');
+        if (selfRow) {
+            const rowTop    = selfRow.offsetTop;
+            const rowHeight = selfRow.offsetHeight;
+            const targetTop = rowTop - (wrap.clientHeight - rowHeight) / 2;
+            wrap.scrollTop = Math.max(0, targetTop);
         }
     });
 }
@@ -356,8 +374,7 @@ function renderRankTable(rows, playerName, meta) {
     const valueLabel = meta.kind === 'pr'
         ? (meta.metric === 'totalPR' ? 'Total PR' : 'Last 300 PR')
         : (meta.metric === 'gold' ? 'Gold' : meta.metric === 'silver' ? 'Silver' : meta.metric === 'bronze' ? 'Bronze' : meta.metric === 'avgRank' ? 'Avg Rank' : meta.metric === 'winRate' ? 'Win%' : 'Value');
-    const showLeagues = meta.kind === 'medal';
-    let html = `<div class="pg-rank-table-wrap"><table class="pg-rank-table font-small" data-mf-table-id="C0"><thead><tr><th scope="col">#</th><th scope="col">Player</th>${showLeagues ? `<th scope="col">Leagues</th>` : ''}<th scope="col">${escapeHtml(valueLabel)}</th></tr></thead><tbody>`;
+    let html = `<div class="pg-rank-table-wrap"><table class="pg-rank-table font-small" data-mf-table-id="C0"><thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">Leagues</th><th scope="col">${escapeHtml(valueLabel)}</th></tr></thead><tbody>`;
     for (const r of rows.filter(r => !_allMeta[r.name]?.hidden)) {
         const isSelf = r.name === playerName;
         const valFmt = (meta.kind === 'pr')
@@ -368,7 +385,7 @@ function renderRankTable(rows, playerName, meta) {
         const flagCode = getFlagCode(r.name, _mergedCustomFlags);
         const flagHtml = `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`;
         const nameHtml = playerNameLink(r.name, _allMeta[r.name]);
-        html += `<tr class="${isSelf ? 'pg-rank-self' : ''}"><td>${r.rank}</td><td>${flagHtml} ${nameHtml}</td>${showLeagues ? `<td>${r.leagues}</td>` : ''}<td>${valFmt}</td></tr>`;
+        html += `<tr class="${isSelf ? 'pg-rank-self' : ''}"><td>${r.rank}</td><td>${flagHtml} ${nameHtml}</td><td>${r.leagues ?? ''}</td><td>${valFmt}</td></tr>`;
     }
     html += '</tbody></table></div>';
     return html;

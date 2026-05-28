@@ -198,49 +198,225 @@ mountMFTable(mountPoint, {
 
 The compact-records / leaderboards-snippet variant used by: **A3, A4, A5, A6, C4.**
 
-Rendered by `mountSFTable(mountPoint, args)` (`table-lab/formats/sf/mount.js` — to be created). Same contract as MF: caller provides an empty `<div>` and a configuration object; the function owns all DOM creation.
+Rendered entirely by `mountSFTable(mountPoint, args)` (`table-lab/formats/sf/mount.js`). The function owns all DOM creation — caller provides a plain empty `<div>` and a configuration object. CSS canon lives in `table-lab/formats/sf/sf.css` (auto-imports `base/base.css`).
 
-> **Status:** format is **declared** but not yet implemented. Per-table parameters, args schema, and visual rules to be derived from the existing render code for A3, A4, A5, A6, C4 during Phase 1 of the table-lab unification plan (see `docs/plans/table-lab-unification.md`).
+> **Status:** format is **implemented and documented**. Production rewiring (replacing the hand-built render code in `landingPage.js` / `playerGeneralPage.js` with `mountSFTable` calls) is tracked as Phase 7 of `docs/plans/table-lab-unification.md`.
 
-#### General parameters
-*To be defined when SF is canonicalized in Phase 1. Source material: current render code for A3 (Achievements), A4 (PR Leaders), A5 (Match Records), A6 (League Records), C4 (Match Records on player-general).*
+To convert a table to SF in a future session, say:
+> "Update table X to use the SF variant. Derive the unique parameters for this table on your own and ask me questions as needed."
 
-#### Args
-*To be defined.*
+---
 
-#### ColDef
-*To be defined.*
+#### General parameters (shared — no per-table override)
+
+| Parameter | Value |
+|---|---|
+| Collapse | `border-collapse: separate; border-spacing: 0` |
+| Row hairlines | `inset 0 -1px 0 var(--color-border)` on all `tbody td`; removed on last row (inherited from `base.css`) |
+| Text alignment | `text-align: left` on all `<th>` and `<td>` |
+| Wrapping | `white-space: nowrap` on all cells |
+| Cell padding | `0.45em 0.5em` — em-based, scales with font-size |
+| Sticky header | `thead th { position: sticky; top: 0; z-index: 3 }` — resolves against `.achv-table-wrapper`'s internal scroll |
+| Header background | `var(--color-surface)` (same as body — header distinguished by typography, not background) |
+| Header text | `var(--color-text-muted)` with `font-weight: 600` |
+| Card chrome | `.achv-table-card`: `background: var(--color-surface)`, `border: 1px solid var(--color-border)`, `border-radius: var(--radius-md)`, `padding: var(--space-md)` |
+| Card title | Optional `<h3>` inside the card, above the wrapper |
+| Wrapper | `.achv-table-wrapper`: `max-height: 360px; overflow-x: auto; overflow-y: auto` — single scroll container in both axes |
+| Sticky col background | `var(--color-surface)` — explicit so non-sticky content doesn't bleed through |
+| Hover | `var(--color-hover)` on hovered row's cells |
+| Scroll shadow | `attachStickyShadow()` toggles `.is-scrolled-x` on the wrapper → MF-style drop-shadow on the rightmost sticky col's right edge, only during horizontal scroll |
+| Frame shadow | None on the wrapper (card border provides the frame) |
+| Flag size | `1em` height (scales with font-size) |
+
+---
+
+#### Args — simple values
+
+| Arg | Type | Default | Notes |
+|---|---|---|---|
+| `tableId` | `string \| null` | `null` | Stable id; sets `data-mf-table-id` on mountPoint and table for external CSS targeting |
+| `data` | `object[]` | `[]` | Row objects |
+| `cols` | `ColDef[]` | `[]` | Column descriptors |
+| `title` | `string \| null` | `null` | Optional `<h3>` heading rendered inside the card (`null` = no heading element) |
+| `fontClass` | `'font-small' \| 'font-large'` | `'font-small'` | Sets font enum on the `<table>` |
+| `stickyCols` | `0 \| 1 \| 2 \| 3` | `0` | Number of leftmost cols pinned. Adds class `sf-sticky-N` on the `<table>` |
+| `showTopN` | `number \| null` | `null` | If set, hide rows after N and append a Show-all button inside the card |
+
+---
+
+#### Args — functions
+
+| Arg | Signature | Notes |
+|---|---|---|
+| `format` (per col) | `(value, row) => html-string \| null` | See ColDef below |
+
+(SF intentionally has no `getRowClass` / `buildSummaryRow` / sort callbacks — SF tables render in a fixed semantic order and don't carry summary rows. Port from MF if a future SF table needs them.)
+
+---
+
+#### ColDef — per-column properties
+
+| Property | Type | Notes |
+|---|---|---|
+| `key` | `string` | Property name on row objects |
+| `label` | `string` | Header text (may contain HTML, e.g. `'Luck %ile'`) |
+| `format` | `(value, row) => html-string \| null` | Display formatter; `null` = raw value |
+| `tdClass` | `string \| null` | CSS class on every `<td>` in this column (e.g. `'na'`, `'result-win'`) |
+
+(SF intentionally omits `sortable`, `colorFn`, `boldExtreme`, `sortKey`, `type` from MF's ColDef. Add them if needed.)
+
+---
 
 #### HTML structure
-*To be defined.*
+
+`mountSFTable` creates all DOM inside `mountPoint`:
+
+```
+mountPoint  (plain <div>, caller owns; gets data-mf-table-id)
+    .achv-table-card                ← created internally
+        <h3>{title}</h3>            ← only if title is non-null
+        .achv-table-wrapper         ← scroll container (both axes)
+            <table class="achv-table {fontClass} [sf-sticky-N]" data-mf-table-id="{tableId}">
+                <thead><tr>…</tr></thead>
+                <tbody>
+                    <tr>…</tr>      ← data rows
+                </tbody>
+            </table>
+        <button class="show-more-btn">  ← appended after the wrapper if showTopN
+```
+
+---
 
 #### Usage
-*To be defined.*
+
+```js
+mountSFTable(mountPoint, {
+    tableId:    'A4',
+    data,
+    cols: [
+        { key: 'rank',   label: '#' },
+        { key: 'player', label: 'Player', format: (_, r) => `${flag(r.flag)} ${r.player}` },
+        { key: 'pr',     label: 'PR',     format: (v) => formatNumber(v) },
+        { key: 'level',  label: 'Level',  format: (v) => `<span class="level-cell">${v}</span>` },
+    ],
+    title:      'Total PR',
+    fontClass:  'font-small',
+    stickyCols: 1,
+    showTopN:   10,
+});
+```
 
 ---
 
 ### exp (Expandable Format)
 
-Collapsible-row / expandable-content variant used by: **C0** (Expandable tables in PR STATISTICS and ACHIEVEMENTS cards on player-general).
+Collapsible-row / expandable-content variant used by: **C0** (Expandable tables in PR Statistics and Achievements cards on player-general).
 
-Rendered by `mountExpTable(mountPoint, args)` (`table-lab/formats/exp/mount.js` — to be created).
+Rendered entirely by `mountExpTable(mountPoint, args)` (`table-lab/formats/exp/mount.js`). The function owns the inner DOM (wrap + table); the visible expand/collapse panel itself (`.pg-rank-expanded`) is owned by the caller. CSS canon lives in `table-lab/formats/exp/exp.css` (auto-imports `base/base.css`).
 
-> **Status:** format is **declared** but not yet implemented. Per-table parameters, args schema, and visual rules to be derived from the existing C0 render code during Phase 1 of the table-lab unification plan.
+> **Status:** format is **implemented and documented**. Production rewiring (replacing `renderRankTable` + `applyC0StickyAndScroll` in `playerGeneralPage.js` with `mountExpTable` calls) is tracked as Phase 7 of `docs/plans/table-lab-unification.md`.
 
-#### General parameters
-*To be defined when exp is canonicalized in Phase 1.*
+**Concept.** exp tables are rank-list-style data tables that live inside an expansion panel that opens / closes in response to a caller-owned trigger (a button on a sibling card). The panel hugs the table width and centres horizontally; the table inside scrolls (both axes) within the panel rather than the page. The viewer's "self" row is highlighted in a theme-aware way and is scroll-centred within the panel on every open.
 
-#### Args
-*To be defined — must include an `expand`/`collapse` row interaction model.*
+To convert a table to exp in a future session, say:
+> "Update table X to use the exp variant. Derive the unique parameters for this table on your own and ask me questions as needed."
 
-#### ColDef
-*To be defined.*
+---
+
+#### General parameters (shared — no per-table override)
+
+| Parameter | Value |
+|---|---|
+| Outer panel | `.pg-rank-expanded`: `width: fit-content; max-width: 100%; margin: 10px auto 0; padding: 10px; background: rgba(0,0,0,0.03); border-radius: 6px` — caller-owned visibility via `hidden` attribute |
+| Scroll context | `.pg-rank-table-wrap`: `overflow: auto; max-height: 360px` — single scroll container for BOTH axes (so sticky thead `top:0` AND sticky cols `left:0` resolve against the same element) |
+| Wrap chrome | `background: var(--color-surface); border-radius: var(--radius-md); box-shadow: var(--shadow-sm)` |
+| Table width | `width: max-content; max-width: 100%` — sum of column intrinsic widths (content + em padding), excess overflow handled by the wrap's scroll |
+| Collapse | `border-collapse: separate; border-spacing: 0` |
+| Row hairlines | `inset 0 -1px 0 var(--color-border)` on all `tbody td`; removed on last row (inherited from `base.css`) |
+| Text alignment | `text-align: left` on all `<th>` and `<td>` |
+| Wrapping | `white-space: nowrap` on all cells |
+| Cell padding | `0.45em 0.5em` — em-based, scales with font-size |
+| Sticky header | Always: `thead th { position: sticky; top: 0; z-index: 3 }` resolves against `.pg-rank-table-wrap` |
+| Header background | `var(--color-bg)` — subtle tint vs body `--color-surface` so header doesn't blend in |
+| Header text | `var(--color-text-muted)` with `font-weight: 700` |
+| Sticky cols | Always 2 leftmost cols pinned; col-2 offset uses JS-measured `--c0-col1-w` |
+| Sticky col background | `var(--color-surface)` on tbody sticky cells (matches body) |
+| Hover | `var(--color-hover)` on hovered row's cells (incl. sticky) |
+| Self-row highlight | `var(--color-accent-light)` background + `font-weight: 700` — theme-aware (every theme defines `--color-accent-light` with readable contrast against its `--color-text`). No per-theme override needed |
+| Scroll-to-centre | On every mount: `wrap.scrollTop = selfRow.offsetTop − (wrap.clientHeight − selfRow.offsetHeight) / 2`, clamped to `≥ 0` |
+| Scroll shadow | `attachStickyShadow()` toggles `.is-scrolled-x` on the wrap → MF-style drop-shadow on col-2's right edge, only during horizontal scroll |
+
+---
+
+#### Args — simple values
+
+| Arg | Type | Default | Notes |
+|---|---|---|---|
+| `tableId` | `string \| null` | `null` | Stable id; sets `data-mf-table-id` on mountPoint and table |
+| `data` | `object[]` | `[]` | Row objects |
+| `cols` | `ColDef[]` | `[]` | Column descriptors (typically 4: `# / Player / Leagues / Value`) |
+| `selfKey` | `string \| null` | `null` | Row field whose value identifies the "self" row, e.g. `'name'` |
+| `selfValue` | `*` | `null` | Value to match against `row[selfKey]`. If either is null, no row is highlighted |
+| `fontClass` | `'font-small' \| 'font-large'` | `'font-small'` | Sets font enum on the `<table>` |
+| `stickyCols` | `0 \| 1 \| 2` | `2` | Number of leftmost cols pinned. Default 2 matches C0's standard layout |
+
+---
+
+#### Args — functions
+
+| Arg | Signature | Notes |
+|---|---|---|
+| `format` (per col) | `(value, row) => html-string \| null` | See ColDef below |
+
+(exp intentionally has no `getRowClass`, `buildSummaryRow`, sort, or color-gradient callbacks. The self-row class is automatic; row-level decorations are not part of the format.)
+
+---
+
+#### ColDef — per-column properties
+
+| Property | Type | Notes |
+|---|---|---|
+| `key` | `string` | Property name on row objects |
+| `label` | `string` | Header text (may contain HTML) |
+| `format` | `(value, row) => html-string \| null` | Display formatter; `null` = raw value |
+| `tdClass` | `string \| null` | CSS class on every `<td>` in this column |
+
+---
 
 #### HTML structure
-*To be defined.*
+
+`mountExpTable` creates the wrap + table inside `mountPoint`. The visible expansion panel (`.pg-rank-expanded`) is the caller's responsibility — it sets the panel's visibility and the centring/width chrome via CSS.
+
+```
+mountPoint  (e.g. .pg-rank-expanded — caller owns visibility and outer chrome)
+    .pg-rank-table-wrap                ← created internally; single scroll container
+        <table class="pg-rank-table {fontClass}" data-mf-table-id="{tableId}">
+            <thead><tr>…</tr></thead>
+            <tbody>
+                <tr>…</tr>             ← data rows
+                <tr class="pg-rank-self">…</tr>   ← if selfKey/selfValue match
+            </tbody>
+        </table>
+```
+
+---
 
 #### Usage
-*To be defined.*
+
+```js
+mountExpTable(mountPoint, {
+    tableId:   'C0',
+    data:      rows,     // [{ rank, name, leagues, value }, ...]
+    cols: [
+        { key: 'rank',    label: '#' },
+        { key: 'name',    label: 'Player',  format: (_, r) => `${flag(r.flag)} ${nameLink(r.name)}` },
+        { key: 'leagues', label: 'Leagues' },
+        { key: 'value',   label: 'Total PR', format: (v) => formatNumber(v) },
+    ],
+    selfKey:   'name',
+    selfValue: playerName,
+});
+```
 
 ---
 

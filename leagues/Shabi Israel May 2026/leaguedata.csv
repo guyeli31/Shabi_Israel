@@ -58,7 +58,7 @@ Player, PR, Luck, Score, Player, PR, Luck, Score
 Moriarty,9.49,5.17,7,MarcelDana,15.53,6.95,4
 YossiEliezer23,2.45,0.56,7,GuyEliyahu,3.83,-1.9,6
 GS18671,9.65,-2.56,0,Tezka11,6.84,1.41,7
-sagivquina,0,0,0,bardak65,0,0,0
+sagivquina,16.96,-0.41,7,bardak65,12.14,-1.2,3
 ilanblum,7.48,1.23,7,Idan1986,11.12,-0.79,4
 sasha_er,30.95,1.76,7,Nissimb,6.59,-1.16,2
 nadavd,5,1.63,7,UziMutsafy,8.83,1.45,6
@@ -80,20 +80,20 @@ Avi,9.71,2.9,7,UziMutsafy,12.19,4.06,4
 Bye,0,0,7,Avshalom,0,0,0
 gingi,7.35,1.19,7,YKwin,1.79,-2.91,5
 barak100,10.62,3.81,7,ys,4.51,-3.95,3
-gidio,0,0,0,Yannay,0,0,0
+gidio,12.05,-1.84,0,Yannay,14.4,1.15,7
 Yaniv162,13.73,2.83,7,Ran1976,14.5,-2.67,0
 Player, PR, Luck, Score, Player, PR, Luck, Score
 Moriarty,4.15,-3.2,0,GS18671,15.03,1.31,7
 sagivquina,8.73,-4.23,3,YossiEliezer23,6.99,-0.4,7
 ilanblum,6.75,3.43,7,MarcelDana,7.39,1.04,3
 sasha_er,8.82,1.21,0,GuyEliyahu,1.94,3.38,7
-nadavd,0,0,0,Tezka11,0,0,0
+nadavd,7.17,-1.94,0,Tezka11,14.62,0.4,7
 OvedBenZeev,13.08,-3.66,3,bardak65,11.83,0.93,7
 Avi,8.29,-0.44,2,Idan1986,12.3,2.86,7
 Bye,0,0,7,Nissimb,0,0,0
 gingi,9.93,-1.24,5,UziMutsafy,11.02,0.25,7
 barak100,9.4,1.4,7,Avshalom,7.65,-2.61,2
-gidio,0,0,0,YKwin,0,0,7
+gidio,0,0,0,YKwin,0,0,0
 Yaniv162,11.73,1.99,6,ys,1.81,1.89,7
 Ran1976,14.03,2.19,4,Yannay,15.27,5.88,7
 Player, PR, Luck, Score, Player, PR, Luck, Score
@@ -101,7 +101,7 @@ Moriarty,3.87,-3.11,2,sagivquina,7.44,2.55,7
 ilanblum,5.65,0.3,4,GS18671,9.51,6.18,7
 sasha_er,13.7,4.76,7,YossiEliezer23,3.04,-0.56,3
 nadavd,8.34,-0.37,3,MarcelDana,7.93,2.1,7
-OvedBenZeev,0,0,0,GuyEliyahu,0,0,0
+OvedBenZeev,9.75,-0.26,6,GuyEliyahu,2.92,1.55,7
 Avi,8.68,-1.28,5,Tezka11,14.01,2.09,7
 Bye,0,0,7,bardak65,0,0,0
 gingi,10.1,-0.99,1,Idan1986,9.44,1.62,7
@@ -122,10 +122,10 @@ barak100,5.92,-3.55,1,bardak65,10.07,1.29,7
 gidio,15.67,-1.75,3,Idan1986,24.22,-1.84,7
 Yaniv162,15.41,4.06,7,Nissimb,8.1,-0.49,5
 Ran1976,10.51,-2.14,5,UziMutsafy,12.51,0.21,7
-Yannay,0,0,0,Avshalom,0,0,0
+Yannay,15.36,-2.74,7,Avshalom,20.2,-3.48,6
 ys,8.94,-2.53,4,YKwin,4.5,-0.24,7
 Player, PR, Luck, Score, Player, PR, Luck, Score
-Moriarty,0,0,0,sasha_er,0,0,0
+Moriarty,3.04,1.8,7,sasha_er,9.01,-0.38,0
 nadavd,8.68,-1.42,2,ilanblum,7.59,0.63,7
 OvedBenZeev,0,0,0,sagivquina,0,0,0
 Avi,15.18,-0.22,7,GS18671,12.78,-1.37,3
@@ -143,9 +143,9 @@ Moriarty,0,0,0,nadavd,0,0,0
 OvedBenZeev,29.01,-2,0,sasha_er,16.18,1.86,7
 Avi,10.36,-4.2,1,ilanblum,9.4,-0.51,7
 Bye,0,0,7,sagivquina,0,0,0
-gingi,0,0,0,GS18671,0,0,0
+gingi,6.23,2.69,7,GS18671,13.52,1.52,3
 barak100,6.01,-0.31,3,YossiEliezer23,7.07,3.52,7
-gidio,0,0,2,MarcelDana,0,0,7
+gidio,8.58,-1.53,2,MarcelDana,5.66,1.53,7
 Yaniv162,9.92,0.57,4,GuyEliyahu,2.06,-0.82,7
 Ran1976,17.07,-1.6,2,Tezka11,10.75,2.33,7
 Yannay,13.57,-2.37,0,bardak65,7.56,2.65,7
@@ -162,7 +162,7 @@ gidio,8.94,-2.28,7,GS18671,14.91,-0.42,5
 Yaniv162,13.4,-1.35,4,YossiEliezer23,5.16,-0.77,7
 Ran1976,11.6,-1.37,2,MarcelDana,8.23,2.22,7
 Yannay,14.94,-0.85,0,GuyEliyahu,1.73,0.63,7
-ys,0,0,0,Tezka11,0,0,0
+ys,2.93,2.15,7,Tezka11,14.77,-0.95,0
 YKwin,5.16,-2.02,7,bardak65,7.82,-5.67,6
 Avshalom,5.63,0.13,7,Idan1986,12.99,-2.74,1
 UziMutsafy,5.24,-1.54,2,Nissimb,7.81,1.58,7
@@ -197,7 +197,7 @@ Idan1986,11.98,2.75,7,bardak65,6.46,-3.96,4
 Player, PR, Luck, Score, Player, PR, Luck, Score
 Moriarty,8.88,-3.05,7,gingi,7.25,-2.08,5
 barak100,0,0,7,Bye,0,0,0
-gidio,0,0,0,Avi,0,0,0
+gidio,21.47,5.05,7,Avi,5.95,-2.75,1
 Yaniv162,18.66,1.18,5,OvedBenZeev,19.44,2.16,7
 Ran1976,18.5,2.16,3,nadavd,9.36,1.42,7
 Yannay,14.13,0.38,7,sasha_er,13.22,-3.43,6
@@ -228,7 +228,7 @@ Yaniv162,16.12,4.31,7,barak100,6.52,-1.15,5
 Ran1976,13.19,-1.92,7,gingi,18.07,-0.19,5
 Yannay,0,0,7,Bye,0,0,0
 ys,7.82,0.56,7,Avi,16.15,-1.66,6
-YKwin,0,0,0,OvedBenZeev,0,0,7
+YKwin,0,0,0,OvedBenZeev,0,0,0
 Avshalom,5.47,-2.17,3,nadavd,5,1.64,7
 UziMutsafy,7.03,-0.36,7,sasha_er,7.75,-2.02,4
 Nissimb,4.54,-0.4,7,ilanblum,11.06,0.63,5
@@ -260,7 +260,7 @@ UziMutsafy,0,0,7,Bye,0,0,0
 Nissimb,7.76,1.53,7,Avi,15.02,0.93,3
 Idan1986,10.59,2.35,7,OvedBenZeev,6.93,-4.17,0
 bardak65,14.93,0.65,2,nadavd,8.89,2.86,7
-Tezka11,0,0,0,sasha_er,0,0,0
+Tezka11,25.92,-1.97,0,sasha_er,10.83,0.59,7
 GuyEliyahu,5.16,4.53,7,ilanblum,4.81,3.61,6
 MarcelDana,8.35,-0.07,6,sagivquina,11.15,2.3,7
 YossiEliezer23,7.69,0.59,7,GS18671,14.73,1.95,5
@@ -276,7 +276,7 @@ bardak65,10.47,0.43,7,Avi,14.68,-3.36,3
 Tezka11,7.2,-1.57,7,OvedBenZeev,7.56,-6.29,0
 GuyEliyahu,4.17,-2.01,2,nadavd,5.33,2.5,7
 MarcelDana,17.16,-1.15,3,sasha_er,15.41,1.71,7
-YossiEliezer23,0,0,7,ilanblum,0,0,0
+YossiEliezer23,8.99,1.96,7,ilanblum,4.59,-0.35,0
 GS18671,0,0,0,sagivquina,0,0,0
 Player, PR, Luck, Score, Player, PR, Luck, Score
 Moriarty,9.55,0.42,5,ys,4.55,0.71,7

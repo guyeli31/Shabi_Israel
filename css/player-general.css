@@ -568,53 +568,111 @@
     font-weight: 700;
 }
 .pg-rank-expanded {
-    margin-top: 10px;
+    /* fit-content so the container hugs the table width (sum of column widths);
+       margin auto centers it horizontally. max-width:100% caps growth at the
+       page-level parent (.pg-tabs-body) — table's overflow-x handles excess. */
+    width: fit-content;
+    max-width: 100%;
+    margin: 10px auto 0;
     padding: 10px;
     background: rgba(0,0,0,0.03);
     border-radius: 6px;
-    max-height: 360px;
-    overflow-y: auto;
 }
 .pg-rank-table-wrap {
-    width: 80vw;
+    /* Single scroll container for BOTH axes — so sticky thead (top:0) and
+       sticky cols (left:0) both resolve against this element. Mirrors MF's
+       D/E pattern in mf.css. */
+    width: 100%;
     margin: 0 auto;
-    overflow-x: auto;
+    overflow: auto;
+    max-height: 360px;
+    background: var(--color-surface);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
 }
 .pg-rank-table {
-    width: 100%;
-    border-collapse: collapse;
+    /* Width = sum of column intrinsic widths (content + em-based padding).
+       width:100% would distribute excess to the widest-content column
+       (Player ends up ~50% of the table). width:max-content keeps each column
+       sized by its own content; the wrap's overflow-x handles overflow. */
+    width: max-content;
+    max-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
 }
 .pg-rank-table th,
 .pg-rank-table td {
-    padding: 4px 8px;
+    padding: 0.45em 0.5em;
     text-align: left;
-    border-bottom: 1px solid rgba(0,0,0,0.08);
+    white-space: nowrap;
 }
-.pg-rank-table th {
+.pg-rank-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--color-bg);  /* subtle tint vs --color-surface so header doesn't blend into body */
+    color: var(--color-text-muted);
     font-weight: 700;
-    background: rgba(0,0,0,0.04);
 }
-.pg-rank-self {
-    background: #fef3c7;
+
+/* C0: two leftmost cols sticky (mirrors MF pattern).
+   --c0-col1-w is JS-measured by applyC0StickyAndScroll() on every expand.
+   Thead sticky-corner cells need z above both axes' stickies (z=4).
+   thead sticky cells inherit --color-bg from the rule above; tbody sticky
+   cells get --color-surface here so they match the rest of the body. */
+.pg-rank-table thead th:nth-child(1),
+.pg-rank-table thead th:nth-child(2),
+.pg-rank-table tbody td:nth-child(1),
+.pg-rank-table tbody td:nth-child(2) {
+    position: sticky;
+}
+.pg-rank-table tbody td:nth-child(1),
+.pg-rank-table tbody td:nth-child(2) {
+    background: var(--color-surface);
+}
+.pg-rank-table thead th:nth-child(1),
+.pg-rank-table tbody td:nth-child(1) { left: 0; }
+.pg-rank-table thead th:nth-child(2),
+.pg-rank-table tbody td:nth-child(2) { left: var(--c0-col1-w, 36px); }
+.pg-rank-table thead th:nth-child(1),
+.pg-rank-table thead th:nth-child(2) { z-index: 4; }
+.pg-rank-table tbody td:nth-child(1),
+.pg-rank-table tbody td:nth-child(2) { z-index: 2; }
+
+.pg-rank-table tbody tr:hover td:nth-child(1),
+.pg-rank-table tbody tr:hover td:nth-child(2) {
+    background: var(--color-hover);
+}
+
+/* Highlight the self row — theme-aware via --color-accent-light, which every
+   theme defines with text-readable contrast. Sticky cells need explicit bg
+   so the highlight carries across into the sticky cols. */
+.pg-rank-self,
+.pg-rank-self td {
+    background: var(--color-accent-light);
     font-weight: 700;
 }
-/* Dark-theme overrides — light cream clashes with white text */
-[data-theme="dark"] .pg-rank-self td,
-[data-theme="vegas"] .pg-rank-self td,
-[data-theme="casino"] .pg-rank-self td,
-[data-theme="x22"] .pg-rank-self td {
-    background: rgba(255, 152, 0, 0.22);
-    color: #ffffff;
-    box-shadow: inset 3px 0 0 var(--color-accent);
+.pg-rank-table tbody tr.pg-rank-self td:nth-child(1),
+.pg-rank-table tbody tr.pg-rank-self td:nth-child(2) {
+    background: var(--color-accent-light);
 }
-[data-theme="dark"] .pg-rank-self,
-[data-theme="vegas"] .pg-rank-self,
-[data-theme="casino"] .pg-rank-self,
-[data-theme="x22"] .pg-rank-self {
-    background: transparent;
+
+/* C0 sticky-boundary drop-shadow on horizontal scroll — matches MF pattern.
+   Static state: no separator. Visible only when wrapper has `.is-scrolled-x`
+   (set by attachStickyShadow when scrollLeft > 0). */
+.pg-rank-table-wrap.is-scrolled-x .pg-rank-table thead th:nth-child(2) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
+.pg-rank-table-wrap.is-scrolled-x .pg-rank-table tbody td:nth-child(2) {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.pg-rank-table-wrap.is-scrolled-x .pg-rank-table tbody tr:last-child td:nth-child(2) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+/* No per-theme overrides needed — --color-accent-light is defined per theme
+   with text-readable contrast against the theme's text color. */
 .pg-tile-block {
     display: flex;
     flex-direction: column;

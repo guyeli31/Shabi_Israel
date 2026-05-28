@@ -1,0 +1,6 @@
+{
+  "overrides": [
+    { "type": "technical_win", "playerA": "gidio", "playerB": "YKwin",       "winner": "YKwin",       "reason": "Technical win for YKwin", "timestamp": "2026-05-28T00:00:00.000Z" },
+    { "type": "technical_win", "playerA": "YKwin", "playerB": "OvedBenZeev", "winner": "OvedBenZeev", "reason": "Technical loss for YKwin", "timestamp": "2026-05-28T00:00:00.000Z" }
+  ]
+}

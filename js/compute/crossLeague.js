@@ -295,9 +295,12 @@ export async function listAllTimeRanking(leagueType, metric) {
     }
 
     const scores = [];
-    for (const [name, matches] of byPlayer) scores.push({ name, value: computeMetric(matches) });
+    for (const [name, matches] of byPlayer) {
+        const leagues = new Set(matches.map(m => m.leagueOrderIdx)).size;
+        scores.push({ name, value: computeMetric(matches), leagues });
+    }
     scores.sort((a, b) => a.value - b.value);
-    return scores.map((s, i) => ({ rank: i + 1, name: s.name, value: s.value }));
+    return scores.map((s, i) => ({ rank: i + 1, name: s.name, value: s.value, leagues: s.leagues }));
 }
 
 export async function rankAllTime(playerName, leagueType, metric) {

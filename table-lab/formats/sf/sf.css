@@ -1,0 +1,189 @@
+/* sf.css — Canonical SF (Secondary Format) styles.
+   Loaded by the lab and (in Phase 7) by production HTML pages.
+   Auto-imports the shared base layer.
+
+   Used by: A3 (Achievements), A4 (PR Leaders), A5 (Match Records),
+            A6 (League Records), C4 (Match Records on player-general).
+
+   Mirrors the polished state in css/index-dashboard.css and
+   css/player-general.css. When Phase 7 runs, the duplicates in those
+   v1 files are deleted; this file becomes the sole source. */
+
+@import url("../base/base.css");
+
+/* ── Card chrome ───────────────────────────────────────────────── */
+
+.achv-table-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+}
+
+.achv-table-card h3 {
+    margin: 0 0 var(--space-sm) 0;
+    font-size: var(--fs-100);
+    color: var(--color-text);
+}
+
+.achv-table-wrapper {
+    max-height: 360px;
+    overflow-x: auto;
+    overflow-y: auto;
+    min-width: 0;
+}
+
+/* ── Table base ───────────────────────────────────────────────── */
+
+.achv-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.achv-table th,
+.achv-table td {
+    padding: 0.45em 0.5em;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.achv-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    font-weight: 600;
+}
+
+.achv-table tbody tr:hover td {
+    background: var(--color-hover);
+}
+
+/* Inline anchors (player names, league names) — neutral colour + subtle hover. */
+.achv-table .player-name-link,
+.achv-table .player-name-link:visited,
+.achv-table .league-link,
+.achv-table .league-link:visited {
+    color: var(--color-text);
+    font-weight: 600;
+    text-decoration: none;
+}
+.achv-table .player-name-link:hover,
+.achv-table .league-link:hover {
+    text-decoration: underline;
+}
+
+.achv-table .flag {
+    height: 1em;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+.achv-table .na {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.achv-table .result-win  { color: var(--color-win);  font-weight: 600; }
+.achv-table .result-loss { color: var(--color-loss); font-weight: 600; }
+.achv-table .result-draw { color: var(--color-draw); font-weight: 600; }
+
+/* ── Sticky left columns (generic 1/2/3) ──────────────────────────
+   Drives layout via --sf-col1-w / --sf-col2-w, measured in JS.
+   Per-table specifics live in individual presets if needed. */
+
+.achv-table[data-mf-table-id] tbody td:nth-child(1) { background: var(--color-surface); }
+
+/* 1-col sticky: col 1 */
+.achv-table.sf-sticky-1 thead th:nth-child(1),
+.achv-table.sf-sticky-1 tbody td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--color-surface);
+}
+.achv-table.sf-sticky-1 thead th:nth-child(1) { z-index: 4; }
+
+/* 2-col sticky: cols 1+2 */
+.achv-table.sf-sticky-2 thead th:nth-child(1),
+.achv-table.sf-sticky-2 thead th:nth-child(2),
+.achv-table.sf-sticky-2 tbody td:nth-child(1),
+.achv-table.sf-sticky-2 tbody td:nth-child(2) {
+    position: sticky;
+    z-index: 2;
+    background: var(--color-surface);
+}
+.achv-table.sf-sticky-2 thead th:nth-child(1),
+.achv-table.sf-sticky-2 tbody td:nth-child(1) { left: 0; }
+.achv-table.sf-sticky-2 thead th:nth-child(2),
+.achv-table.sf-sticky-2 tbody td:nth-child(2) { left: var(--sf-col1-w, 36px); }
+.achv-table.sf-sticky-2 thead th:nth-child(1),
+.achv-table.sf-sticky-2 thead th:nth-child(2) { z-index: 4; }
+
+/* 3-col sticky: cols 1+2+3 */
+.achv-table.sf-sticky-3 thead th:nth-child(1),
+.achv-table.sf-sticky-3 thead th:nth-child(2),
+.achv-table.sf-sticky-3 thead th:nth-child(3),
+.achv-table.sf-sticky-3 tbody td:nth-child(1),
+.achv-table.sf-sticky-3 tbody td:nth-child(2),
+.achv-table.sf-sticky-3 tbody td:nth-child(3) {
+    position: sticky;
+    z-index: 2;
+    background: var(--color-surface);
+}
+.achv-table.sf-sticky-3 thead th:nth-child(1),
+.achv-table.sf-sticky-3 tbody td:nth-child(1) { left: 0; }
+.achv-table.sf-sticky-3 thead th:nth-child(2),
+.achv-table.sf-sticky-3 tbody td:nth-child(2) { left: var(--sf-col1-w, 36px); }
+.achv-table.sf-sticky-3 thead th:nth-child(3),
+.achv-table.sf-sticky-3 tbody td:nth-child(3) { left: calc(var(--sf-col1-w, 36px) + var(--sf-col2-w, 100px)); }
+.achv-table.sf-sticky-3 thead th:nth-child(1),
+.achv-table.sf-sticky-3 thead th:nth-child(2),
+.achv-table.sf-sticky-3 thead th:nth-child(3) { z-index: 4; }
+
+/* ── Sticky-boundary drop-shadow on horizontal scroll ──────────
+   Mirrors MF's pattern. `.is-scrolled-x` set by attachStickyShadow when
+   wrapper.scrollLeft > 0. The shadow targets the rightmost sticky col.
+   Selectors below cover sticky-1 / sticky-2 / sticky-3 variants. */
+
+.achv-table-wrapper.is-scrolled-x .sf-sticky-1 thead th:nth-child(1),
+.achv-table-wrapper.is-scrolled-x .sf-sticky-2 thead th:nth-child(2),
+.achv-table-wrapper.is-scrolled-x .sf-sticky-3 thead th:nth-child(3) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .sf-sticky-1 tbody td:nth-child(1),
+.achv-table-wrapper.is-scrolled-x .sf-sticky-2 tbody td:nth-child(2),
+.achv-table-wrapper.is-scrolled-x .sf-sticky-3 tbody td:nth-child(3) {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .sf-sticky-1 tbody tr:last-child td:nth-child(1),
+.achv-table-wrapper.is-scrolled-x .sf-sticky-2 tbody tr:last-child td:nth-child(2),
+.achv-table-wrapper.is-scrolled-x .sf-sticky-3 tbody tr:last-child td:nth-child(3) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+
+/* ── Show-top-N toggle ───────────────────────────────────────────
+   Lives INSIDE the card, after .achv-table-wrapper. Hidden rows use
+   the shared .table-row-hidden helper from mf.css (or duplicate here
+   if SF is consumed standalone — keep available for safety). */
+
+.table-row-hidden { display: none !important; }
+
+.show-more-btn {
+    display: block;
+    margin: var(--space-sm) auto 0;
+    padding: 4px 16px;
+    font-size: var(--fs-085);
+    font-family: var(--font-main);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.show-more-btn:hover { background: var(--color-hover); }
