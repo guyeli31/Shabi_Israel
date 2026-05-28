@@ -715,7 +715,8 @@
 
 .achv-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
 }
 
 /* Flag inherits table cell font-size per iron rule 5 (no hard-coded px). */
