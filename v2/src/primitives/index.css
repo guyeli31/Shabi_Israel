@@ -1,0 +1,14 @@
+/* primitives/index.css — aggregates all primitive stylesheets.
+   Order matches PLAN.md §1.4. Every imported file declares its rules
+   inside @layer primitives, so import order here is purely cosmetic. */
+
+@import "./Flag/flag.css";
+@import "./Icon/icon.css";
+@import "./Badge/badge.css";
+@import "./Pill/pill.css";
+@import "./Button/button.css";
+@import "./Link/link.css";
+@import "./Avatar/avatar.css";
+@import "./Tooltip/tooltip.css";
+@import "./Chip/chip.css";
+@import "./FormField/formField.css";

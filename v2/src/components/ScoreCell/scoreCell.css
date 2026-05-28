@@ -1,0 +1,25 @@
+/* components/ScoreCell/scoreCell.css — numeric table cell whose colour
+   is computed from the value's position inside a min/max range. v1's
+   .color-scaled rule applies a theme-dependent filter for dark surfaces
+   so the inline RGB colour stays readable. */
+
+@layer components {
+    .score-cell {
+        font-variant-numeric: tabular-nums;
+        font-weight: var(--fw-subheading);
+        text-align: right;
+    }
+
+    .score-cell--inverted {
+        /* same as .score-cell but signals to the renderer that the
+           colour scale should be flipped (low = green). The class
+           itself has no visual effect; ColorScale.value() reads it. */
+    }
+
+    /* When the colour-scaled cell sits on a dark surface, v1 multiplies
+       the inline colour through a theme filter so contrast holds. The
+       filter token --color-scale-filter is defined per theme. */
+    .score-cell--scaled {
+        filter: var(--color-scale-filter, none);
+    }
+}

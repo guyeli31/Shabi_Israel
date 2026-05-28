@@ -1,0 +1,49 @@
+/* base/elements.css — sensible defaults for native HTML elements.
+   Token-driven. Pages override by class only (never re-declaring base
+   font-size / font-weight here). */
+
+@layer base {
+    /* headings use the size scale; weight defaults to heading except h6 */
+    h1 { font-size: var(--fs-3xl);     font-weight: var(--fw-heading); line-height: var(--lh-tight); }
+    h2 { font-size: var(--fs-2xl);     font-weight: var(--fw-heading); line-height: var(--lh-tight); }
+    h3 { font-size: var(--fs-xl);      font-weight: var(--fw-subheading); line-height: var(--lh-snug); }
+    h4 { font-size: var(--fs-large);   font-weight: var(--fw-subheading); line-height: var(--lh-snug); }
+    h5 { font-size: var(--fs-small);   font-weight: var(--fw-subheading); }
+    h6 { font-size: var(--fs-small);   font-weight: var(--fw-subheading); }
+
+    p {
+        font-size: var(--fs-small);
+        line-height: var(--lh-base);
+    }
+
+    /* form controls inherit page font (UA default would force Arial / control sizes) */
+    button, input, select, textarea {
+        font: inherit;
+        color: inherit;
+    }
+
+    button {
+        background: transparent;
+        border: 0;
+        cursor: pointer;
+    }
+
+    /* <strong> / <b> are SEMANTIC, not visual.
+       UA default font-weight: bolder is relative and produces unpredictable
+       jumps (600 → 900). Resetting to inherit makes weight purely
+       class-driven; the element still carries accessibility meaning. */
+    strong, b {
+        font-weight: inherit;
+    }
+
+    /* table base — variant-specific styling lives in src/tables/_table.css */
+    table {
+        border-collapse: collapse;
+        border-spacing: 0;
+    }
+
+    /* code / pre default to mono token */
+    code, pre, kbd, samp {
+        font-family: var(--font-mono);
+    }
+}

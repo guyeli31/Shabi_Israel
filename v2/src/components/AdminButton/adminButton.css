@@ -1,0 +1,51 @@
+/* components/AdminButton/adminButton.css — floating bottom-left gear.
+   Mirrors v1 .admin-button + tooltip. */
+
+@layer components {
+    .admin-button {
+        position: fixed;
+        bottom: calc(20px + env(safe-area-inset-bottom));
+        left: calc(20px + env(safe-area-inset-left));
+        z-index: 1000;
+    }
+
+    .admin-button__toggle {
+        width: 2.5em;
+        height: 2.5em;
+        border-radius: 50%;
+        border: 2px solid var(--color-border);
+        background: var(--color-surface);
+        color: var(--color-text);
+        cursor: pointer;
+        font-size: var(--fs-large);
+        box-shadow: var(--shadow-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out);
+        text-decoration: none;
+    }
+    .admin-button__toggle:hover {
+        transform: scale(1.1);
+        box-shadow: var(--shadow-lg);
+    }
+
+    .admin-button__tooltip {
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--color-text);
+        color: var(--color-bg);
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: var(--fs-micro);
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--motion-fast) var(--ease-out);
+    }
+    .admin-button:hover .admin-button__tooltip {
+        opacity: 1;
+    }
+}

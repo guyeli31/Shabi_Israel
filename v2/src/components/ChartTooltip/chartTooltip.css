@@ -1,0 +1,54 @@
+/* components/ChartTooltip/chartTooltip.css — info panel that sits under
+   a chart and shows details for the currently hovered/pinned data point.
+   Ported from v1 .chart-info-panel + .cip-* selectors. */
+
+@layer components {
+    .chart-info {
+        margin-top: var(--space-sm);
+        padding: var(--space-sm) var(--space-md);
+        background: var(--color-hover);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        font-size: var(--fs-small);
+        line-height: 1.4;
+        color: var(--color-text);
+        min-height: 3.5em;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 4px;
+    }
+
+    .chart-info__title {
+        font-weight: var(--fw-subheading);
+        color: var(--color-text);
+    }
+
+    .chart-info__row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-md);
+    }
+
+    .chart-info__item {
+        display: inline-flex;
+        gap: 6px;
+        align-items: baseline;
+    }
+
+    .chart-info__k {
+        color: var(--color-text-muted);
+        font-size: var(--fs-micro);
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .chart-info__v {
+        font-weight: var(--fw-subheading);
+    }
+
+    .chart-info__placeholder {
+        color: var(--color-text-muted);
+        font-style: italic;
+    }
+}

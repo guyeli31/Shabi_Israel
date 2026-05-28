@@ -1,0 +1,15 @@
+/* components/RankBadge/rankBadge.css — plain numeric variant for rank > 3.
+   Medal variants are inherited from primitive Badge. */
+
+@layer components {
+    .rank-badge--plain {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 1.4em;
+        font-size: var(--fs-small);
+        font-weight: var(--fw-subheading);
+        color: var(--color-text-muted);
+        font-variant-numeric: tabular-nums;
+    }
+}

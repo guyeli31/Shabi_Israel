@@ -1,0 +1,58 @@
+/* themes/nature.css — green-forest / sunny illustration theme.
+   Mirrors v1's css/themes.css [data-theme="nature"] block. */
+
+@layer themes {
+    [data-theme="nature"] {
+        --color-bg:             #eaf5e1;
+        --color-surface:        #ffffff;
+        --color-hover:          #dcefcf;
+        --color-border:         #c3dfae;
+
+        --color-text:           #1f3a1a;
+        --color-text-secondary: #3d5a2f;
+        --color-text-muted:     #5e7548;
+
+        --color-accent:         #2e6b31;
+        --color-accent-light:   #d9efc4;
+
+        --color-gold:           #f5c518;
+        --color-gold-bg:        #fff4c2;
+        --color-gold-text:      #6b5300;
+        --color-gold-bg-hover:  #ffea9c;
+        --color-silver:         #8aa57a;
+        --color-silver-bg:      #e3efd5;
+        --color-silver-text:    #2f4a25;
+        --color-silver-bg-hover: #d1e4bf;
+        --color-bronze:         #b8702a;
+        --color-bronze-bg:      #f3dfc0;
+        --color-bronze-text:    #5a3408;
+        --color-bronze-bg-hover: #ecd0a6;
+
+        --color-running:        #2e6b31;
+        --color-running-bg:     #d9efc4;
+        --color-completed:      #5e7548;
+        --color-completed-bg:   #e3efd5;
+
+        --color-win:            #2e6b31;
+        --color-loss:           #9c2e22;
+        --color-draw:           #5e7548;
+
+        --color-avg-bg:         #e3efd5;
+        --color-avg-border:     #a8c890;
+
+        --color-unplayed-bg:    #f1f7e8;
+
+        --header-bg:            #1f3f1c;
+        --header-text:          #f5c518;
+        --header-bg-hover:      #2a5426;
+
+        --shadow-sm: 0 1px 2px rgba(31, 58, 26, 0.08);
+        --shadow-md: 0 4px 12px rgba(31, 58, 26, 0.12);
+        --shadow-lg: 0 8px 30px rgba(31, 58, 26, 0.15);
+
+        --chart-grid:          rgba(31, 58, 26, 0.10);
+        --chart-axis:          rgba(31, 58, 26, 0.35);
+        --chart-label:         rgba(31, 58, 26, 0.70);
+        --chart-hover-outline: #1f3a1a;
+    }
+}

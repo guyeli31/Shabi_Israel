@@ -1,0 +1,65 @@
+/* themes/dark.css — Dark theme.
+   Mirrors v1's css/themes.css [data-theme="dark"] block. */
+
+@layer themes {
+    [data-theme="dark"] {
+        --color-bg:             #1c1c26;
+        --color-surface:        #262633;
+        --color-hover:          #2f2f3f;
+        --color-border:         #3a3a4d;
+
+        --color-text:           #ececf1;
+        --color-text-secondary: #c5c9d8;
+        --color-text-muted:     #9ea2b5;
+
+        --color-accent:         #6ba8ff;
+        --color-accent-light:   #1e3a5f;
+
+        --color-gold:           #fbbf24;
+        --color-gold-bg:        #5a4a14;
+        --color-gold-text:      #ffe27a;
+        --color-gold-bg-hover:  #6a5820;
+        --color-silver:         #c9cfde;
+        --color-silver-bg:      #3a3f52;
+        --color-silver-text:    #e8ecf5;
+        --color-silver-bg-hover: #474d63;
+        --color-bronze:         #d97706;
+        --color-bronze-bg:      #4a2f12;
+        --color-bronze-text:    #ffb87a;
+        --color-bronze-bg-hover: #5a3a18;
+
+        --color-running:        #34d399;
+        --color-running-bg:     #0f2e22;
+        --color-completed:      #9ca3af;
+        --color-completed-bg:   #2f2f3f;
+
+        --color-win:            #34d399;
+        --color-loss:           #f87171;
+        --color-draw:           #9ca3af;
+
+        --color-avg-bg:         #162b23;
+        --color-avg-border:     #1e4d38;
+
+        --color-unplayed-bg:    #22222e;
+
+        --header-bg:            #14141e;
+        --header-text:          #ececf1;
+        --header-bg-hover:      #22222e;
+
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.5);
+
+        --chart-grid:          rgba(255, 255, 255, 0.10);
+        --chart-axis:          rgba(255, 255, 255, 0.30);
+        --chart-label:         rgba(236, 236, 241, 0.75);
+        --chart-hover-outline: #ffffff;
+
+        --lt-doubling-bg:   rgba(96, 165, 250, 0.22);
+        --lt-doubling-text: #93c5fd;
+        --lt-ubc-bg:        rgba(167, 139, 250, 0.22);
+        --lt-ubc-text:      #c4b5fd;
+        --lt-regular-bg:    rgba(45, 212, 191, 0.22);
+        --lt-regular-text:  #5eead4;
+    }
+}

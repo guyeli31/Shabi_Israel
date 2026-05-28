@@ -1,0 +1,130 @@
+/* components/Navigation/navigation.css — site-wide nav bar. Ports v1
+   .site-nav + skip-link + leagues dropdown. SearchBox is composed in
+   from its own stylesheet. */
+
+@layer components {
+    /* Skip-link — a11y H1. Pinned to top-left when focused; otherwise
+       parked off-screen. */
+    .skip-link {
+        position: absolute;
+        top: -100px;
+        left: 0;
+        background: var(--color-accent);
+        color: #fff;
+        padding: 8px 16px;
+        z-index: 9999;
+        text-decoration: none;
+        font-weight: var(--fw-subheading);
+        border-radius: 0 0 var(--radius-sm) 0;
+        transition: top var(--motion-base) var(--ease-out);
+    }
+    .skip-link:focus,
+    .skip-link:focus-visible {
+        top: 0;
+        outline: 2px solid #fff;
+        outline-offset: -4px;
+    }
+
+    .site-nav {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: var(--header-bg);
+        color: var(--header-text);
+        box-shadow: var(--shadow-md);
+    }
+
+    .site-nav__inner {
+        max-width: 1100px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        gap: var(--space-md);
+        padding: 0.6em var(--space-md);
+    }
+
+    .site-nav__home {
+        color: var(--header-text);
+        text-decoration: none;
+        font-weight: var(--fw-heading);
+        font-size: var(--fs-2xl);
+        line-height: 1.1;
+        white-space: nowrap;
+        transition: opacity var(--motion-fast) var(--ease-out);
+    }
+    .site-nav__home:hover {
+        opacity: 0.8;
+    }
+
+    .site-nav__leagues {
+        position: relative;
+    }
+
+    .site-nav__leagues-btn {
+        background: none;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: var(--header-text);
+        padding: 4px 12px;
+        border-radius: var(--radius-sm);
+        font-size: var(--fs-small);
+        font-weight: var(--fw-medium);
+        cursor: pointer;
+        transition: background var(--motion-fast) var(--ease-out);
+    }
+    .site-nav__leagues-btn:hover {
+        background: var(--header-bg-hover);
+    }
+
+    .site-nav__leagues-list {
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        min-width: 260px;
+        max-height: 400px;
+        overflow-y: auto;
+        background: var(--color-surface);
+        color: var(--color-text);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-lg);
+        list-style: none;
+        padding: var(--space-xs) 0;
+        margin: 0;
+        z-index: 110;
+    }
+    .site-nav__leagues-list[hidden] { display: none; }
+
+    .site-nav__section {
+        padding: var(--space-xs) var(--space-md);
+        font-size: var(--fs-micro);
+        font-weight: var(--fw-heading);
+        text-transform: uppercase;
+        color: var(--color-text-muted);
+        letter-spacing: 0.5px;
+    }
+
+    .site-nav__leagues-list a {
+        display: block;
+        padding: 6px var(--space-md);
+        color: var(--color-text);
+        text-decoration: none;
+        font-size: var(--fs-small);
+        transition: background var(--motion-fast) var(--ease-out);
+    }
+    .site-nav__leagues-list a:hover {
+        background: var(--color-hover);
+    }
+
+    .site-nav__dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 6px;
+    }
+    .site-nav__dot--running   { background: var(--color-running); }
+    .site-nav__dot--completed { background: var(--color-completed); }
+
+    .site-nav__search {
+        margin-left: auto;
+    }
+}

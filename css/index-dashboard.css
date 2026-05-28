@@ -727,9 +727,8 @@
 
 .achv-table th,
 .achv-table td {
-    padding: clamp(3px, 0.6vw, 6px) clamp(5px, 0.8vw, 8px);
+    padding: 0.45em 0.5em;
     text-align: left;
-    border-bottom: 1px solid var(--color-border);
     white-space: nowrap;
 }
 
@@ -757,6 +756,21 @@
 }
 .pr-leaders-table tbody tr:hover td:nth-child(1) {
     background: var(--color-hover);
+}
+
+/* A4 sticky-boundary drop-shadow on horizontal scroll — matches MF pattern.
+   Static state: no separator. Visible only when `.achv-table-wrapper` has
+   `.is-scrolled-x` (set by attachStickyShadow when scrollLeft > 0). */
+.achv-table-wrapper.is-scrolled-x .pr-leaders-table thead th:nth-child(1) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .pr-leaders-table tbody td:nth-child(1) {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .pr-leaders-table tbody tr:last-child td:nth-child(1) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
 
 .achv-table .player-name-link {
@@ -802,7 +816,6 @@
     left: calc(var(--mr-col1-w) + var(--mr-col2-w));
     z-index: 2;
     background: var(--color-surface);
-    border-right: 1px solid var(--color-border);
 }
 
 /* tbody sticky hover — explicit td-level override (tr:hover won't pierce sticky td background) */
@@ -826,7 +839,21 @@
     left: calc(var(--mr-col1-w) + var(--mr-col2-w));
     top: 0; z-index: 4;
     background: var(--color-surface);
-    border-right: 1px solid var(--color-border);
+}
+
+/* A5 sticky-boundary drop-shadow on horizontal scroll — matches MF pattern.
+   Static state: no separator. Visible only when `.achv-table-wrapper` has
+   `.is-scrolled-x` (set by attachStickyShadow when scrollLeft > 0). */
+.achv-table-wrapper.is-scrolled-x .match-records-table thead th:nth-child(3) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .match-records-table tbody td:nth-child(3) {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .match-records-table tbody tr:last-child td:nth-child(3) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
 
 
@@ -866,7 +893,6 @@
     left: calc(var(--lr-col1-w) + var(--lr-col2-w));
     z-index: 2;
     background: var(--color-surface);
-    border-right: 1px solid var(--color-border);
 }
 
 .league-records-table tbody tr:hover td:nth-child(1),
@@ -888,7 +914,21 @@
     left: calc(var(--lr-col1-w) + var(--lr-col2-w));
     top: 0; z-index: 4;
     background: var(--color-surface);
-    border-right: 1px solid var(--color-border);
+}
+
+/* A6 sticky-boundary drop-shadow on horizontal scroll — matches MF pattern.
+   Static state: no separator. Visible only when `.achv-table-wrapper` has
+   `.is-scrolled-x` (set by attachStickyShadow when scrollLeft > 0). */
+.achv-table-wrapper.is-scrolled-x .league-records-table thead th:nth-child(3) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .league-records-table tbody td:nth-child(3) {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .league-records-table tbody tr:last-child td:nth-child(3) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
 
 

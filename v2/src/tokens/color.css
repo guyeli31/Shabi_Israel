@@ -1,0 +1,83 @@
+/* tokens/color.css — raw colour palette.
+   Building blocks: every literal colour value lives here, named.
+   No component or page CSS may declare a literal #hex/rgb — they reference
+   either a --c-* token from this file or a --color-* semantic var from
+   themes/_theme.css.
+
+   Themes themselves (themes/*.css) are allowed to declare literals where
+   a colour is unique to that theme. The intent is to dedup colours that
+   are reused across themes / contexts, not to enumerate every shade. */
+
+@layer tokens {
+    :root {
+        /* neutrals — slate scale */
+        --c-white:       #ffffff;
+        --c-slate-50:    #f8fafc;
+        --c-slate-100:   #f3f4f6;
+        --c-slate-200:   #e2e4e9;
+        --c-slate-300:   #c4c8d1;
+        --c-slate-400:   #9ca3af;
+        --c-slate-500:   #6b6d84;
+        --c-slate-600:   #52546b;
+        --c-slate-700:   #334155;
+        --c-slate-800:   #1e293b;
+        --c-slate-900:   #1a1a2e;
+        --c-black:       #000000;
+
+        /* brand blue (default accent family) */
+        --c-blue-100:    #dbeafe;
+        --c-blue-300:    #93c5fd;
+        --c-blue-400:    #6ba8ff;
+        --c-blue-500:    #2563eb;
+        --c-blue-900:    #1e40af;
+
+        /* result greens (win / running) */
+        --c-green-100:   #d1fae5;
+        --c-green-200:   #a7f3d0;
+        --c-green-400:   #34d399;
+        --c-green-600:   #047857;
+        --c-green-700:   #065f46;
+
+        /* result reds (loss) */
+        --c-red-300:     #f87171;
+        --c-red-700:     #b91c1c;
+
+        /* medal golds */
+        --c-gold-50:     #fef3c7;
+        --c-gold-200:    #fde68a;
+        --c-gold-400:    #fbbf24;
+        --c-gold-700:    #b45309;
+        --c-gold-900:    #78350f;
+
+        /* medal silvers */
+        --c-silver-100:  #f3f4f6;
+        --c-silver-200:  #e5e7eb;
+        --c-silver-400:  #9ca3af;
+        --c-silver-700:  #4b5563;
+        --c-silver-900:  #1f2937;
+
+        /* medal bronzes */
+        --c-bronze-50:   #fde8c8;
+        --c-bronze-400:  #d97706;
+        --c-bronze-900:  #78350f;
+
+        /* league-type pill accents */
+        --c-violet-100:  #ede9fe;
+        --c-violet-900:  #5b21b6;
+        --c-teal-100:    #ccfbf1;
+        --c-teal-400:    #5eead4;
+        --c-teal-900:    #115e59;
+
+        /* avg-row tint */
+        --c-mint-50:     #ecfdf5;
+        --c-mint-200:    #a7f3d0;
+
+        /* chart overlay alphas (semi-transparent neutrals) */
+        --c-alpha-axis-light:  rgba(0, 0, 0, 0.35);
+        --c-alpha-grid-light:  rgba(0, 0, 0, 0.18);
+        --c-alpha-label-light: rgba(0, 0, 0, 0.65);
+        --c-alpha-axis-dark:   rgba(255, 255, 255, 0.30);
+        --c-alpha-grid-dark:   rgba(255, 255, 255, 0.10);
+        --c-alpha-label-dark:  rgba(236, 236, 241, 0.75);
+    }
+}

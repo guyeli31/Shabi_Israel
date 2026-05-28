@@ -1,0 +1,14 @@
+/* tokens/space.css — spacing scale.
+   Values mirror v1's variables.css. Components reference these via
+   var(--space-*), never literal pixel values. */
+
+@layer tokens {
+    :root {
+        --space-xs:  4px;
+        --space-sm:  8px;
+        --space-md:  16px;
+        --space-lg:  24px;
+        --space-xl:  40px;
+        --space-2xl: 64px;
+    }
+}

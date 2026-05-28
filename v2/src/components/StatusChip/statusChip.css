@@ -1,0 +1,52 @@
+/* components/StatusChip/statusChip.css — Running / This year / Inactive
+   status indicator with a glowing dot. Used on hero cards (V12 + V16).
+   The plain "status-pill" without dot is covered by primitive Pill;
+   StatusChip is the dot+glow variant. */
+
+@layer components {
+    .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4em;
+        font-size: 0.85em;
+        font-weight: var(--fw-subheading);
+        letter-spacing: 0.3px;
+        line-height: 1.5;
+        padding: 0.18em 0.8em;
+        border-radius: var(--radius-full);
+        background: var(--color-running-bg);
+        color: var(--color-running);
+    }
+
+    .status-chip--running {
+        background: var(--color-running-bg);
+        color: var(--color-running);
+    }
+
+    .status-chip--completed,
+    .status-chip--inactive {
+        background: var(--color-completed-bg);
+        color: var(--color-completed);
+    }
+
+    /* "This year" — orange/amber middle tier. Tokenless; mirrors v1
+       .pg-v12-statuschip.orange exactly (amber-500 alpha + bronze-800). */
+    .status-chip--recent {
+        background: rgba(245, 158, 11, 0.18);
+        color: #b45309;
+    }
+
+    .status-chip__dot {
+        width: 0.55em;
+        height: 0.55em;
+        border-radius: 50%;
+        background: currentColor;
+        box-shadow: 0 0 0.45em currentColor;
+    }
+
+    .status-chip--completed .status-chip__dot,
+    .status-chip--inactive  .status-chip__dot {
+        box-shadow: none;
+        opacity: 0.7;
+    }
+}

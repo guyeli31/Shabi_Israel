@@ -1,0 +1,88 @@
+/* components/SearchBox/searchBox.css — text input + a popover results
+   list. Tailored for the nav-bar player search, but reusable elsewhere
+   (matchup picker, admin lookups). Visuals replace v1 .nav-search +
+   .nav-search-results. */
+
+@layer components {
+    .search-box {
+        position: relative;
+        display: inline-block;
+    }
+
+    .search-box__input {
+        width: 180px;
+        padding: 5px 10px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        background: var(--color-surface);
+        color: var(--color-text);
+        font-size: var(--fs-small);
+        outline: none;
+        transition: width var(--motion-base) var(--ease-out), border-color var(--motion-fast) var(--ease-out);
+    }
+    .search-box__input::placeholder {
+        color: var(--color-text-muted);
+    }
+    .search-box__input:focus {
+        width: 240px;
+        border-color: var(--color-accent);
+    }
+
+    /* On a dark nav bar (where the parent .site-nav has --header-bg),
+       the input adopts a translucent surface so it reads against the
+       dark header. The site-nav scope handles this; default styling
+       above is for standalone use. */
+    .site-nav .search-box__input {
+        border-color: rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--header-text);
+    }
+    .site-nav .search-box__input::placeholder {
+        color: rgba(255, 255, 255, 0.5);
+    }
+    .site-nav .search-box__input:focus {
+        background: rgba(255, 255, 255, 0.15);
+    }
+
+    .search-box__results {
+        position: absolute;
+        top: calc(100% + 4px);
+        right: 0;
+        min-width: 280px;
+        max-height: 360px;
+        overflow-y: auto;
+        background: var(--color-surface);
+        color: var(--color-text);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-lg);
+        list-style: none;
+        padding: var(--space-xs) 0;
+        margin: 0;
+        z-index: 110;
+    }
+
+    .search-box__results[hidden] { display: none; }
+
+    .search-box__option a,
+    .search-box__option {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        padding: 8px var(--space-md);
+        color: var(--color-text);
+        text-decoration: none;
+        font-size: var(--fs-small);
+        transition: background var(--motion-fast) var(--ease-out);
+    }
+    .search-box__option:hover,
+    .search-box__option a:hover {
+        background: var(--color-hover);
+    }
+
+    .search-box__empty {
+        padding: 12px var(--space-md);
+        color: var(--color-text-muted);
+        font-size: var(--fs-small);
+        text-align: center;
+    }
+}

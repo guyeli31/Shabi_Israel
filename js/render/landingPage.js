@@ -1413,6 +1413,10 @@ function renderPRLeadersSection(container, presentTypes) {
             const data = await buildAllTimeRankings(t);
             panel.innerHTML = renderPRTables(data);
             panel.querySelectorAll('.achv-table').forEach(t => applyShowTopN(t));
+            panel.querySelectorAll('.pr-leaders-table').forEach(tbl => {
+                const wrap = tbl.closest('.achv-table-wrapper');
+                if (wrap) attachStickyShadow(wrap);
+            });
         } catch (err) {
             panel.innerHTML = `<div class="error">Failed to load: ${escapeHtml(err.message)}</div>`;
         }
@@ -1500,6 +1504,10 @@ function renderMatchRecordsSection(container, allLeagues, presentTypes) {
     container.appendChild(section);
 
     section.querySelectorAll('.achv-table').forEach(t => applyShowTopN(t));
+    section.querySelectorAll('.match-records-table').forEach(tbl => {
+        const wrap = tbl.closest('.achv-table-wrapper');
+        if (wrap) attachStickyShadow(wrap);
+    });
 
     requestAnimationFrame(() => applyMatchRecordsStickyOffsets(section));
 
@@ -1683,6 +1691,10 @@ function renderLeagueRecordsSection(container, allLeagues, presentTypes) {
     container.appendChild(section);
 
     section.querySelectorAll('.achv-table').forEach(t => applyShowTopN(t));
+    section.querySelectorAll('.league-records-table').forEach(tbl => {
+        const wrap = tbl.closest('.achv-table-wrapper');
+        if (wrap) attachStickyShadow(wrap);
+    });
 
     requestAnimationFrame(() => applyLeagueRecordsStickyOffsets(section));
 

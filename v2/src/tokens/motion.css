@@ -1,0 +1,15 @@
+/* tokens/motion.css — animation timing.
+   New in v2. v1 used ad-hoc 0.2s/0.3s values throughout component CSS;
+   v2 standardises on three speeds and three easing curves. */
+
+@layer tokens {
+    :root {
+        --motion-fast: 150ms;
+        --motion-base: 250ms;
+        --motion-slow: 400ms;
+
+        --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+        --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+        --ease-linear: linear;
+    }
+}

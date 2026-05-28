@@ -1,0 +1,38 @@
+/* tokens/typography.css — typography tokens (7 sizes + 4 weights).
+   See docs/TYPOGRAPHY.md for the slope law:
+       f(M) = clamp(0.765·M·rem, 0.600·M·rem + 0.835·M·vw, M·rem)
+   All seven sizes share the same rate-of-change profile, so the ratio
+   between any two tokens is constant at every viewport width.
+
+   Weights: production uses 3 (regular/subheading/heading per the spec),
+   but the token set exposes a 4th (medium/500) so the typoEditor can
+   experiment with it before deciding to promote it. */
+
+@layer tokens {
+    :root {
+        /* font families */
+        --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                     "Helvetica Neue", Arial, sans-serif;
+        --font-mono: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", monospace;
+
+        /* size scale — 7 tokens, font-small slope */
+        --fs-micro:   clamp(0.497rem, 0.390rem + 0.543vw, 0.65rem);
+        --fs-small:   clamp(0.650rem, 0.510rem + 0.710vw, 0.85rem);
+        --fs-large:   clamp(0.711rem, 0.558rem + 0.777vw, 0.93rem);
+        --fs-xl:      clamp(0.842rem, 0.660rem + 0.919vw, 1.10rem);
+        --fs-2xl:     clamp(1.033rem, 0.810rem + 1.127vw, 1.35rem);
+        --fs-3xl:     clamp(1.224rem, 0.960rem + 1.336vw, 1.60rem);
+        --fs-display: clamp(1.530rem, 1.200rem + 1.670vw, 2.00rem);
+
+        /* weight scale — 4 tokens (production uses 3, medium is exploratory) */
+        --fw-regular:    400;
+        --fw-medium:     500;
+        --fw-subheading: 600;
+        --fw-heading:    700;
+
+        /* default line-height for prose; tighter line-heights live on components */
+        --lh-base: 1.6;
+        --lh-tight: 1.25;
+        --lh-snug: 1.4;
+    }
+}

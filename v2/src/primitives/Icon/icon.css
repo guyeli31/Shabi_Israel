@@ -1,0 +1,31 @@
+/* primitives/Icon/icon.css — inline-SVG icon primitive.
+   Size tokens (--icon-*) are em-based so icons inherit the surrounding
+   text size. `color` is set with `currentColor` on stroke/fill so icons
+   take their parent's text colour by default. */
+
+@layer primitives {
+    .icon {
+        display: inline-block;
+        width: var(--icon-sm);
+        height: var(--icon-sm);
+        vertical-align: -0.125em;
+        flex-shrink: 0;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        color: inherit;
+    }
+
+    .icon--xs { width: var(--icon-xs); height: var(--icon-xs); }
+    .icon--sm { width: var(--icon-sm); height: var(--icon-sm); }
+    .icon--md { width: var(--icon-md); height: var(--icon-md); }
+    .icon--lg { width: var(--icon-lg); height: var(--icon-lg); }
+
+    /* Solid (filled) variant — stroke off, fill currentColor. */
+    .icon--solid {
+        fill: currentColor;
+        stroke: none;
+    }
+}

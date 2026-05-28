@@ -1,0 +1,25 @@
+/* components/ColorScale/colorScale.css — visualises the red→amber→green
+   gradient used for data-emphasis cells. The catalogue renders a row
+   of swatches at fixed ratios so reviewers can see how a theme tints
+   the scale. */
+
+@layer components {
+    .color-scale {
+        display: flex;
+        gap: 4px;
+        align-items: stretch;
+    }
+
+    .color-scale__swatch {
+        flex: 1;
+        height: 1.5em;
+        border-radius: var(--radius-sm);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: var(--fs-micro);
+        font-weight: var(--fw-subheading);
+        color: rgba(255, 255, 255, 0.85);
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    }
+}

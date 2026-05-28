@@ -1,0 +1,67 @@
+/* themes/x22.css — backgammon board: black felt, green + amber triangles,
+   walnut wood, cream & red pieces, gold hardware.
+   Mirrors v1's css/themes.css [data-theme="x22"] block.
+   Triangle-stripe header decoration deferred to Phase 3+. */
+
+@layer themes {
+    [data-theme="x22"] {
+        --color-bg:             #0f0f0f;
+        --color-surface:        #181818;
+        --color-hover:          #1f1f1f;
+        --color-border:         #2a2a2a;
+
+        --color-text:           #f5f5f5;
+        --color-text-secondary: #ffb74d;
+        --color-text-muted:     #8a8a8a;
+
+        --color-accent:         #ff9800;
+        --color-accent-light:   #1a2e1a;
+
+        --color-gold:           #ff9800;
+        --color-gold-bg:        #3a2608;
+        --color-gold-text:      #ffc266;
+        --color-gold-bg-hover:  #4a3210;
+        --color-silver:         #cfcfcf;
+        --color-silver-bg:      #2a2a2a;
+        --color-silver-text:    #eaeaea;
+        --color-silver-bg-hover: #3a3a3a;
+        --color-bronze:         #4caf50;
+        --color-bronze-bg:      #15321a;
+        --color-bronze-text:    #8be28f;
+        --color-bronze-bg-hover: #1d4522;
+
+        --color-running:        #4caf50;
+        --color-running-bg:     #11241a;
+        --color-completed:      #9e9e9e;
+        --color-completed-bg:   #1f1f1f;
+
+        --color-win:            #4caf50;
+        --color-loss:           #e07070;
+        --color-draw:           #ff9800;
+
+        --color-avg-bg:         #11241a;
+        --color-avg-border:     #1e4526;
+
+        --color-unplayed-bg:    #151515;
+
+        --header-bg:            #1b3a1b;
+        --header-text:          #ffffff;
+        --header-bg-hover:      #255025;
+
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+        --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.6);
+
+        --chart-grid:          rgba(255, 255, 255, 0.10);
+        --chart-axis:          rgba(255, 255, 255, 0.30);
+        --chart-label:         rgba(245, 245, 245, 0.75);
+        --chart-hover-outline: #ff9800;
+
+        --lt-doubling-bg:   rgba(96, 165, 250, 0.22);
+        --lt-doubling-text: #93c5fd;
+        --lt-ubc-bg:        rgba(236, 72, 153, 0.22);
+        --lt-ubc-text:      #f9a8d4;
+        --lt-regular-bg:    rgba(94, 234, 212, 0.22);
+        --lt-regular-text:  #5eead4;
+    }
+}

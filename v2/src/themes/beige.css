@@ -1,0 +1,49 @@
+/* themes/beige.css — Beige / brown theme.
+   Mirrors v1's css/themes.css [data-theme="beige"] block. */
+
+@layer themes {
+    [data-theme="beige"] {
+        --color-bg:             #f5efe6;
+        --color-surface:        #fdf8f0;
+        --color-hover:          #f0e6d8;
+        --color-border:         #e0d4c4;
+
+        --color-text:           #3e2c1c;
+        --color-text-secondary: #5a4436;
+        --color-text-muted:     #7a6654;
+
+        --color-accent:         #8b5e3c;
+        --color-accent-light:   #f0e0cc;
+
+        --color-gold:           #d4a017;
+        --color-gold-bg:        #f5ecd0;
+        --color-gold-text:      #6b4e0a;
+        --color-gold-bg-hover:  #efe0b8;
+        --color-silver:         #8a7e6e;
+        --color-silver-bg:      #ede7dd;
+        --color-silver-text:    #3e2c1c;
+        --color-silver-bg-hover: #e0d8cc;
+        --color-bronze:         #b5651d;
+        --color-bronze-bg:      #f5e8d0;
+        --color-bronze-text:    #5a3408;
+        --color-bronze-bg-hover: rgba(181, 101, 29, 0.14);
+
+        --color-running:        #3a6e46;
+        --color-running-bg:     #dceede;
+        --color-completed:      #5c5144;
+        --color-completed-bg:   #ede7dd;
+
+        --color-win:            #3a6e46;
+        --color-loss:           #9b2e22;
+        --color-draw:           #5c5144;
+
+        --color-avg-bg:         #e8f0e0;
+        --color-avg-border:     #c0d4a8;
+
+        --color-unplayed-bg:    #f0ebe2;
+
+        --header-bg:            #4a3428;
+        --header-text:          #f5efe6;
+        --header-bg-hover:      #5c4438;
+    }
+}

@@ -1,0 +1,12 @@
+/* tokens/icon.css — icon sizing tokens (4 sizes).
+   Sized in em so icons inherit/scale with the surrounding text font-size.
+   Components apply width + height: var(--icon-*) on <svg> elements. */
+
+@layer tokens {
+    :root {
+        --icon-xs: 0.875em;  /* in-line with small text */
+        --icon-sm: 1em;      /* matches surrounding x-height */
+        --icon-md: 1.25em;   /* slightly larger than text */
+        --icon-lg: 1.5em;    /* hero / standalone icons */
+    }
+}

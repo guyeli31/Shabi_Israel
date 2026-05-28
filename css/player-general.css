@@ -1,7 +1,14 @@
 /* player-general.css — Phase G cross-league player profile */
 
 /* Flags in tables */
-.pg-rank-table .flag,
+.pg-rank-table .flag {
+    height: 1em;
+    width: auto;
+    vertical-align: middle;
+    margin-right: 3px;
+    object-fit: contain;
+    border-radius: 2px;
+}
 .pg-matches-table .flag {
     width: 20px;
     height: 14px;
@@ -921,9 +928,8 @@
 }
 .achv-table th,
 .achv-table td {
-    padding: 6px 8px;
+    padding: 0.45em 0.5em;
     text-align: left;
-    border-bottom: 1px solid var(--color-border);
 }
 .achv-table thead th {
     position: sticky;
@@ -1026,7 +1032,21 @@
     position: sticky;
     left: var(--pg-col1-w);
     z-index: 2;
-    border-right: 1px solid var(--color-border);
+}
+
+/* C4 sticky-boundary drop-shadow on horizontal scroll — matches MF pattern.
+   Static state: no separator. Visible only when `.achv-table-wrapper` has
+   `.is-scrolled-x` (set by attachStickyShadow when scrollLeft > 0). */
+.achv-table-wrapper.is-scrolled-x .achv-table.pg-mr-table thead th:nth-child(2) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .achv-table.pg-mr-table tbody td:nth-child(2) {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .achv-table.pg-mr-table tbody tr:last-child td:nth-child(2) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
 
 /* Sticky body cells: fully opaque so scroll content doesn't bleed through.

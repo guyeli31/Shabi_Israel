@@ -1,0 +1,23 @@
+/* components/index.css — aggregates all component stylesheets.
+   Each component declares rules inside @layer components, so import
+   order is for readability, not cascade precedence. */
+
+@import "./PlayerCell/playerCell.css";
+@import "./StatusChip/statusChip.css";
+@import "./MedalRow/medalRow.css";
+@import "./RankBadge/rankBadge.css";
+@import "./ScoreCell/scoreCell.css";
+@import "./FilterPill/filterPill.css";
+@import "./ChartTooltip/chartTooltip.css";
+
+@import "./Breadcrumbs/breadcrumbs.css";
+@import "./SearchBox/searchBox.css";
+@import "./Navigation/navigation.css";
+@import "./ThemePicker/themePicker.css";
+@import "./AdminButton/adminButton.css";
+
+@import "./LeagueHero/leagueHero.css";
+@import "./PlayerHero/playerHero.css";
+@import "./PlayerBarChart/playerBarChart.css";
+@import "./ColorScale/colorScale.css";
+@import "./Splash/splash.css";

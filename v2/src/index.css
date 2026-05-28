@@ -1,21 +1,55 @@
 /* v2/src/index.css — single CSS entrypoint.
-   Declares the cascade layer order ONCE. All other CSS files
-   are assigned to a layer via @import, never via inline @layer.
-   Loaded by every page entry's JS via `import "../index.css"`.
+   Declares the cascade layer order ONCE. Files imported below assign
+   their rules to a specific layer via their own @layer { ... } blocks,
+   so import order is for readability, not for cascade precedence.
 
    Layer order (lower = lower priority):
      reset       — element resets
      tokens      — design token definitions (--c-*, --fs-*, ...)
-     themes      — theme mappings (--color-bg = var(--c-*) per theme)
+     themes      — theme mappings (--color-bg, ... per [data-theme])
      base        — element defaults (html, body, h1-h6, button, ...)
-     primitives  — atomic components (Flag, Icon, Badge, ...)
-     components  — composed components (PlayerCell, Navigation, ...)
-     tables      — table system (MFTable, SFTable, ...)
-     pages       — page-specific layout only
+     primitives  — atomic components (Flag, Icon, Badge, ...)        [Phase 2]
+     components  — composed components (PlayerCell, Navigation, ...) [Phase 3]
+     tables      — table system (MFTable, SFTable, ...)              [Phase 5]
+     pages       — page-specific layout only                         [Phase 6]
      utilities   — utility classes (text-center, hidden, ...)
      overrides   — typo-editor workspace overlay (development-only)
 */
 
 @layer reset, tokens, themes, base, primitives, components, tables, pages, utilities, overrides;
 
-/* Phase 0: no actual CSS files yet — layers wired up Phase 1 onward. */
+/* ── Layer 1 — design tokens ─────────────────────────────────── */
+@import "./tokens/color.css";
+@import "./tokens/typography.css";
+@import "./tokens/icon.css";
+@import "./tokens/space.css";
+@import "./tokens/radius.css";
+@import "./tokens/shadow.css";
+@import "./tokens/motion.css";
+@import "./tokens/breakpoints.css";
+
+/* ── Layer 2 — themes ────────────────────────────────────────── */
+@import "./themes/_theme.css";   /* default (light) — :root */
+@import "./themes/dark.css";
+@import "./themes/beige.css";
+@import "./themes/nature.css";
+@import "./themes/vegas.css";
+@import "./themes/casino.css";
+@import "./themes/rainbow.css";
+@import "./themes/x22.css";
+
+/* ── Layer 3 — base element defaults ─────────────────────────── */
+@import "./base/reset.css";
+@import "./base/root.css";
+@import "./base/elements.css";
+@import "./base/focus.css";
+@import "./base/a11y.css";
+
+/* ── Layer 4 — primitives ────────────────────────────────────── */
+@import "./primitives/index.css";
+
+/* ── Layer 5 — components ────────────────────────────────────── */
+@import "./components/index.css";
+
+/* Layers 6+ (tables, pages) are wired up phase-by-phase from
+   Phase 5 onward. */

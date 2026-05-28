@@ -1,0 +1,97 @@
+/* components/ThemePicker/themePicker.css — floating theme switcher at
+   bottom-right. Direct visual port of v1 .theme-picker; class names
+   rewritten to BEM. */
+
+@layer components {
+    .theme-picker {
+        position: fixed;
+        bottom: calc(20px + env(safe-area-inset-bottom));
+        right: calc(20px + env(safe-area-inset-right));
+        z-index: 1000;
+    }
+
+    .theme-picker__toggle {
+        width: 2.5em;
+        height: 2.5em;
+        border-radius: 50%;
+        border: 2px solid var(--color-border);
+        background: var(--color-surface);
+        color: var(--color-text);
+        cursor: pointer;
+        font-size: var(--fs-large);
+        box-shadow: var(--shadow-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out);
+    }
+    .theme-picker__toggle:hover {
+        transform: scale(1.1);
+        box-shadow: var(--shadow-lg);
+    }
+
+    .theme-picker__panel {
+        position: absolute;
+        bottom: 3em;
+        right: 0;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: 16px;
+        box-shadow: var(--shadow-lg);
+        min-width: 220px;
+    }
+    .theme-picker__panel[hidden] { display: none; }
+
+    .theme-picker__label {
+        font-size: var(--fs-micro);
+        font-weight: var(--fw-subheading);
+        color: var(--color-text-secondary);
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .theme-picker__options {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .theme-picker__swatch {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 2px solid var(--color-border);
+        cursor: pointer;
+        transition: transform var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out);
+        padding: 0;
+        outline: none;
+    }
+    .theme-picker__swatch:hover { transform: scale(1.1); }
+    .theme-picker__swatch[aria-pressed="true"] {
+        border-color: var(--color-accent);
+        transform: scale(1.15);
+        box-shadow: 0 0 0 2px var(--color-accent-light);
+    }
+
+    /* Swatch gradients are theme-independent — they advertise the theme
+       they switch to, so they keep v1's fixed hex pairs verbatim. */
+    .theme-picker__swatch[data-theme="default"] { background: linear-gradient(135deg, #f0f2f5 50%, #2563eb 50%); }
+    .theme-picker__swatch[data-theme="dark"]    { background: linear-gradient(135deg, #1c1c26 50%, #6ba8ff 50%); }
+    .theme-picker__swatch[data-theme="beige"]   { background: linear-gradient(135deg, #f5efe6 50%, #8b5e3c 50%); }
+    .theme-picker__swatch[data-theme="nature"]  { background: linear-gradient(135deg, #eaf5e1 50%, #3d8b40 50%); }
+    .theme-picker__swatch[data-theme="vegas"]   { background: linear-gradient(135deg, #14281a 50%, #f5d76e 50%); }
+    .theme-picker__swatch[data-theme="casino"]  { background: linear-gradient(135deg, #8b0000 50%, #ffd700 50%); }
+    .theme-picker__swatch[data-theme="rainbow"] { background: linear-gradient(135deg, #fce4ec 50%, #7c4dff 50%); }
+    .theme-picker__swatch[data-theme="x22"] {
+        background:
+            conic-gradient(from 270deg at 50% 100%,
+                #2e7d32 0deg 45deg,
+                #ff9800 45deg 90deg,
+                #2e7d32 90deg 135deg,
+                #ff9800 135deg 180deg,
+                transparent 180deg 360deg),
+            #0f0f0f;
+    }
+}

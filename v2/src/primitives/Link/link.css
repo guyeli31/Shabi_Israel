@@ -1,0 +1,54 @@
+/* primitives/Link/link.css — text link primitive.
+   v1 uses many subtly-different link styles (player-cell links no-underline
+   until hover, landing-table links the same, matchup-table links underline
+   on hover only). This primitive offers three variants:
+     .link            — accent colour, underlined.
+     .link--quiet     — inherits colour, underlines on hover only (default
+                        v1 table-link feel).
+     .link--strong    — heavier weight, accent on hover. */
+
+@layer primitives {
+    .link {
+        color: var(--color-accent);
+        text-decoration: underline;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 0.18em;
+        text-decoration-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
+        transition:
+            color var(--motion-fast) var(--ease-out),
+            text-decoration-color var(--motion-fast) var(--ease-out);
+    }
+    .link:hover {
+        color: var(--color-accent);
+        text-decoration-color: var(--color-accent);
+    }
+
+    .link--quiet {
+        color: var(--color-text);
+        text-decoration: none;
+    }
+    .link--quiet:hover {
+        color: var(--color-accent);
+        text-decoration: underline;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 0.18em;
+    }
+
+    .link--strong {
+        color: var(--color-text);
+        font-weight: var(--fw-subheading);
+        text-decoration: none;
+    }
+    .link--strong:hover {
+        color: var(--color-accent);
+    }
+
+    .link--muted {
+        color: var(--color-text-muted);
+        text-decoration: none;
+    }
+    .link--muted:hover {
+        color: var(--color-text-secondary);
+        text-decoration: underline;
+    }
+}

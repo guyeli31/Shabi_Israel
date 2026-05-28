@@ -1,0 +1,48 @@
+/* primitives/Tooltip/tooltip.css — small label that appears on hover/focus.
+   v1 has two relevant patterns: .floating-btn-tooltip (above an anchor)
+   and CSS `title=` attributes (browser-native). This primitive replaces
+   both with a CSS-only show/hide tied to :hover and :focus-visible on the
+   host. JS mount() exposes a programmatic show/hide if a trigger needs it.
+
+   Positioning: four placements (top/right/bottom/left) via modifier
+   classes on the host. The .tooltip-pop sits absolutely positioned with
+   a translate to clear the host element. */
+
+@layer primitives {
+    .tooltip-host {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .tooltip-pop {
+        position: absolute;
+        z-index: 50;
+        padding: 4px 10px;
+        background: var(--color-text);
+        color: var(--color-bg);
+        font-size: var(--fs-micro);
+        font-weight: var(--fw-regular);
+        font-family: var(--font-main);
+        line-height: 1.4;
+        border-radius: var(--radius-sm);
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--motion-fast) var(--ease-out);
+        box-shadow: var(--shadow-md);
+    }
+
+    /* Placements */
+    .tooltip-host--top    .tooltip-pop { bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); }
+    .tooltip-host--bottom .tooltip-pop { top:    calc(100% + 6px); left: 50%; transform: translateX(-50%); }
+    .tooltip-host--left   .tooltip-pop { right:  calc(100% + 6px); top:  50%; transform: translateY(-50%); }
+    .tooltip-host--right  .tooltip-pop { left:   calc(100% + 6px); top:  50%; transform: translateY(-50%); }
+
+    /* Trigger visibility */
+    .tooltip-host:hover .tooltip-pop,
+    .tooltip-host:focus-within .tooltip-pop,
+    .tooltip-host[data-open="true"] .tooltip-pop {
+        opacity: 1;
+    }
+}

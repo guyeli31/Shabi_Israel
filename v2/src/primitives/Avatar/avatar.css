@@ -1,0 +1,55 @@
+/* primitives/Avatar/avatar.css — circular avatar (image or initials).
+   v1 has a single avatar use today (.admin-welcome-avatar — a 36×36
+   gradient circle with initials). This primitive generalises that:
+     • image avatar — <img> inside .avatar.
+     • initials avatar — auto-coloured gradient bg + 1–2 letter label. */
+
+@layer primitives {
+    .avatar {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        position: relative;
+        width: 2.5em;
+        height: 2.5em;
+        border-radius: var(--radius-full);
+        background: linear-gradient(135deg,
+            color-mix(in srgb, var(--color-accent) 80%, var(--color-surface)),
+            color-mix(in srgb, var(--color-accent) 100%, black 25%));
+        color: var(--color-surface);
+        font-weight: var(--fw-heading);
+        font-size: var(--fs-small);
+        letter-spacing: 0.02em;
+        overflow: hidden;
+        user-select: none;
+        vertical-align: middle;
+    }
+
+    .avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    /* Sizes */
+    .avatar--sm { width: 1.75em; height: 1.75em; font-size: var(--fs-micro); }
+    .avatar--md { width: 2.5em;  height: 2.5em;  font-size: var(--fs-small); }
+    .avatar--lg { width: 3.5em;  height: 3.5em;  font-size: var(--fs-large); }
+    .avatar--xl { width: 5em;    height: 5em;    font-size: var(--fs-xl); }
+
+    /* Status dot — small coloured circle in the bottom-right. */
+    .avatar__dot {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        width: 30%;
+        height: 30%;
+        border-radius: var(--radius-full);
+        border: 2px solid var(--color-surface);
+        background: var(--color-running);
+    }
+    .avatar__dot--idle { background: var(--color-completed); }
+    .avatar__dot--away { background: var(--color-text-muted); }
+}

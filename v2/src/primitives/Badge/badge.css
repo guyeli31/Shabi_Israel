@@ -1,0 +1,56 @@
+/* primitives/Badge/badge.css — small circular/inline badge.
+   Use cases in v1: medals (gold/silver/bronze), retired-mark, sort-icon. */
+
+@layer primitives {
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 1.4em;
+        height: 1.4em;
+        padding: 0 0.4em;
+        line-height: 1;
+        font-size: var(--fs-micro);
+        font-weight: var(--fw-heading);
+        text-align: center;
+        vertical-align: middle;
+        background: var(--color-hover);
+        color: var(--color-text);
+        border-radius: var(--radius-full);
+        white-space: nowrap;
+    }
+
+    /* Circle variant — used for medals where badge holds a single character. */
+    .badge--circle {
+        padding: 0;
+        width: 1.4em;
+        min-width: 1.4em;
+    }
+
+    /* Variants */
+    .badge--gold {
+        background: var(--color-gold);
+        color: var(--color-gold-text);
+    }
+    .badge--silver {
+        background: var(--color-silver);
+        color: var(--color-silver-text);
+    }
+    .badge--bronze {
+        background: var(--color-bronze);
+        color: var(--color-bronze-text);
+    }
+    .badge--accent {
+        background: var(--color-accent);
+        color: var(--color-surface);
+    }
+    .badge--neutral {
+        background: var(--color-border);
+        color: var(--color-text);
+    }
+
+    /* Sizes — surrounding em scales remain; these adjust the metric directly. */
+    .badge--sm { font-size: var(--fs-micro); }
+    .badge--md { font-size: var(--fs-small); }
+    .badge--lg { font-size: var(--fs-large); }
+}

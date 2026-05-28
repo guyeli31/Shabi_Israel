@@ -1,0 +1,39 @@
+/* components/Splash/splash.css — full-screen logo overlay shown only
+   when the load takes longer than the delay threshold. Avoids the
+   "flash of splash" on cached navigations. */
+
+@layer components {
+    @keyframes splash-breathe {
+        0%   { transform: scale(1);    filter: drop-shadow(0 0 0 transparent); }
+        50%  { transform: scale(1.12); filter: drop-shadow(0 6px 24px rgba(0,0,0,0.28)); }
+        100% { transform: scale(1);    filter: drop-shadow(0 0 0 transparent); }
+    }
+
+    .splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--color-bg);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--motion-base) var(--ease-out);
+    }
+    .splash--visible {
+        opacity: 1;
+    }
+
+    .splash__img {
+        width: min(36vw, 36vh);
+        height: auto;
+        border-radius: var(--radius-md);
+        animation: splash-breathe 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+        transform-origin: center;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .splash__img { animation: none; }
+    }
+}

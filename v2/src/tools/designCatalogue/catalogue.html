@@ -3,12 +3,254 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Design Catalogue — Shabi Israel v2 (placeholder)</title>
+    <title>Design Catalogue — Shabi Israel v2</title>
+    <script>
+        // FOUC-prevention: apply saved theme before stylesheet loads
+        try {
+            const t = localStorage.getItem("dc-theme");
+            if (t && t !== "default") document.documentElement.dataset.theme = t;
+        } catch (e) { /* ignore */ }
+    </script>
 </head>
 <body>
-    <main id="app">
-        <p>Design Catalogue — v2 placeholder. Populated incrementally Phase 1–3.</p>
+    <main class="dc-shell" id="app">
+        <header class="dc-header">
+            <div>
+                <h1 class="dc-title">Design Catalogue</h1>
+                <p class="dc-subtitle">v2 design tokens — colour, typography, icon, space, radius, shadow, motion.</p>
+            </div>
+            <div class="dc-theme-switch" id="theme-switch" role="group" aria-label="Theme">
+                <button type="button" class="dc-theme-button" data-theme="default" aria-pressed="true">default</button>
+                <button type="button" class="dc-theme-button" data-theme="dark"    aria-pressed="false">dark</button>
+                <button type="button" class="dc-theme-button" data-theme="beige"   aria-pressed="false">beige</button>
+                <button type="button" class="dc-theme-button" data-theme="nature"  aria-pressed="false">nature</button>
+                <button type="button" class="dc-theme-button" data-theme="vegas"   aria-pressed="false">vegas</button>
+                <button type="button" class="dc-theme-button" data-theme="casino"  aria-pressed="false">casino</button>
+                <button type="button" class="dc-theme-button" data-theme="rainbow" aria-pressed="false">rainbow</button>
+                <button type="button" class="dc-theme-button" data-theme="x22"     aria-pressed="false">x22</button>
+            </div>
+        </header>
+
+        <!-- Semantic colours (theme-aware) -->
+        <section class="dc-section" id="section-colors-semantic">
+            <h2 class="dc-section-title">Semantic colours</h2>
+            <p class="dc-section-meta">Theme-aware tokens used by every component. Switch themes above to see them re-resolve.</p>
+            <div class="dc-grid dc-grid--wide" id="grid-colors-semantic"></div>
+        </section>
+
+        <!-- Raw palette (theme-independent) -->
+        <section class="dc-section" id="section-colors-raw">
+            <h2 class="dc-section-title">Raw palette</h2>
+            <p class="dc-section-meta">Building-block tokens (<code>--c-*</code>). Themes map semantic vars onto these.</p>
+            <div class="dc-grid dc-grid--wide" id="grid-colors-raw"></div>
+        </section>
+
+        <!-- Typography -->
+        <section class="dc-section" id="section-typography">
+            <h2 class="dc-section-title">Typography</h2>
+            <p class="dc-section-meta">7 sizes × 4 weights. All sizes share the font-small slope, so ratios stay constant across viewport widths.</p>
+            <div id="grid-typography"></div>
+        </section>
+
+        <!-- Icons -->
+        <section class="dc-section" id="section-icons">
+            <h2 class="dc-section-title">Icons</h2>
+            <p class="dc-section-meta">4 sizes in em units — icons scale with the surrounding text font-size.</p>
+            <div class="dc-grid" id="grid-icons"></div>
+        </section>
+
+        <!-- Space -->
+        <section class="dc-section" id="section-space">
+            <h2 class="dc-section-title">Spacing</h2>
+            <p class="dc-section-meta">6 fixed-pixel spacing tokens used for gap / padding / margin.</p>
+            <div id="grid-space"></div>
+        </section>
+
+        <!-- Radius -->
+        <section class="dc-section" id="section-radius">
+            <h2 class="dc-section-title">Border radius</h2>
+            <p class="dc-section-meta">4 corner-radius tokens.</p>
+            <div class="dc-grid" id="grid-radius"></div>
+        </section>
+
+        <!-- Shadow -->
+        <section class="dc-section" id="section-shadow">
+            <h2 class="dc-section-title">Elevation shadows</h2>
+            <p class="dc-section-meta">3 shadow tokens. Dark themes override these in their theme file for visibility on dark surfaces.</p>
+            <div class="dc-grid" id="grid-shadow"></div>
+        </section>
+
+        <!-- ───────── PHASE 2 — PRIMITIVES ───────── -->
+        <div class="dc-phase-divider">
+            <span>Phase 2 — Primitives</span>
+        </div>
+
+        <!-- Flag -->
+        <section class="dc-section" id="section-flag">
+            <h2 class="dc-section-title">Flag</h2>
+            <p class="dc-section-meta">Country flag image. Height in em so it scales with surrounding text. Default code <code>IL</code>.</p>
+            <div class="dc-primitive-row" id="row-flag"></div>
+        </section>
+
+        <!-- Icon -->
+        <section class="dc-section" id="section-icon">
+            <h2 class="dc-section-title">Icon</h2>
+            <p class="dc-section-meta">Inline SVG, size tokens <code>--icon-{xs,sm,md,lg}</code>. <code>currentColor</code> stroke so icons inherit their parent's colour.</p>
+            <div class="dc-primitive-row" id="row-icon"></div>
+        </section>
+
+        <!-- Badge -->
+        <section class="dc-section" id="section-badge">
+            <h2 class="dc-section-title">Badge</h2>
+            <p class="dc-section-meta">Small inline marker. Medal variants (gold/silver/bronze) match the league-table medal colours.</p>
+            <div class="dc-primitive-row" id="row-badge"></div>
+        </section>
+
+        <!-- Pill -->
+        <section class="dc-section" id="section-pill">
+            <h2 class="dc-section-title">Pill</h2>
+            <p class="dc-section-meta">Fully rounded inline tag. Status + league-type variants drive the league cards and table headers.</p>
+            <div class="dc-primitive-row" id="row-pill"></div>
+        </section>
+
+        <!-- Button -->
+        <section class="dc-section" id="section-button">
+            <h2 class="dc-section-title">Button</h2>
+            <p class="dc-section-meta">Variants: primary / secondary / ghost / danger. Sizes sm/md/lg. <code>btn--icon</code>, <code>btn--block</code>, <code>btn--pill</code> modifiers.</p>
+            <div class="dc-primitive-row" id="row-button"></div>
+        </section>
+
+        <!-- Link -->
+        <section class="dc-section" id="section-link">
+            <h2 class="dc-section-title">Link</h2>
+            <p class="dc-section-meta">Variants: default (accent + underline), quiet (no underline until hover — table-link feel), strong, muted.</p>
+            <div class="dc-primitive-row" id="row-link"></div>
+        </section>
+
+        <!-- Avatar -->
+        <section class="dc-section" id="section-avatar">
+            <h2 class="dc-section-title">Avatar</h2>
+            <p class="dc-section-meta">Circular avatar — image or auto-initials. Optional status dot.</p>
+            <div class="dc-primitive-row" id="row-avatar"></div>
+        </section>
+
+        <!-- Tooltip -->
+        <section class="dc-section" id="section-tooltip">
+            <h2 class="dc-section-title">Tooltip</h2>
+            <p class="dc-section-meta">CSS-only on hover/focus. Four placements. Hover the buttons below to test.</p>
+            <div class="dc-primitive-row" id="row-tooltip"></div>
+        </section>
+
+        <!-- Chip -->
+        <section class="dc-section" id="section-chip">
+            <h2 class="dc-section-title">Chip</h2>
+            <p class="dc-section-meta">Inline tag with optional remove control. Used by filter UIs.</p>
+            <div class="dc-primitive-row" id="row-chip"></div>
+        </section>
+
+        <!-- FormField -->
+        <section class="dc-section" id="section-formfield">
+            <h2 class="dc-section-title">FormField</h2>
+            <p class="dc-section-meta">Labelled input/textarea/select with hint + error. Replaces ad-hoc admin input styles.</p>
+            <div class="dc-formfield-grid" id="row-formfield"></div>
+        </section>
+
+        <!-- ───────── PHASE 3 — COMPOSED COMPONENTS ───────── -->
+        <div class="dc-phase-divider">
+            <span>Phase 3 — Components</span>
+        </div>
+
+        <section class="dc-section" id="section-player-cell">
+            <h2 class="dc-section-title">PlayerCell</h2>
+            <p class="dc-section-meta">Table cell composing Flag + name link + optional title badges (BMAB outlined / Championship gradient).</p>
+            <table class="dc-table" id="row-player-cell"><tbody></tbody></table>
+        </section>
+
+        <section class="dc-section" id="section-status-chip">
+            <h2 class="dc-section-title">StatusChip</h2>
+            <p class="dc-section-meta">Status pill with a glowing dot. Used on hero cards for Running / This year / Inactive.</p>
+            <div class="dc-primitive-row" id="row-status-chip"></div>
+        </section>
+
+        <section class="dc-section" id="section-type-pill">
+            <h2 class="dc-section-title">TypePill</h2>
+            <p class="dc-section-meta">League-type label (Doubling / Regular / UBC). Thin wrapper over primitive Pill.</p>
+            <div class="dc-primitive-row" id="row-type-pill"></div>
+        </section>
+
+        <section class="dc-section" id="section-medal-row">
+            <h2 class="dc-section-title">MedalRow + RankBadge</h2>
+            <p class="dc-section-meta">Top-3 finishers get a tinted row background and a circular medal badge.</p>
+            <table class="dc-table"><tbody id="row-medal-row"></tbody></table>
+        </section>
+
+        <section class="dc-section" id="section-score-cell">
+            <h2 class="dc-section-title">ScoreCell</h2>
+            <p class="dc-section-meta">Numeric cell coloured by value position inside a [min, max] range. Switch themes to see the scale re-tint.</p>
+            <table class="dc-table"><tbody id="row-score-cell"></tbody></table>
+        </section>
+
+        <section class="dc-section" id="section-filter-pill">
+            <h2 class="dc-section-title">FilterPill</h2>
+            <p class="dc-section-meta">Toggleable chip — click to select / deselect.</p>
+            <div class="dc-primitive-row" id="row-filter-pill"></div>
+        </section>
+
+        <section class="dc-section" id="section-chart-tooltip">
+            <h2 class="dc-section-title">ChartTooltip</h2>
+            <p class="dc-section-meta">Info panel that sits under a chart and shows details for the current data point.</p>
+            <div id="row-chart-tooltip"></div>
+        </section>
+
+        <section class="dc-section" id="section-breadcrumbs">
+            <h2 class="dc-section-title">Breadcrumbs</h2>
+            <p class="dc-section-meta">Segmented chevron-pill trail. Last crumb is the current page (accent-coloured).</p>
+            <div id="row-breadcrumbs"></div>
+        </section>
+
+        <section class="dc-section" id="section-search-box">
+            <h2 class="dc-section-title">SearchBox</h2>
+            <p class="dc-section-meta">Text input with popover results. Try typing a player name.</p>
+            <div id="row-search-box"></div>
+        </section>
+
+        <section class="dc-section" id="section-navigation">
+            <h2 class="dc-section-title">Navigation</h2>
+            <p class="dc-section-meta">Site nav bar with home, leagues dropdown, and player search. Click "Leagues ▾".</p>
+            <div id="row-navigation"></div>
+        </section>
+
+        <section class="dc-section" id="section-color-scale">
+            <h2 class="dc-section-title">ColorScale</h2>
+            <p class="dc-section-meta">Red → amber → green gradient for data-emphasis cells. Re-tints per theme via dark-mode anchors.</p>
+            <div id="row-color-scale"></div>
+        </section>
+
+        <section class="dc-section" id="section-league-hero">
+            <h2 class="dc-section-title">LeagueHero</h2>
+            <p class="dc-section-meta">V13 (Lichess title bar) and V16 (wide hero banner).</p>
+            <div class="dc-hero-stack" id="row-league-hero"></div>
+        </section>
+
+        <section class="dc-section" id="section-player-hero">
+            <h2 class="dc-section-title">PlayerHero</h2>
+            <p class="dc-section-meta">V7 (Lichess card) and V12 (hero banner with title ribbons + watermark).</p>
+            <div class="dc-hero-stack" id="row-player-hero"></div>
+        </section>
+
+        <section class="dc-section" id="section-player-chart">
+            <h2 class="dc-section-title">PlayerBarChart</h2>
+            <p class="dc-section-meta">Canvas bar chart with moving-average overlay. Hover or click a bar to see details.</p>
+            <div class="chart-panel" id="row-player-chart"></div>
+        </section>
+
+        <section class="dc-section" id="section-floating">
+            <h2 class="dc-section-title">ThemePicker · AdminButton · ExportButton</h2>
+            <p class="dc-section-meta">Floating chrome. ThemePicker (bottom-right) and AdminButton (bottom-left) are mounted to the page body; the inline button below previews ExportButton.</p>
+            <div class="dc-primitive-row" id="row-export-button"></div>
+        </section>
     </main>
+
     <script type="module" src="/src/entry/designCatalogue.entry.js"></script>
 </body>
 </html>

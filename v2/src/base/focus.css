@@ -1,0 +1,15 @@
+/* base/focus.css — :focus-visible outline.
+   Removes the UA outline on mouse focus but keeps it for keyboard /
+   accessibility-tool focus, with a high-contrast accent-coloured ring. */
+
+@layer base {
+    :focus {
+        outline: none;
+    }
+
+    :focus-visible {
+        outline: 2px solid var(--color-accent);
+        outline-offset: 2px;
+        border-radius: var(--radius-sm);
+    }
+}

@@ -1,0 +1,76 @@
+/* primitives/Chip/chip.css — inline tag with optional remove button.
+   A chip differs from a pill in that it carries an action (typically
+   "remove" / "deselect"). The remove control is a small ✕ button on the
+   right. Sizes match Pill so the two stay visually consistent.
+
+   v1 doesn't have a dedicated chip pattern yet — v2 introduces it for
+   filter UIs (search filters, multi-select tags). */
+
+@layer primitives {
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35em;
+        padding: 0.25em 0.4em 0.25em 0.85em;
+        font-size: var(--fs-small);
+        font-weight: var(--fw-subheading);
+        line-height: 1.4;
+        color: var(--color-text);
+        background: var(--color-hover);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-full);
+        white-space: nowrap;
+        transition: background var(--motion-fast) var(--ease-out),
+                    border-color var(--motion-fast) var(--ease-out);
+    }
+    .chip:hover { background: var(--color-border); }
+
+    .chip__close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.4em;
+        height: 1.4em;
+        padding: 0;
+        margin-left: 0.1em;
+        background: transparent;
+        border: none;
+        border-radius: var(--radius-full);
+        color: var(--color-text-muted);
+        cursor: pointer;
+        font-size: 0.85em;
+        line-height: 1;
+        transition: background var(--motion-fast) var(--ease-out),
+                    color var(--motion-fast) var(--ease-out);
+    }
+    .chip__close:hover {
+        background: var(--color-border);
+        color: var(--color-text);
+    }
+
+    /* Variants — solid accent / muted / etc. */
+    .chip--accent {
+        background: var(--color-accent-light);
+        color: var(--color-accent);
+        border-color: transparent;
+    }
+    .chip--accent .chip__close { color: var(--color-accent); }
+
+    .chip--muted {
+        color: var(--color-text-muted);
+        background: transparent;
+    }
+
+    .chip--selected {
+        background: var(--color-accent);
+        color: var(--color-surface);
+        border-color: var(--color-accent);
+    }
+    .chip--selected .chip__close { color: var(--color-surface); }
+    .chip--selected .chip__close:hover { background: rgba(255,255,255,0.18); }
+
+    /* Sizes */
+    .chip--sm { font-size: var(--fs-micro); padding: 0.2em 0.3em 0.2em 0.7em; }
+    .chip--md { font-size: var(--fs-small); padding: 0.25em 0.4em 0.25em 0.85em; }
+    .chip--lg { font-size: var(--fs-large); padding: 0.35em 0.5em 0.35em 1em; }
+}

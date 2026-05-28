@@ -1,0 +1,111 @@
+/* primitives/FormField/formField.css — input + label + hint/error.
+   Standardises the input pattern used across admin pages (player editor,
+   league params, round editor) — replaces .matchup-search-input and the
+   various ad-hoc admin input styles in css/admin.css.
+
+   Layers: .field is the wrapper; .field__label sits above; .field__input
+   is the actual input (or textarea/select via the matching __select /
+   __textarea classes); .field__hint and .field__error sit below. */
+
+@layer primitives {
+    .field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3em;
+        font-family: var(--font-main);
+        font-size: var(--fs-small);
+        color: var(--color-text);
+    }
+
+    .field__label {
+        font-size: var(--fs-micro);
+        font-weight: var(--fw-subheading);
+        color: var(--color-text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .field__required {
+        margin-left: 0.2em;
+        color: var(--color-loss);
+    }
+
+    .field__input,
+    .field__select,
+    .field__textarea {
+        width: 100%;
+        padding: 0.55em 0.85em;
+        font-family: inherit;
+        font-size: inherit;
+        color: inherit;
+        background: var(--color-surface);
+        border: 1.5px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color var(--motion-fast) var(--ease-out),
+                    box-shadow   var(--motion-fast) var(--ease-out);
+    }
+
+    .field__textarea { resize: vertical; min-height: 4.5em; line-height: 1.4; }
+
+    .field__input::placeholder,
+    .field__textarea::placeholder {
+        color: var(--color-text-muted);
+    }
+
+    .field__input:hover,
+    .field__select:hover,
+    .field__textarea:hover {
+        border-color: var(--color-text-muted);
+    }
+
+    .field__input:focus-visible,
+    .field__select:focus-visible,
+    .field__textarea:focus-visible {
+        border-color: var(--color-accent);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 25%, transparent);
+    }
+
+    .field__input:disabled,
+    .field__select:disabled,
+    .field__textarea:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        background: var(--color-hover);
+    }
+
+    /* Error + hint */
+    .field--error .field__input,
+    .field--error .field__select,
+    .field--error .field__textarea {
+        border-color: var(--color-loss);
+    }
+    .field--error .field__input:focus-visible {
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-loss) 25%, transparent);
+    }
+
+    .field__hint {
+        font-size: var(--fs-micro);
+        color: var(--color-text-muted);
+    }
+    .field__error {
+        font-size: var(--fs-micro);
+        color: var(--color-loss);
+        font-weight: var(--fw-subheading);
+    }
+
+    /* Inline layout — label sits to the left of the input. */
+    .field--inline {
+        flex-direction: row;
+        align-items: center;
+        gap: var(--space-sm);
+    }
+    .field--inline .field__label {
+        flex-shrink: 0;
+        text-transform: none;
+        letter-spacing: 0;
+        font-size: var(--fs-small);
+        color: var(--color-text);
+    }
+}

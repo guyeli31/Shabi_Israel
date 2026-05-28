@@ -4,6 +4,7 @@ import sirv from 'sirv';
 
 const repoRoot = path.resolve(__dirname, '..');
 const leaguesDir = path.join(repoRoot, 'leagues');
+const assetsDir = path.join(repoRoot, 'assets');
 
 export default defineConfig({
   root: '.',
@@ -54,6 +55,14 @@ export default defineConfig({
       name: 'shared-data-proxy',
       configureServer(server) {
         server.middlewares.use('/data', sirv(leaguesDir, { dev: true, etag: true }));
+      },
+    },
+    // Serve the shared ../assets directory (flags, logo, players) at /assets
+    // so v2 primitives reference the same image files as v1.
+    {
+      name: 'shared-assets-proxy',
+      configureServer(server) {
+        server.middlewares.use('/assets', sirv(assetsDir, { dev: true, etag: true }));
       },
     },
   ],

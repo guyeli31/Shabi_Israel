@@ -1,0 +1,98 @@
+/* primitives/Button/button.css — actionable button primitive.
+   Variants: primary (filled accent), secondary (outlined), ghost
+   (text-only), danger (loss colour). Sizes are sm/md/lg, padding em-based.
+   The .btn--icon modifier removes horizontal padding for icon-only
+   buttons; .btn--block makes it full-width.
+
+   The button uses --color-accent as its primary surface. Hover state
+   slightly tints; :active deepens. :disabled removes interactivity. */
+
+@layer primitives {
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4em;
+        padding: 0.55em 1.1em;
+        font-family: var(--font-main);
+        font-size: var(--fs-small);
+        font-weight: var(--fw-subheading);
+        line-height: 1.2;
+        color: var(--color-text);
+        background: var(--color-hover);
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        user-select: none;
+        text-decoration: none;
+        transition:
+            background var(--motion-fast) var(--ease-out),
+            color var(--motion-fast) var(--ease-out),
+            border-color var(--motion-fast) var(--ease-out),
+            box-shadow var(--motion-fast) var(--ease-out),
+            transform var(--motion-fast) var(--ease-out);
+    }
+
+    .btn:hover { background: var(--color-border); }
+    .btn:active { transform: translateY(1px); }
+
+    .btn:disabled,
+    .btn[aria-disabled="true"] {
+        opacity: 0.55;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+
+    /* Variants */
+    .btn--primary {
+        background: var(--color-accent);
+        color: var(--color-surface);
+        border-color: var(--color-accent);
+    }
+    .btn--primary:hover {
+        filter: brightness(1.08);
+        background: var(--color-accent);
+    }
+
+    .btn--secondary {
+        background: var(--color-surface);
+        color: var(--color-text);
+        border-color: var(--color-border);
+    }
+    .btn--secondary:hover {
+        background: var(--color-hover);
+        border-color: var(--color-accent);
+        color: var(--color-accent);
+    }
+
+    .btn--ghost {
+        background: transparent;
+        color: var(--color-text-secondary);
+        border-color: transparent;
+    }
+    .btn--ghost:hover {
+        background: var(--color-hover);
+        color: var(--color-text);
+    }
+
+    .btn--danger {
+        background: var(--color-loss);
+        color: var(--color-surface);
+        border-color: var(--color-loss);
+    }
+    .btn--danger:hover { filter: brightness(1.08); }
+
+    /* Sizes */
+    .btn--sm { font-size: var(--fs-micro); padding: 0.4em 0.85em; }
+    .btn--md { font-size: var(--fs-small); padding: 0.55em 1.1em; }
+    .btn--lg { font-size: var(--fs-large); padding: 0.7em 1.3em; }
+
+    /* Modifiers */
+    .btn--block { display: flex; width: 100%; }
+    .btn--icon  { padding: 0.55em; aspect-ratio: 1 / 1; }
+    .btn--icon.btn--sm { padding: 0.4em; }
+    .btn--icon.btn--lg { padding: 0.7em; }
+
+    /* Pill-shaped variant (matches v1's .matchup-show-all-btn). */
+    .btn--pill { border-radius: var(--radius-full); }
+}

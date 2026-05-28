@@ -1,0 +1,68 @@
+/* themes/vegas.css — Las Vegas: red felt, green felt, gold, card cream.
+   Mirrors v1's css/themes.css [data-theme="vegas"] block.
+   Note: this file only sets the colour tokens. Vegas-specific component
+   rules (roulette-stripe alternating rows on league tables) live with
+   their components in Phase 3+, not here. */
+
+@layer themes {
+    [data-theme="vegas"] {
+        --color-bg:             #0a0d0a;
+        --color-surface:        #14281a;
+        --color-hover:          #1c3624;
+        --color-border:         #2a4a32;
+
+        --color-text:           #f8e9c4;
+        --color-text-secondary: #d4af37;
+        --color-text-muted:     #b09a62;
+
+        --color-accent:         #e8c252;
+        --color-accent-light:   #3a2f10;
+
+        --color-gold:           #f5d76e;
+        --color-gold-bg:        #4a3a10;
+        --color-gold-text:      #ffe98a;
+        --color-gold-bg-hover:  #5e4814;
+        --color-silver:         #d0d4de;
+        --color-silver-bg:      #2a3340;
+        --color-silver-text:    #eef2fa;
+        --color-silver-bg-hover: #36404f;
+        --color-bronze:         #d97a32;
+        --color-bronze-bg:      #3e2410;
+        --color-bronze-text:    #ffb87a;
+        --color-bronze-bg-hover: #502e14;
+
+        --color-running:        #2ecc71;
+        --color-running-bg:     #103a20;
+        --color-completed:      #9a8a5a;
+        --color-completed-bg:   #1c2418;
+
+        --color-win:            #2ecc71;
+        --color-loss:           #e74c3c;
+        --color-draw:           #c4a14a;
+
+        --color-avg-bg:         #1a3220;
+        --color-avg-border:     #2e5a3a;
+
+        --color-unplayed-bg:    #0e1a12;
+
+        --header-bg:            #4a0a0a;
+        --header-text:          #f5d76e;
+        --header-bg-hover:      #5e1414;
+
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+        --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.6);
+
+        --chart-grid:          rgba(245, 215, 110, 0.12);
+        --chart-axis:          rgba(245, 215, 110, 0.35);
+        --chart-label:         rgba(248, 233, 196, 0.75);
+        --chart-hover-outline: #f5d76e;
+
+        --lt-doubling-bg:   rgba(96, 165, 250, 0.22);
+        --lt-doubling-text: #93c5fd;
+        --lt-ubc-bg:        rgba(167, 139, 250, 0.22);
+        --lt-ubc-text:      #c4b5fd;
+        --lt-regular-bg:    rgba(45, 212, 191, 0.22);
+        --lt-regular-text:  #5eead4;
+    }
+}

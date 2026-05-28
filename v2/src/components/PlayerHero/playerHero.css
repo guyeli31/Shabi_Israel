@@ -1,0 +1,271 @@
+/* components/PlayerHero/playerHero.css — V7 (Lichess card) + V12 (hero
+   banner) player headers. Direct port of v1 css/player-general.css
+   .pg-v7-* / .pg-v12-* selectors. Tier gradients keep their v1 hex
+   stops since they are decorative; semantic tokens drive the rest. */
+
+@layer components {
+    h1:has(.player-hero--v7),
+    h1:has(.player-hero--v12) {
+        font-size: var(--fs-large);
+        font-weight: normal;
+        text-align: center;
+        margin: 0;
+        padding: 0;
+        letter-spacing: normal;
+    }
+
+    /* ═══════════════ V12 — Hero banner ═══════════════ */
+    .player-hero--v12 {
+        position: relative;
+        display: inline-block;
+        width: min(35em, 80vw);
+        padding: 1.125em 1.375em;
+        background:
+            radial-gradient(ellipse at top right, rgba(212, 169, 66, 0.16), transparent 65%),
+            var(--color-surface);
+        color: var(--color-text);
+        border: 1px solid var(--color-border);
+        border-radius: 0.75em;
+        box-shadow: var(--shadow-md);
+        text-align: left;
+        overflow: hidden;
+        font-size: var(--fs-2xl);
+        letter-spacing: normal;
+    }
+
+    .player-hero__watermark {
+        position: absolute;
+        width: 1em; height: 1em;
+        line-height: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        user-select: none;
+        font-family: serif;
+        font-size: clamp(11rem, 29vw, 20rem);
+    }
+    .player-hero__watermark--gold   { color: rgba(245, 158, 11, 0.12); }
+    .player-hero__watermark--silver { color: rgba(148, 163, 184, 0.18); }
+    .player-hero__watermark--bronze { color: rgba(217, 119, 6, 0.12); }
+    .player-hero__watermark--white  { color: rgba(148, 163, 184, 0.22); }
+    .player-hero__watermark--solo,
+    .player-hero__watermark--pair-1 { right: -2%; bottom: -18%; }
+    .player-hero__watermark--pair-2 { right: 28%; bottom: -18%; }
+
+    .player-hero--v12 > .player-hero__top,
+    .player-hero--v12 > .player-hero__body,
+    .player-hero--v12 > .player-hero__statgrid { position: relative; z-index: 1; }
+
+    /* Tier-themed card surface */
+    .player-hero--v12.player-hero--gold   { --pg-tier-accent: #d4a942; --pg-tier-glow: rgba(245, 158, 11, 0.18); --pg-tier-border: rgba(245, 158, 11, 0.28); }
+    .player-hero--v12.player-hero--silver { --pg-tier-accent: #94a3b8; --pg-tier-glow: rgba(148, 163, 184, 0.22); --pg-tier-border: rgba(148, 163, 184, 0.34); }
+    .player-hero--v12.player-hero--bronze { --pg-tier-accent: #d97706; --pg-tier-glow: rgba(217, 119, 6, 0.18); --pg-tier-border: rgba(217, 119, 6, 0.30); }
+    .player-hero--v12.player-hero--white  { --pg-tier-accent: #cbd5e1; --pg-tier-glow: rgba(203, 213, 225, 0.26); --pg-tier-border: rgba(203, 213, 225, 0.40); }
+
+    .player-hero--v12.player-hero--gold,
+    .player-hero--v12.player-hero--silver,
+    .player-hero--v12.player-hero--bronze,
+    .player-hero--v12.player-hero--white {
+        background:
+            radial-gradient(ellipse at top, var(--pg-tier-glow), transparent 60%),
+            var(--color-surface);
+        border: 1px solid var(--pg-tier-border);
+        border-top: 3px solid var(--pg-tier-accent);
+    }
+
+    .player-hero__top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.625em;
+        margin-bottom: 0.875em;
+        flex-wrap: wrap;
+    }
+
+    .player-hero__ribbons { display: flex; gap: 0.4em; flex-wrap: wrap; }
+
+    .player-hero__ribbon {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55em;
+        font-family: "Bebas Neue", "Impact", "Arial Narrow", sans-serif;
+        font-size: 0.82em;
+        letter-spacing: 0.18em;
+        background: linear-gradient(90deg, #d4a942, #fbbf24);
+        color: #2a1c00;
+        padding: 0.35em 0.875em;
+        border-radius: 0.2em;
+        font-weight: 400;
+    }
+    .player-hero__ribbon--silver { background: linear-gradient(90deg, #94a3b8, #cbd5e1); color: #1e293b; }
+    .player-hero__ribbon--bronze { background: linear-gradient(90deg, #d97706, #f59e0b); color: #451a03; }
+    .player-hero__ribbon--white  { background: linear-gradient(90deg, #cbd5e1, #f8fafc); color: #475569; }
+
+    .player-hero__body {
+        display: flex;
+        align-items: center;
+        gap: 1em;
+        margin-bottom: 1em;
+        flex-wrap: wrap;
+    }
+
+    .player-hero__photo,
+    .player-hero__photo-img {
+        width: 3.875em;
+        height: 3.875em;
+        border-radius: 0.75em;
+        flex-shrink: 0;
+    }
+    .player-hero__photo {
+        background: linear-gradient(135deg, var(--color-text-muted), var(--color-text-secondary));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.375em;
+        font-weight: var(--fw-heading);
+        color: var(--color-surface);
+        border: 1px solid var(--color-border);
+    }
+    .player-hero__photo-img {
+        object-fit: cover;
+        border: 1px solid var(--color-border);
+    }
+
+    .player-hero__display {
+        margin: 0;
+        font-family: "Bebas Neue", "Impact", sans-serif;
+        font-size: 1.8em;
+        font-weight: 400;
+        letter-spacing: 0.05em;
+        color: var(--color-text);
+        line-height: 1.05;
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+        flex-wrap: wrap;
+    }
+    .player-hero__name-link {
+        color: inherit;
+        text-decoration: none;
+    }
+    .player-hero__name-link:hover { text-decoration: underline; }
+
+    .player-hero__flag {
+        display: inline-block;
+        height: 1.4em;
+        width: auto;
+        border-radius: 3px;
+        vertical-align: middle;
+    }
+
+    .player-hero__real {
+        margin-top: 0.4em;
+        font-size: 0.85em;
+        color: var(--color-text-muted);
+        font-style: italic;
+    }
+
+    .player-hero__statgrid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5em;
+        margin-top: 0.85em;
+        padding-top: 0.75em;
+        border-top: 1px solid var(--color-border);
+    }
+    .player-hero__statlbl {
+        font-size: 0.62em;
+        color: var(--color-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        margin-bottom: 0.2em;
+    }
+    .player-hero__statnum {
+        font-size: 0.85em;
+        font-weight: var(--fw-heading);
+        color: var(--color-accent);
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ═══════════════ V7 — Lichess card ═══════════════ */
+    .player-hero--v7 {
+        display: inline-flex;
+        align-items: center;
+        gap: 1.125em;
+        text-align: left;
+        max-width: 80vw;
+        font-size: var(--fs-2xl);
+        color: var(--color-text);
+        letter-spacing: normal;
+    }
+
+    .player-hero--v7 .player-hero__avatar-wrap {
+        position: relative;
+        flex-shrink: 0;
+    }
+    .player-hero--v7 .player-hero__avatar,
+    .player-hero--v7 .player-hero__avatar-img {
+        width: 3.875em;
+        height: 3.875em;
+        border-radius: 0.75em;
+        border: 2px solid var(--color-accent);
+        display: block;
+    }
+    .player-hero--v7 .player-hero__avatar {
+        background: linear-gradient(135deg, var(--color-text-muted), var(--color-text-secondary));
+        color: var(--color-surface);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.375em;
+        font-weight: var(--fw-heading);
+    }
+    .player-hero--v7 .player-hero__avatar-img { object-fit: cover; }
+
+    .player-hero__info { min-width: 0; }
+
+    .player-hero--v7 .player-hero__name-line {
+        display: flex;
+        align-items: center;
+        gap: 0.6em;
+        flex-wrap: wrap;
+    }
+    .player-hero--v7 .player-hero__name {
+        font-size: 1.4em;
+        font-weight: var(--fw-heading);
+        color: var(--color-text);
+        letter-spacing: -0.01em;
+    }
+    .player-hero--v7 .player-hero__realname {
+        font-style: italic;
+    }
+
+    .player-hero__chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4em;
+        font-size: 0.7em;
+        font-weight: var(--fw-heading);
+        padding: 0.25em 0.7em;
+        border-radius: 0.4em;
+        white-space: nowrap;
+    }
+    .player-hero__chip-icon { font-size: 1.1em; line-height: 1; }
+    .player-hero__chip--gold   { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #4a2700; box-shadow: 0 1px 4px rgba(245,158,11,0.25); }
+    .player-hero__chip--silver { background: linear-gradient(135deg, #94a3b8, #cbd5e1); color: #1e293b; }
+    .player-hero__chip--bronze { background: linear-gradient(135deg, #d97706, #f59e0b); color: #451a03; }
+    .player-hero__chip--white  { background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; }
+
+    .player-hero__meta {
+        margin-top: 0.4em;
+        font-size: 0.85em;
+        color: var(--color-text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+        flex-wrap: wrap;
+    }
+    .player-hero__sep { color: var(--color-text-muted); opacity: 0.4; }
+    .player-hero__leagues { color: var(--color-accent); font-weight: var(--fw-subheading); }
+}

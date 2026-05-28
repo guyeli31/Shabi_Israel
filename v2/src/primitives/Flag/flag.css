@@ -1,0 +1,21 @@
+/* primitives/Flag/flag.css — country-flag image primitive.
+   Sizes scale with surrounding text via em units, mirroring v1's
+   `.flag` (16px) and `.flag-title` (24px) approximately but expressed
+   as em ratios so flags stay proportional to their context font-size. */
+
+@layer primitives {
+    .flag {
+        display: inline-block;
+        height: 1em;
+        width: auto;
+        vertical-align: middle;
+        border-radius: 2px;
+        flex-shrink: 0;
+        user-select: none;
+    }
+
+    .flag--sm  { height: 0.875em; }
+    .flag--md  { height: 1em; }
+    .flag--lg  { height: 1.5em; border-radius: 3px; }
+    .flag--xl  { height: 2em;   border-radius: 4px; }
+}

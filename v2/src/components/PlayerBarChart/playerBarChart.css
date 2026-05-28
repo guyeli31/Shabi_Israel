@@ -1,0 +1,26 @@
+/* components/PlayerBarChart/playerBarChart.css — chart panel container
+   that hosts the Canvas-rendered bar chart plus the ChartTooltip info
+   panel below. Replaces v1 .chart-panel + .chart-host + .bar-chart-canvas. */
+
+@layer components {
+    .chart-panel {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--space-md);
+        margin-bottom: var(--space-md);
+        box-shadow: var(--shadow-sm);
+        position: relative;
+    }
+
+    .chart-host {
+        position: relative;
+    }
+
+    .chart-canvas {
+        display: block;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+    }
+}

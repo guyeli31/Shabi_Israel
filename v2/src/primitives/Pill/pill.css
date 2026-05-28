@@ -1,0 +1,65 @@
+/* primitives/Pill/pill.css — fully-rounded inline tag.
+   Use cases in v1: .status-pill (Running/Completed), .league-type-pill
+   (Doubling/Regular/UBC), .retired-badge. Padding is em-based so a pill
+   inherits its surrounding font-size and scales proportionally. */
+
+@layer primitives {
+    .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35em;
+        padding: 0.2em 0.85em;
+        font-size: var(--fs-small);
+        font-weight: var(--fw-subheading);
+        line-height: 1.5;
+        border-radius: var(--radius-full);
+        background: var(--color-hover);
+        color: var(--color-text);
+        text-transform: none;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    /* Status variants — match v1 token contract. */
+    .pill--running {
+        background: var(--color-running-bg);
+        color: var(--color-running);
+    }
+    .pill--completed {
+        background: var(--color-completed-bg);
+        color: var(--color-completed);
+    }
+
+    /* League-type variants. */
+    .pill--doubling {
+        background: var(--lt-doubling-bg);
+        color: var(--lt-doubling-text);
+    }
+    .pill--regular {
+        background: var(--lt-regular-bg);
+        color: var(--lt-regular-text);
+    }
+    .pill--ubc {
+        background: var(--lt-ubc-bg);
+        color: var(--lt-ubc-text);
+    }
+
+    /* Generic accent variant. */
+    .pill--accent {
+        background: var(--color-accent-light);
+        color: var(--color-accent);
+    }
+
+    /* Uppercase modifier — league-type-pill in v1 uppercases by default;
+       opt-in here so other pills keep their casing. */
+    .pill--uppercase {
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    /* Sizes. */
+    .pill--sm { font-size: var(--fs-micro);  padding: 0.15em 0.7em; }
+    .pill--md { font-size: var(--fs-small);  padding: 0.2em 0.85em; }
+    .pill--lg { font-size: var(--fs-large);  padding: 0.3em 1em; }
+}

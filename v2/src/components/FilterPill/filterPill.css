@@ -1,0 +1,13 @@
+/* components/FilterPill/filterPill.css — cursor + focus affordances on
+   top of primitive Chip. Visual variants are owned by Chip. */
+
+@layer components {
+    .filter-pill {
+        cursor: pointer;
+        user-select: none;
+    }
+    .filter-pill:focus-visible {
+        outline: 2px solid var(--color-accent);
+        outline-offset: 2px;
+    }
+}

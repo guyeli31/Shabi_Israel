@@ -49,6 +49,12 @@
       "rules": {
         "declaration-no-important": null
       }
+    },
+    {
+      "files": ["src/base/a11y.css"],
+      "rules": {
+        "declaration-no-important": null
+      }
     }
   ]
 }

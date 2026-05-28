@@ -1,0 +1,59 @@
+/* themes/rainbow.css — bright, playful, childhood-dream palette.
+   Mirrors v1's css/themes.css [data-theme="rainbow"] block.
+   Dashboard card top-border colour stripes deferred to Phase 3+. */
+
+@layer themes {
+    [data-theme="rainbow"] {
+        --color-bg:             #fff5f5;
+        --color-surface:        #ffffff;
+        --color-hover:          #fce4ec;
+        --color-border:         #e8d5f5;
+
+        --color-text:           #2d1b69;
+        --color-text-secondary: #5a3f90;
+        --color-text-muted:     #645385;
+
+        --color-accent:         #c2185b;
+        --color-accent-light:   #fce4ec;
+
+        --color-gold:           #ffd600;
+        --color-gold-bg:        #fff9c4;
+        --color-gold-text:      #6b5b00;
+        --color-gold-bg-hover:  #fff176;
+        --color-silver:         #ab47bc;
+        --color-silver-bg:      #f3e5f5;
+        --color-silver-text:    #4a148c;
+        --color-silver-bg-hover: #e1bee7;
+        --color-bronze:         #ff7043;
+        --color-bronze-bg:      #fbe9e7;
+        --color-bronze-text:    #bf360c;
+        --color-bronze-bg-hover: #ffccbc;
+
+        --color-running:        #007a33;
+        --color-running-bg:     #e8f5e9;
+        --color-completed:      #8e24a3;
+        --color-completed-bg:   #f3e5f5;
+
+        --color-win:            #007a33;
+        --color-loss:           #c7143a;
+        --color-draw:           #b35a00;
+
+        --color-avg-bg:         #e8f5e9;
+        --color-avg-border:     #a5d6a7;
+
+        --color-unplayed-bg:    #fce4ec;
+
+        --header-bg:            #5e35e0;
+        --header-text:          #ffffff;
+        --header-bg-hover:      #4a22c0;
+
+        --shadow-sm: 0 1px 2px rgba(45, 27, 105, 0.08);
+        --shadow-md: 0 4px 12px rgba(45, 27, 105, 0.12);
+        --shadow-lg: 0 8px 30px rgba(45, 27, 105, 0.15);
+
+        --chart-grid:          rgba(45, 27, 105, 0.10);
+        --chart-axis:          rgba(45, 27, 105, 0.30);
+        --chart-label:         rgba(45, 27, 105, 0.70);
+        --chart-hover-outline: #e91e63;
+    }
+}

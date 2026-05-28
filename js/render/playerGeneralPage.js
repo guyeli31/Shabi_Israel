@@ -42,6 +42,7 @@ import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildPlayerLeaguesPreset } from '../presets/playerLeaguesPreset.js';
 import { buildPlayerAllMatchesPreset } from '../presets/playerAllMatchesPreset.js';
 import { buildMatchupPreset } from '../presets/matchupPreset.js';
+import { attachStickyShadow } from '../utils/stickyShadow.js';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
@@ -862,6 +863,10 @@ function showMatchRecordsType(body, perLeague, type) {
         </div>`;
 
     body.querySelectorAll('table.pg-mr-table').forEach(t => applyShowTopN(t, 5));
+    body.querySelectorAll('.pg-mr-table').forEach(tbl => {
+        const wrap = tbl.closest('.achv-table-wrapper');
+        if (wrap) attachStickyShadow(wrap);
+    });
     requestAnimationFrame(() => applyPgMrTableStickyOffsets(body));
 }
 

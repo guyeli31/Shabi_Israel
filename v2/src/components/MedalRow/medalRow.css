@@ -1,0 +1,13 @@
+/* components/MedalRow/medalRow.css — tinted row backgrounds for top-3
+   ranks in ranking tables. Applied to <tr> by adding the rank-N class.
+   Hover state darkens the tint per medal. */
+
+@layer components {
+    .row-medal-gold   { background: var(--color-gold-bg); }
+    .row-medal-silver { background: var(--color-silver-bg); }
+    .row-medal-bronze { background: var(--color-bronze-bg); }
+
+    .row-medal-gold:hover   { background: var(--color-gold-bg-hover); }
+    .row-medal-silver:hover { background: var(--color-silver-bg-hover); }
+    .row-medal-bronze:hover { background: var(--color-bronze-bg-hover); }
+}

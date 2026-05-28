@@ -1,0 +1,81 @@
+/* themes/_theme.css — semantic colour contract + default theme values.
+   Every theme defines values for the same set of --color-*, --header-*,
+   --chart-*, --lt-* variables. This file establishes the default theme
+   (no [data-theme] attribute on <html>) — visually equivalent to v1's
+   :root in css/variables.css. */
+
+@layer themes {
+    :root {
+        /* surfaces */
+        --color-bg:             #f0f2f5;
+        --color-surface:        #ffffff;
+        --color-hover:          #f5f6f8;
+        --color-border:         #e2e4e9;
+
+        /* text */
+        --color-text:           #1a1a2e;
+        --color-text-secondary: #52546b;
+        --color-text-muted:     #6b6d84;
+
+        /* brand accent */
+        --color-accent:         #2563eb;
+        --color-accent-light:   #dbeafe;
+
+        /* medals */
+        --color-gold:           #fbbf24;
+        --color-gold-bg:        #fef3c7;
+        --color-gold-text:      #78350f;
+        --color-gold-bg-hover:  #fde68a;
+        --color-silver:         #9ca3af;
+        --color-silver-bg:      #f3f4f6;
+        --color-silver-text:    #1f2937;
+        --color-silver-bg-hover: #e5e7eb;
+        --color-bronze:         #d97706;
+        --color-bronze-bg:      #fde8c8;
+        --color-bronze-text:    #78350f;
+        --color-bronze-bg-hover: rgba(217, 119, 6, 0.14);
+
+        /* status pills */
+        --color-running:        #047857;
+        --color-running-bg:     #d1fae5;
+        --color-completed:      #4b5563;
+        --color-completed-bg:   #f3f4f6;
+
+        /* match results */
+        --color-win:            #047857;
+        --color-loss:           #b91c1c;
+        --color-draw:           #4b5563;
+
+        /* average / aggregate rows */
+        --color-avg-bg:         #ecfdf5;
+        --color-avg-border:     #a7f3d0;
+
+        /* unplayed cells */
+        --color-unplayed-bg:    #fafafa;
+
+        /* table header */
+        --header-bg:            #1e293b;
+        --header-text:          #f8fafc;
+        --header-bg-hover:      #334155;
+
+        /* navigation height — clamp scales 48px → 58px between mobile and 1440+ */
+        --nav-height: clamp(48px, calc(0.93vw + 44.7px), 58px);
+
+        /* colorScale filter (theme can invert/shift the inline level colours) */
+        --color-scale-filter: none;
+
+        /* chart overlays (used by canvas rendering) */
+        --chart-grid:          rgba(0, 0, 0, 0.18);
+        --chart-axis:          rgba(0, 0, 0, 0.35);
+        --chart-label:         rgba(0, 0, 0, 0.65);
+        --chart-hover-outline: #000000;
+
+        /* league-type pills */
+        --lt-doubling-bg:   #dbeafe;
+        --lt-doubling-text: #1e40af;
+        --lt-ubc-bg:        #ede9fe;
+        --lt-ubc-text:      #5b21b6;
+        --lt-regular-bg:    #ccfbf1;
+        --lt-regular-text:  #115e59;
+    }
+}

@@ -1,0 +1,27 @@
+/* base/root.css — html + body defaults.
+   The fluid html font-size is the ROOT of the entire scale: rem-based
+   tokens in tokens/typography.css resolve against this value, so the
+   slope law f(M) = clamp(...) measures viewport-fluid sizes from here.
+
+   The em (not px) unit on html font-size respects user font-size
+   preference set in the browser. At browser default 16px the body
+   text resolves to ~13px @ 360 px viewport, ~14px @ 720 px, ~15px @ 1440 px. */
+
+@layer base {
+    html {
+        font-size: clamp(0.8125em, calc(0.75em + 0.3vw), 0.9375em);
+        scroll-behavior: smooth;
+    }
+
+    body {
+        font-family: var(--font-main);
+        font-size: var(--fs-small);
+        font-weight: var(--fw-regular);
+        line-height: var(--lh-base);
+        background: var(--color-bg);
+        color: var(--color-text);
+        min-height: 100vh;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+}

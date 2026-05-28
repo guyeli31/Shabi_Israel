@@ -1,0 +1,66 @@
+/* themes/casino.css — vivid casino: gold + crimson.
+   Mirrors v1's css/themes.css [data-theme="casino"] block.
+   Component-specific roulette rules deferred to Phase 3+. */
+
+@layer themes {
+    [data-theme="casino"] {
+        --color-bg:             #1a0a0a;
+        --color-surface:        #2c1414;
+        --color-hover:          #3a1a1a;
+        --color-border:         #5a2020;
+
+        --color-text:           #fff8e7;
+        --color-text-secondary: #ffd700;
+        --color-text-muted:     #c9a84c;
+
+        --color-accent:         #ffd700;
+        --color-accent-light:   #4a3000;
+
+        --color-gold:           #ffd700;
+        --color-gold-bg:        #5c4a00;
+        --color-gold-text:      #ffe44d;
+        --color-gold-bg-hover:  #6e5800;
+        --color-silver:         #c0c0c0;
+        --color-silver-bg:      #3a3a4a;
+        --color-silver-text:    #e8e8f0;
+        --color-silver-bg-hover: #4a4a5a;
+        --color-bronze:         #cd7f32;
+        --color-bronze-bg:      #4a2800;
+        --color-bronze-text:    #ffb366;
+        --color-bronze-bg-hover: #5c3200;
+
+        --color-running:        #00e676;
+        --color-running-bg:     #0a2a14;
+        --color-completed:      #c9a84c;
+        --color-completed-bg:   #2a1a0a;
+
+        --color-win:            #00e676;
+        --color-loss:           #ff1744;
+        --color-draw:           #ffd700;
+
+        --color-avg-bg:         #2a1414;
+        --color-avg-border:     #5a2020;
+
+        --color-unplayed-bg:    #1a0808;
+
+        --header-bg:            #8b0000;
+        --header-text:          #ffd700;
+        --header-bg-hover:      #a01010;
+
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+        --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.6);
+
+        --chart-grid:          rgba(255, 215, 0, 0.15);
+        --chart-axis:          rgba(255, 215, 0, 0.40);
+        --chart-label:         rgba(255, 248, 231, 0.80);
+        --chart-hover-outline: #ffd700;
+
+        --lt-doubling-bg:   rgba(96, 165, 250, 0.22);
+        --lt-doubling-text: #93c5fd;
+        --lt-ubc-bg:        rgba(236, 72, 153, 0.22);
+        --lt-ubc-text:      #f9a8d4;
+        --lt-regular-bg:    rgba(45, 212, 191, 0.22);
+        --lt-regular-text:  #5eead4;
+    }
+}

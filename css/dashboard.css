@@ -286,7 +286,6 @@
     vertical-align: middle;
     margin-right: 4px;
     object-fit: contain;
-    image-rendering: crisp-edges;
     border-radius: 2px;
 }
 
