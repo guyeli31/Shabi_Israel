@@ -119,24 +119,45 @@ try {
 
   await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
 
-  console.log('→ Diagnosing WebSocket state before export');
-  const wsState = await page.evaluate(() => {
-    const hasPq = typeof pq !== 'undefined' && pq !== null && pq !== undefined;
-    return {
-      pq_exists: hasPq,
-      ws_readyState: hasPq && pq.j ? pq.j.readyState : null,
-      ws_readyStateText: hasPq && pq.j ? ['CONNECTING','OPEN','CLOSING','CLOSED'][pq.j.readyState] : null,
-      ws_url: hasPq && pq.j ? pq.j.url : null,
-      YL: typeof YL !== 'undefined' ? YL : 'undef',
-      oq: typeof oq !== 'undefined' ? oq : 'undef',
-      nq: typeof nq !== 'undefined' ? nq : 'undef',
-      CL: typeof CL !== 'undefined' ? CL : 'undef',
-    };
+  console.log('→ Instrumenting WebSocket for send/receive tracing');
+  await page.evaluate(() => {
+    window.__sent = [];
+    window.__recv = [];
+    if (pq && pq.j) {
+      const origSend = pq.j.send.bind(pq.j);
+      pq.j.send = function (data) {
+        try {
+          window.__sent.push({
+            t: Math.round(performance.now()),
+            len: data ? data.length : 0,
+            sample: typeof data === 'string' ? data.slice(0, 80) : '(binary)',
+          });
+        } catch {}
+        return origSend(data);
+      };
+      pq.j.addEventListener('message', (ev) => {
+        try {
+          window.__recv.push({
+            t: Math.round(performance.now()),
+            len: ev.data ? ev.data.length : 0,
+            sample: typeof ev.data === 'string' ? ev.data.slice(0, 80) : '(binary)',
+          });
+        } catch {}
+      });
+    }
   });
-  console.log(`  ${JSON.stringify(wsState)}`);
 
-  console.log('→ Triggering Export results (lg(622)) — kicks WebSocket round-by-round fetch');
+  console.log('→ Triggering Export results (lg(622))');
   await page.locator('button:has-text("Export results")').click();
+  await page.waitForTimeout(5000);
+
+  const activity = await page.evaluate(() => ({
+    sent: window.__sent || [],
+    recv: window.__recv || [],
+  }));
+  console.log(`  WS sent: ${activity.sent.length} messages, received: ${activity.recv.length} messages`);
+  console.log(`  Sent samples: ${JSON.stringify(activity.sent.slice(0, 5))}`);
+  console.log(`  Recv samples: ${JSON.stringify(activity.recv.slice(0, 5))}`);
 
   console.log('→ Polling #lgexport textarea until data stabilises');
   const csv = await page.evaluate(async () => {
