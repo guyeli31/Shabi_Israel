@@ -39,6 +39,15 @@ jobs:
           path: scripts/out/leaguedata.csv
           retention-days: 90
 
+      - name: Upload failure screenshot
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-screenshot-${{ github.run_id }}
+          path: scripts/out/failure.png
+          retention-days: 14
+          if-no-files-found: ignore
+
       - name: Write job summary
         if: success()
         working-directory: ${{ github.workspace }}
