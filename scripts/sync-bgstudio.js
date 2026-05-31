@@ -16,22 +16,23 @@ if (!username || !password) {
 }
 
 const browser = await chromium.launch();
-const ctx = await browser.newContext();
+const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
 const page = await ctx.newPage();
 
 try {
   console.log(`→ Opening ${SITE_URL}`);
   await page.goto(SITE_URL);
+  await page.waitForLoadState('domcontentloaded');
 
   console.log('→ Opening login form');
-  await page.locator('button:has-text("Login")').first().click();
+  await page.locator('button:has-text("Login"):not(.dialogbutton)').click();
 
   console.log('→ Filling credentials');
   await page.locator('#username').fill(username);
   await page.locator('#pass').fill(password);
 
   console.log('→ Submitting login');
-  await page.locator('table button:has-text("Login")').click();
+  await page.locator('button.dialogbutton:has-text("Login")').click();
 
   await page.locator('button:has-text("Player")').first().waitFor({ timeout: 15000 });
 
