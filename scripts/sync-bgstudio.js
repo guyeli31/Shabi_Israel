@@ -24,9 +24,9 @@ try {
   await page.goto(SITE_URL);
   await page.waitForLoadState('domcontentloaded');
 
-  console.log('→ Injecting CSS to suppress intro/news dialogs');
+  console.log('→ Injecting CSS to suppress intro/news dialog');
   await page.addStyleTag({
-    content: '#introdialog, .introdialog { display: none !important; }',
+    content: '#introdialog { display: none !important; }',
   });
 
   console.log('→ Opening login form');
@@ -41,16 +41,12 @@ try {
 
   await page.getByRole('columnheader', { name: 'Live matches' }).waitFor({ timeout: 15000 });
 
-  console.log('→ Ensuring intro/news dialog stays hidden');
-  await page.evaluate(() => {
-    document.querySelectorAll('#introdialog, .introdialog').forEach((el) => {
-      el.style.setProperty('display', 'none', 'important');
-    });
-  });
+  console.log('→ Closing "Welcome back" modal via X button');
+  const closeBtn = page.locator('button').filter({ hasText: /^\s*[✕×Xx]\s*$/ }).first();
+  await closeBtn.click({ timeout: 5000 });
 
   console.log('→ Switching to Tournaments tab');
   await page.locator('th').filter({ hasText: /^\s*Tournaments\s*$/ }).first().click({ timeout: 10000 });
-
   await page.locator('tr').filter({ hasText: 'Leagues' }).first().waitFor({ timeout: 10000 });
 
   console.log('→ Opening Leagues');
