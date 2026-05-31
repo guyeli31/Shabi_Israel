@@ -119,86 +119,47 @@ try {
 
   await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
 
-  console.log('→ Triggering Export results');
+  console.log('→ Triggering Export results (lg(622)) — kicks WebSocket round-by-round fetch');
   await page.locator('button:has-text("Export results")').click();
-  await page.waitForTimeout(1000);
 
-  async function checkForCsv() {
-    return await page.evaluate(() => {
-      const a = document.querySelector('a[download="leaguedata.csv"]');
-      if (a) {
-        const href = a.getAttribute('href') || '';
-        if (href.startsWith('data:')) {
-          return { source: 'anchor', data: decodeURIComponent(href.split(',').slice(1).join(',')) };
-        }
+  console.log('→ Polling #lgexport textarea until data stabilises');
+  const csv = await page.evaluate(async () => {
+    const STABLE_MS = 1500;
+    const MAX_MS = 30000;
+    const POLL_MS = 200;
+    const t0 = performance.now();
+    let lastLen = -1;
+    let stableSince = null;
+    const trace = [];
+    while (performance.now() - t0 < MAX_MS) {
+      const ta = document.getElementById('lgexport');
+      const len = ta ? (ta.value || '').length : 0;
+      const elapsed = Math.round(performance.now() - t0);
+      if (len !== lastLen) {
+        trace.push({ t: elapsed, len });
+        lastLen = len;
+        stableSince = len > 0 ? performance.now() : null;
+      } else if (len > 0 && stableSince !== null && performance.now() - stableSince >= STABLE_MS) {
+        return { data: ta.value, trace, elapsed };
       }
-      for (const ta of document.querySelectorAll('textarea')) {
-        if (ta.value && /Player,\s*PR,\s*Luck,\s*Score/.test(ta.value) && ta.value.length > 500) {
-          return { source: 'textarea', data: ta.value };
-        }
-      }
-      for (const pre of document.querySelectorAll('pre, div')) {
-        const t = pre.textContent || '';
-        if (/^Player,\s*PR,\s*Luck,\s*Score/.test(t) && t.length > 500) {
-          return { source: pre.tagName.toLowerCase(), data: t };
-        }
-      }
-      return null;
-    });
-  }
-
-  console.log('→ Locating Download element');
-  const downloadCandidates = await page.evaluate(() => {
-    return Array.from(document.querySelectorAll('*'))
-      .filter((el) => el.offsetParent !== null && el.children.length === 0)
-      .filter((el) => (el.textContent || '').trim() === 'Download')
-      .map((el) => {
-        const r = el.getBoundingClientRect();
-        return {
-          tag: el.tagName,
-          rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
-          onclick: el.getAttribute('onclick') || null,
-        };
-      });
-  });
-  console.log(`  Found ${downloadCandidates.length} 'Download' leaf(s)`);
-  downloadCandidates.forEach((c, i) => {
-    console.log(`    [${i}] ${c.tag} @ (${c.rect.x},${c.rect.y}) ${c.rect.w}x${c.rect.h} onclick=${c.onclick}`);
-  });
-
-  let csv = null;
-  for (const c of downloadCandidates) {
-    const ROWS = 5;
-    const COLS = 5;
-    for (let i = 0; i < ROWS && !csv; i++) {
-      for (let j = 0; j < COLS && !csv; j++) {
-        const dx = 0.3 + (j / (COLS - 1)) * 0.4;
-        const dy = 0.3 + (i / (ROWS - 1)) * 0.4;
-        const px = c.rect.x + Math.round(c.rect.w * dx);
-        const py = c.rect.y + Math.round(c.rect.h * dy);
-        const name = `r${i}c${j}`;
-        console.log(`  Click ${name} @ (${px},${py})`);
-        await page.mouse.click(px, py);
-        await page.waitForTimeout(100);
-        const got = await checkForCsv();
-        if (got) {
-          console.log(`  ✓ Got CSV from ${got.source} after ${name} (${got.data.length} bytes)`);
-          csv = got.data;
-        }
-      }
+      await new Promise((r) => setTimeout(r, POLL_MS));
     }
-    if (csv) break;
-  }
+    return { data: null, trace, elapsed: Math.round(performance.now() - t0) };
+  });
 
-  if (!csv) {
-    throw new Error('No click position (25 tried per Download element) produced CSV data');
-  }
+  console.log(`  Textarea growth trace: ${JSON.stringify(csv.trace)}`);
+  console.log(`  Finished after ${csv.elapsed}ms`);
 
-  const lines = csv.split('\n').filter(Boolean).length;
-  console.log(`✓ CSV: ${csv.length} bytes, ${lines} lines`);
+  if (!csv.data) {
+    throw new Error('Textarea #lgexport never populated within 30s — WebSocket data flow did not deliver');
+  }
+  const csvText = csv.data;
+
+  const lines = csvText.split('\n').filter(Boolean).length;
+  console.log(`✓ CSV: ${csvText.length} bytes, ${lines} lines`);
 
   await mkdir(dirname(OUTPUT_PATH), { recursive: true });
-  await writeFile(OUTPUT_PATH, csv, 'utf8');
+  await writeFile(OUTPUT_PATH, csvText, 'utf8');
   console.log(`✓ Saved to ${OUTPUT_PATH}`);
 } catch (err) {
   console.error('✗ Sync failed:', err.message);
