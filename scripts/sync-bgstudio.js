@@ -34,7 +34,7 @@ try {
   console.log('→ Submitting login');
   await page.locator('button.dialogbutton:has-text("Login")').click();
 
-  await page.locator('button:has-text("Player")').first().waitFor({ timeout: 15000 });
+  await page.getByRole('columnheader', { name: 'Live matches' }).waitFor({ timeout: 15000 });
 
   console.log('→ Switching to Tournaments tab');
   const tabsRow = page.locator('tr').filter({ has: page.getByRole('columnheader', { name: 'Live matches' }) });
