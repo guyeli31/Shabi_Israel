@@ -40,15 +40,13 @@ try {
   const tabsRow = page.locator('tr').filter({ has: page.getByRole('columnheader', { name: 'Live matches' }) });
   await tabsRow.locator('th').nth(1).click();
 
-  await page.locator('text="Tournament sections"').waitFor({ timeout: 10000 });
+  await page.locator('tr').filter({ hasText: 'Leagues' }).first().waitFor({ timeout: 10000 });
 
   console.log('→ Opening Leagues');
   await page.locator('tr').filter({ hasText: 'Leagues' }).locator('button').first().click();
 
-  await page.locator('text="Online leagues"').waitFor({ timeout: 10000 });
-
   console.log(`→ Opening league "${LEAGUE_NAME}"`);
-  await page.getByRole('button', { name: LEAGUE_NAME, exact: true }).first().click();
+  await page.getByRole('button', { name: LEAGUE_NAME, exact: true }).first().click({ timeout: 15000 });
 
   await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
 
