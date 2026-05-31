@@ -1,5 +1,5 @@
 import { chromium } from 'playwright';
-import { mkdir, stat } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -122,23 +122,36 @@ try {
   console.log('→ Triggering Export results');
   await page.locator('button:has-text("Export results")').click();
 
-  console.log('→ Waiting for "Round data" popup + Download button to populate');
-  await page.waitForTimeout(2000);
+  console.log('→ Waiting for data-URI anchor to populate');
+  const anchor = page.locator('a[download="leaguedata.csv"]');
+  try {
+    await anchor.waitFor({ timeout: 8000 });
+  } catch {
+    console.log('  Anchor not yet present; clicking Download button to trigger generation');
+    await page
+      .locator(':is(a, button)')
+      .filter({ hasText: /^\s*Download\s*$/ })
+      .first()
+      .click({ timeout: 5000 })
+      .catch((e) => console.log(`  Download-button click failed: ${e.message}`));
+    await anchor.waitFor({ timeout: 15000 });
+  }
 
-  console.log('→ Capturing Download click');
-  const downloadPromise = page.waitForEvent('download', { timeout: 15000 });
-  await page
-    .locator(':is(a, button)')
-    .filter({ hasText: /^\s*Download\s*$/ })
-    .first()
-    .click({ timeout: 10000 });
-  const download = await downloadPromise;
-  console.log(`  Download started: ${download.suggestedFilename()}`);
+  console.log('→ Extracting CSV from anchor href');
+  const csv = await page.evaluate(() => {
+    const link = document.querySelector('a[download="leaguedata.csv"]');
+    if (!link) throw new Error('Download anchor missing');
+    const href = link.getAttribute('href') || '';
+    if (!href.startsWith('data:')) throw new Error(`href is not data URI: ${href.slice(0, 80)}`);
+    return decodeURIComponent(href.split(',').slice(1).join(','));
+  });
+
+  const lines = csv.split('\n').filter(Boolean).length;
+  console.log(`✓ CSV: ${csv.length} bytes, ${lines} lines`);
 
   await mkdir(dirname(OUTPUT_PATH), { recursive: true });
-  await download.saveAs(OUTPUT_PATH);
-  const { size } = await stat(OUTPUT_PATH);
-  console.log(`✓ Saved ${size} bytes to ${OUTPUT_PATH}`);
+  await writeFile(OUTPUT_PATH, csv, 'utf8');
+  console.log(`✓ Saved to ${OUTPUT_PATH}`);
 } catch (err) {
   console.error('✗ Sync failed:', err.message);
   try {
