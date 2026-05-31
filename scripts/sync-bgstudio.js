@@ -119,6 +119,22 @@ try {
 
   await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
 
+  console.log('→ Diagnosing WebSocket state before export');
+  const wsState = await page.evaluate(() => {
+    const hasPq = typeof pq !== 'undefined' && pq !== null && pq !== undefined;
+    return {
+      pq_exists: hasPq,
+      ws_readyState: hasPq && pq.j ? pq.j.readyState : null,
+      ws_readyStateText: hasPq && pq.j ? ['CONNECTING','OPEN','CLOSING','CLOSED'][pq.j.readyState] : null,
+      ws_url: hasPq && pq.j ? pq.j.url : null,
+      YL: typeof YL !== 'undefined' ? YL : 'undef',
+      oq: typeof oq !== 'undefined' ? oq : 'undef',
+      nq: typeof nq !== 'undefined' ? nq : 'undef',
+      CL: typeof CL !== 'undefined' ? CL : 'undef',
+    };
+  });
+  console.log(`  ${JSON.stringify(wsState)}`);
+
   console.log('→ Triggering Export results (lg(622)) — kicks WebSocket round-by-round fetch');
   await page.locator('button:has-text("Export results")').click();
 
