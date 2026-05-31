@@ -24,9 +24,9 @@ try {
   await page.goto(SITE_URL);
   await page.waitForLoadState('domcontentloaded');
 
-  console.log('→ Injecting CSS to suppress intro/news dialog');
+  console.log('→ Injecting CSS to suppress intro/news/welcome dialogs');
   await page.addStyleTag({
-    content: '#introdialog { display: none !important; }',
+    content: '#introdialog, #myrooms, #newsdialog, #welcomedialog { display: none !important; }',
   });
 
   console.log('→ Opening login form');
