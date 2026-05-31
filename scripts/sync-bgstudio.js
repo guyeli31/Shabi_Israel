@@ -41,27 +41,70 @@ try {
 
   await page.getByRole('columnheader', { name: 'Live matches' }).waitFor({ timeout: 15000 });
 
-  console.log('→ Closing "Welcome back" modal via X button');
+  console.log('→ Diagnosing welcome modal');
+  const diag = await page.evaluate(() => {
+    const dump = (el) => el ? {
+      tag: el.tagName,
+      id: el.id || null,
+      cls: (el.className || '').toString().slice(0, 60),
+      text: (el.textContent || '').slice(0, 50).trim(),
+      onclick: el.getAttribute('onclick'),
+    } : null;
+    return {
+      at_top_right: dump(document.elementFromPoint(1517, 182)),
+      modals: Array.from(document.querySelectorAll('[id*="dialog" i], [id*="modal" i], [class*="dialog" i], [class*="modal" i]'))
+        .filter((el) => el.offsetParent !== null)
+        .slice(0, 10)
+        .map((el) => ({ tag: el.tagName, id: el.id, cls: (el.className || '').toString().slice(0, 60) })),
+    };
+  });
+  console.log(`  At (1517,182): ${JSON.stringify(diag.at_top_right)}`);
+  console.log(`  Visible dialog-like elements: ${JSON.stringify(diag.modals)}`);
+
+  console.log('→ Closing welcome modal (multi-strategy)');
   const closed = await page.evaluate(() => {
     const xChars = /^[✕×Xx⨯⊗⊠✗]$/;
+    const visible = (el) => el.offsetParent !== null;
+    const fullClick = (el) => {
+      const o = { bubbles: true, cancelable: true };
+      el.dispatchEvent(new MouseEvent('mousedown', o));
+      el.dispatchEvent(new MouseEvent('mouseup', o));
+      el.click();
+    };
+    const tried = [];
+
     for (const el of document.querySelectorAll('*')) {
       if (el.children.length > 0) continue;
-      if (el.offsetParent === null) continue;
+      if (!visible(el)) continue;
       const text = (el.textContent || '').trim();
       if (xChars.test(text)) {
-        el.click();
-        return { tag: el.tagName, text, cls: el.className || null };
+        fullClick(el);
+        if (el.parentElement) fullClick(el.parentElement);
+        tried.push({ s: 'char-leaf', tag: el.tagName, text });
+      }
+    }
+    for (const el of document.querySelectorAll('[onclick*="close" i], [onclick*="hide" i], [class*="close" i]')) {
+      if (!visible(el)) continue;
+      fullClick(el);
+      tried.push({ s: 'class-attr', tag: el.tagName, cls: (el.className || '').toString().slice(0, 40) });
+    }
+    return tried;
+  });
+  console.log(`  Tried: ${JSON.stringify(closed)}`);
+  await page.mouse.click(1517, 182);
+  await page.waitForTimeout(800);
+
+  const stillThere = await page.evaluate(() => {
+    for (const el of document.querySelectorAll('*')) {
+      if (el.offsetParent === null) continue;
+      const text = (el.textContent || '').slice(0, 100);
+      if (/Welcome back|News for you today/.test(text)) {
+        return { id: el.id, cls: (el.className || '').toString().slice(0, 60), tag: el.tagName };
       }
     }
     return null;
   });
-  if (!closed) {
-    console.log('  No close-char element found; clicking expected top-right modal position');
-    await page.mouse.click(1517, 182);
-  } else {
-    console.log(`  Clicked: ${JSON.stringify(closed)}`);
-  }
-  await page.waitForTimeout(500);
+  console.log(`  Welcome modal still visible? ${JSON.stringify(stillThere)}`);
 
   console.log('→ Switching to Tournaments tab');
   await page.locator('th').filter({ hasText: /^\s*Tournaments\s*$/ }).first().click({ timeout: 10000 });
@@ -78,6 +121,21 @@ try {
 
   console.log('→ Triggering Export results');
   await page.locator('button:has-text("Export results")').click();
+  await page.waitForTimeout(1000);
+
+  const postExport = await page.evaluate(() => ({
+    anchorsWithDownload: Array.from(document.querySelectorAll('a[download]')).map((a) => ({
+      download: a.getAttribute('download'),
+      hrefStart: (a.href || '').slice(0, 60),
+      visible: a.offsetParent !== null,
+    })),
+    csvSubstringElements: Array.from(document.querySelectorAll('*'))
+      .filter((el) => /Player.*PR.*Luck.*Score/.test((el.textContent || '').slice(0, 100)))
+      .slice(0, 3)
+      .map((el) => ({ tag: el.tagName, id: el.id, cls: (el.className || '').toString().slice(0, 40) })),
+  }));
+  console.log(`  Anchors with download attr: ${JSON.stringify(postExport.anchorsWithDownload)}`);
+  console.log(`  Elements containing CSV header: ${JSON.stringify(postExport.csvSubstringElements)}`);
 
   await page.locator('a[download="leaguedata.csv"]').waitFor({ timeout: 10000 });
 
