@@ -121,30 +121,79 @@ try {
 
   console.log('→ Triggering Export results');
   await page.locator('button:has-text("Export results")').click();
+  await page.waitForTimeout(1500);
 
-  console.log('→ Waiting for data-URI anchor to populate');
-  const anchor = page.locator('a[download="leaguedata.csv"]');
-  try {
-    await anchor.waitFor({ timeout: 8000 });
-  } catch {
-    console.log('  Anchor not yet present; clicking Download button to trigger generation');
-    await page
-      .locator(':is(a, button)')
-      .filter({ hasText: /^\s*Download\s*$/ })
-      .first()
-      .click({ timeout: 5000 })
-      .catch((e) => console.log(`  Download-button click failed: ${e.message}`));
-    await anchor.waitFor({ timeout: 15000 });
+  console.log('→ Locating Download element');
+  const downloadCandidates = await page.evaluate(() => {
+    return Array.from(document.querySelectorAll('*'))
+      .filter((el) => el.offsetParent !== null && el.children.length === 0)
+      .filter((el) => (el.textContent || '').trim() === 'Download')
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        return {
+          tag: el.tagName,
+          rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
+          onclick: el.getAttribute('onclick') || null,
+        };
+      });
+  });
+  console.log(`  Found ${downloadCandidates.length} 'Download' leaf(s)`);
+  downloadCandidates.forEach((c, i) => {
+    console.log(`    [${i}] ${c.tag} @ (${c.rect.x},${c.rect.y}) ${c.rect.w}x${c.rect.h} onclick=${c.onclick}`);
+  });
+
+  async function checkForCsv() {
+    return await page.evaluate(() => {
+      const a = document.querySelector('a[download="leaguedata.csv"]');
+      if (a) {
+        const href = a.href || '';
+        if (href.startsWith('data:')) {
+          return { source: 'anchor', data: decodeURIComponent(href.split(',').slice(1).join(',')) };
+        }
+      }
+      for (const ta of document.querySelectorAll('textarea')) {
+        if (ta.value && /Player,\s*PR,\s*Luck,\s*Score/.test(ta.value) && ta.value.length > 500) {
+          return { source: 'textarea', data: ta.value };
+        }
+      }
+      for (const pre of document.querySelectorAll('pre, div')) {
+        const t = pre.textContent || '';
+        if (/^Player,\s*PR,\s*Luck,\s*Score/.test(t) && t.length > 500) {
+          return { source: pre.tagName.toLowerCase(), data: t };
+        }
+      }
+      return null;
+    });
   }
 
-  console.log('→ Extracting CSV from anchor href');
-  const csv = await page.evaluate(() => {
-    const link = document.querySelector('a[download="leaguedata.csv"]');
-    if (!link) throw new Error('Download anchor missing');
-    const href = link.getAttribute('href') || '';
-    if (!href.startsWith('data:')) throw new Error(`href is not data URI: ${href.slice(0, 80)}`);
-    return decodeURIComponent(href.split(',').slice(1).join(','));
-  });
+  let csv = null;
+  for (const c of downloadCandidates) {
+    const positions = [
+      [0.5, 0.5, 'center'],
+      [0.25, 0.5, 'left'],
+      [0.75, 0.5, 'right'],
+      [0.5, 0.25, 'top'],
+      [0.5, 0.75, 'bottom'],
+    ];
+    for (const [dx, dy, name] of positions) {
+      const px = c.rect.x + Math.round(c.rect.w * dx);
+      const py = c.rect.y + Math.round(c.rect.h * dy);
+      console.log(`  Click [${c.tag}] ${name} @ (${px},${py})`);
+      await page.mouse.click(px, py);
+      await page.waitForTimeout(600);
+      const got = await checkForCsv();
+      if (got) {
+        console.log(`  ✓ Got CSV from ${got.source} (${got.data.length} bytes)`);
+        csv = got.data;
+        break;
+      }
+    }
+    if (csv) break;
+  }
+
+  if (!csv) {
+    throw new Error('No click position produced CSV data');
+  }
 
   const lines = csv.split('\n').filter(Boolean).length;
   console.log(`✓ CSV: ${csv.length} bytes, ${lines} lines`);
