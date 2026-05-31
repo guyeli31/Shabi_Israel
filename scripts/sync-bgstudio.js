@@ -42,8 +42,26 @@ try {
   await page.getByRole('columnheader', { name: 'Live matches' }).waitFor({ timeout: 15000 });
 
   console.log('→ Closing "Welcome back" modal via X button');
-  const closeBtn = page.locator('button').filter({ hasText: /^\s*[✕×Xx]\s*$/ }).first();
-  await closeBtn.click({ timeout: 5000 });
+  const closed = await page.evaluate(() => {
+    const xChars = /^[✕×Xx⨯⊗⊠✗]$/;
+    for (const el of document.querySelectorAll('*')) {
+      if (el.children.length > 0) continue;
+      if (el.offsetParent === null) continue;
+      const text = (el.textContent || '').trim();
+      if (xChars.test(text)) {
+        el.click();
+        return { tag: el.tagName, text, cls: el.className || null };
+      }
+    }
+    return null;
+  });
+  if (!closed) {
+    console.log('  No close-char element found; clicking expected top-right modal position');
+    await page.mouse.click(1517, 182);
+  } else {
+    console.log(`  Clicked: ${JSON.stringify(closed)}`);
+  }
+  await page.waitForTimeout(500);
 
   console.log('→ Switching to Tournaments tab');
   await page.locator('th').filter({ hasText: /^\s*Tournaments\s*$/ }).first().click({ timeout: 10000 });
