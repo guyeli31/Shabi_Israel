@@ -36,9 +36,30 @@ try {
 
   await page.getByRole('columnheader', { name: 'Live matches' }).waitFor({ timeout: 15000 });
 
+  console.log('→ Dismissing post-login news/welcome modal if present');
+  await page.keyboard.press('Escape').catch(() => {});
+  await page.waitForTimeout(400);
+  await page.evaluate(() => {
+    const hide = (el) => { if (el) el.style.display = 'none'; };
+    document.querySelectorAll('*').forEach((el) => {
+      const t = (el.textContent || '').slice(0, 200);
+      if (/Welcome (back|to Heroes)|News for you today/.test(t)) {
+        let cur = el;
+        for (let i = 0; i < 8 && cur && cur.tagName !== 'BODY'; i++) {
+          const cs = getComputedStyle(cur);
+          if (cs.position === 'fixed' || cs.position === 'absolute' || parseInt(cs.zIndex || '0', 10) > 0) {
+            hide(cur);
+            return;
+          }
+          cur = cur.parentElement;
+        }
+      }
+    });
+  });
+  await page.waitForTimeout(200);
+
   console.log('→ Switching to Tournaments tab');
-  const tabsRow = page.locator('tr').filter({ has: page.getByRole('columnheader', { name: 'Live matches' }) });
-  await tabsRow.locator('th').nth(1).click();
+  await page.locator('th').filter({ hasText: /^\s*Tournaments\s*$/ }).first().click({ timeout: 10000 });
 
   await page.locator('tr').filter({ hasText: 'Leagues' }).first().waitFor({ timeout: 10000 });
 
