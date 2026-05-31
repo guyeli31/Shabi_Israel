@@ -123,7 +123,7 @@ export function buildLeagueTablePreset({ rankings, averages, params, leagueConfi
     const buildSummaryRow = averages
         ? () => ({
             rank:      '',
-            player:    '<b>AVERAGES</b>',
+            player:    'AVERAGES',
             gp:        averages.games != null ? averages.games.toFixed(2) : '',
             wins:      averages.wins != null ? averages.wins.toFixed(2) : '',
             losses:    averages.losses != null ? averages.losses.toFixed(2) : '',

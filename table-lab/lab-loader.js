@@ -6,13 +6,18 @@
 
 import { setLeaguesBase, loadLandingSettings, loadLeague } from '../js/data/leagueLoader.js';
 import { computeAllStats } from '../js/compute/stats.js';
-import { buildRankings, computeAverages } from '../js/compute/rankings.js';
+import { buildRankings, computeAverages, getLevel } from '../js/compute/rankings.js';
 import { getLeagueConfig } from '../js/compute/leagueTypes.js';
-import { getFlagCode } from '../js/utils/helpers.js';
+import { getFlagCode, flagUrl, formatNumber, leagueUrl } from '../js/utils/helpers.js';
 import { getPlayerMatches, parseCSVAllWithRounds } from '../js/data/csvParser.js';
 import { colorForValue, colorForValueInverted, colorForLevel } from '../js/compute/colorScale.js';
 import { LEVELS } from '../js/compute/rankings.js';
-import { loadPlayerAcrossLeagues, flattenAllMatches } from '../js/compute/crossLeague.js';
+import { loadAllLeagues, loadPlayerAcrossLeagues, flattenAllMatches } from '../js/compute/crossLeague.js';
+import { buildAllTimeRankings } from '../js/compute/allTimeRankings.js';
+import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatches,
+         collectPlayerBestPR, collectPlayerBestLuckFor, collectPlayerWorstLuckAgainst } from '../js/compute/matchRecords.js';
+import { luckPercentileStats } from '../js/compute/luckPercentile.js';
+import { playerNameLink } from '../js/render/playerNameInteraction.js';
 
 // Lab pages sit one level deep — redirect fetches to the correct root
 setLeaguesBase('../leagues');
@@ -274,7 +279,7 @@ function buildD(allResults) {
     const buildSummaryRow = avgRow
         ? (_data) => ({
             rank:      '',
-            player:    '<b>AVERAGES</b>',
+            player:    'AVERAGES',
             gp:        avgRow.games,
             wins:      avgRow.wins,
             losses:    avgRow.losses,
@@ -388,7 +393,7 @@ function buildE(allResults) {
     const buildSummaryRow = (data) => {
         const played = data.filter(r => !r.unplayed);
         const n      = played.length;
-        if (!n) return { opponent: '<b>AVERAGES</b>', date: '', score: '', pr: null, oppPR: null, luck: null, result: '0 games', matchPoints: null };
+        if (!n) return { opponent: 'AVERAGES', date: '', score: '', pr: null, oppPR: null, luck: null, result: '0 games', matchPoints: null };
         const nonTech = played.filter(r => r.pr !== null);
         const nt      = nonTech.length;
         const avgPR    = nt ? (nonTech.reduce((s, r) => s + r.pr,    0) / nt).toFixed(2) : null;
@@ -402,7 +407,7 @@ function buildE(allResults) {
             ? `${n} games<br>${avgPts} avg pts`
             : `${n} games<br>${winPct}% wins`;
         return {
-            opponent: '<b>AVERAGES</b>',
+            opponent: 'AVERAGES',
             date: '', score: '',
             ...(config.showPR ? { pr: avgPR, oppPR: avgOppPR } : {}),
             luck: avgLuck,
@@ -914,6 +919,203 @@ function buildC3(playerData, playerName, globalFlags) {
     return { data, cols, playerName, opponent };
 }
 
+// ─── SF/exp player-cell helper (matches production: flag + linked name) ────
+
+function sfPlayerCell(name, customFlags) {
+    const code = getFlagCode(name, customFlags);
+    return `<img class="flag" src="../assets/flags/${code}.png" alt="flag"> ${playerNameLink(name, null)}`;
+}
+
+function formatShortDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    const mon = MONTHS_SHORT[d.getUTCMonth()];
+    const yr  = d.getUTCFullYear();
+    return `${day} ${mon} ${yr}`;
+}
+
+function resultClass(r) {
+    return r === 'W' ? 'result-win' : r === 'L' ? 'result-loss' : 'result-draw';
+}
+
+// ─── A3: Achievements (SF) — Total PR ranking (doubling) ──────────
+// Mirrors renderAchievementTables in landingPage.js (one card per metric).
+// Lab shows the most representative metric — Total PR for doubling.
+
+async function buildA3SF() {
+    const data = await buildAllTimeRankings('doubling');
+    const rows = (data.rankings.totalPR || []).slice(0, 50);
+    if (!rows.length) return null;
+    const cols = [
+        { key: 'rank',   label: '#' },
+        { key: 'player', label: 'Player', tdClass: 'player-cell',
+          format: (_, r) => sfPlayerCell(r.player, data.customFlags) },
+        { key: 'value',  label: 'Total PR', format: v => formatNumber(v) },
+    ];
+    const out = rows.map(r => ({ rank: r.rank, player: r.name, value: r.value }));
+    return { tableId: 'A3', data: out, cols, title: '🏆 Total PR', stickyCols: 0, showTopN: 5 };
+}
+
+// ─── A4: PR Leaders (SF) — Total PR + Level ───────────────────────
+// Mirrors renderPRTables in landingPage.js.
+
+async function buildA4SF() {
+    const data = await buildAllTimeRankings('doubling');
+    const rows = (data.rankings.totalPR || []).slice(0, 50);
+    if (!rows.length) return null;
+    const cols = [
+        { key: 'rank',   label: '#' },
+        { key: 'player', label: 'Player', tdClass: 'player-cell',
+          format: (_, r) => sfPlayerCell(r.player, data.customFlags) },
+        { key: 'value',  label: 'PR',    format: v => formatNumber(v) },
+        { key: 'level',  label: 'Level' },
+    ];
+    const out = rows.map(r => ({ rank: r.rank, player: r.name, value: r.value, level: getLevel(r.value) }));
+    return { tableId: 'A4', data: out, cols, title: 'Total PR', stickyCols: 1, showTopN: 10 };
+}
+
+// ─── A5: Match Records (SF) — Best PR Matches ─────────────────────
+// Mirrors renderMatchRecordsTables in landingPage.js (Best PR card).
+
+async function buildA5SF() {
+    const allLeagues = (await loadAllLeagues()).filter(l => l.leagueType === 'doubling' && !l.params.Hidden);
+    if (!allLeagues.length) return null;
+    const entries = topBestPRMatches(collectPRMatches(allLeagues), 50);
+    if (!entries.length) return null;
+    const cols = [
+        { key: 'rank',     label: '#' },
+        { key: 'player',   label: 'Player',  tdClass: 'player-cell',
+          format: (_, r) => sfPlayerCell(r.player, r.customFlags) },
+        { key: 'pr',       label: 'PR',      format: v => formatNumber(v) },
+        { key: 'opponent', label: 'Opponent', tdClass: 'player-cell',
+          format: (_, r) => sfPlayerCell(r.opponent, r.customFlags) },
+        { key: 'score',    label: 'Score',   format: (_, r) => `${r.scoreSelf}-${r.scoreOpp}` },
+        { key: 'result',   label: 'Result',
+          format: v => `<span class="${resultClass(v)}">${v}</span>` },
+        { key: 'league',   label: 'League',
+          format: (_, r) => `<a class="league-link" href="${leagueUrl(r.leagueId)}">${r.leagueTitle}</a>` },
+        { key: 'date',     label: 'Date',    format: (_, r) => formatShortDate(r.date) },
+    ];
+    const out = entries.map((r, i) => ({
+        rank: i + 1, player: r.player, pr: r.pr,
+        opponent: r.opponent, scoreSelf: r.scoreSelf, scoreOpp: r.scoreOpp,
+        result: r.result, leagueId: r.leagueId, leagueTitle: r.leagueTitle,
+        date: r.date, customFlags: r.customFlags,
+    }));
+    return { tableId: 'A5', data: out, cols, title: 'Best PR Matches', stickyCols: 2, showTopN: 10 };
+}
+
+// ─── A6: League Records (SF) — Best PR Appearances ────────────────
+// Reimplements the production collectLeagueRecords (landingPage.js) inline.
+
+function _collectLeagueRecords(typeLeagues) {
+    const rows = [];
+    for (const league of typeLeagues) {
+        if (league.params.Running === true) continue;
+        const goldCount   = league.params.GoldCount   ?? 1;
+        const silverCount = league.params.SilverCount ?? 1;
+        const bronzeCount = league.params.BronzeCount ?? 1;
+        const customFlags = league.params.CustomFlags || {};
+        const played = league.rankings.filter(r => r.games > 0);
+        const totalPlayers = played.length;
+        played.forEach((r, idx) => {
+            const stats = league.statsMap.get(r.player);
+            if (!stats || stats.meanPR == null) return;
+            rows.push({
+                player: r.player, meanPR: stats.meanPR, level: getLevel(stats.meanPR),
+                playerRank: idx + 1, totalPlayers,
+                goldCount, silverCount, bronzeCount,
+                leagueId: league.id, leagueTitle: league.title,
+                date: league.params.IssueDate || '', customFlags,
+            });
+        });
+    }
+    rows.sort((a, b) => a.meanPR - b.meanPR);
+    return rows.slice(0, 100);
+}
+
+async function buildA6SF() {
+    const allLeagues = (await loadAllLeagues()).filter(l => l.leagueType === 'doubling' && !l.params.Hidden);
+    if (!allLeagues.length) return null;
+    const entries = _collectLeagueRecords(allLeagues);
+    if (!entries.length) return null;
+    const rankCellHtml = (r) => {
+        const cls = r.playerRank <= r.goldCount                                 ? 'lr-rank-gold'
+                  : r.playerRank <= r.goldCount + r.silverCount                 ? 'lr-rank-silver'
+                  : r.playerRank <= r.goldCount + r.silverCount + r.bronzeCount ? 'lr-rank-bronze'
+                  : '';
+        return `<span class="${cls}">${r.playerRank} / ${r.totalPlayers}</span>`;
+    };
+    const cols = [
+        { key: 'rank',   label: '#' },
+        { key: 'player', label: 'Player', tdClass: 'player-cell',
+          format: (_, r) => sfPlayerCell(r.player, r.customFlags) },
+        { key: 'pr',     label: 'PR',    format: v => formatNumber(v) },
+        { key: 'level',  label: 'Level' },
+        { key: 'rankInLeague', label: 'Rank', format: (_, r) => rankCellHtml(r) },
+        { key: 'league', label: 'League',
+          format: (_, r) => `<a class="league-link" href="${leagueUrl(r.leagueId)}">${r.leagueTitle}</a>` },
+        { key: 'date',   label: 'Date',  format: (_, r) => formatShortDate(r.date) },
+    ];
+    const out = entries.map((r, i) => ({
+        rank: i + 1, player: r.player, pr: r.meanPR, level: r.level,
+        playerRank: r.playerRank, totalPlayers: r.totalPlayers,
+        goldCount: r.goldCount, silverCount: r.silverCount, bronzeCount: r.bronzeCount,
+        leagueId: r.leagueId, leagueTitle: r.leagueTitle, date: r.date,
+        customFlags: r.customFlags,
+    }));
+    return { tableId: 'A6', data: out, cols, title: 'Best PR Appearances', stickyCols: 2, showTopN: 10 };
+}
+
+// ─── C4: Player Match Records (SF) — Best PR for top player ────────
+// Mirrors renderPlayerRecordTable in playerGeneralPage.js.
+
+async function buildC4SF(playerData, playerName) {
+    if (!playerData || !playerData.length) return null;
+    const entries = collectPlayerBestPR(playerData, 'doubling', 50);
+    if (!entries.length) return null;
+    const cols = [
+        { key: 'rank',     label: '#' },
+        { key: 'metric',   label: 'PR',     format: v => formatNumber(v) },
+        { key: 'opponent', label: 'Opponent', tdClass: 'player-cell',
+          format: (_, r) => sfPlayerCell(r.opponent, r.customFlags) },
+        { key: 'score',    label: 'Score',  format: (_, r) => `${r.scoreSelf}-${r.scoreOpp}` },
+        { key: 'result',   label: 'Result',
+          format: v => `<span class="${resultClass(v)}">${v}</span>` },
+        { key: 'league',   label: 'League',
+          format: (_, r) => `<a class="league-link" href="${leagueUrl(r.leagueId)}">${r.leagueTitle}</a>` },
+        { key: 'date',     label: 'Date',   format: (_, r) => formatShortDate(r.date) },
+    ];
+    const out = entries.map((r, i) => ({
+        rank: i + 1, metric: r.metric,
+        opponent: r.opponent, scoreSelf: r.scoreSelf, scoreOpp: r.scoreOpp,
+        result: r.result, leagueId: r.leagueId, leagueTitle: r.leagueTitle,
+        date: r.date, customFlags: r.customFlags,
+    }));
+    return { tableId: 'C4', data: out, cols, title: 'Best PR', stickyCols: 1, showTopN: 5, playerName };
+}
+
+// ─── C0: Expandable rank (exp) — Total PR all-time ────────────────
+// Mirrors renderRankTable in playerGeneralPage.js (PR kind, totalPR metric).
+
+async function buildC0Exp(playerName) {
+    if (!playerName) return null;
+    const data = await buildAllTimeRankings('doubling');
+    const rows = data.rankings.totalPR || [];
+    if (!rows.length) return null;
+    const cols = [
+        { key: 'rank',    label: '#' },
+        { key: 'name',    label: 'Player', tdClass: 'player-cell',
+          format: (_, r) => sfPlayerCell(r.name, data.customFlags) },
+        { key: 'leagues', label: 'Leagues' },
+        { key: 'value',   label: 'Total PR', format: v => formatNumber(v) },
+    ];
+    const out = rows.map(r => ({ rank: r.rank, name: r.name, leagues: r.leagues ?? '', value: r.value }));
+    return { tableId: 'C0', data: out, cols, selfKey: 'name', selfValue: playerName, playerName };
+}
+
 // ─── Helper: load allMatchesIncUnplayed for one league ──
 
 async function loadAllMatchesForLeague(leagueId) {
@@ -957,9 +1159,26 @@ export async function loadAllPresetData() {
     const topPlayer = runningResult?.rankings?.[0]?.player || null;
     const playerAcrossLeagues = topPlayer ? await loadPlayerAcrossLeagues(topPlayer) : [];
 
+    // SF/exp builders are async (they call loadAllLeagues + buildAllTimeRankings).
+    // Resolve in parallel and silently drop any that fail (e.g. no doubling leagues).
+    const sfExpKeys = ['A3', 'A4', 'A5', 'A6', 'C0', 'C4'];
+    const sfExpResults = await Promise.all([
+        buildA3SF().catch(() => null),
+        buildA4SF().catch(() => null),
+        buildA5SF().catch(() => null),
+        buildA6SF().catch(() => null),
+        buildC0Exp(topPlayer).catch(() => null),
+        buildC4SF(playerAcrossLeagues, topPlayer).catch(() => null),
+    ]);
+    const sfExp = Object.fromEntries(sfExpKeys.map((k, i) => [k, sfExpResults[i]]));
+
     return {
         A1:  buildA1(completedResults, globalFlags),
         A2:  buildA2(allResults, globalFlags),
+        A3:  sfExp.A3,
+        A4:  sfExp.A4,
+        A5:  sfExp.A5,
+        A6:  sfExp.A6,
         B1:  buildB1(runningResult),
         B2:  buildB2(runningResult),
         B3:  buildB3(runningResult),
@@ -968,9 +1187,11 @@ export async function loadAllPresetData() {
         B6a: buildB6a(runningResult, allMatchesIncUnplayed),
         B6b: buildB6b(runningResult),
         B6c: buildB6c(runningResult, allMatchesIncUnplayed),
+        C0:  sfExp.C0,
         C1:  buildC1(playerAcrossLeagues, topPlayer),
         C2:  buildC2(playerAcrossLeagues, topPlayer, globalFlags),
         C3:  buildC3(playerAcrossLeagues, topPlayer, globalFlags),
+        C4:  sfExp.C4,
         D:   buildD(allResults),
         E:   buildE(allResults),
     };

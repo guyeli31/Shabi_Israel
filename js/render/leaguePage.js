@@ -11,7 +11,8 @@ import { loadLeague } from '../data/leagueLoader.js';
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { getQueryParam, flagUrl, playerUrl, dashboardUrl, appendExportCredit } from '../utils/helpers.js';
+import { getQueryParam, flagUrl, playerUrl, dashboardUrl } from '../utils/helpers.js';
+import { exportTableImage } from '../utils/exportTableImage.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
@@ -56,10 +57,6 @@ export async function renderLeaguePage() {
             { label: title, url: dashboardUrl(leagueId) },
             { label: 'League Table' }
         ]);
-
-        if (leagueConfig.type === 'ubc') {
-            document.querySelector('.page-container').classList.add('wide-table');
-        }
 
         const statsMap  = computeAllStats(matches, allPlayers);
         const rankings  = buildRankings(statsMap, leagueConfig, matches);
@@ -116,56 +113,18 @@ export async function renderLeaguePage() {
 }
 
 // ---- Export Image ----
+//
+// Thin wrapper around the shared exportTableImage() helper. Passes the
+// live V13 league-header card as the heading so the export carries the
+// same identity bar the user sees on the page.
 
-async function exportLeagueTableImage(title, mountPoint) {
-    if (typeof html2canvas === 'undefined') {
-        alert('html2canvas library not loaded.');
-        return;
-    }
-    const tableEl = mountPoint.querySelector('table');
-    if (!tableEl) return;
-
-    const bodyStyle = getComputedStyle(document.body);
-    const themeBg = bodyStyle.backgroundColor;
-    const themeColor = bodyStyle.color;
-    const themeFont = bodyStyle.fontFamily;
-    const tableWidth = tableEl.offsetWidth;
-
-    const wrap = document.createElement('div');
-    wrap.style.cssText = `position:fixed;left:-10000px;top:0;padding:24px;background:${themeBg};color:${themeColor};font-family:${themeFont};width:${tableWidth + 48}px;box-sizing:border-box;direction:ltr;`;
-    const heading = document.createElement('h3');
-    heading.style.cssText = 'margin:0 0 12px 0;font-size:20px;';
-    heading.textContent = title;
-    wrap.appendChild(heading);
-
-    const tableClone = tableEl.cloneNode(true);
-    tableClone.querySelectorAll('tr.avg-row, tr.stat-row').forEach(tr => {
-        tr.style.position = 'static';
-        tr.style.bottom = 'auto';
+function exportLeagueTableImage(title, mountPoint) {
+    const sourceTable = mountPoint.querySelector('table');
+    const headerCard = document.getElementById('page-title')?.querySelector('.lh13-card') || null;
+    return exportTableImage({
+        sourceTable,
+        filename: `${title}_Table`,
+        headerNode: headerCard,
+        title: headerCard ? undefined : title,
     });
-    tableClone.querySelectorAll('thead th, tbody td').forEach(cell => {
-        cell.style.position = 'static';
-        cell.style.left = 'auto';
-    });
-    tableClone.style.width = tableWidth + 'px';
-    const scroll = document.createElement('div');
-    scroll.style.cssText = 'max-height:none;overflow:visible;';
-    scroll.appendChild(tableClone);
-    wrap.appendChild(scroll);
-    document.body.appendChild(wrap);
-    appendExportCredit(wrap);
-
-    try {
-        if (document.fonts && document.fonts.ready) await document.fonts.ready;
-        const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: null, useCORS: true });
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${title.replace(/\s+/g, '_')}_Table.png`;
-        a.click();
-        URL.revokeObjectURL(url);
-    } finally {
-        wrap.remove();
-    }
 }

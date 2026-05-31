@@ -35,10 +35,6 @@ button, input, select, textarea {
     padding: var(--space-lg) var(--space-md);
 }
 
-.page-container.wide-table {
-    max-width: 1400px;
-}
-
 .page-header {
     --title-size: 2rem;
     text-align: center;

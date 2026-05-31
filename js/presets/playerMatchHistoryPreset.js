@@ -112,7 +112,7 @@ export function buildPlayerMatchHistoryPreset({ playerMatches, leagueConfig, par
     const buildSummaryRow = (data) => {
         const played = data.filter(r => !r._unplayed);
         const n = played.length;
-        if (!n) return { opponent: '<b>AVERAGES</b>', result: '0 games', matchPoints: '0 games' };
+        if (!n) return { opponent: 'AVERAGES', result: '0 games', matchPoints: '0 games' };
         const nonTech = played.filter(r => r.pr !== null);
         const nt = nonTech.length;
         const avgPR    = nt ? formatNumber(nonTech.reduce((s, r) => s + r.pr,    0) / nt) : null;
@@ -125,7 +125,7 @@ export function buildPlayerMatchHistoryPreset({ playerMatches, leagueConfig, par
             ? `${n} games<br>${avgPts} avg pts`
             : `${n} games<br>${pct(wins, n)}`;
         return {
-            opponent: '<b>AVERAGES</b>',
+            opponent: 'AVERAGES',
             date: '', score: '',
             ...(leagueConfig.showPR ? { pr: avgPR, oppPR: avgOppPR } : {}),
             luck: avgLuck,

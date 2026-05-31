@@ -14,7 +14,8 @@ import { parseCSVAllWithRounds, parseCSV, getAllPlayersFromCSV } from '../data/c
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { getQueryParam, formatPercent, formatNumber, leagueUrl, playerUrl, dashboardUrl, flagUrl, getFlagCode, thLabel, appendExportCredit } from '../utils/helpers.js';
+import { getQueryParam, formatPercent, formatNumber, leagueUrl, playerUrl, dashboardUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
+import { exportTableImage } from '../utils/exportTableImage.js';
 import { colorForValueInverted } from '../compute/colorScale.js';
 import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
@@ -1179,7 +1180,8 @@ function buildB6aPanel(panel, remaining, params, playersMeta, lastModified) {
         exportRow.appendChild(exportBtn);
         panel.appendChild(exportRow);
         exportBtn.addEventListener('click', () => {
-            exportRemainingMatchesImage(params.LeagueTitle || '', remaining, params.CustomFlags, playersMeta, lastModified);
+            const sourceTable = panel.querySelector('.rem-b6a-wrap table');
+            exportRemainingMatchesImage(sourceTable, params.LeagueTitle || '', formatAsOf(lastModified));
         });
     }
     const wrap = document.createElement('div');
@@ -1223,7 +1225,8 @@ function buildB6bPanel(panel, ctx, remaining, lastModified) {
     panel.appendChild(wrap);
 
     exportBtn.addEventListener('click', () => {
-        exportB6bImage(params.LeagueTitle || ctx.leagueId, playerRemainingData, maxRem, minRem, halfThreshold, hasAnyBelowHalf, maxGames, lastModified);
+        const sourceTable = panel.querySelector('.rem-b6b-wrap table');
+        exportB6bImage(sourceTable, params.LeagueTitle || ctx.leagueId, formatAsOf(lastModified));
     });
 }
 
@@ -1300,7 +1303,8 @@ function buildB6cPanel(panel, ctx, remaining, lastModified) {
             <div class="rem-b6c-wrap">${buildB6cTableHtml(opponents, params.CustomFlags, playersMeta)}</div>`;
 
         result.querySelector('#rem-b6c-export-btn').addEventListener('click', () => {
-            exportB6cImage(title, player, opponents, params.CustomFlags, playersMeta, lastModified);
+            const sourceTable = result.querySelector('.rem-b6c-wrap table');
+            exportB6cImage(sourceTable, title, player, formatAsOf(lastModified));
         });
     }
 
@@ -1345,156 +1349,37 @@ function buildRemainingListHtml(matches, customFlags, playersMeta) {
     return html;
 }
 
-async function exportRemainingMatchesImage(title, matches, customFlags, playersMeta, lastModified) {
-    if (typeof html2canvas === 'undefined') {
-        alert('html2canvas library not loaded.');
-        return;
-    }
-    const bodyStyle = getComputedStyle(document.body);
-    const asOf = lastModified
-        ? `As of ${new Date(lastModified).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
-        : '';
-    const wrap = document.createElement('div');
-    wrap.style.cssText = `position:fixed;left:-10000px;top:0;padding:24px;background:${bodyStyle.backgroundColor};color:${bodyStyle.color};font-family:${bodyStyle.fontFamily};min-width:560px;`;
-    wrap.innerHTML = `
-        <h3 style="margin:0 0 4px 0;font-size:20px;">${escapeHtml(title)}</h3>
-        <div style="margin:0 0 12px 0;font-size:13px;opacity:0.75">Remaining Matches (${matches.length})${asOf ? ' \u2014 ' + asOf : ''}</div>
-        ${buildRemainingListHtml(matches, customFlags, playersMeta)}`;
-    document.body.appendChild(wrap);
-    appendExportCredit(wrap);
-    try {
-        if (document.fonts && document.fonts.ready) await document.fonts.ready;
-        const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: null, useCORS: true });
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${title.replace(/\s+/g, '_')}_Remaining.png`;
-        a.click();
-        URL.revokeObjectURL(url);
-    } finally {
-        wrap.remove();
-    }
+// "As of <date>" subtitle suffix shared by B6a/B6b/B6c exports.
+function formatAsOf(lastModified) {
+    if (!lastModified) return '';
+    const d = new Date(lastModified);
+    if (isNaN(d)) return '';
+    return `As of ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 }
 
-async function exportB6bImage(title, playerRemainingData, maxRem, minRem, halfThreshold, hasAnyBelowHalf, maxGames, lastModified) {
-    if (typeof html2canvas === 'undefined') {
-        alert('html2canvas library not loaded.');
-        return;
-    }
-    const bodyStyle = getComputedStyle(document.body);
-    const docStyle = getComputedStyle(document.documentElement);
-    const bgColor = bodyStyle.backgroundColor;
-    const textColor = bodyStyle.color;
-    const borderColor = docStyle.getPropertyValue('--color-border').trim() || '#e2e4e9';
-    const headerBg = docStyle.getPropertyValue('--header-bg').trim() || '#1e293b';
-    const headerText = docStyle.getPropertyValue('--header-text').trim() || '#f8fafc';
-    const mutedColor = docStyle.getPropertyValue('--color-text-muted').trim() || '#6b6d84';
-    const asOf = lastModified
-        ? `As of ${new Date(lastModified).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
-        : '';
+// Thin wrappers around the shared exportTableImage() helper. The dashboard
+// exports differ only in their subtitle and filename \u2014 everything else
+// (clone + sanitise + width policy + phone cap) is identical.
 
-    const wrap = document.createElement('div');
-    wrap.style.cssText = `position:fixed;left:-10000px;top:0;padding:24px;background:${bgColor};color:${textColor};font-family:${bodyStyle.fontFamily};min-width:380px;`;
-
-    let html = `<h3 style="margin:0 0 4px 0;font-size:18px;color:${textColor}">${escapeHtml(title)}</h3>`
-        + `<div style="margin:0 0 12px 0;font-size:13px;color:${mutedColor}">Remaining Matches Report${asOf ? ' \u2014 ' + asOf : ''}</div>`
-        + `<table style="width:100%;border-collapse:collapse;font-size:14px;">`
-        + `<thead><tr>`
-        + `<th style="text-align:left;padding:7px 12px;background:${headerBg};color:${headerText}">Player</th>`
-        + `<th style="text-align:center;padding:7px 12px;background:${headerBg};color:${headerText}">Remaining / Total</th>`
-        + `</tr></thead><tbody>`;
-
-    let separatorInserted = false;
-    for (const p of playerRemainingData) {
-        if (!separatorInserted && hasAnyBelowHalf && p.games > halfThreshold) {
-            html += `<tr><td colspan="2" style="padding:3px 12px;border-top:2px dashed ${borderColor};font-size:11px;color:${mutedColor};text-align:center;font-style:italic;font-weight:700;">&#8212; played &ge; half &#8212;</td></tr>`;
-            separatorInserted = true;
-        }
-        const isBold = !separatorInserted;
-        const color = colorForValueInverted(p.remaining, minRem, maxRem);
-        const rowBorder = `border-bottom:1px solid ${borderColor}`;
-        const boldStyle = isBold ? 'font-weight:700' : '';
-        html += `<tr>`
-            + `<td style="text-align:left;padding:6px 12px;${rowBorder};${boldStyle}">`
-            + `<img src="${flagUrl(p.flagCode)}" alt="${p.flagCode}" style="height:12px;border-radius:2px;vertical-align:middle;margin-right:6px">`
-            + `${escapeHtml(p.player)}</td>`
-            + `<td style="text-align:center;padding:6px 12px;${rowBorder};${boldStyle};color:${color}">${p.remaining} / ${maxGames}</td>`
-            + `</tr>`;
-    }
-    html += '</tbody></table>';
-    wrap.innerHTML = html;
-    document.body.appendChild(wrap);
-    appendExportCredit(wrap);
-    try {
-        if (document.fonts && document.fonts.ready) await document.fonts.ready;
-        const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: null, useCORS: true });
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${title.replace(/\s+/g, '_')}_Remaining_Report.png`;
-        a.click();
-        URL.revokeObjectURL(url);
-    } finally {
-        wrap.remove();
-    }
+function exportRemainingMatchesImage(sourceTable, title, asOf) {
+    if (!sourceTable) return;
+    const count = sourceTable.querySelectorAll('tbody tr').length;
+    const subtitle = `Remaining Matches (${count})${asOf ? ' \u2014 ' + asOf : ''}`;
+    return exportTableImage({ sourceTable, title, subtitle, filename: `${title}_Remaining` });
 }
 
-async function exportB6cImage(title, player, opponents, customFlags, playersMeta, lastModified) {
-    if (typeof html2canvas === 'undefined') {
-        alert('html2canvas library not loaded.');
-        return;
-    }
-    const bodyStyle = getComputedStyle(document.body);
-    const docStyle = getComputedStyle(document.documentElement);
-    const bgColor = bodyStyle.backgroundColor;
-    const textColor = bodyStyle.color;
-    const borderColor = docStyle.getPropertyValue('--color-border').trim() || '#e2e4e9';
-    const headerBg = docStyle.getPropertyValue('--header-bg').trim() || '#1e293b';
-    const headerText = docStyle.getPropertyValue('--header-text').trim() || '#f8fafc';
-    const mutedColor = docStyle.getPropertyValue('--color-text-muted').trim() || '#6b6d84';
-    const asOf = lastModified
-        ? `As of ${new Date(lastModified).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
-        : '';
+function exportB6bImage(sourceTable, title, asOf) {
+    if (!sourceTable) return;
+    const subtitle = `Remaining Matches Report${asOf ? ' \u2014 ' + asOf : ''}`;
+    return exportTableImage({ sourceTable, title, subtitle, filename: `${title}_Remaining_Report` });
+}
 
-    const wrap = document.createElement('div');
-    wrap.style.cssText = `position:fixed;left:-10000px;top:0;padding:24px;background:${bgColor};color:${textColor};font-family:${bodyStyle.fontFamily};min-width:280px;`;
-
-    let html = `<h3 style="margin:0 0 4px 0;font-size:18px;color:${textColor}">${escapeHtml(title)}</h3>`
-        + `<div style="margin:0 0 4px 0;font-size:14px;color:${textColor};font-weight:700">${escapeHtml(player)}</div>`
-        + `<div style="margin:0 0 12px 0;font-size:12px;color:${mutedColor}">${opponents.length} remaining match${opponents.length !== 1 ? 'es' : ''}${asOf ? ' \u2014 ' + asOf : ''}</div>`;
-
-    if (opponents.length === 0) {
-        html += `<div style="color:${mutedColor};font-size:13px">All matches played!</div>`;
-    } else {
-        html += `<table style="width:100%;border-collapse:collapse;font-size:14px;">`
-            + `<thead><tr><th style="text-align:left;padding:7px 12px;background:${headerBg};color:${headerText}">Unplayed Opponent</th></tr></thead><tbody>`;
-        for (const opp of opponents) {
-            const flagCode = getFlagCode(opp, customFlags);
-            html += `<tr><td style="text-align:left;padding:6px 12px;border-bottom:1px solid ${borderColor}">`
-                + `<img src="${flagUrl(flagCode)}" alt="${flagCode}" style="height:12px;border-radius:2px;vertical-align:middle;margin-right:6px">`
-                + `${escapeHtml(opp)}</td></tr>`;
-        }
-        html += '</tbody></table>';
-    }
-
-    wrap.innerHTML = html;
-    document.body.appendChild(wrap);
-    appendExportCredit(wrap);
-    try {
-        if (document.fonts && document.fonts.ready) await document.fonts.ready;
-        const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: null, useCORS: true });
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${title.replace(/\s+/g, '_')}_${player.replace(/\s+/g, '_')}_Remaining.png`;
-        a.click();
-        URL.revokeObjectURL(url);
-    } finally {
-        wrap.remove();
-    }
+function exportB6cImage(sourceTable, title, player, asOf) {
+    if (!sourceTable) return;
+    const count = sourceTable.querySelectorAll('tbody tr').length;
+    const matchesWord = count === 1 ? 'match' : 'matches';
+    const subtitle = `${player} \u2014 ${count} remaining ${matchesWord}${asOf ? ' \u2014 ' + asOf : ''}`;
+    return exportTableImage({ sourceTable, title, subtitle, filename: `${title}_${player}_Remaining` });
 }
 
 // ---------- F4 ----------

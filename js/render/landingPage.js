@@ -13,7 +13,8 @@ import { buildAllTimeRankings } from '../compute/allTimeRankings.js';
 import { colorForValue } from '../compute/colorScale.js';
 import { luckBellCurveSvg } from './luckBellCurve.js';
 import { loadLandingSettings } from '../data/leagueLoader.js';
-import { dashboardUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueUrl, thLabel, appendExportCredit } from '../utils/helpers.js';
+import { dashboardUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueUrl, thLabel } from '../utils/helpers.js';
+import { exportTableImage } from '../utils/exportTableImage.js';
 import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatches } from '../compute/matchRecords.js';
 import { luckPercentileStats } from '../compute/luckPercentile.js';
 import { getLevel } from '../compute/rankings.js';
@@ -1033,7 +1034,8 @@ function renderLeaderboards(container, leaderboards) {
             if (!Number.isFinite(maxRows) || maxRows < 1) maxRows = 1;
             const cap = Math.min(25, lb.rows.length);
             if (maxRows > cap) maxRows = cap;
-            exportLeaderboardImage(lb, title, maxRows);
+            const sourceTable = section.querySelector('.leaderboard-mount table');
+            exportLeaderboardImage(sourceTable, title, maxRows);
         });
         // Don't toggle collapsible when interacting with the export controls.
         section.querySelector('.img-export-group').addEventListener('click', e => e.stopPropagation());
@@ -1068,85 +1070,15 @@ function measureLeaderboardStickyCols(wrapper) {
     window.addEventListener('resize', write);
 }
 
-async function exportLeaderboardImage(lb, title, maxRows) {
-    if (typeof html2canvas === 'undefined') {
-        alert('html2canvas library not loaded.');
-        return;
-    }
-
-    const showWinRate = !lb.isUBC;
-    const showAvgPoints = lb.isUBC;
-
-    // Build header
-    let thMonths = lb.months.map(m => `<th scope="col" class="month-col">${m}</th>`).join('');
-    let thExtra = `<th scope="col" class="total-col">Total</th>`;
-    if (showWinRate) thExtra += `<th scope="col">Win Rate</th>`;
-    if (showAvgPoints) thExtra += `<th scope="col">Avg Pts</th>`;
-    thExtra += `<th scope="col">Mean PR</th>`;
-
-    // Build body
-    let bodyHtml = '';
-    const rows = lb.rows.slice(0, maxRows);
-    for (const row of rows) {
-        let rankClass = '';
-        if (row.rank === 1) rankClass = 'rank-gold';
-        else if (row.rank === 2) rankClass = 'rank-silver';
-        else if (row.rank === 3) rankClass = 'rank-bronze';
-
-        const monthCells = lb.months.map(m => {
-            const val = row.monthly[m];
-            return `<td class="month-col">${val != null ? val : '–'}</td>`;
-        }).join('');
-
-        let extraCells = `<td class="total-col">${row.total}</td>`;
-        if (showWinRate) extraCells += `<td>${formatPercent(row.winRate)}</td>`;
-        if (showAvgPoints) extraCells += `<td>${formatNumber(row.avgPoints)}</td>`;
-        extraCells += `<td>${row.meanPR !== null ? formatNumber(row.meanPR) : 'N/A'}</td>`;
-
-        bodyHtml += `
-            <tr class="${rankClass}">
-                <td>${row.rank}</td>
-                <td class="player-cell">
-                    <img class="flag" src="${flagUrl(row.flagCode)}" alt="${row.flagCode}">
-                    ${escapeHtml(row.player)}
-                </td>
-                ${monthCells}
-                ${extraCells}
-            </tr>`;
-    }
-
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:fixed;left:-10000px;top:0;background:#ffffff;padding:24px;font-family:sans-serif;';
-    wrap.innerHTML = `
-        <h3 style="margin:0 0 12px 0;font-size:20px;color:#1e293b;">${escapeHtml(title)}</h3>
-        <div class="leaderboard-table-wrapper" style="max-height:none;overflow:visible">
-            <table class="leaderboard-table font-small" data-mf-table-id="A2">
-                <thead>
-                    <tr>
-                        <th scope="col">#</th>
-                        <th scope="col" class="player-col">Player</th>
-                        ${thMonths}
-                        ${thExtra}
-                    </tr>
-                </thead>
-                <tbody>${bodyHtml}</tbody>
-            </table>
-        </div>`;
-    document.body.appendChild(wrap);
-    appendExportCredit(wrap);
-
-    try {
-        const canvas = await html2canvas(wrap, { scale: 2, backgroundColor: '#ffffff' });
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${title.replace(/\s+/g, '_')}_Top${maxRows}.png`;
-        a.click();
-        URL.revokeObjectURL(url);
-    } finally {
-        wrap.remove();
-    }
+// Thin wrapper around the shared exportTableImage() helper. A2 is the
+// only caller that uses the maxRows option (the "Top N" numeric input).
+function exportLeaderboardImage(sourceTable, title, maxRows) {
+    return exportTableImage({
+        sourceTable,
+        filename: `${title}_Top${maxRows}`,
+        title,
+        maxRows,
+    });
 }
 
 /* ── Show-top-N helper (hides rows beyond N, adds toggle button) ── */
@@ -1630,6 +1562,41 @@ function collectLeagueRecords(typeLeagues) {
     return rows.slice(0, 100);
 }
 
+function collectLeagueWinRateRecords(typeLeagues) {
+    const rows = [];
+    for (const league of typeLeagues) {
+        if (league.params.Running === true) continue;
+        const goldCount   = league.params.GoldCount   ?? 1;
+        const silverCount = league.params.SilverCount ?? 1;
+        const bronzeCount = league.params.BronzeCount ?? 1;
+        const customFlags = league.params.CustomFlags || {};
+
+        const played = league.rankings.filter(r => r.games > 0);
+        const totalPlayers = played.length;
+
+        played.forEach((r, idx) => {
+            const stats = league.statsMap.get(r.player);
+            if (!stats || stats.winRate == null) return;
+            if (_playersMeta[r.player]?.hidden) return;
+            rows.push({
+                player: r.player,
+                winRate: stats.winRate,
+                playerRank: idx + 1,
+                totalPlayers,
+                goldCount,
+                silverCount,
+                bronzeCount,
+                leagueId: league.id,
+                leagueTitle: league.title,
+                date: league.params.IssueDate || '',
+                customFlags
+            });
+        });
+    }
+    rows.sort((a, b) => b.winRate - a.winRate);
+    return rows.slice(0, 100);
+}
+
 function renderLeagueRecordsSection(container, allLeagues, presentTypes) {
     const types = sortPresentTypes(presentTypes).filter(t => t === 'doubling' || t === 'ubc');
     if (types.length === 0) return;
@@ -1653,12 +1620,13 @@ function renderLeagueRecordsSection(container, allLeagues, presentTypes) {
     }).join('');
 
     const panelsHtml = types.map((t, i) => {
+        const winRateRows  = collectLeagueWinRateRecords(leaguesByType[t]);
         const prRows       = collectLeagueRecords(leaguesByType[t]);
         const luckRows     = collectLeagueLuckRecords(leaguesByType[t]);
         const worstRows    = collectLeagueWorstLuckRecords(leaguesByType[t]);
         return `
             <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${t}">
-                ${renderLeagueRecordsPanel(prRows, luckRows, worstRows)}
+                ${renderLeagueRecordsPanel(winRateRows, prRows, luckRows, worstRows)}
             </div>`;
     }).join('');
 
@@ -1797,12 +1765,29 @@ function collectLeagueWorstLuckRecords(typeLeagues) {
     return rows.slice(0, 100);
 }
 
-function renderLeagueRecordsPanel(prRows, luckRows, worstRows) {
+function renderLeagueRecordsPanel(winRateRows, prRows, luckRows, worstRows) {
+    const winRateHtml = winRateRows.map((r, i) => leagueWinRateRecordRow(i + 1, r)).join('');
     const prHtml    = prRows.map((r, i)    => leaguePRRecordRow(i + 1, r)).join('');
     const luckHtml  = luckRows.map((r, i)  => leagueLuckRecordRow(i + 1, r)).join('');
     const worstHtml = worstRows.map((r, i) => leagueLuckRecordRow(i + 1, r)).join('');
     return `
         <div class="match-records-stack">
+            <div class="achv-table-card">
+                <h3>Best Win Rate Appearances</h3>
+                <div class="achv-table-wrapper">
+                    <table class="achv-table league-records-table font-small" data-mf-table-id="A6">
+                        <thead><tr>
+                            <th scope="col">#</th>
+                            <th scope="col">Player</th>
+                            <th scope="col">Win%</th>
+                            <th scope="col">Rank</th>
+                            <th scope="col">League</th>
+                            <th scope="col">Date</th>
+                        </tr></thead>
+                        <tbody>${winRateHtml || '<tr><td colspan="6">No data</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>
             <div class="achv-table-card">
                 <h3>Best PR Appearances</h3>
                 <div class="achv-table-wrapper">
@@ -1871,6 +1856,20 @@ function leaguePRRecordRow(rowRank, r) {
             <td><img class="flag" src="${playerFlag}" alt="flag"> ${playerNameLink(r.player, _playersMeta[r.player])}</td>
             <td>${formatNumber(r.meanPR)}</td>
             <td>${escapeHtml(r.level)}</td>
+            ${leagueRankCell(r)}
+            <td><a class="league-link" href="${leagueUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
+            <td>${formatShortDate(r.date)}</td>
+        </tr>`;
+}
+
+function leagueWinRateRecordRow(rowRank, r) {
+    const playerFlag = flagUrl(getFlagCode(r.player, r.customFlags));
+    const color = colorForValue(r.winRate, 0, 1);
+    return `
+        <tr>
+            <td>${rowRank}</td>
+            <td><img class="flag" src="${playerFlag}" alt="flag"> ${playerNameLink(r.player, _playersMeta[r.player])}</td>
+            <td style="color:${color};font-weight:600;">${formatPercent(r.winRate)}</td>
             ${leagueRankCell(r)}
             <td><a class="league-link" href="${leagueUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
             <td>${formatShortDate(r.date)}</td>

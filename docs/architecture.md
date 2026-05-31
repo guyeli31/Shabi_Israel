@@ -104,7 +104,6 @@ Every `Export Image` flow (PNG download via `html2canvas`) appends the platform 
 | `landingPage.js` | `exportLeaderboardImage()` | offscreen `<div>` |
 | `leaguePage.js` | `exportLeagueTableImage()` | offscreen `<div>` |
 | `dashboardPage.js` | `exportRemainingMatchesImage()`, `exportB6bImage()`, `exportB6cImage()` | offscreen `<div>` |
-| `admin/remainingReport.js` | `downloadReportAsImage()`, `shareReport()` | live `#remaining-report` (credit removed in `finally`) |
 
 The visible UI also shows the same credit on `index.html` only — appended at the end of `renderLandingPage()` via the `.platform-credit` class in `dashboard.css`. League/player pages do **not** show it on screen.
 

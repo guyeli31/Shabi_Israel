@@ -1,0 +1,67 @@
+name: Sync BGStudio
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: scripts
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run BGStudio sync
+        env:
+          BGSTUDIO_USER: ${{ secrets.BGSTUDIO_USER }}
+          BGSTUDIO_PASS: ${{ secrets.BGSTUDIO_PASS }}
+        run: node sync-bgstudio.js
+
+      - name: Upload CSV artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: leaguedata-${{ github.run_id }}
+          path: scripts/out/leaguedata.csv
+          retention-days: 90
+
+      - name: Write job summary
+        if: success()
+        working-directory: ${{ github.workspace }}
+        run: |
+          CSV=scripts/out/leaguedata.csv
+          BYTES=$(wc -c < "$CSV")
+          LINES=$(wc -l < "$CSV")
+          {
+            echo "## BGStudio sync — Shabi Israel"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Status | success |"
+            echo "| Timestamp | \`$(date -u +'%Y-%m-%d %H:%M:%S UTC')\` |"
+            echo "| Run ID | \`${{ github.run_id }}\` |"
+            echo "| CSV size | $BYTES bytes |"
+            echo "| Lines | $LINES |"
+            echo ""
+            echo "### Preview (first 5 lines)"
+            echo ""
+            echo '```csv'
+            head -5 "$CSV"
+            echo '```'
+            echo ""
+            echo "Download the full CSV from the **Artifacts** section above (\`leaguedata-${{ github.run_id }}\`)."
+          } >> "$GITHUB_STEP_SUMMARY"

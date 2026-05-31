@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MF Table Lab</title>
+    <title>Table Lab</title>
     <!-- Project design tokens -->
     <link rel="stylesheet" href="../css/variables.css">
     <link rel="stylesheet" href="../css/typography-tokens.css">
@@ -13,8 +13,10 @@
          Group A table rules in this file are cascade-equal duplicates of mf.css;
          Phase 7 deletes Group A from components.css. -->
     <link rel="stylesheet" href="../css/components.css">
-    <!-- Canonical MF table styles (auto-imports formats/_base/base.css) -->
+    <!-- Canonical MF/SF/exp table styles (each auto-imports formats/_base/base.css) -->
     <link rel="stylesheet" href="./formats/mf/mf.css">
+    <link rel="stylesheet" href="./formats/sf/sf.css">
+    <link rel="stylesheet" href="./formats/exp/exp.css">
     <!-- Lab UI chrome only -->
     <link rel="stylesheet" href="./lab.css">
     <link rel="stylesheet" href="../css/theme-picker.css">
@@ -34,10 +36,14 @@
 
 <header class="lab-header">
     <button class="args-toggle" id="args-toggle" title="Toggle args panel" aria-pressed="false">☰ Args</button>
-    <span class="lab-title">MF Table Lab</span>
+    <span class="lab-title">Table Lab</span>
     <nav class="preset-tabs" role="tablist">
         <button class="preset-tab active" data-preset="A1"  role="tab">A1 — Completed Leagues</button>
         <button class="preset-tab"        data-preset="A2"  role="tab">A2 — Annual Leaderboard</button>
+        <button class="preset-tab"        data-preset="A3"  role="tab">A3 — Achievements (SF)</button>
+        <button class="preset-tab"        data-preset="A4"  role="tab">A4 — PR Leaders (SF)</button>
+        <button class="preset-tab"        data-preset="A5"  role="tab">A5 — Match Records (SF)</button>
+        <button class="preset-tab"        data-preset="A6"  role="tab">A6 — League Records (SF)</button>
         <button class="preset-tab"        data-preset="B1"  role="tab">B1 — Prizes</button>
         <button class="preset-tab"        data-preset="B2"  role="tab">B2 — Historical</button>
         <button class="preset-tab"        data-preset="B3"  role="tab">B3 — Predictor</button>
@@ -46,9 +52,11 @@
         <button class="preset-tab"        data-preset="B6a" role="tab">B6a — Remaining</button>
         <button class="preset-tab"        data-preset="B6b" role="tab">B6b — Per Player</button>
         <button class="preset-tab"        data-preset="B6c" role="tab">B6c — Unplayed</button>
+        <button class="preset-tab"        data-preset="C0"  role="tab">C0 — Expandable rank (exp)</button>
         <button class="preset-tab"        data-preset="C1"  role="tab">C1 — Leagues</button>
         <button class="preset-tab"        data-preset="C2"  role="tab">C2 — Match History</button>
         <button class="preset-tab"        data-preset="C3"  role="tab">C3 — Matchup</button>
+        <button class="preset-tab"        data-preset="C4"  role="tab">C4 — Player Match Records (SF)</button>
         <button class="preset-tab"        data-preset="D"   role="tab">D — League Table</button>
         <button class="preset-tab"        data-preset="E"   role="tab">E — Match History</button>
     </nav>

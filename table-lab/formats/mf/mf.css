@@ -123,7 +123,6 @@ tr.avg-row td {
     border-top: 2px solid var(--color-avg-border);
     box-shadow: none;
     padding: 0.45em 0.5em;
-    font-weight: 900;
 }
 
 tr.stat-row {

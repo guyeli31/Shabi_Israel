@@ -426,3 +426,6 @@ v2/playwright-report/
 v2/playwright/.cache/
 v2/src/tools/typoEditor/workspace.css
 v2/tests/visual/__diff__/
+
+# CI sync scripts — local-only output
+scripts/out/

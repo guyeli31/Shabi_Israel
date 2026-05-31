@@ -7,6 +7,8 @@
  */
 
 import { mountMFTable } from './formats/mf/mount.js';
+import { mountSFTable } from './formats/sf/mount.js';
+import { mountExpTable } from './formats/exp/mount.js';
 import { loadAllPresetData } from './lab-loader.js';
 import { initThemePicker } from '../js/render/themePicker.js';
 
@@ -26,6 +28,10 @@ const ARG_DOCS_BASE = {
     flagSize:         'CSS height for flag images inside the table. null = default (16px).',
     getRowClass:      'Function (row, index) → CSS class string. Adds a per-row class for special styling (e.g. unplayed matches). null = no extra class.',
     summaryRow:       'Append an Averages row (tr.avg-row) at the bottom, sticky to the bottom of the scroll area.',
+    tableId:          'Stable id used for data-mf-table-id on mountPoint + <table>. Lets external CSS / typography editor target the table.',
+    title:            'Optional heading rendered inside the SF card, above the table. null = no heading element.',
+    selfKey:          'Field name (on row objects) whose value identifies the viewer\'s "self" row. With selfValue, drives the exp self-highlight.',
+    selfValue:        'Value to match against row[selfKey]. The matching row gets the .pg-rank-self class and is scroll-centred on mount.',
 };
 
 // ─────────────────────────────────────────────
@@ -34,6 +40,110 @@ const ARG_DOCS_BASE = {
 // ─────────────────────────────────────────────
 
 export const PRESETS = {
+    A3: {
+        label: 'A3 — Achievements',
+        format: 'sf',
+        args: {
+            tableId:    'A3',
+            data: [], cols: [],
+            title:      null,
+            fontClass:  'font-small',
+            stickyCols: 0,
+            showTopN:   5,
+        },
+        argDocs: {
+            stickyCols: '0 — Achievement cards are narrow (# / Player / metric). Nothing needs pinning.',
+            showTopN:   'Top 5 shown by default — matches the achievement card density on index.html.',
+            title:      'Card heading ("🏆 Total PR") — set per card by the calling page.',
+        },
+    },
+
+    A4: {
+        label: 'A4 — PR Leaders',
+        format: 'sf',
+        args: {
+            tableId:    'A4',
+            data: [], cols: [],
+            title:      null,
+            fontClass:  'font-small',
+            stickyCols: 1,
+            showTopN:   10,
+        },
+        argDocs: {
+            stickyCols: '1 — # column pinned while scrolling right through Player / PR / Level.',
+            showTopN:   'Top 10 leaders shown by default; "Show all" reveals the rest.',
+        },
+    },
+
+    A5: {
+        label: 'A5 — Match Records',
+        format: 'sf',
+        args: {
+            tableId:    'A5',
+            data: [], cols: [],
+            title:      null,
+            fontClass:  'font-small',
+            stickyCols: 2,
+            showTopN:   10,
+        },
+        argDocs: {
+            stickyCols: '2 — # and Player pinned so you always know who the record belongs to while scrolling right.',
+            showTopN:   'Top 10 records shown by default; collection is capped at 100.',
+        },
+    },
+
+    A6: {
+        label: 'A6 — League Records',
+        format: 'sf',
+        args: {
+            tableId:    'A6',
+            data: [], cols: [],
+            title:      null,
+            fontClass:  'font-small',
+            stickyCols: 2,
+            showTopN:   10,
+        },
+        argDocs: {
+            stickyCols: '2 — # and Player pinned (same rationale as A5).',
+            showTopN:   'Top 10 appearances; collection is capped at 100.',
+        },
+    },
+
+    C0: {
+        label: 'C0 — Expandable rank',
+        format: 'exp',
+        args: {
+            tableId:    'C0',
+            data: [], cols: [],
+            selfKey:    'name',
+            selfValue:  null,
+            fontClass:  'font-small',
+            stickyCols: 2,
+        },
+        argDocs: {
+            stickyCols: '2 — # and Player pinned; col-2 offset measured at runtime via --c0-col1-w.',
+            selfKey:    'name — the rank rows carry { rank, name, leagues, value }.',
+            selfValue:  'Set to the viewer player name at load time. Drives the highlighted "self" row.',
+        },
+    },
+
+    C4: {
+        label: 'C4 — Player Match Records',
+        format: 'sf',
+        args: {
+            tableId:    'C4',
+            data: [], cols: [],
+            title:      null,
+            fontClass:  'font-small',
+            stickyCols: 1,
+            showTopN:   5,
+        },
+        argDocs: {
+            stickyCols: '1 — # column pinned. C4 has no Player column (the page is already player-scoped).',
+            showTopN:   'Top 5 records shown by default — matches the player-general page default.',
+        },
+    },
+
     A1: {
         label: 'A1 — Completed Leagues',
         args: {
@@ -340,24 +450,39 @@ const argsPanel  = document.getElementById('args-panel');
 function renderPreset(key) {
     const preset = PRESETS[key];
     if (!preset) return;
-    // mountMFTable clears mountPoint and rebuilds everything internally
-    mountMFTable(mountPoint, preset.args);
-    // Mobile browsers (iOS Safari) drop font-style on compositor-promoted sticky cells.
-    // applyStickyLeftCols sets position:sticky via inline JS after initial paint, which
-    // can break CSS cascade for text properties in compositing layers.
-    // Fix: set font-style directly as inline style on each sticky cell.
-    // Scoped to presets that explicitly request italic (B4 only currently).
-    // Safe because B4 has no sortable columns — tbody never rebuilds.
-    if (preset.args.fontItalic) {
-        mountPoint.querySelectorAll('td').forEach(td => {
-            if (td.style.position === 'sticky') td.style.fontStyle = 'italic';
-        });
+    mountPoint.className = '';
+    const format = preset.format || 'mf';
+    if (format === 'sf') {
+        mountSFTable(mountPoint, preset.args);
+    } else if (format === 'exp') {
+        // exp tables mount inside a caller-owned .pg-rank-expanded panel.
+        // Recreate that panel inside #mf-mount so the canon CSS chrome applies.
+        mountPoint.innerHTML = '';
+        const panel = document.createElement('div');
+        panel.className = 'pg-rank-expanded';
+        mountPoint.appendChild(panel);
+        mountExpTable(panel, preset.args);
+    } else {
+        // mountMFTable clears mountPoint and rebuilds everything internally
+        mountMFTable(mountPoint, preset.args);
+        // Mobile browsers (iOS Safari) drop font-style on compositor-promoted sticky cells.
+        // applyStickyLeftCols sets position:sticky via inline JS after initial paint, which
+        // can break CSS cascade for text properties in compositing layers.
+        // Fix: set font-style directly as inline style on each sticky cell.
+        // Scoped to presets that explicitly request italic (B4 only currently).
+        // Safe because B4 has no sortable columns — tbody never rebuilds.
+        if (preset.args.fontItalic) {
+            mountPoint.querySelectorAll('td').forEach(td => {
+                if (td.style.position === 'sticky') td.style.fontStyle = 'italic';
+            });
+        }
     }
     renderArgsPanel(preset);
 }
 
 function renderArgsPanel(preset) {
     const { args, argDocs } = preset;
+    const format = preset.format || 'mf';
 
     function argRow(key, value, keyLabel) {
         const docBase  = ARG_DOCS_BASE[key] || '';
@@ -394,17 +519,34 @@ function renderArgsPanel(preset) {
 
     const rows = [];
 
-    // ── Simple values (top) ────────────────────
-    const simpleKeys = [
-        ['fontClass',  'fontClass'],
-        ['stickyCols', 'stickyCols'],
-        ['medalRows',  'medalRows'],
-        ['showTopN',   'showTopN'],
-        ['mfWidth',    '--mf-width'],
-        ['mfMb',       '--mf-mb'],
-        ['mfBg',       '--mf-bg'],
-        ['flagSize',   'flagSize'],
-    ];
+    // ── Simple values (top) — per format ────────
+    const SIMPLE_KEYS = {
+        mf: [
+            ['fontClass',  'fontClass'],
+            ['stickyCols', 'stickyCols'],
+            ['medalRows',  'medalRows'],
+            ['showTopN',   'showTopN'],
+            ['mfWidth',    '--mf-width'],
+            ['mfMb',       '--mf-mb'],
+            ['mfBg',       '--mf-bg'],
+            ['flagSize',   'flagSize'],
+        ],
+        sf: [
+            ['tableId',    'tableId'],
+            ['title',      'title'],
+            ['fontClass',  'fontClass'],
+            ['stickyCols', 'stickyCols'],
+            ['showTopN',   'showTopN'],
+        ],
+        exp: [
+            ['tableId',    'tableId'],
+            ['fontClass',  'fontClass'],
+            ['stickyCols', 'stickyCols'],
+            ['selfKey',    'selfKey'],
+            ['selfValue',  'selfValue'],
+        ],
+    };
+    const simpleKeys = SIMPLE_KEYS[format] || SIMPLE_KEYS.mf;
 
     for (const [key, label] of simpleKeys) {
         if (key === 'flagSize' && !('flagSize' in args)) continue;
@@ -417,9 +559,11 @@ function renderArgsPanel(preset) {
         }
     }
 
-    // ── Functions (bottom) ─────────────────────
-    rows.push(fnRow('getRowClass',     args.getRowClass));
-    rows.push(fnRow('buildSummaryRow', args.buildSummaryRow));
+    // ── Functions (bottom) — MF only ───────────
+    if (format === 'mf') {
+        rows.push(fnRow('getRowClass',     args.getRowClass));
+        rows.push(fnRow('buildSummaryRow', args.buildSummaryRow));
+    }
 
     argsPanel.innerHTML = `<h2 class="args-title">Arguments</h2>${rows.join('')}`;
 }
@@ -444,12 +588,22 @@ argsPanel.innerHTML  = '<p style="color:var(--color-text-muted);font-size:0.85re
 mountPoint.innerHTML = '<p style="color:var(--color-text-muted);font-size:0.85rem;padding:var(--space-xl)">Loading league data…</p>';
 
 loadAllPresetData().then(loaded => {
-    const allKeys = ['A1', 'A2', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6a', 'B6b', 'B6c', 'C1', 'C2', 'C3', 'D', 'E'];
+    const allKeys = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6',
+                     'B1', 'B2', 'B3', 'B4', 'B5', 'B6a', 'B6b', 'B6c',
+                     'C0', 'C1', 'C2', 'C3', 'C4', 'D', 'E'];
     for (const key of allKeys) {
-        if (!loaded[key]) continue;
-        const { data, cols, buildSummaryRow, getRowClass, medalCounts } = loaded[key];
-        Object.assign(PRESETS[key].args, { data, cols, buildSummaryRow, getRowClass,
-            ...(medalCounts ? { medalCounts } : {}) });
+        if (!loaded[key] || !PRESETS[key]) continue;
+        const { data, cols, buildSummaryRow, getRowClass, medalCounts,
+                title, selfKey, selfValue } = loaded[key];
+        Object.assign(PRESETS[key].args, {
+            data, cols,
+            ...(buildSummaryRow ? { buildSummaryRow } : {}),
+            ...(getRowClass     ? { getRowClass }     : {}),
+            ...(medalCounts     ? { medalCounts }     : {}),
+            ...(title != null   ? { title }           : {}),
+            ...(selfKey  != null ? { selfKey }  : {}),
+            ...(selfValue != null ? { selfValue } : {}),
+        });
     }
 
     // Update tab labels with actual league / player names
@@ -466,9 +620,11 @@ loadAllPresetData().then(loaded => {
     if (loaded.B6a?.leagueTitle) setTab('B6a', `B6a — Remaining (${loaded.B6a.leagueTitle})`);
     if (loaded.B6b?.leagueTitle) setTab('B6b', `B6b — Per Player (${loaded.B6b.leagueTitle})`);
     if (loaded.B6c?.playerName)  setTab('B6c', `B6c — ${loaded.B6c.playerName}`);
+    if (loaded.C0?.playerName)   setTab('C0',  `C0 — Total PR · ${loaded.C0.playerName}`);
     if (loaded.C1?.playerName)   setTab('C1',  `C1 — ${loaded.C1.playerName}`);
     if (loaded.C2?.playerName)   setTab('C2',  `C2 — ${loaded.C2.playerName}`);
     if (loaded.C3?.playerName && loaded.C3?.opponent) setTab('C3', `C3 — ${loaded.C3.playerName} vs ${loaded.C3.opponent}`);
+    if (loaded.C4?.playerName)   setTab('C4',  `C4 — ${loaded.C4.playerName}`);
     if (loaded.D.leagueTitle)    setTab('D',   `D — ${loaded.D.leagueTitle}`);
     if (loaded.E.playerName)     setTab('E',   `E — ${loaded.E.playerName}`);
 
