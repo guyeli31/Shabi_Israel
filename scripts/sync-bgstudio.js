@@ -24,6 +24,11 @@ try {
   await page.goto(SITE_URL);
   await page.waitForLoadState('domcontentloaded');
 
+  console.log('→ Injecting CSS to suppress intro/news dialogs');
+  await page.addStyleTag({
+    content: '#introdialog, .introdialog { display: none !important; }',
+  });
+
   console.log('→ Opening login form');
   await page.locator('button:has-text("Login"):not(.dialogbutton)').click();
 
@@ -36,27 +41,12 @@ try {
 
   await page.getByRole('columnheader', { name: 'Live matches' }).waitFor({ timeout: 15000 });
 
-  console.log('→ Dismissing post-login news/welcome modal if present');
-  await page.keyboard.press('Escape').catch(() => {});
-  await page.waitForTimeout(400);
+  console.log('→ Ensuring intro/news dialog stays hidden');
   await page.evaluate(() => {
-    const hide = (el) => { if (el) el.style.display = 'none'; };
-    document.querySelectorAll('*').forEach((el) => {
-      const t = (el.textContent || '').slice(0, 200);
-      if (/Welcome (back|to Heroes)|News for you today/.test(t)) {
-        let cur = el;
-        for (let i = 0; i < 8 && cur && cur.tagName !== 'BODY'; i++) {
-          const cs = getComputedStyle(cur);
-          if (cs.position === 'fixed' || cs.position === 'absolute' || parseInt(cs.zIndex || '0', 10) > 0) {
-            hide(cur);
-            return;
-          }
-          cur = cur.parentElement;
-        }
-      }
+    document.querySelectorAll('#introdialog, .introdialog').forEach((el) => {
+      el.style.setProperty('display', 'none', 'important');
     });
   });
-  await page.waitForTimeout(200);
 
   console.log('→ Switching to Tournaments tab');
   await page.locator('th').filter({ hasText: /^\s*Tournaments\s*$/ }).first().click({ timeout: 10000 });
