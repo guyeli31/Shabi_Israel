@@ -43,10 +43,11 @@ try {
   await page.locator('tr').filter({ hasText: 'Leagues' }).first().waitFor({ timeout: 10000 });
 
   console.log('→ Opening Leagues');
-  await page.locator('tr').filter({ hasText: 'Leagues' }).locator('button').first().click();
+  await page.locator('tr').filter({ hasText: 'Leagues' }).locator('.button.tablebutton').first().click();
 
   console.log(`→ Opening league "${LEAGUE_NAME}"`);
-  await page.getByRole('button', { name: LEAGUE_NAME, exact: true }).first().click({ timeout: 15000 });
+  const leagueBtn = page.locator('button').filter({ hasText: new RegExp(`^\\s*${LEAGUE_NAME}\\s*$`) });
+  await leagueBtn.first().click({ timeout: 15000 });
 
   await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
 
@@ -70,6 +71,14 @@ try {
   console.log(`✓ Saved to ${OUTPUT_PATH}`);
 } catch (err) {
   console.error('✗ Sync failed:', err.message);
+  try {
+    const shotPath = OUTPUT_PATH.replace(/leaguedata\.csv$/, 'failure.png');
+    await mkdir(dirname(shotPath), { recursive: true });
+    await page.screenshot({ path: shotPath, fullPage: true });
+    console.error(`✗ Saved failure screenshot to ${shotPath}`);
+  } catch (shotErr) {
+    console.error('✗ Could not capture failure screenshot:', shotErr.message);
+  }
   process.exitCode = 1;
 } finally {
   await browser.close();
