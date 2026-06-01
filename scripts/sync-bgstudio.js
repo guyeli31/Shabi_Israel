@@ -119,45 +119,27 @@ try {
 
   await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
 
-  console.log('→ Instrumenting WebSocket for send/receive tracing');
-  await page.evaluate(() => {
-    window.__sent = [];
-    window.__recv = [];
-    if (pq && pq.j) {
-      const origSend = pq.j.send.bind(pq.j);
-      pq.j.send = function (data) {
-        try {
-          window.__sent.push({
-            t: Math.round(performance.now()),
-            len: data ? data.length : 0,
-            sample: typeof data === 'string' ? data.slice(0, 80) : '(binary)',
-          });
-        } catch {}
-        return origSend(data);
-      };
-      pq.j.addEventListener('message', (ev) => {
-        try {
-          window.__recv.push({
-            t: Math.round(performance.now()),
-            len: ev.data ? ev.data.length : 0,
-            sample: typeof ev.data === 'string' ? ev.data.slice(0, 80) : '(binary)',
-          });
-        } catch {}
-      });
+  console.log('→ Waiting for league data (FL[RG]) to populate');
+  const flReady = await page.evaluate(async () => {
+    const T0 = performance.now();
+    const trace = [];
+    while (performance.now() - T0 < 15000) {
+      const rg = typeof FL !== 'undefined' && FL ? FL[typeof RG !== 'undefined' ? RG : 'RG'] : undefined;
+      const t = Math.round(performance.now() - T0);
+      if (trace.length === 0 || trace[trace.length - 1].rg !== rg) trace.push({ t, rg });
+      if (typeof rg === 'number' && rg > 0) return { ok: true, rg, t, trace };
+      await new Promise((r) => setTimeout(r, 200));
     }
+    return { ok: false, trace, t: 15000 };
   });
+  console.log(`  FL trace: ${JSON.stringify(flReady.trace)}`);
+  if (!flReady.ok) {
+    throw new Error('FL[RG] never populated within 15s after league click');
+  }
+  console.log(`  FL[RG] = ${flReady.rg} (rounds) — ready after ${flReady.t}ms`);
 
   console.log('→ Triggering Export results (lg(622))');
   await page.locator('button:has-text("Export results")').click();
-  await page.waitForTimeout(5000);
-
-  const activity = await page.evaluate(() => ({
-    sent: window.__sent || [],
-    recv: window.__recv || [],
-  }));
-  console.log(`  WS sent: ${activity.sent.length} messages, received: ${activity.recv.length} messages`);
-  console.log(`  Sent samples: ${JSON.stringify(activity.sent.slice(0, 5))}`);
-  console.log(`  Recv samples: ${JSON.stringify(activity.recv.slice(0, 5))}`);
 
   console.log('→ Polling #lgexport textarea until data stabilises');
   const csv = await page.evaluate(async () => {
