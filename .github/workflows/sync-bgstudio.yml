@@ -63,8 +63,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           CSV=scripts/out/leaguedata.csv
-          BYTES=$(wc -c < "$CSV")
-          LINES=$(wc -l < "$CSV")
+          PLAYERS=scripts/out/players.json
           {
             echo "## BGStudio sync — Shabi Israel"
             echo ""
@@ -73,14 +72,27 @@ jobs:
             echo "| Status | success |"
             echo "| Timestamp | \`$(date -u +'%Y-%m-%d %H:%M:%S UTC')\` |"
             echo "| Run ID | \`${{ github.run_id }}\` |"
-            echo "| CSV size | $BYTES bytes |"
-            echo "| Lines | $LINES |"
+            if [ -f "$CSV" ]; then
+              echo "| CSV size | $(wc -c < "$CSV") bytes |"
+              echo "| Lines | $(wc -l < "$CSV") |"
+            else
+              echo "| CSV | _not produced (empty league?)_ |"
+            fi
+            if [ -f "$PLAYERS" ]; then
+              echo "| Players | $(grep -c '"username"' "$PLAYERS") |"
+            fi
+            if [ -d scripts/out/new_flags ]; then
+              NEW_FLAGS=$(ls scripts/out/new_flags/ 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
+              [ -n "$NEW_FLAGS" ] && echo "| New flags | \`$NEW_FLAGS\` |"
+            fi
             echo ""
-            echo "### Preview (first 5 lines)"
-            echo ""
-            echo '```csv'
-            head -5 "$CSV"
-            echo '```'
-            echo ""
-            echo "Download the full CSV from the **Artifacts** section above (\`leaguedata-${{ github.run_id }}\`)."
+            if [ -f "$CSV" ]; then
+              echo "### CSV preview (first 5 lines)"
+              echo ""
+              echo '```csv'
+              head -5 "$CSV"
+              echo '```'
+              echo ""
+            fi
+            echo "Download from the **Artifacts** section above (\`leaguedata-${{ github.run_id }}\`)."
           } >> "$GITHUB_STEP_SUMMARY"

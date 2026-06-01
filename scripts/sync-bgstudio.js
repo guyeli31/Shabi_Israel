@@ -139,6 +139,80 @@ try {
   }
   console.log(`  FL[RG] = ${flReady.rg} (rounds) — ready after ${flReady.t}ms`);
 
+  console.log('→ Extracting player roster (DL) for players.json');
+  const players = await page.evaluate(() => {
+    if (typeof DL === 'undefined' || !Array.isArray(DL)) return null;
+    return DL.map((p) => ({ username: p.username, fl: p.fl, cname: p.cname }));
+  });
+  if (!players || players.length === 0) {
+    console.warn('  DL not available or empty — skipping players.json');
+  } else {
+    const playersPath = resolve(dirname(OUTPUT_PATH), 'players.json');
+    await mkdir(dirname(playersPath), { recursive: true });
+    await writeFile(playersPath, JSON.stringify(players, null, 2) + '\n', 'utf8');
+    console.log(`✓ Wrote ${players.length} players to ${playersPath}`);
+
+    const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+    const flagsDir = join(repoRoot, 'assets', 'flags');
+    let existing = new Set();
+    try {
+      const entries = await readdir(flagsDir);
+      existing = new Set(entries.filter((f) => f.endsWith('.png')).map((f) => f.replace(/\.png$/i, '').toUpperCase()));
+    } catch {
+      console.warn(`  assets/flags/ not readable — assuming empty`);
+    }
+    const needed = new Set(players.map((p) => (p.fl || '').toUpperCase()).filter(Boolean));
+    const missing = [...needed].filter((code) => !existing.has(code)).sort();
+
+    const flagUsage = {};
+    for (const p of players) {
+      const code = (p.fl || '').toUpperCase();
+      if (!code) continue;
+      if (!flagUsage[code]) flagUsage[code] = { cname: p.cname || code, users: [] };
+      flagUsage[code].users.push(p.username);
+    }
+
+    console.log('→ Flag analysis');
+    console.log(`  Total players: ${players.length}`);
+    const usageLine = Object.entries(flagUsage)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([code, info]) => `${code} (${info.cname}) × ${info.users.length}`)
+      .join(', ');
+    console.log(`  Flags used: ${usageLine}`);
+    console.log(`  Flags in repo (assets/flags/): ${[...existing].sort().join(', ') || '(none)'}`);
+
+    if (missing.length === 0) {
+      console.log('  ✓ No new flags needed — all player flags already in repo');
+    } else {
+      console.log(`  ⚠ ${missing.length} new flag(s) detected:`);
+      for (const code of missing) {
+        const info = flagUsage[code];
+        console.log(`    • ${code} (${info.cname}) — used by: ${info.users.join(', ')}`);
+      }
+
+      console.log('→ Fetching missing flags via fetch-flag.py');
+      const outFlagsDir = resolve(dirname(OUTPUT_PATH), 'new_flags');
+      await mkdir(outFlagsDir, { recursive: true });
+      const fetchScript = join(repoRoot, 'scripts', 'fetch-flag.py');
+      let okCount = 0;
+      const failed = [];
+      for (const code of missing) {
+        const res = spawnSync('python', [fetchScript, code, outFlagsDir], { encoding: 'utf8' });
+        if (res.status === 0) {
+          console.log(`  ✓ ${code} (${flagUsage[code].cname}): ${res.stdout.trim()}`);
+          okCount++;
+        } else {
+          console.error(`  ✗ ${code} (${flagUsage[code].cname}) failed: ${res.stderr.trim() || res.stdout.trim()}`);
+          failed.push(code);
+        }
+      }
+      console.log(
+        `→ Flag fetch summary: ${okCount}/${missing.length} downloaded to scripts/out/new_flags/` +
+          (failed.length ? ` (failed: ${failed.join(', ')})` : ''),
+      );
+    }
+  }
+
   console.log('→ Triggering Export results (lg(622))');
   await page.locator('button:has-text("Export results")').click();
 
@@ -171,60 +245,14 @@ try {
   console.log(`  Finished after ${csv.elapsed}ms`);
 
   if (!csv.data) {
-    throw new Error('Textarea #lgexport never populated within 30s — WebSocket data flow did not deliver');
-  }
-  const csvText = csv.data;
-
-  const lines = csvText.split('\n').filter(Boolean).length;
-  console.log(`✓ CSV: ${csvText.length} bytes, ${lines} lines`);
-
-  await mkdir(dirname(OUTPUT_PATH), { recursive: true });
-  await writeFile(OUTPUT_PATH, csvText, 'utf8');
-  console.log(`✓ Saved to ${OUTPUT_PATH}`);
-
-  console.log('→ Extracting player roster (DL) for players.json');
-  const players = await page.evaluate(() => {
-    if (typeof DL === 'undefined' || !Array.isArray(DL)) return null;
-    return DL.map((p) => ({ username: p.username, fl: p.fl, cname: p.cname }));
-  });
-  if (!players || players.length === 0) {
-    console.warn('  DL not available or empty — skipping players.json');
+    console.warn('  Textarea never populated within 30s — league may be empty (no rounds played yet). Skipping CSV.');
   } else {
-    const playersPath = resolve(dirname(OUTPUT_PATH), 'players.json');
-    await writeFile(playersPath, JSON.stringify(players, null, 2) + '\n', 'utf8');
-    console.log(`✓ Wrote ${players.length} players to ${playersPath}`);
-
-    const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-    const flagsDir = join(repoRoot, 'assets', 'flags');
-    let existing = new Set();
-    try {
-      const entries = await readdir(flagsDir);
-      existing = new Set(entries.filter((f) => f.endsWith('.png')).map((f) => f.replace(/\.png$/i, '').toUpperCase()));
-    } catch {
-      console.warn(`  assets/flags/ not readable — assuming empty`);
-    }
-    const needed = new Set(players.map((p) => (p.fl || '').toUpperCase()).filter(Boolean));
-    const missing = [...needed].filter((code) => !existing.has(code)).sort();
-    console.log(`  Existing: ${[...existing].sort().join(', ') || '(none)'}`);
-    console.log(`  Needed: ${[...needed].sort().join(', ') || '(none)'}`);
-    console.log(`  Missing: ${missing.join(', ') || '(none)'}`);
-
-    if (missing.length > 0) {
-      const outFlagsDir = resolve(dirname(OUTPUT_PATH), 'new_flags');
-      await mkdir(outFlagsDir, { recursive: true });
-      const fetchScript = join(repoRoot, 'scripts', 'fetch-flag.py');
-      for (const code of missing) {
-        console.log(`  → Fetching flag ${code} via fetch-flag.py`);
-        const res = spawnSync('python', [fetchScript, code, outFlagsDir], {
-          encoding: 'utf8',
-        });
-        if (res.status === 0) {
-          console.log(`    ✓ ${res.stdout.trim()}`);
-        } else {
-          console.error(`    ✗ exit ${res.status}: ${res.stderr.trim() || res.stdout.trim()}`);
-        }
-      }
-    }
+    const csvText = csv.data;
+    const lines = csvText.split('\n').filter(Boolean).length;
+    console.log(`✓ CSV: ${csvText.length} bytes, ${lines} lines`);
+    await mkdir(dirname(OUTPUT_PATH), { recursive: true });
+    await writeFile(OUTPUT_PATH, csvText, 'utf8');
+    console.log(`✓ Saved to ${OUTPUT_PATH}`);
   }
 } catch (err) {
   console.error('✗ Sync failed:', err.message);
