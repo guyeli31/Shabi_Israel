@@ -19,6 +19,32 @@ async function findActiveLeague(leaguesRoot) {
   return null;
 }
 
+async function buildKnownPlayers(leaguesRoot) {
+  const known = new Set();
+  try {
+    const meta = JSON.parse(await readFile(join(leaguesRoot, 'players_metadata.json'), 'utf8'));
+    for (const u of Object.keys(meta)) known.add(u);
+  } catch {}
+  const entries = await readdir(leaguesRoot, { withFileTypes: true });
+  for (const e of entries) {
+    if (!e.isDirectory()) continue;
+    const csvPath = join(leaguesRoot, e.name, 'leaguedata.csv');
+    try {
+      const csv = await readFile(csvPath, 'utf8');
+      const lines = csv.split(/\r?\n/).slice(1);
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const cols = line.split(',');
+        const a = (cols[0] || '').trim();
+        const b = (cols[4] || '').trim();
+        if (a) known.add(a);
+        if (b) known.add(b);
+      }
+    } catch {}
+  }
+  return known;
+}
+
 function computeCustomFlagsDiff(currentCustomFlags, players) {
   const desired = {};
   for (const p of players) {
@@ -181,20 +207,27 @@ try {
 
   await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
 
-  console.log('→ Waiting for league roster (DL) to populate');
+  console.log('→ Waiting for league roster (DL) and round count (FL[RG]) to populate');
   const rosterReady = await page.evaluate(async () => {
+    const HARD_TIMEOUT = 15000;
+    const POST_DL_WAIT = 5000;
     const T0 = performance.now();
     const trace = [];
-    while (performance.now() - T0 < 15000) {
+    let dlSince = null;
+    while (performance.now() - T0 < HARD_TIMEOUT) {
       const dl = typeof DL !== 'undefined' && Array.isArray(DL) ? DL.length : 0;
       const rg = typeof FL !== 'undefined' && FL && typeof RG !== 'undefined' ? FL[RG] : null;
       const t = Math.round(performance.now() - T0);
       const last = trace[trace.length - 1];
       if (!last || last.dl !== dl || last.rg !== rg) trace.push({ t, dl, rg });
-      if (dl > 0) return { ok: true, dl, rg, t, trace };
+      if (dl > 0 && typeof rg === 'number' && rg > 0) return { ok: true, dl, rg, t, trace };
+      if (dl > 0) {
+        if (dlSince === null) dlSince = performance.now();
+        if (performance.now() - dlSince >= POST_DL_WAIT) return { ok: true, dl, rg, t, trace };
+      }
       await new Promise((r) => setTimeout(r, 200));
     }
-    return { ok: false, trace, t: 15000 };
+    return { ok: false, trace, t: HARD_TIMEOUT };
   });
   console.log(`  Trace: ${JSON.stringify(rosterReady.trace)}`);
   if (!rosterReady.ok) {
@@ -233,20 +266,15 @@ try {
     } else {
       console.log(`  Active league: "${active.folder}"`);
 
-      let metadata = {};
-      try {
-        metadata = JSON.parse(await readFile(join(leaguesRoot, 'players_metadata.json'), 'utf8'));
-      } catch {
-        console.warn('  ⚠ players_metadata.json not readable — all players will be reported as new');
-      }
-      const known = new Set(Object.keys(metadata));
+      const known = await buildKnownPlayers(leaguesRoot);
       const newPlayers = players.filter((p) => !known.has(p.username)).map((p) => p.username).sort();
-      console.log('→ Player registry check (leagues/players_metadata.json)');
-      console.log(`  ✓ Known players: ${players.length - newPlayers.length}`);
+      console.log('→ Player registry check (metadata.json + historical CSVs)');
+      console.log(`  Registry size: ${known.size} known players`);
+      console.log(`  ✓ Known players in roster: ${players.length - newPlayers.length}`);
       if (newPlayers.length === 0) {
         console.log('  ✓ No new players — all already in registry');
       } else {
-        console.log(`  ⚠ ${newPlayers.length} NEW player(s) (manual setup needed, not auto-created):`);
+        console.log(`  ⚠ ${newPlayers.length} NEW player(s) (never seen in any past league):`);
         for (const u of newPlayers) console.log(`    • ${u}`);
       }
 
