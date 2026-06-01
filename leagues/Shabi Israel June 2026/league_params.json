@@ -1,0 +1,17 @@
+{
+  "LeagueTitle": "June 2026",
+  "LeagueType": "doubling",
+  "IssueDate": "2026-06-01",
+  "EntryFee": 180,
+  "Prizes": { "Gold": 2200, "Silver": 800, "Bronze": 180 },
+  "BronzeCount": 4,
+  "MatchLength": 7,
+  "Running": true,
+  "CustomFlags": {
+    "Moriarty": "GE",
+	"Hummus": "BE",
+	"rina": "UN"
+  },
+  "GoldCount": 1,
+  "SilverCount": 1
+}
