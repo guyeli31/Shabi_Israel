@@ -40,7 +40,7 @@ function computeCustomFlagsDiff(currentCustomFlags, players) {
 }
 
 const SITE_URL = 'https://heroes3.backgammonstudio.com/';
-const LEAGUE_NAME = 'Shabi Israel';
+const LEAGUE_NAME = 'Final';
 const OUTPUT_PATH = resolve(dirname(fileURLToPath(import.meta.url)), 'out', 'leaguedata.csv');
 
 const username = process.env.BGSTUDIO_USER;
@@ -149,9 +149,35 @@ try {
   console.log('→ Opening Leagues');
   await page.locator('tr').filter({ hasText: 'Leagues' }).locator('.button.tablebutton').first().click();
 
-  console.log(`→ Opening league "${LEAGUE_NAME}"`);
-  const leagueBtn = page.locator('button').filter({ hasText: new RegExp(`^\\s*${LEAGUE_NAME}\\s*$`) });
-  await leagueBtn.first().click({ timeout: 15000 });
+  console.log(`→ Opening league "${LEAGUE_NAME}" (with pagination)`);
+  const MAX_PAGES = 10;
+  const leagueRegex = new RegExp(`^\\s*${LEAGUE_NAME}\\s*$`);
+  let clicked = false;
+  let prevFirstId = null;
+  for (let pageIdx = 0; pageIdx < MAX_PAGES; pageIdx++) {
+    await page.locator('button.tablebutton[onclick^="lg(682,"]').first().waitFor({ timeout: 10000 });
+    const target = page.locator('button.tablebutton[onclick^="lg(682,"]').filter({ hasText: leagueRegex }).first();
+    if ((await target.count()) > 0) {
+      console.log(`  Found on page ${pageIdx + 1}`);
+      await target.click({ timeout: 15000 });
+      clicked = true;
+      break;
+    }
+    const firstId = await page.evaluate(() => {
+      const b = document.querySelector('button.tablebutton[onclick^="lg(682,"]');
+      return b ? b.getAttribute('onclick') : null;
+    });
+    if (firstId === prevFirstId) {
+      throw new Error(`League "${LEAGUE_NAME}" not found — Next button no longer advances at firstId=${firstId}`);
+    }
+    console.log(`  Not on page ${pageIdx + 1} (firstId=${firstId}) — clicking Next`);
+    prevFirstId = firstId;
+    await page.locator('button.tablebutton:has-text("Next")').first().click();
+    await page.waitForTimeout(600);
+  }
+  if (!clicked) {
+    throw new Error(`League "${LEAGUE_NAME}" not found within ${MAX_PAGES} pages`);
+  }
 
   await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
 
