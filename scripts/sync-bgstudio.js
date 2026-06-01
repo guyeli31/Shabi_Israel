@@ -40,7 +40,7 @@ function computeCustomFlagsDiff(currentCustomFlags, players) {
 }
 
 const SITE_URL = 'https://heroes3.backgammonstudio.com/';
-const LEAGUE_NAME = 'Final';
+const LEAGUE_NAME = 'Shabi Israel';
 const OUTPUT_PATH = resolve(dirname(fileURLToPath(import.meta.url)), 'out', 'leaguedata.csv');
 
 const username = process.env.BGSTUDIO_USER;
