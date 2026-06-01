@@ -17,6 +17,14 @@ jobs:
         with:
           node-version: '22'
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Pillow (for fetch-flag.py)
+        run: pip install --quiet Pillow
+        working-directory: ${{ github.workspace }}
+
       - name: Install dependencies
         run: npm install
 
@@ -29,13 +37,17 @@ jobs:
           BGSTUDIO_PASS: ${{ secrets.BGSTUDIO_PASS }}
         run: node sync-bgstudio.js
 
-      - name: Upload CSV artifact
+      - name: Upload league + roster + new flags artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: leaguedata-${{ github.run_id }}
-          path: scripts/out/leaguedata.csv
+          path: |
+            scripts/out/leaguedata.csv
+            scripts/out/players.json
+            scripts/out/new_flags/
           retention-days: 90
+          if-no-files-found: warn
 
       - name: Upload failure screenshot
         if: failure()

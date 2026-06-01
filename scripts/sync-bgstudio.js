@@ -1,7 +1,8 @@
 import { chromium } from 'playwright';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { mkdir, writeFile, readdir, access } from 'node:fs/promises';
+import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 const SITE_URL = 'https://heroes3.backgammonstudio.com/';
 const LEAGUE_NAME = 'Shabi Israel';
@@ -180,6 +181,51 @@ try {
   await mkdir(dirname(OUTPUT_PATH), { recursive: true });
   await writeFile(OUTPUT_PATH, csvText, 'utf8');
   console.log(`✓ Saved to ${OUTPUT_PATH}`);
+
+  console.log('→ Extracting player roster (DL) for players.json');
+  const players = await page.evaluate(() => {
+    if (typeof DL === 'undefined' || !Array.isArray(DL)) return null;
+    return DL.map((p) => ({ username: p.username, fl: p.fl, cname: p.cname }));
+  });
+  if (!players || players.length === 0) {
+    console.warn('  DL not available or empty — skipping players.json');
+  } else {
+    const playersPath = resolve(dirname(OUTPUT_PATH), 'players.json');
+    await writeFile(playersPath, JSON.stringify(players, null, 2) + '\n', 'utf8');
+    console.log(`✓ Wrote ${players.length} players to ${playersPath}`);
+
+    const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+    const flagsDir = join(repoRoot, 'assets', 'flags');
+    let existing = new Set();
+    try {
+      const entries = await readdir(flagsDir);
+      existing = new Set(entries.filter((f) => f.endsWith('.png')).map((f) => f.replace(/\.png$/i, '').toUpperCase()));
+    } catch {
+      console.warn(`  assets/flags/ not readable — assuming empty`);
+    }
+    const needed = new Set(players.map((p) => (p.fl || '').toUpperCase()).filter(Boolean));
+    const missing = [...needed].filter((code) => !existing.has(code)).sort();
+    console.log(`  Existing: ${[...existing].sort().join(', ') || '(none)'}`);
+    console.log(`  Needed: ${[...needed].sort().join(', ') || '(none)'}`);
+    console.log(`  Missing: ${missing.join(', ') || '(none)'}`);
+
+    if (missing.length > 0) {
+      const outFlagsDir = resolve(dirname(OUTPUT_PATH), 'new_flags');
+      await mkdir(outFlagsDir, { recursive: true });
+      const fetchScript = join(repoRoot, 'scripts', 'fetch-flag.py');
+      for (const code of missing) {
+        console.log(`  → Fetching flag ${code} via fetch-flag.py`);
+        const res = spawnSync('python', [fetchScript, code, outFlagsDir], {
+          encoding: 'utf8',
+        });
+        if (res.status === 0) {
+          console.log(`    ✓ ${res.stdout.trim()}`);
+        } else {
+          console.error(`    ✗ exit ${res.status}: ${res.stderr.trim() || res.stdout.trim()}`);
+        }
+      }
+    }
+  }
 } catch (err) {
   console.error('✗ Sync failed:', err.message);
   try {
