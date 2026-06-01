@@ -45,6 +45,7 @@ jobs:
           path: |
             scripts/out/leaguedata.csv
             scripts/out/players.json
+            scripts/out/league_params.json
             scripts/out/new_flags/
           retention-days: 90
           if-no-files-found: warn
@@ -84,6 +85,9 @@ jobs:
             if [ -d scripts/out/new_flags ]; then
               NEW_FLAGS=$(ls scripts/out/new_flags/ 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
               [ -n "$NEW_FLAGS" ] && echo "| New flags | \`$NEW_FLAGS\` |"
+            fi
+            if [ -f scripts/out/league_params.json ]; then
+              echo "| CustomFlags update | _suggested — see league_params.json in artifact_ |"
             fi
             echo ""
             if [ -f "$CSV" ]; then

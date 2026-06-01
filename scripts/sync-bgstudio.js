@@ -1,8 +1,43 @@
 import { chromium } from 'playwright';
-import { mkdir, writeFile, readdir, access } from 'node:fs/promises';
+import { mkdir, writeFile, readdir, readFile } from 'node:fs/promises';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+
+const DEFAULT_FLAG = 'IL';
+
+async function findActiveLeague(leaguesRoot) {
+  const entries = await readdir(leaguesRoot, { withFileTypes: true });
+  for (const e of entries) {
+    if (!e.isDirectory()) continue;
+    const paramsPath = join(leaguesRoot, e.name, 'league_params.json');
+    try {
+      const params = JSON.parse(await readFile(paramsPath, 'utf8'));
+      if (params.Running === true) return { folder: e.name, paramsPath, params };
+    } catch {}
+  }
+  return null;
+}
+
+function computeCustomFlagsDiff(currentCustomFlags, players) {
+  const desired = {};
+  for (const p of players) {
+    const code = (p.fl || '').toUpperCase();
+    if (code && code !== DEFAULT_FLAG) desired[p.username] = code;
+  }
+  const current = currentCustomFlags || {};
+  const added = [];
+  const changed = [];
+  const removed = [];
+  for (const [u, c] of Object.entries(desired)) {
+    if (!(u in current)) added.push({ username: u, to: c });
+    else if (current[u] !== c) changed.push({ username: u, from: current[u], to: c });
+  }
+  for (const u of Object.keys(current)) {
+    if (!(u in desired)) removed.push({ username: u, from: current[u] });
+  }
+  return { desired, added, changed, removed };
+}
 
 const SITE_URL = 'https://heroes3.backgammonstudio.com/';
 const LEAGUE_NAME = 'Shabi Israel';
@@ -120,24 +155,26 @@ try {
 
   await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
 
-  console.log('→ Waiting for league data (FL[RG]) to populate');
-  const flReady = await page.evaluate(async () => {
+  console.log('→ Waiting for league roster (DL) to populate');
+  const rosterReady = await page.evaluate(async () => {
     const T0 = performance.now();
     const trace = [];
     while (performance.now() - T0 < 15000) {
-      const rg = typeof FL !== 'undefined' && FL ? FL[typeof RG !== 'undefined' ? RG : 'RG'] : undefined;
+      const dl = typeof DL !== 'undefined' && Array.isArray(DL) ? DL.length : 0;
+      const rg = typeof FL !== 'undefined' && FL && typeof RG !== 'undefined' ? FL[RG] : null;
       const t = Math.round(performance.now() - T0);
-      if (trace.length === 0 || trace[trace.length - 1].rg !== rg) trace.push({ t, rg });
-      if (typeof rg === 'number' && rg > 0) return { ok: true, rg, t, trace };
+      const last = trace[trace.length - 1];
+      if (!last || last.dl !== dl || last.rg !== rg) trace.push({ t, dl, rg });
+      if (dl > 0) return { ok: true, dl, rg, t, trace };
       await new Promise((r) => setTimeout(r, 200));
     }
     return { ok: false, trace, t: 15000 };
   });
-  console.log(`  FL trace: ${JSON.stringify(flReady.trace)}`);
-  if (!flReady.ok) {
-    throw new Error('FL[RG] never populated within 15s after league click');
+  console.log(`  Trace: ${JSON.stringify(rosterReady.trace)}`);
+  if (!rosterReady.ok) {
+    throw new Error('DL never populated within 15s after league click');
   }
-  console.log(`  FL[RG] = ${flReady.rg} (rounds) — ready after ${flReady.t}ms`);
+  console.log(`  DL = ${rosterReady.dl} players, FL[RG] = ${rosterReady.rg} rounds played — ready after ${rosterReady.t}ms`);
 
   console.log('→ Extracting player roster (DL) for players.json');
   const players = await page.evaluate(() => {
@@ -153,6 +190,58 @@ try {
     console.log(`✓ Wrote ${players.length} players to ${playersPath}`);
 
     const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+    console.log('→ Player roster (alphabetical)');
+    const sortedPlayers = [...players].sort((a, b) => a.username.localeCompare(b.username));
+    const nameWidth = Math.max(...sortedPlayers.map((p) => p.username.length));
+    for (const p of sortedPlayers) {
+      const code = (p.fl || '').toUpperCase();
+      console.log(`  ${p.username.padEnd(nameWidth)}  ${code}  ${p.cname || ''}`);
+    }
+
+    console.log('→ Active league detection');
+    const leaguesRoot = join(repoRoot, 'leagues');
+    const active = await findActiveLeague(leaguesRoot);
+    if (!active) {
+      console.warn('  ⚠ No league with "Running": true found — skipping league-config update');
+    } else {
+      console.log(`  Active league: "${active.folder}"`);
+
+      let metadata = {};
+      try {
+        metadata = JSON.parse(await readFile(join(leaguesRoot, 'players_metadata.json'), 'utf8'));
+      } catch {
+        console.warn('  ⚠ players_metadata.json not readable — all players will be reported as new');
+      }
+      const known = new Set(Object.keys(metadata));
+      const newPlayers = players.filter((p) => !known.has(p.username)).map((p) => p.username).sort();
+      console.log('→ Player registry check (leagues/players_metadata.json)');
+      console.log(`  ✓ Known players: ${players.length - newPlayers.length}`);
+      if (newPlayers.length === 0) {
+        console.log('  ✓ No new players — all already in registry');
+      } else {
+        console.log(`  ⚠ ${newPlayers.length} NEW player(s) (manual setup needed, not auto-created):`);
+        for (const u of newPlayers) console.log(`    • ${u}`);
+      }
+
+      console.log('→ CustomFlags diff (BGStudio → local)');
+      const diff = computeCustomFlagsDiff(active.params.CustomFlags, players);
+      const noChanges = diff.added.length === 0 && diff.changed.length === 0 && diff.removed.length === 0;
+      if (noChanges) {
+        console.log('  ✓ No changes — local CustomFlags match BGStudio');
+      } else {
+        for (const a of diff.added) console.log(`  + ${a.username}: ${a.to} (new override)`);
+        for (const c of diff.changed) console.log(`  ~ ${c.username}: ${c.from} → ${c.to}`);
+        for (const r of diff.removed) console.log(`  - ${r.username}: ${r.from} (now uses default ${DEFAULT_FLAG})`);
+
+        const updatedParams = { ...active.params, CustomFlags: diff.desired };
+        const updatedPath = resolve(dirname(OUTPUT_PATH), 'league_params.json');
+        await writeFile(updatedPath, JSON.stringify(updatedParams, null, 2) + '\n', 'utf8');
+        console.log(`✓ Updated config written to ${updatedPath}`);
+        console.log(`  (review and copy to leagues/${active.folder}/league_params.json when ready)`);
+      }
+    }
+
     const flagsDir = join(repoRoot, 'assets', 'flags');
     let existing = new Set();
     try {
@@ -213,46 +302,50 @@ try {
     }
   }
 
-  console.log('→ Triggering Export results (lg(622))');
-  await page.locator('button:has-text("Export results")').click();
-
-  console.log('→ Polling #lgexport textarea until data stabilises');
-  const csv = await page.evaluate(async () => {
-    const STABLE_MS = 1500;
-    const MAX_MS = 30000;
-    const POLL_MS = 200;
-    const t0 = performance.now();
-    let lastLen = -1;
-    let stableSince = null;
-    const trace = [];
-    while (performance.now() - t0 < MAX_MS) {
-      const ta = document.getElementById('lgexport');
-      const len = ta ? (ta.value || '').length : 0;
-      const elapsed = Math.round(performance.now() - t0);
-      if (len !== lastLen) {
-        trace.push({ t: elapsed, len });
-        lastLen = len;
-        stableSince = len > 0 ? performance.now() : null;
-      } else if (len > 0 && stableSince !== null && performance.now() - stableSince >= STABLE_MS) {
-        return { data: ta.value, trace, elapsed };
-      }
-      await new Promise((r) => setTimeout(r, POLL_MS));
-    }
-    return { data: null, trace, elapsed: Math.round(performance.now() - t0) };
-  });
-
-  console.log(`  Textarea growth trace: ${JSON.stringify(csv.trace)}`);
-  console.log(`  Finished after ${csv.elapsed}ms`);
-
-  if (!csv.data) {
-    console.warn('  Textarea never populated within 30s — league may be empty (no rounds played yet). Skipping CSV.');
+  if (!rosterReady.rg || rosterReady.rg < 1) {
+    console.log(`→ Skipping CSV export — league has 0 rounds played yet (FL[RG] = ${rosterReady.rg})`);
   } else {
-    const csvText = csv.data;
-    const lines = csvText.split('\n').filter(Boolean).length;
-    console.log(`✓ CSV: ${csvText.length} bytes, ${lines} lines`);
-    await mkdir(dirname(OUTPUT_PATH), { recursive: true });
-    await writeFile(OUTPUT_PATH, csvText, 'utf8');
-    console.log(`✓ Saved to ${OUTPUT_PATH}`);
+    console.log('→ Triggering Export results (lg(622))');
+    await page.locator('button:has-text("Export results")').click();
+
+    console.log('→ Polling #lgexport textarea until data stabilises');
+    const csv = await page.evaluate(async () => {
+      const STABLE_MS = 1500;
+      const MAX_MS = 30000;
+      const POLL_MS = 200;
+      const t0 = performance.now();
+      let lastLen = -1;
+      let stableSince = null;
+      const trace = [];
+      while (performance.now() - t0 < MAX_MS) {
+        const ta = document.getElementById('lgexport');
+        const len = ta ? (ta.value || '').length : 0;
+        const elapsed = Math.round(performance.now() - t0);
+        if (len !== lastLen) {
+          trace.push({ t: elapsed, len });
+          lastLen = len;
+          stableSince = len > 0 ? performance.now() : null;
+        } else if (len > 0 && stableSince !== null && performance.now() - stableSince >= STABLE_MS) {
+          return { data: ta.value, trace, elapsed };
+        }
+        await new Promise((r) => setTimeout(r, POLL_MS));
+      }
+      return { data: null, trace, elapsed: Math.round(performance.now() - t0) };
+    });
+
+    console.log(`  Textarea growth trace: ${JSON.stringify(csv.trace)}`);
+    console.log(`  Finished after ${csv.elapsed}ms`);
+
+    if (!csv.data) {
+      console.warn('  Textarea never populated within 30s — Export did not stream data. Skipping CSV.');
+    } else {
+      const csvText = csv.data;
+      const lines = csvText.split('\n').filter(Boolean).length;
+      console.log(`✓ CSV: ${csvText.length} bytes, ${lines} lines`);
+      await mkdir(dirname(OUTPUT_PATH), { recursive: true });
+      await writeFile(OUTPUT_PATH, csvText, 'utf8');
+      console.log(`✓ Saved to ${OUTPUT_PATH}`);
+    }
   }
 } catch (err) {
   console.error('✗ Sync failed:', err.message);
