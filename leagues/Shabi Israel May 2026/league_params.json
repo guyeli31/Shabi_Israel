@@ -6,9 +6,9 @@
   "Prizes": { "Gold": 2200, "Silver": 800, "Bronze": 180 },
   "BronzeCount": 4,
   "MatchLength": 7,
-  "Running": true,
+  "Running": false,
   "CustomFlags": {
-    "Moriarty": "TZ"
+    "Moriarty": "GE"
   },
   "GoldCount": 1,
   "SilverCount": 1
