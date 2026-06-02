@@ -6,7 +6,7 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 75
     defaults:
       run:
         working-directory: scripts
@@ -31,11 +31,26 @@ jobs:
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
 
+      - name: Restore BGStudio session cookie
+        uses: actions/cache/restore@v4
+        with:
+          path: scripts/out/session-state.json
+          key: bgstudio-session-${{ github.run_id }}
+          restore-keys: |
+            bgstudio-session-
+
       - name: Run BGStudio sync
         env:
           BGSTUDIO_USER: ${{ secrets.BGSTUDIO_USER }}
           BGSTUDIO_PASS: ${{ secrets.BGSTUDIO_PASS }}
         run: node sync-bgstudio.js
+
+      - name: Save BGStudio session cookie
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: scripts/out/session-state.json
+          key: bgstudio-session-${{ github.run_id }}
 
       - name: Upload league + roster + new flags artifact
         if: success()
