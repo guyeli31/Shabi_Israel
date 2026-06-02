@@ -117,13 +117,59 @@ async function scrollPage(page, durationS) {
 }
 
 async function browseTab(page, tabName, durationS) {
-  try {
-    await page.getByRole('columnheader', { name: tabName }).click({ timeout: 5000 });
-  } catch {
-    // tab might already be active or unreachable from current panel — swallow
-  }
+  const switched = await page.evaluate((name) => {
+    const th = Array.from(document.querySelectorAll('th')).find(
+      (el) => new RegExp(`^\\s*${name}\\s*$`).test(el.textContent || '') && el.offsetParent !== null,
+    );
+    const inner = th && th.querySelector('.TabButton');
+    if (inner) { inner.click(); return true; }
+    return false;
+  }, tabName);
+  if (!switched) throw new Error(`tab "${tabName}" not found or unreachable`);
   await page.waitForTimeout(randInt(1000, 3000));
   await scrollPage(page, Math.max(0, durationS - 3));
+}
+
+const STATUS_FLAGS = {
+  friendReady: { code: 1, label: 'Friend ready' },
+  tournamentReady: { code: 11, label: 'Tournament ready' },
+  bgStudioReady: { code: 18, label: 'BG Studio ready' },
+  busy: { code: 16, label: 'Busy' },
+};
+
+async function changeStatusTask(page, durationS) {
+  const keys = Object.keys(STATUS_FLAGS);
+  const pickCount = randInt(2, 3);
+  const picks = shuffle(keys).slice(0, pickCount);
+  const perStepMs = Math.max(2000, Math.floor((durationS * 1000) / picks.length));
+  for (const key of picks) {
+    const { code, label } = STATUS_FLAGS[key];
+    const ok = await page.evaluate(
+      ({ code }) => {
+        // open picker via top-left status button (own profile flag)
+        const own = Array.from(document.querySelectorAll('button')).find((b) => {
+          if (b.offsetParent === null) return false;
+          const oc = b.getAttribute('onclick') || '';
+          if (!/^ca\(129,/.test(oc)) return false;
+          const r = b.getBoundingClientRect();
+          return r.left < 100 && r.top < 80;
+        });
+        if (!own) return false;
+        own.click();
+        // immediately click the status option
+        const opt = Array.from(document.querySelectorAll('button')).find(
+          (b) => b.offsetParent !== null && b.getAttribute('onclick') === `ca(35,${code})`,
+        );
+        if (!opt) return false;
+        opt.click();
+        return true;
+      },
+      { code },
+    );
+    if (!ok) throw new Error(`could not set status "${label}"`);
+    console.log(`    status → ${label} (code ${code})`);
+    await page.waitForTimeout(perStepMs);
+  }
 }
 
 async function exportShabiIsraelTask(page, repoRoot) {
@@ -394,8 +440,10 @@ try {
     { kind: 'browseChampions', label: 'browse Champions', durationS: randInt(15, 60) },
     { kind: 'browseAchievements', label: 'browse Achievements', durationS: randInt(15, 45) },
     { kind: 'browsePractice', label: 'browse Practice', durationS: randInt(15, 45) },
+    { kind: 'browsePrivateDB', label: 'browse Private DB', durationS: randInt(15, 45) },
     { kind: 'scrollHere', label: 'scroll current page', durationS: randInt(10, 30) },
     { kind: 'idle', label: 'idle pause', durationS: randInt(20, 60) },
+    { kind: 'changeStatus', label: 'change status flag (2-3 toggles)', durationS: randInt(15, 40) },
   ];
 
   const sideCount = randInt(2, 4);
@@ -478,6 +526,12 @@ try {
           break;
         case 'browsePractice':
           await browseTab(page, 'Practice', task.durationS);
+          break;
+        case 'browsePrivateDB':
+          await browseTab(page, 'Private DB', task.durationS);
+          break;
+        case 'changeStatus':
+          await changeStatusTask(page, task.durationS);
           break;
         case 'EXPORT':
           await exportShabiIsraelTask(page, repoRoot);
