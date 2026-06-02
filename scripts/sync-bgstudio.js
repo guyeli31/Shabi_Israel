@@ -485,8 +485,10 @@ try {
     await page.locator('button:has-text("Login"):not(.dialogbutton)').click();
 
     console.log('→ Typing credentials (human-like delays, 80-200ms per keystroke)');
-    await page.locator('#username').type(username, { delay: randInt(80, 200) });
-    await page.locator('#pass').type(password, { delay: randInt(80, 200) });
+    await page.locator('#username').click();
+    await page.locator('#username').pressSequentially(username, { delay: randInt(80, 200) });
+    await page.locator('#pass').click();
+    await page.locator('#pass').pressSequentially(password, { delay: randInt(80, 200) });
 
     console.log('→ Submitting login');
     await page.locator('button.dialogbutton:has-text("Login")').click();
