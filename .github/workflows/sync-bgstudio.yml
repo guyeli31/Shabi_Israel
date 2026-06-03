@@ -2,6 +2,15 @@ name: Sync BGStudio
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Sync mode: full (anti-bot disguise, 1-60min) or fast (immediate, ~20s)'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - fast
 
 jobs:
   sync:
@@ -43,6 +52,7 @@ jobs:
         env:
           BGSTUDIO_USER: ${{ secrets.BGSTUDIO_USER }}
           BGSTUDIO_PASS: ${{ secrets.BGSTUDIO_PASS }}
+          SYNC_MODE: ${{ inputs.mode || 'full' }}
         run: node sync-bgstudio.js
 
       - name: Save BGStudio session cookie

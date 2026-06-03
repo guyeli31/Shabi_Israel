@@ -24,9 +24,14 @@ const VIEWPORTS = [
 
 const username = process.env.BGSTUDIO_USER;
 const password = process.env.BGSTUDIO_PASS;
+const SYNC_MODE = (process.env.SYNC_MODE || 'full').toLowerCase();
 
 if (!username || !password) {
   console.error('Missing BGSTUDIO_USER or BGSTUDIO_PASS env vars.');
+  process.exit(1);
+}
+if (!['full', 'fast'].includes(SYNC_MODE)) {
+  console.error(`Invalid SYNC_MODE="${SYNC_MODE}". Use "full" or "fast".`);
   process.exit(1);
 }
 
@@ -144,19 +149,22 @@ async function changeStatusTask(page, durationS) {
   const perStepMs = Math.max(2000, Math.floor((durationS * 1000) / picks.length));
   for (const key of picks) {
     const { code, label } = STATUS_FLAGS[key];
-    const ok = await page.evaluate(
+    const opened = await page.evaluate(() => {
+      const own = Array.from(document.querySelectorAll('button')).find((b) => {
+        if (b.offsetParent === null) return false;
+        const oc = b.getAttribute('onclick') || '';
+        if (!/^ca\(129,/.test(oc)) return false;
+        const r = b.getBoundingClientRect();
+        return r.left < 100 && r.top < 80;
+      });
+      if (!own) return false;
+      own.click();
+      return true;
+    });
+    if (!opened) throw new Error(`could not open status picker for "${label}"`);
+    await page.waitForTimeout(500);
+    const set = await page.evaluate(
       ({ code }) => {
-        // open picker via top-left status button (own profile flag)
-        const own = Array.from(document.querySelectorAll('button')).find((b) => {
-          if (b.offsetParent === null) return false;
-          const oc = b.getAttribute('onclick') || '';
-          if (!/^ca\(129,/.test(oc)) return false;
-          const r = b.getBoundingClientRect();
-          return r.left < 100 && r.top < 80;
-        });
-        if (!own) return false;
-        own.click();
-        // immediately click the status option
         const opt = Array.from(document.querySelectorAll('button')).find(
           (b) => b.offsetParent !== null && b.getAttribute('onclick') === `ca(35,${code})`,
         );
@@ -166,20 +174,23 @@ async function changeStatusTask(page, durationS) {
       },
       { code },
     );
-    if (!ok) throw new Error(`could not set status "${label}"`);
+    if (!set) throw new Error(`could not set status "${label}" (picker option not visible)`);
     console.log(`    status → ${label} (code ${code})`);
     await page.waitForTimeout(perStepMs);
   }
 }
 
 async function exportShabiIsraelTask(page, repoRoot) {
+  await page.waitForTimeout(randInt(500, 2500));
   console.log('  → Switching to Tournaments tab');
   await page.locator('th').filter({ hasText: /^\s*Tournaments\s*$/ }).first().click({ timeout: 10000 });
   await page.locator('tr').filter({ hasText: 'Leagues' }).first().waitFor({ timeout: 10000 });
 
+  await page.waitForTimeout(randInt(500, 2500));
   console.log('  → Opening Leagues');
   await page.locator('tr').filter({ hasText: 'Leagues' }).locator('.button.tablebutton').first().click();
 
+  await page.waitForTimeout(randInt(500, 2500));
   console.log(`  → Opening league "${LEAGUE_NAME}" (with pagination)`);
   const MAX_PAGES = 10;
   const leagueRegex = new RegExp(`^\\s*${LEAGUE_NAME}\\s*$`);
@@ -364,6 +375,7 @@ async function exportShabiIsraelTask(page, repoRoot) {
     return;
   }
 
+  await page.waitForTimeout(randInt(500, 2500));
   console.log('  → Triggering Export results (lg(622))');
   await page.locator('button:has-text("Export results")').click();
 
@@ -408,6 +420,8 @@ async function exportShabiIsraelTask(page, repoRoot) {
   console.log(`  ✓ Saved to ${OUTPUT_PATH}`);
 }
 
+console.log(`→ Sync mode: ${SYNC_MODE}`);
+
 const viewport = VIEWPORTS[randInt(0, VIEWPORTS.length - 1)];
 console.log(`→ Viewport: ${viewport.width}×${viewport.height}`);
 
@@ -427,45 +441,52 @@ const sessionStartedAt = Date.now();
 const taskResults = [];
 let exportError = null;
 
+let sessionDurationS = 0;
+let sequence = [];
+
 try {
-  const preDelayMs = randInt(0, 59999);
-  console.log(`→ Anti-bot pre-delay: ${preDelayMs}ms (~${(preDelayMs / 1000).toFixed(1)}s)`);
-  await page.waitForTimeout(preDelayMs);
+  if (SYNC_MODE === 'full') {
+    const preDelayMs = randInt(0, 59999);
+    console.log(`→ Anti-bot pre-delay: ${preDelayMs}ms (~${(preDelayMs / 1000).toFixed(1)}s)`);
+    await page.waitForTimeout(preDelayMs);
 
-  const sessionDurationS = randInt(60, 3600);
-  console.log(`→ Planned session duration: ${sessionDurationS}s (~${(sessionDurationS / 60).toFixed(1)}min, uniform 1-60min)`);
+    sessionDurationS = randInt(60, 3600);
+    console.log(`→ Planned session duration: ${sessionDurationS}s (~${(sessionDurationS / 60).toFixed(1)}min, uniform 1-60min)`);
 
-  const sideTaskPool = [
-    { kind: 'browseLiveMatches', label: 'browse Live matches', durationS: randInt(15, 90) },
-    { kind: 'browseChampions', label: 'browse Champions', durationS: randInt(15, 60) },
-    { kind: 'browseAchievements', label: 'browse Achievements', durationS: randInt(15, 45) },
-    { kind: 'browsePractice', label: 'browse Practice', durationS: randInt(15, 45) },
-    { kind: 'browsePrivateDB', label: 'browse Private DB', durationS: randInt(15, 45) },
-    { kind: 'scrollHere', label: 'scroll current page', durationS: randInt(10, 30) },
-    { kind: 'idle', label: 'idle pause', durationS: randInt(20, 60) },
-    { kind: 'changeStatus', label: 'change status flag (2-3 toggles)', durationS: randInt(15, 40) },
-  ];
+    const sideTaskPool = [
+      { kind: 'browseLiveMatches', label: 'browse Live matches', durationS: randInt(15, 90) },
+      { kind: 'browseChampions', label: 'browse Champions', durationS: randInt(15, 60) },
+      { kind: 'browseAchievements', label: 'browse Achievements', durationS: randInt(15, 45) },
+      { kind: 'browsePractice', label: 'browse Practice', durationS: randInt(15, 45) },
+      { kind: 'browsePrivateDB', label: 'browse Private DB', durationS: randInt(15, 45) },
+      { kind: 'scrollHere', label: 'scroll current page', durationS: randInt(10, 30) },
+      { kind: 'idle', label: 'idle pause', durationS: randInt(20, 60) },
+      { kind: 'changeStatus', label: 'change status flag (2-3 toggles)', durationS: randInt(15, 40) },
+    ];
 
-  const sideCount = randInt(2, 4);
-  const sideTasks = shuffle(sideTaskPool).slice(0, sideCount);
+    const sideCount = randInt(2, 4);
+    const sideTasks = shuffle(sideTaskPool).slice(0, sideCount);
 
-  const exportTask = { kind: 'EXPORT', label: '✦ Export Shabi Israel (real task)', durationS: 30 };
-  const sequence = [...sideTasks];
-  const exportPos = randInt(1, sequence.length);
-  sequence.splice(exportPos, 0, exportTask);
+    const exportTask = { kind: 'EXPORT', label: '✦ Export Shabi Israel (real task)', durationS: 30 };
+    sequence = [...sideTasks];
+    const exportPos = randInt(1, sequence.length);
+    sequence.splice(exportPos, 0, exportTask);
 
-  const plannedSum = sequence.reduce((s, t) => s + t.durationS, 0);
-  const remaining = sessionDurationS - plannedSum;
-  if (remaining > 10) {
-    sequence.push({ kind: 'idle', label: 'wind-down idle', durationS: remaining });
+    const plannedSum = sequence.reduce((s, t) => s + t.durationS, 0);
+    const remaining = sessionDurationS - plannedSum;
+    if (remaining > 10) {
+      sequence.push({ kind: 'idle', label: 'wind-down idle', durationS: remaining });
+    }
+
+    console.log(`→ Planned action sequence:`);
+    sequence.forEach((t, i) => {
+      const marker = t.kind === 'EXPORT' ? '✦' : ' ';
+      console.log(`  ${String(i + 1).padStart(2)}. ${marker} ${t.label} (~${t.durationS}s)`);
+    });
+    console.log(`  ${String(sequence.length + 1).padStart(2)}.   disconnect + save session cookie`);
+  } else {
+    console.log(`→ Fast mode: skipping pre-delay and side tasks — login + export only`);
   }
-
-  console.log(`→ Planned action sequence:`);
-  sequence.forEach((t, i) => {
-    const marker = t.kind === 'EXPORT' ? '✦' : ' ';
-    console.log(`  ${String(i + 1).padStart(2)}. ${marker} ${t.label} (~${t.durationS}s)`);
-  });
-  console.log(`  ${String(sequence.length + 1).padStart(2)}.   disconnect + save session cookie`);
 
   console.log(`→ Opening ${SITE_URL}`);
   await page.goto(SITE_URL);
@@ -505,50 +526,65 @@ try {
 
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-  for (let i = 0; i < sequence.length; i++) {
-    const task = sequence[i];
-    console.log(`→ [${i + 1}/${sequence.length}] ${task.label} (~${task.durationS}s)`);
+  if (SYNC_MODE === 'fast') {
     const start = Date.now();
     try {
-      switch (task.kind) {
-        case 'idle':
-          await justIdle(page, task.durationS);
-          break;
-        case 'scrollHere':
-          await scrollPage(page, task.durationS);
-          break;
-        case 'browseLiveMatches':
-          await browseTab(page, 'Live matches', task.durationS);
-          break;
-        case 'browseChampions':
-          await browseTab(page, 'Champions', task.durationS);
-          break;
-        case 'browseAchievements':
-          await browseTab(page, 'Achievements', task.durationS);
-          break;
-        case 'browsePractice':
-          await browseTab(page, 'Practice', task.durationS);
-          break;
-        case 'browsePrivateDB':
-          await browseTab(page, 'Private DB', task.durationS);
-          break;
-        case 'changeStatus':
-          await changeStatusTask(page, task.durationS);
-          break;
-        case 'EXPORT':
-          await exportShabiIsraelTask(page, repoRoot);
-          break;
-      }
+      await exportShabiIsraelTask(page, repoRoot);
       const elapsed = Math.round((Date.now() - start) / 1000);
-      console.log(`  ✓ done in ${elapsed}s`);
-      taskResults.push({ ...task, status: 'ok', elapsed });
+      console.log(`  ✓ Export done in ${elapsed}s`);
+      taskResults.push({ kind: 'EXPORT', label: '✦ Export Shabi Israel (fast mode)', status: 'ok', elapsed });
     } catch (err) {
       const elapsed = Math.round((Date.now() - start) / 1000);
-      console.error(`  ✗ failed after ${elapsed}s: ${err.message}`);
-      taskResults.push({ ...task, status: 'fail', error: err.message, elapsed });
-      if (task.kind === 'EXPORT') {
-        exportError = err;
-        break;
+      console.error(`  ✗ Export failed after ${elapsed}s: ${err.message}`);
+      taskResults.push({ kind: 'EXPORT', label: '✦ Export Shabi Israel (fast mode)', status: 'fail', error: err.message, elapsed });
+      exportError = err;
+    }
+  } else {
+    for (let i = 0; i < sequence.length; i++) {
+      const task = sequence[i];
+      console.log(`→ [${i + 1}/${sequence.length}] ${task.label} (~${task.durationS}s)`);
+      const start = Date.now();
+      try {
+        switch (task.kind) {
+          case 'idle':
+            await justIdle(page, task.durationS);
+            break;
+          case 'scrollHere':
+            await scrollPage(page, task.durationS);
+            break;
+          case 'browseLiveMatches':
+            await browseTab(page, 'Live matches', task.durationS);
+            break;
+          case 'browseChampions':
+            await browseTab(page, 'Champions', task.durationS);
+            break;
+          case 'browseAchievements':
+            await browseTab(page, 'Achievements', task.durationS);
+            break;
+          case 'browsePractice':
+            await browseTab(page, 'Practice', task.durationS);
+            break;
+          case 'browsePrivateDB':
+            await browseTab(page, 'Private DB', task.durationS);
+            break;
+          case 'changeStatus':
+            await changeStatusTask(page, task.durationS);
+            break;
+          case 'EXPORT':
+            await exportShabiIsraelTask(page, repoRoot);
+            break;
+        }
+        const elapsed = Math.round((Date.now() - start) / 1000);
+        console.log(`  ✓ done in ${elapsed}s`);
+        taskResults.push({ ...task, status: 'ok', elapsed });
+      } catch (err) {
+        const elapsed = Math.round((Date.now() - start) / 1000);
+        console.error(`  ✗ failed after ${elapsed}s: ${err.message}`);
+        taskResults.push({ ...task, status: 'fail', error: err.message, elapsed });
+        if (task.kind === 'EXPORT') {
+          exportError = err;
+          break;
+        }
       }
     }
   }
@@ -558,7 +594,11 @@ try {
   } catch {}
 
   const totalElapsed = Math.round((Date.now() - sessionStartedAt) / 1000);
-  console.log(`→ Session summary (${totalElapsed}s total, plan target ${sessionDurationS}s)`);
+  if (SYNC_MODE === 'full') {
+    console.log(`→ Session summary (${totalElapsed}s total, plan target ${sessionDurationS}s)`);
+  } else {
+    console.log(`→ Session summary (${totalElapsed}s total, fast mode)`);
+  }
   taskResults.forEach((r, i) => {
     const icon = r.status === 'ok' ? '✓' : '✗';
     const marker = r.kind === 'EXPORT' ? '✦' : ' ';
