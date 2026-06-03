@@ -560,11 +560,28 @@
 /* date/time controls carry ~2px of constant WebKit widget chrome — trim 1px
    off each vertical padding so their box height matches the text/number inputs
    at every breakpoint. Higher specificity (attribute selector) than the rule
-   above, so it wins. */
+   above, so it wins. max-width/min-width keep the control inside its column. */
 .edit-card-sm .form-group input[type="date"],
 .edit-card-sm .form-group input[type="time"] {
     padding-top: calc(var(--input-pad-y) - 1px);
     padding-bottom: calc(var(--input-pad-y) - 1px);
+    min-width: 0;
+    max-width: 100%;
+}
+/* iOS Safari sizes native date/time controls to their intrinsic content width
+   and ignores width:100% / min-width:0, so they overflow their column to the
+   right (the reported Issue Date + BGStudio Start/End Date bug on iPhone).
+   Resetting the native appearance — scoped to iOS only via the
+   -webkit-touch-callout feature query — makes them honour the author box model
+   and fill exactly 100% of the column. Desktop is untouched, so the themed
+   ::-webkit-calendar-picker-indicator icon is preserved there. */
+@supports (-webkit-touch-callout: none) {
+    .edit-card-sm .form-group input[type="date"],
+    .edit-card-sm .form-group input[type="time"] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+    }
 }
 
 /* Medals & Prizes mini-table (League Settings) — font-small; editable Count +
@@ -1156,17 +1173,27 @@ table.font-large { font-size: var(--fs-093); }
 .admin-round-table .inline-edit-input.inline-edit-score-select {
     width: 3.2em;
 }
+.admin-round-table .inline-edit-input.inline-edit-score-select {
+    /* Score <select> needs extra room for the arrow chrome on top of digits.
+       em-based so it scales with the cell font (fluid via --fs-093). */
+    width: 3.8em;
+    min-width: 3.8em;
+}
 .admin-round-table .inline-edit-input::-webkit-outer-spin-button,
 .admin-round-table .inline-edit-input::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
 }
 
-/* Score <select> dropdown — same chrome as the number inputs it replaces. */
+/* Score <select> dropdown — same chrome as the number inputs it replaces.
+   All sizing in em so the arrow gutter and the digit gutter scale together
+   with the cell font (fluid via --fs-093). The old px values (18px right
+   padding, 5px arrow inset) stayed constant while width was em — at mobile
+   font sizes the px gutter ate ~half the box and clipped the digit. */
 .admin-round-table select.inline-edit-score-select {
-    padding: 2px 18px 2px 6px;
+    padding: 0.15em 1.4em 0.15em 0.45em;
     border: 1px solid var(--color-border);
-    border-radius: 3px;
+    border-radius: 0.2em;
     background-color: var(--color-surface);
     color: var(--color-text);
     font-size: var(--fs-080);
@@ -1177,8 +1204,8 @@ table.font-large { font-size: var(--fs-093); }
     -webkit-appearance: none;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%232563eb' d='M0 0l5 6 5-6z'/></svg>");
     background-repeat: no-repeat;
-    background-position: right 5px center;
-    background-size: 8px 5px;
+    background-position: right 0.4em center;
+    background-size: 0.6em 0.4em;
 }
 .admin-round-table select.inline-edit-score-select:focus {
     border-color: var(--color-accent);

@@ -177,6 +177,26 @@
     margin: 0.1em 0.15em;
 }
 
+/* ── FF Edit-cell <select> sizing — em-based, viewport-fluid ──────
+   Any <select> rendered by an FF Edit-mode ColDef inherits the cell's
+   fluid font and must keep arrow chrome + value text in stable ratio.
+   The native arrow gutter (background-image / appearance:none rules)
+   must be em-based — otherwise on smaller viewports the fixed px gutter
+   eats most of the box and clips the value (see F3 score select bug,
+   2026-06-03: 18px right padding on a 3.2em-wide select left only ~14px
+   for the digit at mobile font scale, hiding the score behind the arrow).
+
+   This rule sets safe defaults; per-format overrides (e.g. F3's tighter
+   score select) refine via .ff-wrap .my-select { ... }. */
+.ff-wrap select {
+    padding: 0.15em 1.4em 0.15em 0.45em;
+    border-radius: 0.2em;
+    font-family: inherit;
+    background-position: right 0.4em center;
+    background-size: 0.6em 0.4em;
+    min-width: 3.5em;
+}
+
 /* ── FF flag thumbnails — em-based, aspect-preserving ─────────────
    Source PNGs in assets/flags/ are square (1600×1600). `width: auto`
    + the base `.flag` rule preserves the natural aspect ratio; without
