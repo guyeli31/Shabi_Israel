@@ -20,7 +20,7 @@ Authoritative mapping table. Every v1 source file lands in exactly one v2 destin
 | `css/league-header.css` | `src/components/LeagueHero/leagueHero.css` | ● | 3 |
 | `css/player-general.css` | `src/components/PlayerHero/playerHero.css` (V7 + V12) + `src/pages/playerGeneral/playerGeneral.css` (page-only chrome) | ◐ | 3, 6 |
 | `css/index-dashboard.css` | `src/pages/landing/landing.css` | ◯ | 6 |
-| `css/admin.css` | `src/pages/admin/admin.css` + `src/primitives/FormField/` | ◐ | 2, 8 |
+| `css/admin.css` | split → FF format chrome (`.ff-wrap`, `.admin-table.font-large` block, scroll-shadow) → `src/tables/FormTable/formTable.css` (Phase 5); admin-page chrome → `src/pages/admin/admin.css` (Phase 8); form controls → `src/primitives/FormField/` (Phase 2); F3↔FF reconciliation (suppress hairline, match-block state colors, round-card max-height) → `src/pages/admin/roundEditor.css` (Phase 8) | ◐ | 2, 5, 8 |
 | `css/admin-button.css` | `src/components/AdminButton/adminButton.css` | ● | 3 |
 | `css/theme-picker.css` | `src/components/ThemePicker/themePicker.css` | ● | 3 |
 | `css/typoEditor.css` | `src/tools/typoEditor/typoEditor.css` | ◯ | 7 |
@@ -77,8 +77,9 @@ Authoritative mapping table. Every v1 source file lands in exactly one v2 destin
 | v1 file | v2 destination | Status | Phase |
 |---|---|---|---|
 | `playerManager.js` | `src/pages/admin/playerManager.js` | ◯ | 8 |
-| `roundEditor.js` | `src/pages/admin/roundEditor.js` | ◯ | 8 |
-| `leagueManager.js` | `src/pages/admin/leagueManager.js` | ◯ | 8 |
+| `roundEditor.js` (F3 — uses FF chrome via `<div class="ff-wrap">` + `class="admin-table font-large">` in v1; rewires to `FormTable` mount fn in v2) | `src/pages/admin/roundEditor.js` | ◯ | 8 |
+| `leagueManager.js` (F1 Leagues + F2 Players inline — uses FF chrome in v1) | `src/pages/admin/leagueManager.js` | ◯ | 8 |
+| `overridesList.js` (F4 View Overrides — uses FF chrome in v1) | `src/pages/admin/overridesList.js` | ◯ | 8 |
 | `excelImporter.js` | `src/pages/admin/excelImporter.js` | ◯ | 8 |
 
 ### Table-lab (`table-lab/`)
@@ -87,9 +88,12 @@ Authoritative mapping table. Every v1 source file lands in exactly one v2 destin
 |---|---|---|---|
 | `formats/base/base.css` | `src/tables/_table.css` | ◯ | 5 |
 | `formats/mf/mf.css` + `mf.js` | `src/tables/MFTable/{mfTable.css,mfTable.js}` | ◯ | 5 |
+| `formats/sf/sf.css` + `mount.js` | `src/tables/SFTable/{sfTable.css,sfTable.js}` | ◯ | 5 |
+| `formats/exp/exp.css` + `mount.js` | `src/tables/ExpandableTable/{expandableTable.css,expandableTable.js}` | ◯ | 5 |
+| `formats/ff/ff.css` + `mount.js` (untracked in v1) | `src/tables/FormTable/{formTable.css,formTable.js}` — unified FF (3 cell modes per ColDef: Display/Action/Edit). See `docs/TABLE-DESIGN.md` §FF | ◯ | 5 |
 | `mount-mf-table.js` | `src/tables/MFTable/mfTable.js` (`mount(el, args)`) | ◯ | 5 |
 | `lab.css` + `index.html` + `lab-loader.js` | `src/tools/tableLab/{tableLab.css,tableLab.html,tableLab.js}` | ◯ | 5 |
-| `presets/*.js` (18 presets) | `src/tables/presets/{TableCode}_{name}.js` (rename per convention) | ◯ | 5 |
+| `presets/*.js` (20 presets total — A1-A6, B1-B6c, C0-C4, D, E, F1-F4) | `src/tables/presets/{TableCode}_{name}.js` (rename per convention) | ◯ | 5 |
 
 ## HTML pages
 

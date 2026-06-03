@@ -6,11 +6,11 @@ This directory is the **parallel rebuild** of the Shabi Israel chess league stat
 
 ## Current phase
 
-**Phase 0 — Bootstrap.** Scaffolding only. No real code yet.
+**Phase 4 — Data + Compute layers complete.** Phases 0–4 done (see [`docs/CHANGELOG.md`](docs/CHANGELOG.md)). Next: **Phase 5 — Table system** (build `MFTable`, `SFTable`, `ExpandableTable`, `FormTable` + port all 20 presets including F1–F4).
 
-## ⚠ Before starting Phase 1 (run once per machine)
+## ⚠ One-time setup (per machine)
 
-The repo ships Phase 0 scaffolding only. No `node_modules/` is committed. Before any later phase can run:
+`node_modules/` is not committed. Before running any phase:
 
 ```bash
 cd v2
@@ -18,9 +18,7 @@ npm install     # installs Vite, Stylelint, ESLint, Vitest, Playwright (~200 MB,
 npm run dev     # verifies the dev server boots → http://localhost:5173
 ```
 
-If `npm install` fails, check Node version (Vite 5 requires Node ≥18). If `npm run dev` boots but the page is blank, that's expected for Phase 0 — placeholders only.
-
-When both succeed, you're ready for **Phase 1 — Tokens + base + themes**.
+If `npm install` fails, check Node version (Vite 5 requires Node ≥18).
 
 ## Quick start
 
@@ -49,7 +47,7 @@ Directories:
 | `src/base/` | 3 | Resets + element defaults |
 | `src/primitives/` | 4 | Atomic components (Flag, Icon, Badge, ...) |
 | `src/components/` | 5 | Composed components (PlayerCell, Navigation, ...) |
-| `src/tables/` | 6 | Table system (MFTable, SFTable, ExpandableTable, FF1, FF2) + presets |
+| `src/tables/` | 6 | Table system (MFTable, SFTable, ExpandableTable, FormTable) + presets |
 | `src/pages/` | 7 | Page-specific layout |
 | `src/tools/` | 8 | Developer tools (designLab, typoEditor, tableLab, designCatalogue) |
 
@@ -102,7 +100,7 @@ The script archives v1 to `_archive_v1/` and promotes `v2/*` to the repo root. S
 - `docs/ARCHITECTURE.md` — the layered diagram and rules in detail.
 - `docs/TYPOGRAPHY.md` — 7 size + 4 weight + 4 icon token contract.
 - `docs/TYPOGRAPHY-INVENTORY.md` — per-page element → token map (auto-managed by typoEditor).
-- `docs/TABLE-DESIGN.md` — MF/SF/exp/FF1/FF2 contracts.
+- `docs/TABLE-DESIGN.md` — MF/SF/exp/FF contracts.
 - `docs/THEMES.md` — how to add a theme.
 - `docs/COMPONENTS.md` — primitive + component API reference.
 - `docs/ADMIN.md` — admin data model + override format.

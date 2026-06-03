@@ -60,21 +60,28 @@ Table code mapping for the app. All future references to a table use the code be
 | Code | Table name |
 |---|---|
 | F1 | Leagues (League Manager) |
-| F2 | Match Results (Round Editor) |
+| F2 | Players (player editing inside Edit League) |
+| F3 | Match Results (Round Editor) |
+| F4 | View Overrides (manual override list inside Edit League) |
 
 ---
 
 ## Part 2 — Formats
 
-The project has **five** table formats. Each format is owned by `table-lab/` and exposes a dedicated `mount*` function. Production pages do not render tables directly — they call the appropriate format's mount function with a preset.
+The project has **four** table formats. Each format is owned by `table-lab/` and exposes a dedicated `mount*` function. Production pages do not render tables directly — they call the appropriate format's mount function with a preset.
 
 | Format | Code | Used by |
 |---|---|---|
 | Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3 |
 | Secondary Format | **SF** | A3, A4, A5, A6, C4 |
 | Expandable Format | **exp** | C0 |
-| Form Format 1 | **FF1** | F1 (League Manager) |
-| Form Format 2 | **FF2** | F2 (Round Editor) |
+| Form Format | **FF** | F1 (League Manager), F2 (Players), F3 (Round Editor), F4 (View Overrides) |
+
+> **FF — three cell modes per ColDef.** A single FF table can mix freely:
+> • **Display** — read-only HTML (text, pills, badges).
+> • **Action** — button(s) with `data-*` attrs; caller wires event delegation (used for Edit/Delete/Save-per-match).
+> • **Edit** — input/select/toggle in the cell + `getValue` reader; participates in `getDiff()` and optional `validate()`.
+> FF1 ("list + action buttons") and FF2 ("edit-in-place") were earlier intermediate names for what is now a single unified format — the distinction is now per-column, not per-table.
 
 ---
 
@@ -420,50 +427,175 @@ mountExpTable(mountPoint, {
 
 ---
 
-### FF1 (Form Format 1 — League Manager)
+### FF (Form Format — Admin tables)
 
-Admin CRUD table used by: **F1 (League Manager on admin.html).**
+Unified admin table format used by: **F1 (Leagues / League Manager), F2 (Players in Edit League), F3 (Round Editor), F4 (View Overrides) — all on admin.html.**
 
-Rendered by `mountFF1Table(mountPoint, args)` (`table-lab/formats/ff1/mount.js` — to be created). FF1 is purpose-built for the League Manager — inline-edit cells, Save/Delete actions, mobile `data-label` card pattern, status/type pills.
+Rendered by `mountFFTable(mountPoint, args)` (`table-lab/formats/ff/mount.js`). CSS canon lives in `table-lab/formats/ff/ff.css` (auto-imports `base/base.css`). Production rewiring is tracked as Phase 8 of `docs/plans/table-lab-unification.md`; until then, the FF chrome rules are duplicated in `css/admin.css`.
 
-> **Status:** format is **declared** but not yet implemented. Per-table parameters, args schema, and visual rules to be derived from `js/admin/leagueManager.js` during a later phase (admin tables are not in scope for the initial table-lab MF migration — see plan).
+> **Status:** format is **implemented and documented** in the lab. Production currently still renders these tables by hand but uses the FF chrome (the JS writes `<div class="ff-wrap">` + `class="admin-table font-large">` and `css/admin.css` carries the rules). Phase 8 rewires call sites to `mountFFTable`.
 
-#### General parameters
-*To be defined.*
+**Concept — single format, three cell modes per column.** FF mirrors SF on the 7 shared visual parameters (border-collapse, row hairline, white-space, padding, sticky thead, scroll wrapper, scroll shadow), with admin-specific chrome on top: stronger header typography (uppercase + letter-spacing), `--color-bg` header background tint, and 1-column sticky-left default. The list-vs-edit distinction is per-column, not per-table:
 
-#### Args
-*To be defined — must include edit-mode wiring, save/delete callbacks, and validation hooks.*
+| Cell mode | When | Required ColDef properties | Participates in |
+|---|---|---|---|
+| **Display** | Read-only data (text, pills, badges) | `format(value, row) → html` returning display HTML | rendering only |
+| **Action** | Buttons (Edit, Delete, Save-per-match, etc.) | `format(value, row) → html` returning button HTML with `data-*` attrs; caller wires click via event delegation on the returned `table` | rendering only |
+| **Edit** | In-place editor (input/select/toggle) | `format` returns input/select HTML AND `getValue(td, row) → value` AND optional `validate(value, row) → error \| null` | `getDiff()` and (if validate is defined) `validate()` |
 
-#### ColDef
-*To be defined.*
+A single FF table can mix all three modes freely. F1/F4 use Display + Action only; F2/F3 add Edit-mode cells.
 
-#### HTML structure
-*To be defined.*
-
-#### Usage
-*To be defined.*
+To convert a table to FF in a future session, say:
+> "Update table X to use the FF variant. Derive the unique parameters for this table on your own and ask me questions as needed."
 
 ---
 
-### FF2 (Form Format 2 — Round Editor)
+#### General parameters (shared — no per-table override)
 
-Admin match-results editor used by: **F2 (Round Editor on admin.html).**
+| Parameter | Value |
+|---|---|
+| Card chrome | NOT owned by FF — caller wraps mountPoint with `.admin-card` (or `.rem-tab-panel`, `.round-card`, etc.) so multi-element cards (heading + msg slot + table + Save + sub-forms) compose freely |
+| Scroll context | `.ff-wrap`: `overflow: auto; max-height: 60vh; border-radius: var(--radius-sm)` — single scroll container for BOTH axes (so sticky thead `top:0` AND sticky cols `left:0` resolve against the same element) |
+| Table width | `width: 100%` — fills the wrap; cells size by content; horizontal scroll engages when total content > wrap width |
+| Collapse | `border-collapse: separate; border-spacing: 0` |
+| Row hairlines | `box-shadow: inset 0 -1px 0 var(--color-border)` on all `tbody td`; removed on last row |
+| Text alignment | `text-align: left` on all `<th>` and `<td>` |
+| Wrapping | `white-space: nowrap` on all cells |
+| Cell padding | `0.45em 0.5em` — em-based, scales with font-size |
+| Sticky header | Always: `thead th { position: sticky; top: 0; z-index: 3 }` |
+| Header background | `var(--color-bg)` — subtle tint vs body `--color-surface` |
+| Header text | `var(--color-text-secondary)` with `font-weight: 700`, `font-size: var(--fs-078)`, `text-transform: uppercase`, `letter-spacing: 0.05em` (admin-style chrome) |
+| Header bottom hairline | `box-shadow: inset 0 -1px 0 var(--color-border)` (no `border-bottom`) |
+| Sticky col 1 | Always on — `th:first-child` and `tbody td:first-child` are sticky-left automatically via the canonical CSS (no JS measurement, no class) |
+| Sticky col background | `var(--color-surface)` on tbody sticky cells; `var(--color-bg)` on thead corner |
+| Sticky-corner z-index | Top-left corner z=4; sticky-thead non-corner z=3; sticky body z=2 (matches MF/SF/exp hierarchy) |
+| Hover | `var(--color-hover)` on hovered row's cells (incl. sticky) |
+| Scroll shadow | `attachStickyShadow()` toggles `.is-scrolled-x` on the wrap → MF-style drop-shadow on the rightmost sticky col's right edge, only during horizontal scroll |
+| Validation marker | Edit-mode cells whose `validate()` returns an error get `cellInvalidClass` (default `.cell-invalid` → `outline: 2px solid var(--color-loss)`). Caller can override |
+| Mobile pattern | None — horizontal scroll handles narrow viewports |
 
-Rendered by `mountFF2Table(mountPoint, args)` (`table-lab/formats/ff2/mount.js` — to be created). FF2 is purpose-built for the Round Editor — score-entry cells, result inference, per-row validation, round navigation.
+---
 
-> **Status:** format is **declared** but not yet implemented. Per-table parameters, args schema, and visual rules to be derived from `js/admin/roundEditor.js` during a later phase (admin tables are not in scope for the initial table-lab MF migration — see plan).
+#### Args — simple values
 
-#### General parameters
-*To be defined.*
+| Arg | Type | Default | Notes |
+|---|---|---|---|
+| `tableId` | `string \| null` | `null` | Stable id; sets `data-mf-table-id` on mountPoint and table for external CSS targeting |
+| `data` | `object[]` | `[]` | Row objects |
+| `cols` | `ColDef[]` | `[]` | Column descriptors (Display, Action, or Edit mode — see ColDef) |
+| `fontClass` | `'font-small' \| 'font-large'` | `'font-large'` | Sets font enum on the `<table>`. Default `font-large` (admin tables slightly larger than SF) |
+| `cellInvalidClass` | `string` | `'cell-invalid'` | CSS class added to `<td>`s whose `ColDef.validate` returned an error |
 
-#### Args
-*To be defined — must include round/match data model, score input handlers, and per-cell validation.*
+---
 
-#### ColDef
-*To be defined.*
+#### ColDef — per-column properties
+
+| Property | Type | Mode | Notes |
+|---|---|---|---|
+| `key` | `string` | All | Property name on row objects |
+| `label` | `string` | All | Header text (may contain HTML) |
+| `format` | `(value, row) => html \| null` | All | Display formatter — what's rendered IN the cell. Returns: display HTML (Display) OR button HTML with `data-*` attrs (Action) OR input/select/toggle HTML (Edit) |
+| `tdClass` | `string \| null` | All | CSS class on every `<td>` in this column |
+| `getValue` | `(td, row) => value` | Edit | Reads the cell's current value from its `<td>`. **Defining this turns the cell into Edit mode** — it then participates in `getDiff()` |
+| `originalKey` | `string` | Edit (optional) | Field on `row` to compare against for diff. Default: same as `key` |
+| `validate` | `(value, row) => err \| null` | Edit (optional) | Returns error message or null. Cells with errors get `cellInvalidClass` |
+
+(FF intentionally has no click-to-sort, no `getRowClass`, no `buildSummaryRow`, no medal rows. Action button click handlers are wired by the caller via event delegation on the returned `table` element — see Usage.)
+
+---
 
 #### HTML structure
-*To be defined.*
 
-#### Usage
-*To be defined.*
+`mountFFTable` creates only the `.ff-wrap` + `<table>` inside `mountPoint`. The caller owns the `.admin-card` (or any other wrapper) and any chrome above/below (heading, Add/Save buttons, message slot, sub-forms).
+
+```
+mountPoint  (plain <div> the caller owns; gets data-mf-table-id)
+    .ff-wrap                                  ← created internally (scroll container, both axes)
+        <table class="admin-table {fontClass}" data-mf-table-id="{tableId}">
+            <thead><tr>…</tr></thead>
+            <tbody>
+                <tr>…</tr>                    ← one tr per row in `data`
+            </tbody>
+        </table>
+```
+
+> **F3 exception.** F3 stacks many FF tables on one screen (one per round) inside `.round-card` wrappers, and each match is rendered as a `<tbody>` with two `<tr>`s + `rowspan="2"` on the EDITED/ACTIONS columns. Until Phase 8, F3 keeps its hand-rolled tbody/rowspan rendering but wears the FF chrome via the same CSS classes. F3-specific reconciliation rules (suppress universal hairline, restore match-block state colors on sticky col, adjust round-card wrap max-height) live in `css/admin.css` under "F3 ↔ FF chrome reconciliation".
+
+---
+
+#### Returns
+
+```ts
+{
+    wrap:     HTMLElement,           // .ff-wrap (scroll container)
+    table:    HTMLElement,           // <table>; use for event delegation
+    getDiff:  () => Diff[] | null,   // null when no Edit-mode cols
+    validate: () => Error[] | null,  // null when no Edit-mode cols; marks invalid cells with cellInvalidClass
+}
+```
+
+`getDiff()` runs every Edit-mode column's `getValue` and returns only the cells where `current ≠ original`. The Save button (caller-owned) calls `getDiff()`, posts the changes, and clears state.
+
+---
+
+#### Usage — Display + Action only (F1, F4 today)
+
+```js
+const { table } = mountFFTable(mountPoint, {
+    tableId:   'F1',
+    data:      leagues,
+    cols: [
+        { key: 'name',   label: 'Name',
+          format: (_, r) => `${esc(r.title)}${r.hidden ? hiddenBadge() : ''}` },
+        { key: 'type',   label: 'Type',
+          format: (v) => `<span class="league-type-pill type-${v}">${LEAGUE_TYPE_LABELS[v]}</span>` },
+        { key: 'status', label: 'Status',
+          format: (_, r) => r.running
+            ? '<span class="status-pill status-running">Running</span>'
+            : '<span class="status-pill status-completed">Completed</span>' },
+        { key: 'id',     label: 'Actions',
+          format: (id, r) => `
+            <button class="btn btn-primary btn-sm" data-edit="${id}">Edit</button>
+            <button class="btn btn-danger btn-sm"  data-delete="${id}" data-title="${esc(r.title)}">Delete</button>
+          ` },
+    ],
+});
+
+table.addEventListener('click', (e) => {
+    const edit = e.target.closest('[data-edit]');
+    if (edit)   { navigateToEdit(edit.dataset.edit); return; }
+    const del  = e.target.closest('[data-delete]');
+    if (del)    { confirmAndDelete(del.dataset.delete, del.dataset.title); return; }
+});
+```
+
+#### Usage — mixed Display + Edit (F2 today)
+
+```js
+const { table, getDiff, validate } = mountFFTable(mountPoint, {
+    tableId: 'F2',
+    data:    players,
+    cols: [
+        { key: 'name',  label: 'Name',
+          format: (v) => `<input type="text" data-field="name" value="${esc(v)}">`,
+          getValue: (td) => td.querySelector('input').value.trim(),
+          validate: (v) => v ? null : 'Name required' },
+        { key: 'flag',  label: 'Flag',
+          format: (v, r) => flagSelectHTML(v, r),
+          getValue: (td) => td.querySelector('select').value },
+        { key: 'retired', label: 'Retired',
+          format: (v) => `<input type="checkbox" data-field="retired" ${v ? 'checked' : ''}>`,
+          getValue: (td) => td.querySelector('input').checked,
+          originalKey: 'retired' },
+        { key: 'id',    label: '',
+          format: (id) => `<button class="btn btn-danger btn-sm" data-remove="${id}">✕</button>` },
+    ],
+});
+
+document.getElementById('save-btn').addEventListener('click', async () => {
+    const errors = validate();
+    if (errors.length) { showMsg(errors[0].error, 'error'); return; }
+    const diff = getDiff();
+    await save(diff);
+});
+```

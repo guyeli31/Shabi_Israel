@@ -1,5 +1,5 @@
 /* base.css — Group A-base.
-   Shared by every table format (MF + SF + exp; FF1/FF2 may opt in).
+   Shared by every table format (MF + SF + exp; FF may opt in).
    Loaded automatically by each format's CSS via `@import`.
 
    Copied (cascade-equal) from css/components.css. Source-of-truth lives here;

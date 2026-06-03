@@ -144,19 +144,22 @@ async function changeStatusTask(page, durationS) {
   const perStepMs = Math.max(2000, Math.floor((durationS * 1000) / picks.length));
   for (const key of picks) {
     const { code, label } = STATUS_FLAGS[key];
-    const ok = await page.evaluate(
+    const opened = await page.evaluate(() => {
+      const own = Array.from(document.querySelectorAll('button')).find((b) => {
+        if (b.offsetParent === null) return false;
+        const oc = b.getAttribute('onclick') || '';
+        if (!/^ca\(129,/.test(oc)) return false;
+        const r = b.getBoundingClientRect();
+        return r.left < 100 && r.top < 80;
+      });
+      if (!own) return false;
+      own.click();
+      return true;
+    });
+    if (!opened) throw new Error(`could not open status picker for "${label}"`);
+    await page.waitForTimeout(500);
+    const set = await page.evaluate(
       ({ code }) => {
-        // open picker via top-left status button (own profile flag)
-        const own = Array.from(document.querySelectorAll('button')).find((b) => {
-          if (b.offsetParent === null) return false;
-          const oc = b.getAttribute('onclick') || '';
-          if (!/^ca\(129,/.test(oc)) return false;
-          const r = b.getBoundingClientRect();
-          return r.left < 100 && r.top < 80;
-        });
-        if (!own) return false;
-        own.click();
-        // immediately click the status option
         const opt = Array.from(document.querySelectorAll('button')).find(
           (b) => b.offsetParent !== null && b.getAttribute('onclick') === `ca(35,${code})`,
         );
@@ -166,7 +169,7 @@ async function changeStatusTask(page, durationS) {
       },
       { code },
     );
-    if (!ok) throw new Error(`could not set status "${label}"`);
+    if (!set) throw new Error(`could not set status "${label}" (picker option not visible)`);
     console.log(`    status → ${label} (code ${code})`);
     await page.waitForTimeout(perStepMs);
   }

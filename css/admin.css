@@ -544,30 +544,117 @@ table.font-large { font-size: var(--fs-093); }
     white-space: nowrap;
 }
 
-/* F1 — NAME column sticky (single leftmost, no JS measurement needed per iron rule 12).
-   th and td get separate backgrounds so each matches the rest of its row
-   (header row uses --color-bg; body rows are transparent over admin-card surface). */
-.admin-table.font-large th:first-child {
-    position: sticky;
-    left: 0;
-    background: var(--color-bg);
-    z-index: 1;
-}
-.admin-table.font-large td:first-child {
-    position: sticky;
-    left: 0;
-    background: var(--color-surface);
-    z-index: 1;
+/* ── FF format — canonical chrome for F1/F2/F3/F4 (admin tables). ──────
+   Mirrors table-lab/formats/ff/ff.css. When Phase 8 of the unification
+   plan rewires admin tables to mountFFTable, the lab file becomes the
+   sole source and this block is removed.
+
+   Three cell modes (per ColDef in mountFFTable):
+   • Display — read-only HTML
+   • Action  — button(s) with data-* attrs, caller wires event delegation
+   • Edit    — input/select/toggle + getValue (participates in getDiff)
+
+   Caller owns: heading, "+ Add" button, Save buttons, validation msg slot,
+   sub-forms (e.g. Upload Custom Flag), and event-delegation handlers.
+   FF owns only the scroll wrapper + table + sticky behavior. */
+
+.ff-wrap {
+    overflow: auto;
+    max-height: 60vh;
+    border-radius: var(--radius-sm);
 }
 
-.admin-table tbody tr:hover {
+.admin-table.font-large {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+}
+
+.admin-table.font-large th,
+.admin-table.font-large td {
+    padding: 0.45em 0.5em;
+    text-align: left;
+    white-space: nowrap;
+}
+
+/* Sticky thead — header background --color-bg (subtle tint vs body
+   --color-surface). Admin-style header chrome: uppercase + letter-spacing
+   + heavier weight. */
+.admin-table.font-large thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+    font-weight: 700;
+    font-size: var(--fs-078);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border-bottom: 0;
+    box-shadow: inset 0 -1px 0 var(--color-border);
+}
+
+/* Row hairlines via box-shadow inset (matches SF). */
+.admin-table.font-large tbody td {
+    border-bottom: 0;
+    box-shadow: inset 0 -1px 0 var(--color-border);
+    vertical-align: middle;
+}
+
+.admin-table.font-large tbody tr:last-child td {
+    box-shadow: none;
+}
+
+.admin-table.font-large tbody tr:hover td {
     background: var(--color-hover);
 }
 
+/* Sticky left column (auto-applied to first col). Top-left corner z=4
+   (above sticky thead z=3 and sticky body z=2), matching MF/SF/exp. */
+.admin-table.font-large th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    background: var(--color-bg);
+}
+.admin-table.font-large tbody td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--color-surface);
+}
 .admin-table.font-large tbody tr:hover td:first-child {
     background: var(--color-hover);
 }
 
+/* Sticky-boundary drop-shadow on horizontal scroll — mirrors MF/SF.
+   `.is-scrolled-x` is set by attachStickyShadow when scrollLeft > 0. */
+.ff-wrap.is-scrolled-x .admin-table.font-large thead th:first-child {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.ff-wrap.is-scrolled-x .admin-table.font-large tbody td:first-child {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.ff-wrap.is-scrolled-x .admin-table.font-large tbody tr:last-child td:first-child {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+
+/* Validation marker for Edit-mode cells (mountFFTable's validate() applies
+   this class to invalid <td>s; caller can override via the cellInvalidClass
+   arg). */
+.cell-invalid {
+    outline: 2px solid var(--color-loss);
+    outline-offset: -2px;
+}
+
+/* Legacy hover/border rules for non-font-large admin tables (keep). */
+.admin-table tbody tr:hover {
+    background: var(--color-hover);
+}
 .admin-table tbody tr:last-child td {
     border-bottom: none;
 }
@@ -815,13 +902,13 @@ table.font-large { font-size: var(--fs-093); }
     background: var(--color-bg);
 }
 
-/* Leftmost column = PLAYERS = the only sticky column */
+/* Leftmost column = PLAYERS = the only sticky column.
+   Static edge removed — FF chrome adds drop-shadow on horizontal scroll
+   (see the .ff-wrap.is-scrolled-x rules + F3↔FF reconciliation below). */
 .admin-round-table .match-player-cell {
     position: sticky;
     left: 0;
     z-index: 2;
-    /* Visual edge so the sticky column is distinguishable on scroll */
-    box-shadow: 1px 0 0 var(--color-border);
 }
 
 .admin-round-table thead .match-player-cell {
@@ -1003,15 +1090,84 @@ table.font-large { font-size: var(--fs-093); }
     box-shadow: 0 0 0 2px var(--color-accent-light);
 }
 
-/* Flag image inside the PLAYERS sticky column — mirrors .dash-table .flag. */
+/* Flag image inside the PLAYERS sticky column — mirrors .dash-table .flag.
+   height:1em scales with the cell font-size (font-large ≈ 14px). width:auto
+   preserves the source aspect ratio. No image-rendering override — browsers'
+   default bilinear scaling produces smooth flags; crisp-edges was forcing
+   nearest-neighbor and visibly pixelating the small thumbnails. */
 .admin-round-table .flag {
-    width: 20px;
-    height: 14px;
+    height: 1em;
+    width: auto;
     vertical-align: middle;
     margin-right: 4px;
     object-fit: contain;
-    image-rendering: crisp-edges;
     border-radius: 2px;
+}
+
+/* ----------------------------------------------------------------------
+   F3 ↔ FF chrome reconciliation
+   F3 wears the FF chrome (.ff-wrap + .admin-table.font-large) like F1/F2/F4
+   but has 3 structural quirks that need surgical overrides:
+     1. Hairlines come from per-match-block <tbody> border-bottom logic
+        (see .match-block rules above), not from FF's universal box-shadow.
+     2. Match-state coloring (.match-block-overridden/-pending/-unplayed)
+        sets td backgrounds — must beat FF's first-col background rule.
+     3. Many tables stacked vertically (one per round) — the FF default
+        max-height: 60vh is too short for a 12-match round, so per-round
+        wraps get the original .table-scroll max-height instead.
+   ---------------------------------------------------------------------- */
+
+/* 0. F3 stacks many tables on one screen (one per round). Restore the
+      original .table-scroll max-height so typical rounds fit without
+      inner vertical scroll. */
+.round-card .ff-wrap {
+    max-height: calc(100vh - var(--nav-height, 48px) - 40px);
+}
+
+/* 1. Suppress FF's universal cell hairline — F3 owns its own per-match
+      border logic above. */
+.admin-table.font-large.admin-round-table tbody td {
+    box-shadow: none;
+}
+
+/* 1b. Re-add drop-shadow on the sticky first col when wrapper is scrolled.
+       Body cells: shadow only (F3's per-match border-bottom logic handles
+       horizontal hairlines). Header cells: shadow + inset (the inset is the
+       thead/body separator and must stay visible while scrolled). */
+.ff-wrap.is-scrolled-x .admin-table.font-large.admin-round-table tbody td:first-child {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.ff-wrap.is-scrolled-x .admin-table.font-large.admin-round-table thead th:first-child {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+
+/* 2. Restore match-state backgrounds on the sticky first col. FF's default
+      .admin-table.font-large tbody td:first-child sets var(--color-surface),
+      which would mask the per-match tint. These selectors carry higher
+      specificity (4 classes vs FF's 3) and win. */
+.admin-table.font-large.admin-round-table tbody .match-block-overridden td:first-child {
+    background: var(--color-accent-light);
+}
+.admin-table.font-large.admin-round-table tbody .match-block-pending td:first-child {
+    background: color-mix(in srgb, var(--color-accent-light) 60%, var(--color-warning, #fef3c7) 40%);
+}
+.admin-table.font-large.admin-round-table tbody .match-block-unplayed td:first-child {
+    background: var(--color-surface);
+}
+/* Hover propagation onto sticky first col — same specificity strategy. */
+.admin-table.font-large.admin-round-table tbody .match-block:has(.match-edited:hover) td:first-child,
+.admin-table.font-large.admin-round-table tbody .match-block:has(.match-actions:hover) td:first-child,
+.admin-table.font-large.admin-round-table tbody .match-row-a:hover td:first-child,
+.admin-table.font-large.admin-round-table tbody .match-row-b:hover td:first-child {
+    background: var(--color-hover);
+}
+.admin-table.font-large.admin-round-table tbody .match-block-overridden:has(.match-edited:hover) td:first-child,
+.admin-table.font-large.admin-round-table tbody .match-block-overridden:has(.match-actions:hover) td:first-child,
+.admin-table.font-large.admin-round-table tbody .match-block-overridden .match-row-a:hover td:first-child,
+.admin-table.font-large.admin-round-table tbody .match-block-overridden .match-row-b:hover td:first-child {
+    background: color-mix(in srgb, var(--color-accent-light) 70%, var(--color-hover) 30%);
 }
 
 /* ---- Mobile topbar (hamburger + title + user chip) ----

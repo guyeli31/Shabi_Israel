@@ -5,6 +5,7 @@
 
 import { addChange, getStagedContent } from './stagingStore.js';
 import { thLabel } from '../utils/helpers.js';
+import { attachStickyShadow } from '../utils/stickyShadow.js';
 
 export async function renderOverridesList(container, leagueId, refreshBadge) {
     container.innerHTML = '<div class="loading">Loading overrides...</div>';
@@ -39,8 +40,8 @@ export async function renderOverridesList(container, leagueId, refreshBadge) {
             }) : '—';
             rows += `
                 <tr>
-                    <td>${esc(o.type)}</td>
                     <td>${esc(o.playerA)} vs ${esc(o.playerB)}</td>
+                    <td>${esc(o.type)}</td>
                     <td>${esc(o.reason || '')}</td>
                     <td>${time}</td>
                     <td><button class="btn btn-danger btn-sm" data-del-override="${i}">Remove</button></td>
@@ -54,11 +55,11 @@ export async function renderOverridesList(container, leagueId, refreshBadge) {
         container.innerHTML = `
             <div id="overrides-msg"></div>
             ${stagedBanner}
-            <div class="table-scroll">
-                <table class="admin-table">
+            <div class="ff-wrap">
+                <table class="admin-table font-large">
                     <thead><tr>
-                        <th scope="col">${thLabel('Type', 'T')}</th>
                         <th scope="col">${thLabel('Match', 'Match')}</th>
+                        <th scope="col">${thLabel('Type', 'T')}</th>
                         <th scope="col">${thLabel('Reason', 'Why')}</th>
                         <th scope="col">${thLabel('Date', 'Date')}</th>
                         <th scope="col"></th>
@@ -66,6 +67,8 @@ export async function renderOverridesList(container, leagueId, refreshBadge) {
                     <tbody>${rows}</tbody>
                 </table>
             </div>`;
+
+        attachStickyShadow(container.querySelector('.ff-wrap'));
 
         container.querySelectorAll('[data-del-override]').forEach(btn => {
             btn.addEventListener('click', () => {

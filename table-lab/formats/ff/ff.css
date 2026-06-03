@@ -1,0 +1,128 @@
+/* ff.css — Canonical FF (Form Format) styles.
+   Loaded by the lab and (in Phase 8) by production admin.html.
+   Auto-imports the shared base layer.
+
+   Used by: F1 (Leagues / League Manager), F2 (Players in Edit League),
+            F3 (Round Editor), F4 (View Overrides). All on admin.html.
+
+   Unified format covering both "list + navigate" (F1, F4) and
+   "edit-in-place" (F2, F3) patterns. Cell mode is per-column, decided
+   by the ColDef (format + optional getValue/validate). All four tables
+   share the same chrome, scroll behavior, and 7 SF-derived visual rules.
+
+   Mirrors the polished state in css/admin.css. When Phase 8 runs, the
+   duplicates in admin.css are deleted; this file becomes the sole source. */
+
+@import url("../base/base.css");
+
+/* ── Scroll context wrapper ───────────────────────────────────────
+   Single scroll container for BOTH axes — so sticky thead (top:0)
+   and sticky cols (left:0) both resolve against this element.
+   Mirrors MF's D/E pattern and SF's .achv-table-wrapper. */
+
+.ff-wrap {
+    overflow: auto;
+    max-height: 60vh;
+    border-radius: var(--radius-sm);
+}
+
+/* ── Table base ───────────────────────────────────────────────── */
+
+.admin-table.font-large {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    color: var(--color-text);
+}
+
+.admin-table.font-large th,
+.admin-table.font-large td {
+    padding: 0.45em 0.5em;
+    text-align: left;
+    white-space: nowrap;
+}
+
+/* ── Sticky thead (always on) ───────────────────────────────────
+   Header background tint uses --color-bg (subtle distinction from
+   body --color-surface), matching the polished state we settled on
+   for SF/exp ("not swallowed into the body"). Admin uses stronger
+   header chrome: uppercase + letter-spacing + heavier weight. */
+
+.admin-table.font-large thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+    font-weight: 700;
+    font-size: var(--fs-078);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border-bottom: 0;
+    box-shadow: inset 0 -1px 0 var(--color-border);
+}
+
+/* ── Row hairlines via box-shadow inset (matches SF) ───────────── */
+
+.admin-table.font-large tbody td {
+    border-bottom: 0;
+    box-shadow: inset 0 -1px 0 var(--color-border);
+    vertical-align: middle;
+}
+
+.admin-table.font-large tbody tr:last-child td {
+    box-shadow: none;
+}
+
+.admin-table.font-large tbody tr:hover td {
+    background: var(--color-hover);
+}
+
+/* ── Sticky left column (auto-applied to first col) ─────────────
+   FF tables always pin the leftmost column. Top-left corner z=4
+   (above sticky thead z=3 and sticky body z=2), matching MF/SF
+   hierarchy. */
+
+.admin-table.font-large th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    background: var(--color-bg);
+}
+.admin-table.font-large tbody td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--color-surface);
+}
+.admin-table.font-large tbody tr:hover td:first-child {
+    background: var(--color-hover);
+}
+
+/* ── Sticky-boundary drop-shadow on horizontal scroll ────────────
+   Mirrors MF/SF pattern. `.is-scrolled-x` is set by attachStickyShadow
+   when wrapper.scrollLeft > 0. Targets the rightmost sticky col (col 1). */
+
+.ff-wrap.is-scrolled-x .admin-table.font-large thead th:first-child {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.ff-wrap.is-scrolled-x .admin-table.font-large tbody td:first-child {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.ff-wrap.is-scrolled-x .admin-table.font-large tbody tr:last-child td:first-child {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+
+/* ── Validation marker for Edit-mode cells ──────────────────────
+   mountFFTable's validate() applies this class to <td>s whose
+   ColDef.validate(value, row) returns an error. Caller can override
+   the visual via `cellInvalidClass` arg. */
+
+.cell-invalid {
+    outline: 2px solid var(--color-loss);
+    outline-offset: -2px;
+}

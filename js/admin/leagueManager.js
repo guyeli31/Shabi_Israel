@@ -11,6 +11,7 @@ import { renderExcelImporter } from './excelImporter.js';
 import { renderOverridesList } from './overridesList.js';
 import { ensurePlayerIndex } from '../render/navigation.js';
 import { thLabel } from '../utils/helpers.js';
+import { attachStickyShadow } from '../utils/stickyShadow.js';
 
 // Known flag codes (from assets/flags/)
 const KNOWN_FLAGS = ['BE', 'IL', 'RU', 'TZ', 'UN'];
@@ -99,11 +100,11 @@ function renderLeagueList(container, leagues, displayOrder) {
 
         rows += `
             <tr>
-                <td data-label="Name">${esc(p.LeagueTitle || lg.id)}${hiddenBadge}</td>
-                <td data-label="Type"><span class="league-type-pill type-${esc(p.LeagueType || 'doubling')}">${esc(LEAGUE_TYPE_LABELS[p.LeagueType] || LEAGUE_TYPE_LABELS.doubling)}</span></td>
-                <td data-label="Issue Date">${p.IssueDate ? formatAdminDate(p.IssueDate) : '<span style="color:var(--color-text-muted)">—</span>'}</td>
-                <td data-label="Status">${statusPill}</td>
-                <td data-label="Actions">
+                <td>${esc(p.LeagueTitle || lg.id)}${hiddenBadge}</td>
+                <td><span class="league-type-pill type-${esc(p.LeagueType || 'doubling')}">${esc(LEAGUE_TYPE_LABELS[p.LeagueType] || LEAGUE_TYPE_LABELS.doubling)}</span></td>
+                <td>${p.IssueDate ? formatAdminDate(p.IssueDate) : '<span style="color:var(--color-text-muted)">—</span>'}</td>
+                <td>${statusPill}</td>
+                <td>
                     <button class="btn btn-primary btn-sm" data-edit="${lg.id}">Edit</button>
                     <button class="btn btn-danger btn-sm" data-delete="${lg.id}" data-title="${esc(lg.title)}">Delete</button>
                 </td>
@@ -116,7 +117,7 @@ function renderLeagueList(container, leagues, displayOrder) {
             <button class="btn btn-success" id="add-league-btn">+ Add League</button>
         </div>
         <div class="admin-card">
-            <div class="table-scroll">
+            <div class="ff-wrap">
                 <table class="admin-table font-large">
                     <thead>
                         <tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Date</th><th scope="col">Status</th><th scope="col">Actions</th></tr>
@@ -125,6 +126,8 @@ function renderLeagueList(container, leagues, displayOrder) {
                 </table>
             </div>
         </div>`;
+
+    attachStickyShadow(container.querySelector('.ff-wrap'));
 
     // Add league
     document.getElementById('add-league-btn').addEventListener('click', () => {
@@ -751,7 +754,13 @@ async function renderEditLeague(container, leagueId, displayOrder) {
     container.innerHTML = '<h1>Edit League</h1><div class="loading">Loading...</div>';
 
     try {
-        const params = await loadLeagueParams(leagueId);
+        let params = await loadLeagueParams(leagueId);
+        // Prefer staged (unpublished) params so edits survive a page refresh
+        // before they are published via Pending Changes.
+        const stagedParams = getStagedContent(`leagues/${encodeURIComponent(leagueId)}/league_params.json`);
+        if (stagedParams) {
+            try { params = JSON.parse(stagedParams); } catch { /* fall back to file version */ }
+        }
         let players = [];
         try {
             const { allPlayers } = await loadLeagueMatches(leagueId);
@@ -776,6 +785,16 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     const issueDate = p.IssueDate ? String(p.IssueDate).slice(0, 10) : '';
     const entryFee = p.EntryFee ?? 0;
     const prizes = p.Prizes || { Gold: 0, Silver: 0, Bronze: 0 };
+
+    // BGStudio automatic-sync settings (stored under p.BGStudioSync in league_params.json).
+    const bgSync = p.BGStudioSync || {};
+    const bgEnabled = bgSync.enabled === true;
+    // Default BGStudio league name = LeagueTitle trimmed at " - " (e.g. "Shabi Israel - June 2026" → "Shabi Israel").
+    const bgDefaultName = String(p.LeagueTitle || leagueId).split(' - ')[0].trim();
+    const bgName = bgSync.bgstudioLeagueName || bgDefaultName;
+    const bgTimes = Array.isArray(bgSync.times) ? bgSync.times.slice() : [];
+    const bgStartDate = bgSync.startDate ? String(bgSync.startDate).slice(0, 10) : '';
+    const bgEndDate = bgSync.endDate ? String(bgSync.endDate).slice(0, 10) : '';
 
     // Player rows
     let playerRows = '';
@@ -817,8 +836,11 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         <h1>Edit: ${esc(p.LeagueTitle || leagueId)}</h1>
         <button class="btn btn-secondary" id="back-to-leagues" style="margin-bottom:var(--space-lg)">&larr; Back to Leagues</button>
 
-        <div class="admin-card">
-            <h2>League Settings</h2>
+        <section class="edit-section">
+            <h2 class="edit-section-toggle" role="button" tabindex="0" aria-expanded="true">
+                <span class="collapse-arrow">&#x25BE;</span> League Settings
+            </h2>
+            <div class="admin-card collapse-body edit-card-sm">
             <div id="edit-msg"></div>
             <div class="form-group">
                 <label for="edit-title">League Name</label>
@@ -893,18 +915,24 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                 </div>
             </div>
             <button class="btn btn-primary" id="save-league-settings">Save Settings</button>
-        </div>
+            </div>
+        </section>
 
         ${players.length > 0 ? `
-        <div class="admin-card">
-            <h2>Players (${players.length})</h2>
+        <section class="edit-section">
+            <h2 class="edit-section-toggle" role="button" tabindex="0" aria-expanded="true">
+                <span class="collapse-arrow">&#x25BE;</span> Players (${players.length})
+            </h2>
+            <div class="admin-card collapse-body">
             <div id="players-msg"></div>
-            <table class="admin-table">
-                <thead>
-                    <tr><th scope="col">${thLabel('Name', 'Name')}</th><th scope="col">${thLabel('Flag', 'Flag')}</th><th scope="col">${thLabel('Retired', 'Ret')}</th><th scope="col"></th></tr>
-                </thead>
-                <tbody>${playerRows}</tbody>
-            </table>
+            <div class="ff-wrap">
+                <table class="admin-table font-large">
+                    <thead>
+                        <tr><th scope="col">${thLabel('Name', 'Name')}</th><th scope="col">${thLabel('Flag', 'Flag')}</th><th scope="col">${thLabel('Retired', 'Ret')}</th><th scope="col"></th></tr>
+                    </thead>
+                    <tbody>${playerRows}</tbody>
+                </table>
+            </div>
             <div style="margin-top:var(--space-md)">
                 <button class="btn btn-primary" id="save-players">Save Player Changes</button>
             </div>
@@ -924,11 +952,70 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                 </div>
                 <div id="flag-upload-msg"></div>
             </div>
-        </div>
+            </div>
+        </section>
         ` : '<div class="admin-card"><p style="color:var(--color-text-muted)">No players yet. Upload a CSV first.</p></div>'}
 
-        <section class="match-results-section" id="match-results-section">
-            <h2>Match Results</h2>
+        <section class="edit-section">
+            <h2 class="edit-section-toggle" role="button" tabindex="0" aria-expanded="true">
+                <span class="collapse-arrow">&#x25BE;</span> Automatic Sync
+            </h2>
+            <div class="admin-card collapse-body edit-card-sm">
+                <h3 style="margin-bottom:var(--space-md)">BGStudio Sync</h3>
+                <div id="bgsync-msg"></div>
+
+                <div class="form-group">
+                    <label for="bgsync-enabled">Enabled</label>
+                    <label class="toggle-switch" style="display:block;margin-top:4px">
+                        <input type="checkbox" id="bgsync-enabled" ${bgEnabled ? 'checked' : ''}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="bgsync-league-name">BGStudio League Name</label>
+                    <input type="text" id="bgsync-league-name" placeholder="${esc(bgDefaultName)}" value="${esc(bgName)}">
+                    <small style="color:var(--color-text-muted)">
+                        The exact league name shown on heroes3.backgammonstudio.com
+                    </small>
+                </div>
+
+                <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
+                    <div class="form-group" style="flex:1;min-width:140px">
+                        <label for="bgsync-start-date">Start Date</label>
+                        <input type="date" id="bgsync-start-date" class="themed-date" value="${bgStartDate}">
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:140px">
+                        <label for="bgsync-end-date">End Date</label>
+                        <input type="date" id="bgsync-end-date" class="themed-date" value="${bgEndDate}">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Run Times (every day, with &plusmn;1h randomization)</label>
+                    <div id="bgsync-times-list"></div>
+                    <button class="btn btn-secondary btn-sm" id="bgsync-add-time" type="button">
+                        + Add time
+                    </button>
+                </div>
+
+                <div style="margin-top:var(--space-md);font-size:0.9em;color:var(--color-text-muted)">
+                    <div>Last sync: <span id="bgsync-last">&mdash;</span></div>
+                    <div>Next window: <span id="bgsync-next">&mdash;</span></div>
+                </div>
+
+                <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md)">
+                    <button class="btn btn-primary" id="bgsync-save" type="button">Save BGStudio Settings</button>
+                    <button class="btn btn-secondary" id="bgsync-run-now" type="button">Run now</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="edit-section match-results-section" id="match-results-section">
+            <h2 class="edit-section-toggle" role="button" tabindex="0" aria-expanded="true">
+                <span class="collapse-arrow">&#x25BE;</span> Match Results
+            </h2>
+            <div class="collapse-body">
             <div class="rem-tab-bar" id="match-tab-bar">
                 <button class="rem-tab-btn" data-panel="match-panel-rounds"><span class="rem-tab-arrow">&#x25B8;</span> Round Editor</button>
                 ${!params.ManualEntry ? `
@@ -941,13 +1028,37 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             <div id="match-panel-upload" class="rem-tab-panel" hidden></div>
             <div id="match-panel-overrides" class="rem-tab-panel" hidden></div>
             ` : ''}
+            </div>
         </section>
 
     `;
 
+    // F2 (Players) — sticky-col drop-shadow on horizontal scroll, same as F1/F4 (FF chrome).
+    container.querySelectorAll('.ff-wrap').forEach(w => attachStickyShadow(w));
+
     // Match Results sub-tabs — same pattern as dashboard "Remaining Matches" tabs.
     // Round Editor renders Table F2 for ALL leagues; manual overrides win over CSV.
     setupMatchResultsTabs(leagueId, params, refreshBadgeFn);
+
+    // Collapsible section headers (League Settings / Players / Automatic Sync / Match Results).
+    // Headers sit outside the card (styled like the dashboard's .dash-section h2);
+    // each toggles its own body independently; all open by default.
+    container.querySelectorAll('.edit-section-toggle').forEach(head => {
+        const toggle = () => {
+            const body = head.nextElementSibling;
+            if (!body || !body.classList.contains('collapse-body')) return;
+            const expanded = head.getAttribute('aria-expanded') !== 'false';
+            head.setAttribute('aria-expanded', String(!expanded));
+            body.hidden = expanded;
+        };
+        head.addEventListener('click', toggle);
+        head.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+        });
+    });
+
+    // Automatic Sync (BGStudio) — staged into league_params.json under p.BGStudioSync.
+    setupBGSync(leagueId, params, bgDefaultName, refreshBadgeFn);
 
     // Status toggle label update
     document.getElementById('edit-status').addEventListener('change', function() {
@@ -1253,4 +1364,88 @@ function setupMatchResultsTabs(leagueId, params, refreshBadge) {
     // Open Round Editor by default.
     const defaultBtn = bar.querySelector('[data-panel="match-panel-rounds"]');
     if (defaultBtn) openPanel(defaultBtn);
+}
+
+/**
+ * Wire up the "Automatic Sync" card (BGStudio daily-sync settings).
+ * For now this stages the config into league_params.json under `BGStudioSync`.
+ * Later the Save / Run now actions will upsert to Supabase / trigger the server.
+ *
+ * @param {string[]} initialTimes - HH:MM strings to seed the run-times list.
+ */
+function setupBGSync(leagueId, params, defaultName, refreshBadgeFn) {
+    const list = document.getElementById('bgsync-times-list');
+    if (!list) return; // card not rendered (shouldn't happen)
+
+    const seed = (params.BGStudioSync && Array.isArray(params.BGStudioSync.times))
+        ? params.BGStudioSync.times.slice()
+        : [];
+
+    function nowHHMM() {
+        const d = new Date();
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+
+    function addTimeRow(value) {
+        const row = document.createElement('div');
+        row.className = 'bgsync-time-row';
+        row.style.cssText = 'display:flex;align-items:center;gap:var(--space-sm);margin-bottom:var(--space-xs)';
+        row.innerHTML = `
+            <input type="time" step="300" class="bgsync-time" value="${esc(value)}">
+            <button type="button" class="btn btn-danger btn-sm bgsync-del-time" title="Remove time">&#128465;</button>`;
+        row.querySelector('.bgsync-del-time').addEventListener('click', () => {
+            const isLast = list.querySelectorAll('.bgsync-time-row').length === 1;
+            if (isLast) {
+                if (!confirm('Disable sync entirely?')) return;
+                const enabled = document.getElementById('bgsync-enabled');
+                if (enabled) enabled.checked = false;
+            }
+            row.remove();
+        });
+        list.appendChild(row);
+    }
+
+    seed.forEach(t => addTimeRow(t));
+
+    document.getElementById('bgsync-add-time').addEventListener('click', () => addTimeRow(nowHHMM()));
+
+    // Save BGStudio settings — stage into league_params.json (base = staged version if present).
+    document.getElementById('bgsync-save').addEventListener('click', () => {
+        const encoded = encodeURIComponent(leagueId);
+        const path = `leagues/${encoded}/league_params.json`;
+        const stagedJson = getStagedContent(path);
+        const baseParams = stagedJson ? JSON.parse(stagedJson) : params;
+        const newParams = { ...baseParams };
+
+        const times = Array.from(list.querySelectorAll('.bgsync-time'))
+            .map(inp => inp.value.trim())
+            .filter(Boolean);
+        const nameVal = document.getElementById('bgsync-league-name').value.trim() || defaultName;
+        const startDate = document.getElementById('bgsync-start-date').value;
+        const endDate = document.getElementById('bgsync-end-date').value;
+
+        newParams.BGStudioSync = {
+            enabled: document.getElementById('bgsync-enabled').checked,
+            bgstudioLeagueName: nameVal,
+            startDate: startDate || null,
+            endDate: endDate || null,
+            times
+        };
+
+        addChange({
+            type: 'update',
+            path,
+            content: JSON.stringify(newParams, null, 2),
+            description: `Update BGStudio sync: ${leagueId}`
+        });
+
+        if (refreshBadgeFn) refreshBadgeFn();
+        showMsg('bgsync-msg', 'BGStudio settings staged. Go to Pending Changes to publish.', 'success');
+    });
+
+    // Run now — placeholder until the sync server / Supabase trigger exists.
+    document.getElementById('bgsync-run-now').addEventListener('click', () => {
+        console.log('TODO: trigger ad-hoc sync');
+        showMsg('bgsync-msg', 'Ad-hoc sync is not wired up yet.', 'success');
+    });
 }

@@ -23,6 +23,7 @@ async function loadOverridesWithStaged(leagueId) {
     return loadOverrides(leagueId);
 }
 import { thLabel, flagUrl, getFlagCode } from '../utils/helpers.js';
+import { attachStickyShadow } from '../utils/stickyShadow.js';
 
 export function renderRoundEditor(container, leagueId, refreshBadge) {
     container.innerHTML = `
@@ -146,8 +147,8 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
                         Round ${r}
                         <span style="font-size:0.8rem;color:var(--color-text-muted);font-weight:normal;margin-left:var(--space-sm)">${playedCount}/${rMatches.length} played</span>
                     </h3>
-                    <div class="table-scroll round-editor-scroll">
-                        <table class="admin-table admin-table-compact admin-round-table">
+                    <div class="ff-wrap">
+                        <table class="admin-table font-large admin-round-table">
                             <thead><tr>
                                 <th class="match-player-cell">${thLabel('Players', 'Pl')}</th>
                                 <th>${thLabel('PR', 'PR')}</th>
@@ -163,6 +164,7 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
         }
 
         container.innerHTML = html || '<p style="color:var(--color-text-muted)">No matches found.</p>';
+        container.querySelectorAll('.ff-wrap').forEach(w => attachStickyShadow(w));
         attachListeners(container, leagueId, refreshBadge, matchLength);
         if (root) attachFilter(root, container);
     } catch (err) {

@@ -1,24 +1,25 @@
 # Plan — Table-Lab as the canonical source for all tables
 
-**Status:** in progress — Phase 1 ✅ Phase 2 ✅ Phase 3 🔄 (partial) Phases 4–9 ⏳
+**Status:** in progress — Phase 1 ✅ Phase 2 ✅ Phase 3 ✅ Phase 4.1 ✅ (shim deleted 2026-06-03) Phase 4.2 ⏳ (B1–B6c + C1–C3 still hand-built) Phase 5 ✅ Phase 6 ✅ Phase 7 ⏳ Phase 8 ◐ (FF chrome restored in `admin.css` + production wears FF classes via JS; lab tabs / presets / `mountFFTable` wiring not yet done) Phase 9 ⏳
 **Owner:** ravivb7
 **Created:** 2026-05-11
-**Last updated:** 2026-05-15
+**Last updated:** 2026-06-03 — paused: v2 rebuild took priority; Phase 7/8 closeout deferred until cutover decision.
 
 ---
 
 ## Goal (final state)
 
 1. **Every table in the project is rendered by calling into `table-lab`.**
-   - The lab hosts **five formats**, each with its own dedicated mount function:
+   - The lab hosts **four formats**, each with its own dedicated mount function:
 
      | Format | Code | Used by | Mount fn |
      |---|---|---|---|
      | Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3 | `mountMFTable` |
      | Secondary Format | **SF** | A3, A4, A5, A6, C4 | `mountSFTable` |
      | Expandable Format | **exp** | C0 | `mountExpTable` |
-     | Form Format 1 | **FF1** | F1 (League Manager) | `mountFF1Table` |
-     | Form Format 2 | **FF2** | F2 (Round Editor) | `mountFF2Table` |
+     | Form Format | **FF** | F1 (Leagues), F2 (Players), F3 (Round Editor), F4 (View Overrides) | `mountFFTable` |
+
+     > **FF — three cell modes per ColDef.** Display (read-only), Action (button + data-attrs), Edit (input/select + getValue). A single FF table mixes them freely. The earlier FF1/FF2 split was an intermediate naming — collapsed into a single FF format once it became clear the variation is per-column, not per-table.
 
    - Each table is produced by its own preset module (per `tableId`), bound to one of the five formats. The preset owns the data shape, column config, and any table-specific decorations (sticky cols, medal rows, show-top-N, sort, image-export, inline-edit, etc.).
    - Production pages (`index.html`, `league.html`, `player.html`, `player-general.html`, `dashboard.html`, `admin.html`) consume those functions — they do not own table-rendering code.
@@ -75,7 +76,7 @@ Group A is **split into two sub-groups** so that SF and exp formats (Phases 5–
 
 #### Group A-base → `table-lab/formats/_base/base.css`
 
-Rules shared by **every** table format (MF + SF + exp; FF1/FF2 may opt in). Loaded by every format's CSS via `@import` (or stacked `<link>` tags in the lab and in production).
+Rules shared by **every** table format (MF + SF + exp; FF may opt in). Loaded by every format's CSS via `@import` (or stacked `<link>` tags in the lab and in production).
 
 - `table.font-large`, `table.font-small` (font enum — used by all formats)
 - Generic `table { width, border-collapse, border-spacing, font-size }`
@@ -143,7 +144,7 @@ Used **both** inside tables and on standalone landing/player/admin pages. Tables
 
 ## Phase 1 — Lock the MF lab catalog (additive, no production risk)
 
-**Scope:** **MF format only.** SF, exp, FF1, FF2 are handled in later phases.
+**Scope:** **MF format only.** SF, exp, FF are handled in later phases.
 
 **Outcome:** every MF-format table the project renders has a dedicated lab function and preset with full visual fidelity.
 
@@ -371,34 +372,34 @@ Only after the gate passes: remove every selector classified as Group A (both A-
 
 ---
 
-## Phase 8 — FF1 / FF2 formats (Admin tables)
+## Phase 8 — FF format (Admin tables)
 
-**Scope:** F1 (League Manager), F2 (Round Editor).
+**Scope:** FF covers F1 (League Manager), F2 (Players in Edit League), F3 (Round Editor), F4 (View Overrides).
 
 **Outcome:** admin tables are also rendered through `table-lab/`. The lab becomes the canonical source for *every* table in the project.
 
 > **Note:** admin tables are CRUD editors, not display tables. Migrating them to the lab is genuinely useful (single source of truth for table look-and-feel across the whole app) but is materially more complex than MF/SF/exp because they involve inline editing, validation, and per-row save/delete actions. This phase is **optional** if scope needs to be cut — admin tables can keep their current render path indefinitely without affecting the lab's role as canon for display tables.
 
-### 8.1 FF1 — League Manager
-- Inventory `js/admin/leagueManager.js` table-rendering code.
-- Define FF1 args schema (must include: inline-edit cells, save callback, delete callback, status/type pills, mobile `data-label` card pattern).
-- Implement `table-lab/formats/ff1/mount.js` + `ff1.css`.
-- Add F1 preset under `table-lab/presets/`.
-- Add tab to lab.
-- Rewire `leagueManager.js` to use `mountFF1Table`.
+### 8.0 Current state (mid-2026)
+- `table-lab/formats/ff/mount.js` + `ff.css` exist in the lab as canon for the unified FF format (single mount, three cell modes per ColDef).
+- `css/admin.css` carries the same FF chrome rules (`.ff-wrap`, `.admin-table.font-large` block, F3↔FF reconciliation) — duplicated until production rewires.
+- Production JS in `js/admin/leagueManager.js`, `js/admin/overridesList.js`, `js/admin/roundEditor.js` writes the FF class names (`<div class="ff-wrap">`, `class="admin-table font-large">`) but still builds the table by hand and wires its own listeners. So F1/F2/F3/F4 wear FF chrome visually but are not yet driven by `mountFFTable`.
 
-### 8.2 FF2 — Round Editor
-- Inventory `js/admin/roundEditor.js` table-rendering code.
-- Define FF2 args schema (must include: round/match data model, score input handlers, per-cell validation, result inference).
-- Implement `table-lab/formats/ff2/mount.js` + `ff2.css`.
-- Add F2 preset under `table-lab/presets/`.
-- Add tab to lab.
-- Rewire `roundEditor.js` to use `mountFF2Table`.
+### 8.1 Implement & rewire (single FF format)
+- Inventory the four admin table render paths:
+  - F1 (`leagueManager.js :: renderLeagueList`) — Display + Action.
+  - F2 (`leagueManager.js :: renderEditLeagueForm` player table) — Display + Edit + Action (incl. Upload Custom Flag sub-form caller-owned).
+  - F3 (`roundEditor.js`) — Edit + Action; structurally unique (2-rows-per-match `<tbody>` with rowspan, per-match Save state machine). Decision point: extend `mountFFTable` to support multi-row records OR keep F3 hand-rolled while sharing the FF chrome via CSS classes.
+  - F4 (`overridesList.js`) — Display + Action.
+- Confirm `mountFFTable` args schema covers Display + Action + Edit cell modes (it already does via `format` / `getValue` / `originalKey` / `validate`).
+- Add F1, F2, F3, F4 presets under `table-lab/presets/` (F3 deferred or partial per the decision above).
+- Add tabs to the lab.
+- Rewire each call site to use `mountFFTable`. Once all rewires are in, delete the FF chrome rules from `css/admin.css` — the lab's `ff.css` becomes the sole source.
 
-### 8.3 Acceptance gate
-- F1 and F2 render in the lab and in production with full functionality.
+### 8.2 Acceptance gate
+- F1, F2, F3, F4 render in the lab and in production with full functionality.
 - Edit / save / delete / validation behave identically to pre-refactor.
-- `css/admin.css` no longer contains FF1/FF2 table-specific rules.
+- `css/admin.css` no longer contains FF table-specific rules — the lab's `ff.css` is the sole source.
 
 ---
 
@@ -426,7 +427,7 @@ Only after the gate passes: remove every selector classified as Group A (both A-
 | 5 | SF format in lab (`formats/sf/`) | SF | No | None (additive) | Trivial |
 | 6 | exp format in lab (`formats/exp/`) | exp | No | None (additive) | Trivial |
 | 7 | SF + exp production rewire, **pre-deletion grep gate**, **delete Group A from `components.css`** | SF, exp + CSS sweep | **YES — only here** | Medium (gated) | git revert deletion commit |
-| 8 | FF1 + FF2 (admin) | FF1, FF2 (optional) | No (admin CSS lives in `admin.css`) | High — touches admin CRUD | Per-file revert |
+| 8 | FF (admin) | FF (optional) | No (admin CSS lives in `admin.css`) | High — touches admin CRUD | Per-file revert |
 | 9 | Final cleanup (lab.css de-duplication, residue sweep) | All | No | Low | git revert |
 
 ---
@@ -435,11 +436,11 @@ Only after the gate passes: remove every selector classified as Group A (both A-
 
 When all phases complete:
 
-- ☐ `table-lab/index.html` renders every table in the project (across MF, SF, exp, FF1, FF2) with real data.
+- ☐ `table-lab/index.html` renders every table in the project (across MF, SF, exp, FF) with real data.
 - ☐ `table-lab/formats/<format>/` is the only place each format's styling and rendering lives.
 - ☐ Each table has a dedicated preset module in `table-lab/presets/`.
 - ☐ `css/components.css` contains only shared atoms and non-table UI.
-- ☐ `css/admin.css` contains no FF1/FF2 table-specific rules (after Phase 8).
+- ☐ `css/admin.css` contains no FF table-specific rules (after Phase 8).
 - ☐ Production pages load the lab's CSS and import from `table-lab/`.
 - ☐ Pixel-identical to pre-refactor baseline (modulo accepted deltas).
 - ☐ Zero hand-built table HTML anywhere outside `table-lab/`.

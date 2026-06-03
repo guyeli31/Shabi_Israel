@@ -34,7 +34,7 @@ Decisions locked in via earlier conversation:
 │ LAYER 3: PRIMITIVES → COMPONENTS → TABLES (consume tokens only)  │
 │ v2/src/primitives/    — Flag, Icon, Badge, Pill, Button, ...    │
 │ v2/src/components/    — PlayerCell, StatusChip, Navigation, ... │
-│ v2/src/tables/        — MFTable, SFTable, exp, FF1, FF2 + presets│
+│ v2/src/tables/        — MFTable, SFTable, exp, FF + presets     │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -149,8 +149,13 @@ v2/
 │   │   │   └── README.md                # MF iron rules
 │   │   ├── SFTable/{sfTable.css, sfTable.js, argsSchema.js, README.md}
 │   │   ├── ExpandableTable/{expandableTable.css, expandableTable.js, argsSchema.js, README.md}
-│   │   ├── FormTableLeagues/{formTableLeagues.css, formTableLeagues.js, argsSchema.js, README.md}
-│   │   ├── FormTableRounds/{formTableRounds.css, formTableRounds.js, argsSchema.js, README.md}
+│   │   ├── FormTable/{formTable.css, formTable.js, argsSchema.js, README.md}
+│   │   │                                 # Unified FF format covering all 4 admin tables.
+│   │   │                                 # Three cell modes per ColDef: Display (read-only),
+│   │   │                                 # Action (button + data-attrs), Edit (input/select
+│   │   │                                 # + getValue). A single FormTable instance can mix
+│   │   │                                 # all three freely. Returns { wrap, table, getDiff,
+│   │   │                                 # validate }. See docs/TABLE-DESIGN.md §FF.
 │   │   └── presets/
 │   │       ├── A1_completedLeagues.js   (MF)
 │   │       ├── A2_annualLeaderboard.js  (MF)
@@ -173,8 +178,10 @@ v2/
 │   │       ├── C4_matchRecords.js       (SF)
 │   │       ├── D_leagueTable.js         (MF — source of slope)
 │   │       ├── E_playerMatchHistory.js  (MF)
-│   │       ├── F1_leagueManager.js      (FF1)
-│   │       └── F2_roundEditor.js        (FF2)
+│   │       ├── F1_leagueManager.js      (FF — Display + Action)
+│   │       ├── F2_players.js            (FF — Display + Edit + Action)
+│   │       ├── F3_roundEditor.js        (FF — Edit + Action, 2-rows-per-match tbody)
+│   │       └── F4_viewOverrides.js      (FF — Display + Action)
 │   │
 │   ├── data/                            ── Layer 7: data access (no UI) ──
 │   │   ├── csvParser.js                 # ported as-is from js/data/
@@ -387,7 +394,7 @@ Two override-style files exist:
 
 ### 4.5 admin (`v2/src/pages/admin/`)
 - **Purpose**: production admin UI (player manager, round editor, league manager, Excel importer).
-- **Consumes**: same FF1/FF2 form tables that the rest of admin uses; same data layer (`adminWriter.js`).
+- **Consumes**: the unified `FormTable` (FF format) used by all 4 admin tables (F1 Leagues, F2 Players, F3 Round Editor, F4 View Overrides) — cell mode chosen per-column (Display / Action / Edit); same data layer (`adminWriter.js`).
 - **Phase**: ships disabled until Phase 8 to avoid write conflicts with v1 admin.
 
 ---
@@ -441,9 +448,9 @@ Each phase ends with a commit and an MCP verification checkpoint. If a phase fai
 - **Verification**: `npm run test:unit` passes. Load a league via the data layer in a small test page; output matches v1.
 
 ### Phase 5 — Table system (6–8 hours)
-- Build `v2/src/tables/{MFTable, SFTable, ExpandableTable, FormTableLeagues, FormTableRounds}/`.
+- Build `v2/src/tables/{MFTable, SFTable, ExpandableTable, FormTable}/`. `FormTable` is the unified FF format covering all 4 admin tables (three cell modes per ColDef: Display / Action / Edit).
 - Each variant: own CSS (token-only), own JS (`mount(el, args)`), own `argsSchema.js`, own `README.md` with iron rules.
-- Port all 18 presets to `v2/src/tables/presets/{A1..A6,B1..B6c,C0..C4,D,E,F1,F2}_*.js`. Each declares `export const variant = '...'` for lab auto-discovery.
+- Port all 20 presets to `v2/src/tables/presets/{A1..A6,B1..B6c,C0..C4,D,E,F1,F2,F3,F4}_*.js`. Each declares `export const variant = '...'` for lab auto-discovery. F1/F2/F3/F4 use `variant: 'FF'`.
 - Build `v2/src/tools/tableLab/` with auto-discovery, args form, theme bridge, code snippet, iron rules panel.
 - **MCP verification**: open `/tableLab.html` in v2; for each preset, screenshot the preview at 3 viewports × dark+light themes. Open the same preset in v1 (e.g., open v1 league.html for D, dashboard.html for B-series). Pixel diff per cell — allow ≤2% delta for font rendering.
 
@@ -466,8 +473,8 @@ Each phase ends with a commit and an MCP verification checkpoint. If a phase fai
 - **Verification**: editor round-trip — change a size assignment, save, reload, assignment persists. Click Publish, source tokens file updates, workspace empties.
 
 ### Phase 8 — Admin page (5–6 hours)
-- Port `js/admin/{playerManager,roundEditor,leagueManager,excelImporter}.js` to `v2/src/pages/admin/`.
-- Build `v2/src/tables/FormTableLeagues/` and `v2/src/tables/FormTableRounds/` rendering paths.
+- Port `js/admin/{playerManager,roundEditor,leagueManager,overridesList,excelImporter}.js` to `v2/src/pages/admin/`.
+- Wire all 4 admin tables (F1 Leagues, F2 Players, F3 Round Editor, F4 View Overrides) through the unified `FormTable` mount fn built in Phase 5.
 - Implement `v2/src/data/adminWriter.js` using FileSystemAPI for browser writes (same as v1 uses).
 - Show a prominent banner at top of v2 admin: "⚠️ Editing in v2 active. Close any v1 admin tabs."
 - **MCP verification**: parity check against v1 admin. Test each admin action (add player, edit score, change league params, import Excel) → confirm v2 and v1 produce identical file output by diff'ing the written files.
@@ -636,7 +643,7 @@ Screenshot diff: 0.4% — PASS
 Cutover proceeds only when ALL of these are true:
 
 - [ ] All 5 production pages + admin parity-verified at 3 viewports × 8 themes (zero failures).
-- [ ] All 18 table presets render in tableLab matching v1.
+- [ ] All 20 table presets (A1-A6, B1-B6c, C0-C4, D, E, F1-F4) render in tableLab matching v1.
 - [ ] typoEditor round-trips: read defaults, overlay, save history, publish, inventory write — all confirmed working.
 - [ ] `npm run ci` passes: Stylelint gates, grep gates, inventory gate, unit tests, visual regression suite, a11y.
 - [ ] `v2/docs/PARITY-LOG.md` shows green across the board.
