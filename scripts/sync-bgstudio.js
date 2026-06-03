@@ -496,6 +496,20 @@ try {
   });
 
   await page.waitForTimeout(2000);
+
+  const enterClicked = await page.evaluate(() => {
+    const enter = Array.from(document.querySelectorAll('button')).find(
+      (b) => /^Enter$/.test((b.textContent || '').trim()) && b.offsetParent !== null,
+    );
+    if (!enter) return false;
+    enter.click();
+    return true;
+  });
+  if (enterClicked) {
+    console.log('→ Clicked Enter (gateway page)');
+    await page.waitForTimeout(1500);
+  }
+
   const loginVisible = await page
     .locator('button:has-text("Login"):not(.dialogbutton)')
     .isVisible({ timeout: 5000 })
