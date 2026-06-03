@@ -183,12 +183,31 @@ async function changeStatusTask(page, durationS) {
 async function exportShabiIsraelTask(page, repoRoot) {
   await page.waitForTimeout(randInt(500, 2500));
   console.log('  → Switching to Tournaments tab');
-  await page.locator('th').filter({ hasText: /^\s*Tournaments\s*$/ }).first().click({ timeout: 10000 });
-  await page.locator('tr').filter({ hasText: 'Leagues' }).first().waitFor({ timeout: 10000 });
+  const tournamentsSwitched = await page.evaluate(() => {
+    const th = Array.from(document.querySelectorAll('th')).find(
+      (el) => /^\s*Tournaments\s*$/.test(el.textContent || '') && el.offsetParent !== null,
+    );
+    const inner = th && th.querySelector('.TabButton');
+    if (!inner) return false;
+    inner.click();
+    return true;
+  });
+  if (!tournamentsSwitched) throw new Error('Tournaments tab not found or unreachable');
+  await page.waitForTimeout(1500);
 
   await page.waitForTimeout(randInt(500, 2500));
   console.log('  → Opening Leagues');
-  await page.locator('tr').filter({ hasText: 'Leagues' }).locator('.button.tablebutton').first().click();
+  const leaguesOpened = await page.evaluate(() => {
+    const rows = Array.from(document.querySelectorAll('tr')).filter((tr) => tr.offsetParent !== null);
+    const target = rows.find(
+      (tr) => /Leagues/.test(tr.textContent || '') && tr.querySelector('.button.tablebutton'),
+    );
+    if (!target) return false;
+    target.querySelector('.button.tablebutton').click();
+    return true;
+  });
+  if (!leaguesOpened) throw new Error('Leagues row with tablebutton not found in Tournaments panel');
+  await page.waitForTimeout(1500);
 
   await page.waitForTimeout(randInt(500, 2500));
   console.log(`  → Opening league "${LEAGUE_NAME}" (with pagination)`);
