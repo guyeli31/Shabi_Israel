@@ -1,23 +1,12 @@
 /* admin.css — Admin panel styles */
 
-/* ── Match Results section + sub-tabs (admin.html) ────────────────────────
-   Mirrors the dashboard's .dash-section + .rem-tab-* pattern so the admin
-   tab bar feels native. The section has no background — tabs sit on the
-   page bg (var(--color-bg)) and contrast against their surface-coloured
-   buttons. The opened panel carries its own surface background.
+/* ── Match Results sub-tabs (admin.html) ──────────────────────────────────
+   Mirrors the dashboard's .rem-tab-* pattern so the admin tab bar feels
+   native. Tabs sit on the page bg (var(--color-bg)) and contrast against
+   their surface-coloured buttons. The opened panel carries its own surface
+   background. (The section header itself uses the shared .dash-section /
+   .collapsible-* tab styling defined further below.)
    Keep visually in sync with css/dashboard.css :: .rem-tab-bar block. */
-.match-results-section {
-    margin-top: var(--space-xl);
-    margin-bottom: var(--space-lg);
-}
-.match-results-section > h2 {
-    margin-bottom: var(--space-md);
-    font-size: var(--fs-120);
-    border-bottom: 2px solid var(--color-border);
-    padding-bottom: var(--space-xs);
-    color: var(--color-text);
-}
-
 .rem-tab-bar {
     display: flex;
     flex-wrap: wrap;
@@ -509,6 +498,119 @@
     border-bottom: 1px solid var(--color-border);
 }
 
+/* ── Collapsible section tabs (Edit League view) ──────────────────────────
+   IDENTICAL to the index dashboard tabs. Mirrors css/dashboard.css
+   (.dash-section h2) + css/index-dashboard.css (.collapsible-header /
+   .collapsible-body) because admin.html loads neither file.
+
+   FONT SIZE: index.html is the one page that does NOT load
+   typography-tokens.css, so there its `.dash-section h2 { font-size:
+   var(--fs-120) }` resolves to an undefined var and the header inherits the
+   body font size. admin.html DOES load the tokens, so to render these tabs at
+   exactly the same size as on index.html we inherit here instead of using the
+   token. Keep in sync with those two sources. */
+.dash-section {
+    margin-top: var(--space-xl);
+}
+.dash-section h2 {
+    margin-bottom: var(--space-md);
+    font-size: inherit; /* match index.html (see note above) — not var(--fs-120) */
+    border-bottom: 2px solid var(--color-border);
+    padding-bottom: var(--space-xs);
+    color: var(--color-text);
+}
+.collapsible-header {
+    cursor: pointer;
+    user-select: none;
+}
+.collapsible-header::after {
+    content: ' \25BE';
+    font-size: 0.9em;
+    color: var(--color-text-muted);
+}
+.collapsed .collapsible-header::after {
+    content: ' \25B8';
+}
+.collapsed .collapsible-body {
+    display: none;
+}
+
+/* font-small content for League Settings & Automatic Sync cards. */
+.edit-card-sm,
+.edit-card-sm small,
+.edit-card-sm .form-group label,
+.edit-card-sm .form-group input,
+.edit-card-sm .form-group select,
+.edit-card-sm .form-group textarea {
+    font-size: var(--fs-085);
+}
+
+/* Inputs in these cards scale linearly with the viewport: --fs-085 is a
+   clamp()/vw token, so em-based padding + the inherited unitless line-height
+   (1.6) make the whole control grow and shrink with the font — and therefore
+   with the viewport width. Covers Issue Date and every Automatic-Sync field. */
+.edit-card-sm {
+    --input-pad-y: 0.6em;
+    --input-pad-x: 1.1em;
+}
+.edit-card-sm .form-group input,
+.edit-card-sm .form-group select {
+    padding: var(--input-pad-y) var(--input-pad-x);
+}
+/* date/time controls carry ~2px of constant WebKit widget chrome — trim 1px
+   off each vertical padding so their box height matches the text/number inputs
+   at every breakpoint. Higher specificity (attribute selector) than the rule
+   above, so it wins. */
+.edit-card-sm .form-group input[type="date"],
+.edit-card-sm .form-group input[type="time"] {
+    padding-top: calc(var(--input-pad-y) - 1px);
+    padding-bottom: calc(var(--input-pad-y) - 1px);
+}
+
+/* Medals & Prizes mini-table (League Settings) — font-small; editable Count +
+   Prize per medal. Inputs inherit the responsive sizing from .edit-card-sm. */
+table.font-small { font-size: var(--fs-085); }
+.medal-prize-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.medal-prize-table th {
+    text-align: left;
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--fs-078);
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+    border-bottom: 2px solid var(--color-border);
+    white-space: nowrap;
+}
+.medal-prize-table td {
+    padding: var(--space-xs) var(--space-sm);
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+}
+.medal-prize-table tbody tr:last-child td {
+    border-bottom: none;
+}
+.medal-prize-table td:not(:first-child) {
+    width: 30%;
+}
+.medal-prize-table .medal-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-weight: 700;
+    white-space: nowrap;
+}
+.medal-prize-table .medal-icon {
+    font-size: 1.15em;
+    line-height: 1;
+}
+.medal-prize-table .medal-gold   { color: var(--color-gold); }
+.medal-prize-table .medal-silver { color: var(--color-silver); }
+.medal-prize-table .medal-bronze { color: var(--color-bronze); }
+
 /* ---- Admin Table ---- */
 /* font-large mirrors base.css — admin.html doesn't load components.css */
 table.font-large { font-size: var(--fs-093); }
@@ -559,8 +661,8 @@ table.font-large { font-size: var(--fs-093); }
    FF owns only the scroll wrapper + table + sticky behavior. */
 
 .ff-wrap {
-    overflow: auto;
-    max-height: 60vh;
+    overflow-x: auto;
+    overflow-y: clip;
     border-radius: var(--radius-sm);
 }
 
@@ -649,6 +751,54 @@ table.font-large { font-size: var(--fs-093); }
 .cell-invalid {
     outline: 2px solid var(--color-loss);
     outline-offset: -2px;
+}
+
+/* ── FF button sizing — unified, em-based, viewport-fluid ──────────
+   All buttons inside an FF table share the table's fluid font scaling.
+   font-size is set in em — it inherits the cell's clamp-fluid font
+   (var(--fs-093) for font-large). Padding, border-radius, and gap are
+   all em-based so they scale proportionally with the font. Ratios
+   between buttons and cells are preserved at every viewport width.
+   Variant classes (.btn-primary / .btn-danger / .btn-secondary /
+   .btn-tech) keep their color / weight treatment unchanged — only the
+   sizing dimension is unified across the FF family.
+
+   Density tiers (inside FF):
+   • default (.btn)      = 0.88em — comfortable, used for primary actions
+   • .btn-sm             = 0.85em — slightly more compact (legacy alias)
+   • .btn-xs             = 0.75em — tight; used by F3 row-action buttons */
+.ff-wrap .btn,
+.ff-wrap .btn-sm,
+.ff-wrap .btn-xs {
+    font-size: 0.85em;
+    padding: 0.3em 0.7em;
+    border: 1px solid var(--color-border);
+    border-radius: 0.25em;
+    line-height: 1.2;
+    gap: 0.3em;
+}
+.ff-wrap .btn {
+    font-size: 0.88em;
+    padding: 0.35em 0.8em;
+}
+.ff-wrap .btn-xs {
+    font-size: 0.75em;
+    padding: 0.25em 0.6em;
+    border-radius: 0.2em;
+}
+.ff-wrap .btn-tech {
+    font-weight: 700;
+}
+/* Disabled state — opacity only; size unchanged. */
+.ff-wrap .btn:disabled,
+.ff-wrap .btn-sm:disabled,
+.ff-wrap .btn-xs:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+/* Inter-button spacing inside F3's Actions column — also em-based. */
+.ff-wrap .match-actions .btn {
+    margin: 0.1em 0.15em;
 }
 
 /* Legacy hover/border rules for non-font-large admin tables (keep). */
@@ -1048,6 +1198,9 @@ table.font-large { font-size: var(--fs-093); }
     color: var(--color-text);
     background: var(--color-surface);
 }
+/* Note: the ~2px date/time widget-chrome height compensation lives in the
+   `.edit-card-sm` block above (responsive em padding), so it is not repeated
+   here. */
 .themed-date::-webkit-calendar-picker-indicator {
     cursor: pointer;
     opacity: 0.85;
@@ -1095,34 +1248,29 @@ table.font-large { font-size: var(--fs-093); }
    preserves the source aspect ratio. No image-rendering override — browsers'
    default bilinear scaling produces smooth flags; crisp-edges was forcing
    nearest-neighbor and visibly pixelating the small thumbnails. */
-.admin-round-table .flag {
+/* Flag thumbnails inside FF tables — em-based so they scale with the
+   cell font (preserves ratio with table text at every viewport). Source
+   PNGs in assets/flags/ are 1600×1600 (square) — `width: auto` + base
+   `.flag` rule preserves the natural aspect; without this rule a fixed
+   width × height (as F2's inline style used to do) would stretch them. */
+.ff-wrap .flag {
     height: 1em;
     width: auto;
-    vertical-align: middle;
-    margin-right: 4px;
+    margin-right: 0.3em;
     object-fit: contain;
-    border-radius: 2px;
+    border-radius: 0.15em;
+    vertical-align: middle;
 }
 
 /* ----------------------------------------------------------------------
    F3 ↔ FF chrome reconciliation
    F3 wears the FF chrome (.ff-wrap + .admin-table.font-large) like F1/F2/F4
-   but has 3 structural quirks that need surgical overrides:
+   but has 2 structural quirks that need surgical overrides:
      1. Hairlines come from per-match-block <tbody> border-bottom logic
         (see .match-block rules above), not from FF's universal box-shadow.
      2. Match-state coloring (.match-block-overridden/-pending/-unplayed)
         sets td backgrounds — must beat FF's first-col background rule.
-     3. Many tables stacked vertically (one per round) — the FF default
-        max-height: 60vh is too short for a 12-match round, so per-round
-        wraps get the original .table-scroll max-height instead.
    ---------------------------------------------------------------------- */
-
-/* 0. F3 stacks many tables on one screen (one per round). Restore the
-      original .table-scroll max-height so typical rounds fit without
-      inner vertical scroll. */
-.round-card .ff-wrap {
-    max-height: calc(100vh - var(--nav-height, 48px) - 40px);
-}
 
 /* 1. Suppress FF's universal cell hairline — F3 owns its own per-match
       border logic above. */

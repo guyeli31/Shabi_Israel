@@ -813,7 +813,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                 </td>
                 <td>
                     <div style="display:flex;align-items:center;gap:6px">
-                        <img class="flag-preview" src="assets/flags/${flagCode}.png" alt="${flagCode}" style="width:24px;height:16px">
+                        <img class="flag" src="assets/flags/${flagCode}.png" alt="${flagCode}">
                         <select class="player-flag-select" data-player="${esc(player)}" style="padding:2px 6px;border:1px solid var(--color-border);border-radius:4px">
                             ${flagOptions}
                             <option value="__custom" ${!KNOWN_FLAGS.includes(flagCode) ? 'selected' : ''}>Custom...</option>
@@ -836,11 +836,11 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         <h1>Edit: ${esc(p.LeagueTitle || leagueId)}</h1>
         <button class="btn btn-secondary" id="back-to-leagues" style="margin-bottom:var(--space-lg)">&larr; Back to Leagues</button>
 
-        <section class="edit-section">
-            <h2 class="edit-section-toggle" role="button" tabindex="0" aria-expanded="true">
-                <span class="collapse-arrow">&#x25BE;</span> League Settings
-            </h2>
-            <div class="admin-card collapse-body edit-card-sm">
+        <div class="dash-section">
+          <div class="collapsible-section">
+            <h2 class="collapsible-header">League Settings</h2>
+            <div class="collapsible-body">
+            <div class="admin-card edit-card-sm">
             <div id="edit-msg"></div>
             <div class="form-group">
                 <label for="edit-title">League Name</label>
@@ -872,19 +872,34 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                     <small style="color:var(--color-text-muted)">${hidden ? 'Hidden from public' : 'Visible'}</small>
                 </div>
             </div>
-            <div class="add-league-row">
-                <div class="form-group">
-                    <label for="edit-gold">Gold Count</label>
-                    <input type="number" id="edit-gold" value="${goldCount}" min="0" max="20">
-                </div>
-                <div class="form-group">
-                    <label for="edit-silver">Silver Count</label>
-                    <input type="number" id="edit-silver" value="${silverCount}" min="0" max="20">
-                </div>
-                <div class="form-group">
-                    <label for="edit-bronze">Bronze Count</label>
-                    <input type="number" id="edit-bronze" value="${bronzeCount}" min="0" max="20">
-                </div>
+            <div class="form-group">
+                <label>Medals &amp; Prizes</label>
+                <table class="medal-prize-table font-small">
+                    <thead>
+                        <tr>
+                            <th scope="col">Medal</th>
+                            <th scope="col">Count</th>
+                            <th scope="col">Prize</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="medal-cell medal-gold"><span class="medal-icon">&#x1F947;</span> Gold</span></td>
+                            <td><input type="number" id="edit-gold" value="${goldCount}" min="0" max="20"></td>
+                            <td><input type="number" id="edit-prize-gold" value="${prizes.Gold || 0}" min="0" step="1"></td>
+                        </tr>
+                        <tr>
+                            <td><span class="medal-cell medal-silver"><span class="medal-icon">&#x1F948;</span> Silver</span></td>
+                            <td><input type="number" id="edit-silver" value="${silverCount}" min="0" max="20"></td>
+                            <td><input type="number" id="edit-prize-silver" value="${prizes.Silver || 0}" min="0" step="1"></td>
+                        </tr>
+                        <tr>
+                            <td><span class="medal-cell medal-bronze"><span class="medal-icon">&#x1F949;</span> Bronze</span></td>
+                            <td><input type="number" id="edit-bronze" value="${bronzeCount}" min="0" max="20"></td>
+                            <td><input type="number" id="edit-prize-bronze" value="${prizes.Bronze || 0}" min="0" step="1"></td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
             <div class="add-league-row">
                 <div class="form-group">
@@ -900,30 +915,18 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                     <input type="number" id="edit-match-length" value="${p.MatchLength || 7}" min="1" max="25" step="2">
                 </div>
             </div>
-            <div class="add-league-row">
-                <div class="form-group">
-                    <label for="edit-prize-gold">Prize Gold</label>
-                    <input type="number" id="edit-prize-gold" value="${prizes.Gold || 0}" min="0" step="1">
-                </div>
-                <div class="form-group">
-                    <label for="edit-prize-silver">Prize Silver</label>
-                    <input type="number" id="edit-prize-silver" value="${prizes.Silver || 0}" min="0" step="1">
-                </div>
-                <div class="form-group">
-                    <label for="edit-prize-bronze">Prize Bronze</label>
-                    <input type="number" id="edit-prize-bronze" value="${prizes.Bronze || 0}" min="0" step="1">
-                </div>
-            </div>
             <button class="btn btn-primary" id="save-league-settings">Save Settings</button>
             </div>
-        </section>
+            </div>
+          </div>
+        </div>
 
         ${players.length > 0 ? `
-        <section class="edit-section">
-            <h2 class="edit-section-toggle" role="button" tabindex="0" aria-expanded="true">
-                <span class="collapse-arrow">&#x25BE;</span> Players (${players.length})
-            </h2>
-            <div class="admin-card collapse-body">
+        <div class="dash-section">
+          <div class="collapsible-section">
+            <h2 class="collapsible-header">Players (${players.length})</h2>
+            <div class="collapsible-body">
+            <div class="admin-card">
             <div id="players-msg"></div>
             <div class="ff-wrap">
                 <table class="admin-table font-large">
@@ -953,14 +956,16 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                 <div id="flag-upload-msg"></div>
             </div>
             </div>
-        </section>
+            </div>
+          </div>
+        </div>
         ` : '<div class="admin-card"><p style="color:var(--color-text-muted)">No players yet. Upload a CSV first.</p></div>'}
 
-        <section class="edit-section">
-            <h2 class="edit-section-toggle" role="button" tabindex="0" aria-expanded="true">
-                <span class="collapse-arrow">&#x25BE;</span> Automatic Sync
-            </h2>
-            <div class="admin-card collapse-body edit-card-sm">
+        <div class="dash-section">
+          <div class="collapsible-section">
+            <h2 class="collapsible-header">Automatic Sync</h2>
+            <div class="collapsible-body">
+            <div class="admin-card edit-card-sm">
                 <h3 style="margin-bottom:var(--space-md)">BGStudio Sync</h3>
                 <div id="bgsync-msg"></div>
 
@@ -1009,13 +1014,14 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                     <button class="btn btn-secondary" id="bgsync-run-now" type="button">Run now</button>
                 </div>
             </div>
-        </section>
+            </div>
+          </div>
+        </div>
 
-        <section class="edit-section match-results-section" id="match-results-section">
-            <h2 class="edit-section-toggle" role="button" tabindex="0" aria-expanded="true">
-                <span class="collapse-arrow">&#x25BE;</span> Match Results
-            </h2>
-            <div class="collapse-body">
+        <div class="dash-section" id="match-results-section">
+          <div class="collapsible-section">
+            <h2 class="collapsible-header">Match Results</h2>
+            <div class="collapsible-body">
             <div class="rem-tab-bar" id="match-tab-bar">
                 <button class="rem-tab-btn" data-panel="match-panel-rounds"><span class="rem-tab-arrow">&#x25B8;</span> Round Editor</button>
                 ${!params.ManualEntry ? `
@@ -1029,7 +1035,8 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             <div id="match-panel-overrides" class="rem-tab-panel" hidden></div>
             ` : ''}
             </div>
-        </section>
+          </div>
+        </div>
 
     `;
 
@@ -1041,19 +1048,12 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     setupMatchResultsTabs(leagueId, params, refreshBadgeFn);
 
     // Collapsible section headers (League Settings / Players / Automatic Sync / Match Results).
-    // Headers sit outside the card (styled like the dashboard's .dash-section h2);
-    // each toggles its own body independently; all open by default.
-    container.querySelectorAll('.edit-section-toggle').forEach(head => {
-        const toggle = () => {
-            const body = head.nextElementSibling;
-            if (!body || !body.classList.contains('collapse-body')) return;
-            const expanded = head.getAttribute('aria-expanded') !== 'false';
-            head.setAttribute('aria-expanded', String(!expanded));
-            body.hidden = expanded;
-        };
-        head.addEventListener('click', toggle);
-        head.addEventListener('keydown', e => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    // Identical to the index dashboard tabs: .dash-section > .collapsible-section
+    // with a .collapsible-header that toggles .collapsed on its section. All open
+    // by default. See js/render/landingPage.js + css/index-dashboard.css.
+    container.querySelectorAll('.collapsible-header').forEach(head => {
+        head.addEventListener('click', () => {
+            head.closest('.collapsible-section').classList.toggle('collapsed');
         });
     });
 
@@ -1075,7 +1075,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         sel.addEventListener('change', function() {
             const row = this.closest('tr');
             const customInput = row.querySelector('.player-flag-custom');
-            const preview = row.querySelector('.flag-preview');
+            const preview = row.querySelector('img.flag');
             if (this.value === '__custom') {
                 customInput.style.display = 'inline';
                 customInput.focus();

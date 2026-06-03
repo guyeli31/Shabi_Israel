@@ -16,13 +16,18 @@
 @import url("../base/base.css");
 
 /* ── Scroll context wrapper ───────────────────────────────────────
-   Single scroll container for BOTH axes — so sticky thead (top:0)
-   and sticky cols (left:0) both resolve against this element.
-   Mirrors MF's D/E pattern and SF's .achv-table-wrapper. */
+   Horizontal scroll only. `overflow-y: clip` (not `visible`) is required:
+   `overflow-x: auto` with `overflow-y: visible` is auto-promoted to
+   auto/auto per CSS spec, which would intercept window vertical scroll
+   and break sticky thead against the page. `clip` keeps horizontal
+   scrolling without creating a vertical scroll context, so sticky thead
+   resolves against the outer scroll ancestor (the page). The wrap
+   itself has no height cap — tables flow to their natural height.
+   Mirrors MF's D/E pattern. */
 
 .ff-wrap {
-    overflow: auto;
-    max-height: 60vh;
+    overflow-x: auto;
+    overflow-y: clip;
     border-radius: var(--radius-sm);
 }
 
@@ -125,4 +130,64 @@
 .cell-invalid {
     outline: 2px solid var(--color-loss);
     outline-offset: -2px;
+}
+
+/* ── FF button sizing — unified, em-based, viewport-fluid ─────────
+   All buttons inside an FF table share the table's fluid font scaling.
+   font-size is em (inherits the cell's clamp-fluid font). Padding,
+   border-radius, gap, and inter-button margin are em-based so they
+   scale proportionally with the font. Ratios between buttons and cells
+   are preserved at every viewport. Variant classes (.btn-primary /
+   .btn-danger / .btn-secondary / .btn-tech) keep their color/weight
+   treatment unchanged — only the sizing dimension is unified.
+
+   Density tiers (inside FF):
+   • default (.btn)  = 0.88em — comfortable, used for primary actions
+   • .btn-sm         = 0.85em — slightly more compact (legacy alias)
+   • .btn-xs         = 0.75em — tight; used by F3 row-action buttons */
+.ff-wrap .btn,
+.ff-wrap .btn-sm,
+.ff-wrap .btn-xs {
+    font-size: 0.85em;
+    padding: 0.3em 0.7em;
+    border: 1px solid var(--color-border);
+    border-radius: 0.25em;
+    line-height: 1.2;
+    gap: 0.3em;
+}
+.ff-wrap .btn {
+    font-size: 0.88em;
+    padding: 0.35em 0.8em;
+}
+.ff-wrap .btn-xs {
+    font-size: 0.75em;
+    padding: 0.25em 0.6em;
+    border-radius: 0.2em;
+}
+.ff-wrap .btn-tech {
+    font-weight: 700;
+}
+.ff-wrap .btn:disabled,
+.ff-wrap .btn-sm:disabled,
+.ff-wrap .btn-xs:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.ff-wrap .match-actions .btn {
+    margin: 0.1em 0.15em;
+}
+
+/* ── FF flag thumbnails — em-based, aspect-preserving ─────────────
+   Source PNGs in assets/flags/ are square (1600×1600). `width: auto`
+   + the base `.flag` rule preserves the natural aspect ratio; without
+   this rule, a fixed width × height (e.g. F2's old `width:24px;height:16px`
+   inline style) would stretch them to 3:2. Height in em scales with the
+   cell font, so flag size stays proportional at every viewport. */
+.ff-wrap .flag {
+    height: 1em;
+    width: auto;
+    margin-right: 0.3em;
+    object-fit: contain;
+    border-radius: 0.15em;
+    vertical-align: middle;
 }

@@ -455,7 +455,7 @@ To convert a table to FF in a future session, say:
 | Parameter | Value |
 |---|---|
 | Card chrome | NOT owned by FF — caller wraps mountPoint with `.admin-card` (or `.rem-tab-panel`, `.round-card`, etc.) so multi-element cards (heading + msg slot + table + Save + sub-forms) compose freely |
-| Scroll context | `.ff-wrap`: `overflow: auto; max-height: 60vh; border-radius: var(--radius-sm)` — single scroll container for BOTH axes (so sticky thead `top:0` AND sticky cols `left:0` resolve against the same element) |
+| Scroll context | `.ff-wrap`: `overflow-x: auto; overflow-y: clip; border-radius: var(--radius-sm)` — horizontal scroll only, no height cap. `clip` (not `visible`) is required because `overflow-x: auto` auto-promotes a `visible` `overflow-y` to `auto` per CSS spec, which would intercept window scroll and break sticky thead. With `clip`, sticky col 1 (`left:0`) resolves against the wrap; sticky thead (`top:0`) resolves against the page — tables flow to their natural height in document flow |
 | Table width | `width: 100%` — fills the wrap; cells size by content; horizontal scroll engages when total content > wrap width |
 | Collapse | `border-collapse: separate; border-spacing: 0` |
 | Row hairlines | `box-shadow: inset 0 -1px 0 var(--color-border)` on all `tbody td`; removed on last row |
@@ -472,6 +472,8 @@ To convert a table to FF in a future session, say:
 | Hover | `var(--color-hover)` on hovered row's cells (incl. sticky) |
 | Scroll shadow | `attachStickyShadow()` toggles `.is-scrolled-x` on the wrap → MF-style drop-shadow on the rightmost sticky col's right edge, only during horizontal scroll |
 | Validation marker | Edit-mode cells whose `validate()` returns an error get `cellInvalidClass` (default `.cell-invalid` → `outline: 2px solid var(--color-loss)`). Caller can override |
+| Button sizing | All buttons inside `.ff-wrap` are em-based for viewport-fluid scaling. `font-size` in em inherits the cell's clamp-fluid font (so ratios with cells stay constant at every viewport); `padding`, `border-radius`, `gap`, and inter-button `margin` are em-based. Three density tiers: default `.btn` = `0.88em`, `.btn-sm` = `0.85em`, `.btn-xs` = `0.75em`. Variant classes (`.btn-primary` / `.btn-danger` / `.btn-secondary` / `.btn-tech`) keep their color / weight treatment — only sizing is unified |
+| Flag thumbnails | Use shared `.flag` atom inside FF cells. `.ff-wrap .flag` overrides only sizing: `height: 1em` (scales with cell font); `width: auto` (preserves source aspect ratio — assets/flags/*.png are 1600×1600 square); `margin-right: 0.3em`; `border-radius: 0.15em`. Callers MUST use `class="flag"` — fixed inline `width × height` (e.g. F2's earlier `width:24px;height:16px`) stretched the square source to 3:2 and is forbidden |
 | Mobile pattern | None — horizontal scroll handles narrow viewports |
 
 ---
