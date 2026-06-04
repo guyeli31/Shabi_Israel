@@ -1270,16 +1270,14 @@ table.font-large { font-size: var(--fs-093); }
     box-shadow: 0 0 0 2px var(--color-accent-light);
 }
 
-/* Flag image inside the PLAYERS sticky column — mirrors .dash-table .flag.
-   height:1em scales with the cell font-size (font-large ≈ 14px). width:auto
-   preserves the source aspect ratio. No image-rendering override — browsers'
-   default bilinear scaling produces smooth flags; crisp-edges was forcing
-   nearest-neighbor and visibly pixelating the small thumbnails. */
-/* Flag thumbnails inside FF tables — em-based so they scale with the
-   cell font (preserves ratio with table text at every viewport). Source
-   PNGs in assets/flags/ are 1600×1600 (square) — `width: auto` + base
-   `.flag` rule preserves the natural aspect; without this rule a fixed
-   width × height (as F2's inline style used to do) would stretch them. */
+/* Flag thumbnails inside FF tables — mirror of the canonical .flag rule
+   in table-lab/formats/base/base.css. em-based: height tracks cell font
+   (fluid via --fs-093), so the flag scales with text at every viewport.
+   image-rendering:auto is explicit — guards against any inherited
+   `crisp-edges`/`pixelated` from other CSS layers (the 2026-06-03 F3
+   pixelation bug was the canonical retrospective).
+   admin.html doesn't load base.css/components.css, so the canonical
+   rule is duplicated here as an admin-side mirror. */
 .ff-wrap .flag {
     height: 1em;
     width: auto;
@@ -1287,6 +1285,7 @@ table.font-large { font-size: var(--fs-093); }
     object-fit: contain;
     border-radius: 0.15em;
     vertical-align: middle;
+    image-rendering: auto;
 }
 
 /* ----------------------------------------------------------------------

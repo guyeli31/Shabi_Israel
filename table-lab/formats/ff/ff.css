@@ -197,17 +197,7 @@
     min-width: 3.5em;
 }
 
-/* ── FF flag thumbnails — em-based, aspect-preserving ─────────────
-   Source PNGs in assets/flags/ are square (1600×1600). `width: auto`
-   + the base `.flag` rule preserves the natural aspect ratio; without
-   this rule, a fixed width × height (e.g. F2's old `width:24px;height:16px`
-   inline style) would stretch them to 3:2. Height in em scales with the
-   cell font, so flag size stays proportional at every viewport. */
-.ff-wrap .flag {
-    height: 1em;
-    width: auto;
-    margin-right: 0.3em;
-    object-fit: contain;
-    border-radius: 0.15em;
-    vertical-align: middle;
-}
+/* FF flags inherit the canonical .flag rule from base.css (em sizing +
+   aspect preservation + image-rendering:auto). The previous .ff-wrap .flag
+   override was a per-format duplicate of the same values; collapsed into
+   the universal canon 2026-06-04. */

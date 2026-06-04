@@ -20,10 +20,10 @@
 .pg-rank-expanded {
     width: fit-content;
     max-width: 100%;
-    margin: 10px auto 0;
-    padding: 10px;
+    margin: 0.7em auto 0;
+    padding: 0.7em;
     background: rgba(0, 0, 0, 0.03);
-    border-radius: 6px;
+    border-radius: 0.4em;
 }
 
 /* ── Scroll context wrapper ───────────────────────────────────────
@@ -111,11 +111,9 @@
     text-decoration: underline;
 }
 
-.pg-rank-table .flag {
-    height: 12px;
-    vertical-align: middle;
-    margin-right: 4px;
-}
+/* Flag inherits canonical .flag rule from base.css (em sizing + margin).
+   Explicit per-table .flag override removed 2026-06-04 — the old 12px
+   fixed height didn't scale with the table's --fs-093 fluid font. */
 
 .pg-rank-table .na {
     color: var(--color-text-muted);

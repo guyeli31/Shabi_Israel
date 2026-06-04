@@ -1,9 +1,9 @@
 # Plan — Table-Lab as the canonical source for all tables
 
-**Status:** in progress — Phase 1 ✅ Phase 2 ✅ Phase 3 ✅ Phase 4.1 ✅ (shim deleted 2026-06-03) Phase 4.2 ⏳ (B1–B6c + C1–C3 still hand-built) Phase 5 ✅ Phase 6 ✅ Phase 7 ⏳ Phase 8 ◐ (FF chrome restored in `admin.css` + production wears FF classes via JS; lab tabs / presets / `mountFFTable` wiring not yet done) Phase 9 ⏳
+**Status:** in progress — Phase 1 ✅ Phase 2 ✅ Phase 3 ✅ Phase 4.1 ✅ (shim deleted 2026-06-03) Phase 4.2 ⏳ (B1–B6c + C1–C3 still hand-built) Phase 5 ✅ Phase 6 ✅ Phase 7 ◐ (7.1 wiring landed 2026-06-04 alongside Path-X canonization sweep; 7.2 JS rewiring + 7.3 grep gate + 7.4 destructive deletion still ⏳) Phase 8 ◐ (FF chrome restored in `admin.css` + production wears FF classes via JS; lab tabs / presets / `mountFFTable` wiring not yet done) Phase 9 ⏳
 **Owner:** ravivb7
 **Created:** 2026-05-11
-**Last updated:** 2026-06-03 — paused: v2 rebuild took priority; Phase 7/8 closeout deferred until cutover decision.
+**Last updated:** 2026-06-04 — Path-X canonization sweep: Units policy doc-block + universal `.flag` + `.show-more-btn` added to `base.css`; 5 px→em violations eliminated across canon (`base/mf/sf/exp/ff`) and production mirrors (`components.css`, `dashboard.css`, `index-dashboard.css`, `player-general.css`, `admin.css`); pixelating `image-rendering:crisp-edges` removed from `player-general.css`; Phase 7.1 `<link>` wiring (`sf.css` + `exp.css`) landed in `league.html`, `player.html`, `player_general.html`, `dashboard.html`. Phase 7.2-7.4 (JS rewiring + Group A destructive sweep) still ⏳ — deferred until v2 cutover decision.
 
 ---
 

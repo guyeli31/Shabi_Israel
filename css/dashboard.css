@@ -106,7 +106,7 @@
     width: auto;
     margin-right: 0.3em;
     vertical-align: middle;
-    border-radius: 2px;
+    border-radius: 0.15em;
 }
 
 /* Sections */
@@ -284,9 +284,9 @@
     height: 1em;
     width: auto;
     vertical-align: middle;
-    margin-right: 4px;
+    margin-right: 0.3em;
     object-fit: contain;
-    border-radius: 2px;
+    border-radius: 0.15em;
 }
 
 /* .chart-panel, .chart-host, .bar-chart-canvas, .chart-info-panel — shared, defined in components.css */
@@ -493,7 +493,7 @@
     position: relative;
     background: linear-gradient(to right, var(--bar-color, var(--color-success)) var(--pct, 0%), transparent var(--pct, 0%));
     border-radius: var(--radius-sm);
-    padding: 2px 8px;
+    padding: 0.15em 0.6em;
     font-size: inherit;
 }
 
@@ -834,6 +834,8 @@
     white-space: nowrap;
 }
 
+/* The 45deg hatch keeps px stripes intentionally — pure decorative texture
+   should not scale with font (would create moiré at fractional pixels). */
 .whatif-pct-bar {
     position: relative;
     background:
@@ -846,18 +848,18 @@
             rgba(255,255,255,0.06) 8px
         );
     border-radius: var(--radius-sm);
-    padding: 2px 6px;
+    padding: 0.15em 0.45em;
     font-weight: 600;
     font-size: inherit;
     text-align: left;
-    min-width: 40px;
+    min-width: 3em;
     font-style: italic;
 }
 
 .whatif-expand-btn {
     display: block;
     margin: var(--space-sm) auto var(--space-xl);
-    padding: 4px 16px;
+    padding: 0.3em 1.1em;
     font-size: var(--fs-085);
     font-family: var(--font-main);
     color: var(--color-text);
@@ -874,11 +876,11 @@
 /* ── Mobile: compact predictor & what-if bar padding (no min-width — iron rule 1) ──────── */
 @media (max-width: 640px) {
     .predictor-pct-bar {
-        padding: 2px 4px;
+        padding: 0.15em 0.3em;
     }
 
     .whatif-pct-bar {
-        padding: 1px 3px;
+        padding: 0.1em 0.2em;
     }
 }
 

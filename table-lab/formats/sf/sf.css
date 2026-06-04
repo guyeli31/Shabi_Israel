@@ -75,11 +75,8 @@
     text-decoration: underline;
 }
 
-.achv-table .flag {
-    height: 1em;
-    vertical-align: middle;
-    margin-right: 4px;
-}
+/* Flag inherits canonical .flag rule from base.css (em sizing + margin).
+   Explicit per-table .flag override removed 2026-06-04. */
 
 .achv-table .na {
     color: var(--color-text-muted);
@@ -173,17 +170,5 @@
 
 .table-row-hidden { display: none !important; }
 
-.show-more-btn {
-    display: block;
-    margin: var(--space-sm) auto 0;
-    padding: 4px 16px;
-    font-size: var(--fs-085);
-    font-family: var(--font-main);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface);
-    color: var(--color-text);
-    cursor: pointer;
-    transition: background 0.15s;
-}
-.show-more-btn:hover { background: var(--color-hover); }
+/* .show-more-btn — canonical rule lives in base.css (em-based, viewport-fluid).
+   SF previously duplicated it with px padding; removed 2026-06-04. */

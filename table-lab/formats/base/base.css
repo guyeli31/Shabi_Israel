@@ -3,7 +3,19 @@
    Loaded automatically by each format's CSS via `@import`.
 
    Copied (cascade-equal) from css/components.css. Source-of-truth lives here;
-   the duplicate rules in components.css will be deleted in Phase 7. */
+   the duplicate rules in components.css will be deleted in Phase 7.
+
+   ── Units policy (load-bearing — read before adding rules) ──────────
+   em  : sizing that must scale with the cell font (padding, margin,
+         border-radius, gap, font-size of child elements, flag height,
+         button chrome, select arrow gutter).
+   px  : hairlines (1px borders), drop-shadows, viewport caps
+         (max-height/max-width), media-query breakpoints, JS-measured
+         column-width fallbacks, outline markers.
+   The 2026-06-03 F3 score-select bug was the canonical retrospective:
+   em-width + px-padding → ratio collapses at smaller viewports. Mixing
+   the two units inside a single sizing chain is the failure mode this
+   policy exists to prevent. */
 
 /* ---- Global table font-size classes (iron rule 3 — fluid family) ---- */
 table.font-large  { font-size: var(--fs-093); }
@@ -102,7 +114,7 @@ tr.retired {
 
 /* Level cell */
 .level-cell {
-    letter-spacing: 0.3px;
+    letter-spacing: 0.03em;
 }
 
 /* Color scale filter (theme adaptation for inline colors) */
@@ -110,7 +122,53 @@ tr.retired {
     filter: var(--color-scale-filter);
 }
 
-/* ---- Mobile matrix compression (C-series tables) ---- */
+/* ── Canonical .flag rule ─────────────────────────────────────────
+   Single source of truth for flag thumbnails inside any table.
+   `height: 1em` ties the flag to the cell's font (which is fluid
+   via --fs-* clamps), so the flag scales linearly with the text it
+   sits next to. `width: auto` + `object-fit: contain` preserves the
+   source aspect ratio — flag PNGs in assets/flags/ are square
+   (1600×1600), so this renders 1:1 and avoids the 3:2-stretch trap
+   that bit F2 before the FF canonization. `image-rendering: auto`
+   is explicit — overrides any inherited `crisp-edges` / `pixelated`
+   that legacy CSS might have set elsewhere. Per-format overrides
+   should be the exception, not the rule. */
+.flag {
+    height: 1em;
+    width: auto;
+    margin-right: 0.3em;
+    object-fit: contain;
+    border-radius: 0.15em;
+    vertical-align: middle;
+    image-rendering: auto;
+}
+
+/* ── Canonical .show-more-btn ─────────────────────────────────────
+   Used by MF (D, E) and SF (A1, A2, A3-A6) to expand truncated
+   tables. em-based so its padding/radius scale with the button's
+   own font (var(--fs-085)). Previously duplicated in mf.css + sf.css
+   + index-dashboard.css + player-general.css — all with px padding. */
+.show-more-btn {
+    display: block;
+    margin: 0.45em auto var(--space-xl);
+    padding: 0.3em 1.1em;
+    font-size: var(--fs-085);
+    font-family: var(--font-main);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.show-more-btn:hover {
+    background: var(--color-hover);
+}
+
+/* ---- Mobile matrix compression (C-series tables) ----
+   em values relative to the table's own --fs-065 font (small).
+   At 10.4px font → 0.2em ≈ 2px / 0.3em ≈ 3px (matches old px
+   intent but scales if the token shifts). */
 @media (max-width: 640px) {
     .pg-mr-table {
         font-size: var(--fs-065);
@@ -118,12 +176,12 @@ tr.retired {
         table-layout: auto;
     }
     .pg-mr-table thead th {
-        padding: 3px 2px;
+        padding: 0.3em 0.2em;
         font-size: var(--fs-065);
         white-space: nowrap;
     }
     .pg-mr-table tbody td {
-        padding: 2px 3px;
+        padding: 0.2em 0.3em;
         white-space: nowrap;
     }
 }

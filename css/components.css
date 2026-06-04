@@ -242,13 +242,20 @@ td.player-cell a:hover {
     color: var(--color-accent);
 }
 
-/* ---- Flags ---- */
+/* ---- Flags ────────────────────────────────────────────────────
+   Mirrors the canonical .flag rule in table-lab/formats/base/base.css.
+   em-based: flag height tracks the surrounding font, so it scales with
+   any fluid font token (--fs-093, --fs-085, etc.) without ratio drift.
+   image-rendering:auto is explicit — overrides any inherited
+   `crisp-edges`/`pixelated` that legacy CSS elsewhere might have set. */
 .flag {
-    height: 16px;
+    height: 1em;
     width: auto;
-    border-radius: 2px;
+    margin-right: 0.3em;
+    object-fit: contain;
+    border-radius: 0.15em;
     vertical-align: middle;
-    margin-right: 6px;
+    image-rendering: auto;
 }
 
 .flag-title {
@@ -544,7 +551,7 @@ tr.retired {
 
 /* ---- Level cell ---- */
 .level-cell {
-    letter-spacing: 0.3px;
+    letter-spacing: 0.03em;
 }
 
 /* ---- Color scale filter (theme adaptation for inline colors) ---- */
@@ -581,25 +588,25 @@ tr.retired {
         table-layout: auto;
     }
     .pg-mr-table thead th {
-        padding: 3px 2px;
+        padding: 0.3em 0.2em;
         font-size: var(--fs-065);
         white-space: nowrap;
     }
     .pg-mr-table tbody td {
-        padding: 2px 3px;
+        padding: 0.2em 0.3em;
         white-space: nowrap;
     }
 
-    /* Smaller medals + flag on mobile */
+    /* Smaller medals on mobile.
+       Flag mobile override removed 2026-06-04 — the canonical
+       em-based .flag rule above scales automatically with the
+       mobile font drop, so the explicit px override is redundant
+       (and would actually conflict with the em scaling). */
     .medal {
         width: 14px;
         height: 14px;
         line-height: 1;
         font-size: var(--fs-060);
-    }
-    .flag {
-        height: 12px;
-        margin-right: 3px;
     }
     .retired-mark, .retired-badge {
         font-size: var(--fs-065);

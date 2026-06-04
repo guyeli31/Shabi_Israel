@@ -23,10 +23,10 @@
     text-align: left;
 }
 
-/* Flag height controlled per-table via CSS variable (A1/A2 use 1em, D/E use 16px) */
-.mf-wrap .flag {
-    height: var(--mf-flag-height, 16px);
-}
+/* Flag inherits canonical .flag rule from base.css (height: 1em, em scaling).
+   The legacy --mf-flag-height variable + px fallback was the last px-based
+   flag rule in MF — removed 2026-06-04 so D/E/A1/A2 all share the unified
+   em-based flag behavior. */
 
 /* Total column (A2 TOT) — matches .total-col in index-dashboard.css */
 .mf-wrap .total-col {
@@ -79,7 +79,7 @@
 
 /* B6b divider row "— played ≥ half —" (mirrors dashboard.css) */
 .mf-wrap tbody tr.player-remaining-divider td {
-    padding: 4px 12px !important;
+    padding: 0.3em 0.8em !important;
     border-top: 2px dashed var(--color-border) !important;
     border-bottom: none !important;
     box-shadow: none !important;
@@ -100,7 +100,7 @@
 
 /* ── Sort UI (currently MF-only — promote to base if SF/exp gain sort) ── */
 thead th .sort-icon {
-    margin-left: 4px;
+    margin-left: 0.3em;
     font-size: 0.75em;
     opacity: 0.5;
 }
@@ -289,28 +289,13 @@ tr.stat-row td {
     box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
 
-/* ── Show-all button (lives outside .mf-wrap, immediately after it) ── */
-.show-more-btn {
-    display: block;
-    padding: 4px 16px;
-    font-size: var(--fs-085);
-    font-family: var(--font-main);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface);
-    color: var(--color-text);
-    cursor: pointer;
-    transition: background 0.15s;
-}
-.show-more-btn:hover {
-    background: var(--color-hover);
-}
-
+/* ── Show-all button — canonical rule lives in base.css (em-based).
+   MF-specific layout glue only: collapse wrapper bottom margin when
+   the button immediately follows, and self-center inside flex parents. */
 .mf-wrap:has(+ .show-more-btn) {
     margin-bottom: 0;
 }
 .mf-wrap + .show-more-btn {
-    margin: 0.45em auto var(--space-xl);
     align-self: center;
 }
 
@@ -324,10 +309,12 @@ tr.stat-row td {
     position: relative;
     background: linear-gradient(to right, var(--bar-color, var(--color-success)) var(--pct, 0%), transparent var(--pct, 0%));
     border-radius: var(--radius-sm);
-    padding: 2px 8px;
+    padding: 0.15em 0.6em;
     font-size: inherit;
 }
 
+/* The 45deg hatch pattern keeps px values intentionally — the stripe
+   width should not scale with font (purely decorative texture). */
 .whatif-pct-bar {
     position: relative;
     background:
@@ -340,10 +327,10 @@ tr.stat-row td {
             rgba(255,255,255,0.06) 8px
         );
     border-radius: var(--radius-sm);
-    padding: 2px 6px;
+    padding: 0.15em 0.45em;
     font-weight: 600;
     font-size: inherit;
     text-align: left;
-    min-width: 40px;
+    min-width: 3em;
     font-style: italic;
 }

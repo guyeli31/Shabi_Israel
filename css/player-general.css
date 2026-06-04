@@ -1,22 +1,19 @@
 /* player-general.css — Phase G cross-league player profile */
 
-/* Flags in tables */
-.pg-rank-table .flag {
+/* Flags in tables — mirror canonical em-based .flag rule.
+   .pg-matches-table previously had `width:20px; height:14px;
+   image-rendering:crisp-edges` which stretched the square source
+   PNGs to 3:2 AND set pixelated rendering. Both removed 2026-06-04;
+   now scales with cell font and renders smooth. */
+.pg-rank-table .flag,
+.pg-matches-table .flag {
     height: 1em;
     width: auto;
     vertical-align: middle;
-    margin-right: 3px;
+    margin-right: 0.3em;
     object-fit: contain;
-    border-radius: 2px;
-}
-.pg-matches-table .flag {
-    width: 20px;
-    height: 14px;
-    vertical-align: middle;
-    margin-right: 3px;
-    object-fit: contain;
-    image-rendering: crisp-edges;
-    border-radius: 2px;
+    border-radius: 0.15em;
+    image-rendering: auto;
 }
 
 .pg-section {
@@ -1011,9 +1008,9 @@
     text-decoration: underline;
 }
 .achv-table .flag {
-    height: 12px;
+    height: 1em;
     vertical-align: middle;
-    margin-right: 4px;
+    margin-right: 0.3em;
 }
 .achv-table .league-link,
 .achv-table .league-link:visited {
@@ -1165,7 +1162,7 @@
 .show-more-btn {
     display: block;
     margin: var(--space-sm) auto 0;
-    padding: 4px 16px;
+    padding: 0.3em 1.1em;
     font-size: var(--fs-080);
     font-family: var(--font-main);
     border: 1px solid var(--color-border);

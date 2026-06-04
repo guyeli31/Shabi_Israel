@@ -77,6 +77,39 @@ The project has **four** table formats. Each format is owned by `table-lab/` and
 | Expandable Format | **exp** | C0 |
 | Form Format | **FF** | F1 (League Manager), F2 (Players), F3 (Round Editor), F4 (View Overrides) |
 
+### Units policy (load-bearing — applies to ALL four formats)
+
+The CSS canon in `table-lab/formats/` follows a strict unit rule. Read this before adding any new CSS rule to a format file or its production mirror.
+
+| Use **em** for | Use **px** for |
+|---|---|
+| padding, margin, gap | hairlines (1px / 2px borders) |
+| border-radius | drop-shadows (visual decoration, must stay constant) |
+| font-size of child elements | viewport caps (max-height, max-width) |
+| flag height (via `height: 1em` — see canonical `.flag` rule in `base.css`) | media-query breakpoints |
+| button chrome (padding, radius, gap) | JS-measured column-width fallbacks (e.g. `var(--sf-col1-w, 36px)`) |
+| select arrow gutter (padding-right, background-position, background-size) | outline markers (`outline: 2px solid …`) |
+
+**Why this matters:** mixing em-based width with px-based padding inside the same sizing chain causes the ratio between text and chrome to collapse at smaller viewports. The 2026-06-03 F3 score-select bug was the canonical retrospective: a `3.2em`-wide select with `18px` right padding left only ~14px for the digit at mobile font scale, hiding the score behind the arrow. The Units policy block at the top of `base.css` records this lesson.
+
+### Canonical `.flag` rule
+
+Defined once in `table-lab/formats/base/base.css` (and mirrored to `css/components.css` + `css/admin.css` for production until Phase 7 closes):
+
+```css
+.flag {
+    height: 1em;        /* tracks adjacent font (--fs-093 / --fs-085 / …) */
+    width: auto;        /* aspect ratio from source — flag PNGs are square */
+    margin-right: 0.3em;
+    object-fit: contain;
+    border-radius: 0.15em;
+    vertical-align: middle;
+    image-rendering: auto;  /* explicit anti-pixelation guard */
+}
+```
+
+Per-context overrides (`.dash-table .flag`, `.achv-table .flag`, etc.) carry the same em-based metrics. Source PNGs in `assets/flags/` are 1600×1600 square; rendering at `1em` against the small cell font is heavily downscaled, so `image-rendering: auto` (browser-default bilinear smoothing) is required — `crisp-edges` / `pixelated` would force nearest-neighbor and visibly pixelate the thumbnails.
+
 > **FF — three cell modes per ColDef.** A single FF table can mix freely:
 > • **Display** — read-only HTML (text, pills, badges).
 > • **Action** — button(s) with `data-*` attrs; caller wires event delegation (used for Edit/Delete/Save-per-match).

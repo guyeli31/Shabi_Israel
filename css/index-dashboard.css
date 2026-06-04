@@ -407,7 +407,7 @@
 .leaderboard-table td.player-cell .flag {
     height: 1em;
     vertical-align: middle;
-    margin-right: 4px;
+    margin-right: 0.3em;
     object-fit: cover;
 }
 
@@ -559,7 +559,7 @@
 .completed-leagues-table .flag {
     height: 1em;
     vertical-align: middle;
-    margin-right: 4px;
+    margin-right: 0.3em;
     object-fit: cover;
 }
 
@@ -723,7 +723,7 @@
 .achv-table .flag {
     height: 1em;
     vertical-align: middle;
-    margin-right: 4px;
+    margin-right: 0.3em;
 }
 
 .achv-table th,
@@ -1190,10 +1190,9 @@ body:has(.edit-bar) .theme-picker {
     }
 
     /* Completed-leagues mobile: padding scales via clamp() on base rule — no override needed.
-       Font-size, column width, and icon height inherit desktop per iron rules 1–5. */
-    .completed-leagues-table .flag {
-        margin-right: 3px;
-    }
+       Font-size, column width, and icon height inherit desktop per iron rules 1–5.
+       Flag margin override removed 2026-06-04 — canonical em-based margin
+       above scales automatically when the cell font drops on mobile. */
 
     /* Notable Figures — reduce fonts by ~10% */
     .notable-row .player-name-link {
@@ -1235,7 +1234,7 @@ body:has(.edit-bar) .theme-picker {
 .show-more-btn {
     display: block;
     margin: var(--space-sm) auto var(--space-xl);
-    padding: 4px 16px;
+    padding: 0.3em 1.1em;
     font-size: var(--fs-085);
     font-family: var(--font-main);
     color: var(--color-text);
