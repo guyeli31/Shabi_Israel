@@ -617,6 +617,42 @@ function buildB5(runningResult, allMatchesIncUnplayed) {
     return { data, cols, getRowClass, leagueTitle: league.params.LeagueTitle };
 }
 
+// ─── F5: CSV Import Preview (admin) ───────────────
+// Read-only preview of the "N updates" a CSV import would add — matches played in
+// the upload that weren't played before and aren't override-covered. MF format,
+// font-small, sticky left column (non-sticky header in production via mf-wrap
+// overflow-y:clip). The lab showcases the format with a sample of played matches.
+
+function buildF5(runningResult, allMatchesIncUnplayed) {
+    if (!runningResult || !allMatchesIncUnplayed) return { data: [], cols: [] };
+    const { league } = runningResult;
+    const cf = league.params.CustomFlags || {};
+    const sample = allMatchesIncUnplayed.filter(m => m.played).slice(0, 6);
+    const num = v => typeof v === 'number' ? v.toFixed(2) : '—';
+
+    const cols = [
+        { key: 'round',   label: 'Rnd',      type: 'number', sortable: false, colorFn: null },
+        { key: 'playerA', label: 'Player A', type: 'string', sortable: false, colorFn: null,
+          tdClass: 'player-cell', format: v => playerCell(v, cf) },
+        { key: 'prA',     label: 'PR',       type: 'number', sortable: false, colorFn: null, format: num },
+        { key: 'luckA',   label: 'Luck',     type: 'number', sortable: false, colorFn: null, format: num },
+        { key: 'scoreA',  label: 'A',        type: 'number', sortable: false, colorFn: null },
+        { key: 'playerB', label: 'Player B', type: 'string', sortable: false, colorFn: null,
+          tdClass: 'player-cell', format: v => playerCell(v, cf) },
+        { key: 'prB',     label: 'PR',       type: 'number', sortable: false, colorFn: null, format: num },
+        { key: 'luckB',   label: 'Luck',     type: 'number', sortable: false, colorFn: null, format: num },
+        { key: 'scoreB',  label: 'B',        type: 'number', sortable: false, colorFn: null },
+    ];
+
+    const data = sample.map(m => ({
+        round: m.round,
+        playerA: m.playerA, prA: m.prA, luckA: m.luckA, scoreA: m.scoreA,
+        playerB: m.playerB, prB: m.prB, luckB: m.luckB, scoreB: m.scoreB,
+    }));
+
+    return { data, cols, leagueTitle: league.params.LeagueTitle };
+}
+
 // ─── B6a: All Remaining Matches ───────────────────
 // Matches real: Round | Player A | Player B
 
@@ -1187,6 +1223,7 @@ export async function loadAllPresetData() {
         B6a: buildB6a(runningResult, allMatchesIncUnplayed),
         B6b: buildB6b(runningResult),
         B6c: buildB6c(runningResult, allMatchesIncUnplayed),
+        F5:  buildF5(runningResult, allMatchesIncUnplayed),
         C0:  sfExp.C0,
         C1:  buildC1(playerAcrossLeagues, topPlayer),
         C2:  buildC2(playerAcrossLeagues, topPlayer, globalFlags),

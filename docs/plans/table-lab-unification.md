@@ -380,6 +380,8 @@ Only after the gate passes: remove every selector classified as Group A (both A-
 
 > **Note:** admin tables are CRUD editors, not display tables. Migrating them to the lab is genuinely useful (single source of truth for table look-and-feel across the whole app) but is materially more complex than MF/SF/exp because they involve inline editing, validation, and per-row save/delete actions. This phase is **optional** if scope needs to be cut — admin tables can keep their current render path indefinitely without affecting the lab's role as canon for display tables.
 
+> **F5 (CSV Import Preview) is the exception — already done.** Unlike F1–F4, F5 is a *read-only* admin table, so it uses **MF, not FF**. It was wired straight through `mountMFTable` in production (`js/admin/excelImporter.js`, `fontClass:'font-small'`, `stickyCols:1`) — a completed Phase-7-style production-rendering-through-the-lab. `admin.html` loads `table-lab/formats/mf/mf.css` for it; the MF sticky header is inert because `.mf-wrap` is `overflow-y:clip`. F5 has a lab preset (`table-lab/lab.js` + `buildF5` in `lab-loader.js` + tab in `table-lab/index.html`). It shows only the "N updates" (new played, non-override matches) computed in `js/admin/csvValidation.js`. No FF work is needed for F5.
+
 ### 8.0 Current state (mid-2026)
 - `table-lab/formats/ff/mount.js` + `ff.css` exist in the lab as canon for the unified FF format (single mount, three cell modes per ColDef).
 - `css/admin.css` carries the same FF chrome rules (`.ff-wrap`, `.admin-table.font-large` block, F3↔FF reconciliation) — duplicated until production rewires.

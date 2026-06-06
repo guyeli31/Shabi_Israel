@@ -96,9 +96,105 @@ export function getStagedContent(path) {
     return match ? match.content : null;
 }
 
+// ---- Manual overrides: delta-based staging ----
+// A staged manual_overrides.json change carries the league's PUBLISHED override
+// set as `baselineOverrides`. Pending Changes shows (and the badge counts) only
+// the delta vs that baseline — so editing one override never floods the list with
+// the league's other, already-published overrides.
+
+/** Stable key for a match override (order-independent on the player pair). */
+export function overrideKey(o) {
+    return [o.playerA, o.playerB].sort().join('|');
+}
+
+function canon(o) {
+    return JSON.stringify(Object.keys(o).sort().reduce((a, k) => { a[k] = o[k]; return a; }, {}));
+}
+
 /**
- * Remove a specific override from a manual_overrides.json staged change.
- * If no overrides remain, removes the change entirely.
+ * Diff a staged overrides array against the published baseline.
+ * @returns {{added: {override, index}[], changed: {override, index}[], removed: object[]}}
+ *   added   — a brand-new override not present in the baseline
+ *   changed — an override that existed in the baseline but was edited
+ *   removed — present in baseline but gone from staged
+ */
+export function diffOverrides(staged, baseline) {
+    const baseMap = new Map((baseline || []).map(o => [overrideKey(o), o]));
+    const stagedKeys = new Set();
+    const added = [];
+    const changed = [];
+    for (let i = 0; i < staged.length; i++) {
+        const o = staged[i];
+        const k = overrideKey(o);
+        stagedKeys.add(k);
+        const b = baseMap.get(k);
+        if (!b) added.push({ override: o, index: i });
+        else if (canon(b) !== canon(o)) changed.push({ override: o, index: i });
+    }
+    const removed = [];
+    for (const o of (baseline || [])) {
+        if (!stagedKeys.has(overrideKey(o))) removed.push(o);
+    }
+    return { added, changed, removed };
+}
+
+/** Total number of delta items (added + changed + removed) for a diff result. */
+function deltaCount(d) {
+    return d.added.length + d.changed.length + d.removed.length;
+}
+
+/**
+ * Stage a league's full overrides array, capturing the published baseline so the
+ * display/count can show only the delta. Reuses an already-captured baseline so
+ * repeated edits in one session keep comparing against the original published set.
+ * If the result is identical to the baseline, any staged change is dropped.
+ */
+export async function stageManualOverrides(leagueId, overrides) {
+    const enc = encodeURIComponent(leagueId);
+    const path = `leagues/${enc}/manual_overrides.json`;
+
+    const existing = load().find(c => c.path === path);
+    let baseline = existing && existing.baselineOverrides ? existing.baselineOverrides : null;
+    if (!baseline) {
+        baseline = [];
+        try {
+            const resp = await fetch(path);
+            if (resp.ok) baseline = (await resp.json()).overrides || [];
+        } catch { /* no published overrides file → empty baseline */ }
+    }
+
+    if (deltaCount(diffOverrides(overrides, baseline)) === 0) {
+        // No net change vs published — remove any staged change for this path.
+        const changes = load().filter(c => c.path !== path);
+        save(changes);
+        return;
+    }
+
+    addChange({
+        type: 'update',
+        path,
+        content: JSON.stringify({ overrides }, null, 2),
+        description: `Overrides: ${leagueId}`,
+        category: 'match-override',
+        subject: leagueId,
+        baselineOverrides: baseline
+    });
+}
+
+/** Drop the staged overrides change for a path if it no longer differs from baseline. */
+function dropOverridesChangeIfClean(changes, idx) {
+    try {
+        const staged = JSON.parse(changes[idx].content).overrides || [];
+        if (deltaCount(diffOverrides(staged, changes[idx].baselineOverrides || [])) === 0) {
+            changes.splice(idx, 1);
+        }
+    } catch { /* leave as-is on parse error */ }
+}
+
+/**
+ * Cancel a staged ADDED override (remove it from the staged file entirely).
+ * Used for brand-new overrides that have no published baseline to fall back to.
+ * If the file then matches the published baseline, the whole change is dropped.
  */
 export function removeOverrideFromChange(path, overrideIndex) {
     const changes = load();
@@ -111,13 +207,38 @@ export function removeOverrideFromChange(path, overrideIndex) {
         if (overrideIndex >= 0 && overrideIndex < overrides.length) {
             overrides.splice(overrideIndex, 1);
         }
-        if (overrides.length === 0) {
-            changes.splice(idx, 1);
-        } else {
-            data.overrides = overrides;
-            changes[idx].content = JSON.stringify(data, null, 2);
-            changes[idx].description = `${overrides.length} override(s)`;
-        }
+        data.overrides = overrides;
+        changes[idx].content = JSON.stringify(data, null, 2);
+        dropOverridesChangeIfClean(changes, idx);
+        save(changes);
+    } catch { /* ignore parse errors */ }
+}
+
+/**
+ * Revert a staged override to its PUBLISHED baseline value, by key. Handles both
+ * cancel cases for overrides that existed before this session:
+ *   - a CHANGED (edited) override → replace the staged edit with the baseline value
+ *   - a REMOVED override          → re-insert the baseline value
+ * The baseline value is looked up from the change itself, so nothing is round-tripped
+ * through the DOM. If the file then matches the baseline, the whole change is dropped.
+ */
+export function restoreOverrideToChange(path, key) {
+    const changes = load();
+    const idx = changes.findIndex(c => c.path === path);
+    if (idx === -1) return;
+
+    const override = (changes[idx].baselineOverrides || []).find(o => overrideKey(o) === key);
+    if (!override) return;
+
+    try {
+        const data = JSON.parse(changes[idx].content);
+        const overrides = data.overrides || [];
+        const pos = overrides.findIndex(o => overrideKey(o) === key);
+        if (pos >= 0) overrides[pos] = override; // edited → revert to published
+        else overrides.push(override);           // removed → restore published
+        data.overrides = overrides;
+        changes[idx].content = JSON.stringify(data, null, 2);
+        dropOverridesChangeIfClean(changes, idx);
         save(changes);
     } catch { /* ignore parse errors */ }
 }
@@ -189,8 +310,8 @@ export function getChangeCount() {
             }
         } else if (c.path && c.path.endsWith('manual_overrides.json') && c.content) {
             try {
-                const data = JSON.parse(c.content);
-                count += (data.overrides || []).length || 1;
+                const staged = JSON.parse(c.content).overrides || [];
+                count += deltaCount(diffOverrides(staged, c.baselineOverrides || []));
             } catch { count++; }
         } else {
             count++;

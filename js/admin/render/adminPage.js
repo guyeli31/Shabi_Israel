@@ -4,7 +4,7 @@
 
 import { isLoggedIn, logout, getToken, setToken, getRepo, setRepo, isGitHubConfigured, getUsername } from '../auth.js';
 import { testConnection } from '../githubApi.js';
-import { getChanges, removeChange, removeGroup, removeOverrideFromChange, removePlayerFromGroup, getChangeCount, publishAll, clearChanges } from '../stagingStore.js';
+import { getChanges, removeChange, removeGroup, removeOverrideFromChange, restoreOverrideToChange, removePlayerFromGroup, getChangeCount, publishAll, clearChanges, diffOverrides, overrideKey } from '../stagingStore.js';
 import { initAdminDrawer, setTopbarSection } from '../adminDrawer.js';
 
 const VIEW_TITLES = { leagues: 'Leagues', players: 'Players', pending: 'Pending Changes', settings: 'Settings' };
@@ -222,6 +222,8 @@ function renderPendingChanges(container) {
             cancelAttr = `data-remove-group="${escHtml(item.group)}"`;
         } else if (item.overridePath != null) {
             cancelAttr = `data-remove-override-path="${escHtml(item.overridePath)}" data-remove-override-idx="${item.overrideIndex}"`;
+        } else if (item.restorePath != null) {
+            cancelAttr = `data-restore-override-path="${escHtml(item.restorePath)}" data-restore-override-key="${encodeURIComponent(item.restoreKey)}"`;
         } else {
             cancelAttr = `data-remove="${item.indices[0]}"`;
         }
@@ -281,6 +283,17 @@ function renderPendingChanges(container) {
             const path = btn.dataset.removeOverridePath;
             const idx = parseInt(btn.dataset.removeOverrideIdx);
             removeOverrideFromChange(path, idx);
+            refreshBadge();
+            renderPendingChanges(container);
+        });
+    });
+
+    // Cancel a removed-override delta row (restore it into the staged file)
+    container.querySelectorAll('[data-restore-override-path]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const path = btn.dataset.restoreOverridePath;
+            const key = decodeURIComponent(btn.dataset.restoreOverrideKey);
+            restoreOverrideToChange(path, key);
             refreshBadge();
             renderPendingChanges(container);
         });
@@ -355,8 +368,46 @@ function escHtml(str) {
 }
 
 /**
+ * Single source of truth for the icon + default action label per change category.
+ * Adding a new change type = one entry here; the label format never drifts.
+ */
+const CATEGORY_META = {
+    'create-league':   { icon: '🆕', action: 'Create league' },
+    'delete-league':   { icon: '🗑️', action: 'Delete league' },
+    'league-settings': { icon: '⚙️', action: 'Settings updated' },
+    'league-players':  { icon: '🚩', action: 'Players updated' },
+    'league-data':     { icon: '📊', action: 'League data updated' },
+    'match-override':  { icon: '⚖️', action: 'Match override' },
+    'edit-override':   { icon: '✏️', action: 'Override edited' },
+    'remove-override': { icon: '➖', action: 'Override removed' },
+    'bgsync':          { icon: '🔄', action: 'BGStudio sync updated' },
+    'player-meta':     { icon: '👤', action: 'Player updated' },
+    'player-photo':    { icon: '📷', action: 'Photo updated' },
+    'player-rename':   { icon: '✏️', action: 'Renamed across leagues' },
+    'create-player':   { icon: '🆕', action: 'Player created' },
+    'flag-upload':     { icon: '🏳️', action: 'Flag uploaded' },
+    'landing':         { icon: '🏠', action: 'Landing updated' }
+};
+
+/**
+ * Canonical pending-row label: `{icon}  <b>{subject}</b> · {action}{ — {detail}}`.
+ * Only the subject (league / player / flag code) is bold. Returns null when the
+ * category is unknown, so callers can fall back to the legacy formatter.
+ */
+function renderLabel(category, subject, detail, action) {
+    const meta = CATEGORY_META[category];
+    if (!meta) return null;
+    let s = `${meta.icon}&nbsp; `;
+    if (subject) s += `<b>${escHtml(subject)}</b> · `;
+    s += escHtml(action || meta.action);
+    if (detail) s += ` — ${escHtml(detail)}`;
+    return s;
+}
+
+/**
  * Build display items from raw changes. Groups changes with the same `group` field.
- * Formats descriptions as: [League] • [Type] — [Detail]
+ * Labels come from `renderLabel` (category-based) when a `category` is present,
+ * otherwise from the legacy path-sniffing `formatChangeDesc`.
  */
 function buildDisplayItems(changes) {
     const items = [];
@@ -373,7 +424,11 @@ function buildDisplayItems(changes) {
                     timestamp: c.timestamp,
                     description: c.groupDescription || c.description,
                     descriptionHtml: c.groupDescriptionHtml || null,
-                    editedPlayers: c.editedPlayers || null
+                    editedPlayers: c.editedPlayers || null,
+                    category: c.category || null,
+                    subject: c.subject || null,
+                    detail: c.detail || null,
+                    action: c.action || null
                 });
             }
             const g = groupMap.get(c.group);
@@ -381,37 +436,63 @@ function buildDisplayItems(changes) {
             if (c.timestamp > g.timestamp) g.timestamp = c.timestamp;
             if (c.editedPlayers) g.editedPlayers = c.editedPlayers;
             if (c.groupDescriptionHtml) g.descriptionHtml = c.groupDescriptionHtml;
+            // A group inherits its category/subject from the first change that declares one.
+            if (!g.category && c.category) {
+                g.category = c.category;
+                g.subject = c.subject || null;
+                g.detail = c.detail || null;
+                g.action = c.action || null;
+            }
         } else if (c.path && c.path.endsWith('manual_overrides.json') && c.content) {
-            // Expand each override as a separate display line
+            // Show only the DELTA vs the published baseline: one row per added/changed
+            // override (⚖️) and one per removed override (➖). Unchanged overrides that
+            // happen to live in the same file are NOT shown.
             try {
-                const data = JSON.parse(c.content);
-                const overrides = data.overrides || [];
-                // Extract league name from path
+                const staged = JSON.parse(c.content).overrides || [];
+                const { added, changed, removed } = diffOverrides(staged, c.baselineOverrides || []);
                 let league = '';
                 const lm = c.path.match(/^leagues\/([^/]+)\//);
                 if (lm) league = decodeURIComponent(lm[1]);
 
-                for (let oi = 0; oi < overrides.length; oi++) {
-                    const o = overrides[oi];
-                    const detail = `${escHtml(o.playerA)} vs ${escHtml(o.playerB)} (${escHtml(o.type)})`;
-                    let text = '';
-                    if (league) text += `<b>${escHtml(league)}</b> · `;
-                    text += `Match Override — ${detail}`;
-
+                // Added — brand-new override. Cancel removes it outright.
+                for (const { override: o, index } of added) {
                     items.push({
                         group: null,
                         indices: [i],
                         overridePath: c.path,
-                        overrideIndex: oi,
+                        overrideIndex: index,
                         timestamp: o.timestamp || c.timestamp,
-                        displayText: text
+                        displayText: renderLabel('match-override', league, `${o.playerA} vs ${o.playerB} (${o.type})`)
+                    });
+                }
+                // Changed — an existing published override was edited. Cancel reverts
+                // it to the published value (NOT a deletion).
+                for (const { override: o } of changed) {
+                    items.push({
+                        group: null,
+                        indices: [i],
+                        restorePath: c.path,
+                        restoreKey: overrideKey(o),
+                        timestamp: o.timestamp || c.timestamp,
+                        displayText: renderLabel('edit-override', league, `${o.playerA} vs ${o.playerB} (${o.type})`)
+                    });
+                }
+                // Removed — Cancel restores the published value.
+                for (const o of removed) {
+                    items.push({
+                        group: null,
+                        indices: [i],
+                        restorePath: c.path,
+                        restoreKey: overrideKey(o),
+                        timestamp: c.timestamp,
+                        displayText: renderLabel('remove-override', league, `${o.playerA} vs ${o.playerB}`)
                     });
                 }
             } catch {
                 items.push({
                     group: null, indices: [i],
                     timestamp: c.timestamp,
-                    displayText: formatChangeDesc(c)
+                    displayText: renderLabel(c.category, c.subject, c.detail, c.action) || formatChangeDesc(c)
                 });
             }
         } else {
@@ -419,7 +500,7 @@ function buildDisplayItems(changes) {
                 group: null,
                 indices: [i],
                 timestamp: c.timestamp,
-                displayText: formatChangeDesc(c)
+                displayText: renderLabel(c.category, c.subject, c.detail, c.action) || formatChangeDesc(c)
             });
         }
     }
@@ -433,7 +514,7 @@ function buildDisplayItems(changes) {
                     indices: g.indices,
                     removePlayer: player,
                     timestamp: g.timestamp,
-                    displayText: `Player metadata — <b>${escHtml(player)}</b>`
+                    displayText: renderLabel('player-meta', player)
                 });
             }
         } else {
@@ -441,7 +522,8 @@ function buildDisplayItems(changes) {
                 group: g.group,
                 indices: g.indices,
                 timestamp: g.timestamp,
-                displayText: g.descriptionHtml || escHtml(g.description)
+                displayText: renderLabel(g.category, g.subject, g.detail, g.action)
+                    || g.descriptionHtml || escHtml(g.description)
             });
         }
     }

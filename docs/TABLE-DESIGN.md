@@ -63,6 +63,7 @@ Table code mapping for the app. All future references to a table use the code be
 | F2 | Players (player editing inside Edit League) |
 | F3 | Match Results (Round Editor) |
 | F4 | View Overrides (manual override list inside Edit League) |
+| F5 | CSV Import Preview (Edit League → Import CSV/Excel) |
 
 ---
 
@@ -72,10 +73,12 @@ The project has **four** table formats. Each format is owned by `table-lab/` and
 
 | Format | Code | Used by |
 |---|---|---|
-| Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3 |
+| Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3, **F5** |
 | Secondary Format | **SF** | A3, A4, A5, A6, C4 |
 | Expandable Format | **exp** | C0 |
 | Form Format | **FF** | F1 (League Manager), F2 (Players), F3 (Round Editor), F4 (View Overrides) |
+
+> **F5 is the lone admin table on MF** (every other admin table is FF). It is a read-only CSV-import preview, so MF — not the editable FF — is the right format. It renders through `mountMFTable` with `fontClass:'font-small'` (matching B3) and `stickyCols:1` (left column pinned). The MF sticky **header** is a no-op here because `.mf-wrap` is `overflow-y:clip` (never a vertical scroll context) — satisfying the "no floating header" requirement without any change to the shared MF format. `admin.html` loads `table-lab/formats/mf/mf.css` for this one table. The preview shows **only the "N updates"**: matches played in the upload that were not already played and are not override-covered (computed in `js/admin/csvValidation.js`).
 
 ### Units policy (load-bearing — applies to ALL four formats)
 

@@ -20,7 +20,7 @@ import { colorForValueInverted } from '../compute/colorScale.js';
 import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { predictChampionship, computeTopXPct } from '../compute/championshipPredictor.js';
-import { batchLast300PR } from '../compute/crossLeague.js';
+import { batchLast300PRForSimulator } from '../compute/crossLeague.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
@@ -233,24 +233,24 @@ function renderShell() {
             <div class="predictor-info-popup" id="predictor-info-popup" hidden>
                 <button class="predictor-info-close" id="predictor-info-close">&times;</button>
                 <h3>How It Works</h3>
-                <p>The predictor simulates all remaining matches to estimate each player's probability of winning the championship.</p>
-                <h4>Simulation Method</h4>
-                <ul>
-                    <li><b>Doubling / Regular leagues:</b> <b>Exact enumeration</b> when ≤20 matches remain (every 2<sup>N</sup> outcome is evaluated with its exact probability weight); <b>Monte Carlo</b> when &gt;20 remain.</li>
-                    <li><b>UBC leagues:</b> Always <b>Monte Carlo</b> — because PR-win outcomes are probabilistic (see below), exact enumeration would require 4<sup>N</sup> scenarios and is not feasible.</li>
-                </ul>
+                <p>The predictor runs a <b>Monte Carlo</b> simulation — playing out all remaining matches thousands of times — to estimate each player's probability of winning the championship. The same method is used for every league type, regardless of how many matches remain.</p>
+                <h4>Last-300 PR (player strength)</h4>
+                <p>Each player's strength is their <b>Last-300 PR</b> — a weighted mean over their most recent rated matches. For the predictor this pools <b>all PR-rated leagues together</b> (Doubling + UBC), not just this league's type, giving the truest picture of current form. REGULAR leagues record no PR, so they too lean on this combined value. Alongside the mean, the <b>standard deviation</b> of those matches is used (default 2.0 when fewer than 3 are available). If a player has no rated history, a fallback PR of 10.0 is used.</p>
                 <h4>Win Probability Per Match</h4>
-                <p>Each match outcome is determined by the PR gap between the two players, using each player's <b>Last-300 PR</b> (their calibrated strength over the last 300 rated matches) — not their current league performance. A calibrated lookup table maps the rounded PR difference to a win probability for the stronger (lower-PR) player; for gaps beyond 10, linear extrapolation from rows 9–10 is applied and clamped to [50%, 99.9%]. If a player has no Last-300 PR, their current league mean PR is used as a fallback (or 10.0 if neither exists). Current-league mean PR only influences the <b>tiebreaker</b> — see "Determining the Champion".</p>
+                <p>In every simulated match, each player's <b>PR on the night is drawn fresh</b> from a normal distribution N(μ, σ) using their Last-300 mean and standard deviation — independently, and re-drawn on every run. The gap between the two drawn PRs is then looked up in a calibrated table (indexed by PR difference and match length), with the win probability <b>linearly interpolated</b> between adjacent rows for the exact gap; beyond a gap of 10 it is linearly extrapolated and clamped to [50%, 99.9%]. The stronger (lower drawn-PR) player gets that probability, then a coin flip decides the match. Drawing the PR each time means an upset is always possible — a stronger player can have an off night.</p>
                 <h4>PR Win Point (UBC only)</h4>
-                <p>In UBC leagues, each match awards up to 2 points: 1 for match win + 1 for <b>PR win</b> (lower PR in the match). The predictor models each player's per-match PR as a normal distribution N(μ, σ) using their Last-300 mean and standard deviation. The probability that player A wins the PR point is:</p>
-                <p style="text-align:center"><code><b>P(A wins PR) = Φ((μ<sub>B</sub> − μ<sub>A</sub>) / √(σ<sub>A</sub>² + σ<sub>B</sub>²))</b></code></p>
-                <p>where Φ is the standard normal CDF. This correctly captures that a small PR advantage does <i>not</i> guarantee the PR point — it only shifts the probability. When fewer than 3 matches are available for STD estimation, a default of 2.0 is used.</p>
+                <p>In UBC leagues each match awards up to 2 points: 1 for the match win + 1 for the <b>PR win</b>. The PR point goes to whoever drew the <b>lower PR</b> that match — so it follows the same nightly draw and is not guaranteed by the favorite.</p>
                 <h4>Determining the Champion</h4>
-                <p>After simulating all remaining matches, the final standings are ranked using the league's scoring rules (Win Rate, Points, etc.). The tiebreaker is a <b>blended Mean PR</b>: games already played contribute at the player's current league mean PR, while remaining games are assumed to be played at the player's Last-300 PR level (reflecting regression toward true strength, lower is better). The championship percentage shows how often each player finishes 1st across all simulated seasons.</p>
+                <p>After each simulated season the standings are ranked by the league's scoring rule (Win Rate or Average Points).</p>
+                <ul>
+                    <li><b>PR-based leagues (Doubling / UBC):</b> ties are broken by <b>Mean PR</b> (lower is better), computed <i>per run</i>: a player's real recorded PRs for games already played, plus the PRs drawn for that run's remaining matches, divided by total games. Because the remaining PRs are re-drawn every run, the tiebreaker reflects that specific simulated season.</li>
+                    <li><b>REGULAR leagues</b> (no PR): Win-Rate ties are broken, over the still-tied group, by <b>(a)</b> head-to-head wins, then <b>(b)</b> points-difference (sum of game-score margins) among those players, then <b>(c)</b> points-difference across all their matches, then alphabetically. A simulated match contributes the winner's score as the match length and the loser's as ⌈match length ⁄ 2⌉.</li>
+                </ul>
+                <p>The championship percentage is how often each player finishes 1st across all simulated seasons.</p>
                 <h4>Margin of Error</h4>
-                <p>For Monte Carlo results, the margin of error is a 95% confidence interval on the leading player's championship probability, computed from the binomial sampling distribution:</p>
+                <p>The margin of error is a 95% confidence interval on the leading player's championship probability, from the binomial sampling distribution:</p>
                 <p style="text-align:center"><code><b>MoE = 1.96 × √(p × (1 − p) / N) × 100%</b></code></p>
-                <p>where <i>p</i> is the leader's estimated probability and <i>N</i> is the number of simulated seasons. It reflects sampling uncertainty only. Exact enumeration has no margin of error because every scenario is evaluated deterministically.</p>
+                <p>where <i>p</i> is the leader's estimated probability and <i>N</i> is the number of simulated seasons. It reflects sampling uncertainty only.</p>
             </div>
             <div class="predictor-moe" id="predictor-moe"></div>
             <div class="predictor-topx-control" id="predictor-topx-wrap" style="display:none">
@@ -522,7 +522,9 @@ function drawHistTable(ctx, dateValue) {
 // ---------- Championship Predictor ----------
 function ensureLast300Map(ctx) {
     if (!ctx._last300MapPromise) {
-        ctx._last300MapPromise = batchLast300PR([...ctx.allPlayersSet], ctx.leagueConfig.type);
+        // Simulator pools all non-REGULAR leagues (doubling + ubc) into one
+        // Last-300 window, regardless of this league's own type.
+        ctx._last300MapPromise = batchLast300PRForSimulator([...ctx.allPlayersSet]);
     }
     return ctx._last300MapPromise;
 }
@@ -572,7 +574,8 @@ async function renderPredictor(ctx) {
             matchLength,
             leagueConfig: ctx.leagueConfig,
             last300Map,
-            allPlayers: ctx.allPlayersSet
+            allPlayers: ctx.allPlayersSet,
+            playedMatches: ctx.liveMatches
         });
 
         // Render MoE
@@ -910,7 +913,8 @@ function renderWhatIfSimulator(ctx) {
                 matchLength,
                 leagueConfig: ctx.leagueConfig,
                 last300Map,
-                allPlayers: ctx.allPlayersSet
+                allPlayers: ctx.allPlayersSet,
+                playedMatches: simMatches
             });
 
             output.hidden = false;

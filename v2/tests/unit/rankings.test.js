@@ -54,6 +54,22 @@ describe("buildRankings — regular with H2H tiebreak", () => {
         expect(r[0].player).toBe("Alice");
         expect(r[1].player).toBe("Bob");
     });
+
+    it("resolves a 4-way winRate tie via the (a) H2H → (b) internal diff → (c) total diff cascade", () => {
+        // P1..P4 all winRate 0.5 (tied); P5 at 0.0 (last).
+        const sm = statsMap(["P1", "P2", "P3", "P4", "P5"].map((player) => {
+            const wins = player === "P5" ? 0 : 5;
+            return { player, games: 10, wins, losses: 10 - wins, winRate: wins / 10, meanPR: null, luck: null, prWins: 0, points: 0, avgPoints: null };
+        }));
+        const M = (a, b, sa, sb) => ({ playerA: a, playerB: b, scoreA: sa, scoreB: sb, played: true });
+        const matches = [
+            M("P1", "P2", 5, 0), M("P2", "P3", 3, 0), M("P3", "P1", 1, 0), // (a): P1=P2=P3=2
+            M("P1", "P4", 2, 0), M("P2", "P4", 2, 0), M("P3", "P4", 2, 0), // (a): P4=0
+            M("P2", "P5", 6, 0), M("P3", "P5", 2, 0),                       // (c): P2 > P3
+        ];
+        const r = buildRankings(sm, REGULAR, matches);
+        expect(r.map((x) => x.player)).toEqual(["P1", "P2", "P3", "P4", "P5"]);
+    });
 });
 
 describe("buildRankings — UBC", () => {

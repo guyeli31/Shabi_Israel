@@ -6,7 +6,7 @@
  */
 
 import { loadLeagueMatchesAll, loadOverrides } from '../data/leagueLoader.js';
-import { addChange, getStagedContent } from './stagingStore.js';
+import { addChange, getStagedContent, stageManualOverrides } from './stagingStore.js';
 import { renderExcelImporter } from './excelImporter.js';
 import { thLabel } from '../utils/helpers.js';
 
@@ -422,17 +422,11 @@ async function renderOverridesList(container, leagueId, refreshBadge) {
             </table>`;
 
         container.querySelectorAll('[data-del-override]').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 const idx = parseInt(btn.dataset.delOverride);
                 overrides.splice(idx, 1);
 
-                const encoded = encodeURIComponent(leagueId);
-                addChange({
-                    type: 'update',
-                    path: `leagues/${encoded}/manual_overrides.json`,
-                    content: JSON.stringify({ overrides }, null, 2),
-                    description: `Remove override #${idx + 1}: ${leagueId}`
-                });
+                await stageManualOverrides(leagueId, overrides);
 
                 if (refreshBadge) refreshBadge();
                 showMsg('overrides-msg', 'Override removal staged.', 'success');
@@ -477,12 +471,7 @@ async function stageOverride(leagueId, newOverride, refreshBadge) {
         overrides.push(newOverride);
     }
 
-    addChange({
-        type: 'update',
-        path: `leagues/${encoded}/manual_overrides.json`,
-        content: JSON.stringify({ overrides }, null, 2),
-        description: `Override: ${newOverride.playerA} vs ${newOverride.playerB} (${newOverride.type})`
-    });
+    await stageManualOverrides(leagueId, overrides);
 
     if (refreshBadge) refreshBadge();
 }

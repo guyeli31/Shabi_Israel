@@ -558,6 +558,8 @@ async function savePlayer(container, name) {
             content: JSON.stringify(_state.metadata, null, 2),
             binary: false,
             description: renameGroupDesc,
+            category: 'player-rename',
+            subject: `${name} → ${newName}`,
             group: renameGroupId,
             groupDescription: renameGroupDesc
         });
@@ -581,6 +583,9 @@ async function savePlayer(container, name) {
                 content: JSON.stringify(_state.metadata, null, 2),
                 binary: false,
                 description: photoLabelText,
+                category: 'player-photo',
+                subject: finalName,
+                action: _state.removePhoto ? 'Photo removed' : 'Photo updated',
                 group: `players-meta-${finalName}`,
                 groupDescription: photoLabelText,
                 groupDescriptionHtml: photoLabelHtml
@@ -598,17 +603,29 @@ async function savePlayer(container, name) {
             content: JSON.stringify(_state.metadata, null, 2),
             binary: false,
             description: `Player metadata (${editedPlayers.join(', ')})`,
+            category: 'player-meta',
             editedPlayers,
             group: 'players-metadata'
         });
     }
 
-    // Stage binary photo if picked — fold into rename group when renaming,
-    // otherwise into the per-player photo group (shared with photo-only metadata above).
-    const photoGroupId = renaming ? renameGroupId : `players-meta-${finalName}`;
-    const photoGroupExtras = renaming
-        ? { groupDescription: renameGroupDesc }
-        : { groupDescription: photoLabelText, groupDescriptionHtml: photoLabelHtml };
+    // Stage binary photo if picked. Pick the group so PENDING never shows a
+    // separate photo row for one player edit:
+    //   - renaming        → the rename bundle
+    //   - photo-only       → the per-player photo group (shared with metadata above)
+    //   - fields + photo   → the shared 'players-metadata' group, so the photo rides
+    //                        the player's editedPlayers sub-line (one row, not two).
+    let photoGroupId, photoGroupExtras;
+    if (renaming) {
+        photoGroupId = renameGroupId;
+        photoGroupExtras = { groupDescription: renameGroupDesc };
+    } else if (photoOnly) {
+        photoGroupId = `players-meta-${finalName}`;
+        photoGroupExtras = { groupDescription: photoLabelText, groupDescriptionHtml: photoLabelHtml };
+    } else {
+        photoGroupId = 'players-metadata';
+        photoGroupExtras = {};
+    }
     if (_state.photoData && photoPath) {
         addChange({
             type: 'update',
@@ -962,17 +979,22 @@ function saveNewPlayer(container, host, form) {
         content: JSON.stringify(_state.metadata, null, 2),
         binary: false,
         description: `Player metadata (${editedPlayers.join(', ')})`,
+        category: 'player-meta',
         editedPlayers,
         group: 'players-metadata'
     });
 
+    // Flag + photo for a brand-new player fold into the same 'players-metadata'
+    // group so the create shows as ONE row (the player's editedPlayers sub-line),
+    // not three separate flag/photo/metadata rows.
     if (form.flagData && form.flagCode) {
         addChange({
             type: 'create',
             path: `assets/flags/${form.flagCode}.png`,
             content: form.flagData,
             binary: true,
-            description: `Upload flag: ${form.flagCode}.png`
+            description: `Upload flag: ${form.flagCode}.png`,
+            group: 'players-metadata'
         });
     }
 
@@ -983,7 +1005,7 @@ function saveNewPlayer(container, host, form) {
             content: form.photoData,
             binary: true,
             description: `Player photo (${nickname})`,
-            group: `players-meta-${nickname}`
+            group: 'players-metadata'
         });
     }
 

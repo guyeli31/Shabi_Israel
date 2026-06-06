@@ -286,6 +286,26 @@ export const PRESETS = {
         },
     },
 
+    F5: {
+        label: 'F5 — CSV Import Preview',
+        args: {
+            data: [], cols: [],
+            fontClass:  'font-small',
+            stickyCols: 1,
+            medalRows:  false,
+            showTopN:   null,
+            mfWidth:    null,
+            mfMb:       null,
+            mfBg:       null,
+        },
+        argDocs: {
+            stickyCols: 'Left column (Rnd) pinned — keeps the row anchored while scrolling across PR/Luck/Score. The lone admin table on MF (others are FF).',
+            medalRows:  'false — an import preview is not ranked.',
+            showTopN:   'null — show every new match in the upload.',
+            fontClass:  'font-small — matches B3 (Championship Predictor). In production the .mf-wrap is overflow-y:clip so the MF sticky header never engages (read-only preview, no floating header).',
+        },
+    },
+
     B6a: {
         label: 'B6a — All Remaining',
         args: {
@@ -590,7 +610,7 @@ mountPoint.innerHTML = '<p style="color:var(--color-text-muted);font-size:0.85re
 loadAllPresetData().then(loaded => {
     const allKeys = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6',
                      'B1', 'B2', 'B3', 'B4', 'B5', 'B6a', 'B6b', 'B6c',
-                     'C0', 'C1', 'C2', 'C3', 'C4', 'D', 'E'];
+                     'C0', 'C1', 'C2', 'C3', 'C4', 'D', 'E', 'F5'];
     for (const key of allKeys) {
         if (!loaded[key] || !PRESETS[key]) continue;
         const { data, cols, buildSummaryRow, getRowClass, medalCounts,
@@ -627,6 +647,7 @@ loadAllPresetData().then(loaded => {
     if (loaded.C4?.playerName)   setTab('C4',  `C4 — ${loaded.C4.playerName}`);
     if (loaded.D.leagueTitle)    setTab('D',   `D — ${loaded.D.leagueTitle}`);
     if (loaded.E.playerName)     setTab('E',   `E — ${loaded.E.playerName}`);
+    if (loaded.F5?.leagueTitle)  setTab('F5',  `F5 — Import Preview (${loaded.F5.leagueTitle})`);
 
     renderPreset('A1');
 }).catch(err => {

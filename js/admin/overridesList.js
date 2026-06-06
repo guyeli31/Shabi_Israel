@@ -3,7 +3,7 @@
  * staged/published for a league with a per-row Remove action.
  */
 
-import { addChange, getStagedContent } from './stagingStore.js';
+import { getStagedContent, stageManualOverrides } from './stagingStore.js';
 import { thLabel } from '../utils/helpers.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 
@@ -71,16 +71,11 @@ export async function renderOverridesList(container, leagueId, refreshBadge) {
         attachStickyShadow(container.querySelector('.ff-wrap'));
 
         container.querySelectorAll('[data-del-override]').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 const idx = parseInt(btn.dataset.delOverride);
                 overrides.splice(idx, 1);
 
-                addChange({
-                    type: 'update',
-                    path: `leagues/${encoded}/manual_overrides.json`,
-                    content: JSON.stringify({ overrides }, null, 2),
-                    description: `Remove override #${idx + 1}: ${leagueId}`
-                });
+                await stageManualOverrides(leagueId, overrides);
 
                 if (refreshBadge) refreshBadge();
                 showMsg('Override removal staged.', 'success');

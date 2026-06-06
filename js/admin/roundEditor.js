@@ -11,7 +11,7 @@
 
 import { parseCSVAllWithRounds } from '../data/csvParser.js';
 import { loadOverrides, loadLeagueParams } from '../data/leagueLoader.js';
-import { addChange, getStagedContent } from './stagingStore.js';
+import { addChange, getStagedContent, stageManualOverrides } from './stagingStore.js';
 
 async function loadOverridesWithStaged(leagueId) {
     const encoded = encodeURIComponent(leagueId);
@@ -372,7 +372,7 @@ async function stageOverride(leagueId, newOverride, refreshBadge) {
     const idx = overrides.findIndex(o => pairKey(o.playerA, o.playerB) === key);
     if (idx !== -1) overrides[idx] = newOverride;
     else overrides.push(newOverride);
-    addChange({ type: 'update', path, content: JSON.stringify({ overrides }, null, 2), description: `Override: ${newOverride.playerA} vs ${newOverride.playerB} (${newOverride.type})` });
+    await stageManualOverrides(leagueId, overrides);
     if (refreshBadge) refreshBadge();
 }
 

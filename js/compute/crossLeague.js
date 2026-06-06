@@ -611,7 +611,29 @@ export async function batchLast300PR(playerNames, leagueType) {
     const leagues = await loadVisibleLeagues();
     const typeLeagues = leagues.filter(l => (l.leagueType || 'doubling') === leagueType);
     const weight = (leagueType === 'regular') ? 5 : 7;
+    return computeLast300Map(playerNames, typeLeagues, weight);
+}
 
+/**
+ * Simulator-only Last 300 PR: pools every NON-regular league (doubling + ubc)
+ * into a single most-recent-300 window. The championship predictor uses this so
+ * that a player's strength reflects all their PR-tracked play, not just the
+ * dashboard league's own type. REGULAR leagues log no PR, so they too lean on
+ * this combined value. Weight is fixed at 7 (all non-regular types).
+ * Returns Map<playerName, {mean, std}>.
+ */
+export async function batchLast300PRForSimulator(playerNames) {
+    const leagues = await loadVisibleLeagues();
+    const typeLeagues = leagues.filter(l => (l.leagueType || 'doubling') !== 'regular');
+    return computeLast300Map(playerNames, typeLeagues, 7);
+}
+
+/**
+ * Shared core: build Last 300 PR {mean, std} per player from a set of leagues.
+ * Most-recent matches (by updatedAt DESC) are accumulated at `weight` each until
+ * total weight ≥ 300. std is the population std of the PR values in that window.
+ */
+function computeLast300Map(playerNames, typeLeagues, weight) {
     // Build per-player match arrays in one pass over all leagues
     const playerMatchesMap = new Map();
     for (const name of playerNames) {

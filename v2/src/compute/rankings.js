@@ -27,20 +27,86 @@ export function getLevel(meanPR) {
     return "Distracted";
 }
 
-/** Head-to-head wins map, used as a tiebreak on regular leagues. */
-function buildH2H(matches) {
-    const h2h = new Map();
+/**
+ * Head-to-head tables for the REGULAR tiebreak.
+ *   pairWins.get(a).get(b)  = # matches a beat b
+ *   pairDiff.get(a).get(b)  = Σ (a's score − b's score) over a-vs-b matches
+ *   totalDiff.get(a)        = Σ (a's score − opponent's score) over ALL a's matches
+ */
+function buildRegularTables(matches) {
+    const pairWins = new Map();
+    const pairDiff = new Map();
+    const totalDiff = new Map();
+    const ensure = (map, k) => {
+        if (!map.has(k)) map.set(k, new Map());
+        return map.get(k);
+    };
     for (const m of (matches || [])) {
         if (m.played === false) continue;
-        const { playerA, playerB, scoreA, scoreB } = m;
-        if (!h2h.has(playerA)) h2h.set(playerA, new Map());
-        if (!h2h.has(playerB)) h2h.set(playerB, new Map());
-        const mapA = h2h.get(playerA);
-        const mapB = h2h.get(playerB);
-        mapA.set(playerB, (mapA.get(playerB) || 0) + (scoreA > scoreB ? 1 : 0));
-        mapB.set(playerA, (mapB.get(playerA) || 0) + (scoreB > scoreA ? 1 : 0));
+        const { playerA, playerB } = m;
+        if (playerA === "Bye" || playerB === "Bye") continue;
+        const scoreA = m.scoreA || 0;
+        const scoreB = m.scoreB || 0;
+        const diff = scoreA - scoreB;
+
+        const winA = ensure(pairWins, playerA);
+        const winB = ensure(pairWins, playerB);
+        winA.set(playerB, (winA.get(playerB) || 0) + (scoreA > scoreB ? 1 : 0));
+        winB.set(playerA, (winB.get(playerA) || 0) + (scoreB > scoreA ? 1 : 0));
+
+        const diffA = ensure(pairDiff, playerA);
+        const diffB = ensure(pairDiff, playerB);
+        diffA.set(playerB, (diffA.get(playerB) || 0) + diff);
+        diffB.set(playerA, (diffB.get(playerA) || 0) - diff);
+
+        totalDiff.set(playerA, (totalDiff.get(playerA) || 0) + diff);
+        totalDiff.set(playerB, (totalDiff.get(playerB) || 0) - diff);
     }
-    return h2h;
+    return { pairWins, pairDiff, totalDiff };
+}
+
+/**
+ * Resolve a group of players tied on Win Rate, by the REGULAR cascade,
+ * applied to the still-tied subgroup at each level:
+ *   (a) head-to-head wins → (b) internal points-diff → (c) total points-diff → alphabetical.
+ */
+function resolveRegularTie(members, level, tables) {
+    if (members.length <= 1) return members;
+    if (level >= 3) {
+        return [...members].sort((a, b) => a.player.localeCompare(b.player));
+    }
+    const { pairWins, pairDiff, totalDiff } = tables;
+    const names = members.map((r) => r.player);
+
+    const value = (r) => {
+        if (level === 0) {
+            const w = pairWins.get(r.player);
+            let s = 0;
+            for (const o of names) if (o !== r.player) s += (w && w.get(o)) || 0;
+            return s;
+        }
+        if (level === 1) {
+            const d = pairDiff.get(r.player);
+            let s = 0;
+            for (const o of names) if (o !== r.player) s += (d && d.get(o)) || 0;
+            return s;
+        }
+        return totalDiff.get(r.player) || 0;
+    };
+
+    const sorted = [...members].sort((a, b) => value(b) - value(a));
+    const out = [];
+    let i = 0;
+    while (i < sorted.length) {
+        let j = i + 1;
+        const vi = value(sorted[i]);
+        while (j < sorted.length && value(sorted[j]) === vi) j++;
+        const sub = sorted.slice(i, j);
+        if (sub.length === 1) out.push(sub[0]);
+        else out.push(...resolveRegularTie(sub, level + 1, tables));
+        i = j;
+    }
+    return out;
 }
 
 /**
@@ -95,32 +161,18 @@ export function buildRankings(statsMap, leagueConfig, matches = null) {
         return sMul * (a[secondary] - b[secondary]);
     });
 
-    // H2H tiebreak: groups where BOTH primary and secondary match get
-    // re-sorted by head-to-head wins inside the group.
+    // REGULAR tiebreak: players tied on Win Rate (primary) are resolved by the
+    // (a) H2H wins → (b) internal points-diff → (c) total points-diff → alphabetical
+    // cascade, narrowing over the still-tied subgroup at each level.
     if (ranking.h2hTiebreak && matches) {
-        const h2h = buildH2H(matches);
+        const tables = buildRegularTables(matches);
         let i = 0;
         while (i < rows.length) {
             let j = i + 1;
-            while (
-                j < rows.length &&
-                rows[j][primary] === rows[i][primary] &&
-                rows[j][secondary] === rows[i][secondary]
-            ) {
-                j++;
-            }
+            while (j < rows.length && rows[j][primary] === rows[i][primary]) j++;
             if (j - i > 1) {
-                const group = rows.slice(i, j);
-                const groupNames = new Set(group.map((r) => r.player));
-                group.sort((a, b) => {
-                    const aWins = [...groupNames].filter((p) => p !== a.player)
-                        .reduce((s, p) => s + (h2h.get(a.player)?.get(p) || 0), 0);
-                    const bWins = [...groupNames].filter((p) => p !== b.player)
-                        .reduce((s, p) => s + (h2h.get(b.player)?.get(p) || 0), 0);
-                    if (aWins !== bWins) return bWins - aWins;
-                    return a.player.localeCompare(b.player);
-                });
-                rows.splice(i, j - i, ...group);
+                const resolved = resolveRegularTie(rows.slice(i, j), 0, tables);
+                rows.splice(i, j - i, ...resolved);
             }
             i = j;
         }

@@ -167,9 +167,11 @@ async function renderAddLeagueForm(container, displayOrder) {
         <button class="btn btn-secondary" id="cancel-new-league" style="margin-bottom:var(--space-lg)">&larr; Back to Leagues</button>
         <div id="add-msg"></div>
 
-        <div class="add-league-grid">
-            <div class="admin-card">
-                <h2>League Settings</h2>
+        <div class="dash-section">
+          <div class="collapsible-section">
+            <h2 class="collapsible-header">League Settings</h2>
+            <div class="collapsible-body">
+            <div class="admin-card edit-card-sm">
                 <div class="form-group">
                     <label for="new-league-name">League Name</label>
                     <input type="text" id="new-league-name" placeholder="e.g. Shabi Israel - May 2026">
@@ -196,44 +198,45 @@ async function renderAddLeagueForm(container, displayOrder) {
                         <input type="number" id="new-match-length" value="7" min="1" max="25" step="2">
                     </div>
                 </div>
+                <div class="form-group">
+                    <label>Medals &amp; Prizes</label>
+                    <table class="medal-prize-table font-small">
+                        <thead>
+                            <tr>
+                                <th scope="col">Medal</th>
+                                <th scope="col">Count</th>
+                                <th scope="col">Prize</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="medal-cell medal-gold"><span class="medal-icon">&#x1F947;</span> Gold</span></td>
+                                <td><input type="number" id="new-gold-count" value="1" min="0" max="20"></td>
+                                <td><input type="number" id="new-prize-gold" value="0" min="0" step="1"></td>
+                            </tr>
+                            <tr>
+                                <td><span class="medal-cell medal-silver"><span class="medal-icon">&#x1F948;</span> Silver</span></td>
+                                <td><input type="number" id="new-silver-count" value="1" min="0" max="20"></td>
+                                <td><input type="number" id="new-prize-silver" value="0" min="0" step="1"></td>
+                            </tr>
+                            <tr>
+                                <td><span class="medal-cell medal-bronze"><span class="medal-icon">&#x1F949;</span> Bronze</span></td>
+                                <td><input type="number" id="new-bronze-count" value="4" min="0" max="20"></td>
+                                <td><input type="number" id="new-prize-bronze" value="0" min="0" step="1"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
+            </div>
+          </div>
+        </div>
 
+        <div class="dash-section">
+          <div class="collapsible-section">
+            <h2 class="collapsible-header">Players & Data</h2>
+            <div class="collapsible-body">
             <div class="admin-card">
-                <h2>Medals & Prizes</h2>
-                <div class="add-league-row">
-                    <div class="form-group">
-                        <label for="new-gold-count">Gold Count</label>
-                        <input type="number" id="new-gold-count" value="1" min="0" max="20">
-                    </div>
-                    <div class="form-group">
-                        <label for="new-prize-gold">Prize Gold</label>
-                        <input type="number" id="new-prize-gold" value="0" min="0">
-                    </div>
-                </div>
-                <div class="add-league-row">
-                    <div class="form-group">
-                        <label for="new-silver-count">Silver Count</label>
-                        <input type="number" id="new-silver-count" value="1" min="0" max="20">
-                    </div>
-                    <div class="form-group">
-                        <label for="new-prize-silver">Prize Silver</label>
-                        <input type="number" id="new-prize-silver" value="0" min="0">
-                    </div>
-                </div>
-                <div class="add-league-row">
-                    <div class="form-group">
-                        <label for="new-bronze-count">Bronze Count</label>
-                        <input type="number" id="new-bronze-count" value="4" min="0" max="20">
-                    </div>
-                    <div class="form-group">
-                        <label for="new-prize-bronze">Prize Bronze</label>
-                        <input type="number" id="new-prize-bronze" value="0" min="0">
-                    </div>
-                </div>
-            </div>
-
-            <div class="admin-card full">
-                <h2>Players & Data</h2>
                 <div class="add-league-row" style="margin-bottom:var(--space-md)">
                     <div class="form-group">
                         <label for="upload-csv">Upload CSV / Excel</label>
@@ -249,9 +252,10 @@ async function renderAddLeagueForm(container, displayOrder) {
                 </div>
                 <div class="add-league-row" style="margin-bottom:var(--space-md);align-items:flex-end">
                     <div class="form-group" style="flex:2;position:relative">
-                        <label for="manual-player-name">Add Player from Registry</label>
-                        <input type="text" id="manual-player-name" placeholder="Type a registered player name…" autocomplete="off">
+                        <label for="manual-player-name">Add Player</label>
+                        <input type="text" id="manual-player-name" placeholder="Pick an existing player or type a new name…" autocomplete="off">
                         <ul class="player-autocomplete" id="manual-player-autocomplete" hidden></ul>
+                        <small style="color:var(--color-text-muted)">Existing players autocomplete; a new name is registered when the league is created.</small>
                     </div>
                     <div class="form-group" style="flex:0">
                         <button class="btn btn-primary btn-sm" id="add-manual-player-btn" style="margin-top:1.4rem">Add</button>
@@ -259,11 +263,11 @@ async function renderAddLeagueForm(container, displayOrder) {
                 </div>
                 <div id="add-msg" style="margin-bottom:var(--space-sm)"></div>
                 <div id="csv-source-msg" style="font-size:0.85rem;color:var(--color-text-muted);margin-bottom:var(--space-sm)"></div>
-                <table class="admin-table" id="new-players-table">
-                    <thead><tr><th scope="col">${thLabel('Name', 'Name')}</th><th scope="col">${thLabel('Flag', 'Flag')}</th><th scope="col">${thLabel('Retired', 'Ret')}</th><th scope="col"></th></tr></thead>
-                    <tbody></tbody>
-                </table>
+                <div id="f2b-mount"></div>
+                ${uploadFlagPanelHTML()}
             </div>
+            </div>
+          </div>
         </div>
 
         <div style="display:flex;gap:var(--space-sm)">
@@ -271,130 +275,76 @@ async function renderAddLeagueForm(container, displayOrder) {
             <button class="btn btn-secondary" id="cancel-new-league-2">Cancel</button>
         </div>`;
 
+    // F2b — the Add-League players table. Identical FF format to F2 (Edit League)
+    // via the shared ffPlayersTableHTML builder; data lives in state.players and
+    // rows are keyed by their position in the table.
     function rerenderPlayers() {
-        const tbody = container.querySelector('#new-players-table tbody');
-        if (state.players.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="color:var(--color-text-muted);text-align:center">No players yet</td></tr>';
-            return;
-        }
-        tbody.innerHTML = state.players.map((pl, i) => {
-            const knownSelected = KNOWN_FLAGS.includes(pl.flag);
-            const customOption = (!knownSelected && pl.flag)
-                ? `<option value="${esc(pl.flag)}" selected>${esc(pl.flag)}</option>`
-                : '';
-            return `
-            <tr>
-                <td><input type="text" data-pi="${i}" data-field="name" value="${esc(pl.name)}" style="width:160px;padding:2px 6px;border:1px solid var(--color-border);border-radius:4px"></td>
-                <td>
-                    <div style="display:flex;flex-direction:column;gap:4px">
-                        <select data-pi="${i}" data-field="flag" style="padding:2px 6px;border:1px solid var(--color-border);border-radius:4px">
-                            ${KNOWN_FLAGS.map(f => `<option value="${f}" ${f === pl.flag ? 'selected' : ''}>${f}</option>`).join('')}
-                            ${customOption}
-                            <option value="__custom">Custom…</option>
-                        </select>
-                        <div class="inline-custom-flag" style="display:none;align-items:center;gap:4px;flex-wrap:wrap">
-                            <input type="text" class="cflag-code" placeholder="XX" maxlength="6"
-                                   style="width:50px;padding:2px 4px;border:1px solid var(--color-border);border-radius:4px">
-                            <label class="file-btn" for="cflag-file-${i}" style="padding:2px 8px;font-size:0.8rem;cursor:pointer">PNG</label>
-                            <input type="file" id="cflag-file-${i}" accept="image/*" style="display:none">
-                            <span class="cflag-filename" style="font-size:0.8rem;color:var(--color-text-muted)">No file</span>
-                            <button type="button" class="btn btn-secondary btn-sm cflag-upload-btn" style="padding:2px 8px">Upload</button>
-                            <span class="cflag-msg" style="font-size:0.8rem"></span>
-                        </div>
-                    </div>
-                </td>
-                <td>
-                    <label class="toggle-switch">
-                        <input type="checkbox" data-pi="${i}" data-field="retired" ${pl.retired ? 'checked' : ''}>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </td>
-                <td><button class="btn btn-danger btn-sm" data-remove-pi="${i}">Remove</button></td>
-            </tr>`;
-        }).join('');
+        const mount = container.querySelector('#f2b-mount');
+        const rows = state.players.map(pl => ({ name: pl.name, flagCode: pl.flag || 'IL', isRetired: !!pl.retired }));
+        mount.innerHTML = ffPlayersTableHTML('F2b', rows, 'No players yet');
+        attachStickyShadow(mount.querySelector('.ff-wrap'));
 
-        tbody.querySelectorAll('input[data-field],select[data-field]').forEach(el => {
-            el.addEventListener('change', () => {
-                const i = parseInt(el.dataset.pi);
-                const f = el.dataset.field;
-                if (f === 'flag' && el.value === '__custom') {
-                    // Revert select to current flag, show inline custom area instead
-                    const cur = state.players[i].flag;
-                    el.value = KNOWN_FLAGS.includes(cur) ? cur : (cur || KNOWN_FLAGS[0]);
-                    const area = el.closest('div').querySelector('.inline-custom-flag');
-                    if (area) area.style.display = 'flex';
-                    return;
-                }
-                state.players[i][f] = f === 'retired' ? el.checked : el.value;
+        if (state.players.length === 0) return;
+
+        const tbody = mount.querySelector('tbody');
+        const rowIndex = el => [...tbody.rows].indexOf(el.closest('tr'));
+
+        // Shared flag preview / custom-code toggle (same handler as F2).
+        wireFlagSelectPreview(mount);
+
+        // Name edits → state.players (by row position)
+        tbody.querySelectorAll('.player-name-input').forEach(input => {
+            input.addEventListener('change', () => {
+                const i = rowIndex(input);
+                if (state.players[i]) state.players[i].name = input.value.trim();
             });
         });
 
-        // Wire inline custom-flag upload for each row
-        tbody.querySelectorAll('.cflag-upload-btn').forEach(btn => {
-            const row = btn.closest('tr');
-            const i = parseInt(row.querySelector('select[data-field="flag"]').dataset.pi);
-            const area = btn.closest('.inline-custom-flag');
-            const codeInput = area.querySelector('.cflag-code');
-            const fileInput = area.querySelector('input[type="file"]');
-            const msgEl = area.querySelector('.cflag-msg');
+        // Flag <select> + custom-code input → state.players
+        tbody.querySelectorAll('.player-flag-select').forEach(sel => {
+            const custom = sel.closest('tr').querySelector('.player-flag-custom');
+            const syncFlag = () => {
+                const i = rowIndex(sel);
+                if (!state.players[i]) return;
+                const code = sel.value === '__custom' ? (custom?.value.trim().toUpperCase() || '') : sel.value;
+                if (code) state.players[i].flag = code;
+            };
+            sel.addEventListener('change', syncFlag);
+            if (custom) custom.addEventListener('input', syncFlag);
+        });
 
-            fileInput.addEventListener('change', () => {
-                const span = area.querySelector('.cflag-filename');
-                if (span) span.textContent = fileInput.files.length ? fileInput.files[0].name : 'No file';
-            });
-
-            btn.addEventListener('click', async () => {
-                const code = codeInput.value.trim().toUpperCase();
-                if (!code || code.length < 2) {
-                    msgEl.textContent = 'Enter a valid code (2+ chars).';
-                    msgEl.style.color = 'var(--color-loss, red)';
-                    return;
-                }
-                if (!fileInput.files || fileInput.files.length === 0) {
-                    msgEl.textContent = 'Select a PNG file.';
-                    msgEl.style.color = 'var(--color-loss, red)';
-                    return;
-                }
-                let base64;
-                try {
-                    const dataUrl = await new Promise((res, rej) => {
-                        const fr = new FileReader();
-                        fr.onload = () => res(fr.result);
-                        fr.onerror = rej;
-                        fr.readAsDataURL(fileInput.files[0]);
-                    });
-                    base64 = dataUrl.split(',')[1];
-                } catch {
-                    msgEl.textContent = 'Could not read image.';
-                    msgEl.style.color = 'var(--color-loss, red)';
-                    return;
-                }
-                state.players[i].flag = code;
-                state.players[i].flagData = base64;
-                if (!KNOWN_FLAGS.includes(code)) KNOWN_FLAGS.push(code);
-                // Update the select to show the new flag
-                const sel = row.querySelector('select[data-field="flag"]');
-                let opt = sel.querySelector(`option[value="${code}"]`);
-                if (!opt) {
-                    opt = document.createElement('option');
-                    opt.value = code;
-                    opt.textContent = code;
-                    sel.insertBefore(opt, sel.querySelector('option[value="__custom"]'));
-                }
-                sel.value = code;
-                area.style.display = 'none';
-                msgEl.textContent = '';
+        // Retired toggle → state.players
+        tbody.querySelectorAll('.player-retired-check').forEach(chk => {
+            chk.addEventListener('change', () => {
+                const i = rowIndex(chk);
+                if (state.players[i]) state.players[i].retired = chk.checked;
             });
         });
 
-        tbody.querySelectorAll('[data-remove-pi]').forEach(btn => {
+        // Remove ✕ → splice + re-render
+        tbody.querySelectorAll('.player-remove-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                state.players.splice(parseInt(btn.dataset.removePi), 1);
+                const i = rowIndex(btn);
+                if (i < 0) return;
+                state.players.splice(i, 1);
                 rerenderPlayers();
             });
         });
     }
     rerenderPlayers();
+
+    // Upload Custom Flag panel (shared with F2 in Edit League) — stages the PNG +
+    // registers the code so it appears in every F2b flag dropdown.
+    wireUploadFlagPanel();
+
+    // Collapsible section headers — same pattern as the Edit League view and the
+    // index dashboard tabs (.dash-section > .collapsible-section toggling .collapsed).
+    // All sections open by default.
+    container.querySelectorAll('.collapsible-header').forEach(h => {
+        h.addEventListener('click', () => {
+            h.closest('.collapsible-section').classList.toggle('collapsed');
+        });
+    });
 
     function setCsvSourceMsg(msg) {
         document.getElementById('csv-source-msg').textContent = msg || '';
@@ -413,7 +363,8 @@ async function renderAddLeagueForm(container, displayOrder) {
     document.getElementById('cancel-new-league').addEventListener('click', cancel);
     document.getElementById('cancel-new-league-2').addEventListener('click', cancel);
 
-    // Manual add — registry-only enforcement
+    // Manual add — existing registry player OR a brand-new name. New names are
+    // registered in players_metadata.json when the league is created (stageAddLeague).
     document.getElementById('add-manual-player-btn').addEventListener('click', async () => {
         const name = document.getElementById('manual-player-name').value.trim();
         if (!name) return;
@@ -421,28 +372,28 @@ async function renderAddLeagueForm(container, displayOrder) {
             showMsg('add-msg', `Player "${name}" already in list.`, 'error');
             return;
         }
-        // Enforce: name must exist in player registry (or staged)
         await ensureAcData();
-        if (!_acPlayerNames.includes(name)) {
-            showMsg('add-msg', `"${name}" is not in the player registry. Create the player first in the Players section.`, 'error');
-            return;
-        }
-        // Use the player's default flag from metadata if available (check staged first)
+        const inRegistry = _acPlayerNames.includes(name);
+        // Existing players inherit their default flag; new players default to IL.
         let flag = 'IL';
-        try {
-            const { loadPlayersMetadata } = await import('../data/playersMetadata.js');
-            const meta = await loadPlayersMetadata();
-            if (meta[name]?.defaultFlag) flag = meta[name].defaultFlag;
-            // Staged metadata takes precedence
-            const stagedRaw = getStagedContent('leagues/players_metadata.json');
-            if (stagedRaw) {
-                const stagedMeta = JSON.parse(stagedRaw);
-                if (stagedMeta[name]?.defaultFlag) flag = stagedMeta[name].defaultFlag;
-            }
-        } catch { /* fallback to IL */ }
-        state.players.push({ name, flag, retired: false });
+        if (inRegistry) {
+            try {
+                const { loadPlayersMetadata } = await import('../data/playersMetadata.js');
+                const meta = await loadPlayersMetadata();
+                if (meta[name]?.defaultFlag) flag = meta[name].defaultFlag;
+                // Staged metadata takes precedence
+                const stagedRaw = getStagedContent('leagues/players_metadata.json');
+                if (stagedRaw) {
+                    const stagedMeta = JSON.parse(stagedRaw);
+                    if (stagedMeta[name]?.defaultFlag) flag = stagedMeta[name].defaultFlag;
+                }
+            } catch { /* fallback to IL */ }
+        }
+        state.players.push({ name, flag, retired: false, isNew: !inRegistry });
         document.getElementById('manual-player-name').value = '';
-        showMsg('add-msg', '', '');
+        document.getElementById('manual-player-autocomplete').hidden = true;
+        showMsg('add-msg', inRegistry ? '' : `New player "${name}" added — it will be registered when you create the league.`,
+            inRegistry ? '' : 'success');
         rerenderPlayers();
     });
 
@@ -624,6 +575,11 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
     const folderName = name.replace(' - ', ' ');
     const encoded = encodeURIComponent(folderName);
 
+    // All files that make up a brand-new league are staged under a single group
+    // so Pending Changes shows (and the badge counts) the whole creation as ONE item.
+    const groupId = `add-${folderName}`;
+    const groupDescription = `Create league: ${name}`;
+
     const players = options.players || [];
     const customFlags = {};
     const retiredPlayers = [];
@@ -637,7 +593,9 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
                 path: `assets/flags/${pl.flag}.png`,
                 content: pl.flagData,
                 binary: true,
-                description: `Upload flag: ${pl.flag}.png`
+                description: `Upload flag: ${pl.flag}.png`,
+                group: groupId,
+                groupDescription
             });
         }
     }
@@ -665,7 +623,11 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
         type: 'create',
         path: `leagues/${encoded}/league_params.json`,
         content: JSON.stringify(params, null, 2),
-        description: `Create league: ${name}`
+        description: `Create league: ${name}`,
+        category: 'create-league',
+        subject: name,
+        group: groupId,
+        groupDescription
     });
 
     // CSV: uploaded text wins; otherwise round-robin from players; otherwise header only
@@ -682,8 +644,51 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
         type: 'create',
         path: `leagues/${encoded}/leaguedata.csv`,
         content: csvContent,
-        description: `Create CSV for: ${name}`
+        description: `Create CSV for: ${name}`,
+        group: groupId,
+        groupDescription
     });
+
+    // Register brand-new players into the registry (players_metadata.json) so they
+    // enter the "DB" when this league is published — and so the future backend can
+    // parse them as known players. Existing players already have records and are
+    // left untouched. Build on any already-staged metadata so prior edits survive.
+    try {
+        const { loadPlayersMetadata } = await import('../data/playersMetadata.js');
+        let metadata = {};
+        const stagedMeta = getStagedContent('leagues/players_metadata.json');
+        if (stagedMeta) {
+            try { metadata = JSON.parse(stagedMeta); } catch { metadata = {}; }
+        } else {
+            try { metadata = await loadPlayersMetadata(); } catch { metadata = {}; }
+        }
+        const known = new Set(Object.keys(metadata));
+        try {
+            const index = await ensurePlayerIndex();
+            for (const n of index.keys()) known.add(n);
+        } catch { /* player index is optional here */ }
+
+        const updated = { ...metadata };
+        const added = [];
+        for (const pl of players) {
+            if (!pl.name || known.has(pl.name)) continue;
+            const entry = {};
+            if (pl.flag && pl.flag !== 'IL') entry.defaultFlag = pl.flag;
+            updated[pl.name] = entry;
+            known.add(pl.name);
+            added.push(pl.name);
+        }
+        if (added.length > 0) {
+            addChange({
+                type: 'update',
+                path: 'leagues/players_metadata.json',
+                content: JSON.stringify(updated, null, 2),
+                description: `Register new players: ${added.join(', ')}`,
+                group: groupId,
+                groupDescription
+            });
+        }
+    } catch { /* best-effort registry registration — never block league creation */ }
 
     // Update landing_settings.json
     const newOrder = [name, ...displayOrder];
@@ -698,7 +703,9 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
             logoPath: settings.logoPath,
             DisplayOrder: settings.displayOrder
         }, null, 2),
-        description: `Add "${name}" to landing settings`
+        description: `Add "${name}" to landing settings`,
+        group: groupId,
+        groupDescription
     });
 
     if (refreshBadgeFn) refreshBadgeFn();
@@ -714,6 +721,8 @@ async function stageDeleteLeague(leagueId, title, displayOrder) {
         path: `leagues/${encoded}/league_params.json`,
         content: null,
         description: `Delete league params: ${leagueId}`,
+        category: 'delete-league',
+        subject: title,
         group: groupId,
         groupDescription
     });
@@ -796,41 +805,12 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     const bgStartDate = bgSync.startDate ? String(bgSync.startDate).slice(0, 10) : '';
     const bgEndDate = bgSync.endDate ? String(bgSync.endDate).slice(0, 10) : '';
 
-    // Player rows
-    let playerRows = '';
-    for (const player of players) {
-        const flagCode = customFlags[player] || 'IL';
-        const isRetired = retiredPlayers.includes(player);
-        const flagOptions = KNOWN_FLAGS.map(f =>
-            `<option value="${f}" ${f === flagCode ? 'selected' : ''}>${f}</option>`
-        ).join('');
-
-        playerRows += `
-            <tr>
-                <td>
-                    <input type="text" class="player-name-input" data-original="${esc(player)}" value="${esc(player)}"
-                        style="width:140px;padding:2px 6px;border:1px solid var(--color-border);border-radius:4px">
-                </td>
-                <td>
-                    <div style="display:flex;align-items:center;gap:6px">
-                        <img class="flag" src="assets/flags/${flagCode}.png" alt="${flagCode}">
-                        <select class="player-flag-select" data-player="${esc(player)}" style="padding:2px 6px;border:1px solid var(--color-border);border-radius:4px">
-                            ${flagOptions}
-                            <option value="__custom" ${!KNOWN_FLAGS.includes(flagCode) ? 'selected' : ''}>Custom...</option>
-                        </select>
-                        <input type="text" class="player-flag-custom" placeholder="Code" style="width:50px;padding:2px 4px;border:1px solid var(--color-border);border-radius:4px;display:${KNOWN_FLAGS.includes(flagCode) ? 'none' : 'inline'}"
-                            value="${!KNOWN_FLAGS.includes(flagCode) ? flagCode : ''}">
-                    </div>
-                </td>
-                <td>
-                    <label class="toggle-switch">
-                        <input type="checkbox" class="player-retired-check" data-player="${esc(player)}" ${isRetired ? 'checked' : ''}>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </td>
-                <td><button class="btn btn-danger btn-sm player-remove-btn" data-remove-player="${esc(player)}" title="Remove player">&#10005;</button></td>
-            </tr>`;
-    }
+    // F2 players-table rows (shared builder — see ffPlayersTableHTML).
+    const editPlayerRows = players.map(name => ({
+        name,
+        flagCode: customFlags[name] || 'IL',
+        isRetired: retiredPlayers.includes(name)
+    }));
 
     container.innerHTML = `
         <h1>Edit: ${esc(p.LeagueTitle || leagueId)}</h1>
@@ -928,33 +908,11 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             <div class="collapsible-body">
             <div class="admin-card">
             <div id="players-msg"></div>
-            <div class="ff-wrap">
-                <table class="admin-table font-large">
-                    <thead>
-                        <tr><th scope="col">${thLabel('Name', 'Name')}</th><th scope="col">${thLabel('Flag', 'Flag')}</th><th scope="col">${thLabel('Retired', 'Ret')}</th><th scope="col"></th></tr>
-                    </thead>
-                    <tbody>${playerRows}</tbody>
-                </table>
-            </div>
+            ${ffPlayersTableHTML('F2', editPlayerRows)}
             <div style="margin-top:var(--space-md)">
                 <button class="btn btn-primary" id="save-players">Save Player Changes</button>
             </div>
-            <div style="margin-top:var(--space-md)">
-                <h3 style="font-size:0.95rem;margin-bottom:var(--space-sm)">Upload Custom Flag</h3>
-                <div class="form-group">
-                    <label>Flag Code + PNG file</label>
-                    <div style="display:flex;gap:var(--space-sm);align-items:center">
-                        <input type="text" id="upload-flag-code" placeholder="XX" style="width:60px">
-                        <div class="custom-file-input" style="flex:1">
-                            <label class="file-btn" for="upload-flag-file">Choose File</label>
-                            <input type="file" id="upload-flag-file" accept="image/*">
-                            <span class="file-name" data-for="upload-flag-file">No file chosen</span>
-                        </div>
-                        <button class="btn btn-secondary btn-sm" id="upload-flag-btn">Upload</button>
-                    </div>
-                </div>
-                <div id="flag-upload-msg"></div>
-            </div>
+            ${uploadFlagPanelHTML()}
             </div>
             </div>
           </div>
@@ -1070,22 +1028,8 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         this.closest('.form-group').querySelector('small').textContent = this.checked ? 'Hidden from public' : 'Visible';
     });
 
-    // Flag select change — show/hide custom input + preview
-    container.querySelectorAll('.player-flag-select').forEach(sel => {
-        sel.addEventListener('change', function() {
-            const row = this.closest('tr');
-            const customInput = row.querySelector('.player-flag-custom');
-            const preview = row.querySelector('img.flag');
-            if (this.value === '__custom') {
-                customInput.style.display = 'inline';
-                customInput.focus();
-            } else {
-                customInput.style.display = 'none';
-                preview.src = `assets/flags/${this.value}.png`;
-                preview.alt = this.value;
-            }
-        });
-    });
+    // F2 flag-select preview/custom-code toggle (shared with F2b in Add League).
+    wireFlagSelectPreview(container);
 
     // Back
     document.getElementById('back-to-leagues').addEventListener('click', () => {
@@ -1131,7 +1075,9 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             type: 'update',
             path: `leagues/${encoded}/league_params.json`,
             content: JSON.stringify(newParams, null, 2),
-            description: `Update settings: ${newParams.LeagueTitle}`
+            description: `Update settings: ${newParams.LeagueTitle}`,
+            category: 'league-settings',
+            subject: newParams.LeagueTitle
         });
 
         if (refreshBadgeFn) refreshBadgeFn();
@@ -1208,11 +1154,24 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
 
             const encoded = encodeURIComponent(leagueId);
 
+            // One group so the params + CSV-rename side-effect collapse to a single
+            // Pending row instead of two ("Update players" + "Rename players in CSV").
+            const editGroupId = `edit-players-${leagueId}`;
+            const editGroupDesc = `Players updated: ${leagueId}`;
+            const editDetail = renames.length > 0
+                ? renames.map(r => `${r.from} → ${r.to}`).join(', ')
+                : null;
+
             addChange({
                 type: 'update',
                 path: `leagues/${encoded}/league_params.json`,
                 content: JSON.stringify(updatedParams, null, 2),
-                description: `Update players: ${leagueId}`
+                description: `Update players: ${leagueId}`,
+                category: 'league-players',
+                subject: leagueId,
+                detail: editDetail,
+                group: editGroupId,
+                groupDescription: editGroupDesc
             });
 
             // Handle renames in CSV
@@ -1239,7 +1198,12 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                         type: 'update',
                         path: `leagues/${encoded}/leaguedata.csv`,
                         content: csvText,
-                        description: `Rename players in CSV: ${renames.map(r => `${r.from} → ${r.to}`).join(', ')}`
+                        description: `Rename players in CSV: ${renames.map(r => `${r.from} → ${r.to}`).join(', ')}`,
+                        category: 'league-players',
+                        subject: leagueId,
+                        detail: editDetail,
+                        group: editGroupId,
+                        groupDescription: editGroupDesc
                     });
                 } catch (err) {
                     showMsg('players-msg', `Warning: Could not update CSV for renames: ${err.message}`, 'error');
@@ -1251,45 +1215,154 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         });
     }
 
-    // Upload custom flag
-    if (document.getElementById('upload-flag-btn')) {
-        document.getElementById('upload-flag-btn').addEventListener('click', async () => {
-            const code = document.getElementById('upload-flag-code').value.trim().toUpperCase();
-            const fileInput = document.getElementById('upload-flag-file');
+    // Upload custom flag (shared panel + handler — also used by F2b in Add League).
+    wireUploadFlagPanel();
+}
 
-            if (!code || code.length < 2) {
-                showMsg('flag-upload-msg', 'Enter a valid flag code (2+ chars).', 'error');
-                return;
+// ---- FF Players table (F2 / F2b) ----
+// Single source of truth for the unified admin players table so F2 (Players in
+// Edit League) and F2b (players in Add New League) are byte-identical in format
+// and button chrome, differing only in their data + wiring. See docs/TABLE-DESIGN.md.
+
+/** One F2/F2b row: Name input · Flag (preview + dropdown + custom code) · Retired toggle · ✕ remove. */
+function ffPlayerRowHTML(name, flagCode, isRetired) {
+    const isKnown = KNOWN_FLAGS.includes(flagCode);
+    const flagOptions = KNOWN_FLAGS.map(f =>
+        `<option value="${f}" ${f === flagCode ? 'selected' : ''}>${f}</option>`
+    ).join('');
+    return `
+            <tr>
+                <td>
+                    <input type="text" class="player-name-input" data-original="${esc(name)}" value="${esc(name)}"
+                        style="width:140px;padding:2px 6px;border:1px solid var(--color-border);border-radius:4px">
+                </td>
+                <td>
+                    <div style="display:flex;align-items:center;gap:6px">
+                        <img class="flag" src="assets/flags/${flagCode}.png" alt="${flagCode}">
+                        <select class="player-flag-select" data-player="${esc(name)}" style="padding:2px 6px;border:1px solid var(--color-border);border-radius:4px">
+                            ${flagOptions}
+                            <option value="__custom" ${!isKnown ? 'selected' : ''}>Custom...</option>
+                        </select>
+                        <input type="text" class="player-flag-custom" placeholder="Code" style="width:50px;padding:2px 4px;border:1px solid var(--color-border);border-radius:4px;display:${isKnown ? 'none' : 'inline'}"
+                            value="${!isKnown ? flagCode : ''}">
+                    </div>
+                </td>
+                <td>
+                    <label class="toggle-switch">
+                        <input type="checkbox" class="player-retired-check" data-player="${esc(name)}" ${isRetired ? 'checked' : ''}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </td>
+                <td><button class="btn btn-danger btn-sm player-remove-btn" data-remove-player="${esc(name)}" title="Remove player">&#10005;</button></td>
+            </tr>`;
+}
+
+/**
+ * Full FF players table (.ff-wrap + .admin-table.font-large).
+ * @param {string} tableId   - 'F2' (Edit) or 'F2b' (Add); tagged as data-ff-table.
+ * @param {Array<{name:string,flagCode:string,isRetired:boolean}>} rows
+ * @param {string} [emptyMessage] - placeholder row shown when rows is empty.
+ */
+function ffPlayersTableHTML(tableId, rows, emptyMessage) {
+    const body = rows.length
+        ? rows.map(r => ffPlayerRowHTML(r.name, r.flagCode, r.isRetired)).join('')
+        : (emptyMessage ? `<tr><td colspan="4" style="text-align:center;color:var(--color-text-muted)">${esc(emptyMessage)}</td></tr>` : '');
+    return `
+            <div class="ff-wrap">
+                <table class="admin-table font-large" data-ff-table="${tableId}">
+                    <thead>
+                        <tr><th scope="col">${thLabel('Name', 'Name')}</th><th scope="col">${thLabel('Flag', 'Flag')}</th><th scope="col">${thLabel('Retired', 'Ret')}</th><th scope="col"></th></tr>
+                    </thead>
+                    <tbody>${body}</tbody>
+                </table>
+            </div>`;
+}
+
+/** The "Upload Custom Flag" panel that accompanies an FF players table. */
+function uploadFlagPanelHTML() {
+    return `
+            <div style="margin-top:var(--space-md)">
+                <h3 style="font-size:0.95rem;margin-bottom:var(--space-sm)">Upload Custom Flag</h3>
+                <div class="form-group">
+                    <label>Flag Code + PNG file</label>
+                    <div style="display:flex;gap:var(--space-sm);align-items:center">
+                        <input type="text" id="upload-flag-code" placeholder="XX" style="width:60px">
+                        <div class="custom-file-input" style="flex:1">
+                            <label class="file-btn" for="upload-flag-file">Choose File</label>
+                            <input type="file" id="upload-flag-file" accept="image/*">
+                            <span class="file-name" data-for="upload-flag-file">No file chosen</span>
+                        </div>
+                        <button class="btn btn-secondary btn-sm" id="upload-flag-btn">Upload</button>
+                    </div>
+                </div>
+                <div id="flag-upload-msg"></div>
+            </div>`;
+}
+
+/** Wire the flag <select> in an FF table: show/hide the custom-code input + swap the preview. */
+function wireFlagSelectPreview(scope) {
+    scope.querySelectorAll('.player-flag-select').forEach(sel => {
+        sel.addEventListener('change', function() {
+            const row = this.closest('tr');
+            const customInput = row.querySelector('.player-flag-custom');
+            const preview = row.querySelector('img.flag');
+            if (this.value === '__custom') {
+                customInput.style.display = 'inline';
+                customInput.focus();
+            } else {
+                customInput.style.display = 'none';
+                if (preview) {
+                    preview.src = `assets/flags/${this.value}.png`;
+                    preview.alt = this.value;
+                }
             }
-            if (!fileInput.files || fileInput.files.length === 0) {
-                showMsg('flag-upload-msg', 'Select an image file.', 'error');
-                return;
-            }
-
-            const file = fileInput.files[0];
-            let base64;
-            try {
-                base64 = await fileToPngBase64(file);
-            } catch {
-                showMsg('flag-upload-msg', 'Could not read this image. If it is a HEIC from iPhone, please share it as JPEG or PNG.', 'error');
-                return;
-            }
-
-            addChange({
-                type: 'create',
-                path: `assets/flags/${code}.png`,
-                content: base64,
-                binary: true,
-                description: `Upload flag: ${code}.png`
-            });
-
-            // Add to known flags for this session
-            if (!KNOWN_FLAGS.includes(code)) KNOWN_FLAGS.push(code);
-
-            if (refreshBadgeFn) refreshBadgeFn();
-            showMsg('flag-upload-msg', `Flag ${code}.png staged for upload.`, 'success');
         });
-    }
+    });
+}
+
+/** Wire the "Upload Custom Flag" panel: stage the PNG + register the code in KNOWN_FLAGS. */
+function wireUploadFlagPanel() {
+    const btn = document.getElementById('upload-flag-btn');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+        const code = document.getElementById('upload-flag-code').value.trim().toUpperCase();
+        const fileInput = document.getElementById('upload-flag-file');
+
+        if (!code || code.length < 2) {
+            showMsg('flag-upload-msg', 'Enter a valid flag code (2+ chars).', 'error');
+            return;
+        }
+        if (!fileInput.files || fileInput.files.length === 0) {
+            showMsg('flag-upload-msg', 'Select an image file.', 'error');
+            return;
+        }
+
+        const file = fileInput.files[0];
+        let base64;
+        try {
+            base64 = await fileToPngBase64(file);
+        } catch {
+            showMsg('flag-upload-msg', 'Could not read this image. If it is a HEIC from iPhone, please share it as JPEG or PNG.', 'error');
+            return;
+        }
+
+        addChange({
+            type: 'create',
+            path: `assets/flags/${code}.png`,
+            content: base64,
+            binary: true,
+            description: `Upload flag: ${code}.png`,
+            category: 'flag-upload',
+            subject: code,
+            detail: `${code}.png`
+        });
+
+        // Add to known flags for this session
+        if (!KNOWN_FLAGS.includes(code)) KNOWN_FLAGS.push(code);
+
+        if (refreshBadgeFn) refreshBadgeFn();
+        showMsg('flag-upload-msg', `Flag ${code}.png staged for upload.`, 'success');
+    });
 }
 
 // ---- Helpers ----
@@ -1436,7 +1509,9 @@ function setupBGSync(leagueId, params, defaultName, refreshBadgeFn) {
             type: 'update',
             path,
             content: JSON.stringify(newParams, null, 2),
-            description: `Update BGStudio sync: ${leagueId}`
+            description: `Update BGStudio sync: ${leagueId}`,
+            category: 'bgsync',
+            subject: leagueId
         });
 
         if (refreshBadgeFn) refreshBadgeFn();

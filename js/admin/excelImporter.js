@@ -4,6 +4,10 @@
  */
 
 import { addChange } from './stagingStore.js';
+import { computeCsvImportReport, renderCsvImportReport } from './csvValidation.js';
+import { parseCSV } from '../data/csvParser.js';
+import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
+import { formatNumber } from '../utils/helpers.js';
 
 /**
  * Render the Excel/CSV import UI into a container.
@@ -33,11 +37,10 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone) {
                 <p style="font-size:0.85rem">or click to browse</p>
                 <input type="file" id="file-input" accept=".xlsx,.csv" style="display:none">
             </div>
+            <div id="csv-validation"></div>
             <div id="preview-area" style="display:none">
                 <h3 style="margin-bottom:var(--space-sm)">Preview</h3>
-                <div class="table-scroll" style="max-height:400px;overflow:auto;margin-bottom:var(--space-md)">
-                    <table class="admin-table" id="preview-table"></table>
-                </div>
+                <div id="preview-host" style="margin-bottom:var(--space-md)"></div>
                 <div style="display:flex;gap:var(--space-sm)">
                     <button class="btn btn-success" id="confirm-import">Confirm & Stage</button>
                     <button class="btn btn-secondary" id="cancel-import">Cancel</button>
@@ -112,34 +115,57 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone) {
             showMsg('import-msg', 'File is empty.', 'error');
             return;
         }
-
-        let tableHtml = '<thead><tr>';
-        const headerParts = lines[0].split(',');
-        for (const h of headerParts) {
-            tableHtml += `<th scope="col">${escHtml(h.trim())}</th>`;
-        }
-        tableHtml += '</tr></thead><tbody>';
-
-        for (let i = 1; i < Math.min(lines.length, 50); i++) {
-            const parts = lines[i].split(',');
-            tableHtml += '<tr>';
-            for (const p of parts) {
-                tableHtml += `<td>${escHtml(p.trim())}</td>`;
-            }
-            tableHtml += '</tr>';
-        }
-
-        if (lines.length > 50) {
-            tableHtml += `<tr><td colspan="${headerParts.length}" style="color:var(--color-text-muted)">... and ${lines.length - 50} more rows</td></tr>`;
-        }
-
-        tableHtml += '</tbody>';
-
-        document.getElementById('preview-table').innerHTML = tableHtml;
         document.getElementById('preview-area').style.display = 'block';
-        dropZone.style.display = 'none';
+        // Keep the drop zone visible so the compatibility report sits directly
+        // beneath it, and the admin can re-drop a different file in place.
 
-        showMsg('import-msg', `Loaded ${lines.length - 1} data rows.`, 'info');
+        // The report drives BOTH the compatibility panel and the F5 preview table.
+        renderValidation(csvText);
+    }
+
+    async function renderValidation(csvText) {
+        const el = document.getElementById('csv-validation');
+        const host = document.getElementById('preview-host');
+        if (el) el.innerHTML = `<p style="color:var(--color-text-muted);padding:var(--space-sm) 0">Checking compatibility…</p>`;
+        try {
+            const report = await computeCsvImportReport(leagueId, csvText);
+            if (el) el.innerHTML = renderCsvImportReport(report);
+            renderPreview(host, report);
+        } catch (err) {
+            if (el) el.innerHTML = `<p style="color:var(--color-text-muted);padding:var(--space-sm) 0">Compatibility check unavailable: ${escHtml(err.message)}</p>`;
+            if (host) host.innerHTML = '';
+        }
+    }
+
+    // F5 — CSV Import Preview. Shows ONLY the "N updates": matches played in the
+    // uploaded CSV that were not already played and are not override-covered.
+    // Rendered with the canonical MF renderer (font-small, sticky left column).
+    function renderPreview(host, report) {
+        if (!host) return;
+        const newMatches = report.newMatches || [];
+        showMsg('import-msg', `${newMatches.length} new match${newMatches.length === 1 ? '' : 'es'} to import.`, 'info');
+        if (newMatches.length === 0) {
+            host.innerHTML = `<p style="color:var(--color-text-muted);padding:var(--space-sm) 0">No new matches in this upload.</p>`;
+            return;
+        }
+        const num = (v) => v == null ? '—' : formatNumber(v);
+        mountMFTable(host, {
+            tableId: 'F5',
+            fontClass: 'font-small',
+            stickyCols: 1,
+            data: newMatches,
+            cols: [
+                { key: 'round',   label: 'Rnd' },
+                { key: 'playerA', label: 'Player A', format: (v) => escHtml(v) },
+                { key: 'prA',     label: 'PR',       format: num },
+                { key: 'luckA',   label: 'Luck',     format: num },
+                { key: 'scoreA',  label: 'A' },
+                { key: 'playerB', label: 'Player B', format: (v) => escHtml(v) },
+                { key: 'prB',     label: 'PR',       format: num },
+                { key: 'luckB',   label: 'Luck',     format: num },
+                { key: 'scoreB',  label: 'B' },
+            ],
+        });
     }
 
     // Confirm
@@ -147,11 +173,16 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone) {
         if (!parsedCSV) return;
 
         const encoded = encodeURIComponent(leagueId);
+        let played = 0;
+        try { played = parseCSV(parsedCSV).length; } catch { /* count is best-effort */ }
         addChange({
             type: 'update',
             path: `leagues/${encoded}/leaguedata.csv`,
             content: parsedCSV,
-            description: `Import CSV: ${leagueId}`
+            description: `Import CSV: ${leagueId}`,
+            category: 'league-data',
+            subject: leagueId,
+            detail: `${played} match${played === 1 ? '' : 'es'}`
         });
 
         if (refreshBadge) refreshBadge();
@@ -165,6 +196,8 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone) {
     document.getElementById('cancel-import').addEventListener('click', () => {
         parsedCSV = null;
         document.getElementById('preview-area').style.display = 'none';
+        document.getElementById('csv-validation').innerHTML = '';
+        document.getElementById('preview-host').innerHTML = '';
         dropZone.style.display = '';
     });
 }
