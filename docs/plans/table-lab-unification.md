@@ -14,10 +14,10 @@
 
      | Format | Code | Used by | Mount fn |
      |---|---|---|---|
-     | Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3 | `mountMFTable` |
+     | Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3, F5 (CSV Import Preview — read-only) | `mountMFTable` |
      | Secondary Format | **SF** | A3, A4, A5, A6, C4 | `mountSFTable` |
      | Expandable Format | **exp** | C0 | `mountExpTable` |
-     | Form Format | **FF** | F1 (Leagues), F2 (Players), F3 (Round Editor), F4 (View Overrides) | `mountFFTable` |
+     | Form Format | **FF** | F1 (Leagues), F2 (Players), F3 (Round Editor), F4 (View Overrides), F6 (Medals & Prizes) | `mountFFTable` |
 
      > **FF — three cell modes per ColDef.** Display (read-only), Action (button + data-attrs), Edit (input/select + getValue). A single FF table mixes them freely. The earlier FF1/FF2 split was an intermediate naming — collapsed into a single FF format once it became clear the variation is per-column, not per-table.
 
@@ -374,7 +374,7 @@ Only after the gate passes: remove every selector classified as Group A (both A-
 
 ## Phase 8 — FF format (Admin tables)
 
-**Scope:** FF covers F1 (League Manager), F2 (Players in Edit League), F3 (Round Editor), F4 (View Overrides).
+**Scope:** FF covers F1 (League Manager), F2 (Players in Edit League), F3 (Round Editor), F4 (View Overrides), F6 (Medals & Prizes in Edit + Add League).
 
 **Outcome:** admin tables are also rendered through `table-lab/`. The lab becomes the canonical source for *every* table in the project.
 
@@ -385,7 +385,7 @@ Only after the gate passes: remove every selector classified as Group A (both A-
 ### 8.0 Current state (mid-2026)
 - `table-lab/formats/ff/mount.js` + `ff.css` exist in the lab as canon for the unified FF format (single mount, three cell modes per ColDef).
 - `css/admin.css` carries the same FF chrome rules (`.ff-wrap`, `.admin-table.font-large` block, F3↔FF reconciliation) — duplicated until production rewires.
-- Production JS in `js/admin/leagueManager.js`, `js/admin/overridesList.js`, `js/admin/roundEditor.js` writes the FF class names (`<div class="ff-wrap">`, `class="admin-table font-large">`) but still builds the table by hand and wires its own listeners. So F1/F2/F3/F4 wear FF chrome visually but are not yet driven by `mountFFTable`.
+- Production JS in `js/admin/leagueManager.js`, `js/admin/overridesList.js`, `js/admin/roundEditor.js` writes the FF class names (`<div class="ff-wrap">`, `class="admin-table font-large">`) but still builds the table by hand and wires its own listeners. So F1/F2/F4/F6 wear FF chrome visually but are not yet driven by `mountFFTable`. (F2 + F2b players table via `ffPlayersTableHTML`; F6 medals/prizes via `ffMedalsTableHTML` — both shared between Edit + Add League. F3 round editor is structurally unique, see 8.1.)
 
 ### 8.1 Implement & rewire (single FF format)
 - Inventory the four admin table render paths:
@@ -393,8 +393,9 @@ Only after the gate passes: remove every selector classified as Group A (both A-
   - F2 (`leagueManager.js :: renderEditLeagueForm` player table) — Display + Edit + Action (incl. Upload Custom Flag sub-form caller-owned).
   - F3 (`roundEditor.js`) — Edit + Action; structurally unique (2-rows-per-match `<tbody>` with rowspan, per-match Save state machine). Decision point: extend `mountFFTable` to support multi-row records OR keep F3 hand-rolled while sharing the FF chrome via CSS classes.
   - F4 (`overridesList.js`) — Display + Action.
+  - F6 (`leagueManager.js :: ffMedalsTableHTML`, used by both Edit + Add League) — Display medal cell + two Edit cells (Count, Prize); 3 fixed rows. Already wears hand-built FF chrome with `data-mf-table-id="F6"`; rewire to `mountFFTable` here (Edit cols' `getValue` reading the Count/Prize inputs). Note: FF chrome is font-large-only in the canon, so F6 is font-large; if a font-small FF variant is wanted, add a `.admin-table.font-small` chrome block to `ff.css` + `admin.css` as part of this phase.
 - Confirm `mountFFTable` args schema covers Display + Action + Edit cell modes (it already does via `format` / `getValue` / `originalKey` / `validate`).
-- Add F1, F2, F3, F4 presets under `table-lab/presets/` (F3 deferred or partial per the decision above).
+- Add F1, F2, F3, F4, F6 presets under `table-lab/presets/` (F3 deferred or partial per the decision above).
 - Add tabs to the lab.
 - Rewire each call site to use `mountFFTable`. Once all rewires are in, delete the FF chrome rules from `css/admin.css` — the lab's `ff.css` becomes the sole source.
 

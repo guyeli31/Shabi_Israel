@@ -132,6 +132,15 @@ export function collectPlayerBestPR(perLeague, leagueType, limit = 100) {
     return out.sort((a, b) => a.metric - b.metric).slice(0, limit);
 }
 
+export function collectPlayerBestOpponentPR(perLeague, leagueType, limit = 100) {
+    const out = [];
+    for (const { m, league } of walkPlayerMatches(perLeague, leagueType)) {
+        if (m.prOpp == null) continue;
+        out.push({ metric: m.prOpp, ...playerRowBase(m, league) });
+    }
+    return out.sort((a, b) => a.metric - b.metric).slice(0, limit);
+}
+
 export function collectPlayerBestLuckFor(perLeague, leagueType, limit = 100) {
     const out = [];
     for (const { m, league } of walkPlayerMatches(perLeague, leagueType)) {

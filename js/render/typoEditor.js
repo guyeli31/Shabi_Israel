@@ -130,6 +130,7 @@ const GROUPS = [
     { id: 'admin-pending-h3',  pages: ['admin'], tier: 't4', bold: true,  label: 'Pending Changes — heading', sel: '.pending-panel h3' },
     { id: 'f1-table',          pages: ['admin'], tier: 't5', bold: false, label: 'F1 — Leagues admin',    sel: '.admin-table th, .admin-table td', isTable: true, tableSel: '.admin-table' },
     { id: 'f2-table',          pages: ['admin'], tier: 't6', bold: false, label: 'F2 — Round editor',     sel: '.admin-round-table th, .admin-round-table td', isTable: true, tableSel: '.admin-round-table' },
+    { id: 'f6-table',          pages: ['admin'], tier: 't6', bold: false, label: 'F6 — Medals & Prizes',  sel: '[data-mf-table-id="F6"] th, [data-mf-table-id="F6"] td', isTable: true, tableSel: '[data-mf-table-id="F6"]' },
 
     // ── Dashboard extras (What-If Simulator, MoE, Open-full button) ──
     { id: 'open-full-btn',     pages: ['dashboard'], tier: 't7', bold: false, label: 'Open Full Table button', sel: '.open-full-btn' },

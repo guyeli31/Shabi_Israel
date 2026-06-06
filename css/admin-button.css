@@ -33,10 +33,111 @@
 }
 
 .admin-login-modal-title {
-    font-size: var(--fs-120);
+    font-size: var(--fs-135);
     font-weight: 700;
     margin-bottom: var(--space-lg, 1.5rem);
     color: var(--color-text);
+}
+
+/* ---- Self-contained form styles ----
+   admin.css (.form-group / .btn) is NOT loaded on public pages, so the login
+   modal must style its own inputs, labels and button. All colors use theme
+   tokens, so the modal adapts to every theme automatically. */
+
+.admin-login-modal .form-group {
+    margin-bottom: var(--space-md);
+}
+
+.admin-login-modal label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: var(--space-xs);
+    font-size: var(--fs-090); /* matches the League Settings card's .form-group label */
+    color: var(--color-text-secondary);
+}
+
+.admin-login-modal input {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0;
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-main);
+    font-size: var(--fs-095); /* matches the League Settings card's .form-group input — fluid, proportional */
+    line-height: 1.4;
+    color: var(--color-text);
+    background: var(--color-bg);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.admin-login-modal input::placeholder {
+    color: var(--color-text-muted);
+}
+
+.admin-login-modal input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-accent-light);
+}
+
+.admin-login-modal .btn {
+    display: block;
+    width: 100%;
+    margin-top: var(--space-lg);
+    padding: var(--space-sm) var(--space-md);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-main);
+    font-size: var(--fs-095); /* matches the input cells — uniform, fluid CTA */
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    background: var(--color-accent);
+    color: #fff;
+    box-shadow: var(--shadow-sm);
+    transition: opacity 0.15s, transform 0.12s, box-shadow 0.15s;
+}
+
+.admin-login-modal .btn:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.admin-login-modal .btn:not(:disabled):active {
+    transform: translateY(0);
+}
+
+.admin-login-modal .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ---- Login feedback message (admin.css not loaded on public pages) ---- */
+.admin-login-modal .admin-msg {
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-md);
+    font-size: var(--fs-095);
+}
+
+.admin-login-modal .admin-msg-error {
+    background: var(--color-accent-light);
+    color: var(--color-loss);
+    border: 1px solid var(--color-loss);
+}
+
+.admin-login-modal .admin-msg-success {
+    background: var(--color-running-bg);
+    color: var(--color-running);
+    border: 1px solid var(--color-running);
+}
+
+.admin-login-modal .admin-msg-info {
+    background: var(--color-accent-light);
+    color: var(--color-accent);
+    border: 1px solid var(--color-accent);
 }
 
 /* ---- Admin floating button (mirrors theme-picker) ---- */

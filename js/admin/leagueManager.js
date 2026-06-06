@@ -200,32 +200,11 @@ async function renderAddLeagueForm(container, displayOrder) {
                 </div>
                 <div class="form-group">
                     <label>Medals &amp; Prizes</label>
-                    <table class="medal-prize-table font-small">
-                        <thead>
-                            <tr>
-                                <th scope="col">Medal</th>
-                                <th scope="col">Count</th>
-                                <th scope="col">Prize</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><span class="medal-cell medal-gold"><span class="medal-icon">&#x1F947;</span> Gold</span></td>
-                                <td><input type="number" id="new-gold-count" value="1" min="0" max="20"></td>
-                                <td><input type="number" id="new-prize-gold" value="0" min="0" step="1"></td>
-                            </tr>
-                            <tr>
-                                <td><span class="medal-cell medal-silver"><span class="medal-icon">&#x1F948;</span> Silver</span></td>
-                                <td><input type="number" id="new-silver-count" value="1" min="0" max="20"></td>
-                                <td><input type="number" id="new-prize-silver" value="0" min="0" step="1"></td>
-                            </tr>
-                            <tr>
-                                <td><span class="medal-cell medal-bronze"><span class="medal-icon">&#x1F949;</span> Bronze</span></td>
-                                <td><input type="number" id="new-bronze-count" value="4" min="0" max="20"></td>
-                                <td><input type="number" id="new-prize-bronze" value="0" min="0" step="1"></td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    ${ffMedalsTableHTML([
+                        { medal: 'Gold',   icon: '&#x1F947;', cls: 'medal-gold',   count: 1, countId: 'new-gold-count',   prize: 0, prizeId: 'new-prize-gold' },
+                        { medal: 'Silver', icon: '&#x1F948;', cls: 'medal-silver', count: 1, countId: 'new-silver-count', prize: 0, prizeId: 'new-prize-silver' },
+                        { medal: 'Bronze', icon: '&#x1F949;', cls: 'medal-bronze', count: 4, countId: 'new-bronze-count', prize: 0, prizeId: 'new-prize-bronze' },
+                    ])}
                 </div>
             </div>
             </div>
@@ -274,6 +253,11 @@ async function renderAddLeagueForm(container, displayOrder) {
             <button class="btn btn-success" id="save-new-league">Create League</button>
             <button class="btn btn-secondary" id="cancel-new-league-2">Cancel</button>
         </div>`;
+
+    // F6 (Medals & Prizes) sticky-shadow — the F2b players wrap attaches itself in
+    // rerenderPlayers(); here we cover the static F6 wrap rendered in the template.
+    const medalsWrap = container.querySelector('[data-mf-table-id="F6"]')?.closest('.ff-wrap');
+    if (medalsWrap) attachStickyShadow(medalsWrap);
 
     // F2b — the Add-League players table. Identical FF format to F2 (Edit League)
     // via the shared ffPlayersTableHTML builder; data lives in state.players and
@@ -854,32 +838,11 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             </div>
             <div class="form-group">
                 <label>Medals &amp; Prizes</label>
-                <table class="medal-prize-table font-small">
-                    <thead>
-                        <tr>
-                            <th scope="col">Medal</th>
-                            <th scope="col">Count</th>
-                            <th scope="col">Prize</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><span class="medal-cell medal-gold"><span class="medal-icon">&#x1F947;</span> Gold</span></td>
-                            <td><input type="number" id="edit-gold" value="${goldCount}" min="0" max="20"></td>
-                            <td><input type="number" id="edit-prize-gold" value="${prizes.Gold || 0}" min="0" step="1"></td>
-                        </tr>
-                        <tr>
-                            <td><span class="medal-cell medal-silver"><span class="medal-icon">&#x1F948;</span> Silver</span></td>
-                            <td><input type="number" id="edit-silver" value="${silverCount}" min="0" max="20"></td>
-                            <td><input type="number" id="edit-prize-silver" value="${prizes.Silver || 0}" min="0" step="1"></td>
-                        </tr>
-                        <tr>
-                            <td><span class="medal-cell medal-bronze"><span class="medal-icon">&#x1F949;</span> Bronze</span></td>
-                            <td><input type="number" id="edit-bronze" value="${bronzeCount}" min="0" max="20"></td>
-                            <td><input type="number" id="edit-prize-bronze" value="${prizes.Bronze || 0}" min="0" step="1"></td>
-                        </tr>
-                    </tbody>
-                </table>
+                ${ffMedalsTableHTML([
+                    { medal: 'Gold',   icon: '&#x1F947;', cls: 'medal-gold',   count: goldCount,   countId: 'edit-gold',   prize: prizes.Gold   || 0, prizeId: 'edit-prize-gold' },
+                    { medal: 'Silver', icon: '&#x1F948;', cls: 'medal-silver', count: silverCount, countId: 'edit-silver', prize: prizes.Silver || 0, prizeId: 'edit-prize-silver' },
+                    { medal: 'Bronze', icon: '&#x1F949;', cls: 'medal-bronze', count: bronzeCount, countId: 'edit-bronze', prize: prizes.Bronze || 0, prizeId: 'edit-prize-bronze' },
+                ])}
             </div>
             <div class="add-league-row">
                 <div class="form-group">
@@ -1272,6 +1235,33 @@ function ffPlayersTableHTML(tableId, rows, emptyMessage) {
                 <table class="admin-table font-large" data-ff-table="${tableId}">
                     <thead>
                         <tr><th scope="col">${thLabel('Name', 'Name')}</th><th scope="col">${thLabel('Flag', 'Flag')}</th><th scope="col">${thLabel('Retired', 'Ret')}</th><th scope="col"></th></tr>
+                    </thead>
+                    <tbody>${body}</tbody>
+                </table>
+            </div>`;
+}
+
+/**
+ * F6 — Medals & Prizes table. Shared by Edit League and Add New League so both
+ * are byte-identical. Uses the unified FF chrome (.ff-wrap + .admin-table
+ * .font-large, tagged data-mf-table-id="F6"): a Display cell (medal label+icon)
+ * plus two Edit cells (Count, Prize number inputs). Inputs keep stable ids so the
+ * Save/Create handlers read them unchanged. Hand-built FF chrome like F1–F4 — the
+ * mountFFTable rewire is Phase 8 of docs/plans/table-lab-unification.md.
+ * @param {Array<{medal,icon,cls,count,countId,prize,prizeId}>} rows
+ */
+function ffMedalsTableHTML(rows) {
+    const body = rows.map(r => `
+            <tr>
+                <td><span class="medal-cell ${r.cls}"><span class="medal-icon">${r.icon}</span> ${esc(r.medal)}</span></td>
+                <td><input type="number" id="${r.countId}" value="${r.count}" min="0" max="20"></td>
+                <td><input type="number" id="${r.prizeId}" value="${r.prize}" min="0" step="1"></td>
+            </tr>`).join('');
+    return `
+            <div class="ff-wrap">
+                <table class="admin-table font-large" data-mf-table-id="F6">
+                    <thead>
+                        <tr><th scope="col">${thLabel('Medal', 'Medal')}</th><th scope="col">${thLabel('Count', 'Count')}</th><th scope="col">${thLabel('Prize', 'Prize')}</th></tr>
                     </thead>
                     <tbody>${body}</tbody>
                 </table>

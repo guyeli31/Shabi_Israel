@@ -64,6 +64,7 @@ Table code mapping for the app. All future references to a table use the code be
 | F3 | Match Results (Round Editor) |
 | F4 | View Overrides (manual override list inside Edit League) |
 | F5 | CSV Import Preview (Edit League → Import CSV/Excel) |
+| F6 | Medals & Prizes (Edit League + Add New League → League Settings) |
 
 ---
 
@@ -76,7 +77,7 @@ The project has **four** table formats. Each format is owned by `table-lab/` and
 | Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3, **F5** |
 | Secondary Format | **SF** | A3, A4, A5, A6, C4 |
 | Expandable Format | **exp** | C0 |
-| Form Format | **FF** | F1 (League Manager), F2 (Players), F3 (Round Editor), F4 (View Overrides) |
+| Form Format | **FF** | F1 (League Manager), F2 (Players), F3 (Round Editor), F4 (View Overrides), F6 (Medals & Prizes) |
 
 > **F5 is the lone admin table on MF** (every other admin table is FF). It is a read-only CSV-import preview, so MF — not the editable FF — is the right format. It renders through `mountMFTable` with `fontClass:'font-small'` (matching B3) and `stickyCols:1` (left column pinned). The MF sticky **header** is a no-op here because `.mf-wrap` is `overflow-y:clip` (never a vertical scroll context) — satisfying the "no floating header" requirement without any change to the shared MF format. `admin.html` loads `table-lab/formats/mf/mf.css` for this one table. The preview shows **only the "N updates"**: matches played in the upload that were not already played and are not override-covered (computed in `js/admin/csvValidation.js`).
 
@@ -465,11 +466,13 @@ mountExpTable(mountPoint, {
 
 ### FF (Form Format — Admin tables)
 
-Unified admin table format used by: **F1 (Leagues / League Manager), F2 (Players in Edit League), F3 (Round Editor), F4 (View Overrides) — all on admin.html.**
+Unified admin table format used by: **F1 (Leagues / League Manager), F2 (Players in Edit League), F3 (Round Editor), F4 (View Overrides), F6 (Medals & Prizes in Edit + Add League) — all on admin.html.**
 
 Rendered by `mountFFTable(mountPoint, args)` (`table-lab/formats/ff/mount.js`). CSS canon lives in `table-lab/formats/ff/ff.css` (auto-imports `base/base.css`). Production rewiring is tracked as Phase 8 of `docs/plans/table-lab-unification.md`; until then, the FF chrome rules are duplicated in `css/admin.css`.
 
 > **Status:** format is **implemented and documented** in the lab. Production currently still renders these tables by hand but uses the FF chrome (the JS writes `<div class="ff-wrap">` + `class="admin-table font-large">` and `css/admin.css` carries the rules). Phase 8 rewires call sites to `mountFFTable`.
+
+> **F6 (Medals & Prizes)** — Display medal cell (icon + colored name) + two Edit cells (Count, Prize number inputs); 3 fixed rows (gold/silver/bronze). Shared by Edit League and Add New League via `ffMedalsTableHTML` in `js/admin/leagueManager.js` (hand-built FF chrome like F1–F4 — `data-mf-table-id="F6"`; the `mountFFTable` rewire rides along in Phase 8). **Font note:** the FF chrome in `ff.css` / `admin.css` is keyed to `.admin-table.font-large`, so every FF table — F6 included — is **font-large**. The Count/Prize `<input>`s keep their own responsive `font-small` sizing via `.edit-card-sm .form-group input`. A genuine font-small FF *variant* would require extending the FF canon (a `.admin-table.font-small` chrome block in `ff.css` + `admin.css`) and is deliberately **not** done here.
 
 **Concept — single format, three cell modes per column.** FF mirrors SF on the 7 shared visual parameters (border-collapse, row hairline, white-space, padding, sticky thead, scroll wrapper, scroll shadow), with admin-specific chrome on top: stronger header typography (uppercase + letter-spacing), `--color-bg` header background tint, and 1-column sticky-left default. The list-vs-edit distinction is per-column, not per-table:
 

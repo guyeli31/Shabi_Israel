@@ -31,7 +31,8 @@ import {
 import {
     collectPlayerBestPR,
     collectPlayerBestLuckFor,
-    collectPlayerWorstLuckAgainst
+    collectPlayerWorstLuckAgainst,
+    collectPlayerBestOpponentPR
 } from '../compute/matchRecords.js';
 import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
@@ -871,12 +872,14 @@ function showMatchRecordsType(body, perLeague, type) {
     const bestPR   = collectPlayerBestPR(perLeague, type);
     const bestLuck = collectPlayerBestLuckFor(perLeague, type);
     const worstLuck = collectPlayerWorstLuckAgainst(perLeague, type);
+    const bestOppPR = collectPlayerBestOpponentPR(perLeague, type);
 
     body.innerHTML = `
         <div class="match-records-stack">
             ${renderPlayerRecordTable('Best PR', 'PR', bestPR)}
             ${renderPlayerRecordTable('Best Luck For', 'Luck Gap', bestLuck)}
             ${renderPlayerRecordTable('Worst Luck Against', 'Luck Gap', worstLuck)}
+            ${renderPlayerRecordTable('Best Opponent PR', 'Opp PR', bestOppPR)}
         </div>`;
 
     body.querySelectorAll('table.pg-mr-table').forEach(t => applyShowTopN(t, 5));

@@ -584,49 +584,37 @@
     }
 }
 
-/* Medals & Prizes mini-table (League Settings) — font-small; editable Count +
-   Prize per medal. Inputs inherit the responsive sizing from .edit-card-sm. */
+/* generic font-small table utility (mirrors components.css for admin.html) */
 table.font-small { font-size: var(--fs-085); }
-.medal-prize-table {
-    width: 100%;
-    border-collapse: collapse;
+
+/* ── F6 — Medals & Prizes ─────────────────────────────────────────────────
+   Rendered on the unified FF chrome (.ff-wrap + .admin-table.font-large,
+   data-mf-table-id="F6") — see ffMedalsTableHTML in js/admin/leagueManager.js.
+   The shared FF rules above own the wrapper, header, hairlines, sticky col, and
+   the medal column (sticky col 1). Only the two bits below are F6-specific:
+   the Count/Prize columns are held equal, and the medal-name cell content gets
+   its inline-flex layout + per-medal colour. The Count/Prize <input>s inherit
+   the responsive font-small sizing from .edit-card-sm .form-group input.
+   (Hand-built FF chrome like F1–F4; the mountFFTable rewire is Phase 8 of
+   docs/plans/table-lab-unification.md.) */
+[data-mf-table-id="F6"] th:nth-child(n+2),
+[data-mf-table-id="F6"] td:nth-child(n+2) {
+    width: 28%;
 }
-.medal-prize-table th {
-    text-align: left;
-    padding: var(--space-xs) var(--space-sm);
-    font-size: var(--fs-078);
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--color-text-secondary);
-    border-bottom: 2px solid var(--color-border);
-    white-space: nowrap;
-}
-.medal-prize-table td {
-    padding: var(--space-xs) var(--space-sm);
-    border-bottom: 1px solid var(--color-border);
-    vertical-align: middle;
-}
-.medal-prize-table tbody tr:last-child td {
-    border-bottom: none;
-}
-.medal-prize-table td:not(:first-child) {
-    width: 30%;
-}
-.medal-prize-table .medal-cell {
+.medal-cell {
     display: inline-flex;
     align-items: center;
     gap: var(--space-xs);
     font-weight: 700;
     white-space: nowrap;
 }
-.medal-prize-table .medal-icon {
+.medal-cell .medal-icon {
     font-size: 1.15em;
     line-height: 1;
 }
-.medal-prize-table .medal-gold   { color: var(--color-gold); }
-.medal-prize-table .medal-silver { color: var(--color-silver); }
-.medal-prize-table .medal-bronze { color: var(--color-bronze); }
+.medal-cell.medal-gold   { color: var(--color-gold); }
+.medal-cell.medal-silver { color: var(--color-silver); }
+.medal-cell.medal-bronze { color: var(--color-bronze); }
 
 /* ---- Admin Table ---- */
 /* font-large mirrors base.css — admin.html doesn't load components.css */
