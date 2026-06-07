@@ -179,46 +179,19 @@ async function changeStatusTask(page, durationS) {
   }
 }
 
-async function navigateToLeaguesList(page, firstTime) {
-  if (firstTime) {
-    await page.waitForTimeout(randInt(500, 2500));
-    console.log('  → Switching to Tournaments tab');
-    const tournamentsSwitched = await page.evaluate(() => {
-      const th = Array.from(document.querySelectorAll('th')).find(
-        (el) => /^\s*Tournaments\s*$/.test(el.textContent || '') && el.offsetParent !== null,
-      );
-      const inner = th && th.querySelector('.TabButton');
-      if (!inner) return false;
-      inner.click();
-      return true;
-    });
-    if (!tournamentsSwitched) throw new Error('Tournaments tab not found or unreachable');
-    await page.waitForTimeout(1500);
-
-    await page.waitForTimeout(randInt(500, 2500));
-    console.log('  → Opening Leagues');
-    const leaguesOpened = await page.evaluate(() => {
-      const rows = Array.from(document.querySelectorAll('tr')).filter((tr) => tr.offsetParent !== null);
-      const target = rows.find(
-        (tr) => /Leagues/.test(tr.textContent || '') && tr.querySelector('.button.tablebutton'),
-      );
-      if (!target) return false;
-      target.querySelector('.button.tablebutton').click();
-      return true;
-    });
-    if (!leaguesOpened) throw new Error('Leagues row with tablebutton not found in Tournaments panel');
-    await page.waitForTimeout(1500);
-  } else {
-    await page.waitForTimeout(randInt(500, 2500));
-    console.log('  → Returning to Leagues list (s(113, "0") shortcut)');
+async function navigateToLeaguesList(page) {
+  await page.waitForTimeout(randInt(500, 2500));
+  console.log('  → Navigating to Leagues list (s(113, "0") shortcut)');
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
     const ok = await page.evaluate(() => {
       if (typeof s !== 'function') return false;
-      s(113, '0');
-      return true;
+      try { s(113, '0'); return true; } catch { return false; }
     });
-    if (!ok) throw new Error('s(113, "0") shortcut not available');
-    await page.waitForTimeout(1500);
+    if (ok) break;
+    await page.waitForTimeout(500);
   }
+  await page.locator('button.tablebutton[onclick^="lg(682,"]').first().waitFor({ timeout: 15000 });
 }
 
 async function exportLeagueTask(page, bgstudioLeagueName, folder, repoRoot) {
@@ -608,7 +581,7 @@ try {
     for (let i = 0; i < targets.length; i++) {
       const target = targets[i];
       console.log(`  → League ${i + 1}/${targets.length}: "${target.bgstudio_league_name}" → ${target.folder}`);
-      await navigateToLeaguesList(page, i === 0);
+      await navigateToLeaguesList(page);
       await exportLeagueTask(page, target.bgstudio_league_name, target.folder, repoRoot);
     }
   }
