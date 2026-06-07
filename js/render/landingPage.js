@@ -21,6 +21,7 @@ import { getLevel } from '../compute/rankings.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
+import { mountSFTable } from '../../table-lab/formats/sf/mount.js';
 import { buildCompletedLeaguesPreset } from '../presets/completedLeaguesPreset.js';
 import { buildAnnualLeaderboardPreset } from '../presets/annualLeaderboardPreset.js';
 import { isLoggedIn } from '../admin/auth.js';
@@ -115,18 +116,29 @@ export async function renderLandingPage() {
         // Render
         container.innerHTML = '';
 
+        // Info cards belong with the hero (right under the subtitle), not inside a tab panel.
         renderInfoCards(container, activePlayers.size, allPlayers.size, leagues.length, latestModified);
-        renderNotableFigures(container, _playersMeta, leagues);
-        renderActiveLeagues(container, running);
-        if (completed.length > 0) renderCompletedLeagues(container, completed);
-        renderLeaderboards(container, leaderboards);
 
-        // Discover league types present in the dataset for Achievements + PR Leaders.
+        // Tabs shell — groups the existing sections into 4 mental buckets.
         const presentTypes = [...new Set(leagues.map(l => l.leagueType))];
-        renderAchievementsSection(container, presentTypes);
-        renderPRLeadersSection(container, presentTypes);
-        renderMatchRecordsSection(container, leagues, presentTypes);
-        renderLeagueRecordsSection(container, leagues, presentTypes);
+        const shell = buildTabsShell();
+        container.appendChild(shell.root);
+
+        // Route renderers to their tab panel — each renderer keeps its existing signature.
+        renderActiveLeagues(shell.panels.leagues, running);
+        if (completed.length > 0) renderCompletedLeagues(shell.panels.leagues, completed);
+
+        renderLeaderboards(shell.panels.leaderboard, leaderboards);
+
+        renderAchievementsSection(shell.panels.records, presentTypes);
+        renderPRLeadersSection(shell.panels.records, presentTypes);
+        renderMatchRecordsSection(shell.panels.records, leagues, presentTypes);
+        renderLeagueRecordsSection(shell.panels.records, leagues, presentTypes);
+
+        // Players tab — two sub-tabs: Notable Figures + Rest of Players.
+        // Both rendered as SF tables (Player / Status / Last Active / Title)
+        // with sticky Player column. Fixed sort: active first, then alphabetical.
+        renderPlayersTab(shell.panels.players, _playersMeta, leagues);
 
         const credit = document.createElement('div');
         credit.className = 'platform-credit';
@@ -143,6 +155,229 @@ export async function renderLandingPage() {
         if (logoEl) logoEl.classList.remove('logo-loading');
         endSplash();
     }
+}
+
+/* ── Tabs shell (Progressive Disclosure) ──────────────── */
+
+function buildTabsShell() {
+    const root = document.createElement('div');
+    root.className = 'lp-tabs-shell';
+
+    const tabs = [
+        { id: 'leagues',     label: 'Leagues' },
+        { id: 'leaderboard', label: 'Leaderboard' },
+        { id: 'records',     label: 'Records' },
+        { id: 'players',     label: 'Players' }
+    ];
+
+    const tabsHtml = tabs.map(t =>
+        `<button class="lp-tab" role="tab" aria-selected="false" data-tab="${t.id}">
+            <span>${t.label}</span>
+        </button>`
+    ).join('');
+
+    root.innerHTML = `
+        <div class="lp-tabs" role="tablist" aria-label="Home sections">${tabsHtml}</div>
+        <div class="lp-tab-panel" data-panel="leagues"></div>
+        <div class="lp-tab-panel" data-panel="leaderboard" hidden></div>
+        <div class="lp-tab-panel" data-panel="records" hidden></div>
+        <div class="lp-tab-panel" data-panel="players" hidden></div>`;
+
+    const panels = {
+        leagues:     root.querySelector('[data-panel="leagues"]'),
+        leaderboard: root.querySelector('[data-panel="leaderboard"]'),
+        records:     root.querySelector('[data-panel="records"]'),
+        players:     root.querySelector('[data-panel="players"]')
+    };
+
+    // Determine initial tab — URL ?tab= wins; otherwise 'leagues'.
+    const url = new URL(location);
+    const initial = url.searchParams.get('tab');
+    const validIds = tabs.map(t => t.id);
+    const startTab = validIds.includes(initial) ? initial : 'leagues';
+
+    function activate(id) {
+        root.querySelectorAll('[role="tab"]').forEach(b =>
+            b.setAttribute('aria-selected', b.dataset.tab === id ? 'true' : 'false'));
+        root.querySelectorAll('.lp-tab-panel').forEach(p =>
+            p.hidden = p.dataset.panel !== id);
+        const u = new URL(location);
+        if (id === 'leagues') u.searchParams.delete('tab');
+        else u.searchParams.set('tab', id);
+        history.replaceState({}, '', u);
+    }
+
+    root.querySelectorAll('[role="tab"]').forEach(btn => {
+        btn.addEventListener('click', () => activate(btn.dataset.tab));
+    });
+
+    // Keyboard: 1-4 jump to tab N (when focus is not in an input)
+    root.addEventListener('keydown', e => {
+        if (e.target.matches('input,textarea,select')) return;
+        const n = parseInt(e.key, 10);
+        if (n >= 1 && n <= tabs.length) activate(tabs[n - 1].id);
+    });
+
+    activate(startTab);
+    return { root, panels };
+}
+
+/* ── Players tab — Notable Figures + Rest of Players (SF tables) ── */
+
+function renderPlayersTab(container, allMeta, leagues) {
+    const allRows = computePlayerRows(allMeta, leagues);
+    const notableRows = sortPlayerRows(allRows.filter(r => r.hasTitle));
+    const restRows    = sortPlayerRows(allRows.filter(r => !r.hasTitle));
+
+    const subShell = document.createElement('div');
+    subShell.className = 'lp-subtabs-shell';
+    subShell.innerHTML = `
+        <div class="lp-subtabs" role="tablist" aria-label="Player groups">
+            <button class="lp-subtab" role="tab" aria-selected="true"  data-subtab="notable">Notable Figures</button>
+            <button class="lp-subtab" role="tab" aria-selected="false" data-subtab="rest">Rest of Players</button>
+        </div>
+        <div class="lp-subtab-panel" data-subpanel="notable"></div>
+        <div class="lp-subtab-panel" data-subpanel="rest" hidden></div>`;
+    container.appendChild(subShell);
+
+    const cols = buildPlayerCols();
+    const notableMount = subShell.querySelector('[data-subpanel="notable"]');
+    const restMount    = subShell.querySelector('[data-subpanel="rest"]');
+
+    const { table: tNotable } = mountSFTable(notableMount, {
+        tableId: 'LP-NOTABLE',
+        data: notableRows,
+        cols,
+        fontClass: 'font-small',
+        stickyCols: 1
+    });
+    tNotable.classList.add('sf-sticky-1');
+
+    const { table: tRest } = mountSFTable(restMount, {
+        tableId: 'LP-REST',
+        data: restRows,
+        cols,
+        fontClass: 'font-small',
+        stickyCols: 1,
+        showTopN: 15
+    });
+    tRest.classList.add('sf-sticky-1');
+
+    // Right-click context menu on every player-name link (no leagueId — general profile).
+    attachPlayerNameInteractions(notableMount, null);
+    attachPlayerNameInteractions(restMount, null);
+
+    // Sub-tab switching
+    subShell.querySelectorAll('[role="tab"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            subShell.querySelectorAll('[role="tab"]').forEach(b =>
+                b.setAttribute('aria-selected', b === btn ? 'true' : 'false'));
+            subShell.querySelectorAll('.lp-subtab-panel').forEach(p =>
+                p.hidden = p.dataset.subpanel !== btn.dataset.subtab);
+        });
+    });
+}
+
+function computePlayerRows(allMeta, leagues) {
+    const allNames = new Set(Object.keys(allMeta || {}));
+    for (const l of leagues) for (const p of l.allPlayers) allNames.add(p);
+
+    const activeSet = new Set();
+    for (const l of leagues) {
+        if (l.params?.Running === true) {
+            for (const p of l.allPlayers) activeSet.add(p);
+        }
+    }
+
+    const playerFlags = {};
+    for (const l of leagues) {
+        for (const p of l.allPlayers) {
+            if (!playerFlags[p]) playerFlags[p] = getFlagCode(p, l.params?.CustomFlags);
+        }
+    }
+
+    function leagueDate(l) {
+        if (l.params?.IssueDate) return new Date(l.params.IssueDate);
+        const { year, monthIndex } = parseLeagueDate(l.id);
+        return new Date(Date.UTC(year, monthIndex, 1));
+    }
+
+    function lastLeagueFor(name) {
+        let best = null;
+        for (const l of leagues) {
+            if (!l.allPlayers.has(name)) continue;
+            const d = leagueDate(l);
+            if (!best || d > best.date) best = { date: d, title: l.title, id: l.id };
+        }
+        return best;
+    }
+
+    return [...allNames]
+        .map(name => {
+            const meta = allMeta?.[name] || {};
+            if (meta.hidden) return null;
+            const last = lastLeagueFor(name);
+            return {
+                name,
+                meta,
+                fullName: meta.fullName || '',
+                flag: playerFlags[name] || 'IL',
+                hasTitle: hasTitles(meta),
+                titleDesc: hasTitles(meta) ? getFullTitleDescription(meta) : '',
+                status: activeSet.has(name) ? 'active' : 'inactive',
+                lastActiveDate: last?.date || null,
+                lastActiveTitle: last?.title || null,
+                lastActiveLeagueId: last?.id || null,
+            };
+        })
+        .filter(Boolean);
+}
+
+function sortPlayerRows(rows) {
+    return rows.slice().sort((a, b) => {
+        if (a.status !== b.status) return a.status === 'active' ? -1 : 1;
+        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+}
+
+function buildPlayerCols() {
+    return [
+        {
+            key: 'name',
+            label: 'Player',
+            tdClass: 'player-cell',
+            format: (_, row) => {
+                const realName = row.fullName
+                    ? ` <span class="lp-realname">${escapeHtml(row.fullName)}</span>`
+                    : '';
+                return `<img class="flag" src="${flagUrl(row.flag)}" alt="${row.flag}">` +
+                       `${playerNameLink(row.name, row.meta)}${realName}`;
+            },
+        },
+        {
+            key: 'status',
+            label: 'Status',
+            format: (s) => {
+                const label = s === 'active' ? 'Active' : 'Inactive';
+                return `<span class="lp-status lp-status-${s}"><span class="lp-status-dot"></span>${label}</span>`;
+            },
+        },
+        {
+            key: 'lastActiveDate',
+            label: 'Last Active',
+            format: (d, row) => {
+                if (!d) return '<span class="lp-muted">—</span>';
+                const label = `${MONTH_SHORT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+                const href = row.lastActiveLeagueId ? leagueUrl(row.lastActiveLeagueId) : null;
+                return href ? `<a href="${href}">${label}</a>` : label;
+            },
+        },
+        {
+            key: 'titleDesc',
+            label: 'Title',
+            format: (t) => t ? `<em>${escapeHtml(t)}</em>` : '<span class="lp-muted">—</span>',
+        },
+    ];
 }
 
 /* ── Header population ────────────────────────────────── */
@@ -665,10 +900,10 @@ function renderNotableFigures(container, allMeta, leagues) {
     }).join('');
 
     section.innerHTML = `
-        <h2 class="notable-header collapsed" id="notable-toggle">
+        <h2 class="notable-header expanded" id="notable-toggle">
             Notable Figures (${titled.length}) <span class="collapse-arrow">&#9656;</span>
         </h2>
-        <div class="notable-list" id="notable-list" hidden>
+        <div class="notable-list" id="notable-list">
             ${rowsHtml}
         </div>
     `;

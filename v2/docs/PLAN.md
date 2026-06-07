@@ -181,7 +181,9 @@ v2/
 │   │       ├── F1_leagueManager.js      (FF — Display + Action)
 │   │       ├── F2_players.js            (FF — Display + Edit + Action)
 │   │       ├── F3_roundEditor.js        (FF — Edit + Action, 2-rows-per-match tbody)
-│   │       └── F4_viewOverrides.js      (FF — Display + Action)
+│   │       ├── F4_viewOverrides.js      (FF — Display + Action)
+│   │       ├── F5_csvImportPreview.js   (MF — read-only; fontClass:'font-small', stickyCols:1)
+│   │       └── F6_medalsAndPrizes.js    (FF — Display medal cell + Edit Count + Edit Prize)
 │   │
 │   ├── data/                            ── Layer 7: data access (no UI) ──
 │   │   ├── csvParser.js                 # ported as-is from js/data/
@@ -194,11 +196,12 @@ v2/
 │   │
 │   ├── compute/                         ── Layer 8: pure functions ──
 │   │   ├── stats.js
-│   │   ├── rankings.js
+│   │   ├── rankings.js                  # REGULAR Win-Rate tie cascade: H2H → internal pts-diff → total pts-diff → alpha
 │   │   ├── colorScale.js                # returns CSS var name, not raw hex
 │   │   ├── leagueTypes.js
 │   │   ├── matchupAnalysis.js
-│   │   ├── championshipPredictor.js
+│   │   ├── championshipPredictor.js     # Monte-Carlo only (no exact/Gray-code path). Per-match per-iteration N(μ,σ) PR draws + interpolated win-prob LUT. REGULAR uses same Last-300 pool + tie cascade as rankings.js. Sampler: inverse-CDF LUT (gaussianLUT, 4096-cell Acklam probit, ~32KB, lazy). Iteration floor 50k. simOpts={iterationsOverride,useLUT,useInterp}.
+│   │   ├── crossLeague.js               # batchLast300PRForSimulator(names) pools all non-REGULAR leagues (doubling+ubc) into one Last-300 window; shared core computeLast300Map. The dashboard predictor uses this regardless of the league's own type.
 │   │   └── whatIfSimulator.js
 │   │
 │   ├── pages/                           ── Layer 9: page composition ──
@@ -393,8 +396,9 @@ Two override-style files exist:
 - **Useful for**: visual regression baseline; reviewing tokens × themes coverage.
 
 ### 4.5 admin (`v2/src/pages/admin/`)
-- **Purpose**: production admin UI (player manager, round editor, league manager, Excel importer).
-- **Consumes**: the unified `FormTable` (FF format) used by all 4 admin tables (F1 Leagues, F2 Players, F3 Round Editor, F4 View Overrides) — cell mode chosen per-column (Display / Action / Edit); same data layer (`adminWriter.js`).
+- **Purpose**: production admin UI (player manager, round editor, league manager, Excel importer, overrides list, CSV-validation report).
+- **Consumes**: the unified `FormTable` (FF format) used by 5 admin tables — F1 Leagues, F2 Players (incl. F2b Add-League shared via `ffPlayersTableHTML`), F3 Round Editor, F4 View Overrides, F6 Medals & Prizes (shared between Edit + Add League via `ffMedalsTableHTML`). Cell mode chosen per-column (Display / Action / Edit); same data layer (`adminWriter.js`). The Excel importer additionally renders **F5 (CSV Import Preview)** as a read-only **MF** table (not FF) — `mountMFTable` with `fontClass:'font-small'`, `stickyCols:1`, showing only the "N updates" (played-in-upload, not already played, not override-covered) from `csvValidation.report.newMatches`.
+- **Pending-Changes consolidation**: every admin write routes through `stagingStore.addChange` with a shared `group` per logical action (create-league, edit-players, create/edit-player folds flag+photo into the metadata group). A category-driven label formatter (`CATEGORY_META` + `renderLabel`) gives every row `{icon}  <b>{subject}</b> · {action}{ — detail}`. Manual overrides are **delta-staged**: each staged `manual_overrides.json` carries `baselineOverrides`; `diffOverrides` returns `{added, changed, removed}` and the UI shows only the delta (⚖️ added / ✏️ edited / ➖ removed). Labels drive off a semantic `category` field on each `addChange`, NOT the file path — this is the seam for the eventual DB-backed write target.
 - **Phase**: ships disabled until Phase 8 to avoid write conflicts with v1 admin.
 
 ---
@@ -448,9 +452,10 @@ Each phase ends with a commit and an MCP verification checkpoint. If a phase fai
 - **Verification**: `npm run test:unit` passes. Load a league via the data layer in a small test page; output matches v1.
 
 ### Phase 5 — Table system (6–8 hours)
-- Build `v2/src/tables/{MFTable, SFTable, ExpandableTable, FormTable}/`. `FormTable` is the unified FF format covering all 4 admin tables (three cell modes per ColDef: Display / Action / Edit).
+- Build `v2/src/tables/{MFTable, SFTable, ExpandableTable, FormTable}/`. `FormTable` is the unified FF format covering 5 admin tables (three cell modes per ColDef: Display / Action / Edit).
 - Each variant: own CSS (token-only), own JS (`mount(el, args)`), own `argsSchema.js`, own `README.md` with iron rules.
-- Port all 20 presets to `v2/src/tables/presets/{A1..A6,B1..B6c,C0..C4,D,E,F1,F2,F3,F4}_*.js`. Each declares `export const variant = '...'` for lab auto-discovery. F1/F2/F3/F4 use `variant: 'FF'`.
+- Port all 22 presets to `v2/src/tables/presets/{A1..A6,B1..B6c,C0..C4,D,E,F1,F2,F3,F4,F5,F6}_*.js`. Each declares `export const variant = '...'` for lab auto-discovery. F1/F2/F3/F4/F6 use `variant: 'FF'`; **F5 is MF** (read-only CSV Import Preview — `mountMFTable`, `fontClass:'font-small'`, `stickyCols:1`).
+- Source files are the **canonized** v1 lab files at `table-lab/formats/{base,mf,sf,exp,ff}/*.css` (Path-X canonization landed 2026-06-04; legacy mirrors in `css/components.css` etc. lose by cascade). The `Units policy` doc-block at the top of `base.css` (em for sizing-with-font; px for hairlines/shadows/viewport-caps/breakpoints/JS-fallbacks) ports verbatim into v2 as a non-negotiable foundation rule.
 - Build `v2/src/tools/tableLab/` with auto-discovery, args form, theme bridge, code snippet, iron rules panel.
 - **MCP verification**: open `/tableLab.html` in v2; for each preset, screenshot the preview at 3 viewports × dark+light themes. Open the same preset in v1 (e.g., open v1 league.html for D, dashboard.html for B-series). Pixel diff per cell — allow ≤2% delta for font rendering.
 
@@ -473,11 +478,13 @@ Each phase ends with a commit and an MCP verification checkpoint. If a phase fai
 - **Verification**: editor round-trip — change a size assignment, save, reload, assignment persists. Click Publish, source tokens file updates, workspace empties.
 
 ### Phase 8 — Admin page (5–6 hours)
-- Port `js/admin/{playerManager,roundEditor,leagueManager,overridesList,excelImporter}.js` to `v2/src/pages/admin/`.
-- Wire all 4 admin tables (F1 Leagues, F2 Players, F3 Round Editor, F4 View Overrides) through the unified `FormTable` mount fn built in Phase 5.
-- Implement `v2/src/data/adminWriter.js` using FileSystemAPI for browser writes (same as v1 uses).
+- Port `js/admin/{playerManager,roundEditor,leagueManager,overridesList,excelImporter,csvValidation,stagingStore}.js` to `v2/src/pages/admin/`.
+- Wire 5 admin tables through the unified `FormTable` mount fn built in Phase 5: F1 Leagues, F2 Players (incl. F2b Add-League), F3 Round Editor, F4 View Overrides, F6 Medals & Prizes (shared between Edit + Add League). Decide at port time whether to extend `FormTable` to support F3's multi-row records (2-rows-per-match tbody with rowspan) or keep F3 hand-rolled while sharing FF chrome via CSS classes.
+- Wire F5 CSV Import Preview as a read-only MF table inside the Excel importer (`mountMFTable`, `fontClass:'font-small'`, `stickyCols:1`) showing `csvValidation.report.newMatches` only.
+- Implement `v2/src/data/adminWriter.js` using FileSystemAPI for browser writes (same as v1 uses). Adopt the Pending-Changes consolidation (`stagingStore` group/category, delta-staged overrides) — labels drive off semantic `category`, not file path, so the future DB-write seam is clean.
+- Port the BGStudio sync admin card (Edit-League → BGStudio Sync) + the checkbox/radio scoped reset (currently in `css/admin.css`) into `src/primitives/FormField/`. NOTE: the "Sync together with" UI in `09e91af` was reverted by `4105779` (workflow now takes a LEAGUES JSON input directly) — do NOT port it. The CI infrastructure (`scripts/sync-bgstudio.js`, `.github/workflows/sync-bgstudio.yml`) lives outside v2 entirely.
 - Show a prominent banner at top of v2 admin: "⚠️ Editing in v2 active. Close any v1 admin tabs."
-- **MCP verification**: parity check against v1 admin. Test each admin action (add player, edit score, change league params, import Excel) → confirm v2 and v1 produce identical file output by diff'ing the written files.
+- **MCP verification**: parity check against v1 admin. Test each admin action (add player, edit score, change league params, import Excel, edit medals/prizes) → confirm v2 and v1 produce identical file output by diff'ing the written files.
 
 ### Phase 9 — i18n extraction (3–4 hours)
 - Sweep all v2 HTML/JS for Hebrew/English strings → extract to `v2/src/i18n/{he,en}.json`.
@@ -643,7 +650,7 @@ Screenshot diff: 0.4% — PASS
 Cutover proceeds only when ALL of these are true:
 
 - [ ] All 5 production pages + admin parity-verified at 3 viewports × 8 themes (zero failures).
-- [ ] All 20 table presets (A1-A6, B1-B6c, C0-C4, D, E, F1-F4) render in tableLab matching v1.
+- [ ] All 22 table presets (A1-A6, B1-B6c, C0-C4, D, E, F1-F6) render in tableLab matching v1.
 - [ ] typoEditor round-trips: read defaults, overlay, save history, publish, inventory write — all confirmed working.
 - [ ] `npm run ci` passes: Stylelint gates, grep gates, inventory gate, unit tests, visual regression suite, a11y.
 - [ ] `v2/docs/PARITY-LOG.md` shows green across the board.

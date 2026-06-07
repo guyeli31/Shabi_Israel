@@ -1,0 +1,3602 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Progressive Disclosure — Demo (6 pages)</title>
+<style>
+  :root {
+    --bg:        #e8f0e3;
+    --surface:   #ffffff;
+    --ink:       #1a1f1a;
+    --ink-mute:  #5b6259;
+    --ink-quiet: #8a918a;
+    --line:      #d4ddcf;
+    --line-soft: #e8ede4;
+    --brand:     #1f3b1f;
+    --brand-2:   #2d5a2d;
+    --gold:      #d4a017;
+    --gold-soft: #f7eccd;
+    --good:      #047857;
+    --bad:       #b91c1c;
+    --warn-bg:   #fef3c7;
+    --row-gold:  #fef9e6;
+    --row-silv:  #f1f3f0;
+    --row-bron:  #fdecd6;
+    --shadow-1:  0 1px 2px rgba(0,0,0,.04), 0 1px 6px rgba(0,0,0,.04);
+    --shadow-2:  0 2px 8px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.06);
+    --radius:    10px;
+    --r-pill:    999px;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============= sticky chrome + page picker ============= */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(255,255,255,.92);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 28px;
+  }
+  .topbar h1 {
+    margin: 0 0 4px;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+  .topbar p { margin: 0 0 12px; color: var(--ink-mute); font-size: 12px; }
+  .topbar p b { color: var(--brand); }
+
+  /* ====== the disclosure-based picker (dogfood) ====== */
+  .demo-picker {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-1);
+    overflow: hidden;
+  }
+  .demo-picker summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    user-select: none;
+    transition: background .12s;
+  }
+  .demo-picker summary::-webkit-details-marker { display: none; }
+  .demo-picker summary:hover { background: var(--line-soft); }
+  .demo-picker[open] summary {
+    border-bottom: 1px solid var(--line-soft);
+    background: var(--line-soft);
+  }
+  .demo-picker summary .caret {
+    width: 14px; height: 14px;
+    border-right: 1.5px solid var(--ink-mute);
+    border-bottom: 1.5px solid var(--ink-mute);
+    transform: rotate(-45deg);
+    transition: transform .18s ease-out;
+    margin-inline-start: auto;
+    flex-shrink: 0;
+  }
+  .demo-picker[open] summary .caret { transform: rotate(45deg); }
+  .picker-summary-text { flex: 1; min-width: 0; }
+  .picker-summary-line {
+    display: flex; align-items: baseline; gap: 8px;
+    flex-wrap: wrap;
+  }
+  .picker-now {
+    font-size: 10px; font-weight: 700;
+    color: var(--ink-quiet);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .picker-name {
+    font-size: 16px; font-weight: 800;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .picker-cat {
+    font-size: 11px;
+    color: var(--ink-mute);
+    font-weight: 600;
+  }
+  .picker-body {
+    padding: 14px 16px 16px;
+    background: #fdfefa;
+  }
+  .picker-group {
+    margin-bottom: 10px;
+  }
+  .picker-group:last-of-type { margin-bottom: 8px; }
+  .picker-group h4 {
+    margin: 0 0 6px;
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--ink-quiet);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .picker-chips {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    align-items: center;
+  }
+  .picker-divider {
+    display: inline-flex; align-items: center;
+    padding: 0 6px 0 10px;
+    font-size: 9px; font-weight: 800;
+    color: var(--ink-quiet);
+    text-transform: uppercase; letter-spacing: 0.08em;
+    border-inline-start: 1px solid var(--line);
+    margin-inline-start: 2px;
+    align-self: stretch;
+  }
+  .picker-chip {
+    background: var(--line-soft);
+    color: var(--ink);
+    border: 1px solid transparent;
+    padding: 6px 12px;
+    border-radius: var(--r-pill);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .12s, color .12s, border-color .12s;
+  }
+  .picker-chip:hover { background: var(--line); }
+  .picker-chip[aria-current="page"] {
+    background: var(--brand);
+    color: var(--gold);
+    border-color: var(--brand);
+  }
+  .picker-chip:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
+  .dogfood-note {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    background: var(--gold-soft);
+    color: #4a3a0a;
+    border-radius: 8px;
+    font-size: 11px;
+    line-height: 1.55;
+  }
+  .dogfood-note kbd {
+    background: rgba(0,0,0,.08);
+    border-radius: 3px;
+    padding: 0 5px;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 10px;
+  }
+  .dogfood-note code {
+    background: rgba(0,0,0,.08);
+    color: #2a1f02;
+  }
+
+  .picker-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+  }
+  .picker-row:last-child { margin-bottom: 0; }
+  .picker-label {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--ink-quiet);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    min-width: 130px;
+  }
+  .page-picker {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--line-soft);
+    border-radius: 10px;
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+  .page-picker button {
+    background: transparent;
+    border: 0;
+    padding: 8px 14px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink-mute);
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background .14s, color .14s, box-shadow .14s;
+  }
+  .page-picker button[aria-current="page"] {
+    background: var(--brand);
+    color: var(--gold);
+    box-shadow: var(--shadow-1);
+  }
+  .page-picker button:not([aria-current="page"]):hover {
+    background: rgba(0,0,0,.04);
+    color: var(--ink);
+  }
+  .page-picker .group-label {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 10px 0 6px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--ink-quiet);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-inline-start: 1px solid var(--line);
+    margin-inline-start: 6px;
+  }
+
+  /* ============= stage ============= */
+  .stage {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    padding: 24px 28px;
+    max-width: 1640px;
+    margin: 0 auto;
+  }
+  @media (max-width: 1100px) { .stage { grid-template-columns: 1fr; } }
+  .demo-page { display: none; }
+  .demo-page[data-active] { display: block; }
+
+  .pane {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .pane > header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .pane-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--r-pill);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .pane-tag.before { background: #ffe9e3; color: #963318; }
+  .pane-tag.after  { background: #d3ecd0; color: #0e4d20; }
+  .pane-title { font-size: 13px; color: var(--ink-mute); }
+
+  /* ============= device frame ============= */
+  .device {
+    background: var(--surface);
+    border-radius: 26px;
+    padding: 14px 10px;
+    box-shadow: var(--shadow-2);
+    border: 1px solid var(--line);
+    height: 820px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .device-scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0 8px 16px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+  }
+  .device-scroll::-webkit-scrollbar { width: 6px; }
+  .device-scroll::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+
+  /* ============= shared primitives ============= */
+  .topnav {
+    background: var(--brand);
+    color: var(--gold);
+    padding: 10px 14px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .topnav .brand { font-size: 14px; }
+  .topnav .leagues-btn {
+    margin-inline-start: auto;
+    background: rgba(255,255,255,.12);
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: #fff;
+  }
+  .topnav.admin {
+    background: linear-gradient(135deg, #4a2c2c 0%, #663838 100%);
+    color: #fff7d0;
+  }
+  .topnav.admin::before {
+    content: "⚙";
+    font-size: 14px;
+  }
+  .breadcrumb {
+    font-size: 12px;
+    color: var(--ink-mute);
+    margin-bottom: 10px;
+  }
+  .breadcrumb b { color: var(--ink); }
+  .breadcrumb .admin-tag {
+    background: #fef3c7;
+    color: #6b4d10;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    margin-inline-start: 6px;
+  }
+
+  .hero {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow-1);
+  }
+  .hero-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: var(--r-pill);
+    font-size: 11px;
+    font-weight: 700;
+    background: #eaf0fa;
+    color: #1d3a73;
+    letter-spacing: 0.04em;
+  }
+  .pill.run { background: #d3ecd0; color: #0e4d20; }
+  .pill.run::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--good);
+    box-shadow: 0 0 0 3px rgba(4,120,87,.15);
+  }
+  .pill.done { background: #f3f4f6; color: #4b5563; }
+  .pill.nc {
+    color: var(--gold);
+    background: linear-gradient(135deg, #1f3b1f 0%, #2d5a2d 100%);
+  }
+  .pill.draft { background: var(--gold-soft); color: #6b4d10; }
+  .hero h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+  .hero .tiles {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .tile {
+    background: var(--line-soft);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .tile .k {
+    font-size: 10px; font-weight: 700;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .tile .v { font-size: 15px; font-weight: 700; margin-top: 2px; }
+  .player-hero { display: flex; align-items: center; gap: 14px; }
+  .avatar {
+    width: 64px; height: 64px;
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
+    border-radius: 12px;
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 22px;
+    position: relative;
+    box-shadow: var(--shadow-1);
+    flex-shrink: 0;
+  }
+  .avatar::after {
+    content: "";
+    position: absolute; right: -4px; bottom: -4px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--good);
+    border: 2px solid var(--surface);
+  }
+  .player-hero h2 { margin: 0; font-size: 20px; }
+  .player-hero .sub {
+    font-size: 12px;
+    color: var(--ink-mute);
+    margin-top: 2px;
+  }
+
+  /* ============= section / table ============= */
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    box-shadow: var(--shadow-1);
+  }
+  .section h3 { margin: 0 0 8px; font-size: 14px; font-weight: 700; }
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .table th, .table td {
+    padding: 4px 6px;
+    text-align: start;
+    white-space: nowrap;
+  }
+  .table th {
+    background: var(--brand);
+    color: var(--gold);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    position: sticky;
+    top: 0;
+  }
+  .table tbody tr { border-bottom: 1px solid var(--line-soft); }
+  .table tbody tr:last-child { border-bottom: 0; }
+  .row-g td { background: var(--row-gold); }
+  .row-s td { background: var(--row-silv); }
+  .row-b td { background: var(--row-bron); }
+  .row-avg td {
+    background: #ecfdf5;
+    font-weight: 700;
+    border-top: 1px solid #a7f3d0;
+  }
+  .num    { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .pos    { color: var(--good); font-weight: 700; }
+  .neg    { color: var(--bad);  font-weight: 700; }
+
+  .chart-stub {
+    height: 110px;
+    background: linear-gradient(180deg, #f8faf4 0%, #ecf2e6 100%);
+    border-radius: 8px;
+    display: flex;
+    align-items: end;
+    gap: 3px;
+    padding: 6px 8px;
+    border: 1px dashed var(--line);
+  }
+  .chart-stub i {
+    flex: 1;
+    background: linear-gradient(180deg, var(--brand), var(--brand-2));
+    border-radius: 2px 2px 0 0;
+    opacity: 0.85;
+  }
+  .chart-stub i:nth-child(2n) { background: linear-gradient(180deg, var(--bad), #cf3c3c); }
+
+  .annot {
+    background: #fff4e5;
+    border-inline-start: 3px solid #e08a1f;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: #6b4316;
+    margin: 6px 0 10px;
+  }
+  .annot b { color: #b15a00; }
+
+  /* ============= AFTER — disclosure + tabs ============= */
+  .tabs {
+    display: flex;
+    background: var(--line-soft);
+    padding: 3px;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    gap: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button {
+    flex: 1;
+    background: transparent;
+    border: 0;
+    padding: 8px 6px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-mute);
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background .14s, color .14s, box-shadow .14s;
+    white-space: nowrap;
+  }
+  .tabs button[aria-selected="true"] {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow-1);
+  }
+  .tabs button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+  details.disclose {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    overflow: hidden;
+    box-shadow: var(--shadow-1);
+  }
+  details.disclose summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    user-select: none;
+    transition: background .12s;
+  }
+  details.disclose summary::-webkit-details-marker { display: none; }
+  details.disclose summary:hover { background: var(--line-soft); }
+  details.disclose[open] summary { border-bottom: 1px solid var(--line-soft); }
+  .disclose .caret {
+    width: 14px; height: 14px;
+    border-right: 1.5px solid var(--ink-mute);
+    border-bottom: 1.5px solid var(--ink-mute);
+    transform: rotate(-45deg);
+    transition: transform .18s ease-out;
+    margin-inline-start: auto;
+    flex-shrink: 0;
+  }
+  details.disclose[open] .caret { transform: rotate(45deg); }
+  .disclose summary .title { font-weight: 700; font-size: 14px; }
+  .disclose summary .meta { font-size: 11px; color: var(--ink-mute); font-weight: 500; }
+  .disclose-body { padding: 12px 14px 14px; }
+  .preview-strip {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 6px 0 0;
+  }
+  .preview-strip .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--line-soft);
+    padding: 2px 8px;
+    border-radius: var(--r-pill);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .preview-strip .chip b { color: var(--brand); font-weight: 800; }
+  .preview-strip .chip.pos b { color: var(--good); }
+  .preview-strip .chip.neg b { color: var(--bad); }
+  .preview-strip .chip.warn b { color: #b15a00; }
+  .badge-new {
+    background: var(--gold-soft);
+    color: #6b4d10;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 1px 6px;
+    border-radius: var(--r-pill);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-inline-start: 4px;
+  }
+  .badge-danger { background: #fde2e2; color: #6b1212; }
+
+  .filters {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;
+  }
+  .filters .f {
+    font-size: 11px; font-weight: 600;
+    padding: 4px 10px;
+    border-radius: var(--r-pill);
+    background: var(--line-soft);
+    color: var(--ink-mute);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all .12s;
+  }
+  .filters .f[aria-pressed="true"] {
+    background: var(--brand); color: var(--gold); border-color: var(--brand);
+  }
+
+  .th-info { display: inline-flex; align-items: center; gap: 4px; }
+  .th-info::after { content: "ⓘ"; font-size: 10px; opacity: 0.6; }
+
+  .kbd-hint {
+    text-align: center;
+    margin-top: 14px;
+    color: var(--ink-quiet);
+    font-size: 11px;
+  }
+  .kbd-hint kbd {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 10px;
+    color: var(--ink);
+  }
+
+  /* ============= commentary ============= */
+  .commentary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    padding: 0 28px 32px;
+    max-width: 1640px;
+    margin: 0 auto;
+  }
+  @media (max-width: 1100px) { .commentary { grid-template-columns: 1fr; } }
+  .commentary section {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+  }
+  .commentary h4 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--brand);
+  }
+  .commentary ul { margin: 0; padding-inline-start: 18px; }
+  .commentary li { margin: 4px 0; color: var(--ink); }
+  .commentary li b { color: var(--brand); }
+  code {
+    background: var(--line-soft);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 11px;
+  }
+
+  /* ============= achievements + h2h ============= */
+  .achv-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+  .achv {
+    background: var(--line-soft);
+    border-radius: 8px;
+    padding: 8px 6px;
+    text-align: center;
+  }
+  .achv .ico { font-size: 16px; }
+  .achv .num { font-size: 14px; font-weight: 800; margin-top: 2px; }
+  .achv .lbl { font-size: 9px; color: var(--ink-mute); text-transform: uppercase; }
+
+  .h2h-row {
+    display: flex; gap: 8px;
+    padding: 6px 8px;
+    background: var(--line-soft);
+    border-radius: 6px;
+    margin-bottom: 4px;
+    align-items: center;
+    font-size: 12px;
+  }
+  .h2h-row .name { flex: 1; font-weight: 600; }
+  .h2h-row .res { font-variant-numeric: tabular-nums; font-weight: 700; }
+
+  .legend {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    margin-top: 8px; padding: 8px;
+    background: var(--line-soft);
+    border-radius: 6px;
+  }
+  .legend-item {
+    font-size: 10px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .swatch {
+    width: 12px; height: 12px;
+    border-radius: 3px;
+    display: inline-block;
+  }
+  .swatch.gold { background: var(--row-gold); border: 1px solid #e0c068; }
+  .swatch.silv { background: var(--row-silv); border: 1px solid #b8c0b0; }
+  .swatch.bron { background: var(--row-bron); border: 1px solid #d4a05a; }
+  .swatch.avg  { background: #ecfdf5;        border: 1px solid #a7f3d0; }
+
+  /* ============= home / landing cards ============= */
+  .league-card {
+    display: flex; gap: 10px; align-items: center;
+    padding: 10px 12px;
+    background: var(--line-soft);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .league-card .lc-name { flex: 1; font-weight: 700; }
+  .league-card .lc-meta { color: var(--ink-mute); font-size: 11px; }
+  .notable-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+  .notable {
+    background: var(--line-soft);
+    border-radius: 6px;
+    padding: 8px;
+    text-align: center;
+  }
+  .notable .nico { font-size: 18px; }
+  .notable .nname { font-size: 11px; font-weight: 700; margin-top: 2px; }
+  .notable .nlbl { font-size: 9px; color: var(--ink-mute); }
+
+  /* ============= admin form controls ============= */
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .form-grp {
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .form-grp label {
+    font-size: 10px; font-weight: 700;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .form-grp input, .form-grp select {
+    font: inherit;
+    font-size: 12px;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink);
+  }
+  .form-grp input:focus, .form-grp select:focus {
+    outline: 2px solid var(--brand);
+    outline-offset: 1px;
+    border-color: var(--brand);
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--brand); color: var(--gold);
+    border: 0;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn.ghost {
+    background: transparent;
+    color: var(--brand);
+    border: 1px solid var(--brand);
+  }
+  .btn.danger { background: #b91c1c; color: #fff; }
+  .btn.small { padding: 4px 10px; font-size: 11px; }
+  .btn-row {
+    display: flex; gap: 8px; align-items: center;
+    padding: 10px 14px;
+    background: var(--line-soft);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .pending-badge {
+    background: var(--gold);
+    color: #3a2a05;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 1px 7px;
+    border-radius: var(--r-pill);
+    margin-inline-start: auto;
+  }
+  .ff-cell-edit { display: flex; gap: 4px; align-items: center; }
+  .ff-cell-edit input {
+    width: 56px;
+    padding: 2px 4px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font: inherit;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+  .medal-cell { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
+
+  /* ========================================================================
+     PATTERN DEMOS — narrow phone frames + pattern-specific styles
+     ======================================================================== */
+  .phone {
+    width: 340px;
+    margin: 0 auto;
+    background: var(--surface);
+    border-radius: 22px;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-2);
+    padding: 14px 10px;
+    overflow: hidden;
+  }
+  .phone-tight { height: 540px; display: flex; flex-direction: column; }
+  .phone-tight .phone-scroll {
+    flex: 1; overflow-y: auto; overflow-x: hidden;
+    padding: 0 8px 12px;
+  }
+
+  /* ---------- #2 sticky first col ---------- */
+  .stbl-wrap {
+    overflow-x: auto;
+    position: relative;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+  }
+  .stbl-wrap.scrolled .stbl-sticky::after {
+    content: "";
+    position: absolute;
+    right: -8px; top: 0; bottom: 0;
+    width: 8px;
+    background: linear-gradient(90deg, rgba(0,0,0,.10), transparent);
+    pointer-events: none;
+  }
+  table.stbl {
+    border-collapse: collapse;
+    font-size: 11px;
+    min-width: 520px;
+  }
+  table.stbl th, table.stbl td {
+    padding: 4px 8px;
+    text-align: start;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  table.stbl thead th {
+    background: var(--brand); color: var(--gold);
+    font-size: 10px; text-transform: uppercase;
+  }
+  table.stbl .stbl-sticky {
+    position: sticky;
+    inset-inline-start: 0;
+    background: var(--surface);
+    z-index: 2;
+    min-width: 90px;
+  }
+  table.stbl thead .stbl-sticky { background: var(--brand); }
+
+  /* ---------- #3 empty / skeleton ---------- */
+  tr.upcoming td {
+    background: repeating-linear-gradient(
+      135deg,
+      var(--line-soft) 0 8px,
+      transparent 8px 16px
+    );
+    color: var(--ink-quiet);
+    font-style: italic;
+  }
+  .upcoming-badge {
+    background: var(--gold-soft);
+    color: #6b4d10;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: var(--r-pill);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .toggle-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px;
+    background: var(--line-soft);
+    border-radius: 6px;
+    font-size: 11px;
+    margin-bottom: 6px;
+  }
+  .switch {
+    display: inline-flex; align-items: center; gap: 6px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .switch input { display: none; }
+  .switch .track {
+    width: 28px; height: 16px;
+    background: var(--line);
+    border-radius: 999px;
+    position: relative;
+    transition: background .14s;
+  }
+  .switch .track::after {
+    content: "";
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 12px; height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform .14s;
+  }
+  .switch input:checked + .track {
+    background: var(--good);
+  }
+  .switch input:checked + .track::after { transform: translateX(12px); }
+
+  .skel {
+    display: block;
+    height: 12px;
+    background: linear-gradient(90deg,
+      var(--line-soft) 0%,
+      var(--line) 50%,
+      var(--line-soft) 100%);
+    background-size: 200% 100%;
+    border-radius: 4px;
+    animation: shimmer 1.4s linear infinite;
+  }
+  .skel.short { width: 50%; }
+  .skel.long  { width: 90%; }
+  .skel.bar   { height: 28px; }
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to   { background-position: -200% 0; }
+  }
+  .blank-flash {
+    height: 120px;
+    background: var(--surface);
+    border: 1px dashed var(--line);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-quiet);
+    font-size: 11px;
+    font-style: italic;
+  }
+
+  /* ---------- #6 tile grid responsive ---------- */
+  .tile-grid-bad {
+    display: flex;
+    gap: 6px;
+    overflow-x: hidden;
+  }
+  .tile-grid-bad .tile {
+    flex: 0 0 30%;
+    min-width: 100px;
+  }
+  .tile-grid-bad .tile:last-child {
+    margin-inline-end: -40px;
+    opacity: 0.4;
+  }
+  .tile-grid-good {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  /* ---------- #7 density ---------- */
+  .density-toggle {
+    display: inline-flex;
+    background: var(--line-soft);
+    padding: 2px;
+    border-radius: 7px;
+    gap: 2px;
+    font-size: 11px;
+  }
+  .density-toggle button {
+    background: transparent;
+    border: 0;
+    padding: 4px 10px;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-mute);
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .density-toggle button[aria-pressed="true"] {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow-1);
+  }
+  .dtbl[data-d="compact"] td,
+  .dtbl[data-d="compact"] th { padding: 2px 6px; font-size: 10.5px; }
+  .dtbl[data-d="comfortable"] td,
+  .dtbl[data-d="comfortable"] th { padding: 6px 8px; font-size: 12px; }
+  .dtbl[data-d="spacious"] td,
+  .dtbl[data-d="spacious"] th { padding: 10px 10px; font-size: 12px; }
+
+  /* ---------- #8 chart tooltip ---------- */
+  .chart-host {
+    position: relative;
+    height: 140px;
+    background: linear-gradient(180deg, #f8faf4 0%, #ecf2e6 100%);
+    border-radius: 8px;
+    display: flex;
+    align-items: end;
+    gap: 4px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  .chart-host .bar {
+    flex: 1;
+    background: var(--brand);
+    border-radius: 3px 3px 0 0;
+    cursor: pointer;
+    transition: opacity .12s, transform .12s;
+  }
+  .chart-host .bar.loss { background: var(--bad); }
+  .chart-host .bar:hover { opacity: 0.85; transform: scaleY(1.04); transform-origin: bottom; }
+  .floating-tip {
+    position: absolute;
+    background: #1a1f1a;
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.4;
+    pointer-events: none;
+    box-shadow: var(--shadow-2);
+    white-space: nowrap;
+    transform: translate(-50%, -110%);
+    opacity: 0;
+    transition: opacity .12s;
+    z-index: 10;
+  }
+  .floating-tip::after {
+    content: "";
+    position: absolute;
+    top: 100%; left: 50%;
+    border: 5px solid transparent;
+    border-top-color: #1a1f1a;
+    transform: translateX(-50%);
+  }
+  .floating-tip[data-visible] { opacity: 1; }
+  .floating-tip b { color: var(--gold); }
+  .static-info {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--line-soft);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--ink-quiet);
+    font-style: italic;
+    text-align: center;
+  }
+
+  /* ---------- #9 header density ---------- */
+  .topnav-loud {
+    height: 64px;
+    padding: 0 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .breadcrumb-loud {
+    height: 56px;
+    padding: 0 14px;
+    display: flex; align-items: center;
+    background: var(--line-soft);
+    color: var(--ink-mute);
+    font-size: 12px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+  }
+  .topnav-tight {
+    height: 44px;
+    background: var(--brand);
+    color: var(--gold);
+    padding: 0 14px;
+    border-radius: 12px;
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .topnav-tight .crumb {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255,255,255,.75);
+    margin-inline-start: 8px;
+  }
+  .topnav-tight .crumb b { color: #fff; }
+  .px-ruler {
+    height: 6px;
+    background: linear-gradient(90deg, #e08a1f 0%, #b15a00 100%);
+    border-radius: 3px;
+    margin-top: 2px;
+    position: relative;
+  }
+  .px-ruler::after {
+    content: attr(data-label);
+    position: absolute;
+    top: 8px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    font-weight: 700;
+    color: #6b4316;
+    background: #fff4e5;
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .px-ruler-good {
+    background: linear-gradient(90deg, var(--good) 0%, #065f46 100%);
+  }
+  .px-ruler-good::after {
+    color: #064e3b; background: #d1fae5;
+  }
+
+  /* ---------- #10 keyboard nav ---------- */
+  .ktbl tr {
+    transition: background .12s;
+  }
+  .ktbl tr.kbd-focus td {
+    background: #e6f0ff !important;
+    box-shadow: inset 3px 0 0 var(--brand);
+  }
+  .ktbl th[aria-sort] {
+    cursor: pointer;
+    position: relative;
+  }
+  .ktbl th[aria-sort="ascending"]::after  { content: " ▲"; opacity: 0.7; }
+  .ktbl th[aria-sort="descending"]::after { content: " ▼"; opacity: 0.7; }
+  .ktbl th[aria-sort="none"]::after       { content: " ↕"; opacity: 0.35; }
+  .ktbl th:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: -2px;
+    background: #2a4f2a;
+  }
+  .ktbl tbody tr:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: -2px;
+  }
+  .kbd-overlay {
+    margin-top: 8px;
+    background: #1a1f1a;
+    color: #d4ddcf;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .kbd-overlay kbd {
+    background: rgba(255,255,255,.10);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 10px;
+    color: var(--gold);
+  }
+  .pat-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .pat-row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<!-- ====================== sticky chrome + page picker ====================== -->
+<div class="topbar">
+  <h1>Modern Data-UI Patterns — Demo</h1>
+  <p>BEFORE/AFTER comparison covering 7 audit findings. Pick a demo below:</p>
+  <div class="picker-row">
+    <span class="picker-label">Progressive&nbsp;disclosure</span>
+    <div class="page-picker" role="tablist" aria-label="Page demos">
+      <button role="tab" aria-current="page"  data-page="home">Home</button>
+      <button role="tab" aria-current="false" data-page="dashboard">Dashboard</button>
+      <button role="tab" aria-current="false" data-page="league">League</button>
+      <button role="tab" aria-current="false" data-page="player-general">Player</button>
+      <span class="group-label">Admin</span>
+      <button role="tab" aria-current="false" data-page="edit-league">Edit League</button>
+      <button role="tab" aria-current="false" data-page="new-league">New League</button>
+    </div>
+  </div>
+  <div class="picker-row">
+    <span class="picker-label">More&nbsp;patterns</span>
+    <div class="page-picker" role="tablist" aria-label="Pattern demos">
+      <button role="tab" aria-current="false" data-page="pat-sticky">Sticky cols</button>
+      <button role="tab" aria-current="false" data-page="pat-empty">Empty / skeleton</button>
+      <button role="tab" aria-current="false" data-page="pat-tiles">Tile grid</button>
+      <button role="tab" aria-current="false" data-page="pat-density">Density</button>
+      <button role="tab" aria-current="false" data-page="pat-chart">Chart tooltip</button>
+      <button role="tab" aria-current="false" data-page="pat-header">Header density</button>
+      <button role="tab" aria-current="false" data-page="pat-keyboard">Keyboard</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====================== PAGE 1 — HOME / LANDING ====================== -->
+<div class="demo-page" data-page="home" data-active>
+  <div class="stage">
+
+    <!-- BEFORE -->
+    <div class="pane">
+      <header>
+        <span class="pane-tag before">Before</span>
+        <span class="pane-title">~2800px scroll · 8 sections fully expanded</span>
+      </header>
+      <div class="device" aria-label="Current index.html">
+        <div class="device-scroll">
+          <div class="topnav"><span class="brand">Shabi Israel</span><span class="leagues-btn">Leagues ▾</span></div>
+          <div class="hero" style="text-align:center">
+            <div style="font-size:32px">♛</div>
+            <h2 style="margin-top:6px">Shabi Israel</h2>
+            <div style="font-size:11px;color:var(--ink-mute);margin-top:4px">Backgammon league archive</div>
+            <div class="tiles" style="grid-template-columns:repeat(3,1fr)">
+              <div class="tile"><div class="k">Active</div><div class="v">1</div></div>
+              <div class="tile"><div class="k">Done</div><div class="v">8</div></div>
+              <div class="tile"><div class="k">Players</div><div class="v">42</div></div>
+            </div>
+          </div>
+
+          <div class="annot"><b>1/8</b> Active Leagues</div>
+          <div class="section">
+            <h3>Active Leagues</h3>
+            <div class="league-card"><span>🏆</span><span class="lc-name">June 2026</span><span class="pill run">Running</span></div>
+          </div>
+
+          <div class="annot"><b>2/8</b> Months 2026 (5 leagues)</div>
+          <div class="section">
+            <h3>2026</h3>
+            <div class="league-card"><span class="lc-name">May 2026</span><span class="lc-meta">17 players</span><span class="pill done">Done</span></div>
+            <div class="league-card"><span class="lc-name">April 2026</span><span class="lc-meta">15 players</span><span class="pill done">Done</span></div>
+            <div class="league-card"><span class="lc-name">March 2026</span><span class="lc-meta">19 players</span><span class="pill done">Done</span></div>
+            <div class="league-card"><span class="lc-name">February 2026</span><span class="lc-meta">14 players</span><span class="pill done">Done</span></div>
+            <div class="league-card"><span class="lc-name">January 2026</span><span class="lc-meta">16 players</span><span class="pill done">Done</span></div>
+          </div>
+
+          <div class="annot"><b>3/8</b> Months 2025 (4 leagues)</div>
+          <div class="section">
+            <h3>2025</h3>
+            <div class="league-card"><span class="lc-name">December 2025</span><span class="pill done">Done</span></div>
+            <div class="league-card"><span class="lc-name">November 2025</span><span class="pill done">Done</span></div>
+            <div class="league-card"><span class="lc-name">October 2025</span><span class="pill done">Done</span></div>
+            <div class="league-card"><span class="lc-name">September 2025</span><span class="pill done">Done</span></div>
+          </div>
+
+          <div class="annot"><b>4/8</b> Annual Leaderboard (A2)</div>
+          <div class="section">
+            <h3>Annual Leaderboard 2026</h3>
+            <table class="table">
+              <thead><tr><th>#</th><th>Player</th><th>GP</th><th>Win%</th><th>PR</th></tr></thead>
+              <tbody>
+                <tr class="row-g"><td>1</td><td>YossiE23</td><td class="num">63</td><td class="num pos">76.2%</td><td class="num">6.18</td></tr>
+                <tr class="row-s"><td>2</td><td>GuyE.</td><td class="num">47</td><td class="num">68.1%</td><td class="num">5.04</td></tr>
+                <tr class="row-b"><td>3</td><td>PitCad14</td><td class="num">71</td><td class="num">63.4%</td><td class="num">7.92</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="annot"><b>5/8</b> Notable Figures (8 cards)</div>
+          <div class="section">
+            <h3>Notable Figures</h3>
+            <div class="notable-grid">
+              <div class="notable"><div class="nico">🇮🇱</div><div class="nname">YossiE23</div><div class="nlbl">Top PR</div></div>
+              <div class="notable"><div class="nico">🇮🇱</div><div class="nname">GuyE.</div><div class="nlbl">Most wins</div></div>
+              <div class="notable"><div class="nico">🇮🇱</div><div class="nname">Avshalom</div><div class="nlbl">Hot streak</div></div>
+              <div class="notable"><div class="nico">🇮🇱</div><div class="nname">nadavd</div><div class="nlbl">Rising</div></div>
+            </div>
+          </div>
+
+          <div class="annot"><b>6/8</b> Achievements (A3 SF)</div>
+          <div class="section">
+            <h3>Achievements</h3>
+            <table class="table"><tbody>
+              <tr><td>🏆 League win</td><td>YossiE23</td><td>×3</td></tr>
+              <tr><td>🎯 100% wk</td><td>Avshalom</td><td>×2</td></tr>
+              <tr><td>🔥 5W streak</td><td>GuyE.</td><td>×1</td></tr>
+            </tbody></table>
+          </div>
+
+          <div class="annot"><b>7/8</b> PR Leaders (A4 SF)</div>
+          <div class="section">
+            <h3>PR Leaders</h3>
+            <table class="table"><tbody>
+              <tr><td>1</td><td>fridlich</td><td class="num">4.38</td></tr>
+              <tr><td>2</td><td>GuyE.</td><td class="num">4.89</td></tr>
+            </tbody></table>
+          </div>
+
+          <div class="annot"><b>8/8</b> Match &amp; League Records (A5+A6)</div>
+          <div class="section">
+            <h3>Match Records</h3>
+            <table class="table"><tbody>
+              <tr><td>Highest PR</td><td>1.18 — Avshalom</td></tr>
+              <tr><td>Biggest upset</td><td>YossiE23 vs Sagiv</td></tr>
+            </tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="pane">
+      <header>
+        <span class="pane-tag after">After</span>
+        <span class="pane-title">~700px first paint · tabs + leaderboard preview</span>
+      </header>
+      <div class="device" aria-label="Improved index.html">
+        <div class="device-scroll">
+          <div class="topnav"><span class="brand">Shabi Israel</span><span class="leagues-btn">Leagues ▾</span></div>
+          <div class="hero" style="text-align:center">
+            <div style="font-size:32px">♛</div>
+            <h2 style="margin-top:6px">Shabi Israel</h2>
+            <div style="font-size:11px;color:var(--ink-mute);margin-top:4px">Backgammon league archive · 9 leagues · 42 players</div>
+            <div style="margin-top:10px">
+              <a href="#" style="display:inline-flex;align-items:center;gap:6px;background:var(--brand);color:var(--gold);padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none">
+                Open active league — June 2026 →
+              </a>
+            </div>
+          </div>
+
+          <div class="tabs" role="tablist" data-tabset="home">
+            <button role="tab" aria-selected="true"  data-tab="leagues">Leagues</button>
+            <button role="tab" aria-selected="false" data-tab="leaders">Leaderboard</button>
+            <button role="tab" aria-selected="false" data-tab="figures">People</button>
+            <button role="tab" aria-selected="false" data-tab="records">Records</button>
+          </div>
+
+          <div data-panel="leagues" data-tabset="home">
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Active Now</div>
+                  <div class="meta">1 running league</div>
+                  <div class="preview-strip">
+                    <span class="chip">June 2026 <b class="pos">111/300</b></span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <div class="league-card">
+                  <span>🏆</span>
+                  <span class="lc-name">June 2026</span>
+                  <span class="pill run">Running</span>
+                </div>
+                <div style="font-size:11px;color:var(--ink-mute);margin-top:4px">Leading: Avshalom · 100% win rate</div>
+              </div>
+            </details>
+
+            <details class="disclose">
+              <summary>
+                <div>
+                  <div class="title">2026 Season</div>
+                  <div class="meta">5 leagues completed</div>
+                  <div class="preview-strip">
+                    <span class="chip">May ✓</span>
+                    <span class="chip">Apr ✓</span>
+                    <span class="chip">Mar ✓</span>
+                    <span class="chip">+2 more</span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <div class="league-card"><span class="lc-name">May 2026</span><span class="pill done">Done</span></div>
+                <div class="league-card"><span class="lc-name">April 2026</span><span class="pill done">Done</span></div>
+                <div class="league-card"><span class="lc-name">March 2026</span><span class="pill done">Done</span></div>
+              </div>
+            </details>
+
+            <details class="disclose">
+              <summary>
+                <div>
+                  <div class="title">2025 Archive</div>
+                  <div class="meta">4 leagues completed</div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <div class="league-card"><span class="lc-name">December 2025</span><span class="pill done">Done</span></div>
+                <div class="league-card"><span class="lc-name">November 2025</span><span class="pill done">Done</span></div>
+              </div>
+            </details>
+          </div>
+
+          <div data-panel="leaders" data-tabset="home" hidden>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Annual Leaderboard 2026</div>
+                  <div class="meta">Top 3 across all 2026 leagues</div>
+                  <div class="preview-strip">
+                    <span class="chip">🥇 YossiE23 <b class="pos">76.2%</b></span>
+                    <span class="chip">🥈 GuyE <b>68.1%</b></span>
+                    <span class="chip">🥉 PitCad14 <b>63.4%</b></span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <table class="table">
+                  <thead><tr><th>#</th><th>Player</th><th>GP</th><th>Win%</th><th class="th-info">PR</th></tr></thead>
+                  <tbody>
+                    <tr class="row-g"><td>1</td><td>YossiE23</td><td class="num">63</td><td class="num pos">76.2%</td><td class="num">6.18</td></tr>
+                    <tr class="row-s"><td>2</td><td>GuyE.</td><td class="num">47</td><td class="num">68.1%</td><td class="num">5.04</td></tr>
+                    <tr class="row-b"><td>3</td><td>PitCad14</td><td class="num">71</td><td class="num">63.4%</td><td class="num">7.92</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+
+          <div data-panel="figures" data-tabset="home" hidden>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Notable Figures</div>
+                  <div class="meta">8 spotlighted players</div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <div class="notable-grid">
+                  <div class="notable"><div class="nico">🇮🇱</div><div class="nname">YossiE23</div><div class="nlbl">Top PR</div></div>
+                  <div class="notable"><div class="nico">🇮🇱</div><div class="nname">GuyE.</div><div class="nlbl">Most wins</div></div>
+                  <div class="notable"><div class="nico">🇮🇱</div><div class="nname">Avshalom</div><div class="nlbl">Hot streak</div></div>
+                  <div class="notable"><div class="nico">🇮🇱</div><div class="nname">nadavd</div><div class="nlbl">Rising</div></div>
+                </div>
+              </div>
+            </details>
+          </div>
+
+          <div data-panel="records" data-tabset="home" hidden>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Achievements (all-time)</div>
+                  <div class="meta">A3 records</div>
+                  <div class="preview-strip">
+                    <span class="chip">🏆 ×3 YossiE23</span>
+                    <span class="chip">🎯 ×2 Avshalom</span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <table class="table"><tbody>
+                  <tr><td>🏆 League win</td><td>YossiE23</td><td>×3</td></tr>
+                  <tr><td>🎯 100% week</td><td>Avshalom</td><td>×2</td></tr>
+                </tbody></table>
+              </div>
+            </details>
+            <details class="disclose">
+              <summary>
+                <div>
+                  <div class="title">PR Leaders <span class="badge-new">A4</span></div>
+                  <div class="meta">Best career PR</div>
+                  <div class="preview-strip">
+                    <span class="chip pos">fridlich <b>4.38</b></span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body"><p style="margin:0;font-size:12px;color:var(--ink-mute)">SF preset.</p></div>
+            </details>
+            <details class="disclose">
+              <summary>
+                <div>
+                  <div class="title">Match Records <span class="badge-new">A5</span></div>
+                  <div class="meta">Highest PR, biggest upsets</div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body"><p style="margin:0;font-size:12px;color:var(--ink-mute)">SF preset.</p></div>
+            </details>
+            <details class="disclose">
+              <summary>
+                <div>
+                  <div class="title">League Records <span class="badge-new">A6</span></div>
+                  <div class="meta">League-level superlatives</div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body"><p style="margin:0;font-size:12px;color:var(--ink-mute)">SF preset.</p></div>
+            </details>
+          </div>
+
+          <p class="kbd-hint"><kbd>1</kbd>-<kbd>4</kbd> switch tabs · <kbd>Enter</kbd> expand</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="commentary">
+    <section>
+      <h4>Gaps on the HOME page</h4>
+      <ul>
+        <li><b>No clear primary action:</b> user lands and has no idea where to click first.</li>
+        <li><b>Months-by-year fully expanded:</b> all 9 leagues listed at once, even though only 1 is active.</li>
+        <li><b>A3-A6 records dumped raw:</b> 4 separate SF tables stacked vertically with no grouping.</li>
+        <li><b>Notable Figures + Annual Leaderboard compete</b> for the same visual attention.</li>
+      </ul>
+    </section>
+    <section>
+      <h4>What the After version does</h4>
+      <ul>
+        <li><b>Primary CTA in the hero:</b> "Open active league — June 2026 →" — the single most common task.</li>
+        <li><b>Tabs <code>Leagues / Leaderboard / People / Records</code>:</b> 4 mental buckets.</li>
+        <li><b>"Active Now" open by default</b> · 2025/2026 archives collapsed with preview chips.</li>
+        <li><b>Records tab:</b> A3-A6 each get their own disclosure with a chip teasing the #1.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<!-- ====================== PAGE 2 — DASHBOARD ====================== -->
+<div class="demo-page" data-page="dashboard">
+  <div class="stage">
+
+    <!-- BEFORE -->
+    <div class="pane">
+      <header>
+        <span class="pane-tag before">Before</span>
+        <span class="pane-title">~2400px scroll · 6 sections open</span>
+      </header>
+      <div class="device" aria-label="Current dashboard.html">
+        <div class="device-scroll">
+          <div class="topnav"><span class="brand">Shabi Israel</span><span class="leagues-btn">Leagues ▾</span></div>
+          <div class="breadcrumb">Home › <b>June 2026</b></div>
+          <div class="hero">
+            <div class="hero-row"><span class="pill">DOUBLING</span><span class="pill run">Running</span></div>
+            <h2>June 2026</h2>
+            <div class="tiles">
+              <div class="tile"><div class="k">Start</div><div class="v">1 Jun 2026</div></div>
+              <div class="tile"><div class="k">Updated</div><div class="v">7 Jun 16:06</div></div>
+              <div class="tile"><div class="k">Games</div><div class="v">111 / 300</div></div>
+              <div class="tile"><div class="k">Avg PR</div><div class="v">10.49</div></div>
+            </div>
+          </div>
+          <div class="annot"><b>1/6</b> Historical View</div>
+          <div class="section">
+            <h3>Historical View</h3>
+            <table class="table">
+              <thead><tr><th>#</th><th>Player</th><th>W</th><th>Win%</th><th>PR</th></tr></thead>
+              <tbody>
+                <tr class="row-g"><td>1</td><td>Avshalom</td><td class="num">2</td><td class="num pos">100%</td><td class="num">12.37</td></tr>
+                <tr class="row-s"><td>2</td><td>Danny_k.</td><td class="num">1</td><td class="num pos">100%</td><td class="num">18.63</td></tr>
+                <tr class="row-b"><td>3</td><td>YossiE23</td><td class="num">10</td><td class="num">76.9%</td><td class="num">6.45</td></tr>
+                <tr><td>4</td><td>nadavd</td><td class="num">3</td><td class="num">75%</td><td class="num">7.88</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="annot"><b>2/6</b> Predictor (50k sims)</div>
+          <div class="section">
+            <h3>Championship Predictor</h3>
+            <table class="table">
+              <thead><tr><th>#</th><th>Player</th><th>PR</th><th>Ch%</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>YossiE23</td><td class="num">6.45</td><td class="num pos">37.8%</td></tr>
+                <tr><td>2</td><td>GuyE.</td><td class="num">4.89</td><td class="num pos">31.4%</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="annot"><b>3/6</b> What-If Simulator</div>
+          <div class="section"><h3>What If Simulator</h3><p style="font-size:11px;color:var(--ink-mute);margin:0">Pick a match to simulate...</p></div>
+          <div class="annot"><b>4/6</b> Rounds</div>
+          <div class="section">
+            <h3>Rounds — Round 1 / 25</h3>
+            <table class="table">
+              <thead><tr><th>A</th><th>B</th><th>Score</th><th>Luck</th></tr></thead>
+              <tbody>
+                <tr><td>Moriarty</td><td>Idan1986</td><td>7–6</td><td class="num">0.21</td></tr>
+                <tr><td>bardak65</td><td>Nissimb</td><td>7–4</td><td class="num">0.85</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="annot"><b>5/6</b> Remaining (189)</div>
+          <div class="section"><h3>Remaining Matches (189)</h3></div>
+          <div class="annot"><b>6/6</b> Player Insights</div>
+          <div class="section">
+            <h3>Player Insights</h3>
+            <div class="chart-stub">
+              <i style="height:55%"></i><i style="height:78%"></i><i style="height:42%"></i>
+              <i style="height:65%"></i><i style="height:88%"></i><i style="height:52%"></i>
+              <i style="height:71%"></i><i style="height:39%"></i><i style="height:60%"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="pane">
+      <header>
+        <span class="pane-tag after">After</span>
+        <span class="pane-title">~900px scroll · user picks the view</span>
+      </header>
+      <div class="device" aria-label="Improved dashboard">
+        <div class="device-scroll">
+          <div class="topnav"><span class="brand">Shabi Israel</span><span class="leagues-btn">Leagues ▾</span></div>
+          <div class="breadcrumb">Home › <b>June 2026</b></div>
+          <div class="hero">
+            <div class="hero-row"><span class="pill">DOUBLING</span><span class="pill run">Running</span></div>
+            <h2>June 2026</h2>
+            <div class="tiles">
+              <div class="tile"><div class="k">Games</div><div class="v">111 / 300</div></div>
+              <div class="tile"><div class="k">Avg PR</div><div class="v">10.49</div></div>
+              <div class="tile"><div class="k">Leading</div><div class="v">Avshalom</div></div>
+              <div class="tile"><div class="k">Updated</div><div class="v">7 Jun 16:06</div></div>
+            </div>
+          </div>
+          <div class="tabs" role="tablist" data-tabset="dash">
+            <button role="tab" aria-selected="true"  data-tab="standings">Standings</button>
+            <button role="tab" aria-selected="false" data-tab="predict">Predict</button>
+            <button role="tab" aria-selected="false" data-tab="rounds">Rounds</button>
+            <button role="tab" aria-selected="false" data-tab="player">Player</button>
+          </div>
+          <div class="filters">
+            <button class="f" aria-pressed="true">All players</button>
+            <button class="f" aria-pressed="false">Top 6</button>
+            <button class="f" aria-pressed="false">Active only</button>
+            <button class="f" aria-pressed="false">My picks</button>
+          </div>
+          <div data-panel="standings" data-tabset="dash">
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">League Table</div>
+                  <div class="meta">17 players · sorted by Win%</div>
+                  <div class="preview-strip">
+                    <span class="chip">🥇 Avshalom <b class="pos">100%</b></span>
+                    <span class="chip">🥈 Danny_k <b class="pos">100%</b></span>
+                    <span class="chip">🥉 YossiE23 <b>76.9%</b></span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <table class="table">
+                  <thead><tr><th>#</th><th>Player</th><th>W</th><th>Win%</th><th class="th-info">PR</th></tr></thead>
+                  <tbody>
+                    <tr class="row-g"><td>1</td><td>Avshalom</td><td class="num">2</td><td class="num pos">100%</td><td class="num">12.37</td></tr>
+                    <tr class="row-s"><td>2</td><td>Danny_k.</td><td class="num">1</td><td class="num pos">100%</td><td class="num">18.63</td></tr>
+                    <tr class="row-b"><td>3</td><td>YossiE23</td><td class="num">10</td><td class="num">76.9%</td><td class="num">6.45</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+            <details class="disclose">
+              <summary>
+                <div>
+                  <div class="title">Prizes &amp; Medals <span class="badge-new">3 prizes</span></div>
+                  <div class="meta">₪500 / ₪300 / ₪150</div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body"><p style="margin:0;font-size:12px;color:var(--ink-mute)">Medal table on demand.</p></div>
+            </details>
+          </div>
+          <div data-panel="predict" data-tabset="dash" hidden>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Championship Predictor</div>
+                  <div class="meta">±0.4% MoE · 50,000 sims</div>
+                  <div class="preview-strip">
+                    <span class="chip">YossiE23 <b class="pos">37.8%</b></span>
+                    <span class="chip">GuyE <b class="pos">31.4%</b></span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <table class="table">
+                  <thead><tr><th>#</th><th>Player</th><th>PR</th><th>Ch%</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>YossiE23</td><td class="num">6.45</td><td class="num pos">37.8%</td></tr>
+                    <tr><td>2</td><td>GuyE.</td><td class="num">4.89</td><td class="num pos">31.4%</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+          <div data-panel="rounds" data-tabset="dash" hidden>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Round 1 / 25</div>
+                  <div class="meta">9 played · 0 pending</div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <table class="table">
+                  <thead><tr><th>A</th><th>B</th><th>Score</th><th>Luck</th></tr></thead>
+                  <tbody>
+                    <tr><td>Moriarty</td><td>Idan1986</td><td>7–6</td><td class="num">0.21</td></tr>
+                    <tr><td>bardak65</td><td>Nissimb</td><td>7–4</td><td class="num">0.85</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+          <div data-panel="player" data-tabset="dash" hidden>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Player Insights</div>
+                  <div class="meta">Avi · PR trend last 13 matches</div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <div class="chart-stub">
+                  <i style="height:55%"></i><i style="height:78%"></i><i style="height:42%"></i>
+                  <i style="height:65%"></i><i style="height:88%"></i><i style="height:52%"></i>
+                </div>
+              </div>
+            </details>
+          </div>
+          <p class="kbd-hint"><kbd>1</kbd>-<kbd>4</kbd> switch tabs · <kbd>Enter</kbd> expand</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="commentary">
+    <section>
+      <h4>Gaps on DASHBOARD</h4>
+      <ul>
+        <li><b>6 sections open simultaneously.</b></li>
+        <li><b>Tile overflow:</b> "Leading Player" clips at narrow widths.</li>
+        <li><b>What-If has no entry-point CTA.</b></li>
+      </ul>
+    </section>
+    <section>
+      <h4>Fix</h4>
+      <ul>
+        <li><b>Tabs:</b> <code>Standings / Predict / Rounds / Player</code>.</li>
+        <li><b>Filter chip-row</b> above the active table.</li>
+        <li><b>Preview chips</b> in closed disclosure summaries.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<!-- ====================== PAGE 3 — LEAGUE ====================== -->
+<div class="demo-page" data-page="league">
+  <div class="stage">
+
+    <!-- BEFORE -->
+    <div class="pane">
+      <header>
+        <span class="pane-tag before">Before</span>
+        <span class="pane-title">Long table · no filtering · no legend</span>
+      </header>
+      <div class="device" aria-label="Current league.html">
+        <div class="device-scroll">
+          <div class="topnav"><span class="brand">Shabi Israel</span><span class="leagues-btn">Leagues ▾</span></div>
+          <div class="breadcrumb">Home › June 2026 › <b>League Table</b></div>
+          <div class="hero">
+            <div class="hero-row"><span class="pill">DOUBLING</span><span class="pill run">Running</span></div>
+            <h2 style="text-align:center">June 2026</h2>
+            <div style="text-align:center;font-size:11px;color:var(--ink-mute);margin-top:4px">Last updated 7 Jun 2026, 16:06</div>
+            <div style="text-align:end;margin-top:8px"><span class="pill" style="background:#1f3b1f;color:#fff">Export Image</span></div>
+          </div>
+          <div class="annot"><b>No filters</b> — all 17 rows visible at once</div>
+          <div class="section">
+            <table class="table">
+              <thead><tr><th>#</th><th>Player</th><th>GP</th><th>W</th><th>L</th><th>Win%</th><th>PR</th><th>Level</th><th>Luck</th></tr></thead>
+              <tbody>
+                <tr class="row-g"><td>1</td><td>Avshalom</td><td class="num">2</td><td class="num">2</td><td class="num">0</td><td class="num pos">100%</td><td class="num">12.37</td><td>Adv.</td><td class="num pos">5.04</td></tr>
+                <tr class="row-s"><td>2</td><td>Danny_k.</td><td class="num">1</td><td class="num">1</td><td class="num">0</td><td class="num pos">100%</td><td class="num">18.63</td><td>Casual</td><td class="num pos">3.72</td></tr>
+                <tr class="row-b"><td>3</td><td>YossiE23</td><td class="num">13</td><td class="num">10</td><td class="num">3</td><td class="num">76.9%</td><td class="num">6.45</td><td>Expert</td><td class="num">1.35</td></tr>
+                <tr><td>4</td><td>nadavd</td><td class="num">4</td><td class="num">3</td><td class="num">1</td><td class="num">75%</td><td class="num">7.88</td><td>Adv.</td><td class="num">1.79</td></tr>
+                <tr><td>5</td><td>GuyE.</td><td class="num">7</td><td class="num">5</td><td class="num">2</td><td class="num">71.4%</td><td class="num">4.89</td><td>World</td><td class="num">0.86</td></tr>
+                <tr><td>6</td><td>Moriarty</td><td class="num">7</td><td class="num">5</td><td class="num">2</td><td class="num">71.4%</td><td class="num">8.35</td><td>Adv.</td><td class="num">1.36</td></tr>
+                <tr><td>7</td><td>PitCad14</td><td class="num">18</td><td class="num">12</td><td class="num">6</td><td class="num">66.7%</td><td class="num">9.43</td><td>Adv.</td><td class="num">1.09</td></tr>
+                <tr class="row-avg"><td></td><td>AVERAGES</td><td class="num">9.25</td><td class="num">4.63</td><td class="num">4.63</td><td class="num">53.6%</td><td class="num">10.49</td><td></td><td class="num">0.25</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="annot"><b>No legend</b> for row tints · <b>No tooltip</b> for PR/Luck columns</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="pane">
+      <header>
+        <span class="pane-tag after">After</span>
+        <span class="pane-title">Filter chips + tooltips + legend</span>
+      </header>
+      <div class="device" aria-label="Improved league">
+        <div class="device-scroll">
+          <div class="topnav"><span class="brand">Shabi Israel</span><span class="leagues-btn">Leagues ▾</span></div>
+          <div class="breadcrumb">Home › June 2026 › <b>League Table</b></div>
+          <div class="hero">
+            <div class="hero-row"><span class="pill">DOUBLING</span><span class="pill run">Running</span></div>
+            <h2 style="text-align:center">June 2026</h2>
+            <div style="text-align:center;font-size:11px;color:var(--ink-mute);margin-top:4px">Last updated 7 Jun 2026, 16:06</div>
+            <div class="tiles" style="grid-template-columns:repeat(3,1fr)">
+              <div class="tile"><div class="k">Games</div><div class="v">111/300</div></div>
+              <div class="tile"><div class="k">Avg PR</div><div class="v">10.49</div></div>
+              <div class="tile"><div class="k">Leading</div><div class="v pos">Avshalom</div></div>
+            </div>
+          </div>
+          <div class="tabs" role="tablist" data-tabset="lg">
+            <button role="tab" aria-selected="true"  data-tab="standings">Standings</button>
+            <button role="tab" aria-selected="false" data-tab="records">Records</button>
+            <button role="tab" aria-selected="false" data-tab="insights">Insights</button>
+          </div>
+          <div class="filters">
+            <button class="f" aria-pressed="true">All (17)</button>
+            <button class="f" aria-pressed="false">Top 6</button>
+            <button class="f" aria-pressed="false">Active</button>
+            <button class="f" aria-pressed="false">Above avg</button>
+            <button class="f" aria-pressed="false">🇮🇱 IL only</button>
+          </div>
+          <div data-panel="standings" data-tabset="lg">
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">League Standings</div>
+                  <div class="meta">17 players · sorted by Win% then PR</div>
+                  <div class="preview-strip">
+                    <span class="chip">🥇 Avshalom <b class="pos">100%</b></span>
+                    <span class="chip">🥈 Danny_k <b class="pos">100%</b></span>
+                    <span class="chip">🥉 YossiE23 <b>76.9%</b></span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <table class="table">
+                  <thead><tr>
+                    <th>#</th><th>Player</th>
+                    <th>W</th><th>L</th>
+                    <th>Win%</th>
+                    <th class="th-info" title="PR = Performance Rating. Lower is better.">PR</th>
+                    <th class="th-info" title="Luck = expected wins − actual wins. Positive = lucky.">Luck</th>
+                  </tr></thead>
+                  <tbody>
+                    <tr class="row-g"><td>1</td><td>Avshalom</td><td class="num">2</td><td class="num">0</td><td class="num pos">100%</td><td class="num">12.37</td><td class="num pos">5.04</td></tr>
+                    <tr class="row-s"><td>2</td><td>Danny_k.</td><td class="num">1</td><td class="num">0</td><td class="num pos">100%</td><td class="num">18.63</td><td class="num pos">3.72</td></tr>
+                    <tr class="row-b"><td>3</td><td>YossiE23</td><td class="num">10</td><td class="num">3</td><td class="num">76.9%</td><td class="num">6.45</td><td class="num">1.35</td></tr>
+                    <tr class="row-avg"><td></td><td>AVG (17)</td><td class="num">4.6</td><td class="num">4.6</td><td class="num">53.6%</td><td class="num">10.49</td><td class="num">0.25</td></tr>
+                  </tbody>
+                </table>
+                <div class="legend" aria-label="Row color legend">
+                  <span class="legend-item"><span class="swatch gold"></span>Gold (#1)</span>
+                  <span class="legend-item"><span class="swatch silv"></span>Silver (#2)</span>
+                  <span class="legend-item"><span class="swatch bron"></span>Bronze (#3-6)</span>
+                  <span class="legend-item"><span class="swatch avg"></span>League average</span>
+                </div>
+              </div>
+            </details>
+            <details class="disclose">
+              <summary>
+                <div>
+                  <div class="title">Notable This Week <span class="badge-new">3 changes</span></div>
+                  <div class="meta">Rank moves since last snapshot</div>
+                  <div class="preview-strip">
+                    <span class="chip pos">YossiE23 ▲ <b>2</b></span>
+                    <span class="chip pos">nadavd ▲ <b>3</b></span>
+                    <span class="chip neg">fridlich ▼ <b>4</b></span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body"><p style="margin:0;font-size:12px;color:var(--ink-mute)">Snapshot diff opens on demand.</p></div>
+            </details>
+          </div>
+          <div data-panel="records" data-tabset="lg" hidden>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Match Records</div>
+                  <div class="meta">Best PR · Best Luck · Biggest Upset</div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body"><p style="margin:0;font-size:12px;color:var(--ink-mute)">A5/A6 SF tables.</p></div>
+            </details>
+          </div>
+          <div data-panel="insights" data-tabset="lg" hidden>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Distribution</div>
+                  <div class="meta">PR + Win% spread</div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <div class="chart-stub">
+                  <i style="height:30%"></i><i style="height:45%"></i><i style="height:70%"></i>
+                  <i style="height:95%"></i><i style="height:80%"></i><i style="height:55%"></i>
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="commentary">
+    <section>
+      <h4>Gaps on LEAGUE</h4>
+      <ul>
+        <li><b>No filtering</b> — 17 rows always visible.</li>
+        <li><b>No legend</b> for row colors.</li>
+        <li><b>PR / Luck columns</b> unlabeled — new users don't know what they mean.</li>
+        <li><b>No tabs</b> — Records (A3-A6) live on a separate dashboard page.</li>
+      </ul>
+    </section>
+    <section>
+      <h4>Fix</h4>
+      <ul>
+        <li><b>Tabs <code>Standings / Records / Insights</code>:</b> unifies A1+A2+A3-A6.</li>
+        <li><b>Filter chip-row.</b></li>
+        <li><b>Header tooltips</b> ⓘ on PR / Luck.</li>
+        <li><b>Visible row-tint legend.</b></li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<!-- ====================== PAGE 4 — PLAYER GENERAL ====================== -->
+<div class="demo-page" data-page="player-general">
+  <div class="stage">
+
+    <!-- BEFORE -->
+    <div class="pane">
+      <header>
+        <span class="pane-tag before">Before</span>
+        <span class="pane-title">~3000px · 7 stacked sections</span>
+      </header>
+      <div class="device" aria-label="Current player_general.html">
+        <div class="device-scroll">
+          <div class="topnav"><span class="brand">Shabi Israel</span><span class="leagues-btn">Leagues ▾</span></div>
+          <div class="breadcrumb">Home › <b>YossiEliezer23</b></div>
+          <div class="hero">
+            <div class="player-hero">
+              <div class="avatar">YE</div>
+              <div>
+                <h2>YossiEliezer23 <span class="pill nc" style="margin-inline-start:6px">National Champion</span></h2>
+                <div class="sub">Yossi Eliezer · 🇮🇱</div>
+                <div class="sub">Joined Oct 2025 · 8 leagues</div>
+              </div>
+            </div>
+          </div>
+          <div class="annot"><b>1/7</b> PR Statistics</div>
+          <div class="section">
+            <h3>PR Statistics</h3>
+            <div class="tiles">
+              <div class="tile"><div class="k">Total PR</div><div class="v">6.29</div></div>
+              <div class="tile"><div class="k">Last 100</div><div class="v">6.37</div></div>
+            </div>
+          </div>
+          <div class="annot"><b>2/7</b> Achievements</div>
+          <div class="section">
+            <h3>Achievements</h3>
+            <div class="achv-grid">
+              <div class="achv"><div class="ico">🥇</div><div class="num">3</div><div class="lbl">Gold</div></div>
+              <div class="achv"><div class="ico">🥈</div><div class="num">0</div><div class="lbl">Silver</div></div>
+              <div class="achv"><div class="ico">🥉</div><div class="num">2</div><div class="lbl">Bronze</div></div>
+              <div class="achv"><div class="ico">🎯</div><div class="num">65.5%</div><div class="lbl">Win Rate</div></div>
+              <div class="achv"><div class="ico">📊</div><div class="num">5.6</div><div class="lbl">Avg Rank</div></div>
+            </div>
+          </div>
+          <div class="annot"><b>3/7</b> Leagues table</div>
+          <div class="section">
+            <h3>Leagues</h3>
+            <table class="table">
+              <thead><tr><th>League</th><th>Type</th><th>GP</th><th>Win%</th><th>PR</th></tr></thead>
+              <tbody>
+                <tr><td>Jun 2026</td><td>DBL</td><td class="num">13</td><td class="num">76.9%</td><td class="num">6.45</td></tr>
+                <tr><td>May 2026</td><td>DBL</td><td class="num">12</td><td class="num">75%</td><td class="num">6.42</td></tr>
+                <tr><td>Apr 2026</td><td>DBL</td><td class="num">14</td><td class="num">78.5%</td><td class="num">5.78</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="annot"><b>4/7</b> Match History (chart)</div>
+          <div class="section">
+            <h3>Match History</h3>
+            <div class="chart-stub">
+              <i style="height:55%"></i><i style="height:78%"></i><i style="height:42%"></i>
+              <i style="height:65%"></i><i style="height:88%"></i><i style="height:52%"></i>
+              <i style="height:71%"></i><i style="height:39%"></i><i style="height:60%"></i>
+            </div>
+          </div>
+          <div class="annot"><b>5/7</b> Match History (table)</div>
+          <div class="section">
+            <table class="table">
+              <thead><tr><th>League</th><th>Opp.</th><th>Score</th><th>Result</th></tr></thead>
+              <tbody>
+                <tr><td>Jun</td><td>Yannay</td><td>7–5</td><td class="pos">WIN</td></tr>
+                <tr><td>Jun</td><td>PitCad14</td><td>1–7</td><td class="neg">LOSS</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="annot"><b>6/7</b> Head to Head</div>
+          <div class="section"><h3>Head to Head</h3></div>
+          <div class="annot"><b>7/7</b> Match Records (4 sub-tables)</div>
+          <div class="section">
+            <h3>Best PR</h3>
+            <table class="table"><tbody>
+              <tr><td>1</td><td>Bran</td><td>7–5</td><td class="num">1.41</td></tr>
+            </tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="pane">
+      <header>
+        <span class="pane-tag after">After</span>
+        <span class="pane-title">Overview-first · Tabs · preview chips</span>
+      </header>
+      <div class="device" aria-label="Improved player_general">
+        <div class="device-scroll">
+          <div class="topnav"><span class="brand">Shabi Israel</span><span class="leagues-btn">Leagues ▾</span></div>
+          <div class="breadcrumb">Home › <b>YossiEliezer23</b></div>
+          <div class="hero">
+            <div class="player-hero">
+              <div class="avatar">YE</div>
+              <div>
+                <h2>YossiEliezer23</h2>
+                <div class="sub">Yossi Eliezer · 🇮🇱</div>
+                <div class="sub" style="margin-top:6px"><span class="pill nc">National Champion</span></div>
+              </div>
+            </div>
+            <div class="tiles" style="grid-template-columns:repeat(4,1fr);margin-top:14px">
+              <div class="tile"><div class="k">Total PR</div><div class="v">6.29</div></div>
+              <div class="tile"><div class="k">Last 100</div><div class="v pos">6.37</div></div>
+              <div class="tile"><div class="k">Win Rate</div><div class="v">65.5%</div></div>
+              <div class="tile"><div class="k">Leagues</div><div class="v">8</div></div>
+            </div>
+          </div>
+          <div class="tabs" role="tablist" data-tabset="pg">
+            <button role="tab" aria-selected="true"  data-tab="overview">Overview</button>
+            <button role="tab" aria-selected="false" data-tab="leagues">Leagues</button>
+            <button role="tab" aria-selected="false" data-tab="matches">Matches</button>
+            <button role="tab" aria-selected="false" data-tab="records">Records</button>
+            <button role="tab" aria-selected="false" data-tab="h2h">H2H</button>
+          </div>
+          <div data-panel="overview" data-tabset="pg">
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Achievements</div>
+                  <div class="meta">Career totals across 8 leagues</div>
+                  <div class="preview-strip">
+                    <span class="chip">🥇 <b>3</b></span>
+                    <span class="chip">🥈 <b>0</b></span>
+                    <span class="chip">🥉 <b>2</b></span>
+                    <span class="chip">Avg rank <b>5.6</b></span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <div class="achv-grid">
+                  <div class="achv"><div class="ico">🥇</div><div class="num">3</div><div class="lbl">Gold</div></div>
+                  <div class="achv"><div class="ico">🥈</div><div class="num">0</div><div class="lbl">Silver</div></div>
+                  <div class="achv"><div class="ico">🥉</div><div class="num">2</div><div class="lbl">Bronze</div></div>
+                  <div class="achv"><div class="ico">🎯</div><div class="num">65.5%</div><div class="lbl">Win</div></div>
+                  <div class="achv"><div class="ico">📊</div><div class="num">5.6</div><div class="lbl">Rank</div></div>
+                </div>
+              </div>
+            </details>
+            <details class="disclose">
+              <summary>
+                <div>
+                  <div class="title">Recent form</div>
+                  <div class="meta">Last 12 matches</div>
+                  <div class="preview-strip">
+                    <span class="chip pos">8 wins</span>
+                    <span class="chip neg">4 losses</span>
+                    <span class="chip">avg PR <b>6.4</b></span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <div class="chart-stub" style="height:80px">
+                  <i style="height:55%"></i><i style="height:78%"></i><i style="height:42%"></i>
+                  <i style="height:65%"></i><i style="height:88%"></i><i style="height:52%"></i>
+                </div>
+              </div>
+            </details>
+          </div>
+          <div data-panel="leagues" data-tabset="pg" hidden>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">All Leagues</div>
+                  <div class="meta">8 leagues · sorted by date</div>
+                  <div class="preview-strip">
+                    <span class="chip">Jun 2026 <b class="pos">3rd</b></span>
+                    <span class="chip">May 2026 <b class="pos">4th</b></span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <table class="table">
+                  <thead><tr><th>League</th><th>GP</th><th>Win%</th><th>PR</th></tr></thead>
+                  <tbody>
+                    <tr><td>Jun 2026</td><td class="num">13</td><td class="num">76.9%</td><td class="num">6.45</td></tr>
+                    <tr><td>May 2026</td><td class="num">12</td><td class="num">75%</td><td class="num">6.42</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+          <div data-panel="matches" data-tabset="pg" hidden>
+            <div class="filters">
+              <button class="f" aria-pressed="true">All</button>
+              <button class="f" aria-pressed="false">Wins</button>
+              <button class="f" aria-pressed="false">Losses</button>
+              <button class="f" aria-pressed="false">Last 30d</button>
+            </div>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Match History</div>
+                  <div class="meta">142 matches · 93W / 49L</div>
+                  <div class="preview-strip">
+                    <span class="chip pos">Win rate <b>65.5%</b></span>
+                    <span class="chip">Streak <b>5W</b></span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <div class="chart-stub">
+                  <i style="height:55%"></i><i style="height:78%"></i><i style="height:42%"></i>
+                  <i style="height:65%"></i><i style="height:88%"></i><i style="height:52%"></i>
+                </div>
+              </div>
+            </details>
+          </div>
+          <div data-panel="records" data-tabset="pg" hidden>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Best PR</div>
+                  <div class="meta">Top 5 performances</div>
+                  <div class="preview-strip">
+                    <span class="chip">vs Bran <b class="pos">1.41</b></span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <table class="table">
+                  <thead><tr><th>#</th><th>Opp.</th><th>Score</th><th>PR</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>Bran</td><td>7–5</td><td class="num pos">1.41</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+            <details class="disclose">
+              <summary>
+                <div>
+                  <div class="title">Best Luck For</div>
+                  <div class="meta">Top 5 lucky wins</div>
+                  <div class="preview-strip"><span class="chip pos">+4.23 vs Yaniv162</span></div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body"><p style="font-size:11px;color:var(--ink-mute);margin:0">Top 5 SF.</p></div>
+            </details>
+            <details class="disclose">
+              <summary>
+                <div>
+                  <div class="title">Worst Luck Against</div>
+                  <div class="meta">Top 5 unlucky losses</div>
+                  <div class="preview-strip"><span class="chip neg">-1.80 vs PitCad14</span></div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body"><p style="font-size:11px;color:var(--ink-mute);margin:0">Top 5 SF.</p></div>
+            </details>
+          </div>
+          <div data-panel="h2h" data-tabset="pg" hidden>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Head to Head</div>
+                  <div class="meta">Most-played opponents</div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <div class="h2h-row"><span>🇮🇱</span><span class="name">PitCad14</span><span class="res pos">5–3</span></div>
+                <div class="h2h-row"><span>🇮🇱</span><span class="name">UziMutsafy</span><span class="res pos">4–1</span></div>
+                <div class="h2h-row"><span>🇮🇱</span><span class="name">Yaniv162</span><span class="res">3–3</span></div>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="commentary">
+    <section>
+      <h4>Gaps on PLAYER GENERAL</h4>
+      <ul>
+        <li><b>7 sections stacked</b> · ~3000px scroll.</li>
+        <li><b>No filtering on Match History</b> (142 rows always visible).</li>
+        <li><b>H2H and Records scattered</b> instead of co-located.</li>
+      </ul>
+    </section>
+    <section>
+      <h4>Fix</h4>
+      <ul>
+        <li><b>Tabs <code>Overview / Leagues / Matches / Records / H2H</code>.</b></li>
+        <li><b>Overview = preview of everything.</b></li>
+        <li><b>Records as a collection</b> of 4 disclosures with #1-chip teasers.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<!-- ====================== PAGE 5 — EDIT LEAGUE (ADMIN) ====================== -->
+<div class="demo-page" data-page="edit-league">
+  <div class="stage">
+
+    <!-- BEFORE -->
+    <div class="pane">
+      <header>
+        <span class="pane-tag before">Before</span>
+        <span class="pane-title">~3500px · 6 form blocks + 3 tables stacked</span>
+      </header>
+      <div class="device" aria-label="Current admin Edit League">
+        <div class="device-scroll">
+          <div class="topnav admin"><span class="brand">Admin · Edit League</span><span class="leagues-btn">Exit</span></div>
+          <div class="breadcrumb">Admin <span class="admin-tag">ADMIN</span> › Edit League › <b>June 2026</b></div>
+          <div class="hero">
+            <div class="hero-row">
+              <span class="pill">DOUBLING</span>
+              <span class="pill run">Running</span>
+            </div>
+            <h2>June 2026</h2>
+            <div style="font-size:11px;color:var(--ink-mute);margin-top:4px">17 players · 111 of 300 games played</div>
+            <div style="display:flex;gap:6px;margin-top:10px">
+              <button class="btn">Save changes</button>
+              <button class="btn ghost">Cancel</button>
+              <button class="btn danger">Delete league</button>
+            </div>
+          </div>
+
+          <div class="annot"><b>1/9</b> League settings</div>
+          <div class="section">
+            <h3>League settings</h3>
+            <div class="form-row">
+              <div class="form-grp"><label>Name</label><input value="June 2026"></div>
+              <div class="form-grp"><label>Type</label><select><option>Doubling</option></select></div>
+            </div>
+            <div class="form-row">
+              <div class="form-grp"><label>Status</label><select><option>Running</option></select></div>
+              <div class="form-grp"><label>Start date</label><input type="date" value="2026-06-01"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-grp"><label>Match length</label><input value="7"></div>
+              <div class="form-grp"><label>Rounds</label><input value="25"></div>
+            </div>
+          </div>
+
+          <div class="annot"><b>2/9</b> BGStudio sync card</div>
+          <div class="section">
+            <h3>BGStudio Sync</h3>
+            <div class="form-grp"><label>BGStudio league name</label><input value="Shabi Israel"></div>
+            <div style="font-size:11px;color:var(--ink-mute);margin-top:4px">Last synced 7 Jun 2026 14:30</div>
+            <div style="margin-top:8px"><button class="btn small">Save BGStudio settings</button> <button class="btn small ghost">Run sync now</button></div>
+          </div>
+
+          <div class="annot"><b>3/9</b> Players (F2)</div>
+          <div class="section">
+            <h3>Players (17)</h3>
+            <table class="table">
+              <thead><tr><th>Player</th><th>Flag</th><th>Title</th><th>Real name</th><th>Active</th><th></th></tr></thead>
+              <tbody>
+                <tr><td>Avshalom</td><td>🇮🇱</td><td>I2</td><td class="ff-cell-edit"><input value="A. Levy"></td><td>✓</td><td><button class="btn small ghost">×</button></td></tr>
+                <tr><td>Danny_k.</td><td>🇮🇱</td><td>—</td><td class="ff-cell-edit"><input value="Daniel K."></td><td>✓</td><td><button class="btn small ghost">×</button></td></tr>
+                <tr><td>YossiE23</td><td>🇮🇱</td><td>NC</td><td class="ff-cell-edit"><input value="Yossi E."></td><td>✓</td><td><button class="btn small ghost">×</button></td></tr>
+                <tr><td>+ Add player</td><td colspan="5"></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="annot"><b>4/9</b> Round editor (F3)</div>
+          <div class="section">
+            <h3>Round 1 / 25 — editor</h3>
+            <table class="table">
+              <thead><tr><th>A</th><th>B</th><th>Score A</th><th>Score B</th><th>Save</th></tr></thead>
+              <tbody>
+                <tr><td>Moriarty</td><td>Idan1986</td><td class="ff-cell-edit"><input value="7"></td><td class="ff-cell-edit"><input value="6"></td><td><button class="btn small">✓</button></td></tr>
+                <tr><td>bardak65</td><td>Nissimb</td><td class="ff-cell-edit"><input value="7"></td><td class="ff-cell-edit"><input value="4"></td><td><button class="btn small">✓</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="annot"><b>5/9</b> Medals &amp; Prizes (F6)</div>
+          <div class="section">
+            <h3>Medals &amp; Prizes</h3>
+            <table class="table">
+              <tbody>
+                <tr><td><span class="medal-cell" style="color:#d4a017">🥇 Gold</span></td><td class="ff-cell-edit"><label>Count</label><input value="1"></td><td class="ff-cell-edit"><label>Prize</label><input value="500"></td></tr>
+                <tr><td><span class="medal-cell" style="color:#9ca3af">🥈 Silver</span></td><td class="ff-cell-edit"><label>Count</label><input value="1"></td><td class="ff-cell-edit"><label>Prize</label><input value="300"></td></tr>
+                <tr><td><span class="medal-cell" style="color:#d97706">🥉 Bronze</span></td><td class="ff-cell-edit"><label>Count</label><input value="1"></td><td class="ff-cell-edit"><label>Prize</label><input value="150"></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="annot"><b>6/9</b> Manual overrides (F4)</div>
+          <div class="section">
+            <h3>Manual overrides (3)</h3>
+            <table class="table"><tbody>
+              <tr><td>R5 · A vs B</td><td>7–5 → 6–7</td><td><button class="btn small ghost">Edit</button></td></tr>
+            </tbody></table>
+          </div>
+
+          <div class="annot"><b>7/9</b> CSV importer</div>
+          <div class="section">
+            <h3>CSV Importer</h3>
+            <p style="font-size:11px;color:var(--ink-mute);margin:0">Drag CSV here...</p>
+          </div>
+
+          <div class="annot"><b>8/9</b> Pending changes (always-visible drawer)</div>
+          <div class="section">
+            <h3>Pending changes (5)</h3>
+          </div>
+
+          <div class="annot"><b>9/9</b> Danger zone</div>
+          <div class="section">
+            <h3>Danger zone</h3>
+            <button class="btn danger">Delete league permanently</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="pane">
+      <header>
+        <span class="pane-tag after">After</span>
+        <span class="pane-title">Tabs · sticky save · pending count in header</span>
+      </header>
+      <div class="device" aria-label="Improved Edit League">
+        <div class="device-scroll">
+          <div class="topnav admin">
+            <span class="brand">Admin · Edit League</span>
+            <span class="pending-badge">5 pending</span>
+          </div>
+          <div class="breadcrumb">Admin <span class="admin-tag">ADMIN</span> › Edit League › <b>June 2026</b></div>
+
+          <div class="hero">
+            <div class="hero-row">
+              <h2>June 2026</h2>
+              <span class="pill run">Running</span>
+            </div>
+            <div style="font-size:11px;color:var(--ink-mute)">DOUBLING · 17 players · 111/300 games · last synced 14:30</div>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn">Save 5 changes</button>
+            <button class="btn ghost">Discard</button>
+            <span style="font-size:11px;color:var(--ink-mute);margin-inline-start:auto">Auto-save in 2:34</span>
+          </div>
+
+          <div class="tabs" role="tablist" data-tabset="el">
+            <button role="tab" aria-selected="true"  data-tab="settings">Settings</button>
+            <button role="tab" aria-selected="false" data-tab="players">Players</button>
+            <button role="tab" aria-selected="false" data-tab="rounds">Rounds</button>
+            <button role="tab" aria-selected="false" data-tab="prizes">Prizes</button>
+            <button role="tab" aria-selected="false" data-tab="data">Data</button>
+          </div>
+
+          <!-- SETTINGS -->
+          <div data-panel="settings" data-tabset="el">
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">League details</div>
+                  <div class="meta">Name, type, dates</div>
+                  <div class="preview-strip">
+                    <span class="chip">June 2026</span>
+                    <span class="chip">DOUBLING</span>
+                    <span class="chip warn">2 unsaved</span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <div class="form-row">
+                  <div class="form-grp"><label>Name</label><input value="June 2026"></div>
+                  <div class="form-grp"><label>Type</label><select><option>Doubling</option></select></div>
+                </div>
+                <div class="form-row">
+                  <div class="form-grp"><label>Status</label><select><option>Running</option></select></div>
+                  <div class="form-grp"><label>Start date</label><input type="date" value="2026-06-01"></div>
+                </div>
+              </div>
+            </details>
+
+            <details class="disclose">
+              <summary>
+                <div>
+                  <div class="title">BGStudio sync</div>
+                  <div class="meta">Last synced 14:30</div>
+                  <div class="preview-strip">
+                    <span class="chip pos">Linked</span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <div class="form-grp"><label>BGStudio league name</label><input value="Shabi Israel"></div>
+                <div style="margin-top:8px"><button class="btn small">Save</button> <button class="btn small ghost">Run sync now</button></div>
+              </div>
+            </details>
+
+            <details class="disclose">
+              <summary>
+                <div>
+                  <div class="title">Danger zone <span class="badge-new badge-danger">caution</span></div>
+                  <div class="meta">Delete league permanently</div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body"><button class="btn danger">Delete league</button></div>
+            </details>
+          </div>
+
+          <!-- PLAYERS -->
+          <div data-panel="players" data-tabset="el" hidden>
+            <div class="filters">
+              <button class="f" aria-pressed="true">All (17)</button>
+              <button class="f" aria-pressed="false">Active</button>
+              <button class="f" aria-pressed="false">Hidden</button>
+              <button class="f" aria-pressed="false">Unsaved</button>
+            </div>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Roster · F2</div>
+                  <div class="meta">17 players · 1 unsaved</div>
+                  <div class="preview-strip">
+                    <span class="chip">17 active</span>
+                    <span class="chip warn">1 unsaved</span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <table class="table">
+                  <thead><tr><th>Player</th><th>Title</th><th>Real name</th><th></th></tr></thead>
+                  <tbody>
+                    <tr><td>Avshalom 🇮🇱</td><td>I2</td><td class="ff-cell-edit"><input value="A. Levy"></td><td><button class="btn small ghost">×</button></td></tr>
+                    <tr><td>Danny_k. 🇮🇱</td><td>—</td><td class="ff-cell-edit"><input value="Daniel K."></td><td><button class="btn small ghost">×</button></td></tr>
+                    <tr><td>YossiE23 🇮🇱</td><td>NC</td><td class="ff-cell-edit"><input value="Yossi E."></td><td><button class="btn small ghost">×</button></td></tr>
+                  </tbody>
+                </table>
+                <button class="btn small ghost" style="margin-top:6px">+ Add player</button>
+              </div>
+            </details>
+          </div>
+
+          <!-- ROUNDS -->
+          <div data-panel="rounds" data-tabset="el" hidden>
+            <div class="filters">
+              <button class="f" aria-pressed="true">Round 1</button>
+              <button class="f" aria-pressed="false">Round 2</button>
+              <button class="f" aria-pressed="false">Round 3</button>
+              <button class="f" aria-pressed="false">…</button>
+              <button class="f" aria-pressed="false">All</button>
+            </div>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Round 1 — Editor · F3</div>
+                  <div class="meta">9 of 9 matches played</div>
+                  <div class="preview-strip">
+                    <span class="chip pos">9 played</span>
+                    <span class="chip">avg Luck 1.20</span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <table class="table">
+                  <thead><tr><th>A</th><th>B</th><th>Score A</th><th>Score B</th><th></th></tr></thead>
+                  <tbody>
+                    <tr><td>Moriarty</td><td>Idan1986</td><td class="ff-cell-edit"><input value="7"></td><td class="ff-cell-edit"><input value="6"></td><td><button class="btn small">✓</button></td></tr>
+                    <tr><td>bardak65</td><td>Nissimb</td><td class="ff-cell-edit"><input value="7"></td><td class="ff-cell-edit"><input value="4"></td><td><button class="btn small">✓</button></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+
+          <!-- PRIZES -->
+          <div data-panel="prizes" data-tabset="el" hidden>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Medals &amp; Prizes · F6</div>
+                  <div class="meta">3 prizes · total ₪950</div>
+                  <div class="preview-strip">
+                    <span class="chip">🥇 ₪500</span>
+                    <span class="chip">🥈 ₪300</span>
+                    <span class="chip">🥉 ₪150</span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <table class="table">
+                  <tbody>
+                    <tr><td><span class="medal-cell" style="color:#d4a017">🥇 Gold</span></td><td class="ff-cell-edit"><label>Count</label><input value="1"></td><td class="ff-cell-edit"><label>₪</label><input value="500"></td></tr>
+                    <tr><td><span class="medal-cell" style="color:#9ca3af">🥈 Silver</span></td><td class="ff-cell-edit"><label>Count</label><input value="1"></td><td class="ff-cell-edit"><label>₪</label><input value="300"></td></tr>
+                    <tr><td><span class="medal-cell" style="color:#d97706">🥉 Bronze</span></td><td class="ff-cell-edit"><label>Count</label><input value="1"></td><td class="ff-cell-edit"><label>₪</label><input value="150"></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+
+          <!-- DATA -->
+          <div data-panel="data" data-tabset="el" hidden>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Manual overrides · F4</div>
+                  <div class="meta">3 overrides</div>
+                  <div class="preview-strip">
+                    <span class="chip">R5 A vs B</span>
+                    <span class="chip">R12 C vs D</span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <table class="table"><tbody>
+                  <tr><td>R5 · A vs B</td><td>7–5 → 6–7</td><td><button class="btn small ghost">Edit</button></td></tr>
+                </tbody></table>
+              </div>
+            </details>
+            <details class="disclose">
+              <summary>
+                <div>
+                  <div class="title">CSV Importer · F5</div>
+                  <div class="meta">Last import 7 Jun 14:30</div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body"><p style="font-size:11px;color:var(--ink-mute);margin:0">Drag CSV · compatibility report renders below.</p></div>
+            </details>
+          </div>
+
+          <p class="kbd-hint"><kbd>1</kbd>-<kbd>5</kbd> switch tabs · <kbd>⌘S</kbd> save</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="commentary">
+    <section>
+      <h4>Gaps on EDIT LEAGUE (Admin)</h4>
+      <ul>
+        <li><b>9 form blocks stacked vertically</b> — admins scroll past Settings every time they edit a Round.</li>
+        <li><b>Pending-Changes drawer</b> always visible — eats vertical space even with 0 changes.</li>
+        <li><b>Danger zone</b> co-located with normal settings — risk of mis-click.</li>
+        <li><b>No round picker</b> — to edit Round 18 you scroll through R1-R17 inputs.</li>
+        <li><b>Save button</b> at the top, no longer in view once you scroll to Round editor.</li>
+      </ul>
+    </section>
+    <section>
+      <h4>Fix</h4>
+      <ul>
+        <li><b>Tabs <code>Settings / Players / Rounds / Prizes / Data</code>.</b></li>
+        <li><b>Round filter chips</b> on the Rounds tab — pick any round.</li>
+        <li><b>Sticky save bar</b> directly under the hero — count of pending changes visible in topbar (5 pending).</li>
+        <li><b>Danger zone</b> isolated as its own collapsed disclosure with caution badge.</li>
+        <li><b>Auto-save countdown</b> — admin doesn't have to remember to save.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<!-- ====================== PAGE 6 — NEW LEAGUE (ADMIN) ====================== -->
+<div class="demo-page" data-page="new-league">
+  <div class="stage">
+
+    <!-- BEFORE -->
+    <div class="pane">
+      <header>
+        <span class="pane-tag before">Before</span>
+        <span class="pane-title">~2000px form · all fields visible · validation at submit</span>
+      </header>
+      <div class="device" aria-label="Current admin New League">
+        <div class="device-scroll">
+          <div class="topnav admin"><span class="brand">Admin · New League</span><span class="leagues-btn">Exit</span></div>
+          <div class="breadcrumb">Admin <span class="admin-tag">ADMIN</span> › <b>New League</b></div>
+          <div class="hero">
+            <h2>Create a new league</h2>
+            <div style="font-size:11px;color:var(--ink-mute);margin-top:4px">Fill all sections then click Create</div>
+          </div>
+
+          <div class="annot"><b>1/6</b> Basic info</div>
+          <div class="section">
+            <h3>Basic info</h3>
+            <div class="form-row">
+              <div class="form-grp"><label>Name</label><input placeholder="e.g. July 2026"></div>
+              <div class="form-grp"><label>Type</label><select><option>Doubling</option><option>Regular</option><option>UBC</option></select></div>
+            </div>
+            <div class="form-row">
+              <div class="form-grp"><label>Start date</label><input type="date"></div>
+              <div class="form-grp"><label>Match length</label><input value="7"></div>
+            </div>
+          </div>
+
+          <div class="annot"><b>2/6</b> Players (F2b Add-League)</div>
+          <div class="section">
+            <h3>Players (0)</h3>
+            <div style="font-size:11px;color:var(--ink-mute);margin-bottom:6px">Pick from player registry...</div>
+            <table class="table">
+              <thead><tr><th>Pick</th><th>Player</th><th>Last seen</th><th>Title</th></tr></thead>
+              <tbody>
+                <tr><td>☐</td><td>Avshalom</td><td>Jun 2026</td><td>I2</td></tr>
+                <tr><td>☐</td><td>Danny_k.</td><td>Jun 2026</td><td>—</td></tr>
+                <tr><td>☐</td><td>YossiE23</td><td>Jun 2026</td><td>NC</td></tr>
+                <tr><td>☐</td><td>GuyE.</td><td>May 2026</td><td>—</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="annot"><b>3/6</b> Medals &amp; Prizes (F6 — defaults)</div>
+          <div class="section">
+            <h3>Medals &amp; Prizes</h3>
+            <table class="table">
+              <tbody>
+                <tr><td><span class="medal-cell" style="color:#d4a017">🥇 Gold</span></td><td class="ff-cell-edit"><label>Count</label><input value="1"></td><td class="ff-cell-edit"><label>Prize</label><input value="500"></td></tr>
+                <tr><td><span class="medal-cell" style="color:#9ca3af">🥈 Silver</span></td><td class="ff-cell-edit"><label>Count</label><input value="1"></td><td class="ff-cell-edit"><label>Prize</label><input value="300"></td></tr>
+                <tr><td><span class="medal-cell" style="color:#d97706">🥉 Bronze</span></td><td class="ff-cell-edit"><label>Count</label><input value="1"></td><td class="ff-cell-edit"><label>Prize</label><input value="150"></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="annot"><b>4/6</b> BGStudio sync (optional)</div>
+          <div class="section">
+            <h3>BGStudio Sync (optional)</h3>
+            <div class="form-grp"><label>BGStudio league name</label><input placeholder="leave empty to skip sync"></div>
+          </div>
+
+          <div class="annot"><b>5/6</b> Round schedule</div>
+          <div class="section">
+            <h3>Round schedule</h3>
+            <div class="form-row">
+              <div class="form-grp"><label>Total rounds</label><input value="25"></div>
+              <div class="form-grp"><label>Matches/round</label><input value="9"></div>
+            </div>
+          </div>
+
+          <div class="annot"><b>6/6</b> Submit · validation errors appear here AFTER click</div>
+          <div class="section">
+            <h3>Create league</h3>
+            <button class="btn">Create league</button>
+            <p style="font-size:11px;color:var(--ink-mute);margin:6px 0 0">Errors shown after submit.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="pane">
+      <header>
+        <span class="pane-tag after">After</span>
+        <span class="pane-title">Wizard · per-step validation · live preview</span>
+      </header>
+      <div class="device" aria-label="Improved New League">
+        <div class="device-scroll">
+          <div class="topnav admin">
+            <span class="brand">Admin · New League</span>
+            <span class="pill draft" style="margin-inline-start:auto">DRAFT</span>
+          </div>
+          <div class="breadcrumb">Admin <span class="admin-tag">ADMIN</span> › <b>New League</b></div>
+
+          <div class="hero">
+            <h2>New league</h2>
+            <div style="font-size:11px;color:var(--ink-mute);margin-top:4px">Step 2 of 4 · 4 of 7 required fields filled</div>
+            <div style="margin-top:10px;display:flex;gap:4px">
+              <div style="flex:1;height:5px;background:var(--good);border-radius:3px"></div>
+              <div style="flex:1;height:5px;background:var(--good);border-radius:3px"></div>
+              <div style="flex:1;height:5px;background:var(--line-soft);border-radius:3px"></div>
+              <div style="flex:1;height:5px;background:var(--line-soft);border-radius:3px"></div>
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn ghost">← Back</button>
+            <button class="btn">Next: Players →</button>
+            <span style="font-size:11px;color:var(--ink-mute);margin-inline-start:auto">Saved as draft</span>
+          </div>
+
+          <div class="tabs" role="tablist" data-tabset="nl">
+            <button role="tab" aria-selected="true"  data-tab="basics">1. Basics</button>
+            <button role="tab" aria-selected="false" data-tab="players">2. Players</button>
+            <button role="tab" aria-selected="false" data-tab="prizes">3. Prizes</button>
+            <button role="tab" aria-selected="false" data-tab="review">4. Review</button>
+          </div>
+
+          <!-- BASICS -->
+          <div data-panel="basics" data-tabset="nl">
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">League identity</div>
+                  <div class="meta">Name, type, dates · required</div>
+                  <div class="preview-strip">
+                    <span class="chip pos">Name ✓</span>
+                    <span class="chip pos">Type ✓</span>
+                    <span class="chip warn">Date missing</span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <div class="form-row">
+                  <div class="form-grp"><label>Name</label><input value="July 2026"></div>
+                  <div class="form-grp"><label>Type</label><select><option>Doubling</option></select></div>
+                </div>
+                <div class="form-row">
+                  <div class="form-grp"><label>Start date</label><input type="date"></div>
+                  <div class="form-grp"><label>Match length</label><input value="7"></div>
+                </div>
+              </div>
+            </details>
+
+            <details class="disclose">
+              <summary>
+                <div>
+                  <div class="title">Round schedule</div>
+                  <div class="meta">Defaults from league type</div>
+                  <div class="preview-strip">
+                    <span class="chip">25 rounds</span>
+                    <span class="chip">9/round</span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <div class="form-row">
+                  <div class="form-grp"><label>Total rounds</label><input value="25"></div>
+                  <div class="form-grp"><label>Matches/round</label><input value="9"></div>
+                </div>
+              </div>
+            </details>
+
+            <details class="disclose">
+              <summary>
+                <div>
+                  <div class="title">BGStudio sync <span class="badge-new">optional</span></div>
+                  <div class="meta">Auto-import rounds from BGStudio</div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <div class="form-grp"><label>BGStudio league name</label><input placeholder="leave empty to skip"></div>
+              </div>
+            </details>
+          </div>
+
+          <!-- PLAYERS -->
+          <div data-panel="players" data-tabset="nl" hidden>
+            <div class="filters">
+              <button class="f" aria-pressed="true">All</button>
+              <button class="f" aria-pressed="false">Last league</button>
+              <button class="f" aria-pressed="false">Active 2026</button>
+              <button class="f" aria-pressed="false">🇮🇱 IL only</button>
+            </div>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Pick players</div>
+                  <div class="meta">0 of 9-18 required</div>
+                  <div class="preview-strip">
+                    <span class="chip warn">0 picked · min 9</span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <table class="table">
+                  <thead><tr><th>Pick</th><th>Player</th><th>Last seen</th><th>Title</th></tr></thead>
+                  <tbody>
+                    <tr><td>☐</td><td>Avshalom 🇮🇱</td><td>Jun 2026</td><td>I2</td></tr>
+                    <tr><td>☐</td><td>Danny_k. 🇮🇱</td><td>Jun 2026</td><td>—</td></tr>
+                    <tr><td>☐</td><td>YossiE23 🇮🇱</td><td>Jun 2026</td><td>NC</td></tr>
+                    <tr><td>☐</td><td>GuyE. 🇮🇱</td><td>May 2026</td><td>—</td></tr>
+                  </tbody>
+                </table>
+                <button class="btn small ghost" style="margin-top:6px">+ Invite new player</button>
+              </div>
+            </details>
+          </div>
+
+          <!-- PRIZES -->
+          <div data-panel="prizes" data-tabset="nl" hidden>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Medals &amp; Prizes</div>
+                  <div class="meta">Total ₪950 · prefilled from last league</div>
+                  <div class="preview-strip">
+                    <span class="chip">🥇 ₪500</span>
+                    <span class="chip">🥈 ₪300</span>
+                    <span class="chip">🥉 ₪150</span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <table class="table">
+                  <tbody>
+                    <tr><td><span class="medal-cell" style="color:#d4a017">🥇 Gold</span></td><td class="ff-cell-edit"><input value="1"></td><td class="ff-cell-edit"><input value="500"></td></tr>
+                    <tr><td><span class="medal-cell" style="color:#9ca3af">🥈 Silver</span></td><td class="ff-cell-edit"><input value="1"></td><td class="ff-cell-edit"><input value="300"></td></tr>
+                    <tr><td><span class="medal-cell" style="color:#d97706">🥉 Bronze</span></td><td class="ff-cell-edit"><input value="1"></td><td class="ff-cell-edit"><input value="150"></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+
+          <!-- REVIEW -->
+          <div data-panel="review" data-tabset="nl" hidden>
+            <details class="disclose" open>
+              <summary>
+                <div>
+                  <div class="title">Review &amp; create</div>
+                  <div class="meta">All checks must pass</div>
+                  <div class="preview-strip">
+                    <span class="chip pos">Identity ✓</span>
+                    <span class="chip warn">Players: 0/9</span>
+                    <span class="chip pos">Prizes ✓</span>
+                  </div>
+                </div>
+                <span class="caret"></span>
+              </summary>
+              <div class="disclose-body">
+                <div style="font-size:12px;line-height:1.7">
+                  <b>July 2026</b> · DOUBLING · 25 rounds<br>
+                  <span style="color:var(--bad)">⚠ 0 players selected (need ≥9)</span><br>
+                  Prizes: ₪500/300/150
+                </div>
+                <button class="btn" style="margin-top:10px" disabled>Create league</button>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="commentary">
+    <section>
+      <h4>Gaps on NEW LEAGUE (Admin)</h4>
+      <ul>
+        <li><b>One long scrolling form</b> — admin can't see the player picker without scrolling past identity fields.</li>
+        <li><b>Validation lives at the bottom</b> — admin discovers "you need 9 players" only after pressing Create.</li>
+        <li><b>No draft state</b> — close the tab mid-create and start over.</li>
+        <li><b>No prefill</b> — Medals/Prizes typed manually every month even though they almost always copy from the last league.</li>
+        <li><b>Player picker has no filter</b> — 42 players in registry, admin scrolls all of them.</li>
+      </ul>
+    </section>
+    <section>
+      <h4>Fix</h4>
+      <ul>
+        <li><b>Wizard tabs <code>Basics → Players → Prizes → Review</code></b> with progress bar.</li>
+        <li><b>Live validation chips</b> in every summary (✓ / warn / error) — admin sees what's missing without opening.</li>
+        <li><b>Draft auto-saved</b> — pill in topbar shows DRAFT state.</li>
+        <li><b>Prizes prefilled</b> from last league with a "reset" button.</li>
+        <li><b>Player filter chips</b> — <code>All / Last league / Active 2026 / IL only</code>.</li>
+        <li><b>Review tab</b> aggregates all validation; Create button stays disabled until green.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<!-- ====================== PATTERN 1 — STICKY FIRST COL (#2) ====================== -->
+<div class="demo-page" data-page="pat-sticky">
+  <div class="stage">
+    <div class="pane">
+      <header><span class="pane-tag before">Before</span><span class="pane-title">Player name scrolls out of view</span></header>
+      <div class="phone phone-tight">
+        <div class="phone-scroll">
+          <div class="topnav"><span class="brand">League Table</span></div>
+          <div style="font-size:11px;color:var(--ink-mute);margin:0 0 6px">↔ Scroll the table right to see what happens</div>
+          <div class="stbl-wrap" id="stbl-before">
+            <table class="stbl">
+              <thead><tr>
+                <th>Player</th><th>GP</th><th>W</th><th>L</th><th>Win%</th><th>PR</th><th>Level</th><th>Luck</th>
+              </tr></thead>
+              <tbody>
+                <tr><td>Avshalom</td><td>2</td><td>2</td><td>0</td><td class="pos">100%</td><td>12.37</td><td>Adv.</td><td class="pos">5.04</td></tr>
+                <tr><td>Danny_k.</td><td>1</td><td>1</td><td>0</td><td class="pos">100%</td><td>18.63</td><td>Casual</td><td class="pos">3.72</td></tr>
+                <tr><td>YossiE23</td><td>13</td><td>10</td><td>3</td><td>76.9%</td><td>6.45</td><td>Expert</td><td>1.35</td></tr>
+                <tr><td>nadavd</td><td>4</td><td>3</td><td>1</td><td>75%</td><td>7.88</td><td>Adv.</td><td>1.79</td></tr>
+                <tr><td>GuyE.</td><td>7</td><td>5</td><td>2</td><td>71.4%</td><td>4.89</td><td>World</td><td>0.86</td></tr>
+                <tr><td>fridlich</td><td>10</td><td>5</td><td>5</td><td>50%</td><td>4.38</td><td>World</td><td class="neg">-0.12</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="annot" style="margin-top:10px"><b>Bug:</b> when scrolled right, only numbers visible. Which row is "5.04" on?</div>
+        </div>
+      </div>
+    </div>
+    <div class="pane">
+      <header><span class="pane-tag after">After</span><span class="pane-title">Player col is <code>position: sticky</code></span></header>
+      <div class="phone phone-tight">
+        <div class="phone-scroll">
+          <div class="topnav"><span class="brand">League Table</span></div>
+          <div style="font-size:11px;color:var(--ink-mute);margin:0 0 6px">↔ Scroll right — player name stays pinned + drop shadow appears</div>
+          <div class="stbl-wrap" id="stbl-after">
+            <table class="stbl">
+              <thead><tr>
+                <th class="stbl-sticky">Player</th><th>GP</th><th>W</th><th>L</th><th>Win%</th><th>PR</th><th>Level</th><th>Luck</th>
+              </tr></thead>
+              <tbody>
+                <tr><td class="stbl-sticky">Avshalom</td><td>2</td><td>2</td><td>0</td><td class="pos">100%</td><td>12.37</td><td>Adv.</td><td class="pos">5.04</td></tr>
+                <tr><td class="stbl-sticky">Danny_k.</td><td>1</td><td>1</td><td>0</td><td class="pos">100%</td><td>18.63</td><td>Casual</td><td class="pos">3.72</td></tr>
+                <tr><td class="stbl-sticky">YossiE23</td><td>13</td><td>10</td><td>3</td><td>76.9%</td><td>6.45</td><td>Expert</td><td>1.35</td></tr>
+                <tr><td class="stbl-sticky">nadavd</td><td>4</td><td>3</td><td>1</td><td>75%</td><td>7.88</td><td>Adv.</td><td>1.79</td></tr>
+                <tr><td class="stbl-sticky">GuyE.</td><td>7</td><td>5</td><td>2</td><td>71.4%</td><td>4.89</td><td>World</td><td>0.86</td></tr>
+                <tr><td class="stbl-sticky">fridlich</td><td>10</td><td>5</td><td>5</td><td>50%</td><td>4.38</td><td>World</td><td class="neg">-0.12</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="margin-top:10px;font-size:11px;color:var(--ink-mute);padding:8px;background:var(--line-soft);border-radius:6px">
+            <b>CSS:</b> <code>.stbl-sticky &#123; position: sticky; inset-inline-start: 0; background: var(--surface); z-index: 2 &#125;</code><br>
+            Plus a JS scroll-watcher that adds <code>.scrolled</code> to the wrapper → drop-shadow appears via <code>::after</code>.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="commentary">
+    <section>
+      <h4>Issue #2 — Sticky first col</h4>
+      <ul>
+        <li>League table on mobile has 9 columns + a 360px viewport. Any horizontal scroll right makes the Player column slide off-screen.</li>
+        <li>Once player names are gone, the numeric grid is meaningless — you can't tell whose 5.04 Luck you're looking at.</li>
+        <li>The codebase already has <code>stickyCols</code> support in the MF format — it's just not wired for production league pages.</li>
+      </ul>
+    </section>
+    <section>
+      <h4>The fix</h4>
+      <ul>
+        <li>Pin the Player column with <code>position: sticky; inset-inline-start: 0</code>. Background must be opaque so cells below don't bleed through.</li>
+        <li>Use a JS <code>scroll</code> listener (debounced) on the wrap to add <code>.is-scrolled-x</code> when <code>scrollLeft &gt; 0</code> — that triggers the shadow.</li>
+        <li><b>v2 mapping:</b> the existing <code>stickyShadow.js</code> module lives in <code>src/tables/MFTable/</code>. Auto-enable it for all D/E presets on viewports &lt; 768px.</li>
+        <li>For RTL pages this works automatically because <code>inset-inline-start</code> is logical-property, not <code>left</code>.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<!-- ====================== PATTERN 2 — EMPTY STATE / SKELETON (#3) ====================== -->
+<div class="demo-page" data-page="pat-empty">
+  <div class="stage">
+    <div class="pane">
+      <header><span class="pane-tag before">Before</span><span class="pane-title">Em-dashes &amp; blank flash</span></header>
+      <div class="phone phone-tight">
+        <div class="phone-scroll">
+          <div class="topnav"><span class="brand">YossiE23 — Matches</span></div>
+          <div class="annot"><b>Issue 3a:</b> upcoming matches look identical to played ones — 5 em-dashes per row, no visual cue</div>
+          <table class="table" style="margin-bottom:10px">
+            <thead><tr><th>Opp</th><th>Score</th><th>PR</th><th>Luck</th><th>Result</th></tr></thead>
+            <tbody>
+              <tr><td>GS18671</td><td>7–5</td><td class="num">5.26</td><td class="num">-0.01</td><td class="pos">WIN</td></tr>
+              <tr><td>Hummus</td><td>7–6</td><td class="num">9.43</td><td class="num">1.65</td><td class="pos">WIN</td></tr>
+              <tr><td>Avi</td><td>—</td><td class="num">—</td><td class="num">—</td><td>—</td></tr>
+              <tr><td>Avshalom</td><td>—</td><td class="num">—</td><td class="num">—</td><td>—</td></tr>
+              <tr><td>Danny_kondrea</td><td>—</td><td class="num">—</td><td class="num">—</td><td>—</td></tr>
+              <tr><td>GuyEliyahu</td><td>—</td><td class="num">—</td><td class="num">—</td><td>—</td></tr>
+            </tbody>
+          </table>
+
+          <div class="annot"><b>Issue 3b:</b> while data is fetching, the table area is blank</div>
+          <div class="blank-flash">(no content shown · just white space)</div>
+        </div>
+      </div>
+    </div>
+    <div class="pane">
+      <header><span class="pane-tag after">After</span><span class="pane-title">Muted "Upcoming" band + shimmer skeleton</span></header>
+      <div class="phone phone-tight">
+        <div class="phone-scroll">
+          <div class="topnav"><span class="brand">YossiE23 — Matches</span></div>
+          <div class="toggle-row">
+            <label class="switch">
+              <input type="checkbox" id="show-upcoming">
+              <span class="track"></span>
+            </label>
+            <span>Show upcoming matches</span>
+            <span style="margin-inline-start:auto;font-size:10px;color:var(--ink-quiet)">(4 hidden)</span>
+          </div>
+          <table class="table" style="margin-bottom:10px" id="tbl-with-upcoming">
+            <thead><tr><th>Opp</th><th>Score</th><th>PR</th><th>Luck</th><th>Result</th></tr></thead>
+            <tbody>
+              <tr><td>GS18671</td><td>7–5</td><td class="num">5.26</td><td class="num">-0.01</td><td class="pos">WIN</td></tr>
+              <tr><td>Hummus 🇧🇪</td><td>7–6</td><td class="num">9.43</td><td class="num">1.65</td><td class="pos">WIN</td></tr>
+              <tr class="upcoming" hidden><td>Avi <span class="upcoming-badge">Upcoming</span></td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+              <tr class="upcoming" hidden><td>Avshalom <span class="upcoming-badge">Upcoming</span></td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+              <tr class="upcoming" hidden><td>Danny_kondrea <span class="upcoming-badge">Upcoming</span></td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+              <tr class="upcoming" hidden><td>GuyEliyahu <span class="upcoming-badge">Upcoming</span></td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+            </tbody>
+          </table>
+
+          <div style="font-size:11px;color:var(--ink-mute);margin:0 0 6px">Loading state — shimmer skeleton:</div>
+          <div style="display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--surface);border:1px solid var(--line);border-radius:6px">
+            <span class="skel bar"></span>
+            <span class="skel long"></span>
+            <span class="skel short"></span>
+            <span class="skel long"></span>
+            <span class="skel short"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="commentary">
+    <section>
+      <h4>Issue #3 — Empty state &amp; skeleton</h4>
+      <ul>
+        <li><b>Upcoming matches</b> render as fully-styled rows with em-dashes — visually identical to "0 to 0" played matches.</li>
+        <li>The user can't tell at a glance: "Did Avi play and lose 0–0? Or hasn't he played yet?"</li>
+        <li><b>Loading state</b> = blank white area until JS finishes. Causes content-flash, especially on slow 3G or the first page load.</li>
+      </ul>
+    </section>
+    <section>
+      <h4>The fix</h4>
+      <ul>
+        <li><b>Upcoming = muted band</b> with diagonal stripe pattern + an "Upcoming" pill in the Opp cell. Italic text + quiet color.</li>
+        <li><b>Default-hidden toggle</b> "Show upcoming matches" — the player tracking their season cares about played, not unplayed.</li>
+        <li><b>Skeleton loader</b> using a shimmer animation (linear-gradient + <code>background-position</code> keyframe). Matches the eventual layout: 1 chart-stub bar + 4 row-stripes. Zero layout shift when real data lands.</li>
+        <li><b>v2 mapping:</b> add <code>SkeletonRow</code> primitive + <code>Toggle</code> primitive to <code>src/primitives/</code>. The MF preset gains <code>upcomingFilter: 'hide-by-default' | 'show'</code> arg.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<!-- ====================== PATTERN 3 — TILE GRID RESPONSIVE (#6) ====================== -->
+<div class="demo-page" data-page="pat-tiles">
+  <div class="stage">
+    <div class="pane">
+      <header><span class="pane-tag before">Before</span><span class="pane-title">3 tiles in a row · last one clipped</span></header>
+      <div class="phone" style="width:320px">
+        <div class="topnav"><span class="brand">June 2026</span></div>
+        <div class="hero" style="margin-bottom:0">
+          <h2 style="font-size:18px">Dashboard</h2>
+          <div class="tile-grid-bad">
+            <div class="tile"><div class="k">Games</div><div class="v">111/300</div></div>
+            <div class="tile"><div class="k">Avg PR</div><div class="v">10.49</div></div>
+            <div class="tile"><div class="k">Leading</div><div class="v">Avshalo</div></div>
+          </div>
+          <div class="annot" style="margin-top:8px"><b>"Leading Player" clips:</b> last 40px of the value hidden by viewport edge</div>
+        </div>
+      </div>
+    </div>
+    <div class="pane">
+      <header><span class="pane-tag after">After</span><span class="pane-title">Grid auto-fits to 2 cols below 360px</span></header>
+      <div class="phone" style="width:320px">
+        <div class="topnav"><span class="brand">June 2026</span></div>
+        <div class="hero" style="margin-bottom:0">
+          <h2 style="font-size:18px">Dashboard</h2>
+          <div class="tile-grid-good">
+            <div class="tile"><div class="k">Games</div><div class="v">111/300</div></div>
+            <div class="tile"><div class="k">Avg PR</div><div class="v">10.49</div></div>
+            <div class="tile" style="grid-column:1 / -1"><div class="k">Leading player</div><div class="v">Avshalom</div></div>
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:var(--ink-mute);padding:8px;background:var(--line-soft);border-radius:6px">
+            <b>CSS:</b> <code>grid-template-columns: repeat(auto-fit, minmax(140px, 1fr))</code>. The "Leading" tile spans full width — its label naturally wants more horizontal room.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="commentary">
+    <section>
+      <h4>Issue #6 — Tile-row overflow on narrow viewports</h4>
+      <ul>
+        <li>Dashboard hero renders 3-4 tiles in a single flex row. On iPhone SE (320px), the third tile's content clips horizontally.</li>
+        <li><b>Player names</b> (which sit in the "Leading" tile) are unpredictable in width — "Y" is short, "Danny_kondrea" is long. Fixed widths can't accommodate.</li>
+        <li>This is an <b>anti-pattern</b>: the user sees half a name and assumes the data is corrupted.</li>
+      </ul>
+    </section>
+    <section>
+      <h4>The fix</h4>
+      <ul>
+        <li>Replace flex-row with <b>CSS Grid auto-fit</b>: <code>grid-template-columns: repeat(auto-fit, minmax(140px, 1fr))</code>.</li>
+        <li>Tiles whose content is name-shaped (Leading, Top scorer, etc.) get <code>grid-column: 1 / -1</code> at narrow widths via a container query, or use a CSS variable.</li>
+        <li><b>Iron rule for v2:</b> any tile holding a player name <i>must</i> use a flexible grid cell — never a fixed-column flex item.</li>
+        <li><b>v2 mapping:</b> <code>TileGrid</code> component in <code>src/components/</code> with prop <code>fullWidthSlots: ['leading', 'topScorer']</code>.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<!-- ====================== PATTERN 4 — DENSITY TOGGLE (#7) ====================== -->
+<div class="demo-page" data-page="pat-density">
+  <div class="stage">
+    <div class="pane">
+      <header><span class="pane-tag before">Before</span><span class="pane-title">Fixed row height · 17 rows · long scroll</span></header>
+      <div class="phone phone-tight">
+        <div class="phone-scroll">
+          <div class="topnav"><span class="brand">League — Comfortable only</span></div>
+          <table class="table">
+            <thead><tr><th>#</th><th>Player</th><th>W</th><th>Win%</th><th>PR</th></tr></thead>
+            <tbody>
+              <tr class="row-g"><td>1</td><td>Avshalom</td><td class="num">2</td><td class="num pos">100%</td><td class="num">12.37</td></tr>
+              <tr class="row-s"><td>2</td><td>Danny_k.</td><td class="num">1</td><td class="num pos">100%</td><td class="num">18.63</td></tr>
+              <tr class="row-b"><td>3</td><td>YossiE23</td><td class="num">10</td><td class="num">76.9%</td><td class="num">6.45</td></tr>
+              <tr><td>4</td><td>nadavd</td><td class="num">3</td><td class="num">75%</td><td class="num">7.88</td></tr>
+              <tr><td>5</td><td>GuyE.</td><td class="num">5</td><td class="num">71.4%</td><td class="num">4.89</td></tr>
+              <tr><td>6</td><td>Moriarty</td><td class="num">5</td><td class="num">71.4%</td><td class="num">8.35</td></tr>
+              <tr><td>7</td><td>PitCad14</td><td class="num">12</td><td class="num">66.7%</td><td class="num">9.43</td></tr>
+              <tr><td>8</td><td>sagivq.</td><td class="num">3</td><td class="num">60%</td><td class="num">13.98</td></tr>
+            </tbody>
+          </table>
+          <div class="annot" style="margin-top:10px">8 visible rows · power users want compact mode to see 14+</div>
+        </div>
+      </div>
+    </div>
+    <div class="pane">
+      <header><span class="pane-tag after">After</span><span class="pane-title">3-state density toggle (try it!)</span></header>
+      <div class="phone phone-tight">
+        <div class="phone-scroll">
+          <div class="topnav"><span class="brand">League</span></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:11px">
+            <span style="color:var(--ink-mute);font-weight:600">Density:</span>
+            <div class="density-toggle" id="density-toggle">
+              <button data-d="compact">Compact</button>
+              <button data-d="comfortable" aria-pressed="true">Comfortable</button>
+              <button data-d="spacious">Spacious</button>
+            </div>
+          </div>
+          <table class="table dtbl" id="density-table" data-d="comfortable">
+            <thead><tr><th>#</th><th>Player</th><th>W</th><th>Win%</th><th>PR</th></tr></thead>
+            <tbody>
+              <tr class="row-g"><td>1</td><td>Avshalom</td><td class="num">2</td><td class="num pos">100%</td><td class="num">12.37</td></tr>
+              <tr class="row-s"><td>2</td><td>Danny_k.</td><td class="num">1</td><td class="num pos">100%</td><td class="num">18.63</td></tr>
+              <tr class="row-b"><td>3</td><td>YossiE23</td><td class="num">10</td><td class="num">76.9%</td><td class="num">6.45</td></tr>
+              <tr><td>4</td><td>nadavd</td><td class="num">3</td><td class="num">75%</td><td class="num">7.88</td></tr>
+              <tr><td>5</td><td>GuyE.</td><td class="num">5</td><td class="num">71.4%</td><td class="num">4.89</td></tr>
+              <tr><td>6</td><td>Moriarty</td><td class="num">5</td><td class="num">71.4%</td><td class="num">8.35</td></tr>
+              <tr><td>7</td><td>PitCad14</td><td class="num">12</td><td class="num">66.7%</td><td class="num">9.43</td></tr>
+              <tr><td>8</td><td>sagivq.</td><td class="num">3</td><td class="num">60%</td><td class="num">13.98</td></tr>
+              <tr><td>9</td><td>fridlich</td><td class="num">5</td><td class="num">50%</td><td class="num">4.38</td></tr>
+              <tr><td>10</td><td>ys</td><td class="num">4</td><td class="num">50%</td><td class="num">5.09</td></tr>
+              <tr><td>11</td><td>bardak65</td><td class="num">7</td><td class="num">50%</td><td class="num">12.08</td></tr>
+              <tr><td>12</td><td>Ran1976</td><td class="num">7</td><td class="num">50%</td><td class="num">12.79</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="commentary">
+    <section>
+      <h4>Issue #7 — Missing density control</h4>
+      <ul>
+        <li>Modern data tools (GitHub, Linear, Notion, Airtable) all expose a density toggle. Reason: viewing tasks differs from scanning a leaderboard.</li>
+        <li>With 17 players in a league, a power user comparing PR across the field wants <b>compact mode</b> (10.5px font, 2px padding) to see everyone without scrolling.</li>
+        <li>A casual visitor checking on their own rank wants <b>comfortable</b> default for readability.</li>
+      </ul>
+    </section>
+    <section>
+      <h4>The fix</h4>
+      <ul>
+        <li>3-state segmented toggle: <code>compact / comfortable / spacious</code>. Persist to <code>localStorage["shabi-density"]</code>.</li>
+        <li>Implement via <code>data-d</code> attribute on the table → CSS selectors adjust <code>padding</code> + <code>font-size</code>.</li>
+        <li><b>Iron rule:</b> density tokens are scoped — <code>--row-h-compact</code>, <code>--row-h-comfortable</code>, <code>--row-h-spacious</code>. Components read whichever the parent table specifies.</li>
+        <li><b>v2 mapping:</b> <code>DensityToggle</code> primitive + <code>density</code> arg on every table preset. Default = comfortable.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<!-- ====================== PATTERN 5 — CHART TOOLTIP (#8) ====================== -->
+<div class="demo-page" data-page="pat-chart">
+  <div class="stage">
+    <div class="pane">
+      <header><span class="pane-tag before">Before</span><span class="pane-title">Static info-panel under the chart</span></header>
+      <div class="phone phone-tight">
+        <div class="phone-scroll">
+          <div class="topnav"><span class="brand">Player insights</span></div>
+          <div style="font-size:11px;color:var(--ink-mute);margin-bottom:6px">PR trend — last 13 matches</div>
+          <div class="chart-host" id="chart-before">
+            <div class="bar" style="height:55%"></div>
+            <div class="bar loss" style="height:78%"></div>
+            <div class="bar" style="height:42%"></div>
+            <div class="bar" style="height:65%"></div>
+            <div class="bar loss" style="height:88%"></div>
+            <div class="bar" style="height:52%"></div>
+            <div class="bar" style="height:71%"></div>
+            <div class="bar loss" style="height:39%"></div>
+            <div class="bar" style="height:60%"></div>
+            <div class="bar" style="height:80%"></div>
+          </div>
+          <div class="static-info">Hover or click a match to see details</div>
+          <div class="annot" style="margin-top:8px"><b>Problem:</b> hover a bar — nothing happens. Click — info appears way below the chart, eyes have to dart.</div>
+        </div>
+      </div>
+    </div>
+    <div class="pane">
+      <header><span class="pane-tag after">After</span><span class="pane-title">Floating tooltip attached to cursor</span></header>
+      <div class="phone phone-tight">
+        <div class="phone-scroll">
+          <div class="topnav"><span class="brand">Player insights</span></div>
+          <div style="font-size:11px;color:var(--ink-mute);margin-bottom:6px">PR trend — hover any bar</div>
+          <div class="chart-host" id="chart-after">
+            <div class="bar" data-tip="Match 1 · vs Yannay · W · PR 5.5" style="height:55%"></div>
+            <div class="bar loss" data-tip="Match 2 · vs PitCad14 · L · PR 7.8" style="height:78%"></div>
+            <div class="bar" data-tip="Match 3 · vs UziM · W · PR 4.2" style="height:42%"></div>
+            <div class="bar" data-tip="Match 4 · vs Hummus · W · PR 6.5" style="height:65%"></div>
+            <div class="bar loss" data-tip="Match 5 · vs Idan · L · PR 8.8" style="height:88%"></div>
+            <div class="bar" data-tip="Match 6 · vs Avshalom · W · PR 5.2" style="height:52%"></div>
+            <div class="bar" data-tip="Match 7 · vs ys · W · PR 7.1" style="height:71%"></div>
+            <div class="bar loss" data-tip="Match 8 · vs Sagiv · L · PR 3.9" style="height:39%"></div>
+            <div class="bar" data-tip="Match 9 · vs Moriarty · W · PR 6.0" style="height:60%"></div>
+            <div class="bar" data-tip="Match 10 · vs nadav · W · PR 8.0" style="height:80%"></div>
+            <div class="floating-tip" id="floating-tip">Tooltip</div>
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:var(--ink-mute);padding:8px;background:var(--line-soft);border-radius:6px">
+            <b>Behavior:</b> tooltip follows the bar position, contains all match details inline. No eye-darting.<br>
+            Touch: tap once = show tooltip, tap elsewhere = dismiss.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="commentary">
+    <section>
+      <h4>Issue #8 — Chart hover affordance</h4>
+      <ul>
+        <li>Today's player chart sets a placeholder text "Hover or click a match to see details" but the details panel is rendered <b>below</b> the chart.</li>
+        <li>The user has to: hover bar 5 → look down 80px → read details → look back up → hover bar 6 → repeat. 12 round-trips for 12 matches.</li>
+        <li>Standard for 2026 (Posthog, Datadog, Grafana, Linear charts) is: <b>tooltip floats next to the cursor</b>.</li>
+      </ul>
+    </section>
+    <section>
+      <h4>The fix</h4>
+      <ul>
+        <li>Tooltip is a single <code>position: absolute</code> element inside the chart container. JS reads <code>mouseenter</code> on each bar, sets the tooltip's <code>left</code> to the bar's center, sets text, toggles <code>[data-visible]</code>.</li>
+        <li>Tooltip is <code>pointer-events: none</code> so it doesn't steal hover from neighboring bars.</li>
+        <li>Caret arrow points down at the bar via <code>::after</code> triangle.</li>
+        <li><b>v2 mapping:</b> the <code>ChartTooltip</code> component already exists in the PLAN.md component list (Phase 3). This pattern is its acceptance criterion.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<!-- ====================== PATTERN 6 — HEADER DENSITY (#9) ====================== -->
+<div class="demo-page" data-page="pat-header">
+  <div class="stage">
+    <div class="pane">
+      <header><span class="pane-tag before">Before</span><span class="pane-title">~120px vertical chrome on every page</span></header>
+      <div class="phone phone-tight">
+        <div class="phone-scroll">
+          <div class="topnav topnav-loud" style="background:var(--brand);color:var(--gold);border-radius:14px;margin-bottom:8px">
+            <span style="font-size:16px">Shabi Israel</span>
+            <span class="leagues-btn">Leagues ▾</span>
+          </div>
+          <div style="margin-bottom:6px"><span class="px-ruler" style="width:100%" data-label="64px topbar"></span></div>
+          <div class="breadcrumb-loud">Home › <b style="color:var(--ink)">June 2026</b> › League Table</div>
+          <div style="margin-bottom:6px"><span class="px-ruler" style="width:100%" data-label="56px breadcrumb"></span></div>
+          <div class="annot"><b>Total:</b> 120px wasted before any data. On 568px iPhone SE that's 21% of viewport.</div>
+          <div style="margin-top:10px;padding:14px;background:var(--line-soft);border-radius:8px;font-size:11px;color:var(--ink-mute);text-align:center;font-style:italic">
+            ↓ actual content starts here ↓
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane">
+      <header><span class="pane-tag after">After</span><span class="pane-title">44px combined · inline breadcrumb</span></header>
+      <div class="phone phone-tight">
+        <div class="phone-scroll">
+          <div class="topnav-tight">
+            <span>Shabi Israel</span>
+            <span class="crumb">› June 2026 › <b>League</b></span>
+            <span class="leagues-btn" style="margin-inline-start:auto">≡</span>
+          </div>
+          <div style="margin-bottom:8px"><span class="px-ruler px-ruler-good" style="width:50%" data-label="44px total"></span></div>
+          <div style="margin-top:10px;padding:14px;background:var(--line-soft);border-radius:8px;font-size:11px;color:var(--ink-mute);text-align:center;font-style:italic">
+            ↓ content starts here · 76px earlier ↓
+          </div>
+          <div style="margin-top:10px;font-size:11px;color:var(--ink-mute);padding:8px;background:var(--line-soft);border-radius:6px">
+            <b>Pattern:</b> breadcrumb collapses into the topbar as quiet text. Logo + breadcrumb in one 44px line.<br>
+            <b>Reference:</b> Linear, Cron, Things 3.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="commentary">
+    <section>
+      <h4>Issue #9 — Visual loudness in headers</h4>
+      <ul>
+        <li>Current top-bar: 64px height. Breadcrumbs below it: another 56px. Total: 120px every single page before any data renders.</li>
+        <li>On a 568px iPhone SE viewport, that's <b>21% of the screen</b> dedicated to navigation chrome the user has already used to get here.</li>
+        <li>The gold-on-dark-green palette is correct for brand, but the height/density ratio is from 2018 not 2026.</li>
+      </ul>
+    </section>
+    <section>
+      <h4>The fix</h4>
+      <ul>
+        <li>Collapse to a <b>44px top-bar</b> (the iOS/macOS sweet spot) with breadcrumb inline as quiet text.</li>
+        <li>Logo on left → breadcrumb in middle (font-weight: 500, opacity: 0.75) → actions on right.</li>
+        <li>The current "Leagues ▾" button moves into a kebab/hamburger menu since it's a secondary action.</li>
+        <li><b>v2 mapping:</b> <code>Navigation</code> + <code>Breadcrumbs</code> compose into a single 44px row. Logical height token: <code>--h-nav: 44px</code>.</li>
+        <li><b>Saved per page:</b> 76px = roughly one extra table row visible above the fold.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<!-- ====================== PATTERN 7 — KEYBOARD NAVIGATION (#10) ====================== -->
+<div class="demo-page" data-page="pat-keyboard">
+  <div class="stage">
+    <div class="pane">
+      <header><span class="pane-tag before">Before</span><span class="pane-title">No focus ring · no aria-sort indicator</span></header>
+      <div class="phone phone-tight">
+        <div class="phone-scroll">
+          <div class="topnav"><span class="brand">League — keyboard?</span></div>
+          <table class="table">
+            <thead><tr><th>Player</th><th>W</th><th>Win%</th><th>PR</th></tr></thead>
+            <tbody>
+              <tr><td>Avshalom</td><td class="num">2</td><td class="num pos">100%</td><td class="num">12.37</td></tr>
+              <tr><td>Danny_k.</td><td class="num">1</td><td class="num pos">100%</td><td class="num">18.63</td></tr>
+              <tr><td>YossiE23</td><td class="num">10</td><td class="num">76.9%</td><td class="num">6.45</td></tr>
+              <tr><td>nadavd</td><td class="num">3</td><td class="num">75%</td><td class="num">7.88</td></tr>
+            </tbody>
+          </table>
+          <div class="annot" style="margin-top:10px">
+            <b>Press Tab</b> — there's no visible focus on rows or column headers. <b>Press ↓</b> — nothing. <b>Click a column</b> — it sorts but no arrow appears.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane">
+      <header><span class="pane-tag after">After</span><span class="pane-title">J/K row nav · visible sort · focus ring</span></header>
+      <div class="phone phone-tight">
+        <div class="phone-scroll">
+          <div class="topnav"><span class="brand">League — focus me!</span></div>
+          <table class="table ktbl" id="ktbl">
+            <thead><tr>
+              <th aria-sort="none" tabindex="0" data-col="player">Player</th>
+              <th aria-sort="none" tabindex="0" data-col="w">W</th>
+              <th aria-sort="ascending" tabindex="0" data-col="win">Win%</th>
+              <th aria-sort="none" tabindex="0" data-col="pr">PR</th>
+            </tr></thead>
+            <tbody>
+              <tr tabindex="0" data-row="0"><td>Avshalom</td><td class="num">2</td><td class="num pos">100%</td><td class="num">12.37</td></tr>
+              <tr tabindex="0" data-row="1"><td>Danny_k.</td><td class="num">1</td><td class="num pos">100%</td><td class="num">18.63</td></tr>
+              <tr tabindex="0" data-row="2"><td>YossiE23</td><td class="num">10</td><td class="num">76.9%</td><td class="num">6.45</td></tr>
+              <tr tabindex="0" data-row="3"><td>nadavd</td><td class="num">3</td><td class="num">75%</td><td class="num">7.88</td></tr>
+            </tbody>
+          </table>
+          <div class="kbd-overlay">
+            <div><kbd>J</kbd> / <kbd>K</kbd> next/prev row · <kbd>↑</kbd>/<kbd>↓</kbd> arrows work too</div>
+            <div><kbd>1</kbd>-<kbd>4</kbd> jump to column N · <kbd>S</kbd> toggle sort</div>
+            <div><kbd>Enter</kbd> open player · <kbd>?</kbd> show all shortcuts</div>
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:var(--ink-mute);text-align:center">
+            Click anywhere in the table and press <kbd style="background:var(--surface);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px;font-family:ui-monospace,monospace;font-size:10px">J</kbd> / <kbd style="background:var(--surface);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px;font-family:ui-monospace,monospace;font-size:10px">K</kbd> to navigate rows
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="commentary">
+    <section>
+      <h4>Issue #10 — Keyboard navigation &amp; ARIA</h4>
+      <ul>
+        <li>Today's tables have <i>some</i> keyboard support via <code>tabindex</code> but no visible <code>:focus-visible</code> ring — keyboard users get no signal where they are.</li>
+        <li>Sortable columns don't render a visual sort indicator (▲/▼) even when <code>aria-sort</code> is set in the DOM — screen-reader-only.</li>
+        <li>No vim-style row navigation (<kbd>J</kbd>/<kbd>K</kbd>) like GitHub / Linear / Superhuman.</li>
+      </ul>
+    </section>
+    <section>
+      <h4>The fix</h4>
+      <ul>
+        <li><b>Visible focus ring:</b> <code>tbody tr:focus-visible &#123; outline: 2px solid var(--brand); outline-offset: -2px &#125;</code>. Plus an inset-shadow stripe on the leading edge so it's obvious even on row tints.</li>
+        <li><b>Sort indicators</b> via CSS attribute selectors: <code>th[aria-sort="ascending"]::after &#123; content: " ▲" &#125;</code>. The DOM stays the source of truth — CSS just reveals it.</li>
+        <li><b>J/K hotkeys</b> wired at the table level via <code>keydown</code> listener — focus moves to next <code>[tabindex="0"]</code> row.</li>
+        <li><b><code>?</code> key</b> opens a shortcut overlay listing all bindings.</li>
+        <li><b>v2 mapping:</b> shared <code>useTableKeyboard.js</code> hook applied by MFTable/SFTable mount fns. Axe-core test in <code>tests/a11y/</code>: every table must pass keyboard + aria-sort.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<!-- ====================== shared script ====================== -->
+<script>
+  // PAGE PICKER + hashchange
+  const pageButtons = document.querySelectorAll('.page-picker button');
+  const demoPages   = document.querySelectorAll('.demo-page');
+  function showPage(name) {
+    pageButtons.forEach(b => b.setAttribute('aria-current', b.dataset.page === name ? 'page' : 'false'));
+    demoPages.forEach(p => {
+      if (p.dataset.page === name) p.setAttribute('data-active','');
+      else p.removeAttribute('data-active');
+    });
+    if (location.hash.replace('#','') !== name) location.hash = name;
+  }
+  pageButtons.forEach(b => b.addEventListener('click', () => showPage(b.dataset.page)));
+  function syncFromHash() {
+    if (!location.hash) return;
+    const want = location.hash.replace('#','');
+    if ([...pageButtons].some(b => b.dataset.page === want)) showPage(want);
+  }
+  syncFromHash();
+  window.addEventListener('hashchange', syncFromHash);
+
+  // INNER TABS
+  function activateTab(tabset, name) {
+    document.querySelectorAll(`.tabs[data-tabset="${tabset}"] [role="tab"]`).forEach(t => {
+      t.setAttribute('aria-selected', t.dataset.tab === name ? 'true' : 'false');
+    });
+    document.querySelectorAll(`[data-panel][data-tabset="${tabset}"]`).forEach(p => {
+      p.hidden = p.dataset.panel !== name;
+    });
+  }
+  document.querySelectorAll('.tabs[data-tabset] [role="tab"]').forEach(t => {
+    const tabset = t.closest('.tabs').dataset.tabset;
+    t.addEventListener('click', () => activateTab(tabset, t.dataset.tab));
+  });
+
+  // HOTKEYS — numeric keys map to active demo's tabs
+  document.addEventListener('keydown', e => {
+    if (e.target.matches('input,textarea,select')) return;
+    const activeDemo = document.querySelector('.demo-page[data-active]');
+    if (!activeDemo) return;
+    const tabset = activeDemo.querySelector('.tabs[data-tabset]')?.dataset.tabset;
+    if (!tabset) return;
+    const tabs = [...document.querySelectorAll(`.tabs[data-tabset="${tabset}"] [role="tab"]`)];
+    const idx = parseInt(e.key, 10) - 1;
+    if (idx >= 0 && idx < tabs.length) activateTab(tabset, tabs[idx].dataset.tab);
+  });
+
+  // FILTER CHIPS (single-select per group)
+  document.querySelectorAll('.filters').forEach(group => {
+    group.querySelectorAll('.f').forEach(b => b.addEventListener('click', () => {
+      group.querySelectorAll('.f').forEach(o => o.setAttribute('aria-pressed','false'));
+      b.setAttribute('aria-pressed','true');
+    }));
+  });
+
+  // ========================================================================
+  // PATTERN DEMO INTERACTIONS
+  // ========================================================================
+
+  // #2 Sticky col — scroll watcher
+  document.querySelectorAll('.stbl-wrap').forEach(wrap => {
+    wrap.addEventListener('scroll', () => {
+      wrap.classList.toggle('scrolled', wrap.scrollLeft > 4);
+    });
+  });
+
+  // #3 Upcoming toggle
+  const showUp = document.getElementById('show-upcoming');
+  if (showUp) {
+    const update = () => {
+      document.querySelectorAll('#tbl-with-upcoming tr.upcoming').forEach(r => {
+        r.hidden = !showUp.checked;
+      });
+    };
+    showUp.addEventListener('change', update);
+  }
+
+  // #7 Density toggle
+  const dt = document.getElementById('density-toggle');
+  const dtbl = document.getElementById('density-table');
+  if (dt && dtbl) {
+    dt.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        dt.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed','false'));
+        btn.setAttribute('aria-pressed','true');
+        dtbl.setAttribute('data-d', btn.dataset.d);
+      });
+    });
+  }
+
+  // #8 Chart floating tooltip
+  const tip = document.getElementById('floating-tip');
+  const chartAfter = document.getElementById('chart-after');
+  if (tip && chartAfter) {
+    const hostRect = () => chartAfter.getBoundingClientRect();
+    chartAfter.querySelectorAll('.bar').forEach(bar => {
+      const show = (e) => {
+        const text = bar.dataset.tip;
+        if (!text) return;
+        tip.textContent = text;
+        const br = bar.getBoundingClientRect();
+        const hr = hostRect();
+        tip.style.left = (br.left + br.width / 2 - hr.left) + 'px';
+        tip.style.top  = (br.top - hr.top - 6) + 'px';
+        tip.setAttribute('data-visible','');
+      };
+      bar.addEventListener('mouseenter', show);
+      bar.addEventListener('mousemove', show);
+      bar.addEventListener('click', show);
+    });
+    chartAfter.addEventListener('mouseleave', () => tip.removeAttribute('data-visible'));
+  }
+
+  // #10 Keyboard navigation on the after-table
+  const ktbl = document.getElementById('ktbl');
+  if (ktbl) {
+    const rows = [...ktbl.querySelectorAll('tbody tr')];
+    let focusIdx = -1;
+    function focusRow(i) {
+      if (i < 0 || i >= rows.length) return;
+      rows.forEach(r => r.classList.remove('kbd-focus'));
+      rows[i].classList.add('kbd-focus');
+      rows[i].focus();
+      focusIdx = i;
+    }
+    rows.forEach((r, i) => {
+      r.addEventListener('focus', () => { focusIdx = i; rows.forEach(x => x.classList.remove('kbd-focus')); r.classList.add('kbd-focus'); });
+      r.addEventListener('blur',  () => r.classList.remove('kbd-focus'));
+    });
+    ktbl.addEventListener('keydown', e => {
+      if (e.target.matches('input,textarea,select')) return;
+      const k = e.key.toLowerCase();
+      if (k === 'j' || e.key === 'ArrowDown') { e.preventDefault(); focusRow(Math.min(focusIdx + 1, rows.length - 1) || 0); }
+      else if (k === 'k' || e.key === 'ArrowUp')   { e.preventDefault(); focusRow(Math.max(focusIdx - 1, 0)); }
+    });
+    // Sort toggling on the header
+    ktbl.querySelectorAll('thead th').forEach(th => {
+      th.addEventListener('click', () => {
+        const cur = th.getAttribute('aria-sort');
+        ktbl.querySelectorAll('thead th').forEach(o => o.setAttribute('aria-sort','none'));
+        th.setAttribute('aria-sort', cur === 'ascending' ? 'descending' : 'ascending');
+      });
+      th.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); th.click(); }
+      });
+    });
+  }
+</script>
+</body>
+</html>
