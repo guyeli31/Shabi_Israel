@@ -4,7 +4,15 @@
 
 The site is currently fully static — CSV/JSON data files served from GitHub Pages, admin publishes via GitHub API. We're transitioning to Supabase (PostgreSQL) so the Admin can update data through a web UI without touching Git. The browser still does all computation (Heavy Client). GitHub Pages stays as the hosting layer, synced from DB.
 
-**Auth method**: Email + password (guyeli31@gmail.com) via Supabase Auth.
+**Auth method**: Email + password (configurable admin account, e.g. guyeli31@gmail.com) via Supabase Auth.
+
+### Core architecture principle (decided 2026-06-07)
+
+**The admin browser talks ONLY to the server (Supabase). It never holds a GitHub PAT.**
+The GitHub token lives server-side as an Edge Function secret; the Edge Function is the only thing that commits to GitHub. Consequences:
+- No GitHub repo/PAT configuration in the client.
+- The **Settings tab is removed entirely** — there is nothing left for it to configure.
+- Settings removal happens at **cutover (Phase 7)**, *after* the Supabase write path replaces the current PAT-based Publish. Until then, the existing direct-to-GitHub Publish keeps working unchanged.
 
 ---
 
@@ -59,6 +67,32 @@ The SQL includes:
 2. In Authentication → Users → confirm admin user exists
 3. Give Claude the `SUPABASE_URL` and `SUPABASE_ANON_KEY` (safe to share)
 4. **Keep `SERVICE_ROLE_KEY` private** — only for local migration script and Edge Functions
+
+---
+
+## Local Development Environment (cross-cutting — set up alongside Phase 0)
+
+**Goal:** keep the current `http://localhost:8090/` preview habit, while developing against data *without ever risking production*.
+
+**Code stays local; only the data source changes.** `http-server` still serves the HTML/CSS/JS from disk. The page fetches data from whichever Supabase the client config points at.
+
+### Local Supabase via CLI (recommended dev setup)
+- Install the **Supabase CLI** and run `supabase start` — spins up the full stack in Docker (Postgres + Auth + API + Studio) on localhost.
+- Seed it with production data: `supabase db dump` from the cloud project, or re-run `tools/migrate-to-supabase.mjs` pointed at the local instance.
+- Develop, edit, import, break and fix freely — including admin **write** operations — with zero impact on the live DB.
+
+### Environment toggle in `supabaseClient.js`
+A single config switch chooses the backend:
+
+| Context | Supabase target |
+|---------|-----------------|
+| Local dev (`localhost`) | Local Supabase (Docker) — safe sandbox |
+| Production (live site) | Cloud Supabase — real data |
+
+Implemented via an env/config flag (e.g. detect `localhost` hostname, or a `?dev=1` / build-time var). Swapping one line changes which DB the local page talks to.
+
+### Quick read-only alternative
+For pure UI/read-path tweaks, point `localhost` straight at the **cloud anon key** — no Docker needed. ⚠️ Do **not** test admin writes this way; they hit production data.
 
 ---
 
@@ -165,7 +199,7 @@ Admin uploads CSV → browser parses (reuse csvParser.js) → supabaseAdmin.bulk
 ## Phase 7: Cleanup + Hardening
 
 - Remove old `githubApi.js` references
-- Remove GitHub PAT from admin settings UI
+- **Delete the Settings tab entirely** (renderSettings + the `#settings` nav items in `adminPage.js` and `adminSidebar.js`) — the client no longer configures repo/PAT
 - Audit all `innerHTML` for unescaped DB text
 - Update `CLAUDE.md` with new architecture
 - Delete migration script from repo
@@ -216,8 +250,8 @@ Admin uploads CSV → browser parses (reuse csvParser.js) → supabaseAdmin.bulk
 
 ## Verification
 
-After each phase:
-1. `npx http-server -p 8080 --cors -c-1` — serve locally
+After each phase (point the local page at **local Supabase**, not production — see "Local Development Environment"):
+1. `npx http-server -p 8090 --cors -c-1` — serve locally
 2. Open all pages: index, league, player, dashboard, player_general
 3. Verify data loads correctly and stats compute
 4. Admin: login, edit, publish, verify DB and GitHub updated

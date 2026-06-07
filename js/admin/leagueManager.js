@@ -925,6 +925,14 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                     </button>
                 </div>
 
+                <div class="form-group">
+                    <label>Sync together with</label>
+                    <div id="bgsync-pair-list"><small style="color:var(--color-text-muted)">Loading running leagues&hellip;</small></div>
+                    <small style="color:var(--color-text-muted)">
+                        Other running leagues selected here are downloaded in the same parallel BGStudio run as this league.
+                    </small>
+                </div>
+
                 <div style="margin-top:var(--space-md);font-size:0.9em;color:var(--color-text-muted)">
                     <div>Last sync: <span id="bgsync-last">&mdash;</span></div>
                     <div>Next window: <span id="bgsync-next">&mdash;</span></div>
@@ -1472,6 +1480,43 @@ function setupBGSync(leagueId, params, defaultName, refreshBadgeFn) {
 
     document.getElementById('bgsync-add-time').addEventListener('click', () => addTimeRow(nowHHMM()));
 
+    // "Sync together with" — checkboxes for the OTHER running leagues. Selected
+    // leagues are batched into the same parallel BGStudio run as this one.
+    const pairList = document.getElementById('bgsync-pair-list');
+    const pairSelected = new Set(
+        (params.BGStudioSync && Array.isArray(params.BGStudioSync.syncWith))
+            ? params.BGStudioSync.syncWith : []
+    );
+    let pairLoaded = false;
+    (async () => {
+        if (!pairList) return;
+        try {
+            const order = await loadLeagueOrder();
+            const folderNames = order.map(t => t.replace(' - ', ' '));
+            const entries = await Promise.all(folderNames.map(async id => {
+                if (id === leagueId) return null;
+                try {
+                    const lp = await loadLeagueParams(id);
+                    return lp.Running === true ? { id, title: lp.LeagueTitle || id } : null;
+                } catch { return null; }
+            }));
+            const running = entries.filter(Boolean);
+            if (running.length === 0) {
+                pairList.innerHTML = '<small style="color:var(--color-text-muted)">No other running leagues.</small>';
+            } else {
+                pairList.innerHTML = running.map(r => `
+                    <label style="display:flex;align-items:center;gap:var(--space-sm);margin-bottom:var(--space-xs)">
+                        <input type="checkbox" class="bgsync-pair" value="${esc(r.id)}" ${pairSelected.has(r.id) ? 'checked' : ''}>
+                        <span>${esc(r.title)}</span>
+                    </label>`).join('');
+            }
+        } catch {
+            pairList.innerHTML = '<small style="color:var(--color-loss)">Could not load running leagues.</small>';
+        } finally {
+            pairLoaded = true;
+        }
+    })();
+
     // Save BGStudio settings — stage into league_params.json (base = staged version if present).
     document.getElementById('bgsync-save').addEventListener('click', () => {
         const encoded = encodeURIComponent(leagueId);
@@ -1486,13 +1531,19 @@ function setupBGSync(leagueId, params, defaultName, refreshBadgeFn) {
         const nameVal = document.getElementById('bgsync-league-name').value.trim() || defaultName;
         const startDate = document.getElementById('bgsync-start-date').value;
         const endDate = document.getElementById('bgsync-end-date').value;
+        // Read the paired-league checkboxes; if the list is still loading, keep
+        // whatever was already staged so a quick save doesn't wipe the selection.
+        const syncWith = pairLoaded
+            ? Array.from(pairList.querySelectorAll('.bgsync-pair:checked')).map(cb => cb.value)
+            : (Array.isArray(baseParams.BGStudioSync?.syncWith) ? baseParams.BGStudioSync.syncWith.slice() : []);
 
         newParams.BGStudioSync = {
             enabled: document.getElementById('bgsync-enabled').checked,
             bgstudioLeagueName: nameVal,
             startDate: startDate || null,
             endDate: endDate || null,
-            times
+            times,
+            syncWith
         };
 
         addChange({

@@ -11,6 +11,11 @@ on:
         options:
           - full
           - fast
+      leagues:
+        description: 'JSON array of leagues to sync in one session. Empty = auto-detect active league. Example: [{"folder":"Shabi Israel June 2026","bgstudio_league_name":"Shabi Israel"}]'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   sync:
@@ -53,6 +58,7 @@ jobs:
           BGSTUDIO_USER: ${{ secrets.BGSTUDIO_USER }}
           BGSTUDIO_PASS: ${{ secrets.BGSTUDIO_PASS }}
           SYNC_MODE: ${{ inputs.mode || 'full' }}
+          LEAGUES: ${{ inputs.leagues || '' }}
         run: node sync-bgstudio.js
 
       - name: Save BGStudio session cookie
@@ -68,10 +74,10 @@ jobs:
         with:
           name: leaguedata-${{ github.run_id }}
           path: |
-            scripts/out/leaguedata.csv
-            scripts/out/players.json
-            scripts/out/league_params.json
-            scripts/out/new_flags/
+            scripts/out/**/leaguedata.csv
+            scripts/out/**/players.json
+            scripts/out/**/league_params.json
+            scripts/out/**/new_flags/
           retention-days: 90
           if-no-files-found: warn
 
@@ -88,40 +94,53 @@ jobs:
         if: success()
         working-directory: ${{ github.workspace }}
         run: |
-          CSV=scripts/out/leaguedata.csv
-          PLAYERS=scripts/out/players.json
           {
-            echo "## BGStudio sync — Shabi Israel"
+            echo "## BGStudio sync"
             echo ""
             echo "| Field | Value |"
             echo "|---|---|"
             echo "| Status | success |"
+            echo "| Mode | \`${{ inputs.mode || 'full' }}\` |"
             echo "| Timestamp | \`$(date -u +'%Y-%m-%d %H:%M:%S UTC')\` |"
             echo "| Run ID | \`${{ github.run_id }}\` |"
-            if [ -f "$CSV" ]; then
-              echo "| CSV size | $(wc -c < "$CSV") bytes |"
-              echo "| Lines | $(wc -l < "$CSV") |"
-            else
-              echo "| CSV | _not produced (empty league?)_ |"
-            fi
-            if [ -f "$PLAYERS" ]; then
-              echo "| Players | $(grep -c '"username"' "$PLAYERS") |"
-            fi
-            if [ -d scripts/out/new_flags ]; then
-              NEW_FLAGS=$(ls scripts/out/new_flags/ 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
-              [ -n "$NEW_FLAGS" ] && echo "| New flags | \`$NEW_FLAGS\` |"
-            fi
-            if [ -f scripts/out/league_params.json ]; then
-              echo "| CustomFlags update | _suggested — see league_params.json in artifact_ |"
-            fi
             echo ""
-            if [ -f "$CSV" ]; then
-              echo "### CSV preview (first 5 lines)"
+            # One section per league subdirectory under scripts/out/
+            for dir in scripts/out/*/; do
+              [ -d "$dir" ] || continue
+              folder=$(basename "$dir")
+              CSV="${dir}leaguedata.csv"
+              PLAYERS="${dir}players.json"
+              PARAMS="${dir}league_params.json"
+              FLAGS_DIR="${dir}new_flags"
+              echo "### \`$folder\`"
               echo ""
-              echo '```csv'
-              head -5 "$CSV"
-              echo '```'
+              echo "| Field | Value |"
+              echo "|---|---|"
+              if [ -f "$CSV" ]; then
+                echo "| CSV size | $(wc -c < "$CSV") bytes |"
+                echo "| Lines | $(wc -l < "$CSV") |"
+              else
+                echo "| CSV | _not produced (empty league?)_ |"
+              fi
+              if [ -f "$PLAYERS" ]; then
+                echo "| Players | $(grep -c '"username"' "$PLAYERS") |"
+              fi
+              if [ -d "$FLAGS_DIR" ]; then
+                NEW_FLAGS=$(ls "$FLAGS_DIR" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
+                [ -n "$NEW_FLAGS" ] && echo "| New flags | \`$NEW_FLAGS\` |"
+              fi
+              if [ -f "$PARAMS" ]; then
+                echo "| CustomFlags update | _suggested — see \`$folder/league_params.json\` in artifact_ |"
+              fi
               echo ""
-            fi
+              if [ -f "$CSV" ]; then
+                echo "#### CSV preview (first 5 lines)"
+                echo ""
+                echo '```csv'
+                head -5 "$CSV"
+                echo '```'
+                echo ""
+              fi
+            done
             echo "Download from the **Artifacts** section above (\`leaguedata-${{ github.run_id }}\`)."
           } >> "$GITHUB_STEP_SUMMARY"

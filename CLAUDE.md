@@ -15,7 +15,7 @@ A parallel clean-slate rebuild lives under `v2/` and is the end-state target. Pl
 
 ## Project Overview
 
-Shabi Israel is a chess league statistics web app. It loads CSV match data client-side, computes player statistics (win rate, PR, luck, rankings), and renders interactive HTML pages with sortable tables and color-coded stats.
+Shabi Israel is a Backgammon league statistics web app. It loads CSV match data client-side, computes player statistics (win rate, PR, luck, rankings), and renders interactive HTML pages with sortable tables and color-coded stats.
 
 No build step — pure vanilla HTML/CSS/JS running in the browser. Deployed on GitHub Pages. (v2 introduces Vite; deployment workflow updates at cutover.)
 

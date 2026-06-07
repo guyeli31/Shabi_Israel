@@ -584,6 +584,21 @@
     }
 }
 
+/* Checkboxes / radios must not inherit the full-width + padded text-input
+   sizing from `.form-group input` (base) or `.edit-card-sm .form-group input`
+   (responsive padding) — otherwise they stretch and shove their label aside.
+   Covers the "Sync together with" league pickers in the Automatic Sync card. */
+.form-group input[type="checkbox"],
+.form-group input[type="radio"],
+.edit-card-sm .form-group input[type="checkbox"],
+.edit-card-sm .form-group input[type="radio"] {
+    width: auto;
+    min-width: 0;
+    padding: 0;
+    margin: 0;
+    flex: none;
+}
+
 /* generic font-small table utility (mirrors components.css for admin.html) */
 table.font-small { font-size: var(--fs-085); }
 
