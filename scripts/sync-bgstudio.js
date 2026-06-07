@@ -10,9 +10,8 @@ import { spawnSync } from 'node:child_process';
 
 const DEFAULT_FLAG = 'IL';
 const SITE_URL = 'https://heroes3.backgammonstudio.com/';
-const LEAGUE_NAME = 'Shabi Israel';
-const OUTPUT_PATH = resolve(dirname(fileURLToPath(import.meta.url)), 'out', 'leaguedata.csv');
-const SESSION_PATH = resolve(dirname(fileURLToPath(import.meta.url)), 'out', 'session-state.json');
+const OUT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'out');
+const SESSION_PATH = resolve(OUT_DIR, 'session-state.json');
 
 const VIEWPORTS = [
   { width: 1920, height: 1080 },
@@ -180,39 +179,59 @@ async function changeStatusTask(page, durationS) {
   }
 }
 
-async function exportShabiIsraelTask(page, repoRoot) {
-  await page.waitForTimeout(randInt(500, 2500));
-  console.log('  → Switching to Tournaments tab');
-  const tournamentsSwitched = await page.evaluate(() => {
-    const th = Array.from(document.querySelectorAll('th')).find(
-      (el) => /^\s*Tournaments\s*$/.test(el.textContent || '') && el.offsetParent !== null,
-    );
-    const inner = th && th.querySelector('.TabButton');
-    if (!inner) return false;
-    inner.click();
-    return true;
-  });
-  if (!tournamentsSwitched) throw new Error('Tournaments tab not found or unreachable');
-  await page.waitForTimeout(1500);
+async function navigateToLeaguesList(page, firstTime) {
+  if (firstTime) {
+    await page.waitForTimeout(randInt(500, 2500));
+    console.log('  → Switching to Tournaments tab');
+    const tournamentsSwitched = await page.evaluate(() => {
+      const th = Array.from(document.querySelectorAll('th')).find(
+        (el) => /^\s*Tournaments\s*$/.test(el.textContent || '') && el.offsetParent !== null,
+      );
+      const inner = th && th.querySelector('.TabButton');
+      if (!inner) return false;
+      inner.click();
+      return true;
+    });
+    if (!tournamentsSwitched) throw new Error('Tournaments tab not found or unreachable');
+    await page.waitForTimeout(1500);
+
+    await page.waitForTimeout(randInt(500, 2500));
+    console.log('  → Opening Leagues');
+    const leaguesOpened = await page.evaluate(() => {
+      const rows = Array.from(document.querySelectorAll('tr')).filter((tr) => tr.offsetParent !== null);
+      const target = rows.find(
+        (tr) => /Leagues/.test(tr.textContent || '') && tr.querySelector('.button.tablebutton'),
+      );
+      if (!target) return false;
+      target.querySelector('.button.tablebutton').click();
+      return true;
+    });
+    if (!leaguesOpened) throw new Error('Leagues row with tablebutton not found in Tournaments panel');
+    await page.waitForTimeout(1500);
+  } else {
+    await page.waitForTimeout(randInt(500, 2500));
+    console.log('  → Returning to Leagues list (s(113, "0") shortcut)');
+    const ok = await page.evaluate(() => {
+      if (typeof s !== 'function') return false;
+      s(113, '0');
+      return true;
+    });
+    if (!ok) throw new Error('s(113, "0") shortcut not available');
+    await page.waitForTimeout(1500);
+  }
+}
+
+async function exportLeagueTask(page, bgstudioLeagueName, folder, repoRoot) {
+  const outSubdir = resolve(dirname(fileURLToPath(import.meta.url)), 'out', folder);
+  const csvOutputPath = join(outSubdir, 'leaguedata.csv');
+  const playersOutputPath = join(outSubdir, 'players.json');
+  const updatedParamsPath = join(outSubdir, 'league_params.json');
+  const newFlagsDir = join(outSubdir, 'new_flags');
 
   await page.waitForTimeout(randInt(500, 2500));
-  console.log('  → Opening Leagues');
-  const leaguesOpened = await page.evaluate(() => {
-    const rows = Array.from(document.querySelectorAll('tr')).filter((tr) => tr.offsetParent !== null);
-    const target = rows.find(
-      (tr) => /Leagues/.test(tr.textContent || '') && tr.querySelector('.button.tablebutton'),
-    );
-    if (!target) return false;
-    target.querySelector('.button.tablebutton').click();
-    return true;
-  });
-  if (!leaguesOpened) throw new Error('Leagues row with tablebutton not found in Tournaments panel');
-  await page.waitForTimeout(1500);
-
-  await page.waitForTimeout(randInt(500, 2500));
-  console.log(`  → Opening league "${LEAGUE_NAME}" (with pagination)`);
+  console.log(`  → Opening league "${bgstudioLeagueName}" (with pagination)`);
   const MAX_PAGES = 10;
-  const leagueRegex = new RegExp(`^\\s*${LEAGUE_NAME}\\s*$`);
+  const leagueRegex = new RegExp(`^\\s*${bgstudioLeagueName}\\s*$`);
   let clicked = false;
   let prevFirstId = null;
   for (let pageIdx = 0; pageIdx < MAX_PAGES; pageIdx++) {
@@ -229,7 +248,7 @@ async function exportShabiIsraelTask(page, repoRoot) {
       return b ? b.getAttribute('onclick') : null;
     });
     if (firstId === prevFirstId) {
-      throw new Error(`League "${LEAGUE_NAME}" not found — Next button no longer advances at firstId=${firstId}`);
+      throw new Error(`League "${bgstudioLeagueName}" not found — Next button no longer advances at firstId=${firstId}`);
     }
     console.log(`    Not on page ${pageIdx + 1} (firstId=${firstId}) — clicking Next`);
     prevFirstId = firstId;
@@ -237,7 +256,7 @@ async function exportShabiIsraelTask(page, repoRoot) {
     await page.waitForTimeout(600);
   }
   if (!clicked) {
-    throw new Error(`League "${LEAGUE_NAME}" not found within ${MAX_PAGES} pages`);
+    throw new Error(`League "${bgstudioLeagueName}" not found within ${MAX_PAGES} pages`);
   }
 
   await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
@@ -278,10 +297,9 @@ async function exportShabiIsraelTask(page, repoRoot) {
   if (!players || players.length === 0) {
     console.warn('    DL not available or empty — skipping players.json');
   } else {
-    const playersPath = resolve(dirname(OUTPUT_PATH), 'players.json');
-    await mkdir(dirname(playersPath), { recursive: true });
-    await writeFile(playersPath, JSON.stringify(players, null, 2) + '\n', 'utf8');
-    console.log(`  ✓ Wrote ${players.length} players to ${playersPath}`);
+    await mkdir(outSubdir, { recursive: true });
+    await writeFile(playersOutputPath, JSON.stringify(players, null, 2) + '\n', 'utf8');
+    console.log(`  ✓ Wrote ${players.length} players to ${playersOutputPath}`);
 
     console.log('  → Player roster (alphabetical)');
     const sortedPlayers = [...players].sort((a, b) => a.username.localeCompare(b.username));
@@ -291,14 +309,15 @@ async function exportShabiIsraelTask(page, repoRoot) {
       console.log(`    ${p.username.padEnd(nameWidth)}  ${code}  ${p.cname || ''}`);
     }
 
-    console.log('  → Active league detection');
     const leaguesRoot = join(repoRoot, 'leagues');
-    const active = await findActiveLeague(leaguesRoot);
-    if (!active) {
-      console.warn('    ⚠ No league with "Running": true found — skipping league-config update');
-    } else {
-      console.log(`    Active league: "${active.folder}"`);
+    let localParams = null;
+    try {
+      localParams = JSON.parse(await readFile(join(leaguesRoot, folder, 'league_params.json'), 'utf8'));
+    } catch {
+      console.warn(`  ⚠ Could not read leagues/${folder}/league_params.json — skipping league-config update`);
+    }
 
+    if (localParams) {
       const known = await buildKnownPlayers(leaguesRoot);
       const newPlayers = players.filter((p) => !known.has(p.username)).map((p) => p.username).sort();
       console.log('  → Player registry check (metadata.json + historical CSVs)');
@@ -312,7 +331,7 @@ async function exportShabiIsraelTask(page, repoRoot) {
       }
 
       console.log('  → CustomFlags diff (BGStudio → local)');
-      const diff = computeCustomFlagsDiff(active.params.CustomFlags, players);
+      const diff = computeCustomFlagsDiff(localParams.CustomFlags, players);
       const noChanges = diff.added.length === 0 && diff.changed.length === 0 && diff.removed.length === 0;
       if (noChanges) {
         console.log('    ✓ No changes — local CustomFlags match BGStudio');
@@ -321,11 +340,10 @@ async function exportShabiIsraelTask(page, repoRoot) {
         for (const c of diff.changed) console.log(`    ~ ${c.username}: ${c.from} → ${c.to}`);
         for (const r of diff.removed) console.log(`    - ${r.username}: ${r.from} (now uses default ${DEFAULT_FLAG})`);
 
-        const updatedParams = { ...active.params, CustomFlags: diff.desired };
-        const updatedPath = resolve(dirname(OUTPUT_PATH), 'league_params.json');
-        await writeFile(updatedPath, JSON.stringify(updatedParams, null, 2) + '\n', 'utf8');
-        console.log(`  ✓ Updated config written to ${updatedPath}`);
-        console.log(`    (review and copy to leagues/${active.folder}/league_params.json when ready)`);
+        const updatedParams = { ...localParams, CustomFlags: diff.desired };
+        await writeFile(updatedParamsPath, JSON.stringify(updatedParams, null, 2) + '\n', 'utf8');
+        console.log(`  ✓ Updated config written to ${updatedParamsPath}`);
+        console.log(`    (review and copy to leagues/${folder}/league_params.json when ready)`);
       }
     }
 
@@ -367,13 +385,12 @@ async function exportShabiIsraelTask(page, repoRoot) {
       }
 
       console.log('  → Fetching missing flags via fetch-flag.py');
-      const outFlagsDir = resolve(dirname(OUTPUT_PATH), 'new_flags');
-      await mkdir(outFlagsDir, { recursive: true });
+      await mkdir(newFlagsDir, { recursive: true });
       const fetchScript = join(repoRoot, 'scripts', 'fetch-flag.py');
       let okCount = 0;
       const failed = [];
       for (const code of missing) {
-        const res = spawnSync('python', [fetchScript, code, outFlagsDir], { encoding: 'utf8' });
+        const res = spawnSync('python', [fetchScript, code, newFlagsDir], { encoding: 'utf8' });
         if (res.status === 0) {
           console.log(`    ✓ ${code} (${flagUsage[code].cname}): ${res.stdout.trim()}`);
           okCount++;
@@ -383,7 +400,7 @@ async function exportShabiIsraelTask(page, repoRoot) {
         }
       }
       console.log(
-        `  → Flag fetch summary: ${okCount}/${missing.length} downloaded to scripts/out/new_flags/` +
+        `  → Flag fetch summary: ${okCount}/${missing.length} downloaded to ${newFlagsDir}` +
           (failed.length ? ` (failed: ${failed.join(', ')})` : ''),
       );
     }
@@ -434,9 +451,9 @@ async function exportShabiIsraelTask(page, repoRoot) {
   const csvText = csv.data;
   const lines = csvText.split('\n').filter(Boolean).length;
   console.log(`  ✓ CSV: ${csvText.length} bytes, ${lines} lines`);
-  await mkdir(dirname(OUTPUT_PATH), { recursive: true });
-  await writeFile(OUTPUT_PATH, csvText, 'utf8');
-  console.log(`  ✓ Saved to ${OUTPUT_PATH}`);
+  await mkdir(outSubdir, { recursive: true });
+  await writeFile(csvOutputPath, csvText, 'utf8');
+  console.log(`  ✓ Saved to ${csvOutputPath}`);
 }
 
 console.log(`→ Sync mode: ${SYNC_MODE}`);
@@ -486,7 +503,7 @@ try {
     const sideCount = randInt(2, 4);
     const sideTasks = shuffle(sideTaskPool).slice(0, sideCount);
 
-    const exportTask = { kind: 'EXPORT', label: '✦ Export Shabi Israel (real task)', durationS: 30 };
+    const exportTask = { kind: 'EXPORT', label: '✦ Export league data (real task)', durationS: 30 };
     sequence = [...sideTasks];
     const exportPos = randInt(1, sequence.length);
     sequence.splice(exportPos, 0, exportTask);
@@ -559,17 +576,54 @@ try {
 
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
+  let targets;
+  const LEAGUES_JSON = (process.env.LEAGUES || '').trim();
+  if (LEAGUES_JSON) {
+    try {
+      targets = JSON.parse(LEAGUES_JSON);
+    } catch (e) {
+      throw new Error(`Invalid LEAGUES JSON: ${e.message}`);
+    }
+    if (!Array.isArray(targets) || targets.length === 0) {
+      throw new Error('LEAGUES must be a non-empty array');
+    }
+    for (const t of targets) {
+      if (!t.folder || !t.bgstudio_league_name) {
+        throw new Error(`Each LEAGUES entry must have "folder" and "bgstudio_league_name" — got ${JSON.stringify(t)}`);
+      }
+    }
+    console.log(`→ Sync targets (${targets.length}) from LEAGUES env:`);
+    targets.forEach((t, i) => console.log(`  ${i + 1}. "${t.bgstudio_league_name}" → ${t.folder}`));
+  } else {
+    const leaguesRoot = join(repoRoot, 'leagues');
+    const active = await findActiveLeague(leaguesRoot);
+    if (!active) {
+      throw new Error('No active league found (no league_params.json with "Running": true) and LEAGUES env not set');
+    }
+    targets = [{ folder: active.folder, bgstudio_league_name: 'Shabi Israel' }];
+    console.log(`→ Sync target (auto-detected active): "${targets[0].bgstudio_league_name}" → ${targets[0].folder}`);
+  }
+
+  async function runAllExports() {
+    for (let i = 0; i < targets.length; i++) {
+      const target = targets[i];
+      console.log(`  → League ${i + 1}/${targets.length}: "${target.bgstudio_league_name}" → ${target.folder}`);
+      await navigateToLeaguesList(page, i === 0);
+      await exportLeagueTask(page, target.bgstudio_league_name, target.folder, repoRoot);
+    }
+  }
+
   if (SYNC_MODE === 'fast') {
     const start = Date.now();
     try {
-      await exportShabiIsraelTask(page, repoRoot);
+      await runAllExports();
       const elapsed = Math.round((Date.now() - start) / 1000);
-      console.log(`  ✓ Export done in ${elapsed}s`);
-      taskResults.push({ kind: 'EXPORT', label: '✦ Export Shabi Israel (fast mode)', status: 'ok', elapsed });
+      console.log(`  ✓ Export done in ${elapsed}s (${targets.length} league${targets.length === 1 ? '' : 's'})`);
+      taskResults.push({ kind: 'EXPORT', label: `✦ Export ${targets.length} league${targets.length === 1 ? '' : 's'} (fast mode)`, status: 'ok', elapsed });
     } catch (err) {
       const elapsed = Math.round((Date.now() - start) / 1000);
       console.error(`  ✗ Export failed after ${elapsed}s: ${err.message}`);
-      taskResults.push({ kind: 'EXPORT', label: '✦ Export Shabi Israel (fast mode)', status: 'fail', error: err.message, elapsed });
+      taskResults.push({ kind: 'EXPORT', label: `✦ Export ${targets.length} league${targets.length === 1 ? '' : 's'} (fast mode)`, status: 'fail', error: err.message, elapsed });
       exportError = err;
     }
   } else {
@@ -604,7 +658,7 @@ try {
             await changeStatusTask(page, task.durationS);
             break;
           case 'EXPORT':
-            await exportShabiIsraelTask(page, repoRoot);
+            await runAllExports();
             break;
         }
         const elapsed = Math.round((Date.now() - start) / 1000);
@@ -643,7 +697,7 @@ try {
 } catch (err) {
   console.error('✗ Sync failed:', err.message);
   try {
-    const shotPath = OUTPUT_PATH.replace(/leaguedata\.csv$/, 'failure.png');
+    const shotPath = resolve(OUT_DIR, 'failure.png');
     await mkdir(dirname(shotPath), { recursive: true });
     await page.screenshot({ path: shotPath, fullPage: true });
     console.error(`✗ Saved failure screenshot to ${shotPath}`);
