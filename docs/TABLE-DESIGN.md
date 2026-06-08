@@ -19,6 +19,7 @@ Table code mapping for the app. All future references to a table use the code be
 | A4 | PR Leaders |
 | A5 | Match Records |
 | A6 | League Records |
+| A7 | Players directory (Notable Figures + Rest of Players) |
 
 ### B — Dashboard / League overview (dashboard.html)
 
@@ -240,11 +241,31 @@ mountMFTable(mountPoint, {
 
 ### SF (Secondary Format)
 
-The compact-records / leaderboards-snippet variant used by: **A3, A4, A5, A6, C4.**
+The compact-records / leaderboards-snippet variant used by: **A3, A4, A5, A6, A7, C4.**
 
 Rendered entirely by `mountSFTable(mountPoint, args)` (`table-lab/formats/sf/mount.js`). The function owns all DOM creation — caller provides a plain empty `<div>` and a configuration object. CSS canon lives in `table-lab/formats/sf/sf.css` (auto-imports `base/base.css`).
 
-> **Status:** format is **implemented and documented**. Production rewiring (replacing the hand-built render code in `landingPage.js` / `playerGeneralPage.js` with `mountSFTable` calls) is tracked as Phase 7 of `docs/plans/table-lab-unification.md`.
+> **Status:** format is **implemented and documented**. Production rewiring (replacing the hand-built render code in `landingPage.js` / `playerGeneralPage.js` with `mountSFTable` calls) is tracked as Phase 7 of `docs/plans/table-lab-unification.md`. **A7 (Players directory)** was the first SF call site wired through `mountSFTable` in production — landed 2026-06-08, inside the Players tab on `index.html`.
+
+#### A7 — Players directory (Players tab on index.html)
+
+Two SF tables stacked vertically inside the Players tab:
+
+| Section | Filter | Sort | showTopN |
+|---|---|---|---|
+| Notable Figures | `hasTitles(meta)` is true | active first, then alphabetical | none (always full) |
+| Rest of Players | everything else (non-hidden) | active first, then alphabetical | 15 (toggle reveals all) |
+
+Both use the same `cols`, `tableId: 'A7'`, `fontClass: 'font-small'`, `stickyCols: 1`. The first column (`Player`) is `position: sticky; left: 0` so the leftmost name stays visible while scrolling horizontally on narrow viewports.
+
+Columns (left → right):
+
+| # | Key | Cell |
+|---|---|---|
+| 1 | `name` | Flag + `playerNameLink(name, meta)` + optional real-name (`.lp-realname`, hidden on mobile) |
+| 2 | `status` | `<span class="lp-status lp-status-active\|inactive">` pill with glowing `currentColor` dot. `active` = player appears in any league with `Running: true`. |
+| 3 | `lastActiveDate` | `<a class="league-link" href="leagueUrl(id)">Jun 2026</a>` — same quiet hover-underline style as A6's league column. `—` if the player has never appeared (notable-only). |
+| 4 | `titleDesc` | `getFullTitleDescription(meta)` in `<em>` — Master/Grandmaster/Champion/etc. `—` for rest-of-players. |
 
 To convert a table to SF in a future session, say:
 > "Update table X to use the SF variant. Derive the unique parameters for this table on your own and ask me questions as needed."

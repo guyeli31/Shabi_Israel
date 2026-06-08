@@ -171,13 +171,11 @@ function buildTabsShell() {
     ];
 
     const tabsHtml = tabs.map(t =>
-        `<button class="lp-tab" role="tab" aria-selected="false" data-tab="${t.id}">
-            <span>${t.label}</span>
-        </button>`
+        `<button class="app-tab" role="tab" aria-selected="false" data-tab="${t.id}">${t.label}</button>`
     ).join('');
 
     root.innerHTML = `
-        <div class="lp-tabs" role="tablist" aria-label="Home sections">${tabsHtml}</div>
+        <div class="app-tabs" role="tablist" aria-label="Home sections">${tabsHtml}</div>
         <div class="lp-tab-panel" data-panel="leagues"></div>
         <div class="lp-tab-panel" data-panel="leaderboard" hidden></div>
         <div class="lp-tab-panel" data-panel="records" hidden></div>
@@ -229,24 +227,21 @@ function renderPlayersTab(container, allMeta, leagues) {
     const notableRows = sortPlayerRows(allRows.filter(r => r.hasTitle));
     const restRows    = sortPlayerRows(allRows.filter(r => !r.hasTitle));
 
-    const subShell = document.createElement('div');
-    subShell.className = 'lp-subtabs-shell';
-    subShell.innerHTML = `
-        <div class="lp-subtabs" role="tablist" aria-label="Player groups">
-            <button class="lp-subtab" role="tab" aria-selected="true"  data-subtab="notable">Notable Figures</button>
-            <button class="lp-subtab" role="tab" aria-selected="false" data-subtab="rest">Rest of Players</button>
-        </div>
-        <div class="lp-subtab-panel" data-subpanel="notable"></div>
-        <div class="lp-subtab-panel" data-subpanel="rest" hidden></div>`;
-    container.appendChild(subShell);
-
     const cols = buildPlayerCols();
-    const notableMount = subShell.querySelector('[data-subpanel="notable"]');
-    const restMount    = subShell.querySelector('[data-subpanel="rest"]');
+
+    // Two SF (A7) tables stacked vertically, each with its own section title.
+    const notableMount = document.createElement('div');
+    notableMount.className = 'lp-players-section';
+    container.appendChild(notableMount);
+
+    const restMount = document.createElement('div');
+    restMount.className = 'lp-players-section';
+    container.appendChild(restMount);
 
     const { table: tNotable } = mountSFTable(notableMount, {
-        tableId: 'LP-NOTABLE',
-        data: notableRows,
+        tableId:   'A7',
+        title:     `Notable Figures (${notableRows.length})`,
+        data:      notableRows,
         cols,
         fontClass: 'font-small',
         stickyCols: 1
@@ -254,29 +249,28 @@ function renderPlayersTab(container, allMeta, leagues) {
     tNotable.classList.add('sf-sticky-1');
 
     const { table: tRest } = mountSFTable(restMount, {
-        tableId: 'LP-REST',
-        data: restRows,
+        tableId:   'A7',
+        title:     `Rest of Players (${restRows.length})`,
+        data:      restRows,
         cols,
         fontClass: 'font-small',
         stickyCols: 1,
-        showTopN: 15
+        showTopN:  15
     });
     tRest.classList.add('sf-sticky-1');
 
-    // Right-click context menu on every player-name link (no leagueId — general profile).
+    // Right-click context menu on every player-name link (no leagueId → general profile).
     attachPlayerNameInteractions(notableMount, null);
     attachPlayerNameInteractions(restMount, null);
-
-    // Sub-tab switching
-    subShell.querySelectorAll('[role="tab"]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            subShell.querySelectorAll('[role="tab"]').forEach(b =>
-                b.setAttribute('aria-selected', b === btn ? 'true' : 'false'));
-            subShell.querySelectorAll('.lp-subtab-panel').forEach(p =>
-                p.hidden = p.dataset.subpanel !== btn.dataset.subtab);
-        });
-    });
 }
+
+/** 3-state player status. Priority for sort + label/color map.
+ *  active   → currently playing in a Running league         (green)
+ *  this-year → played in any league this calendar year       (orange / bronze)
+ *  inactive → none of the above                              (gray)
+ */
+const PLAYER_STATUS_RANK  = { active: 0, 'this-year': 1, inactive: 2 };
+const PLAYER_STATUS_LABEL = { active: 'Active', 'this-year': 'This Year', inactive: 'Inactive' };
 
 function computePlayerRows(allMeta, leagues) {
     const allNames = new Set(Object.keys(allMeta || {}));
@@ -312,6 +306,14 @@ function computePlayerRows(allMeta, leagues) {
         return best;
     }
 
+    const currentYear = new Date().getUTCFullYear();
+
+    function statusFor(name, last) {
+        if (activeSet.has(name)) return 'active';
+        if (last && last.date.getUTCFullYear() === currentYear) return 'this-year';
+        return 'inactive';
+    }
+
     return [...allNames]
         .map(name => {
             const meta = allMeta?.[name] || {};
@@ -324,7 +326,7 @@ function computePlayerRows(allMeta, leagues) {
                 flag: playerFlags[name] || 'IL',
                 hasTitle: hasTitles(meta),
                 titleDesc: hasTitles(meta) ? getFullTitleDescription(meta) : '',
-                status: activeSet.has(name) ? 'active' : 'inactive',
+                status: statusFor(name, last),
                 lastActiveDate: last?.date || null,
                 lastActiveTitle: last?.title || null,
                 lastActiveLeagueId: last?.id || null,
@@ -335,7 +337,9 @@ function computePlayerRows(allMeta, leagues) {
 
 function sortPlayerRows(rows) {
     return rows.slice().sort((a, b) => {
-        if (a.status !== b.status) return a.status === 'active' ? -1 : 1;
+        const sa = PLAYER_STATUS_RANK[a.status] ?? 99;
+        const sb = PLAYER_STATUS_RANK[b.status] ?? 99;
+        if (sa !== sb) return sa - sb;
         return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     });
 }
@@ -358,7 +362,7 @@ function buildPlayerCols() {
             key: 'status',
             label: 'Status',
             format: (s) => {
-                const label = s === 'active' ? 'Active' : 'Inactive';
+                const label = PLAYER_STATUS_LABEL[s] || 'Inactive';
                 return `<span class="lp-status lp-status-${s}"><span class="lp-status-dot"></span>${label}</span>`;
             },
         },
@@ -368,8 +372,10 @@ function buildPlayerCols() {
             format: (d, row) => {
                 if (!d) return '<span class="lp-muted">—</span>';
                 const label = `${MONTH_SHORT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-                const href = row.lastActiveLeagueId ? leagueUrl(row.lastActiveLeagueId) : null;
-                return href ? `<a href="${href}">${label}</a>` : label;
+                const href = row.lastActiveLeagueId ? dashboardUrl(row.lastActiveLeagueId) : null;
+                return href
+                    ? `<a class="league-link" href="${href}">${label}</a>`
+                    : label;
             },
         },
         {

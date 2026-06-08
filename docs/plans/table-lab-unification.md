@@ -15,7 +15,7 @@
      | Format | Code | Used by | Mount fn |
      |---|---|---|---|
      | Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3, F5 (CSV Import Preview — read-only) | `mountMFTable` |
-     | Secondary Format | **SF** | A3, A4, A5, A6, C4 | `mountSFTable` |
+     | Secondary Format | **SF** | A3, A4, A5, A6, **A7**, C4 | `mountSFTable` |
      | Expandable Format | **exp** | C0 | `mountExpTable` |
      | Form Format | **FF** | F1 (Leagues), F2 (Players), F3 (Round Editor), F4 (View Overrides), F6 (Medals & Prizes) | `mountFFTable` |
 
@@ -276,7 +276,7 @@ Any code in `js/render/*.js` that built MF tables by hand-concatenating HTML is 
 
 ## Phase 5 — SF format (Secondary Format)
 
-**Scope:** A3, A4, A5, A6, C4.
+**Scope:** A3, A4, A5, A6, **A7**, C4. (A7 added 2026-06-08 — already wired through `mountSFTable` in production as the first SF call site on `index.html`. The other SF tables still hand-build their DOM until Phase 7.2 rewires them.)
 
 **Outcome:** SF is the canonical format for compact records / leaderboards-snippet tables. Each of A3–A6 and C4 is rendered through `mountSFTable` with a dedicated preset.
 
@@ -293,7 +293,7 @@ Based on the inventory, derive the args schema for `mountSFTable` and document i
 ### 5.3 Implement `table-lab/formats/sf/`
 - `mount.js` — `mountSFTable(mountPoint, args)`
 - `sf.css` — canonical SF styles (own wrapper class, e.g. `.sf-wrap`). Starts with `@import url("../_base/base.css");` so SF reuses the shared base layer.
-- Add each A3/A4/A5/A6/C4 preset under `table-lab/presets/`
+- Add each A3/A4/A5/A6/A7/C4 preset under `table-lab/presets/`
 - Add tabs to `table-lab/index.html`
 
 ### 5.4 Acceptance gate
@@ -343,11 +343,11 @@ Both files `@import` `_base/base.css`, so production now has Group A-base rules 
 
 ### 7.2 JS rewiring for SF + exp
 Replace direct rendering for the remaining tables:
-- SF tables (A3, A4, A5, A6, C4) → `mountSFTable`
+- SF tables (A3, A4, A5, A6, A7, C4) → `mountSFTable` (**A7 already wired** — landed 2026-06-08)
 - exp tables (C0) → `mountExpTable`
 
 Touch points:
-- `js/render/landingPage.js` — A3, A4, A5, A6 (SF)
+- `js/render/landingPage.js` — A3, A4, A5, A6 (SF) · A7 already done
 - `js/render/playerGeneralPage.js` — C0 (exp), C4 (SF)
 
 After this step, every non-admin table in production renders through the lab.

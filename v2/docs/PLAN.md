@@ -163,6 +163,7 @@ v2/
 │   │       ├── A4_prLeaders.js          (SF)
 │   │       ├── A5_matchRecords.js       (SF)
 │   │       ├── A6_leagueRecords.js      (SF)
+│   │       ├── A7_playersDirectory.js   (SF — Notable Figures + Rest of Players, stacked; sticky Player col; fixed sort: status → alpha)
 │   │       ├── B1_prizesAndMedals.js    (MF)
 │   │       ├── B2_historicalView.js     (MF)
 │   │       ├── B3_championshipPredictor.js (MF)
@@ -454,7 +455,7 @@ Each phase ends with a commit and an MCP verification checkpoint. If a phase fai
 ### Phase 5 — Table system (6–8 hours)
 - Build `v2/src/tables/{MFTable, SFTable, ExpandableTable, FormTable}/`. `FormTable` is the unified FF format covering 5 admin tables (three cell modes per ColDef: Display / Action / Edit).
 - Each variant: own CSS (token-only), own JS (`mount(el, args)`), own `argsSchema.js`, own `README.md` with iron rules.
-- Port all 22 presets to `v2/src/tables/presets/{A1..A6,B1..B6c,C0..C4,D,E,F1,F2,F3,F4,F5,F6}_*.js`. Each declares `export const variant = '...'` for lab auto-discovery. F1/F2/F3/F4/F6 use `variant: 'FF'`; **F5 is MF** (read-only CSV Import Preview — `mountMFTable`, `fontClass:'font-small'`, `stickyCols:1`).
+- Port all 23 presets to `v2/src/tables/presets/{A1..A7,B1..B6c,C0..C4,D,E,F1,F2,F3,F4,F5,F6}_*.js`. Each declares `export const variant = '...'` for lab auto-discovery. F1/F2/F3/F4/F6 use `variant: 'FF'`; **F5 is MF** (read-only CSV Import Preview — `mountMFTable`, `fontClass:'font-small'`, `stickyCols:1`); **A7 is SF** (Players directory — two stacked instances with shared cols, `tableId: 'A7'`, `fontClass: 'font-small'`, `stickyCols: 1`, second instance has `showTopN: 15`).
 - Source files are the **canonized** v1 lab files at `table-lab/formats/{base,mf,sf,exp,ff}/*.css` (Path-X canonization landed 2026-06-04; legacy mirrors in `css/components.css` etc. lose by cascade). The `Units policy` doc-block at the top of `base.css` (em for sizing-with-font; px for hairlines/shadows/viewport-caps/breakpoints/JS-fallbacks) ports verbatim into v2 as a non-negotiable foundation rule.
 - Build `v2/src/tools/tableLab/` with auto-discovery, args form, theme bridge, code snippet, iron rules panel.
 - **MCP verification**: open `/tableLab.html` in v2; for each preset, screenshot the preview at 3 viewports × dark+light themes. Open the same preset in v1 (e.g., open v1 league.html for D, dashboard.html for B-series). Pixel diff per cell — allow ≤2% delta for font rendering.
@@ -650,7 +651,7 @@ Screenshot diff: 0.4% — PASS
 Cutover proceeds only when ALL of these are true:
 
 - [ ] All 5 production pages + admin parity-verified at 3 viewports × 8 themes (zero failures).
-- [ ] All 22 table presets (A1-A6, B1-B6c, C0-C4, D, E, F1-F6) render in tableLab matching v1.
+- [ ] All 23 table presets (A1-A7, B1-B6c, C0-C4, D, E, F1-F6) render in tableLab matching v1.
 - [ ] typoEditor round-trips: read defaults, overlay, save history, publish, inventory write — all confirmed working.
 - [ ] `npm run ci` passes: Stylelint gates, grep gates, inventory gate, unit tests, visual regression suite, a11y.
 - [ ] `v2/docs/PARITY-LOG.md` shows green across the board.

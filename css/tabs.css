@@ -1,0 +1,93 @@
+/* ============================================================================
+   tabs.css — Reusable segmented tab-bar (.app-tabs).
+   Used by index.html (HOME); intended to spread to dashboard, league, player,
+   player-general as those pages get their own Progressive-Disclosure rewrite.
+
+   Contract:
+     <div class="app-tabs" role="tablist" aria-label="…">
+       <button class="app-tab" role="tab" aria-selected="true|false"
+               data-tab="<slug>">Label</button>
+       …
+     </div>
+
+   Iron rules:
+     • Always equal-width across the row (every tab gets flex: 1).
+     • Linear font + padding scaling via clamp() — NO viewport breakpoint
+       collapses the bar into horizontal-scroll. The 4 tabs always fill the row.
+     • Card-style chrome (subtle inset surface + shadow) that adapts to themes
+       through token color-mix so dark/vegas/x22/rainbow/casino read correctly
+       without per-theme overrides for every tab.
+   ============================================================================ */
+
+.app-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--color-hover, #f5f6f8);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.app-tab {
+    flex: 1 1 0;
+    min-width: 0;                                /* allow shrinking below intrinsic width */
+    background: transparent;
+    border: 0;
+    /* Linear scale: 320px viewport → ~10.5px font + tight padding;
+       1440px viewport → 13.5px font + comfortable padding. No jump. */
+    padding: clamp(0.40em, 0.9vw, 0.65em) clamp(0.30em, 1.0vw, 0.70em);
+    font: inherit;
+    font-size: clamp(0.66rem, 0.45rem + 0.8vw, 0.85rem);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.14s, color 0.14s, box-shadow 0.14s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;                     /* tiny viewports — never wrap */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35em;
+}
+
+.app-tab:hover {
+    background: color-mix(in srgb, var(--color-text) 6%, transparent);
+    color: var(--color-text);
+}
+
+.app-tab[aria-selected="true"] {
+    background: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: var(--shadow-sm);
+    font-weight: 700;
+}
+
+.app-tab:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+/* Theme adaptations — darken the strip on themes where the page bg is dark,
+   so the inactive bar reads as a subtle inset rather than a hard slab. */
+[data-theme="dark"]    .app-tabs,
+[data-theme="vegas"]   .app-tabs,
+[data-theme="x22"]     .app-tabs,
+[data-theme="rainbow"] .app-tabs,
+[data-theme="casino"]  .app-tabs {
+    background: color-mix(in srgb, var(--color-text) 10%, var(--color-bg));
+}
+[data-theme="dark"]    .app-tab[aria-selected="true"],
+[data-theme="vegas"]   .app-tab[aria-selected="true"],
+[data-theme="x22"]     .app-tab[aria-selected="true"],
+[data-theme="rainbow"] .app-tab[aria-selected="true"],
+[data-theme="casino"]  .app-tab[aria-selected="true"] {
+    background: var(--color-surface);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.35), 0 1px 6px rgba(0,0,0,0.18);
+}
+
+/* Tab panels follow the same naming for symmetry. */
+.app-tab-panel[hidden] { display: none; }
