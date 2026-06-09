@@ -31,6 +31,7 @@ import { mountAdminSidebar, refreshBadge as refreshSidebarBadge } from '../admin
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { hasTitles, compareTitlePriority, getFullTitleDescription } from '../data/titleConstants.js';
 import { startSplash, updateSplashLogo, endSplash } from '../utils/splash.js';
+import { mountAppTabs } from './appTabs.js';
 
 /* ── Helpers ─────────────────────────────────────────── */
 
@@ -160,64 +161,22 @@ export async function renderLandingPage() {
 /* ── Tabs shell (Progressive Disclosure) ──────────────── */
 
 function buildTabsShell() {
-    const root = document.createElement('div');
-    root.className = 'lp-tabs-shell';
-
-    const tabs = [
-        { id: 'leagues',     label: 'Leagues' },
-        { id: 'leaderboard', label: 'Leaderboard' },
-        { id: 'records',     label: 'Records' },
-        { id: 'players',     label: 'Players' }
-    ];
-
-    const tabsHtml = tabs.map(t =>
-        `<button class="app-tab" role="tab" aria-selected="false" data-tab="${t.id}">${t.label}</button>`
-    ).join('');
-
-    root.innerHTML = `
-        <div class="app-tabs" role="tablist" aria-label="Home sections">${tabsHtml}</div>
-        <div class="lp-tab-panel" data-panel="leagues"></div>
-        <div class="lp-tab-panel" data-panel="leaderboard" hidden></div>
-        <div class="lp-tab-panel" data-panel="records" hidden></div>
-        <div class="lp-tab-panel" data-panel="players" hidden></div>`;
-
-    const panels = {
-        leagues:     root.querySelector('[data-panel="leagues"]'),
-        leaderboard: root.querySelector('[data-panel="leaderboard"]'),
-        records:     root.querySelector('[data-panel="records"]'),
-        players:     root.querySelector('[data-panel="players"]')
-    };
-
-    // Determine initial tab — URL ?tab= wins; otherwise 'leagues'.
-    const url = new URL(location);
-    const initial = url.searchParams.get('tab');
-    const validIds = tabs.map(t => t.id);
-    const startTab = validIds.includes(initial) ? initial : 'leagues';
-
-    function activate(id) {
-        root.querySelectorAll('[role="tab"]').forEach(b =>
-            b.setAttribute('aria-selected', b.dataset.tab === id ? 'true' : 'false'));
-        root.querySelectorAll('.lp-tab-panel').forEach(p =>
-            p.hidden = p.dataset.panel !== id);
-        const u = new URL(location);
-        if (id === 'leagues') u.searchParams.delete('tab');
-        else u.searchParams.set('tab', id);
-        history.replaceState({}, '', u);
-    }
-
-    root.querySelectorAll('[role="tab"]').forEach(btn => {
-        btn.addEventListener('click', () => activate(btn.dataset.tab));
+    // Generic tab behaviour (activation, ?tab= URL state, ARIA keyboard nav,
+    // 1-N hotkeys) lives in the shared mountAppTabs(). This wrapper only
+    // declares the HOME-specific tab set and keeps the page-framing classes
+    // (.lp-tabs-shell / .lp-tab-panel) that css/index-dashboard.css styles.
+    return mountAppTabs({
+        tabs: [
+            { id: 'leagues',     label: 'Leagues' },
+            { id: 'leaderboard', label: 'Leaderboard' },
+            { id: 'records',     label: 'Records' },
+            { id: 'players',     label: 'Players' }
+        ],
+        urlKey: 'tab',
+        ariaLabel: 'Home sections',
+        shellClass: 'lp-tabs-shell',
+        panelClass: 'lp-tab-panel'
     });
-
-    // Keyboard: 1-4 jump to tab N (when focus is not in an input)
-    root.addEventListener('keydown', e => {
-        if (e.target.matches('input,textarea,select')) return;
-        const n = parseInt(e.key, 10);
-        if (n >= 1 && n <= tabs.length) activate(tabs[n - 1].id);
-    });
-
-    activate(startTab);
-    return { root, panels };
 }
 
 /* ── Players tab — Notable Figures + Rest of Players (SF tables) ── */
@@ -848,65 +807,6 @@ function renderInfoCards(container, activePlayers, totalPlayers, totalLeagues, l
         </div>`;
 
     container.appendChild(section);
-}
-
-/* ── Notable Figures (collapsible) ────────────────────── */
-
-function renderNotableFigures(container, allMeta, leagues) {
-    // Collect all players who have at least one title
-    const titled = [];
-    for (const [name, meta] of Object.entries(allMeta)) {
-        if (hasTitles(meta)) titled.push({ name, meta });
-    }
-    if (titled.length === 0) return;
-
-    // Sort: World Champions → National Champions → BMAB tier → alphabetical
-    titled.sort(compareTitlePriority);
-
-    // Resolve flags: pick the first available flag from any league
-    const playerFlags = {};
-    for (const l of leagues) {
-        for (const p of l.allPlayers) {
-            if (!playerFlags[p]) {
-                playerFlags[p] = getFlagCode(p, l.params?.CustomFlags);
-            }
-        }
-    }
-
-    const section = document.createElement('section');
-    section.className = 'notable-figures-section';
-
-    const rowsHtml = titled.map(({ name, meta }) => {
-        const flag = playerFlags[name] || 'IL';
-        const fullName = meta.fullName || '';
-        const desc = getFullTitleDescription(meta);
-        return `<div class="notable-row">
-            <img class="flag" src="${flagUrl(flag)}" alt="${flag}">
-            <a class="player-name-link" data-player="${escapeHtml(name)}" href="player_general.html?player=${encodeURIComponent(name)}">${escapeHtml(name)}</a>
-            <span class="notable-fullname">${escapeHtml(fullName)}</span>
-            <span class="notable-titles"><em>${escapeHtml(desc)}</em></span>
-        </div>`;
-    }).join('');
-
-    section.innerHTML = `
-        <h2 class="notable-header expanded" id="notable-toggle">
-            Notable Figures (${titled.length}) <span class="collapse-arrow">&#9656;</span>
-        </h2>
-        <div class="notable-list" id="notable-list">
-            ${rowsHtml}
-        </div>
-    `;
-    container.appendChild(section);
-
-    // Toggle behavior
-    const header = section.querySelector('#notable-toggle');
-    const list = section.querySelector('#notable-list');
-    header.addEventListener('click', () => {
-        const expanded = !list.hidden;
-        list.hidden = expanded;
-        header.classList.toggle('expanded', !expanded);
-        header.classList.toggle('collapsed', expanded);
-    });
 }
 
 /* ── H1 — Active leagues ─────────────────────────────── */

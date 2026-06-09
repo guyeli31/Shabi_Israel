@@ -49,7 +49,7 @@ const GROUPS = [
     // ── Cross-page (header / nav / breadcrumb) ──
     { id: 'page-h1',           pages: ALL_PAGES, tier: 't1', bold: true,  label: 'Page H1',                 sel: '.page-header h1' },
     { id: 'page-subtitle',     pages: ALL_PAGES, tier: 't4', bold: false, label: 'Page subtitle',           sel: '.page-header .subtitle' },
-    { id: 'section-heading',   pages: ALL_PAGES, tier: 't3', bold: true,  label: 'Section heading (all)',   sel: '.dash-section h2, .leaderboard-section h2, .pg-section > h2, .notable-header, .collapsible-header' },
+    { id: 'section-heading',   pages: ALL_PAGES, tier: 't3', bold: true,  label: 'Section heading (all)',   sel: '.dash-section h2, .leaderboard-section h2, .pg-section > h2, .collapsible-header' },
     { id: 'card-h3',           pages: ALL_PAGES, tier: 't4', bold: true,  label: 'Card sub-heading',        sel: '.achv-table-card h3' },
     { id: 'show-more-btn',     pages: ALL_PAGES, tier: 't6', bold: false, label: 'Show all/top button',     sel: '.show-more-btn' },
     { id: 'tab-button',        pages: ALL_PAGES, tier: 't6', bold: false, label: 'Tab button',              sel: '.achv-tab' },
@@ -75,9 +75,6 @@ const GROUPS = [
     // ── Index page ──
     { id: 'league-card-title', pages: ['index'], tier: 't4', bold: true,  label: 'League-card title',       sel: '.league-card-title' },
     { id: 'league-card-body',  pages: ['index'], tier: 't5', bold: false, label: 'League-card meta+leader', sel: '.league-card-meta, .league-card-leader' },
-    { id: 'notable-name',      pages: ['index'], tier: 't4', bold: true,  label: 'Notable: player name',    sel: '.notable-row .player-name-link' },
-    { id: 'notable-fullname',  pages: ['index'], tier: 't6', bold: false, label: 'Notable: full name',      sel: '.notable-fullname' },
-    { id: 'notable-titles',    pages: ['index'], tier: 't6', bold: false, label: 'Notable: title text',     sel: '.notable-titles' },
 
     // ── Tables (per page) ──
     // A1-A6 — index

@@ -1,14 +1,23 @@
 /* ============================================================================
    tabs.css — Reusable segmented tab-bar (.app-tabs).
+   Visual half of the tab system; behaviour lives in js/render/appTabs.js
+   (mountAppTabs — activation, ?tab= URL state, ARIA keyboard nav, 1-N hotkeys).
    Used by index.html (HOME); intended to spread to dashboard, league, player,
    player-general as those pages get their own Progressive-Disclosure rewrite.
 
-   Contract:
-     <div class="app-tabs" role="tablist" aria-label="…">
-       <button class="app-tab" role="tab" aria-selected="true|false"
-               data-tab="<slug>">Label</button>
+   Contract (emitted by mountAppTabs):
+     <div class="app-tabs-shell …">
+       <div class="app-tabs" role="tablist" aria-label="…">
+         <button class="app-tab" role="tab" aria-selected="true|false"
+                 aria-controls="…" data-tab="<slug>" tabindex="0|-1">Label</button>
+         …
+       </div>
+       <div class="app-tab-panel …" role="tabpanel" aria-labelledby="…"
+            data-panel="<slug>" [hidden]>…</div>
        …
      </div>
+   Tabs use a roving tabindex (only the selected tab is tabbable); the panel
+   half is hidden via the [hidden] rule at the foot of this file.
 
    Iron rules:
      • Always equal-width across the row (every tab gets flex: 1).
