@@ -667,15 +667,23 @@
     grid-template-columns: repeat(6, 1fr);
     gap: var(--space-md);
 }
-.achv-tables-grid > .achv-table-card:nth-child(-n+3) {
-    grid-column: span 2;
+/* Merged Medals table — full-width row, above the metric cards (like Best PR Matches). */
+.achv-tables-grid > .achv-medals-card {
+    grid-column: 1 / -1;
 }
-.achv-tables-grid > .achv-table-card:nth-child(n+4) {
+/* Medal-column headers — coloured text matching each medal.
+   Weight inherits the SF header default (600); only the colour is overridden. */
+.achv-medals-card th .mh-gold   { color: var(--color-gold); }
+.achv-medals-card th .mh-silver { color: var(--color-silver); }
+.achv-medals-card th .mh-bronze { color: var(--color-bronze); }
+/* Metric cards (Avg Rank / Avg Win%) — share the row below Medals (50/50).
+   Excludes the full-width Medals + Luck cards. */
+.achv-tables-grid > .achv-table-card:not(.achv-medals-card):not(.achv-luck-card) {
     grid-column: span 3;
 }
-/* UBC has a 6th core card (Avg PR Win) — lay out as 3+3 equal-width rows on desktop. */
+/* UBC adds a 3rd metric card (Avg PR Win) → 1/3 each on desktop. */
 @media (min-width: 641px) {
-    .achv-tables-grid.type-ubc > .achv-table-card:nth-child(n+4):nth-child(-n+6) {
+    .achv-tables-grid.type-ubc > .achv-table-card:not(.achv-medals-card):not(.achv-luck-card) {
         grid-column: span 2;
     }
 }
@@ -687,9 +695,8 @@
     .achv-tables-grid {
         grid-template-columns: 1fr;
     }
-    .achv-tables-grid > .achv-table-card:nth-child(-n+3),
-    .achv-tables-grid > .achv-table-card:nth-child(n+4) {
-        grid-column: span 1;
+    .achv-tables-grid > .achv-table-card {
+        grid-column: 1 / -1;
     }
 }
 

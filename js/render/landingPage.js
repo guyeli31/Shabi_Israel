@@ -224,52 +224,35 @@ function buildTabsShell() {
 
 function renderPlayersTab(container, allMeta, leagues) {
     const allRows = computePlayerRows(allMeta, leagues);
-    const notableRows = sortPlayerRows(allRows.filter(r => r.hasTitle));
-    const restRows    = sortPlayerRows(allRows.filter(r => !r.hasTitle));
+    // One combined table: titled players first, untitled below — each subgroup A→Z.
+    const rows = sortPlayerRows(allRows);
 
     const cols = buildPlayerCols();
 
-    // Two SF (A7) tables stacked vertically, each with its own section title.
-    const notableMount = document.createElement('div');
-    notableMount.className = 'lp-players-section';
-    container.appendChild(notableMount);
+    const mount = document.createElement('div');
+    mount.className = 'lp-players-section';
+    container.appendChild(mount);
 
-    const restMount = document.createElement('div');
-    restMount.className = 'lp-players-section';
-    container.appendChild(restMount);
-
-    const { table: tNotable } = mountSFTable(notableMount, {
+    const { table } = mountSFTable(mount, {
         tableId:   'A7',
-        title:     `Notable Figures (${notableRows.length})`,
-        data:      notableRows,
-        cols,
-        fontClass: 'font-small',
-        stickyCols: 1
-    });
-    tNotable.classList.add('sf-sticky-1');
-
-    const { table: tRest } = mountSFTable(restMount, {
-        tableId:   'A7',
-        title:     `Rest of Players (${restRows.length})`,
-        data:      restRows,
+        title:     `Players (${rows.length})`,
+        data:      rows,
         cols,
         fontClass: 'font-small',
         stickyCols: 1,
-        showTopN:  15
+        showTopN:  50
     });
-    tRest.classList.add('sf-sticky-1');
+    table.classList.add('sf-sticky-1');
 
     // Right-click context menu on every player-name link (no leagueId → general profile).
-    attachPlayerNameInteractions(notableMount, null);
-    attachPlayerNameInteractions(restMount, null);
+    attachPlayerNameInteractions(mount, null);
 }
 
-/** 3-state player status. Priority for sort + label/color map.
+/** 3-state player status → label/color map.
  *  active   → currently playing in a Running league         (green)
  *  this-year → played in any league this calendar year       (orange / bronze)
  *  inactive → none of the above                              (gray)
  */
-const PLAYER_STATUS_RANK  = { active: 0, 'this-year': 1, inactive: 2 };
 const PLAYER_STATUS_LABEL = { active: 'Active', 'this-year': 'This Year', inactive: 'Inactive' };
 
 function computePlayerRows(allMeta, leagues) {
@@ -337,9 +320,9 @@ function computePlayerRows(allMeta, leagues) {
 
 function sortPlayerRows(rows) {
     return rows.slice().sort((a, b) => {
-        const sa = PLAYER_STATUS_RANK[a.status] ?? 99;
-        const sb = PLAYER_STATUS_RANK[b.status] ?? 99;
-        if (sa !== sb) return sa - sb;
+        // Titled players first, untitled below.
+        if (a.hasTitle !== b.hasTitle) return a.hasTitle ? -1 : 1;
+        // Within each subgroup, alphabetical A→Z.
         return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     });
 }
@@ -1356,10 +1339,10 @@ function applyShowTopN(tableEl, defaultN = 5) {
 /* ── Achievements (all-time per league type) ─────────── */
 
 const TYPE_ORDER = ['doubling', 'regular', 'ubc'];
+// Gold/Silver/Bronze are no longer separate cards — they're merged into the
+// single MEDALS table (mountMedalsTable). The remaining metrics stay as their
+// own SF cards.
 const ACHIEVEMENT_METRICS = [
-    { key: 'gold',      label: 'Gold',         medal: '🥇', fmt: v => v },
-    { key: 'silver',    label: 'Silver',       medal: '🥈', fmt: v => v },
-    { key: 'bronze',    label: 'Bronze',       medal: '🥉', fmt: v => v },
     { key: 'avgRank',   label: 'Avg Rank',     fmt: v => formatNumber(v) },
     { key: 'winRate',   label: 'Avg Win%',     fmt: v => formatPercent(v) },
     { key: 'prWinRate', label: 'Avg PR Win',   fmt: v => formatPercent(v) }
@@ -1428,6 +1411,17 @@ function renderAchievementsSection(container, presentTypes) {
             panel.innerHTML = renderAchievementTables(data, t);
             panel.querySelectorAll('.achv-table').forEach(tbl => applyShowTopN(tbl));
             wireLuckInfoPopup(panel, t);
+
+            // Prepend the merged Medals table (SF, 2 sticky cols). Mounted after
+            // the old applyShowTopN loop so it isn't double-processed — mountSFTable
+            // wires its own show-top-N.
+            const grid = panel.querySelector('.achv-tables-grid');
+            if (grid) {
+                const tmp = document.createElement('div');
+                mountMedalsTable(tmp, data);
+                const card = tmp.firstElementChild;
+                if (card) grid.insertBefore(card, grid.firstChild);
+            }
         } catch (err) {
             panel.innerHTML = `<div class="error">Failed to load: ${escapeHtml(err.message)}</div>`;
         }
@@ -1446,6 +1440,57 @@ function wireLuckInfoPopup(panel, leagueType) {
     if (close) {
         close.addEventListener('click', () => { popup.hidden = true; });
     }
+}
+
+/* ── Merged MEDALS table (SF format, 2 sticky cols, no sorting) ──────
+   Replaces the three standalone Gold/Silver/Bronze cards. Fixed semantic
+   order: gold DESC → silver DESC → bronze DESC (Olympic medal-table order).
+   Only players who won at least one medal are listed. */
+
+function buildMedalRows(data) {
+    return data.players
+        .filter(p => p.participations > 0
+                  && (p.gold + p.silver + p.bronze) > 0
+                  && !_playersMeta[p.name]?.hidden)
+        .sort((a, b) =>
+            (b.gold   - a.gold)   ||
+            (b.silver - a.silver) ||
+            (b.bronze - a.bronze))
+        .map((p, i) => ({
+            rank:   i + 1,
+            name:   p.name,
+            gold:   p.gold,
+            silver: p.silver,
+            bronze: p.bronze
+        }));
+}
+
+function mountMedalsTable(mount, data) {
+    const cols = [
+        { key: 'rank', label: '#' },
+        {
+            key: 'name',
+            label: 'Player',
+            format: (_v, row) =>
+                `<img class="flag" src="${flagUrl(getFlagCode(row.name, data.customFlags))}" alt="flag"> ` +
+                `${playerNameLink(row.name, _playersMeta[row.name])}`
+        },
+        { key: 'gold',   label: '<span class="mh-gold">Gold</span> 🥇' },
+        { key: 'silver', label: '<span class="mh-silver">Silver</span> 🥈' },
+        { key: 'bronze', label: '<span class="mh-bronze">Bronze</span> 🥉' }
+    ];
+
+    const { card, table } = mountSFTable(mount, {
+        tableId:    'A3',
+        title:      'Medals 🏅',
+        data:       buildMedalRows(data),
+        cols,
+        fontClass:  'font-small',
+        stickyCols: 2,
+        showTopN:   5
+    });
+    card.classList.add('achv-medals-card');
+    table.classList.add('sf-sticky-2');
 }
 
 function renderAchievementTables(data, leagueType) {
