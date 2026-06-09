@@ -131,6 +131,29 @@
     text-decoration: underline;
 }
 
+/* ---- Tab-panel framing (same surface-card look as the HOME page) ----
+   Sections inside a .dash-tab-panel become framed cards; the panel hides via
+   the shared .app-tab-panel[hidden] rule in css/tabs.css. */
+.dash-tabs-shell { margin-bottom: var(--space-lg); }
+
+.dash-tab-panel > .dash-section {
+    margin: 0 0 var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    box-shadow: var(--shadow-sm);
+}
+.dash-tab-panel > .dash-section:last-child { margin-bottom: 0; }
+
+/* H2 inside a framed card: no top margin, thinner divider (the card border frames it). */
+.dash-tab-panel > .dash-section > h2 {
+    margin-top: 0;
+    margin-bottom: var(--space-md);
+    border-bottom-width: 1px;
+    padding-bottom: var(--space-sm);
+}
+
 .dash-controls {
     display: flex;
     gap: var(--space-sm);

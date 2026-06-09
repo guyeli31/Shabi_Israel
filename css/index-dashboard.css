@@ -642,6 +642,11 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     padding: var(--space-md);
+    /* As a grid/flex item, default min-width:auto refuses to shrink below the
+       table's content width — a wide table (e.g. Medals) then blows the card
+       past its track and off-screen. min-width:0 lets the card match its track
+       so the inner .achv-table-wrapper scrolls horizontally instead. */
+    min-width: 0;
 }
 
 .achv-table-card h3 {

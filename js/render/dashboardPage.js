@@ -26,6 +26,7 @@ import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { startSplash, endSplash } from '../utils/splash.js';
 import { buildLeagueHeaderData, renderV16Header } from './leagueHeader.js';
+import { mountAppTabs } from './appTabs.js';
 
 export async function renderDashboardPage() {
     const container = document.getElementById('content');
@@ -96,7 +97,36 @@ export async function renderDashboardPage() {
             history, playersMeta
         };
 
-        container.innerHTML = renderShell();
+        // Summary cards live just under the header (outside the tabs), matching
+        // the landing page's hero → info-cards → tabs composition.
+        container.innerHTML = '';
+        const cardsHost = document.createElement('div');
+        cardsHost.className = 'dashboard-cards';
+        cardsHost.id = 'dash-cards';
+        container.appendChild(cardsHost);
+
+        // Progressive-disclosure tabs (same chrome as HOME via mountAppTabs).
+        const shell = mountAppTabs({
+            tabs: [
+                { id: 'standings', label: 'Standings' },
+                { id: 'matches',   label: 'Matches' },
+                { id: 'predictor', label: 'Predictor' },
+                { id: 'insights',  label: 'Player insights' }
+            ],
+            urlKey: 'tab',
+            ariaLabel: 'Dashboard sections',
+            shellClass: 'dash-tabs-shell',
+            panelClass: 'dash-tab-panel'
+        });
+        container.appendChild(shell.root);
+
+        // Each render fn still targets the same element IDs — they're now nested
+        // inside the right tab panel rather than appended to #content directly.
+        shell.panels.standings.innerHTML = standingsPanel();
+        shell.panels.matches.innerHTML   = matchesPanel();
+        shell.panels.predictor.innerHTML = predictorPanel();
+        shell.panels.insights.innerHTML  = insightsPanel();
+
         renderSummaryCards(ctx);
         renderPrizes(ctx);
         renderHistorical(ctx);
@@ -204,19 +234,9 @@ function installLeagueNavArrows(leagueId, allParams, currentType) {
     (header.querySelector('#page-title') || header.querySelector('h1')).insertAdjacentElement('afterend', nav);
 }
 
-function renderShell() {
+function standingsPanel() {
     return `
-        <div class="dashboard-cards" id="dash-cards"></div>
-
-        <section class="dash-section" id="prizes-section" style="display:none">
-            <h2>
-                <button class="prizes-toggle-btn" id="prizes-toggle">Prizes &amp; Medals</button>
-            </h2>
-            <div id="prizes-content" hidden></div>
-        </section>
-
         <section class="dash-section">
-            <h2>Historical view</h2>
             <div class="dash-controls">
                 <button id="hist-prev" title="Previous snapshot">&lsaquo;</button>
                 <select id="hist-date" title="Select snapshot date"></select>
@@ -226,7 +246,18 @@ function renderShell() {
             <div id="hist-table"></div>
         </section>
 
-        <section class="dash-section" id="predictor-section" style="display:none">
+        <section class="dash-section" id="prizes-section" style="display:none">
+            <h2>
+                <button class="prizes-toggle-btn" id="prizes-toggle">Prizes &amp; Medals</button>
+            </h2>
+            <div id="prizes-content" hidden></div>
+        </section>
+    `;
+}
+
+function predictorPanel() {
+    return `
+        <section class="dash-section" id="predictor-section">
             <h2>Championship Predictor
                 <span class="predictor-tooltip" id="predictor-info-btn">?</span>
             </h2>
@@ -260,15 +291,15 @@ function renderShell() {
             <div id="predictor-table"><div class="loading">Computing predictions...</div></div>
             <button id="predictor-expand" class="predictor-expand-btn" style="display:none">Show Full Table</button>
 
-            <div class="whatif-wrap" id="whatif-wrap" style="display:none">
+            <div class="whatif-wrap" id="whatif-wrap">
                 <h3 id="whatif-header" class="whatif-header">
-                    <span id="whatif-arrow">&#x25B8;</span>
-                    <span>&#x1F9EA; What If Simulator</span>
+                    <span id="whatif-arrow">&#x25BE;</span>
+                    <span>&#x1F9EA; What If</span>
                     <span class="whatif-tooltip" id="whatif-info-btn">?</span>
                 </h3>
                 <div class="whatif-info-popup" id="whatif-info-popup" hidden>
                     <button class="whatif-info-close" id="whatif-info-close">&times;</button>
-                    <h4>What If Simulator</h4>
+                    <h4>What If</h4>
                     <p>Pick any scheduled match in the league and force its outcome (A wins, B wins, or Not Played). Add as many matches as you like, then <b>Run Simulation</b> to see how the championship odds would change in that alternate scenario.</p>
                     <ul>
                         <li>Already-played matches load with their real result and can be overridden.</li>
@@ -277,7 +308,7 @@ function renderShell() {
                     </ul>
                     <p>The engine is the same as the real predictor above — only the inputs differ. Results are speculative and depend on your choices.</p>
                 </div>
-                <div id="whatif-body" hidden>
+                <div id="whatif-body">
                     <div class="whatif-picker">
                         <input type="text" id="whatif-input-a" class="whatif-input" placeholder="Player A" autocomplete="off" list="whatif-list-a">
                         <datalist id="whatif-list-a"></datalist>
@@ -305,7 +336,11 @@ function renderShell() {
                 </div>
             </div>
         </section>
+    `;
+}
 
+function matchesPanel() {
+    return `
         <section class="dash-section">
             <h2>Rounds</h2>
             <div class="dash-controls">
@@ -331,7 +366,11 @@ function renderShell() {
             <div id="rem-panel-b6b" class="rem-tab-panel" hidden></div>
             <div id="rem-panel-b6c" class="rem-tab-panel" hidden></div>
         </section>
+    `;
+}
 
+function insightsPanel() {
+    return `
         <section class="dash-section">
             <h2>Player insights</h2>
             <div id="charts-container"></div>
@@ -535,8 +574,8 @@ async function renderPredictor(ctx) {
     const moeHost = document.getElementById('predictor-moe');
     const expandBtn = document.getElementById('predictor-expand');
 
-    // Only show for running leagues
-    if (ctx.params.Running !== true) return;
+    // Shown for finished leagues too — the remaining===0 branch below renders
+    // the season-complete line instead of a live simulation.
     section.style.display = '';
 
     // Wire info popup toggle
@@ -681,7 +720,6 @@ async function renderPredictor(ctx) {
 
 // ---------- What-If Simulator ----------
 function renderWhatIfSimulator(ctx) {
-    if (ctx.params.Running !== true) return;
     const wrap = document.getElementById('whatif-wrap');
     if (!wrap) return;
     wrap.style.display = '';
