@@ -36,6 +36,7 @@ import {
 } from '../compute/matchRecords.js';
 import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
+import { mountAppTabs } from './appTabs.js';
 import { getTitleBadgesHtml, getTitleAbbreviationsHtml, getHighestTier } from '../data/titleConstants.js';
 import { renderV12Header, buildHeaderTitles, formatJoinedShort } from './playerHeader.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
@@ -87,41 +88,88 @@ export async function renderPlayerGeneralPage() {
 
         container.innerHTML = '';
 
-        // G3 — PR stats per league type (only types with showPR)
-        const prSection = document.createElement('section');
-        prSection.className = 'pg-section pg-pr-section';
-        prSection.innerHTML = '<h2>PR Statistics</h2>';
-        container.appendChild(prSection);
+        // Progressive-disclosure tabs (same chrome as HOME / dashboard via mountAppTabs).
+        const shell = mountAppTabs({
+            tabs: [
+                { id: 'statistics', label: 'Statistics' },
+                { id: 'leagues',    label: 'Leagues' },
+                { id: 'matches',    label: 'Matches' },
+                { id: 'h2h',        label: 'H2H' },
+                { id: 'records',    label: 'Records' }
+            ],
+            urlKey: 'tab',
+            ariaLabel: 'Player sections',
+            shellClass: 'pg-tabs-shell',
+            panelClass: 'pg-tab-panel'
+        });
+        container.appendChild(shell.root);
+
+        // Tab 1 — Statistics: PR stats (G3) + Achievements (G6), both always open.
+        const prSection = makePgSection('pg-pr-section', 'PR Statistics');
+        shell.panels.statistics.appendChild(prSection);
         await renderPRStats(prSection, playerName, perLeague);
 
-        // G6 — Achievements strip (tabbed by league type)
-        const achSection = document.createElement('section');
-        achSection.className = 'pg-section pg-achievements';
-        achSection.innerHTML = '<h2>Achievements</h2>';
-        container.appendChild(achSection);
+        const achSection = makePgSection('pg-achievements', 'Achievements');
+        shell.panels.statistics.appendChild(achSection);
         await renderAchievements(achSection, playerName, perLeague);
 
-        // G4 — League history table
-        const leaguesSection = document.createElement('section');
-        leaguesSection.className = 'pg-section pg-leagues';
-        leaguesSection.innerHTML = '<h2>Leagues</h2>';
-        container.appendChild(leaguesSection);
+        // Tab 2 — Leagues (G4): single section, no heading, always open.
+        const leaguesSection = makePgSection('pg-leagues', null);
+        shell.panels.leagues.appendChild(leaguesSection);
         renderLeaguesTable(leaguesSection, perLeague);
 
-        // G5 — Match history table + filters + chart
-        const matchesSection = document.createElement('section');
-        matchesSection.className = 'pg-section pg-matches';
-        matchesSection.innerHTML = '<h2>Match History</h2>';
-        container.appendChild(matchesSection);
+        // Tab 3 — Matches (G5): Match History (chart + table), open + collapsible.
+        const matchesSection = makePgSection('pg-matches', 'Match History', { collapsible: true });
+        shell.panels.matches.appendChild(matchesSection);
         renderMatchHistory(matchesSection, playerName, perLeague);
 
-        // Match Records — per-player best PR + luck highlights
-        renderPlayerMatchRecords(container, perLeague);
+        // Tab 4 — H2H (G5b): Head to Head, open + collapsible (its own matchup header).
+        const h2hSection = makePgSection('pg-matchup', null);
+        shell.panels.h2h.appendChild(h2hSection);
+        const allRows = flattenAllMatches(perLeague);
+        if (allRows.length === 0) {
+            h2hSection.innerHTML = '<div class="pg-note">No matches played yet.</div>';
+        } else {
+            renderMatchup(h2hSection, playerName, allRows);
+        }
+
+        // Tab 5 — Records: Match Records (all tables), always open — builds its own section.
+        renderPlayerMatchRecords(shell.panels.records, perLeague);
 
     } catch (err) {
         console.error(err);
         container.innerHTML = `<div class="error">Failed to load data: ${escapeHtml(err.message)}</div>`;
     }
+}
+
+/**
+ * Build a `.pg-section` for a tab panel. `title` → an <h2> heading (omit for
+ * a heading-less section). `collapsible` makes the heading toggle the section
+ * open/closed (open by default); hiding is driven by the `.pg-collapsed` class.
+ */
+function makePgSection(extraClass, title, { collapsible = false } = {}) {
+    const section = document.createElement('section');
+    section.className = 'pg-section ' + extraClass;
+    if (title) {
+        const h2 = document.createElement('h2');
+        h2.textContent = title;
+        if (collapsible) {
+            h2.className = 'pg-collapse-h2';
+            h2.setAttribute('role', 'button');
+            h2.tabIndex = 0;
+            h2.setAttribute('aria-expanded', 'true');
+            const toggle = () => {
+                const collapsed = section.classList.toggle('pg-collapsed');
+                h2.setAttribute('aria-expanded', String(!collapsed));
+            };
+            h2.addEventListener('click', toggle);
+            h2.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+            });
+        }
+        section.appendChild(h2);
+    }
+    return section;
 }
 
 // ---- G2: Header ----
@@ -610,8 +658,6 @@ function renderMatchHistory(section, playerName, perLeague) {
     countSel.addEventListener('change', renderAll);
     metricSel.addEventListener('change', renderAll);
     renderAll();
-
-    renderMatchup(section, playerName, allRows);
 }
 
 // ---- G5b: Matchup sub-section ----

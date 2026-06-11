@@ -237,6 +237,7 @@ function installLeagueNavArrows(leagueId, allParams, currentType) {
 function standingsPanel() {
     return `
         <section class="dash-section">
+            <h2>Table</h2>
             <div class="dash-controls">
                 <button id="hist-prev" title="Previous snapshot">&lsaquo;</button>
                 <select id="hist-date" title="Select snapshot date"></select>
@@ -247,9 +248,7 @@ function standingsPanel() {
         </section>
 
         <section class="dash-section" id="prizes-section" style="display:none">
-            <h2>
-                <button class="prizes-toggle-btn" id="prizes-toggle">Prizes &amp; Medals</button>
-            </h2>
+            <h2 class="dash-collapse-h2" id="prizes-toggle" aria-expanded="false">Prizes &amp; Medals</h2>
             <div id="prizes-content" hidden></div>
         </section>
     `;
@@ -290,7 +289,9 @@ function predictorPanel() {
             </div>
             <div id="predictor-table"><div class="loading">Computing predictions...</div></div>
             <button id="predictor-expand" class="predictor-expand-btn" style="display:none">Show Full Table</button>
+        </section>
 
+        <section class="dash-section" id="whatif-section">
             <div class="whatif-wrap" id="whatif-wrap">
                 <h3 id="whatif-header" class="whatif-header">
                     <span id="whatif-arrow">&#x25BE;</span>
@@ -461,6 +462,7 @@ function renderPrizes(ctx) {
     toggleBtn.addEventListener('click', () => {
         content.hidden = !content.hidden;
         toggleBtn.classList.toggle('prizes-toggle-open', !content.hidden);
+        toggleBtn.setAttribute('aria-expanded', String(!content.hidden));
     });
 }
 

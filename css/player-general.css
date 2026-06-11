@@ -31,6 +31,32 @@
     padding: 8px 0;
 }
 
+/* ---- Tab-panel framing (same surface-card look as HOME / dashboard) ----
+   Sections inside a .pg-tab-panel become framed cards; the panel hides via the
+   shared .app-tab-panel[hidden] rule in css/tabs.css. */
+.pg-tabs-shell { margin-bottom: var(--space-lg); }
+
+.pg-tab-panel > .pg-section {
+    margin: 0 0 var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    box-shadow: var(--shadow-sm);
+}
+.pg-tab-panel > .pg-section:last-child { margin-bottom: 0; }
+.pg-tab-panel > .pg-section > h2 { margin-top: 0; }
+
+/* H2H card: the matchup header is the section heading — drop its top padding
+   inside the framed card. */
+.pg-tab-panel > .pg-matchup .matchup-header { padding-top: 0; }
+
+/* Collapsible section heading (Matches / Match History) — open by default. */
+.pg-collapse-h2 { cursor: pointer; user-select: none; }
+.pg-collapse-h2::after { content: ' ▾'; font-size: 0.85em; opacity: 0.7; }
+.pg-section.pg-collapsed > .pg-collapse-h2::after { content: ' ▸'; }
+.pg-section.pg-collapsed > *:not(h2) { display: none; }
+
 /* ============================================
    HEADER — "V7" Lichess-enriched horizontal card
    (Player Page Lab)
