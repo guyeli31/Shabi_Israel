@@ -310,11 +310,15 @@ function predictorPanel() {
                 </div>
                 <div id="whatif-body">
                     <div class="whatif-picker">
-                        <input type="text" id="whatif-input-a" class="whatif-input" placeholder="Player A" autocomplete="off" list="whatif-list-a">
-                        <datalist id="whatif-list-a"></datalist>
+                        <div class="whatif-combo">
+                            <input type="text" id="whatif-input-a" class="whatif-input" placeholder="Player A" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="whatif-opts-a">
+                            <ul id="whatif-opts-a" class="whatif-options" role="listbox" hidden></ul>
+                        </div>
                         <span class="whatif-vs">vs</span>
-                        <input type="text" id="whatif-input-b" class="whatif-input" placeholder="Player B" autocomplete="off" list="whatif-list-b">
-                        <datalist id="whatif-list-b"></datalist>
+                        <div class="whatif-combo">
+                            <input type="text" id="whatif-input-b" class="whatif-input" placeholder="Player B" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="whatif-opts-b">
+                            <ul id="whatif-opts-b" class="whatif-options" role="listbox" hidden></ul>
+                        </div>
                         <button id="whatif-add" class="whatif-add-btn" type="button">+ Add match</button>
                         <span id="whatif-add-err" class="whatif-err"></span>
                     </div>
@@ -732,8 +736,8 @@ function renderWhatIfSimulator(ctx) {
     const infoClose = document.getElementById('whatif-info-close');
     const inputA = document.getElementById('whatif-input-a');
     const inputB = document.getElementById('whatif-input-b');
-    const listA = document.getElementById('whatif-list-a');
-    const listB = document.getElementById('whatif-list-b');
+    const optsA = document.getElementById('whatif-opts-a');
+    const optsB = document.getElementById('whatif-opts-b');
     const addBtn = document.getElementById('whatif-add');
     const addErr = document.getElementById('whatif-add-err');
     const stagedHost = document.getElementById('whatif-staged');
@@ -775,23 +779,94 @@ function renderWhatIfSimulator(ctx) {
     }
 
     const allPlayersSorted = [...opponentsOf.keys()].filter(p => p !== 'Bye').sort();
-    listA.innerHTML = allPlayersSorted.map(p => `<option value="${escapeHtml(p)}"></option>`).join('');
 
-    function refreshListB() {
-        const a = inputA.value.trim();
-        let options = [];
-        if (a && opponentsOf.has(a)) {
-            options = [...opponentsOf.get(a)].filter(p => p !== 'Bye' && p !== a).sort();
-        } else {
-            options = allPlayersSorted;
+    // Custom combobox: clicking shows all options; typing narrows the list.
+    // Replaces native <datalist>, which behaves poorly/inconsistently on mobile.
+    function attachCombo(input, dropdown, getOptions, onSelect) {
+        let filtered = [];
+        let activeIdx = -1;
+
+        function highlight() {
+            const items = dropdown.querySelectorAll('.whatif-option');
+            items.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
+            if (activeIdx >= 0 && items[activeIdx]) items[activeIdx].scrollIntoView({ block: 'nearest' });
         }
-        listB.innerHTML = options.map(p => `<option value="${escapeHtml(p)}"></option>`).join('');
+
+        function open() {
+            const q = input.value.trim().toLowerCase();
+            const all = getOptions();
+            filtered = q ? all.filter(p => p.toLowerCase().includes(q)) : all.slice();
+            activeIdx = -1;
+            if (filtered.length === 0) { close(); return; }
+            dropdown.innerHTML = filtered
+                .map((p, i) => `<li class="whatif-option" role="option" data-idx="${i}">${escapeHtml(p)}</li>`)
+                .join('');
+            dropdown.hidden = false;
+            input.setAttribute('aria-expanded', 'true');
+        }
+
+        function close() {
+            dropdown.hidden = true;
+            input.setAttribute('aria-expanded', 'false');
+            activeIdx = -1;
+        }
+
+        function choose(val) {
+            input.value = val;
+            close();
+            if (onSelect) onSelect();
+        }
+
+        input.addEventListener('focus', open);
+        input.addEventListener('click', open);
+        input.addEventListener('input', open);
+
+        input.addEventListener('keydown', (e) => {
+            if (dropdown.hidden) return;
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                activeIdx = Math.min(activeIdx + 1, filtered.length - 1);
+                highlight();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                activeIdx = Math.max(activeIdx - 1, 0);
+                highlight();
+            } else if (e.key === 'Enter' && activeIdx >= 0 && filtered[activeIdx]) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                choose(filtered[activeIdx]);
+            } else if (e.key === 'Escape') {
+                close();
+            }
+        });
+
+        // mousedown (not click) so selection fires before the input's blur closes the list
+        dropdown.addEventListener('mousedown', (e) => {
+            const li = e.target.closest('.whatif-option');
+            if (!li) return;
+            e.preventDefault();
+            choose(filtered[Number(li.dataset.idx)]);
+        });
+
+        input.addEventListener('blur', () => setTimeout(close, 150));
+
+        return { close };
     }
-    inputA.addEventListener('input', refreshListB);
-    refreshListB();
+
+    attachCombo(inputA, optsA, () => allPlayersSorted);
+    attachCombo(inputB, optsB, () => {
+        const a = inputA.value.trim();
+        if (a && opponentsOf.has(a)) {
+            return [...opponentsOf.get(a)].filter(p => p !== 'Bye' && p !== a).sort();
+        }
+        return allPlayersSorted;
+    });
 
     // State: staged matches
     const staged = []; // { a, b, key, result: 'NP'|'A'|'B', realWinner: 'A'|'B'|null, wasPlayed: bool }
+
+    // Persist the "Show" (Top X) selection across re-runs of the simulation
+    let lastTopX = 1;
 
     function findSchedule(a, b) {
         return scheduleByKey.get(canonKey(a, b)) || null;
@@ -834,7 +909,6 @@ function renderWhatIfSimulator(ctx) {
 
         inputA.value = '';
         inputB.value = '';
-        refreshListB();
         renderStaged();
     }
 
@@ -973,16 +1047,19 @@ function renderWhatIfSimulator(ctx) {
                 opt.textContent = x === 1 ? '1st place only' : x === result.n ? `Top ${x} (any finish)` : `Top ${x}`;
                 wiTopXInput.appendChild(opt);
             }
-            wiTopXInput.value = 1;
-            let currentX = 1;
+            // Restore the previous "Show" choice; clamp to the new player count
+            let currentX = Math.min(lastTopX, result.n);
+            wiTopXInput.value = currentX;
 
             const getTopXPct = (r) =>
                 computeTopXPct(result.finishRankCounts, r.playerIdx, result.n, result.totalWeight, currentX);
 
-            wiTopXInput.addEventListener('change', () => {
+            // Use onchange (not addEventListener) so repeated runs don't stack listeners
+            wiTopXInput.onchange = () => {
                 currentX = parseInt(wiTopXInput.value);
+                lastTopX = currentX;
                 renderTable(expanded);
-            });
+            };
 
             const showPR = ctx.leagueConfig.showPR;
             const showPRWins = ctx.leagueConfig.showPRWins;

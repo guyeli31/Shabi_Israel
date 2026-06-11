@@ -603,11 +603,6 @@
 .achv-tables-grid > .achv-medals-card {
     grid-column: 1 / -1;
 }
-/* Medal-column headers — coloured text matching each medal.
-   Weight inherits the SF header default (600); only the colour is overridden. */
-.achv-medals-card th .mh-gold   { color: var(--color-gold); }
-.achv-medals-card th .mh-silver { color: var(--color-silver); }
-.achv-medals-card th .mh-bronze { color: var(--color-bronze); }
 /* Column spans are a DESKTOP-only concern. On mobile (≤640) every card is
    1/-1 in a single-column grid; leaving any `span N` (N>1) active there makes
    CSS Grid synthesise implicit columns, so `1/-1` items (Medals, Luck) end up

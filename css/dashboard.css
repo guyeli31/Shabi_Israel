@@ -685,6 +685,53 @@
     border-color: var(--color-accent);
 }
 
+/* Custom combobox (works on mobile, unlike native <datalist>) */
+.whatif-combo {
+    position: relative;
+    flex: 1;
+    min-width: 140px;
+    display: flex;
+}
+.whatif-combo .whatif-input {
+    width: 100%;
+    min-width: 0;
+}
+.whatif-options {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    margin: 0;
+    padding: var(--space-2xs, 2px);
+    list-style: none;
+    max-height: 240px;
+    overflow-y: auto;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+    -webkit-overflow-scrolling: touch;
+}
+.whatif-options[hidden] {
+    display: none;
+}
+.whatif-option {
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    font-size: var(--fs-090);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.whatif-option:hover,
+.whatif-option.active {
+    background: var(--color-accent);
+    color: var(--color-bg);
+}
+
 .whatif-vs {
     font-weight: 600;
     color: var(--color-text-muted);

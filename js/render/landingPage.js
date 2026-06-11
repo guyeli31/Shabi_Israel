@@ -1375,9 +1375,9 @@ function mountMedalsTable(mount, data) {
                 `<img class="flag" src="${flagUrl(getFlagCode(row.name, data.customFlags))}" alt="flag"> ` +
                 `${playerNameLink(row.name, _playersMeta[row.name])}`
         },
-        { key: 'gold',   label: '<span class="mh-gold">Gold</span> 🥇' },
-        { key: 'silver', label: '<span class="mh-silver">Silver</span> 🥈' },
-        { key: 'bronze', label: '<span class="mh-bronze">Bronze</span> 🥉' }
+        { key: 'gold',   label: '🥇' },
+        { key: 'silver', label: '🥈' },
+        { key: 'bronze', label: '🥉' }
     ];
 
     const { card, table } = mountSFTable(mount, {
