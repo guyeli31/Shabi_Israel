@@ -48,7 +48,7 @@ export function buildPlayerLeaguesPreset({ perLeague, parseLeagueDate, enrich = 
           sortKey: row => row._rank ?? 9999,
           tdClass: null,
           format: (v, row) => v },
-        { key: 'gp',          label: 'GP',     type: 'number', sortable: true, colorFn: null },
+        { key: 'gp',          label: 'MP',     type: 'number', sortable: true, colorFn: null },
         { key: 'wins',        label: 'W',      type: 'number', sortable: true, colorFn: null },
         { key: 'losses',      label: 'L',      type: 'number', sortable: true, colorFn: null },
         { key: 'primary',     label: 'Primary',type: 'string', sortable: true, colorFn: null,

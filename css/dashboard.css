@@ -538,7 +538,9 @@
     background: var(--color-hover);
 }
 
-/* ── Prizes section — collapsible h2 section heading (matches Rounds etc.) ── */
+/* ── Collapsible section heading (standard dashboard <h2>) ──
+   Used by Prizes & Medals, Championship Predictor and What If. Chevron tracks
+   aria-expanded; a `.dash-collapsed` class on the section hides its body. */
 .dash-collapse-h2 {
     cursor: pointer;
     user-select: none;
@@ -548,8 +550,12 @@
     font-size: 0.85em;
     opacity: 0.7;
 }
-.dash-collapse-h2.prizes-toggle-open::after {
+.dash-collapse-h2[aria-expanded="true"]::after {
     content: ' ▾';
+}
+/* Collapsed section — hide everything but the heading (beats inline display). */
+.dash-section.dash-collapsed > *:not(h2) {
+    display: none !important;
 }
 
 .prizes-info {
@@ -580,42 +586,8 @@
 }
 
 /* ── What-If Simulator ──────────────────────────────────
-   Standalone .dash-section card (split out of the predictor section), so no
-   separator border/margin — the card border frames it. */
-.whatif-wrap {
-    margin-top: 0;
-}
-
-.whatif-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    margin: 0;
-    padding: var(--space-xs) 0;
-    font-size: var(--fs-105);
-    font-weight: 600;
-    cursor: pointer;
-    user-select: none;
-    color: var(--color-accent);
-}
-.whatif-header:hover { color: var(--color-text); }
-
-.whatif-tooltip {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    color: var(--color-text-muted);
-    font-size: var(--fs-080);
-    font-weight: 700;
-    cursor: help;
-}
-.whatif-tooltip:hover { color: var(--color-accent); border-color: var(--color-accent); }
-
+   Standard collapsible .dash-section card (header is a .dash-collapse-h2, the
+   `?` reuses .predictor-tooltip — shared with the predictor + landing page). */
 .whatif-info-popup {
     position: relative;
     margin: var(--space-sm) 0;

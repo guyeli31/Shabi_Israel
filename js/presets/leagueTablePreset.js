@@ -62,7 +62,7 @@ export function buildLeagueTablePreset({ rankings, averages, params, leagueConfi
               if (enrich.isHidden && enrich.isHidden(v)) return `<i class="player-hidden">N/A</i>`;
               return defaultPlayerCell(v, customFlags, flagUrl, enrich);
           } },
-        { key: 'gp',     label: 'GP', type: 'number', sortable: true,
+        { key: 'gp',     label: 'MP', type: 'number', sortable: true,
           colorFn: (v, _min, _max) => colorForGames(v), boldExtreme: true },
         { key: 'wins',   label: 'W',  type: 'number', sortable: true,
           colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true },

@@ -78,7 +78,7 @@ export function buildAllOpponentsPreset({ opponents, enrich = {} }) {
               const flag = enrich.flagFor ? enrich.flagFor(v) : '';
               return `<button type="button" class="c4-opp-link" data-name="${esc(v)}">${flag}<span class="c4-opp-name">${esc(v)}</span></button>`;
           } },
-        { key: 'matches',  label: 'Matches',  type: 'number', sortable: true, colorFn: null,
+        { key: 'matches',  label: 'MP',       type: 'number', sortable: true, colorFn: null,
           format: v => String(v) },
         { key: 'pr',       label: 'PR',       type: 'number', sortable: true, colorFn: null,
           format: num2 },

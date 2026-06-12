@@ -257,7 +257,7 @@ function standingsPanel() {
 function predictorPanel() {
     return `
         <section class="dash-section" id="predictor-section">
-            <h2>Championship Predictor
+            <h2 class="dash-collapse-h2" id="predictor-toggle" aria-expanded="true">Championship Predictor
                 <span class="predictor-tooltip" id="predictor-info-btn">?</span>
             </h2>
             <div class="predictor-info-popup" id="predictor-info-popup" hidden>
@@ -292,13 +292,10 @@ function predictorPanel() {
         </section>
 
         <section class="dash-section" id="whatif-section">
-            <div class="whatif-wrap" id="whatif-wrap">
-                <h3 id="whatif-header" class="whatif-header">
-                    <span id="whatif-arrow">&#x25BE;</span>
-                    <span>&#x1F9EA; What If</span>
-                    <span class="whatif-tooltip" id="whatif-info-btn">?</span>
-                </h3>
-                <div class="whatif-info-popup" id="whatif-info-popup" hidden>
+            <h2 class="dash-collapse-h2" id="whatif-toggle" aria-expanded="true">What If
+                <span class="predictor-tooltip" id="whatif-info-btn">?</span>
+            </h2>
+            <div class="whatif-info-popup" id="whatif-info-popup" hidden>
                     <button class="whatif-info-close" id="whatif-info-close">&times;</button>
                     <h4>What If</h4>
                     <p>Pick any scheduled match in the league and force its outcome (A wins, B wins, or Not Played). Add as many matches as you like, then <b>Run Simulation</b> to see how the championship odds would change in that alternate scenario.</p>
@@ -339,7 +336,6 @@ function predictorPanel() {
                         <button id="whatif-expand" class="whatif-expand-btn" style="display:none">Show Full Table</button>
                     </div>
                 </div>
-            </div>
         </section>
     `;
 }
@@ -382,6 +378,29 @@ function insightsPanel() {
             <button id="add-chart" class="add-chart-btn" title="Add another chart for comparison">+ Add chart</button>
         </section>
     `;
+}
+
+/**
+ * Make a dashboard section collapsible via its standard `<h2.dash-collapse-h2>`
+ * heading (open by default). Clicks on the info button (`?`) are ignored so it
+ * opens its popup without toggling. Hiding is driven by `.dash-collapsed`.
+ */
+function wireDashSectionCollapse(section, infoBtn) {
+    const h2 = section && section.querySelector(':scope > h2.dash-collapse-h2');
+    if (!h2) return;
+    const toggle = () => {
+        const collapsed = section.classList.toggle('dash-collapsed');
+        h2.setAttribute('aria-expanded', String(!collapsed));
+    };
+    h2.setAttribute('role', 'button');
+    h2.tabIndex = 0;
+    h2.addEventListener('click', (e) => {
+        if (infoBtn && (e.target === infoBtn || infoBtn.contains(e.target))) return;
+        toggle();
+    });
+    h2.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
 }
 
 // ---------- F1 ----------
@@ -536,7 +555,7 @@ function drawHistTable(ctx, dateValue) {
         return '';
     }
 
-    let html = `<table class="dash-table font-large" data-mf-table-id="B2"><thead><tr><th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">GP</th><th scope="col">W</th><th scope="col">L</th>`;
+    let html = `<table class="dash-table font-large" data-mf-table-id="B2"><thead><tr><th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">MP</th><th scope="col">W</th><th scope="col">L</th>`;
     if (leagueConfig.showWinRate) html += `<th scope="col">Win%</th>`;
     if (leagueConfig.showPRWins) html += `<th scope="col">PRW</th><th scope="col">Avg PTS</th>`;
     if (leagueConfig.showPR) html += `<th scope="col">PR</th>`;
@@ -592,6 +611,7 @@ async function renderPredictor(ctx) {
         infoBtn.addEventListener('click', () => { infoPopup.hidden = !infoPopup.hidden; });
         if (infoClose) infoClose.addEventListener('click', () => { infoPopup.hidden = true; });
     }
+    wireDashSectionCollapse(section, infoBtn);
 
     // Find remaining (unplayed) matches
     const remaining = ctx.allMatchesIncUnplayed.filter(m => !m.played);
@@ -693,7 +713,7 @@ async function renderPredictor(ctx) {
                 <div class="predictor-scroll-wrap">
                 <table class="dash-table font-small" data-mf-table-id="B3">
                     <thead><tr>
-                        <th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">GP</th><th scope="col">W</th><th scope="col">L</th>
+                        <th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">MP</th><th scope="col">W</th><th scope="col">L</th>
                         ${ubcHeaders}
                         <th scope="col">${prHeader}</th><th scope="col">${pctShortHeader}</th>
                     </tr></thead>
@@ -726,13 +746,8 @@ async function renderPredictor(ctx) {
 
 // ---------- What-If Simulator ----------
 function renderWhatIfSimulator(ctx) {
-    const wrap = document.getElementById('whatif-wrap');
-    if (!wrap) return;
-    wrap.style.display = '';
-
-    const header = document.getElementById('whatif-header');
-    const arrow = document.getElementById('whatif-arrow');
-    const body = document.getElementById('whatif-body');
+    const section = document.getElementById('whatif-section');
+    if (!section) return;
     const infoBtn = document.getElementById('whatif-info-btn');
     const infoPopup = document.getElementById('whatif-info-popup');
     const infoClose = document.getElementById('whatif-info-close');
@@ -750,13 +765,8 @@ function renderWhatIfSimulator(ctx) {
     const tableHost = document.getElementById('whatif-table');
     const expandBtn = document.getElementById('whatif-expand');
 
-    // Collapse toggle
-    header.addEventListener('click', (e) => {
-        if (e.target === infoBtn) return;
-        const collapsed = body.hidden;
-        body.hidden = !collapsed;
-        arrow.innerHTML = collapsed ? '&#x25BE;' : '&#x25B8;';
-    });
+    // Collapse toggle (standard dashboard section header)
+    wireDashSectionCollapse(section, infoBtn);
 
     // Info popup
     if (infoBtn && infoPopup) {
@@ -1103,7 +1113,7 @@ function renderWhatIfSimulator(ctx) {
                     <div class="whatif-scroll-wrap">
                     <table class="dash-table whatif-table font-small" data-mf-table-id="B4">
                         <thead><tr>
-                            <th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">GP</th><th scope="col">W</th><th scope="col">L</th>
+                            <th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">MP</th><th scope="col">W</th><th scope="col">L</th>
                             ${ubcHeaders}
                             <th scope="col">${prHeader}</th><th scope="col">${pctShortHeader}</th>
                         </tr></thead>

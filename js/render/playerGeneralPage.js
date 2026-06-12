@@ -669,7 +669,7 @@ function renderMatchup(panel, playerName, allRows) {
     const LIMIT = 10;
 
     // ── Top section: smart search + C3 head-to-head detail (always open) ──
-    const topSection = makePgSection('pg-h2h-search', null);
+    const topSection = makePgSection('pg-h2h-search', 'Head-to-Head Lookup');
     const body = document.createElement('div');
     body.className = 'matchup-body';
     topSection.appendChild(body);
@@ -721,7 +721,8 @@ function renderMatchup(panel, playerName, allRows) {
         : `<img class="flag" src="${flagUrl(getFlagCode(name, _mergedCustomFlags))}" alt="flag">`;
     mountMFTable(c4Mount, buildAllOpponentsPreset({ opponents, enrich: { flagFor } }));
 
-    // Clicking an opponent in C4 opens the C3 detail above and scrolls up to it.
+    // Clicking an opponent in C4 opens the C3 detail above and jumps to the
+    // very top edge of the page (Page Up), where the lookup section lives.
     c4Mount.addEventListener('click', (e) => {
         const link = e.target.closest('.c4-opp-link');
         if (!link) return;
@@ -729,7 +730,7 @@ function renderMatchup(panel, playerName, allRows) {
         input.value = name;
         dropdown.hidden = true;
         renderResults(name);
-        topSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
     // Smart-search opponent list spans every league (lets you search anyone).

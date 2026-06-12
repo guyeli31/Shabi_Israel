@@ -55,9 +55,9 @@
 - סלקטור: `#leagueTable.font-small` בתוך `.table-scroll` ב-`.table-wrapper` בדף [league.html](../league.html)
 - קובץ רינדור: [js/render/leaguePage.js](../js/render/leaguePage.js)
 - **כותרות עמודה סטטיות מקוצרות:**
-  - Doubling: `#`, `Player`, `GP`, `W`, `L`, `Win%`, `PR`, `Level`, `Luck`
-  - UBC: `#`, `Player`, `GP`, `W`, `L`, `PRW`, `PTS`, `Avg PTS`, `PR`, `Level`
-  - Regular: `#`, `Player`, `GP`, `W`, `L`
+  - Doubling: `#`, `Player`, `MP`, `W`, `L`, `Win%`, `PR`, `Level`, `Luck`
+  - UBC: `#`, `Player`, `MP`, `W`, `L`, `PRW`, `PTS`, `Avg PTS`, `PR`, `Level`
+  - Regular: `#`, `Player`, `MP`, `W`, `L`
 - **STICKY דינמי (כלל ברזל 12):** רוחב עמודת `#` נמדד ב-JS (`measureLeagueStickyCols` ב-leaguePage.js) ונכתב ל-`--sticky-col-1-width` על `.table-scroll`. ה-`left:` של עמודת `Player` נגזר מהמשתנה. בעת טעינה ובעת `resize` (window + ResizeObserver על הטבלה).
 
 #### פרמטרים פר-טבלה (14)

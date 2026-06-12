@@ -224,7 +224,7 @@ function buildD(allResults) {
           format: (v, row, idx) => rankBadge(idx + 1, goldCount, silverCount, bronzeCount, v) },
         { key: 'player', label: 'Player', type: 'string', sortable: true,  colorFn: null,
           tdClass: 'player-cell', format: v => playerCell(v, cf) },
-        { key: 'gp',     label: 'GP',     type: 'number', sortable: true,
+        { key: 'gp',     label: 'MP',     type: 'number', sortable: true,
           colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true },
         { key: 'wins',   label: 'W',      type: 'number', sortable: true,
           colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true },
@@ -472,7 +472,7 @@ function buildB2(runningResult) {
         { key: 'rank',   label: '#',      type: 'number', sortable: false, colorFn: null },
         { key: 'player', label: 'Player', type: 'string', sortable: false, colorFn: null,
           tdClass: 'player-cell', format: v => playerCell(v, cf) },
-        { key: 'gp',     label: 'GP',     type: 'number', sortable: false, colorFn: null },
+        { key: 'gp',     label: 'MP',     type: 'number', sortable: false, colorFn: null },
         { key: 'wins',   label: 'W',      type: 'number', sortable: false, colorFn: null },
         { key: 'losses', label: 'L',      type: 'number', sortable: false, colorFn: null },
         ...(config.showWinRate ? [
@@ -537,7 +537,7 @@ function buildB3orB4(runningResult, barClass, fixedX) {
         { key: 'rank',   label: '#',      type: 'number', sortable: false, colorFn: null },
         { key: 'player', label: 'Player', type: 'string', sortable: false, colorFn: null,
           tdClass: 'player-cell', format: v => playerCell(v, cf) },
-        { key: 'gp',     label: 'GP',     type: 'number', sortable: false, colorFn: null },
+        { key: 'gp',     label: 'MP',     type: 'number', sortable: false, colorFn: null },
         { key: 'wins',   label: 'W',      type: 'number', sortable: false, colorFn: null },
         { key: 'losses', label: 'L',      type: 'number', sortable: false, colorFn: null },
         ...(showPRW ? [
@@ -783,7 +783,7 @@ function buildC1(playerData, playerName) {
               else if (row._rank <= g + s + b)     color = 'var(--color-bronze)';
               return color ? `<b style="color:${color}">${v}</b>` : v;
           } },
-        { key: 'gp',          label: 'GP',     type: 'number', sortable: true, colorFn: null },
+        { key: 'gp',          label: 'MP',     type: 'number', sortable: true, colorFn: null },
         { key: 'wins',        label: 'W',      type: 'number', sortable: true, colorFn: null },
         { key: 'losses',      label: 'L',      type: 'number', sortable: true, colorFn: null },
         { key: 'primary',     label: 'Primary',type: 'string', sortable: true, colorFn: null,
