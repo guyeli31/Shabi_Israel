@@ -281,6 +281,141 @@
     text-align: center;
 }
 
+/* ── Command-palette style grouped results ── */
+.nav-search-results .search-group-header {
+    padding: 8px var(--space-md) 4px;
+    font-size: var(--fs-068);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+.nav-search-results .search-group-header:not(:first-child) {
+    margin-top: 2px;
+    border-top: 1px solid var(--color-border);
+    padding-top: 8px;
+}
+
+/* Leading type icon: circle = player, rounded-square = league. */
+.nav-search-results .search-icon {
+    position: relative;
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--fs-080);
+    font-weight: 800;
+    line-height: 1;
+}
+/* Player avatar — mirrors the player-card header: rounded square holding
+   either the photo or a 2-letter monogram, with a status dot overlay. */
+.nav-search-results .search-icon--player {
+    border-radius: 7px;
+    background: linear-gradient(135deg, var(--color-text-muted), var(--color-text-secondary));
+    color: var(--color-surface);
+    text-transform: uppercase;
+    font-size: var(--fs-070);
+    letter-spacing: 0.02em;
+}
+.nav-search-results .search-icon--player.has-photo {
+    background: none;
+    border: 1px solid var(--color-border);
+}
+.nav-search-results .search-avatar-img {
+    width: 100%;
+    height: 100%;
+    border-radius: 7px;
+    object-fit: cover;
+}
+.nav-search-results .search-status-dot {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 2px solid var(--color-surface);
+}
+.nav-search-results .search-status-dot.green  { background: #2ecc40; }
+.nav-search-results .search-status-dot.orange { background: #f59e0b; }
+.nav-search-results .search-status-dot.gray   { background: #9ca3af; }
+.nav-search-results .search-icon--league {
+    border-radius: 7px;
+    background: var(--color-hover);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+}
+.nav-search-results .search-league-glyph {
+    display: block;
+}
+.nav-search-results .search-icon--league .status-dot {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 9px;
+    height: 9px;
+    margin: 0;
+    border: 2px solid var(--color-surface);
+}
+.nav-search-results .search-icon--league .status-dot.running {
+    background: var(--color-running);
+}
+.nav-search-results .search-icon--league .status-dot.completed {
+    background: var(--color-completed);
+}
+
+/* League-type badge — full type label, coloured by type.
+   Weight 600 matches the production-wide .league-type-pill / .status-pill. */
+.nav-search-results .search-type-badge {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: var(--fs-068);
+    font-weight: 600;
+    line-height: 1.4;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+.nav-search-results .search-type-badge.type-doubling {
+    background: var(--lt-doubling-bg);
+    color: var(--lt-doubling-text);
+}
+.nav-search-results .search-type-badge.type-regular {
+    background: var(--lt-regular-bg);
+    color: var(--lt-regular-text);
+}
+.nav-search-results .search-type-badge.type-ubc {
+    background: var(--lt-ubc-bg);
+    color: var(--lt-ubc-text);
+}
+
+/* Right-side league status pill (league rows only).
+   Font (size + weight + line-height) is kept identical to
+   .search-type-badge above; casing is intentionally NOT unified —
+   the status pill stays title-case ("Running"), the type badge stays
+   uppercase ("DOUBLING"). */
+.nav-search-results .search-type-pill {
+    margin-left: auto;
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: var(--fs-068);
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+.nav-search-results .search-type-pill.running {
+    background: color-mix(in srgb, var(--color-running) 18%, transparent);
+    color: var(--color-running);
+}
+.nav-search-results .search-type-pill.completed {
+    background: var(--color-hover);
+    color: var(--color-text-muted);
+}
+
 /* ============================================
    BREADCRUMBS
    ============================================ */

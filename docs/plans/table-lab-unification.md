@@ -86,7 +86,7 @@ Rules shared by **every** table format (MF + SF + exp; FF may opt in). Loaded by
 - `tbody td { padding, text-align: center, box-shadow hairline, white-space }`
 - `tbody tr:hover`
 - `tbody tr:last-child td { box-shadow: none }`
-- `td.player-cell` + its `a` styles (color, hover, no-underline)
+- `td.player-cell` **and `td.league-cell`** (shared rule group) + their `a` styles (color, hover, no-underline). `league-cell` is the clickable League column in C1/C2 — it reuses the OPPONENT (`player-cell`) look so every clickable link cell on the player-general tables is visually identical. See docs/TABLE-DESIGN.md §"Clickable link cells in C1/C2".
 - `tr.unplayed` + descendants (`td`, `td.player-cell`, `td.player-cell a`)
 - `tr.retired` (opacity)
 - `tr.rank-gold`, `tr.rank-silver`, `tr.rank-bronze` row tint + their `:hover` variants
@@ -155,6 +155,7 @@ Walk through `table-lab/lab-loader.js` and list `buildA1`, `buildA2`, ..., `buil
 For each MF table (A1, A2, B1–B6c, C1, C2, C3, D, E):
 - Is there a lab `build<X>` function?
 - Does it render with the right columns, sticky cols, font class, medal rows, show-top-N, sort behavior, image-export hook?
+- **Clickable link cells** carry the right `tdClass` so they match the canonical link look: player names → `player-cell`, the C1/C2 League column → `league-cell` (both share one rule group; see docs/TABLE-DESIGN.md §"Clickable link cells in C1/C2"). The lab `build<X>` must set the same `tdClass` as the production preset.
 - Side-by-side visual comparison with production.
 
 ### 1.3 Fill gaps

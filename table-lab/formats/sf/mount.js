@@ -32,7 +32,7 @@ import { attachStickyShadow } from '../../../js/utils/stickyShadow.js';
  * @param {object}      args        Table configuration.
  *
  * args:
- *   tableId    {string|null}                 Stable id for data-mf-table-id (e.g. 'A3','A4','A5','A6','C4').
+ *   tableId    {string|null}                 Stable id for data-mf-table-id (e.g. 'A3','A4','A5','A6','C5').
  *   data       {object[]}                    Row objects.
  *   cols       {ColDef[]}                    Column descriptors (see below).
  *   title      {string|null}                 Optional <h3> rendered inside the card. null = no title element.

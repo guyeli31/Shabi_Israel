@@ -132,7 +132,7 @@ Each section is one page. Each row is one textual element identified by:
 
 ---
 
-## Player General — `player_general.html` (Tables C0–C4)
+## Player General — `player_general.html` (Tables C0–C5)
 
 ### Header (V7 / V12)
 
@@ -175,7 +175,8 @@ Each section is one page. Each row is one textual element identified by:
 | C1 Leagues | `.pg-leagues-table` cells | | | |
 | C2 Match History | `.pg-matches-table` cells | | | |
 | C3 Matchup | `.matchup-table` cells | | | |
-| C4 Match Records | _to be filled_ | | | |
+| C4 All Opponents (H2H) | `[data-mf-table-id="C4"]` cells | | | |
+| C5 Match Records | _to be filled_ | | | |
 
 ---
 

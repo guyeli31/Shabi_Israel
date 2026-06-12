@@ -100,7 +100,7 @@ const GROUPS = [
     { id: 'forward-link',      pages: ['dashboard', 'league'], tier: 't7', bold: false, label: 'Forward link',  sel: '.forward-link' },
     { id: 'league-nav-arrow',  pages: ['dashboard', 'league'], tier: 't4', bold: false, label: 'League nav arrow', sel: '.league-nav .nav-arrow' },
 
-    // C1-C4 — player_general
+    // C1-C5 — player_general
     { id: 'pg-player-alias',   pages: ['player_general'], tier: 't6', bold: false, label: 'Player alias',         sel: '.pg-player-alias' },
     { id: 'pg-card-h2',        pages: ['player_general'], tier: 't3', bold: true,  label: 'PG card heading',      sel: '.pg-card h2, .pg-card-title' },
     { id: 'pg-pr-label',       pages: ['player_general'], tier: 't7', bold: false, label: 'PR label',             sel: '.pg-pr-label' },
@@ -108,7 +108,8 @@ const GROUPS = [
     { id: 'c1-leagues',        pages: ['player_general'], tier: 't5', bold: false, label: 'C1 — Leagues',         sel: '[data-mf-table-id="C1"] th, [data-mf-table-id="C1"] td', isTable: true, tableSel: '[data-mf-table-id="C1"]' },
     { id: 'c2-matches',        pages: ['player_general'], tier: 't5', bold: false, label: 'C2 — Match History',   sel: '[data-mf-table-id="C2"] th, [data-mf-table-id="C2"] td', isTable: true, tableSel: '[data-mf-table-id="C2"]' },
     { id: 'c3-matchup',        pages: ['player_general'], tier: 't5', bold: false, label: 'C3 — Matchup (H2H)',   sel: '[data-mf-table-id="C3"] th, [data-mf-table-id="C3"] td', isTable: true, tableSel: '[data-mf-table-id="C3"]' },
-    { id: 'c4-mr',             pages: ['player_general'], tier: 't6', bold: false, label: 'C4 — Match Records',   sel: '[data-mf-table-id="C4"] th, [data-mf-table-id="C4"] td', isTable: true, tableSel: '[data-mf-table-id="C4"]' },
+    { id: 'c4-opponents',      pages: ['player_general'], tier: 't6', bold: false, label: 'C4 — All Opponents (H2H)', sel: '[data-mf-table-id="C4"] th, [data-mf-table-id="C4"] td', isTable: true, tableSel: '[data-mf-table-id="C4"]' },
+    { id: 'c5-mr',             pages: ['player_general'], tier: 't6', bold: false, label: 'C5 — Match Records',   sel: '[data-mf-table-id="C5"] th, [data-mf-table-id="C5"] td', isTable: true, tableSel: '[data-mf-table-id="C5"]' },
 
     // D / E — league / per-league player tables (out of unification scope per TABLE-DESIGN, but still useful)
     { id: 'league-table',      pages: ['league'], tier: 't5', bold: false, label: 'D — League Table',          sel: '[data-mf-table-id="D"] th, [data-mf-table-id="D"] td', isTable: true, tableSel: '[data-mf-table-id="D"]' },

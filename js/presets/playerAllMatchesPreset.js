@@ -15,6 +15,7 @@ const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 export function buildPlayerAllMatchesPreset({ rows, enrich = {} }) {
     const cols = [
         { key: 'leagueTitle', label: 'League', type: 'string', sortable: true, colorFn: null,
+          tdClass: 'league-cell',
           format: (v, row) => enrich.leagueLink ? enrich.leagueLink(row._leagueId, v) : v },
         { key: 'date',        label: 'Date',   type: 'string', sortable: true, colorFn: null,
           sortKey: row => row._timestamp ?? 0 },

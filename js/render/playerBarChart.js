@@ -17,7 +17,26 @@
  *   ResizeObserver redraws on host width change. Fonts pulled from --font-main.
  */
 
-export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer) {
+/**
+ * Nice Y range for the player charts.
+ *   PR:   0 .. max(20, ceil(maxValue/5)*5)   — default 0..20, bumps in steps of 5.
+ *   Luck: ±max(5, ceil(maxAbs/5)*5)          — default ±5, symmetric, steps of 5.
+ * Passing the same range to several charts keeps them on one shared Y scale.
+ */
+export function computeNiceRange(metric, values) {
+    if (metric === 'luck') {
+        let maxAbs = 0;
+        for (const v of values) maxAbs = Math.max(maxAbs, Math.abs(v));
+        const mag = Math.max(5, Math.ceil(maxAbs / 5) * 5);
+        return { min: -mag, max: mag };
+    }
+    let maxV = 0;
+    for (const v of values) maxV = Math.max(maxV, v);
+    const max = Math.max(20, Math.ceil(maxV / 5) * 5);
+    return { min: 0, max };
+}
+
+export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer, scaleOverride) {
     host.innerHTML = '';
     host.style.position = 'relative';
 
@@ -62,18 +81,18 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer)
     const slots = new Array(N).fill(null);
     matches.slice(0, N).forEach((m, i) => slots[i] = m);
 
-    // Y range
-    const values = matches.map(m => {
-        const v = metric === 'luck' ? m.luckSelf : m.prSelf;
-        return v == null ? 0 : v;
-    });
-    let minV = 0, maxV = 0;
-    if (values.length) {
-        minV = Math.min(0, ...values);
-        maxV = Math.max(0, ...values);
-        if (metric === 'pr' && maxV < 5) maxV = 5;
+    // Y range — default 0..20 for PR, ±5 for Luck; bumps in multiples of 5 to
+    // contain any out-of-range bar. A scaleOverride (from the dashboard) keeps
+    // every chart on a shared, identical Y scale.
+    let minV, maxV;
+    if (scaleOverride && Number.isFinite(scaleOverride.min) && Number.isFinite(scaleOverride.max)) {
+        minV = scaleOverride.min;
+        maxV = scaleOverride.max;
     } else {
-        maxV = 5;
+        const values = matches
+            .map(m => (metric === 'luck' ? m.luckSelf : m.prSelf))
+            .filter(v => v != null);
+        ({ min: minV, max: maxV } = computeNiceRange(metric, values));
     }
     const range = (maxV - minV) || 1;
 

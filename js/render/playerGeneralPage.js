@@ -44,6 +44,7 @@ import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildPlayerLeaguesPreset } from '../presets/playerLeaguesPreset.js';
 import { buildPlayerAllMatchesPreset } from '../presets/playerAllMatchesPreset.js';
 import { buildMatchupPreset } from '../presets/matchupPreset.js';
+import { buildAllOpponentsPreset, aggregateOpponents } from '../presets/allOpponentsPreset.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -123,14 +124,16 @@ export async function renderPlayerGeneralPage() {
         shell.panels.matches.appendChild(matchesSection);
         renderMatchHistory(matchesSection, playerName, perLeague);
 
-        // Tab 4 — H2H (G5b): Head to Head, open + collapsible (its own matchup header).
-        const h2hSection = makePgSection('pg-matchup', null);
-        shell.panels.h2h.appendChild(h2hSection);
+        // Tab 4 — H2H (G5b): two always-open sections —
+        //   top = smart search + C3 head-to-head detail,
+        //   bottom = "All Opponents (x)" aggregate table (C4).
         const allRows = flattenAllMatches(perLeague);
         if (allRows.length === 0) {
-            h2hSection.innerHTML = '<div class="pg-note">No matches played yet.</div>';
+            const empty = makePgSection('pg-h2h-empty', null);
+            empty.innerHTML = '<div class="pg-note">No matches played yet.</div>';
+            shell.panels.h2h.appendChild(empty);
         } else {
-            renderMatchup(h2hSection, playerName, allRows);
+            renderMatchup(shell.panels.h2h, playerName, allRows);
         }
 
         // Tab 5 — Records: Match Records (all tables), always open — builds its own section.
@@ -660,68 +663,30 @@ function renderMatchHistory(section, playerName, perLeague) {
     renderAll();
 }
 
-// ---- G5b: Matchup sub-section ----
+// ---- G5b: H2H tab — smart search + C3 detail (top) and C4 all-opponents (bottom) ----
 
-function renderMatchup(section, playerName, allRows) {
+function renderMatchup(panel, playerName, allRows) {
     const LIMIT = 10;
 
-    // Header (collapsible, like Remaining Matches in dashboard)
-    const header = document.createElement('div');
-    header.className = 'matchup-header';
-    header.innerHTML =
-        `<span class="matchup-arrow open" id="mu-arrow">&#x25B8;</span>` +
-        `<span class="matchup-title">Head to Head</span>`;
-
+    // ── Top section: smart search + C3 head-to-head detail (always open) ──
+    const topSection = makePgSection('pg-h2h-search', null);
     const body = document.createElement('div');
     body.className = 'matchup-body';
+    topSection.appendChild(body);
+    panel.appendChild(topSection);
 
-    section.appendChild(header);
-    section.appendChild(body);
+    // ── Bottom section: All Opponents (x) aggregate table (C4, always open) ──
+    const opponents = aggregateOpponents(allRows);
+    const bottomSection = makePgSection('pg-h2h-all', `All Opponents (${opponents.length})`);
+    const c4Mount = document.createElement('div');
+    c4Mount.className = 'c4-table-wrapper';
+    bottomSection.appendChild(c4Mount);
+    panel.appendChild(bottomSection);
 
-    let initialized = false;
-
-    // Initialize immediately (open by default)
-    initialized = true;
-    _initMatchupBody(body, playerName, allRows, LIMIT);
-
-    header.addEventListener('click', async () => {
-        const opening = body.hidden;
-        body.hidden = !opening;
-        header.querySelector('#mu-arrow').classList.toggle('open', opening);
-        if (opening && !initialized) {
-            initialized = true;
-            await _initMatchupBody(body, playerName, allRows, LIMIT);
-        }
-    });
-}
-
-async function _initMatchupBody(body, playerName, allRows, LIMIT) {
-    body.innerHTML = '<div class="pg-note">Loading players…</div>';
-
-    let allOpponents;
-    try {
-        const leagues = await loadAllLeagues();
-        const playerSet = new Set();
-        for (const l of leagues) {
-            for (const p of l.allPlayers) {
-                if (p !== playerName) playerSet.add(p);
-            }
-        }
-        allOpponents = [...playerSet].sort((a, b) => a.localeCompare(b));
-    } catch (err) {
-        body.innerHTML = `<div class="pg-note">Failed to load players: ${escapeHtml(err.message)}</div>`;
-        return;
-    }
-
-    // Selector row
+    // Selector row (smart search — no "vs." label anymore)
     const selectorRow = document.createElement('div');
     selectorRow.className = 'matchup-selector-row';
 
-    const label = document.createElement('span');
-    label.className = 'matchup-selector-label';
-    label.textContent = 'vs.';
-
-    // Typeahead search input
     const inputWrap = document.createElement('div');
     inputWrap.className = 'matchup-search-wrap';
 
@@ -742,15 +707,42 @@ async function _initMatchupBody(body, playerName, allRows, LIMIT) {
     badge.className = 'matchup-count-badge';
     badge.hidden = true;
 
-    selectorRow.appendChild(label);
     selectorRow.appendChild(inputWrap);
 
-    const resultsArea = document.createElement('div');
+    const resultsArea = document.createElement('div');   // C3 mounts here
 
-    body.innerHTML = '';
     body.appendChild(selectorRow);
     body.appendChild(badge);
     body.appendChild(resultsArea);
+
+    // Mount C4 immediately — it's built synchronously from allRows.
+    const flagFor = (name) => _allMeta[name]?.hidden
+        ? ''
+        : `<img class="flag" src="${flagUrl(getFlagCode(name, _mergedCustomFlags))}" alt="flag">`;
+    mountMFTable(c4Mount, buildAllOpponentsPreset({ opponents, enrich: { flagFor } }));
+
+    // Clicking an opponent in C4 opens the C3 detail above and scrolls up to it.
+    c4Mount.addEventListener('click', (e) => {
+        const link = e.target.closest('.c4-opp-link');
+        if (!link) return;
+        const name = link.dataset.name;
+        input.value = name;
+        dropdown.hidden = true;
+        renderResults(name);
+        topSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    // Smart-search opponent list spans every league (lets you search anyone).
+    let allOpponents = opponents.map(o => o.opponent).sort((a, b) => a.localeCompare(b));
+    loadAllLeagues().then(leagues => {
+        const playerSet = new Set();
+        for (const l of leagues) {
+            for (const p of l.allPlayers) {
+                if (p !== playerName) playerSet.add(p);
+            }
+        }
+        allOpponents = [...playerSet].sort((a, b) => a.localeCompare(b));
+    }).catch(() => { /* keep the faced-opponents fallback */ });
 
     function filterDropdown(query) {
         const q = query.trim().toLowerCase();
@@ -992,7 +984,7 @@ function renderPlayerRecordTable(title, metricLabel, rows) {
         <div class="achv-table-card">
             <h3>${title}</h3>
             <div class="achv-table-wrapper">
-                <table class="achv-table pg-mr-table" data-mf-table-id="C4">
+                <table class="achv-table pg-mr-table" data-mf-table-id="C5">
                     <thead><tr>
                         <th scope="col">#</th><th scope="col">${metricLabel}</th><th scope="col">Opponent</th>
                         <th scope="col">Score</th><th scope="col">Result</th><th scope="col">League</th><th scope="col">Date</th>

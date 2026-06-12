@@ -18,6 +18,7 @@ import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatc
          collectPlayerBestPR, collectPlayerBestLuckFor, collectPlayerWorstLuckAgainst } from '../js/compute/matchRecords.js';
 import { luckPercentileStats } from '../js/compute/luckPercentile.js';
 import { playerNameLink } from '../js/render/playerNameInteraction.js';
+import { buildAllOpponentsPreset, aggregateOpponents } from '../js/presets/allOpponentsPreset.js';
 
 // Lab pages sit one level deep — redirect fetches to the correct root
 setLeaguesBase('../leagues');
@@ -761,7 +762,8 @@ function buildC1(playerData, playerName) {
     if (!playerData || !playerData.length) return { data: [], cols: [] };
 
     const cols = [
-        { key: 'leagueTitle', label: 'League', type: 'string', sortable: true, colorFn: null },
+        { key: 'leagueTitle', label: 'League', type: 'string', sortable: true, colorFn: null,
+          tdClass: 'league-cell' },
         { key: 'date',        label: 'Date',   type: 'string', sortable: true, colorFn: null },
         { key: 'type',        label: 'Type',   type: 'string', sortable: true, colorFn: null,
           sortKey: row => row._type,
@@ -832,7 +834,8 @@ function buildC2(playerData, playerName, globalFlags) {
     const allRows = flattenAllMatches(playerData);
 
     const cols = [
-        { key: 'leagueTitle', label: 'League',   type: 'string', sortable: true, colorFn: null },
+        { key: 'leagueTitle', label: 'League',   type: 'string', sortable: true, colorFn: null,
+          tdClass: 'league-cell' },
         { key: 'date',        label: 'Date',     type: 'string', sortable: true, colorFn: null,
           sortKey: row => row._timestamp ?? 0 },
         { key: 'leagueType',  label: 'Type',     type: 'string', sortable: true, colorFn: null,
@@ -953,6 +956,22 @@ function buildC3(playerData, playerName, globalFlags) {
     });
 
     return { data, cols, playerName, opponent };
+}
+
+// ─── C4: All Opponents (H2H aggregate, MF) ────────────────────────
+// Reuses the production preset (js/presets/allOpponentsPreset.js) so the lab
+// stays faithful: one row per opponent, averages across all league types.
+
+function buildC4AllOpponents(playerData, playerName, globalFlags) {
+    if (!playerData || !playerData.length) return null;
+    const allRows = flattenAllMatches(playerData);
+    if (!allRows.length) return null;
+    const opponents = aggregateOpponents(allRows);
+    if (!opponents.length) return null;
+    const flagFor = (name) =>
+        `<img class="flag" src="${flagUrl(getFlagCode(name, globalFlags))}" alt="flag">`;
+    const preset = buildAllOpponentsPreset({ opponents, enrich: { flagFor } });
+    return { ...preset, playerName };
 }
 
 // ─── SF/exp player-cell helper (matches production: flag + linked name) ────
@@ -1105,10 +1124,10 @@ async function buildA6SF() {
     return { tableId: 'A6', data: out, cols, title: 'Best PR Appearances', stickyCols: 2, showTopN: 10 };
 }
 
-// ─── C4: Player Match Records (SF) — Best PR for top player ────────
+// ─── C5: Player Match Records (SF) — Best PR for top player ────────
 // Mirrors renderPlayerRecordTable in playerGeneralPage.js.
 
-async function buildC4SF(playerData, playerName) {
+async function buildC5SF(playerData, playerName) {
     if (!playerData || !playerData.length) return null;
     const entries = collectPlayerBestPR(playerData, 'doubling', 50);
     if (!entries.length) return null;
@@ -1130,7 +1149,7 @@ async function buildC4SF(playerData, playerName) {
         result: r.result, leagueId: r.leagueId, leagueTitle: r.leagueTitle,
         date: r.date, customFlags: r.customFlags,
     }));
-    return { tableId: 'C4', data: out, cols, title: 'Best PR', stickyCols: 1, showTopN: 5, playerName };
+    return { tableId: 'C5', data: out, cols, title: 'Best PR', stickyCols: 1, showTopN: 5, playerName };
 }
 
 // ─── C0: Expandable rank (exp) — Total PR all-time ────────────────
@@ -1197,14 +1216,14 @@ export async function loadAllPresetData() {
 
     // SF/exp builders are async (they call loadAllLeagues + buildAllTimeRankings).
     // Resolve in parallel and silently drop any that fail (e.g. no doubling leagues).
-    const sfExpKeys = ['A3', 'A4', 'A5', 'A6', 'C0', 'C4'];
+    const sfExpKeys = ['A3', 'A4', 'A5', 'A6', 'C0', 'C5'];
     const sfExpResults = await Promise.all([
         buildA3SF().catch(() => null),
         buildA4SF().catch(() => null),
         buildA5SF().catch(() => null),
         buildA6SF().catch(() => null),
         buildC0Exp(topPlayer).catch(() => null),
-        buildC4SF(playerAcrossLeagues, topPlayer).catch(() => null),
+        buildC5SF(playerAcrossLeagues, topPlayer).catch(() => null),
     ]);
     const sfExp = Object.fromEntries(sfExpKeys.map((k, i) => [k, sfExpResults[i]]));
 
@@ -1228,7 +1247,8 @@ export async function loadAllPresetData() {
         C1:  buildC1(playerAcrossLeagues, topPlayer),
         C2:  buildC2(playerAcrossLeagues, topPlayer, globalFlags),
         C3:  buildC3(playerAcrossLeagues, topPlayer, globalFlags),
-        C4:  sfExp.C4,
+        C4:  buildC4AllOpponents(playerAcrossLeagues, topPlayer, globalFlags),
+        C5:  sfExp.C5,
         D:   buildD(allResults),
         E:   buildE(allResults),
     };

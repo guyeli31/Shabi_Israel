@@ -136,9 +136,9 @@ export async function renderLandingPage() {
         renderMatchRecordsSection(shell.panels.records, leagues, presentTypes);
         renderLeagueRecordsSection(shell.panels.records, leagues, presentTypes);
 
-        // Players tab — two sub-tabs: Notable Figures + Rest of Players.
-        // Both rendered as SF tables (Player / Status / Last Active / Title)
-        // with sticky Player column. Fixed sort: active first, then alphabetical.
+        // Players tab — a single combined SF table (A7): Player / Status /
+        // Last Active / Title, sticky Player column. Titled players sort to the
+        // top, then alphabetical — "notable" is just a sort key, not a section.
         renderPlayersTab(shell.panels.players, _playersMeta, leagues);
 
         const credit = document.createElement('div');
@@ -179,7 +179,7 @@ function buildTabsShell() {
     });
 }
 
-/* ── Players tab — Notable Figures + Rest of Players (SF tables) ── */
+/* ── Players tab — single combined SF table (titled players sort first) ── */
 
 function renderPlayersTab(container, allMeta, leagues) {
     const allRows = computePlayerRows(allMeta, leagues);

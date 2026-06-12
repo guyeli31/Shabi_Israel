@@ -17,7 +17,7 @@ import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { getQueryParam, formatPercent, formatNumber, leagueUrl, playerUrl, dashboardUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
 import { exportTableImage } from '../utils/exportTableImage.js';
 import { colorForValueInverted } from '../compute/colorScale.js';
-import { drawPlayerBarChart } from './playerBarChart.js';
+import { drawPlayerBarChart, computeNiceRange } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { predictChampionship, computeTopXPct } from '../compute/championshipPredictor.js';
 import { batchLast300PRForSimulator } from '../compute/crossLeague.js';
@@ -1511,6 +1511,33 @@ function renderPlayerSection(ctx) {
 
     const container = document.getElementById('charts-container');
 
+    // All live chart panels. Every panel is redrawn together so they stay on a
+    // single shared Y scale per metric (PR default 0..20, Luck default ±5).
+    const panels = [];
+    const sharedScale = {
+        pr:   computeNiceRange('pr',   []),
+        luck: computeNiceRange('luck', []),
+    };
+
+    function recomputeScales() {
+        const byMetric = { pr: [], luck: [] };
+        for (const p of panels) {
+            const metric = p.metricSel.value;
+            const bucket = byMetric[metric];
+            for (const m of buildPlayerSeries(liveMatches, p.playerSel.value)) {
+                const v = metric === 'luck' ? m.luckSelf : m.prSelf;
+                if (v != null) bucket.push(v);
+            }
+        }
+        sharedScale.pr   = computeNiceRange('pr',   byMetric.pr);
+        sharedScale.luck = computeNiceRange('luck', byMetric.luck);
+    }
+
+    function redrawAll() {
+        recomputeScales();
+        for (const p of panels) p.redraw();
+    }
+
     function buildPanel(initialPlayer) {
         const panel = document.createElement('div');
         panel.className = 'chart-panel';
@@ -1536,25 +1563,36 @@ function renderPlayerSection(ctx) {
         const host = panel.querySelector('.chart-host');
         const removeBtn = panel.querySelector('.remove-chart');
 
-        function update() {
+        function redraw() {
             const player = playerSel.value;
+            const metric = metricSel.value;
             link.href = playerUrl(leagueId, player);
             const matches = buildPlayerSeries(liveMatches, player);
-            drawPlayerBarChart(host, matches, metricSel.value, totalMatchesPerPlayer);
+            drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer, sharedScale[metric]);
         }
-        playerSel.addEventListener('change', update);
-        metricSel.addEventListener('change', update);
+
+        const entry = { panel, playerSel, metricSel, redraw };
+        panels.push(entry);
+
+        playerSel.addEventListener('change', redrawAll);
+        metricSel.addEventListener('change', redrawAll);
         removeBtn.addEventListener('click', () => {
-            if (container.children.length > 1) panel.remove();
+            if (panels.length > 1) {
+                panel.remove();
+                panels.splice(panels.indexOf(entry), 1);
+                redrawAll();
+            }
         });
-        update();
     }
 
     buildPanel(players[0]);
 
     document.getElementById('add-chart').addEventListener('click', () => {
         buildPanel(players[0]);
+        redrawAll();
     });
+
+    redrawAll();
 }
 
 function buildPlayerSeries(liveMatches, player) {

@@ -3,7 +3,7 @@
    Auto-imports the shared base layer.
 
    Used by: A3 (Achievements), A4 (PR Leaders), A5 (Match Records),
-            A6 (League Records), C4 (Match Records on player-general).
+            A6 (League Records), C5 (Match Records on player-general).
 
    Mirrors the polished state in css/index-dashboard.css and
    css/player-general.css. When Phase 7 runs, the duplicates in those

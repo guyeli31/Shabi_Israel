@@ -19,7 +19,7 @@ Table code mapping for the app. All future references to a table use the code be
 | A4 | PR Leaders |
 | A5 | Match Records |
 | A6 | League Records |
-| A7 | Players directory (Notable Figures + Rest of Players) |
+| A7 | Players directory |
 
 ### B — Dashboard / League overview (dashboard.html)
 
@@ -42,7 +42,8 @@ Table code mapping for the app. All future references to a table use the code be
 | C1 | Leagues |
 | C2 | Match History |
 | C3 | Matchup (sub-section of Match History) |
-| C4 | Match Records |
+| C4 | All Opponents (H2H aggregate, player-general) |
+| C5 | Match Records |
 
 ### D — League Table (league.html)
 
@@ -75,8 +76,8 @@ The project has **four** table formats. Each format is owned by `table-lab/` and
 
 | Format | Code | Used by |
 |---|---|---|
-| Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3, **F5** |
-| Secondary Format | **SF** | A3, A4, A5, A6, C4 |
+| Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3, C4, **F5** |
+| Secondary Format | **SF** | A3, A4, A5, A6, C5 |
 | Expandable Format | **exp** | C0 |
 | Form Format | **FF** | F1 (League Manager), F2 (Players), F3 (Round Editor), F4 (View Overrides), F6 (Medals & Prizes) |
 
@@ -125,7 +126,7 @@ Per-context overrides (`.dash-table .flag`, `.achv-table .flag`, etc.) carry the
 
 ### MF (Main Format)
 
-The standard table variant used by: **A1, A2, D, E, all B, C1, C2, C3.**
+The standard table variant used by: **A1, A2, D, E, all B, C1, C2, C3, C4.**
 
 Rendered entirely by `mountMFTable(mountPoint, args)` (`table-lab/mount-mf-table.js`). The function owns all DOM creation — caller provides a plain empty `<div>` and a configuration object. No post-call wiring needed.
 
@@ -200,6 +201,41 @@ Each object in `cols[]` drives rendering and interaction for that column:
 
 ---
 
+#### Clickable link cells in C1/C2 (player-general)
+
+On the player-general tables, **every clickable link cell reads like the OPPONENT cell** — semibold text, quiet link (text colour, no underline), accent on hover. This is the single visual contract for "this cell is a link" on those tables.
+
+| Column | `tdClass` | Cell |
+|---|---|---|
+| C2 — Opponent | `player-cell` | flag + `playerNameLink(name, meta)` |
+| C1 — League | `league-cell` | `<a href="dashboardUrl(id)">title</a>` |
+| C2 — League | `league-cell` | `<a href="dashboardUrl(id)">title</a>` |
+
+`player-cell` and `league-cell` share one rule group in `css/components.css` (`font-weight: 600` on the `<td>`; the inner `<a>` gets `color: var(--color-text)` / no underline / `:hover` → `var(--color-accent)`). The hover-underline comes from the page's `.pg-section .mf-wrap a:hover` rule, which both classes inherit. Adding a new clickable column to C1/C2 → tag its `<td>` with `league-cell` (or `player-cell` for a player name) so it matches automatically; never hand-roll a one-off link style. The lab's `buildC1`/`buildC2` carry the same `tdClass` so the design catalog stays faithful.
+
+---
+
+#### C4 — All Opponents (H2H aggregate, player-general)
+
+The bottom section of the **H2H** tab on `player_general.html`. One MF table (`tableId: 'C4'`, `fontClass: 'font-small'`, `stickyCols: 1`, `showTopN: null` — always fully expanded) that collapses **every match the player has played across all league types** into one row per opponent, showing averages. Built by `js/presets/allOpponentsPreset.js` (`buildAllOpponentsPreset` + `aggregateOpponents`).
+
+Section title is **"All Opponents (x)"** where x = distinct opponents faced. Default sort: **Win% descending** (the data array is pre-sorted before mount). Every column is click-sortable.
+
+Columns (left → right):
+
+| # | Key | Cell |
+|---|---|---|
+| 1 | `opponent` | **Sticky.** Flag + clickable name (`.c4-opp-link` button). Click opens the C3 head-to-head detail in the top section and scrolls up to it. |
+| 2 | `matches` | match count (includes technical results) |
+| 3 | `pr` | mean of the player's PR (technical results excluded) |
+| 4 | `oppPr` | mean of the opponent's PR |
+| 5 | `luck` | **differential** — mean(player luck) − mean(opponent luck) |
+| 6 | `winRate` | Win% — red→green tint on a fixed 0–1 range (same scale as landing's *Best Win Rate Appearances*), `tdClass: 'c4-winrate'` (`font-weight: 600`, mirroring the Luck Percentile right column) |
+
+Selecting an opponent via the smart search **or** clicking an opponent row both render C3 above; the row-click additionally scrolls the page up to reveal it. Both H2H sections are always open (no collapse).
+
+---
+
 #### HTML structure
 
 `mountMFTable` creates all DOM inside `mountPoint`:
@@ -241,7 +277,7 @@ mountMFTable(mountPoint, {
 
 ### SF (Secondary Format)
 
-The compact-records / leaderboards-snippet variant used by: **A3, A4, A5, A6, A7, C4.**
+The compact-records / leaderboards-snippet variant used by: **A3, A4, A5, A6, A7, C5.**
 
 Rendered entirely by `mountSFTable(mountPoint, args)` (`table-lab/formats/sf/mount.js`). The function owns all DOM creation — caller provides a plain empty `<div>` and a configuration object. CSS canon lives in `table-lab/formats/sf/sf.css` (auto-imports `base/base.css`).
 
@@ -249,14 +285,7 @@ Rendered entirely by `mountSFTable(mountPoint, args)` (`table-lab/formats/sf/mou
 
 #### A7 — Players directory (Players tab on index.html)
 
-Two SF tables stacked vertically inside the Players tab:
-
-| Section | Filter | Sort | showTopN |
-|---|---|---|---|
-| Notable Figures | `hasTitles(meta)` is true | active first, then alphabetical | none (always full) |
-| Rest of Players | everything else (non-hidden) | active first, then alphabetical | 15 (toggle reveals all) |
-
-Both use the same `cols`, `tableId: 'A7'`, `fontClass: 'font-small'`, `stickyCols: 1`. The first column (`Player`) is `position: sticky; left: 0` so the leftmost name stays visible while scrolling horizontally on narrow viewports.
+A **single** SF table inside the Players tab — `tableId: 'A7'`, `fontClass: 'font-small'`, `stickyCols: 1`, `showTopN: 50`. Title is **"Players (x)"**. There is no Notable-Figures / Rest-of-Players split: every non-hidden player is one combined list. Sort puts **titled players first, then untitled** (`sortPlayerRows`), each subgroup alphabetical A→Z — "notable" is just a sort key, not a separate table or section. The first column (`Player`) is `position: sticky; left: 0` so the leftmost name stays visible while scrolling horizontally on narrow viewports.
 
 Columns (left → right):
 

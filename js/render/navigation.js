@@ -4,10 +4,25 @@
  */
 
 import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches } from '../data/leagueLoader.js';
-import { dashboardUrl, playerUrl, playerGeneralUrl } from '../utils/helpers.js';
+import { dashboardUrl, playerUrl, playerGeneralUrl, parseLeagueDate } from '../utils/helpers.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
+import { getInitials } from './playerHeader.js';
 import { isLoggedIn, getUsername } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
+
+const CURRENT_YEAR = new Date().getFullYear();
+// League-type badge: single-letter icon + full label tooltip (colours via CSS).
+const LEAGUE_TYPE_BADGE = {
+    doubling: { letter: 'D', label: 'Doubling' },
+    regular:  { letter: 'R', label: 'Regular' },
+    ubc:      { letter: 'U', label: 'UBC' },
+};
+// Status-dot tooltips — mirror the player-card header in playerGeneralPage.js.
+const STATUS_TITLE = {
+    green: 'Active in a running league',
+    orange: `Played this year (${CURRENT_YEAR})`,
+    gray: `Inactive in ${CURRENT_YEAR}`,
+};
 
 // ---- Breadcrumbs ----
 
@@ -80,7 +95,8 @@ export async function initNavBar() {
             id: lp.id,
             title: lp.params?.LeagueTitle || displayOrder[i],
             running: lp.params?.Running === true,
-            hidden: lp.params?.Hidden === true
+            hidden: lp.params?.Hidden === true,
+            leagueType: lp.params?.LeagueType || 'doubling'
         }));
     } catch {
         leagueIndex = [];
@@ -104,8 +120,8 @@ export async function initNavBar() {
                 <ul class="nav-leagues-dropdown" hidden></ul>
             </div>
             <div class="nav-search">
-                <input type="text" placeholder="Search player\u2026" autocomplete="off">
-                <ul class="nav-search-results" hidden></ul>
+                <input type="text" placeholder="Search" autocomplete="off" aria-label="Search players and leagues">
+                <ul class="nav-search-results" hidden role="listbox"></ul>
             </div>
             ${adminBadge}
         </div>
@@ -206,6 +222,7 @@ async function buildPlayerIndex() {
                 .map((lp, i) => ({
                     id: lp.id,
                     title: lp.params?.LeagueTitle || displayOrder[i],
+                    running: lp.params?.Running === true,
                     hidden: lp.params?.Hidden === true
                 }))
                 .filter(l => !l.hidden);
@@ -221,7 +238,13 @@ async function buildPlayerIndex() {
         Promise.allSettled(
             leagues.map(async l => {
                 const { allPlayers } = await loadLeagueMatches(l.id);
-                return { leagueId: l.id, title: l.title, players: allPlayers };
+                return {
+                    leagueId: l.id,
+                    title: l.title,
+                    running: l.running === true,
+                    year: parseLeagueDate(l.id).year,
+                    players: allPlayers,
+                };
             })
         ),
         loadPlayersMetadata()
@@ -229,19 +252,22 @@ async function buildPlayerIndex() {
 
     for (const r of results) {
         if (r.status !== 'fulfilled') continue;
-        const { leagueId, title, players } = r.value;
+        const { leagueId, title, running, year, players } = r.value;
         for (const name of players) {
             if (!map.has(name)) map.set(name, []);
-            map.get(name).push({ leagueId, title });
+            map.get(name).push({ leagueId, title, running, year });
         }
     }
 
-    // Attach fullName from metadata and remove hidden players
-    for (const [name, leagues] of map) {
+    // Attach fullName + photo from metadata and remove hidden players
+    for (const [name, entries] of map) {
         if (meta[name]?.hidden) { map.delete(name); continue; }
-        const fullName = meta[name]?.fullName;
-        if (fullName) {
-            for (const entry of leagues) entry.fullName = fullName;
+        const { fullName, photoPath } = meta[name] || {};
+        if (fullName || photoPath) {
+            for (const entry of entries) {
+                if (fullName) entry.fullName = fullName;
+                if (photoPath) entry.photoPath = photoPath;
+            }
         }
     }
 
@@ -250,7 +276,7 @@ async function buildPlayerIndex() {
         for (const [name, m] of Object.entries(meta)) {
             if (!m || m.hidden || map.has(name)) continue;
             if (m.inactive) {
-                map.set(name, m.fullName ? [{ fullName: m.fullName }] : []);
+                map.set(name, [{ fullName: m.fullName, photoPath: m.photoPath }]);
             }
         }
     }
@@ -282,39 +308,99 @@ function setupPlayerSearch(nav) {
             return;
         }
 
+        // ── Match leagues (top-level entities) ──
+        const leagueMatches = leagueIndex
+            .filter(l => !l.hidden && l.title.toLowerCase().includes(query))
+            .slice(0, 5);
+
+        // ── Match players (cross-league index) ──
         const index = await ensurePlayerIndex();
-        const matches = [];
+        // Bail if the query changed while the index was loading.
+        if (input.value.trim().toLowerCase() !== query) return;
+
+        const playerMatches = [];
         for (const [name, leagues] of index) {
             const fullName = leagues[0]?.fullName || '';
             if (name.toLowerCase().includes(query) || fullName.toLowerCase().includes(query)) {
-                matches.push({ name, leagues, fullName });
-                if (matches.length >= 8) break;
+                playerMatches.push({ name, leagues, fullName });
+                if (playerMatches.length >= 6) break;
             }
         }
 
-        if (matches.length === 0) {
-            results.innerHTML = '<li class="search-empty">No players found</li>';
+        if (leagueMatches.length === 0 && playerMatches.length === 0) {
+            results.innerHTML = '<li class="search-empty">No matches found</li>';
             results.hidden = false;
             return;
         }
 
         const isEmbedded = window.self !== window.top;
-        results.innerHTML = matches.map(m => {
-            const firstLeague = m.leagues[0];
-            const leagueCount = m.leagues.filter(l => l.leagueId).length;
-            const hint = leagueCount === 0 ? 'inactive' : leagueCount === 1 ? firstLeague.title : `${leagueCount} leagues`;
-            const nameHtml = m.fullName
-                ? `<span class="search-player-name">${escapeHtml(m.name)}</span><span class="search-player-realname">${escapeHtml(m.fullName)}</span>`
-                : `<span class="search-player-name">${escapeHtml(m.name)}</span>`;
-            const searchHref = isPreviewMode()
-                ? `${playerGeneralUrl(m.name)}&preview=true`
-                : playerGeneralUrl(m.name);
-            const targetAttr = isEmbedded ? ' target="_top"' : '';
-            return `<li><a href="${searchHref}"${targetAttr}>
-                <span class="search-player-info">${nameHtml}</span>
-                <span class="search-league-hint">${escapeHtml(hint)}</span>
-            </a></li>`;
-        }).join('');
+        const targetAttr = isEmbedded ? ' target="_top"' : '';
+        const preview = isPreviewMode();
+        let html = '';
+
+        // ── Leagues group ──
+        if (leagueMatches.length > 0) {
+            html += '<li class="search-group-header" role="presentation">Leagues</li>';
+            html += leagueMatches.map(l => {
+                const status = l.running ? 'running' : 'completed';
+                const statusLabel = l.running ? 'Running' : 'Completed';
+                const href = preview ? `${dashboardUrl(l.id)}&preview=true` : dashboardUrl(l.id);
+                const type = LEAGUE_TYPE_BADGE[l.leagueType] || LEAGUE_TYPE_BADGE.doubling;
+                const typeBadge = `<span class="search-type-badge type-${escapeHtml(l.leagueType)}" title="${escapeHtml(type.label)} league">${escapeHtml(type.label)}</span>`;
+                return `<li role="option"><a href="${href}"${targetAttr}>
+                    <span class="search-icon search-icon--league" aria-hidden="true">
+                        <svg class="search-league-glyph" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
+                            <rect x="2" y="3" width="12" height="10" rx="1.5"/>
+                            <line x1="2" y1="6.5" x2="14" y2="6.5"/>
+                            <line x1="8" y1="6.5" x2="8" y2="13"/>
+                        </svg>
+                        <span class="status-dot ${status}"></span>
+                    </span>
+                    <span class="search-player-info">
+                        <span class="search-player-name">${escapeHtml(l.title)}</span>
+                    </span>
+                    ${typeBadge}
+                    <span class="search-type-pill ${status}">${statusLabel}</span>
+                </a></li>`;
+            }).join('');
+        }
+
+        // ── Players group ──
+        if (playerMatches.length > 0) {
+            html += '<li class="search-group-header" role="presentation">Players</li>';
+            html += playerMatches.map(m => {
+                const firstLeague = m.leagues[0];
+                const leagueCount = m.leagues.filter(l => l.leagueId).length;
+                const hint = leagueCount === 0 ? 'inactive' : leagueCount === 1 ? firstLeague.title : `${leagueCount} leagues`;
+                const nameHtml = m.fullName
+                    ? `<span class="search-player-name">${escapeHtml(m.name)}</span><span class="search-player-realname">${escapeHtml(m.fullName)}</span>`
+                    : `<span class="search-player-name">${escapeHtml(m.name)}</span>`;
+                const href = preview ? `${playerGeneralUrl(m.name)}&preview=true` : playerGeneralUrl(m.name);
+
+                // Status dot — same logic as the player-card header
+                // (green = running league, orange = played this year, gray = inactive).
+                const inRunning = m.leagues.some(l => l.running);
+                const inCurrentYear = m.leagues.some(l => l.year === CURRENT_YEAR);
+                const status = inRunning ? 'green' : inCurrentYear ? 'orange' : 'gray';
+
+                // Avatar — the same photo-or-initials the header shows.
+                const photoPath = m.leagues.find(l => l.photoPath)?.photoPath;
+                const avatarInner = photoPath
+                    ? `<img class="search-avatar-img" src="${escapeHtml(photoPath)}" alt="">`
+                    : escapeHtml(getInitials(m.name, m.fullName) || (m.name.trim()[0] || '?').toUpperCase());
+
+                return `<li role="option"><a href="${href}"${targetAttr}>
+                    <span class="search-icon search-icon--player${photoPath ? ' has-photo' : ''}" aria-hidden="true">
+                        ${avatarInner}
+                        <span class="search-status-dot ${status}" title="${escapeHtml(STATUS_TITLE[status])}"></span>
+                    </span>
+                    <span class="search-player-info">${nameHtml}</span>
+                    <span class="search-league-hint">${escapeHtml(hint)}</span>
+                </a></li>`;
+            }).join('');
+        }
+
+        results.innerHTML = html;
         results.hidden = false;
     });
 

@@ -45,7 +45,8 @@
 | C1 | Leagues | `.pg-leagues-table` |
 | C2 | Match History | `.pg-matches-table` |
 | C3 | Matchup (תת־סקשן ב-Match History) | `renderMatchup` |
-| C4 | Match Records | `.achv-table.pg-mr-table` |
+| C4 | All Opponents (H2H aggregate) | `[data-mf-table-id="C4"]` |
+| C5 | Match Records | `.achv-table.pg-mr-table` |
 
 קובץ רינדור: [js/render/playerGeneralPage.js](../js/render/playerGeneralPage.js)
 
