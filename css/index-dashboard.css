@@ -213,38 +213,11 @@
     right: -18px;
 }
 
-/* Collapsible sections */
-.collapsible-header {
-    cursor: pointer;
-    user-select: none;
-}
+/* Collapsible section chrome now lives in the shared css/sections.css +
+   sectionCollapse.js (.app-section-h2.is-collapsible / .app-section.is-collapsed). */
 
-.collapsible-header::after {
-    content: ' \25BE';
-    font-size: 0.9em;
-    color: var(--color-text-muted);
-}
-
-.collapsed .collapsible-header::after {
-    content: ' \25B8';
-}
-
-.collapsed .collapsible-body {
-    display: none;
-}
-
-/* H2 — Leaderboard tables */
-.leaderboard-section {
-    margin-top: var(--space-xl);
-}
-
-.leaderboard-section h2 {
-    margin-bottom: var(--space-md);
-    font-size: var(--fs-120);
-    border-bottom: 2px solid var(--color-border);
-    padding-bottom: var(--space-xs);
-    color: var(--color-text);
-}
+/* H2 — Leaderboard tables. Section frame + heading come from the shared
+   css/sections.css (.app-section / .app-section-h2); no overrides here. */
 
 /* Leaderboard header row with PDF buttons */
 .leaderboard-header-row {
@@ -479,8 +452,13 @@
     background: var(--header-bg, #1e293b);
 }
 
+/* font-weight: 600 keeps the League-title link uniform with every other
+   clickable link cell (see the single link-cell weight contract in
+   docs/TABLE-DESIGN.md). The Winner column already inherits 600 from
+   td.player-cell; this matches it. */
 .completed-leagues-table td a {
     color: var(--color-text);
+    font-weight: 600;
     text-decoration: none;
 }
 
@@ -543,12 +521,14 @@
     color: var(--color-text);
 }
 
+/* NOTE: duplicate of components.css .img-export-btn (both load on index.html);
+   kept in sync — candidate for dedup. */
 .img-export-btn {
     padding: 6px 12px;
     font-size: var(--fs-085);
     font-weight: 600;
-    background: var(--color-primary, #1e293b);
-    color: #fff;
+    background: var(--color-primary);
+    color: var(--color-primary-text);
     border: none;
     border-radius: var(--radius-sm);
     cursor: pointer;
@@ -560,38 +540,8 @@
    non-sticky cells identical in color (iron rule 11). */
 
 /* ── Achievements + PR Leaders (Chunk 3 / NEW-4) ────── */
-.achievements-section,
-.pr-leaders-section {
-    margin-top: var(--space-lg);
-}
-
-.achv-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-sm);
-    margin-bottom: var(--space-md);
-}
-
-.achv-tab {
-    padding: 6px 14px;
-    font-size: var(--fs-085);
-    font-weight: 600;
-    background: var(--color-surface);
-    color: var(--color-text);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-full);
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-}
-
-.achv-tab:hover { background: var(--color-bg-alt, #f1f5f9); }
-
-.achv-tab.active {
-    background: var(--color-primary, #1e293b);
-    color: #fff;
-    border-color: var(--color-primary, #1e293b);
-}
-
+/* The league-type switcher is now the shared pill sub-tabs (.subtab--pill in
+   css/subtabs.css, via mountPillTabs); .achv-panel is just the content panel. */
 .achv-panel.hidden { display: none; }
 
 .achv-tables-grid {
@@ -952,9 +902,9 @@
 .edit-mode-toggle:hover { background: var(--color-hover); }
 
 .edit-mode-toggle.active {
-    background: var(--color-primary, #1e293b);
-    color: #fff;
-    border-color: var(--color-primary, #1e293b);
+    background: var(--color-primary);
+    color: var(--color-primary-text);
+    border-color: var(--color-primary);
 }
 
 /* Make page-header position:relative for the toggle */
@@ -1093,8 +1043,8 @@ tr.drag-over {
     padding: 8px 20px;
     font-size: var(--fs-085);
     font-weight: 600;
-    background: var(--color-primary, #1e293b);
-    color: #fff;
+    background: var(--color-primary);
+    color: var(--color-primary-text);
     border: none;
     border-radius: var(--radius-sm);
     cursor: pointer;
@@ -1258,43 +1208,16 @@ body:has(.edit-bar) .theme-picker {
 }
 
 /* Segmented tab bar lives in css/tabs.css (.app-tabs / .app-tab).
-   The HOME-page-specific tab PANELS keep their own scope below. */
+   Section frame, heading and collapse now come from the shared css/sections.css
+   (.app-section / .app-section--card / .app-section-h2). The HOME content classes
+   (.dash-section / .leaderboard-section / .lp-players-section) remain only as
+   hooks for the content rules below. */
 .lp-tabs-shell { margin-bottom: var(--space-lg); }
 .lp-tab-panel[hidden] { display: none; }
 
-/* ---- Section cards inside tab panels: framed surface, matches demo ----
-   All four tabs frame their direct-child sections identically: .dash-section
-   (Leagues, Records), .leaderboard-section (Leaderboard), .lp-players-section
-   (Players). */
-.lp-tab-panel > .dash-section,
-.lp-tab-panel > .leaderboard-section,
-.lp-tab-panel > .lp-players-section {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    padding: var(--space-md);
-    margin-top: 0;
+/* Leaderboard export controls sit in their own row under the heading. */
+.lp-tab-panel > .leaderboard-section .leaderboard-header-row {
     margin-bottom: var(--space-md);
-    box-shadow: var(--shadow-sm);
-}
-.lp-tab-panel > .dash-section:last-child,
-.lp-tab-panel > .leaderboard-section:last-child,
-.lp-tab-panel > .lp-players-section:last-child {
-    margin-bottom: 0;
-}
-/* H2 inside framed cards drops the underline — the card border replaces it.
-   Leaderboard's header is a flex row (title + Export); the whole row carries
-   the divider so it spans the card, and the legacy 2px h2 underline is dropped. */
-.lp-tab-panel > .dash-section > h2,
-.lp-tab-panel > .dash-section > .collapsible-section > .collapsible-header,
-.lp-tab-panel > .leaderboard-section > .collapsible-section > .leaderboard-header-row {
-    border-bottom: 1px solid var(--color-border);
-    margin-top: 0;
-    margin-bottom: var(--space-md);
-    padding-bottom: var(--space-sm);
-}
-.lp-tab-panel > .leaderboard-section .leaderboard-header-row h2 {
-    border-bottom: none;
 }
 
 /* ---- Theme adaptations ---- */
@@ -1368,9 +1291,7 @@ body:has(.edit-bar) .theme-picker {
 
 /* ---- Mobile ---- */
 @media (max-width: 600px) {
-    .lp-tab-panel > .dash-section,
-    .lp-tab-panel > .leaderboard-section,
-    .lp-tab-panel > .lp-players-section {
+    .lp-tab-panel .app-section--card {
         padding: var(--space-sm) var(--space-sm);
     }
     .lp-tab-panel[data-panel="players"] .achv-table {

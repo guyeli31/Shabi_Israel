@@ -16,6 +16,7 @@
 
         --color-accent:         #ff9800;
         --color-accent-light:   #1a2e1a;
+        --color-on-accent:      var(--color-accent-light); /* dark text on orange accent */
 
         --color-gold:           #ff9800;
         --color-gold-bg:        #3a2608;

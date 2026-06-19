@@ -15,6 +15,7 @@
 
         --color-accent:         #ffd700;
         --color-accent-light:   #4a3000;
+        --color-on-accent:      var(--color-accent-light); /* dark text on gold accent */
 
         --color-gold:           #ffd700;
         --color-gold-bg:        #5c4a00;

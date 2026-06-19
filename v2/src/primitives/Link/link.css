@@ -5,7 +5,15 @@
      .link            — accent colour, underlined.
      .link--quiet     — inherits colour, underlines on hover only (default
                         v1 table-link feel).
-     .link--strong    — heavier weight, accent on hover. */
+     .link--strong    — accent on hover, no underline.
+
+   LINK-CELL WEIGHT CONTRACT: every clickable link cell in a table must render
+   at the SAME weight so they look and behave identically (the v1 bug was three
+   cells inheriting body weight while the rest were 600). Both table-link
+   variants below therefore pin font-weight: var(--fw-subheading) (= 600,
+   matching .player-cell). Use .link--quiet (or .link--strong) for any table
+   link cell; never let a table link inherit body weight. See the single
+   link-cell weight contract in docs/TABLE-DESIGN.md. */
 
 @layer primitives {
     .link {
@@ -25,6 +33,7 @@
 
     .link--quiet {
         color: var(--color-text);
+        font-weight: var(--fw-subheading);
         text-decoration: none;
     }
     .link--quiet:hover {

@@ -12,13 +12,10 @@ export function initAdminButton() {
     const wrapper = document.createElement('div');
     wrapper.className = 'admin-button';
 
-    const tooltip = document.createElement('span');
-    tooltip.className = 'floating-btn-tooltip';
-    tooltip.textContent = 'Admin Mode';
-
     const btn = document.createElement('button');
     btn.className = 'admin-button-toggle';
     btn.setAttribute('aria-label', 'Admin Mode');
+    btn.setAttribute('title', 'Admin Mode'); // global themed tooltip (tooltip.js)
     btn.innerHTML = GEAR_SVG;
     btn.addEventListener('click', () => {
         if (isLoggedIn()) {
@@ -28,7 +25,6 @@ export function initAdminButton() {
         }
     });
 
-    wrapper.appendChild(tooltip);
     wrapper.appendChild(btn);
     document.body.appendChild(wrapper);
 }

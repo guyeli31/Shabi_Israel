@@ -32,6 +32,8 @@ import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { hasTitles, compareTitlePriority, getFullTitleDescription } from '../data/titleConstants.js';
 import { startSplash, updateSplashLogo, endSplash } from '../utils/splash.js';
 import { mountAppTabs } from './appTabs.js';
+import { wireSectionCollapse } from './sectionCollapse.js';
+import { mountPillTabs } from './subTabs.js';
 
 /* ── Helpers ─────────────────────────────────────────── */
 
@@ -143,7 +145,7 @@ export async function renderLandingPage() {
 
         const credit = document.createElement('div');
         credit.className = 'platform-credit';
-        credit.textContent = 'Built by Guy Eliyahu  ·  April 2026';
+        credit.textContent = 'Built by Guy Eliyahu';
         container.appendChild(credit);
 
         // Auto-enter edit mode if admin and ?edit=1 in URL
@@ -189,7 +191,7 @@ function renderPlayersTab(container, allMeta, leagues) {
     const cols = buildPlayerCols();
 
     const mount = document.createElement('div');
-    mount.className = 'lp-players-section';
+    mount.className = 'app-section app-section--card lp-players-section';
     container.appendChild(mount);
 
     const { table } = mountSFTable(mount, {
@@ -813,7 +815,7 @@ function renderInfoCards(container, activePlayers, totalPlayers, totalLeagues, l
 
 function renderActiveLeagues(container, running) {
     const section = document.createElement('div');
-    section.className = 'dash-section';
+    section.className = 'app-section app-section--card dash-section';
 
     let cardsHtml = '';
     for (const l of running) {
@@ -841,7 +843,7 @@ function renderActiveLeagues(container, running) {
     }
 
     section.innerHTML = `
-        <h2>Active Leagues</h2>
+        <h2 class="app-section-h2">Active Leagues</h2>
         <div class="active-leagues-wrapper">
             <button class="scroll-arrow scroll-arrow-left" hidden>&lsaquo;</button>
             <div class="active-leagues-grid">${cardsHtml || '<p style="color:var(--color-text-muted)">No active leagues</p>'}</div>
@@ -922,8 +924,8 @@ function renderCompletedLeagues(container, completed) {
     const collapsed = hasCurrentYear ? '' : ' collapsed';
 
     section.innerHTML = `
-        <div class="collapsible-section${collapsed}">
-            <h2 class="collapsible-header">Completed Leagues</h2>
+        <div class="app-section app-section--card">
+            <h2 class="app-section-h2">Completed Leagues</h2>
             <div class="collapsible-body">
                 <div class="completed-leagues-mount"></div>
             </div>
@@ -945,11 +947,8 @@ function renderCompletedLeagues(container, completed) {
     // Preserve legacy class so existing CSS (.completed-leagues-table) continues to apply.
     table.classList.add('completed-leagues-table');
 
-    // Attach collapsible toggle
-    const header = section.querySelector('.collapsible-header');
-    header.addEventListener('click', () => {
-        header.closest('.collapsible-section').classList.toggle('collapsed');
-    });
+    // Collapsible toggle (shared) — open when a current-year league exists.
+    wireSectionCollapse(section.querySelector('.app-section'), { defaultOpen: hasCurrentYear });
 
     // Wire context menu on each winner link, mapping row index → leagueId.
     const dataRows = mountPoint.querySelectorAll('tbody tr:not(.avg-row)');
@@ -1100,75 +1099,103 @@ function buildAnnualLeaderboard(group) {
 function renderLeaderboards(container, leaderboards) {
     const currentYear = new Date().getFullYear();
 
+    // Regroup the (year × type) leaderboards by YEAR, preserving the incoming
+    // sort (newest year first; doubling-first within a year). Each year becomes
+    // ONE collapsible section whose heading is just the 4-digit year; the league
+    // TYPES present that year become pill tabs (the Records league-type pills)
+    // that switch the leaderboard table — and its Top-N/Export controls — shown.
+    const byYear = new Map(); // year → lb[]
     for (const lb of leaderboards) {
+        if (!byYear.has(lb.year)) byYear.set(lb.year, []);
+        byYear.get(lb.year).push(lb);
+    }
+
+    for (const [year, yearLbs] of byYear) {
         const section = document.createElement('div');
         section.className = 'leaderboard-section';
 
-        const collapsed = lb.year >= currentYear ? '' : ' collapsed';
-
-        // Filter out hidden players up-front (live behaviour: skip entirely)
-        const visibleRows = lb.rows
-            .filter(row => !_playersMeta[row.player]?.hidden)
-            .map(row => ({ ...row, meta: _playersMeta[row.player] }));
-
-        const title = `${lb.year} ${lb.typeName} Leaderboard`;
-
-        const defaultRows = Math.min(10, lb.rows.length);
-        const maxAllowed = Math.min(25, lb.rows.length);
-        section.innerHTML = `
-            <div class="collapsible-section${collapsed}">
-                <div class="leaderboard-header-row">
-                    <h2 class="collapsible-header">${title}</h2>
-                    <div class="img-export-group">
-                        <label class="img-export-label">Top
-                            <input class="img-export-rows" type="number"
-                                   min="1" max="${maxAllowed}" value="${defaultRows}">
-                        </label>
-                        <button class="img-export-btn">Export Image</button>
+        // One panel per type. Within a panel the pill-switch reveals: the
+        // Top-N + Export controls (the pill sits ABOVE these, right under the
+        // year heading), then the leaderboard table.
+        const panelsHtml = yearLbs.map((lb, i) => {
+            const defaultRows = Math.min(10, lb.rows.length);
+            const maxAllowed = Math.min(25, lb.rows.length);
+            return `
+                <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${lb.leagueType}">
+                    <div class="leaderboard-header-row">
+                        <div class="img-export-group">
+                            <label class="img-export-label">Top
+                                <input class="img-export-rows" type="number"
+                                       min="1" max="${maxAllowed}" value="${defaultRows}">
+                            </label>
+                            <button class="img-export-btn">Export Image</button>
+                        </div>
                     </div>
-                </div>
-                <div class="collapsible-body">
                     <div class="leaderboard-mount"></div>
-                </div>
+                </div>`;
+        }).join('');
+
+        section.innerHTML = `
+            <div class="app-section app-section--card">
+                <h2 class="app-section-h2">${year}</h2>
+                <div class="achv-tabs"></div>
+                <div class="achv-panels">${panelsHtml}</div>
             </div>`;
 
-        const mountPoint = section.querySelector('.leaderboard-mount');
-        const preset = buildAnnualLeaderboardPreset({
-            rows:    visibleRows,
-            months:  lb.months,
-            isUBC:   lb.isUBC,
-            flagUrl,
-        });
-        const { table } = mountMFTable(mountPoint, preset);
-        // Preserve legacy class so existing .leaderboard-table CSS still applies.
-        table.classList.add('leaderboard-table');
+        // Collapsible toggle (shared) — current year open, past years collapsed.
+        wireSectionCollapse(section.querySelector('.app-section'), { defaultOpen: year >= currentYear });
 
-        // Collapsible toggle
-        const header = section.querySelector('.collapsible-header');
-        header.addEventListener('click', () => {
-            header.closest('.collapsible-section').classList.toggle('collapsed');
+        // Pill switching — shared sub-tabs; show the matching type panel.
+        mountPillTabs(section.querySelector('.achv-tabs'), {
+            tabs: yearLbs.map(lb => ({ id: lb.leagueType, label: lb.typeName })),
+            pillClassFor: (t) => 'league-type-pill type-' + t,
+            onSelect: (t) => section.querySelectorAll('.achv-panel').forEach(p => {
+                p.classList.toggle('hidden', p.dataset.type !== t);
+            }),
         });
 
-        // Image export
-        const exportBtn = section.querySelector('.img-export-btn');
-        exportBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const currentInput = exportBtn.closest('.leaderboard-section').querySelector('.img-export-rows');
-            let maxRows = parseInt(currentInput.value, 10);
-            if (!Number.isFinite(maxRows) || maxRows < 1) maxRows = 1;
-            const cap = Math.min(25, lb.rows.length);
-            if (maxRows > cap) maxRows = cap;
-            const sourceTable = section.querySelector('.leaderboard-mount table');
-            exportLeaderboardImage(sourceTable, title, maxRows);
-        });
-        // Don't toggle collapsible when interacting with the export controls.
-        section.querySelector('.img-export-group').addEventListener('click', e => e.stopPropagation());
+        // Build each type's table + wire its export, scoped to its own panel.
+        for (const lb of yearLbs) {
+            const panel = section.querySelector(`.achv-panel[data-type="${lb.leagueType}"]`);
+            const mountPoint = panel.querySelector('.leaderboard-mount');
+            const title = `${lb.year} ${lb.typeName} Leaderboard`;
 
-        // Wire context menu on each player name link (sortable table — re-attach after sort).
-        attachPlayerNameInteractions(mountPoint);
-        const tbody = table.querySelector('tbody');
-        new MutationObserver(() => attachPlayerNameInteractions(mountPoint))
-            .observe(tbody, { childList: true });
+            // Filter out hidden players up-front (live behaviour: skip entirely)
+            const visibleRows = lb.rows
+                .filter(row => !_playersMeta[row.player]?.hidden)
+                .map(row => ({ ...row, meta: _playersMeta[row.player] }));
+
+            const preset = buildAnnualLeaderboardPreset({
+                rows:    visibleRows,
+                months:  lb.months,
+                isUBC:   lb.isUBC,
+                flagUrl,
+            });
+            const { table } = mountMFTable(mountPoint, preset);
+            // Preserve legacy class so existing .leaderboard-table CSS still applies.
+            table.classList.add('leaderboard-table');
+
+            // Image export — scoped to this panel's input + table.
+            const exportBtn = panel.querySelector('.img-export-btn');
+            exportBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const currentInput = panel.querySelector('.img-export-rows');
+                let maxRows = parseInt(currentInput.value, 10);
+                if (!Number.isFinite(maxRows) || maxRows < 1) maxRows = 1;
+                const cap = Math.min(25, lb.rows.length);
+                if (maxRows > cap) maxRows = cap;
+                const sourceTable = mountPoint.querySelector('table');
+                exportLeaderboardImage(sourceTable, title, maxRows);
+            });
+            // Don't toggle collapsible when interacting with the export controls.
+            panel.querySelector('.img-export-group').addEventListener('click', e => e.stopPropagation());
+
+            // Wire context menu on each player name link (sortable table — re-attach after sort).
+            attachPlayerNameInteractions(mountPoint);
+            const tbody = table.querySelector('tbody');
+            new MutationObserver(() => attachPlayerNameInteractions(mountPoint))
+                .observe(tbody, { childList: true });
+        }
 
         container.appendChild(section);
     }
@@ -1263,11 +1290,6 @@ function renderAchievementsSection(container, presentTypes) {
     const section = document.createElement('div');
     section.className = 'dash-section achievements-section';
 
-    const tabsHtml = types.map((t, i) => {
-        const label = TYPE_LABELS[t] || t;
-        return `<button class="achv-tab${i === 0 ? ' active' : ''}" data-type="${t}">${label}</button>`;
-    }).join('');
-
     const panelsHtml = types.map((t, i) => `
         <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${t}">
             <div class="achv-tables-loading">Loading…</div>
@@ -1275,30 +1297,24 @@ function renderAchievementsSection(container, presentTypes) {
     `).join('');
 
     section.innerHTML = `
-        <div class="collapsible-section">
-            <h2 class="collapsible-header">Achievements</h2>
+        <div class="app-section app-section--card">
+            <h2 class="app-section-h2">Achievements</h2>
             <div class="collapsible-body">
-                <div class="achv-tabs">${tabsHtml}</div>
+                <div class="achv-tabs"></div>
                 <div class="achv-panels">${panelsHtml}</div>
             </div>
         </div>`;
 
-    // Collapsible toggle
-    const header = section.querySelector('.collapsible-header');
-    header.addEventListener('click', () => {
-        header.closest('.collapsible-section').classList.toggle('collapsed');
-    });
+    // Collapsible toggle (shared)
+    wireSectionCollapse(section.querySelector('.app-section'), { defaultOpen: true });
 
-    // Tab switching
-    section.querySelectorAll('.achv-tab').forEach(tab => {
-        tab.addEventListener('click', e => {
-            e.stopPropagation();
-            const type = tab.dataset.type;
-            section.querySelectorAll('.achv-tab').forEach(b => b.classList.toggle('active', b === tab));
-            section.querySelectorAll('.achv-panel').forEach(p => {
-                p.classList.toggle('hidden', p.dataset.type !== type);
-            });
-        });
+    // League-type switcher (shared pill sub-tabs) — show the matching panel.
+    mountPillTabs(section.querySelector('.achv-tabs'), {
+        tabs: types.map(t => ({ id: t, label: TYPE_LABELS[t] || t })),
+        pillClassFor: (t) => 'league-type-pill type-' + t,
+        onSelect: (t) => section.querySelectorAll('.achv-panel').forEach(p => {
+            p.classList.toggle('hidden', p.dataset.type !== t);
+        }),
     });
 
     container.appendChild(section);
@@ -1487,11 +1503,6 @@ function renderPRLeadersSection(container, presentTypes) {
     const section = document.createElement('div');
     section.className = 'dash-section pr-leaders-section';
 
-    const tabsHtml = types.map((t, i) => {
-        const label = TYPE_LABELS[t] || t;
-        return `<button class="achv-tab${i === 0 ? ' active' : ''}" data-type="${t}">${label}</button>`;
-    }).join('');
-
     const panelsHtml = types.map((t, i) => `
         <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${t}">
             <div class="achv-tables-loading">Loading…</div>
@@ -1499,28 +1510,22 @@ function renderPRLeadersSection(container, presentTypes) {
     `).join('');
 
     section.innerHTML = `
-        <div class="collapsible-section">
-            <h2 class="collapsible-header">PR Leaders</h2>
+        <div class="app-section app-section--card">
+            <h2 class="app-section-h2">PR Leaders</h2>
             <div class="collapsible-body">
-                <div class="achv-tabs">${tabsHtml}</div>
+                <div class="achv-tabs"></div>
                 <div class="achv-panels">${panelsHtml}</div>
             </div>
         </div>`;
 
-    const header = section.querySelector('.collapsible-header');
-    header.addEventListener('click', () => {
-        header.closest('.collapsible-section').classList.toggle('collapsed');
-    });
+    wireSectionCollapse(section.querySelector('.app-section'), { defaultOpen: true });
 
-    section.querySelectorAll('.achv-tab').forEach(tab => {
-        tab.addEventListener('click', e => {
-            e.stopPropagation();
-            const type = tab.dataset.type;
-            section.querySelectorAll('.achv-tab').forEach(b => b.classList.toggle('active', b === tab));
-            section.querySelectorAll('.achv-panel').forEach(p => {
-                p.classList.toggle('hidden', p.dataset.type !== type);
-            });
-        });
+    mountPillTabs(section.querySelector('.achv-tabs'), {
+        tabs: types.map(t => ({ id: t, label: TYPE_LABELS[t] || t })),
+        pillClassFor: (t) => 'league-type-pill type-' + t,
+        onSelect: (t) => section.querySelectorAll('.achv-panel').forEach(p => {
+            p.classList.toggle('hidden', p.dataset.type !== t);
+        }),
     });
 
     container.appendChild(section);
@@ -1579,11 +1584,6 @@ function renderMatchRecordsSection(container, allLeagues, presentTypes) {
     const section = document.createElement('div');
     section.className = 'dash-section match-records-section';
 
-    const tabsHtml = types.map((t, i) => {
-        const label = TYPE_LABELS[t] || t;
-        return `<button class="achv-tab${i === 0 ? ' active' : ''}" data-type="${t}">${label}</button>`;
-    }).join('');
-
     const panelsHtml = types.map((t, i) => {
         const luck = topLuckiestMatches(collectLuckMatches(leaguesByType[t]));
         const pr   = topBestPRMatches(collectPRMatches(leaguesByType[t]));
@@ -1594,29 +1594,23 @@ function renderMatchRecordsSection(container, allLeagues, presentTypes) {
     }).join('');
 
     section.innerHTML = `
-        <div class="collapsible-section">
-            <h2 class="collapsible-header">Match Records</h2>
+        <div class="app-section app-section--card">
+            <h2 class="app-section-h2">Match Records</h2>
             <div class="collapsible-body">
-                <div class="achv-tabs">${tabsHtml}</div>
+                <div class="achv-tabs"></div>
                 <div class="achv-panels">${panelsHtml}</div>
             </div>
         </div>`;
 
-    const header = section.querySelector('.collapsible-header');
-    header.addEventListener('click', () => {
-        header.closest('.collapsible-section').classList.toggle('collapsed');
-    });
+    wireSectionCollapse(section.querySelector('.app-section'), { defaultOpen: true });
 
-    section.querySelectorAll('.achv-tab').forEach(tab => {
-        tab.addEventListener('click', e => {
-            e.stopPropagation();
-            const type = tab.dataset.type;
-            section.querySelectorAll('.achv-tab').forEach(b => b.classList.toggle('active', b === tab));
-            section.querySelectorAll('.achv-panel').forEach(p => {
-                p.classList.toggle('hidden', p.dataset.type !== type);
-            });
+    mountPillTabs(section.querySelector('.achv-tabs'), {
+        tabs: types.map(t => ({ id: t, label: TYPE_LABELS[t] || t })),
+        pillClassFor: (t) => 'league-type-pill type-' + t,
+        onSelect: (t) => {
+            section.querySelectorAll('.achv-panel').forEach(p => p.classList.toggle('hidden', p.dataset.type !== t));
             requestAnimationFrame(() => applyMatchRecordsStickyOffsets(section));
-        });
+        },
     });
 
     container.appendChild(section);
@@ -1800,11 +1794,6 @@ function renderLeagueRecordsSection(container, allLeagues, presentTypes) {
     const section = document.createElement('div');
     section.className = 'dash-section league-records-section';
 
-    const tabsHtml = types.map((t, i) => {
-        const label = TYPE_LABELS[t] || t;
-        return `<button class="achv-tab${i === 0 ? ' active' : ''}" data-type="${t}">${label}</button>`;
-    }).join('');
-
     const panelsHtml = types.map((t, i) => {
         const winRateRows  = collectLeagueWinRateRecords(leaguesByType[t]);
         const prRows       = collectLeagueRecords(leaguesByType[t]);
@@ -1817,29 +1806,23 @@ function renderLeagueRecordsSection(container, allLeagues, presentTypes) {
     }).join('');
 
     section.innerHTML = `
-        <div class="collapsible-section">
-            <h2 class="collapsible-header">League Records</h2>
+        <div class="app-section app-section--card">
+            <h2 class="app-section-h2">League Records</h2>
             <div class="collapsible-body">
-                <div class="achv-tabs">${tabsHtml}</div>
+                <div class="achv-tabs"></div>
                 <div class="achv-panels">${panelsHtml}</div>
             </div>
         </div>`;
 
-    const header = section.querySelector('.collapsible-header');
-    header.addEventListener('click', () => {
-        header.closest('.collapsible-section').classList.toggle('collapsed');
-    });
+    wireSectionCollapse(section.querySelector('.app-section'), { defaultOpen: true });
 
-    section.querySelectorAll('.achv-tab').forEach(tab => {
-        tab.addEventListener('click', e => {
-            e.stopPropagation();
-            const type = tab.dataset.type;
-            section.querySelectorAll('.achv-tab').forEach(b => b.classList.toggle('active', b === tab));
-            section.querySelectorAll('.achv-panel').forEach(p => {
-                p.classList.toggle('hidden', p.dataset.type !== type);
-            });
+    mountPillTabs(section.querySelector('.achv-tabs'), {
+        tabs: types.map(t => ({ id: t, label: TYPE_LABELS[t] || t })),
+        pillClassFor: (t) => 'league-type-pill type-' + t,
+        onSelect: (t) => {
+            section.querySelectorAll('.achv-panel').forEach(p => p.classList.toggle('hidden', p.dataset.type !== t));
             requestAnimationFrame(() => applyLeagueRecordsStickyOffsets(section));
-        });
+        },
     });
 
     container.appendChild(section);

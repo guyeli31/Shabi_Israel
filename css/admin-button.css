@@ -95,7 +95,7 @@
     letter-spacing: 0.01em;
     cursor: pointer;
     background: var(--color-accent);
-    color: #fff;
+    color: var(--color-on-accent);
     box-shadow: var(--shadow-sm);
     transition: opacity 0.15s, transform 0.12s, box-shadow 0.15s;
 }

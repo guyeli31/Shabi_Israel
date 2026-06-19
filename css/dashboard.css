@@ -109,50 +109,10 @@
     border-radius: 0.15em;
 }
 
-/* Sections */
-.dash-section {
-    margin-top: var(--space-xl);
-}
-
-.dash-section h2 {
-    margin-bottom: var(--space-md);
-    font-size: var(--fs-120);
-    border-bottom: 2px solid var(--color-border);
-    padding-bottom: var(--space-xs);
-    color: var(--color-text);
-}
-
-.dash-section h2 a {
-    color: var(--color-accent);
-    text-decoration: none;
-}
-
-.dash-section h2 a:hover {
-    text-decoration: underline;
-}
-
-/* ---- Tab-panel framing (same surface-card look as the HOME page) ----
-   Sections inside a .dash-tab-panel become framed cards; the panel hides via
-   the shared .app-tab-panel[hidden] rule in css/tabs.css. */
+/* Section frame, heading and collapse now come from the shared css/sections.css
+   (.app-section / .app-section--card / .app-section-h2). `.dash-section` stays
+   on each section only as a hook for the dashboard's content rules below. */
 .dash-tabs-shell { margin-bottom: var(--space-lg); }
-
-.dash-tab-panel > .dash-section {
-    margin: 0 0 var(--space-md);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    padding: var(--space-md);
-    box-shadow: var(--shadow-sm);
-}
-.dash-tab-panel > .dash-section:last-child { margin-bottom: 0; }
-
-/* H2 inside a framed card: no top margin, thinner divider (the card border frames it). */
-.dash-tab-panel > .dash-section > h2 {
-    margin-top: 0;
-    margin-bottom: var(--space-md);
-    border-bottom-width: 1px;
-    padding-bottom: var(--space-sm);
-}
 
 .dash-controls {
     display: flex;
@@ -349,7 +309,7 @@
     margin-left: auto;
     padding: 6px 14px;
     background: var(--color-accent);
-    color: #fff;
+    color: var(--color-on-accent);
     border-radius: var(--radius-sm);
     text-decoration: none;
     font-size: var(--fs-085);
@@ -385,10 +345,10 @@
 /* Right-click context menu */
 .player-context-menu {
     position: fixed;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    box-shadow: var(--shadow-md);
+    background: var(--popover-bg);
+    border: 1px solid var(--popover-border-color);
+    border-radius: var(--popover-radius);
+    box-shadow: var(--popover-shadow);
     padding: 4px 0;
     min-width: 200px;
     z-index: 1000;
@@ -437,15 +397,15 @@
 
 .predictor-info-popup {
     position: relative;
-    background: var(--color-card-bg, var(--color-bg));
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
+    background: var(--popover-bg);
+    border: 1px solid var(--popover-border-color);
+    border-radius: var(--popover-radius);
     padding: var(--space-md) var(--space-lg);
     margin-bottom: var(--space-md);
     font-size: var(--fs-085);
     line-height: 1.55;
     color: var(--color-text);
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    box-shadow: var(--popover-shadow);
 }
 .predictor-info-popup h3 {
     margin: 0 0 var(--space-sm);
@@ -514,7 +474,7 @@
 
 .predictor-pct-bar {
     position: relative;
-    background: linear-gradient(to right, var(--bar-color, var(--color-success)) var(--pct, 0%), transparent var(--pct, 0%));
+    background: linear-gradient(to right, var(--bar-color, var(--tier-high)) var(--pct, 0%), transparent var(--pct, 0%));
     border-radius: var(--radius-sm);
     padding: 0.15em 0.6em;
     font-size: inherit;
@@ -538,25 +498,9 @@
     background: var(--color-hover);
 }
 
-/* ── Collapsible section heading (standard dashboard <h2>) ──
-   Used by Prizes & Medals, Championship Predictor and What If. Chevron tracks
-   aria-expanded; a `.dash-collapsed` class on the section hides its body. */
-.dash-collapse-h2 {
-    cursor: pointer;
-    user-select: none;
-}
-.dash-collapse-h2::after {
-    content: ' ▸';
-    font-size: 0.85em;
-    opacity: 0.7;
-}
-.dash-collapse-h2[aria-expanded="true"]::after {
-    content: ' ▾';
-}
-/* Collapsed section — hide everything but the heading (beats inline display). */
-.dash-section.dash-collapsed > *:not(h2) {
-    display: none !important;
-}
+/* Collapsible section headings (Prizes & Medals / Championship Predictor /
+   What If) now use the shared mechanism in css/sections.css + sectionCollapse.js
+   (.app-section-h2.is-collapsible + .app-section.is-collapsed). */
 
 .prizes-info {
     margin-bottom: var(--space-sm);
@@ -586,14 +530,14 @@
 }
 
 /* ── What-If Simulator ──────────────────────────────────
-   Standard collapsible .dash-section card (header is a .dash-collapse-h2, the
-   `?` reuses .predictor-tooltip — shared with the predictor + landing page). */
+   Collapsible .app-section card (shared chrome); the `?` reuses
+   .predictor-tooltip — shared with the predictor + landing page. */
 .whatif-info-popup {
     position: relative;
     margin: var(--space-sm) 0;
     padding: var(--space-md);
-    background: var(--color-surface);
-    border: 1px dashed var(--color-accent);
+    background: var(--popover-bg);
+    border: 1px dashed var(--color-accent); /* intentional accent variant */
     border-radius: var(--radius-md);
     font-size: var(--fs-088);
     line-height: 1.5;
@@ -872,7 +816,7 @@
 .whatif-pct-bar {
     position: relative;
     background:
-        linear-gradient(to right, var(--bar-color, var(--color-success)) var(--pct, 0%), transparent var(--pct, 0%)),
+        linear-gradient(to right, var(--bar-color, var(--tier-high)) var(--pct, 0%), transparent var(--pct, 0%)),
         repeating-linear-gradient(
             45deg,
             transparent,
@@ -1045,55 +989,8 @@
     background: var(--color-unplayed-bg);
 }
 
-/* ── B6 Remaining Matches sub-tabs (B6a / B6b / B6c) ──── */
-.rem-tab-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-xs);
-    margin-bottom: var(--space-sm);
-}
-
-.rem-tab-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-xs);
-    padding: var(--space-xs) var(--space-md);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    color: var(--color-accent);
-    font-family: var(--font-main);
-    font-size: var(--fs-085);
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s, color 0.15s;
-    user-select: none;
-}
-.rem-tab-btn:hover {
-    background: var(--color-hover);
-    border-color: var(--color-accent);
-}
-.rem-tab-btn--open {
-    background: var(--color-accent);
-    color: var(--color-bg);
-    border-color: var(--color-accent);
-}
-.rem-tab-btn--open:hover {
-    background: var(--color-text);
-    border-color: var(--color-text);
-}
-.rem-tab-arrow {
-    font-size: 0.75em;
-}
-
-.rem-tab-panel {
-    margin-top: var(--space-sm);
-    padding: var(--space-md);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-sm);
-}
+/* B6 Remaining Matches sub-tabs use the shared accordion sub-tabs
+   (.subtab--accordion / .subtab-panel in css/subtabs.css, via mountAccordionTabs). */
 
 /* B6a — All Remaining */
 .rem-b6a-wrap {
@@ -1198,7 +1095,7 @@
     font-size: var(--fs-060);
     font-weight: 300;
     letter-spacing: 0.12em;
-    color: color-mix(in srgb, var(--color-bg) 93%, var(--color-text) 7%);
+    color: color-mix(in srgb, var(--color-bg) 96%, var(--color-text) 4%);
     user-select: none;
     pointer-events: none;
 }

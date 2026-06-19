@@ -37,6 +37,8 @@ import {
 import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { mountAppTabs } from './appTabs.js';
+import { wireSectionCollapse } from './sectionCollapse.js';
+import { mountPillTabs } from './subTabs.js';
 import { getTitleBadgesHtml, getTitleAbbreviationsHtml, getHighestTier } from '../data/titleConstants.js';
 import { renderV12Header, buildHeaderTitles, formatJoinedShort } from './playerHeader.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
@@ -150,27 +152,17 @@ export async function renderPlayerGeneralPage() {
  * a heading-less section). `collapsible` makes the heading toggle the section
  * open/closed (open by default); hiding is driven by the `.pg-collapsed` class.
  */
-function makePgSection(extraClass, title, { collapsible = false } = {}) {
+function makePgSection(extraClass, title, { collapsible = false, defaultOpen = true } = {}) {
     const section = document.createElement('section');
-    section.className = 'pg-section ' + extraClass;
+    // .app-section(+--card) = shared section chrome (css/sections.css);
+    // .pg-section + extraClass = page/content-specific styling only.
+    section.className = 'app-section app-section--card pg-section ' + extraClass;
     if (title) {
         const h2 = document.createElement('h2');
+        h2.className = 'app-section-h2';
         h2.textContent = title;
-        if (collapsible) {
-            h2.className = 'pg-collapse-h2';
-            h2.setAttribute('role', 'button');
-            h2.tabIndex = 0;
-            h2.setAttribute('aria-expanded', 'true');
-            const toggle = () => {
-                const collapsed = section.classList.toggle('pg-collapsed');
-                h2.setAttribute('aria-expanded', String(!collapsed));
-            };
-            h2.addEventListener('click', toggle);
-            h2.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
-            });
-        }
         section.appendChild(h2);
+        if (collapsible) wireSectionCollapse(section, { defaultOpen });
     }
     return section;
 }
@@ -264,26 +256,15 @@ async function renderPRStats(section, playerName, perLeague) {
         return;
     }
 
-    const tabs = document.createElement('div');
-    tabs.className = 'pg-tabs';
     const body = document.createElement('div');
     body.className = 'pg-tabs-body';
-    section.appendChild(tabs);
     section.appendChild(body);
-
-    typesWithPR.forEach((type, i) => {
-        const btn = document.createElement('button');
-        btn.className = 'pg-tab' + (i === 0 ? ' active' : '');
-        btn.textContent = type.toUpperCase();
-        btn.addEventListener('click', () => {
-            tabs.querySelectorAll('.pg-tab').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            showPRType(body, playerName, perLeague, type);
-        });
-        tabs.appendChild(btn);
+    const { bar } = mountPillTabs(section, {
+        tabs: typesWithPR.map(t => ({ id: t, label: t.toUpperCase() })),
+        pillClassFor: (t) => 'league-type-pill type-' + t,
+        onSelect: (t) => showPRType(body, playerName, perLeague, t),
     });
-
-    await showPRType(body, playerName, perLeague, typesWithPR[0]);
+    section.insertBefore(bar, body);   // bar above body; body already in DOM for the initial render
     wireRankToggles(body, playerName);
 }
 
@@ -444,8 +425,13 @@ function renderRankTable(rows, playerName, meta) {
 }
 
 function levelBadge(level) {
+    // Pill convention (like status/league-type pills): tinted fill + the level
+    // colour as TEXT. The old solid-fill + white text failed contrast in dark
+    // themes, where colorForLevel returns LIGHT colours (tuned for foreground
+    // use). Driving both fill and text off the same colour stays readable in
+    // every theme/mode since the colour is already light/dark-aware.
     const color = colorForLevel(level);
-    return `<span class="pg-level-badge" style="background:${color}">${escapeHtml(level)}</span>`;
+    return `<span class="pg-level-badge" style="background:color-mix(in srgb, ${color} 18%, transparent);color:${color}">${escapeHtml(level)}</span>`;
 }
 
 function ordinal(n) {
@@ -469,26 +455,15 @@ async function renderAchievements(section, playerName, perLeague) {
         return;
     }
 
-    const tabs = document.createElement('div');
-    tabs.className = 'pg-tabs';
     const body = document.createElement('div');
     body.className = 'pg-tabs-body';
-    section.appendChild(tabs);
     section.appendChild(body);
-
-    types.forEach((type, i) => {
-        const btn = document.createElement('button');
-        btn.className = 'pg-tab' + (i === 0 ? ' active' : '');
-        btn.textContent = type.toUpperCase();
-        btn.addEventListener('click', () => {
-            tabs.querySelectorAll('.pg-tab').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            showAchievementType(body, playerName, type);
-        });
-        tabs.appendChild(btn);
+    const { bar } = mountPillTabs(section, {
+        tabs: types.map(t => ({ id: t, label: t.toUpperCase() })),
+        pillClassFor: (t) => 'league-type-pill type-' + t,
+        onSelect: (t) => showAchievementType(body, playerName, t),
     });
-
-    showAchievementType(body, playerName, types[0]);
+    section.insertBefore(bar, body);
 }
 
 async function showAchievementType(body, playerName, type) {
@@ -875,30 +850,19 @@ function renderPlayerMatchRecords(container, perLeague) {
     if (types.length === 0) return;
 
     const section = document.createElement('section');
-    section.className = 'pg-section pg-match-records';
-    section.innerHTML = '<h2>Match Records</h2>';
+    section.className = 'app-section app-section--card pg-section pg-match-records';
+    section.innerHTML = '<h2 class="app-section-h2">Match Records</h2>';
     container.appendChild(section);
 
-    const tabs = document.createElement('div');
-    tabs.className = 'pg-tabs';
     const body = document.createElement('div');
     body.className = 'pg-tabs-body';
-    section.appendChild(tabs);
     section.appendChild(body);
-
-    types.forEach((type, i) => {
-        const btn = document.createElement('button');
-        btn.className = 'pg-tab' + (i === 0 ? ' active' : '');
-        btn.textContent = MR_TYPE_LABELS[type] || type.toUpperCase();
-        btn.addEventListener('click', () => {
-            tabs.querySelectorAll('.pg-tab').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            showMatchRecordsType(body, perLeague, type);
-        });
-        tabs.appendChild(btn);
+    const { bar } = mountPillTabs(section, {
+        tabs: types.map(t => ({ id: t, label: MR_TYPE_LABELS[t] || t.toUpperCase() })),
+        pillClassFor: (t) => 'league-type-pill type-' + t,
+        onSelect: (t) => showMatchRecordsType(body, perLeague, t),
     });
-
-    showMatchRecordsType(body, perLeague, types[0]);
+    section.insertBefore(bar, body);
 
     let _pgMrRafId;
     window.addEventListener('resize', () => {

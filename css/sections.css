@@ -1,0 +1,69 @@
+/* ============================================================================
+   sections.css — SINGLE SOURCE OF TRUTH for content sections.
+   Pairs with js/render/sectionCollapse.js (wireSectionCollapse).
+
+   A "section" is `.app-section`. Add `.app-section--card` for the framed
+   surface-card look (used inside every tab panel and on the admin pages).
+   The heading is `.app-section-h2`. A collapsible section's heading also
+   carries `.is-collapsible`, and the section toggles `.is-collapsed`.
+
+   Every page (index / dashboard / player_general / admin) loads this file, so
+   sections are defined ONCE and are identical everywhere. The only per-section
+   choices are: (1) collapsible or not, (2) default open/closed — both decided
+   in JS via wireSectionCollapse({ defaultOpen }).
+
+   Section-specific *content* CSS (table layouts, predictor internals, league
+   card grids, …) still lives in each page's own stylesheet — that is content,
+   not section chrome.
+   ============================================================================ */
+
+/* The ONLY inter-section spacing in the project — one value, every surface.
+   Applied as margin-bottom (no :last-child reset) so the gap is identical
+   whether a section is a direct child of its container or wrapped in a
+   legacy content div (admin / landing); a margin-transparent wrapper carries
+   the same gap out via margin-collapsing. */
+.app-section {
+    margin: 0 0 var(--space-md);
+}
+
+/* Framed surface card. */
+.app-section--card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Standard section heading — a card border frames it, so a thin 1px divider. */
+.app-section-h2 {
+    margin: 0 0 var(--space-md);
+    font-size: var(--fs-120);
+    font-weight: 700;
+    color: var(--color-text);
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-sm);
+}
+.app-section-h2 a { color: var(--color-accent); text-decoration: none; }
+.app-section-h2 a:hover { text-decoration: underline; }
+
+/* Collapsible heading — chevron tracks aria-expanded (set by wireSectionCollapse). */
+.app-section-h2.is-collapsible {
+    cursor: pointer;
+    user-select: none;
+}
+.app-section-h2.is-collapsible::after {
+    content: ' \25B8';                 /* ▸ collapsed */
+    font-size: 0.85em;
+    opacity: 0.7;
+    margin-left: 0.25em;
+}
+.app-section-h2.is-collapsible[aria-expanded="true"]::after {
+    content: ' \25BE';                 /* ▾ open */
+}
+
+/* Collapsed — hide everything but the heading. !important beats inline display
+   set by JS on some bodies (e.g. predictor table / expand button). */
+.app-section.is-collapsed > *:not(.app-section-h2) {
+    display: none !important;
+}

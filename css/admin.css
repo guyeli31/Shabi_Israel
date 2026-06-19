@@ -1,58 +1,8 @@
 /* admin.css — Admin panel styles */
 
-/* ── Match Results sub-tabs (admin.html) ──────────────────────────────────
-   Mirrors the dashboard's .rem-tab-* pattern so the admin tab bar feels
-   native. Tabs sit on the page bg (var(--color-bg)) and contrast against
-   their surface-coloured buttons. The opened panel carries its own surface
-   background. (The section header itself uses the shared .dash-section /
-   .collapsible-* tab styling defined further below.)
-   Keep visually in sync with css/dashboard.css :: .rem-tab-bar block. */
-.rem-tab-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-xs);
-    margin-bottom: var(--space-sm);
-}
-.rem-tab-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-xs);
-    padding: var(--space-xs) var(--space-md);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    color: var(--color-accent);
-    font-family: var(--font-main);
-    font-size: var(--fs-090);
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s, color 0.15s;
-    user-select: none;
-}
-.rem-tab-btn:hover {
-    background: var(--color-hover);
-    border-color: var(--color-accent);
-}
-.rem-tab-btn--open {
-    background: var(--color-accent);
-    color: var(--color-bg);
-    border-color: var(--color-accent);
-}
-.rem-tab-btn--open:hover {
-    background: var(--color-text);
-    border-color: var(--color-text);
-}
-.rem-tab-arrow {
-    font-size: 0.75em;
-}
-.rem-tab-panel {
-    margin-top: var(--space-sm);
-    padding: var(--space-md);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-sm);
-}
+/* Match Results sub-tabs now use the shared accordion sub-tabs
+   (.subtab--accordion / .subtab-panel in css/subtabs.css, via mountAccordionTabs)
+   — no admin-local duplication of the dashboard's tab chrome. */
 
 
 /* Skip link (a11y) — duplicated from navigation.css since admin.html
@@ -62,7 +12,7 @@
     top: -100px;
     left: 0;
     background: var(--color-accent, #2563eb);
-    color: #fff;
+    color: var(--color-on-accent);
     padding: 8px 16px;
     z-index: 9999;
     text-decoration: none;
@@ -324,20 +274,36 @@
 }
 
 /* ---- Buttons ---- */
+/* ---- Buttons — single source of truth ---------------------------------
+   ONE base `.btn`. Colour is the only thing the variant classes change;
+   size is a linear ramp where the font comes from the type-scale tokens
+   and the padding is in `em`, so the button scales proportionally with
+   its font at every viewport (no hand-tuned px per size).
+
+   Mirrors v2 `primitives/Button` (variants primary/secondary/success/
+   danger + sizes sm/md/lg). v1→v2 class mapping is in
+   v2/docs/MIGRATION-FROM-V1.md. Anything that used the old `.file-btn`
+   now reuses `.btn .btn-secondary .btn-sm` (see filePickerHTML). */
 .btn {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-xs);
-    padding: var(--space-sm) var(--space-md);
-    border: none;
+    justify-content: center;
+    gap: 0.4em;
+    padding: 0.5em 1em;                 /* md (default) — em-based ramp */
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     font-family: inherit;
     font-size: var(--fs-090);
     font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
     cursor: pointer;
     transition: background 0.15s, opacity 0.15s, transform 0.12s, box-shadow 0.15s;
     position: relative;
-    letter-spacing: 0.01em;
+    /* neutral default surface so variant-less buttons (e.g. the .btn-tech
+       TA/TB/TD/NP toggles) still read as buttons */
+    background: var(--color-surface);
+    color: var(--color-text);
 }
 
 .btn:not(:disabled):hover {
@@ -353,20 +319,24 @@
     cursor: not-allowed;
 }
 
+/* Colour variants — the ONLY per-button difference. */
 .btn-primary {
     background: var(--color-accent);
     color: #fff;
-    box-shadow: 0 1px 3px rgba(37,99,235,0.3);
+    border-color: transparent;
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
 .btn-primary:hover:not(:disabled) {
-    background: #1d4ed8;
-    box-shadow: 0 4px 12px rgba(37,99,235,0.38);
+    /* theme-aware darken (was a hardcoded blue that flashed on non-blue accents) */
+    background: color-mix(in srgb, var(--color-accent) 85%, #000);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--color-accent) 38%, transparent);
 }
 
 .btn-success {
     background: var(--color-running);
     color: #fff;
+    border-color: transparent;
     box-shadow: 0 1px 3px rgba(4,120,87,0.3);
 }
 
@@ -378,6 +348,7 @@
 .btn-danger {
     background: var(--color-loss);
     color: #fff;
+    border-color: transparent;
     box-shadow: 0 1px 3px rgba(185,28,28,0.25);
 }
 
@@ -389,7 +360,7 @@
 .btn-secondary {
     background: var(--color-surface);
     color: var(--color-text);
-    border: 1px solid var(--color-border);
+    border-color: var(--color-border);
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
@@ -399,14 +370,26 @@
     box-shadow: 0 3px 8px rgba(0,0,0,0.09);
 }
 
-.btn-sm {
-    padding: var(--space-xs) var(--space-sm);
-    font-size: var(--fs-082);
-}
+.btn-tech { font-weight: 700; }
+
+/* Size ramp — linear: font token + em padding (scales together). */
+.btn-lg { font-size: var(--fs-110); padding: 0.6em 1.25em; }
+.btn-sm { font-size: var(--fs-082); padding: 0.4em 0.8em; }
+.btn-xs { font-size: var(--fs-075); padding: 0.3em 0.65em; }
 
 .btn-block {
-    display: block;
+    display: flex;
     width: 100%;
+}
+
+/* "Back to …" link button — pins font/size/padding to the public
+   .open-full-btn (dashboard.css) so the admin back link reads identically
+   to "‹ Back to full table". Pair with .btn-primary for the accent fill.
+   Keep in sync with .open-full-btn. */
+.btn-back {
+    font-size: var(--fs-085);
+    font-weight: 500;
+    padding: 6px 14px;
 }
 
 /* ---- Staging Badge ---- */
@@ -498,42 +481,9 @@
     border-bottom: 1px solid var(--color-border);
 }
 
-/* ── Collapsible section tabs (Edit League view) ──────────────────────────
-   IDENTICAL to the index dashboard tabs. Mirrors css/dashboard.css
-   (.dash-section h2) + css/index-dashboard.css (.collapsible-header /
-   .collapsible-body) because admin.html loads neither file.
-
-   FONT SIZE: index.html is the one page that does NOT load
-   typography-tokens.css, so there its `.dash-section h2 { font-size:
-   var(--fs-120) }` resolves to an undefined var and the header inherits the
-   body font size. admin.html DOES load the tokens, so to render these tabs at
-   exactly the same size as on index.html we inherit here instead of using the
-   token. Keep in sync with those two sources. */
-.dash-section {
-    margin-top: var(--space-xl);
-}
-.dash-section h2 {
-    margin-bottom: var(--space-md);
-    font-size: inherit; /* match index.html (see note above) — not var(--fs-120) */
-    border-bottom: 2px solid var(--color-border);
-    padding-bottom: var(--space-xs);
-    color: var(--color-text);
-}
-.collapsible-header {
-    cursor: pointer;
-    user-select: none;
-}
-.collapsible-header::after {
-    content: ' \25BE';
-    font-size: 0.9em;
-    color: var(--color-text-muted);
-}
-.collapsed .collapsible-header::after {
-    content: ' \25B8';
-}
-.collapsed .collapsible-body {
-    display: none;
-}
+/* Section frame, heading and collapse for the admin New/Edit League views now
+   come from the shared css/sections.css (.app-section / .app-section--card /
+   .app-section-h2) + js/render/sectionCollapse.js — no admin-local duplication. */
 
 /* font-small content for League Settings & Automatic Sync cards. */
 .edit-card-sm,
@@ -997,23 +947,7 @@ table.font-large { font-size: var(--fs-093); }
     color: var(--color-text);
 }
 
-.btn-xs {
-    padding: 2px 6px;
-    font-size: var(--fs-070);
-    border-radius: 3px;
-    cursor: pointer;
-    border: 1px solid var(--color-border);
-    background: var(--color-surface);
-    color: var(--color-text);
-}
-
-.btn-xs:hover {
-    background: var(--color-border);
-}
-
-.btn-tech {
-    font-weight: 700;
-}
+/* .btn-xs / .btn-tech now live in the unified button ramp above. */
 
 .btn-save-match:disabled {
     opacity: 0.35;
@@ -1117,7 +1051,7 @@ table.font-large { font-size: var(--fs-093); }
 }
 
 .match-block-pending td {
-    background: color-mix(in srgb, var(--color-accent-light) 60%, var(--color-warning, #fef3c7) 40%);
+    background: var(--color-warning-bg);
 }
 
 /* Hover EDITED/ACTIONS (rowspan'd cells) → highlight the whole match-block. */
@@ -1328,7 +1262,7 @@ table.font-large { font-size: var(--fs-093); }
     background: var(--color-accent-light);
 }
 .admin-table.font-large.admin-round-table tbody .match-block-pending td:first-child {
-    background: color-mix(in srgb, var(--color-accent-light) 60%, var(--color-warning, #fef3c7) 40%);
+    background: var(--color-warning-bg);
 }
 .admin-table.font-large.admin-round-table tbody .match-block-unplayed td:first-child {
     background: var(--color-surface);
@@ -1603,6 +1537,57 @@ table.font-large { font-size: var(--fs-093); }
     }
 }
 
+/* ---- Input + action row (input/file-picker beside a button) ----------
+   One layout for every "field + button" pair (Add Player, Upload CSV,
+   Upload Flag …). The field flexes; the button keeps its intrinsic
+   width and stays vertically centred with the field. Replaces the
+   ad-hoc inline `display:flex;align-items:flex-end` + `margin-top`
+   hacks that left buttons floating beside helper text. */
+.input-action-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+}
+.input-action-row > .ac-field,
+.input-action-row > .custom-file-input {
+    flex: 1;
+    min-width: 0;
+}
+/* Autocomplete anchor — dropdown positions against the field, not the row. */
+.ac-field { position: relative; }
+
+/* Short fixed-width input (e.g. a 2-letter flag code) inside an action row.
+   Font + padding mirror .btn-sm so it lines up to the same height as the
+   adjacent "Choose File" button (both border-box, 1px border). */
+.input-action-row .input-code {
+    width: 4.5em;
+    flex: 0 0 auto;
+    text-align: center;
+    text-transform: uppercase;
+    font-size: var(--fs-082);
+    padding: 0.4em 0.8em;
+    line-height: 1.2;
+}
+
+/* Helper text under a field (kept on its own line, full width). */
+.form-hint {
+    display: block;
+    margin-top: var(--space-xs);
+    font-size: var(--fs-075);
+    color: var(--color-text-muted);
+}
+
+/* Sub-heading inside an admin card — one step above the field label on
+   the type scale, so the hierarchy stays linear (h2 ▸ subhead ▸ label). */
+.admin-subhead {
+    font-size: var(--fs-110);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin: 0 0 var(--space-sm);
+}
+.admin-subhead:not(:first-child) { margin-top: var(--space-lg); }
+
 /* ---- Custom file input (force English labels) ---- */
 .custom-file-input {
     display: flex;
@@ -1617,18 +1602,15 @@ table.font-large { font-size: var(--fs-093); }
     overflow: hidden;
     pointer-events: none;
 }
-.custom-file-input .file-btn {
-    padding: var(--space-xs) var(--space-sm);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-size: var(--fs-085);
-    white-space: nowrap;
-    color: var(--color-text);
-}
-.custom-file-input .file-btn:hover {
-    background: var(--color-bg);
+/* The visible "Choose File" label reuses the button primitive
+   (.btn .btn-secondary .btn-sm). When it lives inside a .form-group the
+   broad `.form-group label` rule would otherwise win (block display,
+   --fs-090, margin) and make it taller than its sibling buttons — so
+   restore the button box here (matches .btn-sm height). */
+.form-group label.btn {
+    display: inline-flex;
+    margin-bottom: 0;
+    font-size: var(--fs-082);
 }
 .custom-file-input .file-name {
     font-size: var(--fs-085);
@@ -1715,12 +1697,12 @@ table.font-large { font-size: var(--fs-093); }
     font-weight: 600;
 }
 .player-meta-inactive {
-    background: var(--color-bg-muted, #e5e7eb);
-    color: var(--color-text-muted, #6b7280);
+    background: var(--color-completed-bg);
+    color: var(--color-completed);
 }
 .player-meta-hidden {
-    background: #fee2e2;
-    color: #b91c1c;
+    background: color-mix(in srgb, var(--color-loss) 18%, transparent);
+    color: var(--color-loss);
 }
 .player-photo-row {
     display: flex;
@@ -1841,8 +1823,8 @@ table.font-large { font-size: var(--fs-093); }
    doesn't load components.css) ---- */
 .league-type-pill {
     display: inline-block;
-    padding: 2px 10px;
-    font-size: 0.8em;
+    padding: 0.2em 0.85em;
+    font-size: var(--fs-085);
     font-weight: 600;
     border-radius: var(--radius-full);
     text-transform: uppercase;
@@ -1865,11 +1847,12 @@ table.font-large { font-size: var(--fs-093); }
 /* ---- Status pill (mirrors components.css for admin page) ---- */
 .status-pill {
     display: inline-block;
-    padding: 2px 12px;
+    padding: 0.2em 0.85em;
     border-radius: var(--radius-full);
-    font-size: var(--fs-082);
+    font-size: var(--fs-085);
     font-weight: 600;
-    letter-spacing: 0.3px;
+    line-height: 1.5;
+    letter-spacing: 0.02em;
 }
 .status-running {
     background: var(--color-running-bg);
@@ -1878,4 +1861,28 @@ table.font-large { font-size: var(--fs-093); }
 .status-completed {
     background: var(--color-completed-bg);
     color: var(--color-completed);
+}
+
+/* ---- Global hover tooltip (mirrors components.css for the admin page, which
+   doesn't load components.css). Keep in sync with the canonical rule there. ---- */
+.app-tooltip {
+    position: fixed;
+    z-index: 1100;
+    background: var(--popover-bg);
+    color: var(--color-text);
+    border: 1px solid var(--popover-border-color);
+    border-radius: var(--popover-radius);
+    box-shadow: var(--popover-shadow);
+    font-size: var(--fs-085);
+    padding: 0.4em 0.7em;
+    line-height: 1.4;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-2px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.app-tooltip--visible {
+    opacity: 1;
+    transform: translateY(0);
 }

@@ -9,6 +9,7 @@ import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getInitials } from './playerHeader.js';
 import { isLoggedIn, getUsername } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
+import { initTooltips } from './tooltip.js';
 
 const CURRENT_YEAR = new Date().getFullYear();
 // League-type badge: single-letter icon + full label tooltip (colours via CSS).
@@ -85,6 +86,8 @@ let leagueIndex = []; // [{id, title, running, hidden}]
 export async function initNavBar() {
     if (navBarInstalled) return;
     navBarInstalled = true;
+
+    initTooltips(); // global themed hover tooltip (replaces native [title])
 
     try {
         const displayOrder = await loadLeagueOrder();

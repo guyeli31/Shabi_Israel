@@ -20,6 +20,10 @@
         /* brand accent */
         --color-accent:         #2563eb;
         --color-accent-light:   #dbeafe;
+        /* text/icon placed ON a --color-accent fill (breadcrumb current,
+           skip-link). Light-accent themes (Vegas/Casino gold, X22 orange)
+           override to a dark companion. Ported from v1 2026-06-17. */
+        --color-on-accent:      #fff;
 
         /* medals */
         --color-gold:           #fbbf24;
@@ -46,6 +50,15 @@
         --color-loss:           #b91c1c;
         --color-draw:           #4b5563;
 
+        /* semantic feedback (ported from v1 2026-06-16 — these were referenced
+           with hardcoded fallbacks but never defined, so they ignored the theme).
+           danger/success alias the themed result colours; warning is a constant
+           caution hue (foreground) plus a derived theme-aware background fill. */
+        --color-danger:         var(--color-loss);
+        --color-success:        var(--color-win);
+        --color-warning:        #d97706;
+        --color-warning-bg:     color-mix(in srgb, var(--color-accent-light) 60%, var(--color-warning) 40%);
+
         /* average / aggregate rows */
         --color-avg-bg:         #ecfdf5;
         --color-avg-border:     #a7f3d0;
@@ -57,6 +70,15 @@
         --header-bg:            #1e293b;
         --header-text:          #f8fafc;
         --header-bg-hover:      #334155;
+
+        /* floating surface popover (ported from v1 2026-06-17) — single source
+           for the elevated "text box" surfaces: Tooltip, context menu, info
+           popups, ChartTooltip. Primitives reference these instead of
+           re-declaring surface/border/radius/shadow. */
+        --popover-bg:           var(--color-surface);
+        --popover-border-color: var(--color-border);
+        --popover-radius:       var(--radius-sm);
+        --popover-shadow:       var(--shadow-md);
 
         /* navigation height — clamp scales 48px → 58px between mobile and 1440+ */
         --nav-height: clamp(48px, calc(0.93vw + 44.7px), 58px);

@@ -27,6 +27,8 @@ import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { startSplash, endSplash } from '../utils/splash.js';
 import { buildLeagueHeaderData, renderV16Header } from './leagueHeader.js';
 import { mountAppTabs } from './appTabs.js';
+import { wireSectionCollapse } from './sectionCollapse.js';
+import { mountAccordionTabs } from './subTabs.js';
 
 export async function renderDashboardPage() {
     const container = document.getElementById('content');
@@ -236,8 +238,8 @@ function installLeagueNavArrows(leagueId, allParams, currentType) {
 
 function standingsPanel() {
     return `
-        <section class="dash-section">
-            <h2>Table</h2>
+        <section class="app-section app-section--card dash-section">
+            <h2 class="app-section-h2">Table</h2>
             <div class="dash-controls">
                 <button id="hist-prev" title="Previous snapshot">&lsaquo;</button>
                 <select id="hist-date" title="Select snapshot date"></select>
@@ -247,17 +249,17 @@ function standingsPanel() {
             <div id="hist-table"></div>
         </section>
 
-        <section class="dash-section" id="prizes-section" style="display:none">
-            <h2 class="dash-collapse-h2" id="prizes-toggle" aria-expanded="false">Prizes &amp; Medals</h2>
-            <div id="prizes-content" hidden></div>
+        <section class="app-section app-section--card dash-section" id="prizes-section" style="display:none">
+            <h2 class="app-section-h2">Prizes &amp; Medals</h2>
+            <div id="prizes-content"></div>
         </section>
     `;
 }
 
 function predictorPanel() {
     return `
-        <section class="dash-section" id="predictor-section">
-            <h2 class="dash-collapse-h2" id="predictor-toggle" aria-expanded="true">Championship Predictor
+        <section class="app-section app-section--card dash-section" id="predictor-section">
+            <h2 class="app-section-h2">Championship Predictor
                 <span class="predictor-tooltip" id="predictor-info-btn">?</span>
             </h2>
             <div class="predictor-info-popup" id="predictor-info-popup" hidden>
@@ -291,8 +293,8 @@ function predictorPanel() {
             <button id="predictor-expand" class="predictor-expand-btn" style="display:none">Show Full Table</button>
         </section>
 
-        <section class="dash-section" id="whatif-section">
-            <h2 class="dash-collapse-h2" id="whatif-toggle" aria-expanded="true">What If
+        <section class="app-section app-section--card dash-section" id="whatif-section">
+            <h2 class="app-section-h2">What If
                 <span class="predictor-tooltip" id="whatif-info-btn">?</span>
             </h2>
             <div class="whatif-info-popup" id="whatif-info-popup" hidden>
@@ -342,8 +344,8 @@ function predictorPanel() {
 
 function matchesPanel() {
     return `
-        <section class="dash-section">
-            <h2>Rounds</h2>
+        <section class="app-section app-section--card dash-section">
+            <h2 class="app-section-h2">Rounds</h2>
             <div class="dash-controls">
                 <button id="round-prev" title="Previous round">&lsaquo;</button>
                 <span class="round-label" id="round-label">Round 1 / 1</span>
@@ -353,54 +355,27 @@ function matchesPanel() {
             <div id="round-table"></div>
         </section>
 
-        <section class="dash-section" id="remaining-section">
-            <h2>
+        <section class="app-section app-section--card dash-section" id="remaining-section">
+            <h2 class="app-section-h2">
                 Remaining Matches
                 <span id="remaining-count" style="font-size:0.8em;color:var(--color-text-muted);font-weight:normal"></span>
             </h2>
-            <div class="rem-tab-bar">
-                <button class="rem-tab-btn" data-panel="rem-panel-b6a"><span class="rem-tab-arrow">&#x25B8;</span> All Remaining</button>
-                <button class="rem-tab-btn" data-panel="rem-panel-b6b"><span class="rem-tab-arrow">&#x25B8;</span> Remaining Report</button>
-                <button class="rem-tab-btn" data-panel="rem-panel-b6c"><span class="rem-tab-arrow">&#x25B8;</span> Per Player</button>
-            </div>
-            <div id="rem-panel-b6a" class="rem-tab-panel" hidden></div>
-            <div id="rem-panel-b6b" class="rem-tab-panel" hidden></div>
-            <div id="rem-panel-b6c" class="rem-tab-panel" hidden></div>
+            <div id="rem-tab-bar"></div>
+            <div id="rem-panel-b6a" class="subtab-panel" hidden></div>
+            <div id="rem-panel-b6b" class="subtab-panel" hidden></div>
+            <div id="rem-panel-b6c" class="subtab-panel" hidden></div>
         </section>
     `;
 }
 
 function insightsPanel() {
     return `
-        <section class="dash-section">
-            <h2>Player insights</h2>
+        <section class="app-section app-section--card dash-section">
+            <h2 class="app-section-h2">Player insights</h2>
             <div id="charts-container"></div>
             <button id="add-chart" class="add-chart-btn" title="Add another chart for comparison">+ Add chart</button>
         </section>
     `;
-}
-
-/**
- * Make a dashboard section collapsible via its standard `<h2.dash-collapse-h2>`
- * heading (open by default). Clicks on the info button (`?`) are ignored so it
- * opens its popup without toggling. Hiding is driven by `.dash-collapsed`.
- */
-function wireDashSectionCollapse(section, infoBtn) {
-    const h2 = section && section.querySelector(':scope > h2.dash-collapse-h2');
-    if (!h2) return;
-    const toggle = () => {
-        const collapsed = section.classList.toggle('dash-collapsed');
-        h2.setAttribute('aria-expanded', String(!collapsed));
-    };
-    h2.setAttribute('role', 'button');
-    h2.tabIndex = 0;
-    h2.addEventListener('click', (e) => {
-        if (infoBtn && (e.target === infoBtn || infoBtn.contains(e.target))) return;
-        toggle();
-    });
-    h2.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
-    });
 }
 
 // ---------- F1 ----------
@@ -459,7 +434,6 @@ function renderPrizes(ctx) {
 
     const section = document.getElementById('prizes-section');
     const content = document.getElementById('prizes-content');
-    const toggleBtn = document.getElementById('prizes-toggle');
     section.style.display = '';
 
     const entryFee = params.EntryFee != null ? params.EntryFee : '—';
@@ -478,11 +452,8 @@ function renderPrizes(ctx) {
     html += '</tbody></table></div>';
     content.innerHTML = html;
 
-    toggleBtn.addEventListener('click', () => {
-        content.hidden = !content.hidden;
-        toggleBtn.classList.toggle('prizes-toggle-open', !content.hidden);
-        toggleBtn.setAttribute('aria-expanded', String(!content.hidden));
-    });
+    // Prizes & Medals is collapsible, closed by default (shared section collapse).
+    wireSectionCollapse(section, { defaultOpen: false });
 }
 
 // ---------- F2 ----------
@@ -611,7 +582,7 @@ async function renderPredictor(ctx) {
         infoBtn.addEventListener('click', () => { infoPopup.hidden = !infoPopup.hidden; });
         if (infoClose) infoClose.addEventListener('click', () => { infoPopup.hidden = true; });
     }
-    wireDashSectionCollapse(section, infoBtn);
+    wireSectionCollapse(section, { defaultOpen: true, infoBtn });
 
     // Find remaining (unplayed) matches
     const remaining = ctx.allMatchesIncUnplayed.filter(m => !m.played);
@@ -682,7 +653,7 @@ async function renderPredictor(ctx) {
             const rows = data.map((r, i) => {
                 const flagCode = getFlagCode(r.player, ctx.params.CustomFlags);
                 const pct = getTopXPct(r);
-                const barColor = pct > Math.min(20 * currentX, 80) ? 'var(--color-success)' : pct > Math.min(5 * currentX, 30) ? 'var(--color-warning)' : 'var(--color-text-muted)';
+                const barColor = pct > Math.min(20 * currentX, 80) ? 'var(--tier-high)' : pct > Math.min(5 * currentX, 30) ? 'var(--tier-mid)' : 'var(--tier-low)';
                 let ubcCols = '';
                 if (showPRWins) {
                     ubcCols = `<td>${r.points}</td><td>${r.avgPoints != null ? formatNumber(r.avgPoints) : '—'}</td>`;
@@ -765,8 +736,8 @@ function renderWhatIfSimulator(ctx) {
     const tableHost = document.getElementById('whatif-table');
     const expandBtn = document.getElementById('whatif-expand');
 
-    // Collapse toggle (standard dashboard section header)
-    wireDashSectionCollapse(section, infoBtn);
+    // Collapse toggle (shared section header)
+    wireSectionCollapse(section, { defaultOpen: true, infoBtn });
 
     // Info popup
     if (infoBtn && infoPopup) {
@@ -1082,7 +1053,7 @@ function renderWhatIfSimulator(ctx) {
                 const rows = data.map((r, i) => {
                     const flagCode = getFlagCode(r.player, ctx.params.CustomFlags);
                     const pct = getTopXPct(r);
-                    const barColor = pct > Math.min(20 * currentX, 80) ? 'var(--color-success)' : pct > Math.min(5 * currentX, 30) ? 'var(--color-warning)' : 'var(--color-text-muted)';
+                    const barColor = pct > Math.min(20 * currentX, 80) ? 'var(--tier-high)' : pct > Math.min(5 * currentX, 30) ? 'var(--tier-mid)' : 'var(--tier-low)';
                     let ubcCols = '';
                     if (showPRWins) {
                         ubcCols = `<td>${r.points}</td><td>${r.avgPoints != null ? formatNumber(r.avgPoints) : '—'}</td>`;
@@ -1266,38 +1237,21 @@ function renderRemainingMatches(ctx) {
     const countEl = document.getElementById('remaining-count');
     if (countEl) countEl.textContent = `(${remaining.length})`;
 
-    // Sub-tab toggle — one panel open at a time; clicking an open tab closes it
-    const buttons = document.querySelectorAll('#remaining-section .rem-tab-btn');
-    buttons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const panelId = btn.dataset.panel;
-            const panel = document.getElementById(panelId);
-            if (!panel) return;
-            const opening = panel.hidden;
-
-            // Close all panels
-            buttons.forEach(b => {
-                const p = document.getElementById(b.dataset.panel);
-                if (p) p.hidden = true;
-                b.classList.remove('rem-tab-btn--open');
-                const arr = b.querySelector('.rem-tab-arrow');
-                if (arr) arr.innerHTML = '&#x25B8;';
-            });
-
-            if (!opening) return; // was open — close it
-
-            panel.hidden = false;
-            btn.classList.add('rem-tab-btn--open');
-            const arrow = btn.querySelector('.rem-tab-arrow');
-            if (arrow) arrow.innerHTML = '&#x25BE;';
-
-            if (!panel._built) {
-                panel._built = true;
-                if (panelId === 'rem-panel-b6a') buildB6aPanel(panel, remaining, params, playersMeta, lastModified);
-                else if (panelId === 'rem-panel-b6b') buildB6bPanel(panel, ctx, remaining, lastModified);
-                else if (panelId === 'rem-panel-b6c') buildB6cPanel(panel, ctx, remaining, lastModified);
-            }
-        });
+    // Sub-tabs — shared accordion (one panel open at a time; clicking an open
+    // tab closes it). Panels are lazy-built on first open.
+    mountAccordionTabs(document.getElementById('rem-tab-bar'), {
+        tabs: [
+            { id: 'rem-panel-b6a', label: 'All Remaining' },
+            { id: 'rem-panel-b6b', label: 'Remaining Report' },
+            { id: 'rem-panel-b6c', label: 'Per Player' },
+        ],
+        onOpen: (panelId, panel) => {
+            if (panel._built) return;
+            panel._built = true;
+            if (panelId === 'rem-panel-b6a') buildB6aPanel(panel, remaining, params, playersMeta, lastModified);
+            else if (panelId === 'rem-panel-b6b') buildB6bPanel(panel, ctx, remaining, lastModified);
+            else if (panelId === 'rem-panel-b6c') buildB6cPanel(panel, ctx, remaining, lastModified);
+        },
     });
 }
 

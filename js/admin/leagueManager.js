@@ -12,6 +12,9 @@ import { renderOverridesList } from './overridesList.js';
 import { ensurePlayerIndex } from '../render/navigation.js';
 import { thLabel } from '../utils/helpers.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
+import { wireSectionCollapse } from '../render/sectionCollapse.js';
+import { mountAccordionTabs } from '../render/subTabs.js';
+import { filePickerHTML } from './render/formControls.js';
 
 // Known flag codes (from assets/flags/)
 const KNOWN_FLAGS = ['BE', 'IL', 'RU', 'TZ', 'UN'];
@@ -164,12 +167,12 @@ async function renderAddLeagueForm(container, displayOrder) {
 
     container.innerHTML = `
         <h1>Add New League</h1>
-        <button class="btn btn-secondary" id="cancel-new-league" style="margin-bottom:var(--space-lg)">&larr; Back to Leagues</button>
+        <button class="btn btn-primary btn-back" id="cancel-new-league" style="margin-bottom:var(--space-lg)">&lsaquo; Back to Leagues</button>
         <div id="add-msg"></div>
 
         <div class="dash-section">
-          <div class="collapsible-section">
-            <h2 class="collapsible-header">League Settings</h2>
+          <div class="app-section app-section--card">
+            <h2 class="app-section-h2">League Settings</h2>
             <div class="collapsible-body">
             <div class="admin-card edit-card-sm">
                 <div class="form-group">
@@ -212,37 +215,37 @@ async function renderAddLeagueForm(container, displayOrder) {
         </div>
 
         <div class="dash-section">
-          <div class="collapsible-section">
-            <h2 class="collapsible-header">Players & Data</h2>
+          <div class="app-section app-section--card">
+            <h2 class="app-section-h2">Players & Data</h2>
             <div class="collapsible-body">
             <div class="admin-card">
-                <div class="add-league-row" style="margin-bottom:var(--space-md)">
-                    <div class="form-group">
-                        <label for="upload-csv">Upload CSV / Excel</label>
-                        <div style="display:flex;gap:var(--space-sm);align-items:center">
-                            <div class="custom-file-input" style="flex:1">
-                                <label class="file-btn" for="upload-csv">Choose File</label>
-                                <input type="file" id="upload-csv" accept=".csv,.xlsx">
-                                <span class="file-name" data-for="upload-csv">No file chosen</span>
-                            </div>
-                            <button class="btn btn-secondary btn-sm" id="upload-csv-btn">Load File</button>
+                <h3 class="admin-subhead">Players</h3>
+
+                <div class="form-group">
+                    <label for="manual-player-name">Add a player</label>
+                    <div class="input-action-row">
+                        <div class="ac-field">
+                            <input type="text" id="manual-player-name" placeholder="Pick an existing player or type a new name…" autocomplete="off">
+                            <ul class="player-autocomplete" id="manual-player-autocomplete" hidden></ul>
                         </div>
+                        <button class="btn btn-primary btn-sm" id="add-manual-player-btn">Add</button>
                     </div>
+                    <small class="form-hint">Existing players autocomplete; a new name is registered when the league is created.</small>
                 </div>
-                <div class="add-league-row" style="margin-bottom:var(--space-md);align-items:flex-end">
-                    <div class="form-group" style="flex:2;position:relative">
-                        <label for="manual-player-name">Add Player</label>
-                        <input type="text" id="manual-player-name" placeholder="Pick an existing player or type a new name…" autocomplete="off">
-                        <ul class="player-autocomplete" id="manual-player-autocomplete" hidden></ul>
-                        <small style="color:var(--color-text-muted)">Existing players autocomplete; a new name is registered when the league is created.</small>
+
+                <div class="form-group">
+                    <label for="upload-csv">Or import a roster (CSV / Excel)</label>
+                    <div class="input-action-row">
+                        ${filePickerHTML('upload-csv', { label: 'Choose File', accept: '.csv,.xlsx' })}
+                        <button class="btn btn-secondary btn-sm" id="upload-csv-btn">Load File</button>
                     </div>
-                    <div class="form-group" style="flex:0">
-                        <button class="btn btn-primary btn-sm" id="add-manual-player-btn" style="margin-top:1.4rem">Add</button>
-                    </div>
+                    <small class="form-hint">Bulk-add players from a file instead of typing them one by one.</small>
                 </div>
-                <div id="add-msg" style="margin-bottom:var(--space-sm)"></div>
-                <div id="csv-source-msg" style="font-size:0.85rem;color:var(--color-text-muted);margin-bottom:var(--space-sm)"></div>
+
+                <div id="csv-source-msg" class="form-hint" style="margin-bottom:var(--space-sm)"></div>
+
                 <div id="f2b-mount"></div>
+
                 ${uploadFlagPanelHTML()}
             </div>
             </div>
@@ -321,14 +324,10 @@ async function renderAddLeagueForm(container, displayOrder) {
     // registers the code so it appears in every F2b flag dropdown.
     wireUploadFlagPanel();
 
-    // Collapsible section headers — same pattern as the Edit League view and the
-    // index dashboard tabs (.dash-section > .collapsible-section toggling .collapsed).
+    // Collapsible section headers — shared mechanism (css/sections.css +
+    // sectionCollapse.js), identical to landing / dashboard / player pages.
     // All sections open by default.
-    container.querySelectorAll('.collapsible-header').forEach(h => {
-        h.addEventListener('click', () => {
-            h.closest('.collapsible-section').classList.toggle('collapsed');
-        });
-    });
+    container.querySelectorAll('.app-section').forEach(s => wireSectionCollapse(s, { defaultOpen: true }));
 
     function setCsvSourceMsg(msg) {
         document.getElementById('csv-source-msg').textContent = msg || '';
@@ -798,11 +797,11 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
 
     container.innerHTML = `
         <h1>Edit: ${esc(p.LeagueTitle || leagueId)}</h1>
-        <button class="btn btn-secondary" id="back-to-leagues" style="margin-bottom:var(--space-lg)">&larr; Back to Leagues</button>
+        <button class="btn btn-primary btn-back" id="back-to-leagues" style="margin-bottom:var(--space-lg)">&lsaquo; Back to Leagues</button>
 
         <div class="dash-section">
-          <div class="collapsible-section">
-            <h2 class="collapsible-header">League Settings</h2>
+          <div class="app-section app-section--card">
+            <h2 class="app-section-h2">League Settings</h2>
             <div class="collapsible-body">
             <div class="admin-card edit-card-sm">
             <div id="edit-msg"></div>
@@ -866,8 +865,8 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
 
         ${players.length > 0 ? `
         <div class="dash-section">
-          <div class="collapsible-section">
-            <h2 class="collapsible-header">Players (${players.length})</h2>
+          <div class="app-section app-section--card">
+            <h2 class="app-section-h2">Players (${players.length})</h2>
             <div class="collapsible-body">
             <div class="admin-card">
             <div id="players-msg"></div>
@@ -883,8 +882,8 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         ` : '<div class="admin-card"><p style="color:var(--color-text-muted)">No players yet. Upload a CSV first.</p></div>'}
 
         <div class="dash-section">
-          <div class="collapsible-section">
-            <h2 class="collapsible-header">Automatic Sync</h2>
+          <div class="app-section app-section--card">
+            <h2 class="app-section-h2">Automatic Sync</h2>
             <div class="collapsible-body">
             <div class="admin-card edit-card-sm">
                 <h3 style="margin-bottom:var(--space-md)">BGStudio Sync</h3>
@@ -940,20 +939,14 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         </div>
 
         <div class="dash-section" id="match-results-section">
-          <div class="collapsible-section">
-            <h2 class="collapsible-header">Match Results</h2>
+          <div class="app-section app-section--card">
+            <h2 class="app-section-h2">Match Results</h2>
             <div class="collapsible-body">
-            <div class="rem-tab-bar" id="match-tab-bar">
-                <button class="rem-tab-btn" data-panel="match-panel-rounds"><span class="rem-tab-arrow">&#x25B8;</span> Round Editor</button>
-                ${!params.ManualEntry ? `
-                <button class="rem-tab-btn" data-panel="match-panel-upload"><span class="rem-tab-arrow">&#x25B8;</span> Upload CSV</button>
-                <button class="rem-tab-btn" data-panel="match-panel-overrides"><span class="rem-tab-arrow">&#x25B8;</span> View Overrides</button>
-                ` : ''}
-            </div>
-            <div id="match-panel-rounds" class="rem-tab-panel" hidden></div>
+            <div id="match-tab-bar"></div>
+            <div id="match-panel-rounds" class="subtab-panel" hidden></div>
             ${!params.ManualEntry ? `
-            <div id="match-panel-upload" class="rem-tab-panel" hidden></div>
-            <div id="match-panel-overrides" class="rem-tab-panel" hidden></div>
+            <div id="match-panel-upload" class="subtab-panel" hidden></div>
+            <div id="match-panel-overrides" class="subtab-panel" hidden></div>
             ` : ''}
             </div>
           </div>
@@ -969,14 +962,9 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     setupMatchResultsTabs(leagueId, params, refreshBadgeFn);
 
     // Collapsible section headers (League Settings / Players / Automatic Sync / Match Results).
-    // Identical to the index dashboard tabs: .dash-section > .collapsible-section
-    // with a .collapsible-header that toggles .collapsed on its section. All open
-    // by default. See js/render/landingPage.js + css/index-dashboard.css.
-    container.querySelectorAll('.collapsible-header').forEach(head => {
-        head.addEventListener('click', () => {
-            head.closest('.collapsible-section').classList.toggle('collapsed');
-        });
-    });
+    // Shared mechanism (css/sections.css + sectionCollapse.js), identical to the
+    // landing / dashboard / player pages. All open by default.
+    container.querySelectorAll('.app-section').forEach(s => wireSectionCollapse(s, { defaultOpen: true }));
 
     // Automatic Sync (BGStudio) — staged into league_params.json under p.BGStudioSync.
     setupBGSync(leagueId, params, bgDefaultName, refreshBadgeFn);
@@ -1271,22 +1259,17 @@ function ffMedalsTableHTML(rows) {
 /** The "Upload Custom Flag" panel that accompanies an FF players table. */
 function uploadFlagPanelHTML() {
     return `
-            <div style="margin-top:var(--space-md)">
-                <h3 style="font-size:0.95rem;margin-bottom:var(--space-sm)">Upload Custom Flag</h3>
-                <div class="form-group">
-                    <label>Flag Code + PNG file</label>
-                    <div style="display:flex;gap:var(--space-sm);align-items:center">
-                        <input type="text" id="upload-flag-code" placeholder="XX" style="width:60px">
-                        <div class="custom-file-input" style="flex:1">
-                            <label class="file-btn" for="upload-flag-file">Choose File</label>
-                            <input type="file" id="upload-flag-file" accept="image/*">
-                            <span class="file-name" data-for="upload-flag-file">No file chosen</span>
-                        </div>
-                        <button class="btn btn-secondary btn-sm" id="upload-flag-btn">Upload</button>
-                    </div>
+            <h3 class="admin-subhead">Custom Flag</h3>
+            <div class="form-group">
+                <label for="upload-flag-code">Flag code + PNG</label>
+                <div class="input-action-row">
+                    <input type="text" id="upload-flag-code" class="input-code" placeholder="XX" maxlength="3">
+                    ${filePickerHTML('upload-flag-file', { label: 'Choose File', accept: 'image/*' })}
+                    <button class="btn btn-secondary btn-sm" id="upload-flag-btn">Upload</button>
                 </div>
-                <div id="flag-upload-msg"></div>
-            </div>`;
+                <small class="form-hint">Register a 2-letter code with a PNG to use a non-default flag.</small>
+            </div>
+            <div id="flag-upload-msg"></div>`;
 }
 
 /** Wire the flag <select> in an FF table: show/hide the custom-code input + swap the preview. */
@@ -1385,48 +1368,29 @@ function showMsg(elementId, message, type) {
 function setupMatchResultsTabs(leagueId, params, refreshBadge) {
     const bar = document.getElementById('match-tab-bar');
     if (!bar) return;
-    const buttons = bar.querySelectorAll('.rem-tab-btn');
 
-    function openPanel(btn) {
-        const panelId = btn.dataset.panel;
-        const panel = document.getElementById(panelId);
-        if (!panel) return;
-        const opening = panel.hidden;
-
-        buttons.forEach(b => {
-            const p = document.getElementById(b.dataset.panel);
-            if (p) p.hidden = true;
-            b.classList.remove('rem-tab-btn--open');
-            const arr = b.querySelector('.rem-tab-arrow');
-            if (arr) arr.innerHTML = '&#x25B8;';
-        });
-
-        if (!opening) return;
-
-        panel.hidden = false;
-        btn.classList.add('rem-tab-btn--open');
-        const arrow = btn.querySelector('.rem-tab-arrow');
-        if (arrow) arrow.innerHTML = '&#x25BE;';
-
-        if (panelId === 'match-panel-rounds') {
-            if (!panel._built) {
-                panel._built = true;
-                renderRoundEditor(panel, leagueId, refreshBadge);
-            }
-        } else if (panelId === 'match-panel-upload') {
-            // Re-render every open so the drop zone resets cleanly after a previous import.
-            renderExcelImporter(panel, leagueId, refreshBadge, () => location.reload());
-        } else if (panelId === 'match-panel-overrides') {
-            // Re-render every open to reflect the latest overrides file.
-            renderOverridesList(panel, leagueId, refreshBadge);
-        }
+    const tabs = [{ id: 'match-panel-rounds', label: 'Round Editor' }];
+    if (!params.ManualEntry) {
+        tabs.push({ id: 'match-panel-upload', label: 'Upload CSV' });
+        tabs.push({ id: 'match-panel-overrides', label: 'View Overrides' });
     }
 
-    buttons.forEach(btn => btn.addEventListener('click', () => openPanel(btn)));
-
-    // Open Round Editor by default.
-    const defaultBtn = bar.querySelector('[data-panel="match-panel-rounds"]');
-    if (defaultBtn) openPanel(defaultBtn);
+    // Shared accordion sub-tabs (one open at a time; Round Editor open by default).
+    mountAccordionTabs(bar, {
+        tabs,
+        defaultOpenId: 'match-panel-rounds',
+        onOpen: (panelId, panel) => {
+            if (panelId === 'match-panel-rounds') {
+                if (!panel._built) { panel._built = true; renderRoundEditor(panel, leagueId, refreshBadge); }
+            } else if (panelId === 'match-panel-upload') {
+                // Re-render every open so the drop zone resets cleanly after a previous import.
+                renderExcelImporter(panel, leagueId, refreshBadge, () => location.reload());
+            } else if (panelId === 'match-panel-overrides') {
+                // Re-render every open to reflect the latest overrides file.
+                renderOverridesList(panel, leagueId, refreshBadge);
+            }
+        },
+    });
 }
 
 /**

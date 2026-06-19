@@ -11,6 +11,7 @@ import { loadAllLeagues } from '../compute/crossLeague.js';
 import { loadPlayersMetadata, clearPlayersMetadataCache } from '../data/playersMetadata.js';
 import { addChange, getStagedContent, getChanges } from './stagingStore.js';
 import { BMAB_TITLES, bmabSelectOptionsHtml, COUNTRIES, getChampionshipTooltip } from '../data/titleConstants.js';
+import { filePickerHTML } from './render/formControls.js';
 
 const KNOWN_FLAGS = ['BE', 'IL', 'RU', 'TZ', 'UN'];
 
@@ -152,7 +153,7 @@ function selectPlayer(container, name) {
     host.innerHTML = `
         <div class="admin-card">
             <h2>Editing: ${esc(name)}${isInactive ? ' <span class="player-meta-tag player-meta-inactive" style="vertical-align:middle">inactive</span>' : ''}${isHiddenMeta ? ' <span class="player-meta-tag player-meta-hidden" style="vertical-align:middle">hidden</span>' : ''}</h2>
-            ${isInactive ? '<div class="admin-msg" style="background:var(--color-bg-muted,#f3f4f6);border-radius:var(--radius-sm);padding:var(--space-sm) var(--space-md);font-size:0.85rem;margin-bottom:var(--space-md)">This player has not played any matches yet. They will become active once added to a league.</div>' : ''}
+            ${isInactive ? '<div class="admin-msg admin-msg-info">This player has not played any matches yet. They will become active once added to a league.</div>' : ''}
             <div id="player-edit-msg"></div>
             <div class="form-group">
                 <label for="pe-username">Nickname <small style="color:var(--color-text-muted)">(player ID — renames across all leagues)</small></label>
@@ -252,7 +253,7 @@ function renderChampionshipRows() {
             <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;cursor:pointer">
                 <input type="checkbox" data-ci="${i}" data-cf="doubles" ${ch.doubles ? 'checked' : ''}> Doubles
             </label>
-            <button class="btn btn-danger btn-sm" data-champ-remove="${i}" title="Remove" style="padding:2px 8px">&#10005;</button>
+            <button class="btn btn-danger btn-xs" data-champ-remove="${i}" title="Remove">&#10005;</button>
         </div>`;
     }).join('');
 
@@ -724,13 +725,9 @@ function showNewPlayerForm(container) {
                         ${flagOptions}
                         <option value="__custom">Custom…</option>
                     </select>
-                    <div id="np-custom-flag-area" style="display:none;align-items:center;gap:8px;flex-wrap:wrap">
-                        <input type="text" id="np-custom-flag-code" placeholder="XX" style="width:60px">
-                        <div class="custom-file-input">
-                            <label class="file-btn" for="np-flag-file">Choose PNG</label>
-                            <input type="file" id="np-flag-file" accept="image/*">
-                            <span class="file-name" data-for="np-flag-file">No file chosen</span>
-                        </div>
+                    <div id="np-custom-flag-area" class="input-action-row" style="display:none">
+                        <input type="text" id="np-custom-flag-code" class="input-code" placeholder="XX" maxlength="3">
+                        ${filePickerHTML('np-flag-file', { label: 'Choose PNG', accept: 'image/*' })}
                         <button class="btn btn-secondary btn-sm" id="np-flag-upload-btn">Upload</button>
                     </div>
                     <span id="np-flag-msg" style="font-size:0.85rem"></span>
@@ -875,7 +872,7 @@ function showNewPlayerForm(container) {
                 <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;cursor:pointer">
                     <input type="checkbox" data-nci="${i}" data-ncf="doubles" ${ch.doubles ? 'checked' : ''}> Doubles
                 </label>
-                <button class="btn btn-danger btn-sm" data-nc-remove="${i}" style="padding:2px 8px">&#10005;</button>
+                <button class="btn btn-danger btn-xs" data-nc-remove="${i}">&#10005;</button>
             </div>`;
         }).join('');
 

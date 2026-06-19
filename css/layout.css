@@ -58,8 +58,10 @@ button, input, select, textarea {
 .page-header .logo {
     display: block;
     height: calc(var(--title-size) * 2.5);
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
     margin: var(--space-md) auto;
-    border-radius: var(--radius-md);
+    border-radius: 50%;
 }
 
 @keyframes logo-breathe {
@@ -89,8 +91,10 @@ button, input, select, textarea {
 
 .logo-splash-img {
     width: min(36vw, 36vh);
+    aspect-ratio: 1 / 1;
     height: auto;
-    border-radius: var(--radius-md);
+    object-fit: cover;
+    border-radius: 50%;
     animation: logo-breathe 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
     transform-origin: center;
 }

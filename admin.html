@@ -4,13 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Admin — Shabi Israel</title>
-    <link rel="icon" type="image/png" href="assets/favicon.png">
+    <link rel="icon" type="image/png" href="assets/favicon-round.png">
     <link rel="stylesheet" href="css/variables.css">
     <link rel="stylesheet" href="css/typography-tokens.css">
     <link rel="stylesheet" href="css/layout.css">
     <link rel="stylesheet" href="css/theme.css">
     <link rel="stylesheet" href="css/themes.css">
     <link rel="stylesheet" href="css/theme-picker.css">
+    <link rel="stylesheet" href="css/sections.css">
+    <link rel="stylesheet" href="css/subtabs.css">
     <link rel="stylesheet" href="css/admin.css">
     <!-- MF format canon — styles the F5 CSV-import preview table (.mf-wrap); @imports base.css -->
     <link rel="stylesheet" href="table-lab/formats/mf/mf.css">
@@ -34,6 +36,7 @@
     <script type="module">
         import { initAdminPage, navigateTo, refreshBadge } from './js/admin/render/adminPage.js';
         import { initThemePicker } from './js/render/themePicker.js';
+        import { initTooltips } from './js/render/tooltip.js';
 
         // Lazy-load modules per view
         let leagueManagerModule = null;
@@ -54,6 +57,7 @@
         });
 
         initThemePicker();
+        initTooltips(); // global themed hover tooltip (replaces native [title])
     </script>
 </body>
 </html>

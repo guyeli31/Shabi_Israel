@@ -201,17 +201,42 @@ Each object in `cols[]` drives rendering and interaction for that column:
 
 ---
 
-#### Clickable link cells in C1/C2 (player-general)
+#### Link-cell weight contract (ALL formats — load-bearing)
 
-On the player-general tables, **every clickable link cell reads like the OPPONENT cell** — semibold text, quiet link (text colour, no underline), accent on hover. This is the single visual contract for "this cell is a link" on those tables.
+**Every clickable link cell in every table — MF, SF, exp, FF, and all page-specific tables — renders at `font-weight: 600` (semibold).** This is the single, non-negotiable visual contract for "this cell is a link": semibold text, quiet link (text colour, no underline), accent on hover. No table may let a link cell inherit body weight (≈400). When you add a clickable column anywhere, the weight MUST resolve to 600 — never hand-roll a one-off lighter link.
 
-| Column | `tdClass` | Cell |
-|---|---|---|
-| C2 — Opponent | `player-cell` | flag + `playerNameLink(name, meta)` |
-| C1 — League | `league-cell` | `<a href="dashboardUrl(id)">title</a>` |
-| C2 — League | `league-cell` | `<a href="dashboardUrl(id)">title</a>` |
+The 600 is set in one of two equivalent ways (both produce identical output):
 
-`player-cell` and `league-cell` share one rule group in `css/components.css` (`font-weight: 600` on the `<td>`; the inner `<a>` gets `color: var(--color-text)` / no underline / `:hover` → `var(--color-accent)`). The hover-underline comes from the page's `.pg-section .mf-wrap a:hover` rule, which both classes inherit. Adding a new clickable column to C1/C2 → tag its `<td>` with `league-cell` (or `player-cell` for a player name) so it matches automatically; never hand-roll a one-off link style. The lab's `buildC1`/`buildC2` carry the same `tdClass` so the design catalog stays faithful.
+- **on the `<td>`** — via the `player-cell` / `league-cell` tdClass (`td.player-cell, td.league-cell { font-weight: 600 }` in `css/components.css`); the inner `<a>` inherits.
+- **on the link element** — via the link class itself (`.achv-table .player-name-link`, `.achv-table .league-link`, `.c4-opp-link`, `.matchup-table a`, `.completed-leagues-table td a`, `.pg-rank-table .player-name-link`), each carrying `font-weight: 600` directly.
+
+Master list — every documented link cell and where its 600 comes from:
+
+| Table | Column | tdClass / link class | 600 set on | File |
+|---|---|---|---|---|
+| A1 Completed Leagues | League title | `<a>` (tdClass `null`) → `.completed-leagues-table td a` | link | `css/index-dashboard.css` |
+| A1 Completed Leagues | Winner | `player-cell` | `<td>` | `css/components.css` |
+| A2 Annual Leaderboards | Player | `player-cell` | `<td>` | `css/components.css` |
+| A3 Achievements | Player | `.achv-table .player-name-link` | link | `css/index-dashboard.css` |
+| A4 PR Leaders / A5 Match Records | Player | `.achv-table .player-name-link` | link | SF canon (`sf.css`) |
+| A6 League Records | League | `.achv-table .league-link` | link | `css/player-general.css` |
+| A7 Players directory | name / lastActiveDate | `.achv-table .player-name-link` / `.league-link` | link | SF canon |
+| B (all dashboard) | Player | `player-cell` (+ `.player-name-link` for colour only) | `<td>` | `css/components.css` |
+| C0 Expandable | Player | `.pg-rank-table .player-name-link` | link | exp canon + `css/player-general.css` |
+| C1 Leagues | League | `league-cell` | `<td>` | `css/components.css` |
+| C2 Match History | Opponent | `player-cell` | `<td>` | `css/components.css` |
+| C2 Match History (All-Matches) | League | `league-cell` | `<td>` | `css/components.css` |
+| C3 Matchup | League | `matchup-league-cell` → `.matchup-table a` | link | `css/components.css` |
+| C4 All Opponents | Opponent | `.c4-opp-link` | button/link | `css/components.css` |
+| C5 Match Records | Player | `.achv-table .player-name-link` | link | SF canon |
+| D League Table | Player | `player-cell` | `<td>` | `css/components.css` |
+| E Player Match History | Opponent / League | `player-cell` / `league-cell` | `<td>` | `css/components.css` |
+
+> **History:** until 2026-06-18 three cells drifted to body weight (C0 player link, C3 League link, A1 League title) — they inherited ≈400 while every sibling link was 600. The fix added explicit `font-weight: 600` to those three rules so the whole app is now uniform. **Do not regress:** any new link cell must land at 600.
+
+For C1/C2 specifically: tag a new clickable column's `<td>` with `league-cell` (or `player-cell` for a player name) so it matches automatically. The hover-underline comes from the page's `.pg-section .mf-wrap a:hover` rule, which both classes inherit. The lab's `buildC1`/`buildC2` carry the same `tdClass` so the design catalog stays faithful.
+
+**v2 destination:** the same contract is enforced by the Link primitive — `.link--quiet` and `.link--strong` both pin `font-weight: var(--fw-subheading)` (= 600), and `.player-cell` pins it on the cell. v2 table link cells use one of these; none inherit body weight. See `v2/src/primitives/Link/link.css` and `v2/docs/MIGRATION-FROM-V1.md`.
 
 ---
 

@@ -11,6 +11,19 @@
     --color-hover: #f5f6f8;
     --color-accent: #2563eb;
     --color-accent-light: #dbeafe;
+    /* Text/icon colour placed ON a --color-accent fill (breadcrumb .current,
+       skip-link, open-full-btn, also-plays hover). White reads on the blue/green/
+       brown accents, but light-accent themes (Vegas/Casino gold, X22 orange)
+       override this to a dark companion so the text stays readable. */
+    --color-on-accent: #fff;
+
+    /* Primary action button (Export Image, Save, active Edit-Mode toggle).
+       Reuses the themed header chrome — --header-bg/--header-text are a designed
+       dark-bg / light-text pair — so the button follows the theme AND its text
+       stays readable. (A naive alias to --color-accent would put white text on a
+       light accent in themes like Vegas/Casino.) */
+    --color-primary: var(--header-bg);
+    --color-primary-text: var(--header-text);
 
     /* Medal colors */
     --color-gold: #fbbf24;
@@ -30,6 +43,30 @@
     --color-win: #047857;
     --color-loss: #b91c1c;
     --color-draw: #4b5563;
+
+    /* Semantic aliases — these names were referenced across the app with
+       hardcoded fallbacks but were never defined, so they ignored the theme.
+       Alias them to the themed result colors so every usage follows the theme. */
+    --color-danger: var(--color-loss);
+    --color-success: var(--color-win);
+
+    /* Warning — intentionally CONSTANT across all themes. A caution signal
+       (like a traffic light) shouldn't shift with the palette. Foreground use:
+       the .whatif-warn icon and CSV-validation messages. */
+    --color-warning: #d97706;
+    /* Derived warning BACKGROUND — blends the warning hue with the theme's
+       accent-light so a warning fill (e.g. the admin pending-match block) is
+       theme-aware yet readable. Don't use --color-warning directly as a fill. */
+    --color-warning-bg: color-mix(in srgb, var(--color-accent-light) 60%, var(--color-warning) 40%);
+
+    /* Probability tier scale for the Championship-Predictor bars
+       (high -> mid -> low). Tinted (translucent) so the % label — which is the
+       theme text colour — stays readable on the fill in every theme; a solid
+       fill clashed with light text in dark themes. high/low reuse already-themed
+       tokens; --tier-mid is a per-theme amber (dark themes override it below). */
+    --tier-high: color-mix(in srgb, var(--color-win) 40%, transparent);
+    --tier-mid:  color-mix(in srgb, #b8860b 45%, transparent);
+    --tier-low:  color-mix(in srgb, var(--color-text-muted) 30%, transparent);
 
     /* Average row */
     --color-avg-bg: #ecfdf5;
@@ -57,6 +94,14 @@
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
     --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
+
+    /* Floating surface popover — single source for the elevated "text box"
+       surfaces (tooltip, context menu, info popups, chart panel). Components
+       reference these instead of re-declaring surface/border/radius/shadow. */
+    --popover-bg:           var(--color-surface);
+    --popover-border-color: var(--color-border);
+    --popover-radius:       var(--radius-sm);
+    --popover-shadow:       var(--shadow-md);
 
     /* Table */
     --header-bg: #1e293b;
@@ -100,6 +145,7 @@
 
 /* Dark-theme league-type pill overrides */
 [data-theme="dark"] {
+    --tier-mid: color-mix(in srgb, #f5d76e 40%, transparent);
     --lt-doubling-bg: rgba(96, 165, 250, 0.22);
     --lt-doubling-text: #93c5fd;
     --lt-ubc-bg: rgba(167, 139, 250, 0.22);
@@ -108,6 +154,7 @@
     --lt-regular-text: #5eead4;
 }
 [data-theme="vegas"] {
+    --tier-mid: color-mix(in srgb, #f5d76e 40%, transparent);
     --lt-doubling-bg: rgba(96, 165, 250, 0.22);
     --lt-doubling-text: #93c5fd;
     --lt-ubc-bg: rgba(167, 139, 250, 0.22);
@@ -116,6 +163,7 @@
     --lt-regular-text: #5eead4;
 }
 [data-theme="casino"] {
+    --tier-mid: color-mix(in srgb, #ffd700 40%, transparent);
     --lt-doubling-bg: rgba(96, 165, 250, 0.22);
     --lt-doubling-text: #93c5fd;
     --lt-ubc-bg: rgba(236, 72, 153, 0.22);
@@ -124,6 +172,7 @@
     --lt-regular-text: #5eead4;
 }
 [data-theme="x22"] {
+    --tier-mid: color-mix(in srgb, #f5d76e 40%, transparent);
     --lt-doubling-bg: rgba(96, 165, 250, 0.22);
     --lt-doubling-text: #93c5fd;
     --lt-ubc-bg: rgba(236, 72, 153, 0.22);

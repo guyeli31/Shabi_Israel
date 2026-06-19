@@ -1,0 +1,86 @@
+/* ============================================================================
+   subtabs.css — SINGLE SOURCE for in-section sub-tabs (pairs with
+   js/render/subTabs.js). Two variants:
+
+   • PILL  (.subtabs--pill / .subtab--pill) — a league-type switcher where
+     exactly one tab is active. The pill size/shape/colour comes from the shared
+     .league-type-pill .type-* classes (components.css); here we only style the
+     active-vs-inactive state. Pairs with mountPillTabs().
+
+   • ACCORDION (.subtabs--accordion / .subtab--accordion) — expandable rows with
+     a ▸/▾ arrow where zero or one panel is open at a time. Pairs with
+     mountAccordionTabs(). The opened panel is .subtab-panel.
+
+   Replaces the former per-page copies: .pg-tab (player-general.css),
+   .achv-tab (index-dashboard.css), and the .rem-tab-* block duplicated across
+   dashboard.css + admin.css.
+   ============================================================================ */
+
+.subtabs {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+/* ---- PILL variant ---- */
+.subtabs--pill {
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+}
+.subtab--pill {
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.subtab--pill:not(.active) {
+    background: transparent;
+    color: var(--color-text-muted);
+    opacity: 0.55;
+}
+.subtab--pill:not(.active):hover { opacity: 0.85; }
+
+/* ---- ACCORDION variant ---- */
+.subtabs--accordion {
+    gap: var(--space-xs);
+    margin-bottom: var(--space-sm);
+}
+.subtab--accordion {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-accent);
+    font-family: var(--font-main);
+    font-size: var(--fs-085);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    user-select: none;
+}
+.subtab--accordion:hover {
+    background: var(--color-hover);
+    border-color: var(--color-accent);
+}
+.subtab--accordion.is-open {
+    background: var(--color-accent);
+    color: var(--color-bg);
+    border-color: var(--color-accent);
+}
+.subtab--accordion.is-open:hover {
+    background: var(--color-text);
+    border-color: var(--color-text);
+}
+.subtab-arrow { font-size: 0.75em; }
+
+/* Opened accordion panel — a framed surface card under its tab. */
+.subtab-panel {
+    margin-top: var(--space-sm);
+    padding: var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+.subtab-panel[hidden] { display: none; }

@@ -34,8 +34,8 @@ th[data-col]:focus-visible {
     padding: 6px 12px;
     font-size: var(--fs-085);
     font-weight: 600;
-    background: var(--color-primary, #1e293b);
-    color: #fff;
+    background: var(--color-primary);
+    color: var(--color-primary-text);
     border: none;
     border-radius: var(--radius-sm);
     cursor: pointer;
@@ -313,13 +313,18 @@ tr.rank-silver:hover { background: var(--color-silver-bg-hover); }
 tr.rank-bronze:hover { background: var(--color-bronze-bg-hover); }
 
 /* ---- Status pills ---- */
+/* Unified pill sizing (mirrors the v2 Pill primitive: em-based padding so the
+   pill scales with its inherited font-size, one fluid font token shared with
+   .league-type-pill, line-height 1.5). .status-pill and .league-type-pill are
+   the same size; .league-type-pill only adds uppercase. */
 .status-pill {
     display: inline-block;
-    padding: 2px 12px;
+    padding: 0.2em 0.85em;
     border-radius: var(--radius-full);
-    font-size: var(--fs-082);
+    font-size: var(--fs-085);
     font-weight: 600;
-    letter-spacing: 0.3px;
+    line-height: 1.5;
+    letter-spacing: 0.02em;
 }
 
 .status-running {
@@ -335,8 +340,8 @@ tr.rank-bronze:hover { background: var(--color-bronze-bg-hover); }
 /* ---- League-type pill (unified: Main Dashboard, Player General, Admin) ---- */
 .league-type-pill {
     display: inline-block;
-    padding: clamp(1px, 0.3vw, 2px) clamp(6px, 1vw, 10px);
-    font-size: 0.8em;
+    padding: 0.2em 0.85em;
+    font-size: var(--fs-085);
     font-weight: 600;
     border-radius: var(--radius-full);
     text-transform: uppercase;
@@ -752,10 +757,13 @@ tr.retired {
 }
 
 .matchup-count-badge {
+    display: block;
+    width: fit-content;
     font-size: var(--fs-075);
     color: var(--color-text-muted);
     background: var(--color-bg);
     padding: 3px 8px;
+    margin-bottom: var(--space-md);
     border-radius: var(--radius-full);
     font-weight: 600;
     white-space: nowrap;
@@ -825,10 +833,13 @@ table.matchup-table tbody td:nth-child(2)::after {
 table.matchup-table tbody tr:hover td:nth-child(1),
 table.matchup-table tbody tr:hover td:nth-child(2) { background: var(--color-hover); }
 
-/* League links — match pg-matches-table style */
+/* League links — match pg-matches-table style.
+   font-weight: 600 keeps this link cell uniform with every other clickable
+   link cell (see the single link-cell weight contract in docs/TABLE-DESIGN.md). */
 table.matchup-table a,
 table.matchup-table a:visited {
     color: var(--color-text);
+    font-weight: 600;
     text-decoration: none;
 }
 table.matchup-table a:hover {
@@ -1006,9 +1017,9 @@ table.matchup-table a:hover {
 .chart-info-panel {
     margin-top: var(--space-sm);
     padding: var(--space-sm) var(--space-md);
-    background: var(--color-hover);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
+    background: var(--popover-bg);
+    border: 1px solid var(--popover-border-color);
+    border-radius: var(--popover-radius);
     font-family: var(--font-main);
     font-size: var(--fs-085);
     line-height: 1.4;
@@ -1045,4 +1056,31 @@ table.matchup-table a:hover {
 .chart-info-panel .chart-info-placeholder {
     color: var(--color-text-muted);
     font-style: italic;
+}
+
+/* ---- Global hover tooltip (js/render/tooltip.js) ----
+   One themed popup that replaces native [title] tooltips everywhere. Shares the
+   visual language of .player-context-menu: themed surface + border + shadow. */
+.app-tooltip {
+    position: fixed;
+    z-index: 1100;
+    background: var(--popover-bg);
+    color: var(--color-text);
+    border: 1px solid var(--popover-border-color);
+    border-radius: var(--popover-radius);
+    box-shadow: var(--popover-shadow);
+    /* font-small + em padding → the box scales with the viewport (fluid token
+       drives both the text and, via em, the padding). */
+    font-size: var(--fs-085);
+    padding: 0.4em 0.7em;
+    line-height: 1.4;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-2px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.app-tooltip--visible {
+    opacity: 1;
+    transform: translateY(0);
 }

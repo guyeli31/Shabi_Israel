@@ -132,7 +132,7 @@ export function renderV7Header(target, data) {
         : `<div class="pg-v7-avatar">${escapeHtml(getInitials(data.name, data.fullName))}</div>`;
 
     const dotHtml =
-        `<span class="pg-v7-dot-wrap" tabindex="0" data-tip="${escapeHtml(data.statusDotTitle || '')}">` +
+        `<span class="pg-v7-dot-wrap" tabindex="0" title="${escapeHtml(data.statusDotTitle || '')}">` +
             `<span class="${data.statusDotClass || 'pg-dot pg-dot-gray'}" aria-label="${escapeHtml(data.statusDotTitle || '')}"></span>` +
         `</span>`;
 

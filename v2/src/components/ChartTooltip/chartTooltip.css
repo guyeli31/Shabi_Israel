@@ -6,9 +6,9 @@
     .chart-info {
         margin-top: var(--space-sm);
         padding: var(--space-sm) var(--space-md);
-        background: var(--color-hover);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-sm);
+        background: var(--popover-bg);
+        border: 1px solid var(--popover-border-color);
+        border-radius: var(--popover-radius);
         font-size: var(--fs-small);
         line-height: 1.4;
         color: var(--color-text);

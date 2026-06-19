@@ -8,6 +8,9 @@ import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
+import { parseCSV } from '../js/data/csvParser.js';
+import { applyOverrides } from '../js/data/leagueLoader.js';
+
 const DEFAULT_FLAG = 'IL';
 const SITE_URL = 'https://heroes3.backgammonstudio.com/';
 const OUT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'out');
@@ -194,18 +197,81 @@ async function navigateToLeaguesList(page) {
   await page.locator('button.tablebutton[onclick^="lg(682,"]').first().waitFor({ timeout: 15000 });
 }
 
-async function exportLeagueTask(page, bgstudioLeagueName, folder, repoRoot) {
-  const outSubdir = resolve(dirname(fileURLToPath(import.meta.url)), 'out', folder);
-  const csvOutputPath = join(outSubdir, 'leaguedata.csv');
-  const playersOutputPath = join(outSubdir, 'players.json');
-  const updatedParamsPath = join(outSubdir, 'league_params.json');
-  const newFlagsDir = join(outSubdir, 'new_flags');
+/**
+ * Logout (ca(60)) + full login again. Used as the last-resort retry strategy when
+ * even re-navigating the league panel didn't shake out a complete CSV — the WS
+ * channel itself may be in a stuck state. A full disconnect + reconnect clears
+ * the whole session, so the next Export results call starts from clean state.
+ *
+ * Leaves the page logged-in at the Live matches view. Caller is responsible for
+ * navigating back to the leagues list and the target league.
+ */
+async function relogin(page) {
+  console.log('  → Logging out (ca(60))');
+  await page.evaluate(() => { try { ca(60); } catch {} });
+  await page.waitForTimeout(2500);
 
-  await page.waitForTimeout(randInt(500, 2500));
-  console.log(`  → Opening league "${bgstudioLeagueName}" (with pagination)`);
+  const enterClicked = await page.evaluate(() => {
+    const enter = Array.from(document.querySelectorAll('button')).find(
+      (b) => /^Enter$/.test((b.textContent || '').trim()) && b.offsetParent !== null,
+    );
+    if (!enter) return false;
+    enter.click();
+    return true;
+  });
+  if (enterClicked) {
+    console.log('  → Clicked Enter (gateway page)');
+    await page.waitForTimeout(1500);
+  }
+
+  console.log('  → Re-submitting login');
+  await page.locator('button:has-text("Login"):not(.dialogbutton)').click();
+  await page.locator('#username').click();
+  await page.locator('#username').pressSequentially(username, { delay: randInt(80, 200) });
+  await page.locator('#pass').click();
+  await page.locator('#pass').pressSequentially(password, { delay: randInt(80, 200) });
+  await page.locator('button.dialogbutton:has-text("Login")').click();
+  await page.getByRole('columnheader', { name: 'Live matches' }).waitFor({ timeout: 15000 });
+  console.log('  ✓ Re-logged in successfully');
+}
+
+/**
+ * Baseline "effective played count" for the league — the count the dashboard
+ * shows in "Games Played X / Y", i.e. parseCSV → applyOverrides → length.
+ *
+ * Two source modes, selected by env vars:
+ *
+ *   Phase 1 (default — no Supabase configured): read CSV + manual_overrides.json
+ *     from the repo working tree. Same logic the dashboard renders with.
+ *   Phase 2 (SUPABASE_URL + SUPABASE_KEY set): query the database for the
+ *     effective played count + overrides. Repo files are ignored.
+ *
+ * Returns { baseline, overrides } so the caller can re-apply the same overrides
+ * to the freshly-downloaded CSV (apples-to-apples comparison). Returns null when
+ * no baseline is available (first-ever sync of a new league) — check is skipped.
+ */
+async function getBaselinePlayedCount(folder, repoRoot) {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+    // Phase 2 — implement when Supabase wiring lands.
+    throw new Error('Supabase baseline not implemented yet (SUPABASE_URL set but query path missing)');
+  }
+  try {
+    const csv = await readFile(join(repoRoot, 'leagues', folder, 'leaguedata.csv'), 'utf8');
+    const overridesRaw = await readFile(
+      join(repoRoot, 'leagues', folder, 'manual_overrides.json'),
+      'utf8',
+    ).catch(() => '{"overrides":[]}');
+    const overrides = JSON.parse(overridesRaw).overrides || [];
+    const baseline = applyOverrides(parseCSV(csv), overrides).length;
+    return { baseline, overrides };
+  } catch {
+    return null;
+  }
+}
+
+async function clickLeagueByName(page, bgstudioLeagueName) {
   const MAX_PAGES = 10;
   const leagueRegex = new RegExp(`^\\s*${bgstudioLeagueName}\\s*$`);
-  let clicked = false;
   let prevFirstId = null;
   for (let pageIdx = 0; pageIdx < MAX_PAGES; pageIdx++) {
     await page.locator('button.tablebutton[onclick^="lg(682,"]').first().waitFor({ timeout: 10000 });
@@ -213,8 +279,7 @@ async function exportLeagueTask(page, bgstudioLeagueName, folder, repoRoot) {
     if ((await target.count()) > 0) {
       console.log(`    Found on page ${pageIdx + 1}`);
       await target.click({ timeout: 15000 });
-      clicked = true;
-      break;
+      return;
     }
     const firstId = await page.evaluate(() => {
       const b = document.querySelector('button.tablebutton[onclick^="lg(682,"]');
@@ -228,14 +293,11 @@ async function exportLeagueTask(page, bgstudioLeagueName, folder, repoRoot) {
     await page.locator('button.tablebutton:has-text("Next")').first().click();
     await page.waitForTimeout(600);
   }
-  if (!clicked) {
-    throw new Error(`League "${bgstudioLeagueName}" not found within ${MAX_PAGES} pages`);
-  }
+  throw new Error(`League "${bgstudioLeagueName}" not found within ${MAX_PAGES} pages`);
+}
 
-  await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
-
-  console.log('  → Waiting for league roster (DL) and round count (FL[RG]) to populate');
-  const rosterReady = await page.evaluate(async () => {
+async function waitForRosterAndRounds(page) {
+  return await page.evaluate(async () => {
     const HARD_TIMEOUT = 15000;
     const POST_DL_WAIT = 5000;
     const T0 = performance.now();
@@ -256,6 +318,58 @@ async function exportLeagueTask(page, bgstudioLeagueName, folder, repoRoot) {
     }
     return { ok: false, trace, t: HARD_TIMEOUT };
   });
+}
+
+async function triggerExportAndCollect(page) {
+  await page.waitForTimeout(randInt(500, 2500));
+  console.log('  → Triggering Export results (lg(622))');
+  await page.locator('button:has-text("Export results")').click();
+
+  console.log('  → Polling #lgexport textarea until data stabilises');
+  const csv = await page.evaluate(async () => {
+    const STABLE_MS = 1500;
+    const MAX_MS = 30000;
+    const POLL_MS = 200;
+    const t0 = performance.now();
+    let lastLen = -1;
+    let stableSince = null;
+    const trace = [];
+    while (performance.now() - t0 < MAX_MS) {
+      const ta = document.getElementById('lgexport');
+      const len = ta ? (ta.value || '').length : 0;
+      const elapsed = Math.round(performance.now() - t0);
+      if (len !== lastLen) {
+        trace.push({ t: elapsed, len });
+        lastLen = len;
+        stableSince = len > 0 ? performance.now() : null;
+      } else if (len > 0 && stableSince !== null && performance.now() - stableSince >= STABLE_MS) {
+        return { data: ta.value, trace, elapsed };
+      }
+      await new Promise((r) => setTimeout(r, POLL_MS));
+    }
+    return { data: null, trace, elapsed: Math.round(performance.now() - t0) };
+  });
+
+  console.log(`    Textarea growth trace: ${JSON.stringify(csv.trace)}`);
+  console.log(`    Finished after ${csv.elapsed}ms`);
+  return csv.data || null;
+}
+
+async function exportLeagueTask(page, bgstudioLeagueName, folder, repoRoot) {
+  const outSubdir = resolve(dirname(fileURLToPath(import.meta.url)), 'out', folder);
+  const csvOutputPath = join(outSubdir, 'leaguedata.csv');
+  const playersOutputPath = join(outSubdir, 'players.json');
+  const updatedParamsPath = join(outSubdir, 'league_params.json');
+  const newFlagsDir = join(outSubdir, 'new_flags');
+
+  await page.waitForTimeout(randInt(500, 2500));
+  console.log(`  → Opening league "${bgstudioLeagueName}" (with pagination)`);
+  await clickLeagueByName(page, bgstudioLeagueName);
+
+  await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
+
+  console.log('  → Waiting for league roster (DL) and round count (FL[RG]) to populate');
+  const rosterReady = await waitForRosterAndRounds(page);
   console.log(`    Trace: ${JSON.stringify(rosterReady.trace)}`);
   if (!rosterReady.ok) {
     throw new Error('DL never populated within 15s after league click');
@@ -384,44 +498,72 @@ async function exportLeagueTask(page, bgstudioLeagueName, folder, repoRoot) {
     return;
   }
 
-  await page.waitForTimeout(randInt(500, 2500));
-  console.log('  → Triggering Export results (lg(622))');
-  await page.locator('button:has-text("Export results")').click();
-
-  console.log('  → Polling #lgexport textarea until data stabilises');
-  const csv = await page.evaluate(async () => {
-    const STABLE_MS = 1500;
-    const MAX_MS = 30000;
-    const POLL_MS = 200;
-    const t0 = performance.now();
-    let lastLen = -1;
-    let stableSince = null;
-    const trace = [];
-    while (performance.now() - t0 < MAX_MS) {
-      const ta = document.getElementById('lgexport');
-      const len = ta ? (ta.value || '').length : 0;
-      const elapsed = Math.round(performance.now() - t0);
-      if (len !== lastLen) {
-        trace.push({ t: elapsed, len });
-        lastLen = len;
-        stableSince = len > 0 ? performance.now() : null;
-      } else if (len > 0 && stableSince !== null && performance.now() - stableSince >= STABLE_MS) {
-        return { data: ta.value, trace, elapsed };
-      }
-      await new Promise((r) => setTimeout(r, POLL_MS));
-    }
-    return { data: null, trace, elapsed: Math.round(performance.now() - t0) };
-  });
-
-  console.log(`    Textarea growth trace: ${JSON.stringify(csv.trace)}`);
-  console.log(`    Finished after ${csv.elapsed}ms`);
-
-  if (!csv.data) {
-    console.warn('    Textarea never populated within 30s — Export did not stream data. Skipping CSV.');
-    return;
+  const baselineCtx = await getBaselinePlayedCount(folder, repoRoot);
+  const baseline = baselineCtx?.baseline ?? null;
+  const overridesForCheck = baselineCtx?.overrides ?? [];
+  const baselineSource = process.env.SUPABASE_URL ? 'Supabase' : `leagues/${folder}/leaguedata.csv + overrides`;
+  if (baseline === null) {
+    console.log('  → CSV integrity baseline: none (first sync — check skipped)');
+  } else {
+    console.log(`  → CSV integrity baseline: ${baseline} played matches (post-overrides; source: ${baselineSource})`);
   }
 
-  const csvText = csv.data;
+  const MAX_EXPORT_ATTEMPTS = 3;
+  let csvText = null;
+  for (let attempt = 1; attempt <= MAX_EXPORT_ATTEMPTS; attempt++) {
+    if (attempt === 2) {
+      console.log(`  → Retry 2/${MAX_EXPORT_ATTEMPTS}: re-navigating to leagues list and re-opening "${bgstudioLeagueName}"`);
+      await navigateToLeaguesList(page);
+      await clickLeagueByName(page, bgstudioLeagueName);
+      await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
+      const retryRoster = await waitForRosterAndRounds(page);
+      console.log(`    Trace: ${JSON.stringify(retryRoster.trace)}`);
+      if (!retryRoster.ok) throw new Error('DL never repopulated within 15s after retry re-entry');
+    } else if (attempt === 3) {
+      console.log(`  → Retry 3/${MAX_EXPORT_ATTEMPTS}: full disconnect + reconnect (logout, re-login, re-open "${bgstudioLeagueName}")`);
+      await relogin(page);
+      await navigateToLeaguesList(page);
+      await clickLeagueByName(page, bgstudioLeagueName);
+      await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
+      const retryRoster = await waitForRosterAndRounds(page);
+      console.log(`    Trace: ${JSON.stringify(retryRoster.trace)}`);
+      if (!retryRoster.ok) throw new Error('DL never repopulated within 15s after relogin re-entry');
+    }
+
+    const data = await triggerExportAndCollect(page);
+    if (!data) {
+      console.warn('    Textarea never populated within 30s — Export did not stream data.');
+      if (attempt === MAX_EXPORT_ATTEMPTS) {
+        throw new Error(`Export results popup never produced CSV data after ${MAX_EXPORT_ATTEMPTS} attempts`);
+      }
+      continue;
+    }
+
+    const newPlayed = applyOverrides(parseCSV(data), overridesForCheck).length;
+    if (baseline === null || newPlayed >= baseline) {
+      console.log(
+        `  ✓ Integrity check passed: ${newPlayed} played (post-overrides)` +
+          (baseline === null ? ' — first sync, no baseline' : ` ≥ baseline ${baseline}`),
+      );
+      csvText = data;
+      break;
+    }
+
+    console.warn(
+      `  ⚠ Integrity check FAILED on attempt ${attempt}/${MAX_EXPORT_ATTEMPTS}: ` +
+        `effective played (after overrides) = ${newPlayed}, expected ≥ ${baseline} (matches don't disappear). ` +
+        `Likely incomplete WS round delivery — will retry.`,
+    );
+    if (attempt === MAX_EXPORT_ATTEMPTS) {
+      throw new Error(
+        `BGStudio export integrity check failed after ${MAX_EXPORT_ATTEMPTS} attempts ` +
+          `(attempt 1: in-place, attempt 2: re-nav, attempt 3: full relogin): ` +
+          `last attempt yielded ${newPlayed} effective played, baseline ${baseline}. ` +
+          `BGStudio is consistently under-delivering rounds — try again later or investigate.`,
+      );
+    }
+  }
+
   const lines = csvText.split('\n').filter(Boolean).length;
   console.log(`  ✓ CSV: ${csvText.length} bytes, ${lines} lines`);
   await mkdir(outSubdir, { recursive: true });
