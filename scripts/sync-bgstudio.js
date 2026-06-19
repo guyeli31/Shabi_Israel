@@ -185,16 +185,24 @@ async function changeStatusTask(page, durationS) {
 async function navigateToLeaguesList(page) {
   await page.waitForTimeout(randInt(500, 2500));
   console.log('  → Navigating to Leagues list (s(113, "0") shortcut)');
-  const deadline = Date.now() + 15000;
+  const deadline = Date.now() + 30000;
+  const RENDER_WAIT_MS = 1200;
+  let calls = 0;
   while (Date.now() < deadline) {
-    const ok = await page.evaluate(() => {
-      if (typeof s !== 'function') return false;
-      try { s(113, '0'); return true; } catch { return false; }
+    await page.evaluate(() => {
+      if (typeof s === 'function') {
+        try { s(113, '0'); } catch {}
+      }
     });
-    if (ok) break;
-    await page.waitForTimeout(500);
+    calls++;
+    await page.waitForTimeout(RENDER_WAIT_MS);
+    const count = await page.locator('button.tablebutton[onclick^="lg(682,"]').count();
+    if (count > 0) {
+      console.log(`    Leagues list rendered after ${calls} s(113,'0') call(s)`);
+      return;
+    }
   }
-  await page.locator('button.tablebutton[onclick^="lg(682,"]').first().waitFor({ timeout: 15000 });
+  throw new Error(`Leagues list did not render within 30s (s(113,'0') called ${calls} times — BGStudio state not ready)`);
 }
 
 /**
