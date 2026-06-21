@@ -501,11 +501,6 @@ async function exportLeagueTask(page, bgstudioLeagueName, folder, repoRoot) {
     }
   }
 
-  if (!rosterReady.rg || rosterReady.rg < 1) {
-    console.log(`  → Skipping CSV export — league has 0 rounds played yet (FL[RG] = ${rosterReady.rg})`);
-    return;
-  }
-
   const baselineCtx = await getBaselinePlayedCount(folder, repoRoot);
   const baseline = baselineCtx?.baseline ?? null;
   const overridesForCheck = baselineCtx?.overrides ?? [];
@@ -728,11 +723,25 @@ try {
   }
 
   async function runAllExports() {
+    const leagueResults = [];
     for (let i = 0; i < targets.length; i++) {
       const target = targets[i];
       console.log(`  → League ${i + 1}/${targets.length}: "${target.bgstudio_league_name}" → ${target.folder}`);
-      await navigateToLeaguesList(page);
-      await exportLeagueTask(page, target.bgstudio_league_name, target.folder, repoRoot);
+      try {
+        await navigateToLeaguesList(page);
+        await exportLeagueTask(page, target.bgstudio_league_name, target.folder, repoRoot);
+        leagueResults.push({ folder: target.folder, status: 'ok' });
+      } catch (err) {
+        console.error(`  ✗ League "${target.bgstudio_league_name}" failed after all retries: ${err.message}`);
+        leagueResults.push({ folder: target.folder, status: 'fail', error: err.message });
+      }
+    }
+    const failed = leagueResults.filter((r) => r.status === 'fail');
+    if (failed.length > 0) {
+      console.warn(`  ⚠ ${failed.length}/${targets.length} league(s) failed: ${failed.map((r) => r.folder).join(', ')}`);
+      if (failed.length === targets.length) {
+        throw new Error(`All ${targets.length} leagues failed to sync`);
+      }
     }
   }
 
