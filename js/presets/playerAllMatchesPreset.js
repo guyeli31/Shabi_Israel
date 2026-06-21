@@ -1,5 +1,5 @@
 /**
- * playerAllMatchesPreset.js — C2 preset for the player_general.html
+ * playerAllMatchesPreset.js — C2 preset for the player.html
  * cross-league match history table. Mirrors lab's buildC2 shape; per-page
  * enrichments (league link, opponent cell with flag + interactive name link)
  * injected via callbacks.

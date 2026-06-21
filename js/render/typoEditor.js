@@ -39,7 +39,7 @@ const TIER_LABELS = {
     t7: 'T7 — Micro'
 };
 
-const PAGES = ['index', 'league', 'dashboard', 'player_general', 'player', 'admin'];
+const PAGES = ['index', 'league', 'league_table', 'player', 'player_league', 'admin'];
 
 /* ── Manual registry: per-page, friendly-named groups ──────────────────── */
 
@@ -88,32 +88,32 @@ const GROUPS = [
     // B1-B6 — dashboard
     // NOTE: dash-card-value/-label/-section-h2 were removed — they duplicated
     // stat-numbers / stat-labels / section-heading and produced cascade conflicts.
-    { id: 'dash-controls',     pages: ['dashboard'], tier: 't7', bold: false, label: 'Dashboard controls',      sel: '.dash-controls label, .dash-controls select, .dash-controls button' },
-    { id: 'b1-table',          pages: ['dashboard'], tier: 't5', bold: false, label: 'B1 — Prizes & Medals',   sel: '[data-mf-table-id="B1"] th, [data-mf-table-id="B1"] td', isTable: true, tableSel: '[data-mf-table-id="B1"]' },
-    { id: 'b2-table',          pages: ['dashboard'], tier: 't5', bold: false, label: 'B2 — Historical view',   sel: '[data-mf-table-id="B2"] th, [data-mf-table-id="B2"] td', isTable: true, tableSel: '[data-mf-table-id="B2"]' },
-    { id: 'b3-table',          pages: ['dashboard'], tier: 't5', bold: false, label: 'B3 — Championship Predictor', sel: '[data-mf-table-id="B3"] th, [data-mf-table-id="B3"] td', isTable: true, tableSel: '[data-mf-table-id="B3"]' },
-    { id: 'b4-table',          pages: ['dashboard'], tier: 't5', bold: false, label: 'B4 — What If Simulator', sel: '[data-mf-table-id="B4"] th, [data-mf-table-id="B4"] td', isTable: true, tableSel: '[data-mf-table-id="B4"]' },
-    { id: 'b5-table',          pages: ['dashboard'], tier: 't5', bold: false, label: 'B5 — Rounds',            sel: '[data-mf-table-id="B5"] th, [data-mf-table-id="B5"] td', isTable: true, tableSel: '[data-mf-table-id="B5"]' },
-    { id: 'b6a-table',         pages: ['dashboard'], tier: 't5', bold: false, label: 'B6a — All Remaining',    sel: '[data-mf-table-id="B6a"] th, [data-mf-table-id="B6a"] td', isTable: true, tableSel: '[data-mf-table-id="B6a"]' },
-    { id: 'b6b-table',         pages: ['dashboard'], tier: 't5', bold: false, label: 'B6b — Remaining Per Player', sel: '[data-mf-table-id="B6b"] th, [data-mf-table-id="B6b"] td', isTable: true, tableSel: '[data-mf-table-id="B6b"]' },
-    { id: 'b6c-table',         pages: ['dashboard'], tier: 't5', bold: false, label: 'B6c — Unplayed Opponents', sel: '[data-mf-table-id="B6c"] th, [data-mf-table-id="B6c"] td', isTable: true, tableSel: '[data-mf-table-id="B6c"]' },
-    { id: 'forward-link',      pages: ['dashboard', 'league'], tier: 't7', bold: false, label: 'Forward link',  sel: '.forward-link' },
-    { id: 'league-nav-arrow',  pages: ['dashboard', 'league'], tier: 't4', bold: false, label: 'League nav arrow', sel: '.league-nav .nav-arrow' },
+    { id: 'dash-controls',     pages: ['league'], tier: 't7', bold: false, label: 'Dashboard controls',      sel: '.dash-controls label, .dash-controls select, .dash-controls button' },
+    { id: 'b1-table',          pages: ['league'], tier: 't5', bold: false, label: 'B1 — Prizes & Medals',   sel: '[data-mf-table-id="B1"] th, [data-mf-table-id="B1"] td', isTable: true, tableSel: '[data-mf-table-id="B1"]' },
+    { id: 'b2-table',          pages: ['league'], tier: 't5', bold: false, label: 'B2 — Historical view',   sel: '[data-mf-table-id="B2"] th, [data-mf-table-id="B2"] td', isTable: true, tableSel: '[data-mf-table-id="B2"]' },
+    { id: 'b3-table',          pages: ['league'], tier: 't5', bold: false, label: 'B3 — Championship Predictor', sel: '[data-mf-table-id="B3"] th, [data-mf-table-id="B3"] td', isTable: true, tableSel: '[data-mf-table-id="B3"]' },
+    { id: 'b4-table',          pages: ['league'], tier: 't5', bold: false, label: 'B4 — What If Simulator', sel: '[data-mf-table-id="B4"] th, [data-mf-table-id="B4"] td', isTable: true, tableSel: '[data-mf-table-id="B4"]' },
+    { id: 'b5-table',          pages: ['league'], tier: 't5', bold: false, label: 'B5 — Rounds',            sel: '[data-mf-table-id="B5"] th, [data-mf-table-id="B5"] td', isTable: true, tableSel: '[data-mf-table-id="B5"]' },
+    { id: 'b6a-table',         pages: ['league'], tier: 't5', bold: false, label: 'B6a — All Remaining',    sel: '[data-mf-table-id="B6a"] th, [data-mf-table-id="B6a"] td', isTable: true, tableSel: '[data-mf-table-id="B6a"]' },
+    { id: 'b6b-table',         pages: ['league'], tier: 't5', bold: false, label: 'B6b — Remaining Per Player', sel: '[data-mf-table-id="B6b"] th, [data-mf-table-id="B6b"] td', isTable: true, tableSel: '[data-mf-table-id="B6b"]' },
+    { id: 'b6c-table',         pages: ['league'], tier: 't5', bold: false, label: 'B6c — Unplayed Opponents', sel: '[data-mf-table-id="B6c"] th, [data-mf-table-id="B6c"] td', isTable: true, tableSel: '[data-mf-table-id="B6c"]' },
+    { id: 'forward-link',      pages: ['league', 'league_table'], tier: 't7', bold: false, label: 'Forward link',  sel: '.forward-link' },
+    { id: 'league-nav-arrow',  pages: ['league', 'league_table'], tier: 't4', bold: false, label: 'League nav arrow', sel: '.league-nav .nav-arrow' },
 
     // C1-C5 — player_general
-    { id: 'pg-player-alias',   pages: ['player_general'], tier: 't6', bold: false, label: 'Player alias',         sel: '.pg-player-alias' },
-    { id: 'pg-card-h2',        pages: ['player_general'], tier: 't3', bold: true,  label: 'PG card heading',      sel: '.pg-card h2, .pg-card-title' },
-    { id: 'pg-pr-label',       pages: ['player_general'], tier: 't7', bold: false, label: 'PR label',             sel: '.pg-pr-label' },
-    { id: 'c0-rank',           pages: ['player_general'], tier: 't6', bold: false, label: 'C0 — Card expand (PR/Achv)', sel: '[data-mf-table-id="C0"] th, [data-mf-table-id="C0"] td', isTable: true, tableSel: '[data-mf-table-id="C0"]' },
-    { id: 'c1-leagues',        pages: ['player_general'], tier: 't5', bold: false, label: 'C1 — Leagues',         sel: '[data-mf-table-id="C1"] th, [data-mf-table-id="C1"] td', isTable: true, tableSel: '[data-mf-table-id="C1"]' },
-    { id: 'c2-matches',        pages: ['player_general'], tier: 't5', bold: false, label: 'C2 — Match History',   sel: '[data-mf-table-id="C2"] th, [data-mf-table-id="C2"] td', isTable: true, tableSel: '[data-mf-table-id="C2"]' },
-    { id: 'c3-matchup',        pages: ['player_general'], tier: 't5', bold: false, label: 'C3 — Matchup (H2H)',   sel: '[data-mf-table-id="C3"] th, [data-mf-table-id="C3"] td', isTable: true, tableSel: '[data-mf-table-id="C3"]' },
-    { id: 'c4-opponents',      pages: ['player_general'], tier: 't6', bold: false, label: 'C4 — All Opponents (H2H)', sel: '[data-mf-table-id="C4"] th, [data-mf-table-id="C4"] td', isTable: true, tableSel: '[data-mf-table-id="C4"]' },
-    { id: 'c5-mr',             pages: ['player_general'], tier: 't6', bold: false, label: 'C5 — Match Records',   sel: '[data-mf-table-id="C5"] th, [data-mf-table-id="C5"] td', isTable: true, tableSel: '[data-mf-table-id="C5"]' },
+    { id: 'pg-player-alias',   pages: ['player'], tier: 't6', bold: false, label: 'Player alias',         sel: '.pg-player-alias' },
+    { id: 'pg-card-h2',        pages: ['player'], tier: 't3', bold: true,  label: 'PG card heading',      sel: '.pg-card h2, .pg-card-title' },
+    { id: 'pg-pr-label',       pages: ['player'], tier: 't7', bold: false, label: 'PR label',             sel: '.pg-pr-label' },
+    { id: 'c0-rank',           pages: ['player'], tier: 't6', bold: false, label: 'C0 — Card expand (PR/Achv)', sel: '[data-mf-table-id="C0"] th, [data-mf-table-id="C0"] td', isTable: true, tableSel: '[data-mf-table-id="C0"]' },
+    { id: 'c1-leagues',        pages: ['player'], tier: 't5', bold: false, label: 'C1 — Leagues',         sel: '[data-mf-table-id="C1"] th, [data-mf-table-id="C1"] td', isTable: true, tableSel: '[data-mf-table-id="C1"]' },
+    { id: 'c2-matches',        pages: ['player'], tier: 't5', bold: false, label: 'C2 — Match History',   sel: '[data-mf-table-id="C2"] th, [data-mf-table-id="C2"] td', isTable: true, tableSel: '[data-mf-table-id="C2"]' },
+    { id: 'c3-matchup',        pages: ['player'], tier: 't5', bold: false, label: 'C3 — Matchup (H2H)',   sel: '[data-mf-table-id="C3"] th, [data-mf-table-id="C3"] td', isTable: true, tableSel: '[data-mf-table-id="C3"]' },
+    { id: 'c4-opponents',      pages: ['player'], tier: 't6', bold: false, label: 'C4 — All Opponents (H2H)', sel: '[data-mf-table-id="C4"] th, [data-mf-table-id="C4"] td', isTable: true, tableSel: '[data-mf-table-id="C4"]' },
+    { id: 'c5-mr',             pages: ['player'], tier: 't6', bold: false, label: 'C5 — Match Records',   sel: '[data-mf-table-id="C5"] th, [data-mf-table-id="C5"] td', isTable: true, tableSel: '[data-mf-table-id="C5"]' },
 
     // D / E — league / per-league player tables (out of unification scope per TABLE-DESIGN, but still useful)
-    { id: 'league-table',      pages: ['league'], tier: 't5', bold: false, label: 'D — League Table',          sel: '[data-mf-table-id="D"] th, [data-mf-table-id="D"] td', isTable: true, tableSel: '[data-mf-table-id="D"]' },
-    { id: 'player-table',      pages: ['player'], tier: 't5', bold: false, label: 'E — Player Match History',  sel: '[data-mf-table-id="E"] th, [data-mf-table-id="E"] td', isTable: true, tableSel: '[data-mf-table-id="E"]' },
+    { id: 'league-table',      pages: ['league_table'], tier: 't5', bold: false, label: 'D — League Table',          sel: '[data-mf-table-id="D"] th, [data-mf-table-id="D"] td', isTable: true, tableSel: '[data-mf-table-id="D"]' },
+    { id: 'player-table',      pages: ['player_league'], tier: 't5', bold: false, label: 'E — Player Match History',  sel: '[data-mf-table-id="E"] th, [data-mf-table-id="E"] td', isTable: true, tableSel: '[data-mf-table-id="E"]' },
 
     // F1-F2 — admin
     { id: 'admin-h1',          pages: ['admin'], tier: 't2', bold: true,  label: 'Admin page H1',         sel: '.admin-main h1' },
@@ -131,13 +131,13 @@ const GROUPS = [
     { id: 'f6-table',          pages: ['admin'], tier: 't6', bold: false, label: 'F6 — Medals & Prizes',  sel: '[data-mf-table-id="F6"] th, [data-mf-table-id="F6"] td', isTable: true, tableSel: '[data-mf-table-id="F6"]' },
 
     // ── Dashboard extras (What-If Simulator, MoE, Open-full button) ──
-    { id: 'open-full-btn',     pages: ['dashboard'], tier: 't7', bold: false, label: 'Open Full Table button', sel: '.open-full-btn' },
-    { id: 'whatif-input',      pages: ['dashboard'], tier: 't6', bold: false, label: 'What-If: input',         sel: '.whatif-input, .whatif-vs' },
-    { id: 'whatif-buttons',    pages: ['dashboard'], tier: 't6', bold: false, label: 'What-If: buttons',       sel: '.whatif-add-btn, .whatif-run-btn, .whatif-clear-btn' },
-    { id: 'whatif-row',        pages: ['dashboard'], tier: 't6', bold: false, label: 'What-If: row text',      sel: '.whatif-row, .whatif-empty, .whatif-err' },
-    { id: 'whatif-info-popup', pages: ['dashboard'], tier: 't6', bold: false, label: 'What-If: info popup',    sel: '.whatif-info-popup p, .whatif-info-popup ul, .whatif-info-popup li' },
-    { id: 'whatif-info-h4',    pages: ['dashboard'], tier: 't4', bold: true,  label: 'What-If: info popup heading', sel: '.whatif-info-popup h4' },
-    { id: 'predictor-moe',     pages: ['dashboard'], tier: 't7', bold: false, label: 'Margin of Error (MoE)',  sel: '.predictor-moe' }
+    { id: 'open-full-btn',     pages: ['league'], tier: 't7', bold: false, label: 'Open Full Table button', sel: '.open-full-btn' },
+    { id: 'whatif-input',      pages: ['league'], tier: 't6', bold: false, label: 'What-If: input',         sel: '.whatif-input, .whatif-vs' },
+    { id: 'whatif-buttons',    pages: ['league'], tier: 't6', bold: false, label: 'What-If: buttons',       sel: '.whatif-add-btn, .whatif-run-btn, .whatif-clear-btn' },
+    { id: 'whatif-row',        pages: ['league'], tier: 't6', bold: false, label: 'What-If: row text',      sel: '.whatif-row, .whatif-empty, .whatif-err' },
+    { id: 'whatif-info-popup', pages: ['league'], tier: 't6', bold: false, label: 'What-If: info popup',    sel: '.whatif-info-popup p, .whatif-info-popup ul, .whatif-info-popup li' },
+    { id: 'whatif-info-h4',    pages: ['league'], tier: 't4', bold: true,  label: 'What-If: info popup heading', sel: '.whatif-info-popup h4' },
+    { id: 'predictor-moe',     pages: ['league'], tier: 't7', bold: false, label: 'Margin of Error (MoE)',  sel: '.predictor-moe' }
 ];
 
 /* ── State ─────────────────────────────────────────────── */
@@ -1107,9 +1107,9 @@ function clearHover() {
 const PAGE_DEFAULT_PARAMS = {
     'index.html':         '',
     'league.html':        '?league=Shabi%20Israel%20May%202026',
-    'dashboard.html':     '?league=Shabi%20Israel%20May%202026',
-    'player.html':        '?league=Shabi%20Israel%20May%202026&player=YKwin',
-    'player_general.html':'?player=YKwin',
+    'league_table.html':  '?league=Shabi%20Israel%20May%202026',
+    'player.html':        '?player=YKwin',
+    'player_league.html': '?league=Shabi%20Israel%20May%202026&player=YKwin',
     'admin.html':         ''
 };
 

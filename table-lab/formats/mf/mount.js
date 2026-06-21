@@ -52,6 +52,16 @@ if (typeof window !== 'undefined' && !window.__mfTableRegistry__) {
  *   flagSize        {string|null}     CSS height for flag images.
  *   getRowClass     {function|null}   (row, index) => string|null.
  *   buildSummaryRow {function|null}   (data) => object — summary row data.
+ *   (Sort handover) — When `tableId` is set, mountMFTable reads (and clears)
+ *                     sessionStorage[`mf-sort-pending-${tableId}`] on mount.
+ *                     If a `{ colKey, dir }` entry exists, it's applied as the
+ *                     initial sort. The renderer never *writes* to this key —
+ *                     callers (e.g. league/player nav arrows) write it just
+ *                     before navigating so the next mount picks it up. This
+ *                     makes sort handover opt-in *per navigation path*: only
+ *                     paths that explicitly stash the sort carry it across.
+ *                     Other entries (search, breadcrumb, fresh load) get the
+ *                     preset's default sort.
  *
  * ColDef:
  *   key, label, type, sortable, colorFn, format, tdClass, sortKey, boldExtreme
@@ -123,8 +133,18 @@ export function mountMFTable(mountPoint, args) {
     // 9. Show-top-N
     const topNControls = showTopN !== null ? applyShowTopN(mountPoint, table, showTopN) : null;
 
-    // 10. Sort
-    attachSort(wrapper, table, cols, data, summaryData, medalRows, medalCounts, getRowClass, extents, stickyCols, topNControls);
+    // 10. Sort + one-shot pending-sort handover.
+    //     If sessionStorage holds a `mf-sort-pending-${tableId}` entry, consume
+    //     it (read + delete) and apply as the initial sort. Callers stash this
+    //     entry just before navigating between linked surfaces (e.g. D/E nav
+    //     arrows). One-shot semantics — the next non-handover mount falls back
+    //     to the preset's default.
+    const initialSort = (tableId) ? consumePendingSort(`mf-sort-pending-${tableId}`) : null;
+    attachSort(
+        wrapper, table, cols, data, summaryData, medalRows, medalCounts,
+        getRowClass, extents, stickyCols, topNControls,
+        initialSort
+    );
 
     // 11. Register
     if (tableId && typeof window !== 'undefined') {
@@ -265,51 +285,102 @@ function measureStickyCols(wrapper, table) {
 // Sort
 // ─────────────────────────────────────────────
 
-function attachSort(wrapper, table, cols, data, summaryData, medalRows, medalCounts, getRowClass, extents, stickyCols, topNControls) {
+function attachSort(
+    wrapper, table, cols, data, summaryData, medalRows, medalCounts,
+    getRowClass, extents, stickyCols, topNControls,
+    initialSort = null
+) {
+    // Single shared sort closure — drives click handlers AND the optional
+    // initial-sort restoration from a one-shot pending entry. Tracks the
+    // active state so subsequent clicks on the same column flip the direction
+    // correctly. The current sort (key + dir) is mirrored to the <table>
+    // element via dataset attrs so external code (nav arrows) can read it
+    // to hand the sort over to the next page.
+    let sortCol = -1;
+    let sortDir = 'asc';
+
+    function runSort(colIdx, dir) {
+        const col = cols[colIdx];
+        if (!col || !col.sortable) return;
+
+        sortCol = colIdx;
+        sortDir = dir === 'desc' ? 'desc' : 'asc';
+
+        table.dataset.sortColKey = col.key;
+        table.dataset.sortDir    = sortDir;
+
+        const th = table.querySelector(`thead th[data-col="${colIdx}"]`);
+        table.querySelectorAll('thead th .sort-icon').forEach(icon => icon.textContent = '▲');
+        table.querySelectorAll('thead th').forEach(h => h.classList.remove('sorted'));
+        if (th) {
+            th.classList.add('sorted');
+            const ic = th.querySelector('.sort-icon');
+            if (ic) ic.textContent = sortDir === 'asc' ? '▲' : '▼';
+        }
+
+        const sorted = [...data].sort((a, b) => {
+            const va = col.sortKey ? col.sortKey(a) : a[col.key];
+            const vb = col.sortKey ? col.sortKey(b) : b[col.key];
+            if (va == null && vb == null) return 0;
+            if (va == null) return 1;
+            if (vb == null) return -1;
+            if (typeof va === 'string') return sortDir === 'asc'
+                ? va.localeCompare(vb, 'en')
+                : vb.localeCompare(va, 'en');
+            return sortDir === 'asc' ? va - vb : vb - va;
+        });
+
+        const tbody      = table.querySelector('tbody');
+        const newExtents = computeExtents(sorted, cols);
+        tbody.innerHTML  = buildTbody(sorted, cols, summaryData, medalRows, medalCounts, getRowClass, newExtents)
+            .replace(/^<tbody>|<\/tbody>$/g, '');
+
+        if (stickyCols > 0) applyStickyLeftCols(table, stickyCols);
+        if (stickyCols >= 2) measureStickyCols(wrapper, table);
+
+        if (topNControls) topNControls.syncHiddenRows();
+    }
+
+    // Click handlers — flip-on-repeat. No session writes here; the click
+    // updates the live table state, and any handover key is written by
+    // the navigation surface (nav-arrow click) just before unload.
     table.querySelectorAll('thead th[data-col]').forEach(th => {
         const colIdx = parseInt(th.dataset.col, 10);
         const col    = cols[colIdx];
         if (!col?.sortable) return;
 
-        let sortCol = -1;
-        let sortDir = 'asc';
-
         th.addEventListener('click', () => {
-            if (sortCol === colIdx) {
-                sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-            } else {
-                sortCol = colIdx;
-                sortDir = 'asc';
-            }
-
-            table.querySelectorAll('thead th .sort-icon').forEach(icon => icon.textContent = '▲');
-            table.querySelectorAll('thead th').forEach(h => h.classList.remove('sorted'));
-            th.classList.add('sorted');
-            th.querySelector('.sort-icon').textContent = sortDir === 'asc' ? '▲' : '▼';
-
-            const sorted = [...data].sort((a, b) => {
-                const va = col.sortKey ? col.sortKey(a) : a[col.key];
-                const vb = col.sortKey ? col.sortKey(b) : b[col.key];
-                if (va == null && vb == null) return 0;
-                if (va == null) return 1;
-                if (vb == null) return -1;
-                if (typeof va === 'string') return sortDir === 'asc'
-                    ? va.localeCompare(vb, 'en')
-                    : vb.localeCompare(va, 'en');
-                return sortDir === 'asc' ? va - vb : vb - va;
-            });
-
-            const tbody      = table.querySelector('tbody');
-            const newExtents = computeExtents(sorted, cols);
-            tbody.innerHTML  = buildTbody(sorted, cols, summaryData, medalRows, medalCounts, getRowClass, newExtents)
-                .replace(/^<tbody>|<\/tbody>$/g, '');
-
-            if (stickyCols > 0) applyStickyLeftCols(table, stickyCols);
-            if (stickyCols >= 2) measureStickyCols(wrapper, table);
-
-            if (topNControls) topNControls.syncHiddenRows();
+            const nextDir = (sortCol === colIdx)
+                ? (sortDir === 'asc' ? 'desc' : 'asc')
+                : 'asc';
+            runSort(colIdx, nextDir);
         });
     });
+
+    // Apply the one-shot initial sort, if any was handed over from a previous
+    // page. Match by col.key so a preset whose column set changes between
+    // mounts (e.g. UBC vs Doubling) silently drops sorts that don't apply to
+    // the new shape.
+    if (initialSort && initialSort.colKey) {
+        const restoreIdx = cols.findIndex(c => c.sortable && c.key === initialSort.colKey);
+        if (restoreIdx >= 0) runSort(restoreIdx, initialSort.dir || 'asc');
+    }
+}
+
+// ─────────────────────────────────────────────
+// Pending-sort handover (sessionStorage, one-shot)
+// ─────────────────────────────────────────────
+
+function consumePendingSort(key) {
+    if (typeof sessionStorage === 'undefined') return null;
+    try {
+        const raw = sessionStorage.getItem(key);
+        if (!raw) return null;
+        sessionStorage.removeItem(key);
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed.colKey !== 'string') return null;
+        return { colKey: parsed.colKey, dir: parsed.dir === 'desc' ? 'desc' : 'asc' };
+    } catch { return null; }
 }
 
 // ─────────────────────────────────────────────

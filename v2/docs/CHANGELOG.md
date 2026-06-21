@@ -230,7 +230,7 @@ tests under `v2/tests/unit/`.
 
 | Module | Owns |
 |---|---|
-| `urlParams.js`  | `getQueryParam`, `leagueUrl`, `dashboardUrl`, `playerUrl`, `playerGeneralUrl` |
+| `urlParams.js`  | `getQueryParam`, `leagueTableUrl`, `leagueUrl`, `playerLeagueUrl`, `playerUrl` |
 | `formatting.js` | `formatPercent`, `formatNumber`, `thLabel`, `parseLeagueDate`, `getLeagueYear` |
 | `flagUrl.js`    | `flagUrl` (returns `/assets/flags/<CODE>.png` to ride the shared-assets-proxy), `getFlagCode` |
 

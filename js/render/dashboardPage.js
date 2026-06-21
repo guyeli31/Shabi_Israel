@@ -14,7 +14,7 @@ import { parseCSVAllWithRounds, parseCSV, getAllPlayersFromCSV } from '../data/c
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { getQueryParam, formatPercent, formatNumber, leagueUrl, playerUrl, dashboardUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
+import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagueUrl, leagueUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
 import { exportTableImage } from '../utils/exportTableImage.js';
 import { colorForValueInverted } from '../compute/colorScale.js';
 import { drawPlayerBarChart, computeNiceRange } from './playerBarChart.js';
@@ -230,8 +230,8 @@ function installLeagueNavArrows(leagueId, allParams, currentType) {
     const nav = document.createElement('div');
     nav.className = 'league-nav';
     nav.innerHTML = `
-        <a class="nav-arrow ${prev ? '' : 'disabled'}" ${prev ? `href="${dashboardUrl(prev)}" title="Previous league: ${prev}"` : 'title="No previous league"'}>&lsaquo;</a>
-        <a class="nav-arrow ${next ? '' : 'disabled'}" ${next ? `href="${dashboardUrl(next)}" title="Next league: ${next}"` : 'title="No next league"'}>&rsaquo;</a>
+        <a class="nav-arrow ${prev ? '' : 'disabled'}" ${prev ? `href="${leagueUrl(prev)}" title="Previous league: ${prev}"` : 'title="No previous league"'}>&lsaquo;</a>
+        <a class="nav-arrow ${next ? '' : 'disabled'}" ${next ? `href="${leagueUrl(next)}" title="Next league: ${next}"` : 'title="No next league"'}>&rsaquo;</a>
     `;
     (header.querySelector('#page-title') || header.querySelector('h1')).insertAdjacentElement('afterend', nav);
 }
@@ -463,7 +463,7 @@ function renderHistorical(ctx) {
     const prevBtn = document.getElementById('hist-prev');
     const nextBtn = document.getElementById('hist-next');
     const fullLink = document.getElementById('hist-to-full');
-    fullLink.href = leagueUrl(leagueId);
+    fullLink.href = leagueTableUrl(leagueId);
 
     const historyDates = getUpdateDates(history); // descending
     // Build options: "Current" first (always), then history dates
@@ -1530,7 +1530,7 @@ function renderPlayerSection(ctx) {
         function redraw() {
             const player = playerSel.value;
             const metric = metricSel.value;
-            link.href = playerUrl(leagueId, player);
+            link.href = playerLeagueUrl(leagueId, player);
             const matches = buildPlayerSeries(liveMatches, player);
             drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer, sharedScale[metric]);
         }

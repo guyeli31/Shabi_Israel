@@ -23,8 +23,8 @@ No build step — pure vanilla HTML/CSS/JS running in the browser. Deployed on G
 
 3 HTML pages with SPA-like navigation via query params:
 - `index.html` — Landing page listing all leagues
-- `league.html?league=<id>` — League summary with ranked player table
-- `player.html?league=<id>&player=<name>` — Player match history
+- `league_table.html?league=<id>` — League summary with ranked player table
+- `player_league.html?league=<id>&player=<name>` — Player match history
 
 ### JS Modules (`js/`)
 | Layer | Files | Purpose |

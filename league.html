@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>League — Shabi Israel</title>
-    <link rel="icon" type="image/png" href="assets/favicon.png">
+    <link rel="icon" type="image/png" href="assets/favicon-round.png">
     <meta name="description" content="Shabi Israel — Backgammon leagues: rankings &amp; statistics">
     <!-- Link preview (Open Graph + Twitter) -->
     <meta property="og:type" content="website">
@@ -26,6 +26,10 @@
     <link rel="stylesheet" href="css/themes.css">
     <link rel="stylesheet" href="css/theme-picker.css">
     <link rel="stylesheet" href="css/admin-button.css">
+    <link rel="stylesheet" href="css/tabs.css">
+    <link rel="stylesheet" href="css/sections.css">
+    <link rel="stylesheet" href="css/subtabs.css">
+    <link rel="stylesheet" href="css/dashboard.css">
     <link rel="stylesheet" href="css/navigation.css?v=2">
     <link rel="stylesheet" href="css/league-header.css">
     <link rel="stylesheet" href="css/typography-overrides.css">
@@ -47,7 +51,7 @@
             <h1 id="page-title">Loading...</h1>
         </div>
         <div id="content">
-            <div class="loading">Loading league data...</div>
+            <div class="loading">Loading dashboard...</div>
         </div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -55,13 +59,13 @@
         import { isPreviewMode, installPreviewInterceptor } from './js/admin/previewMode.js';
         if (isPreviewMode()) installPreviewInterceptor();
 
-        import { renderLeaguePage } from './js/render/leaguePage.js';
+        import { renderDashboardPage } from './js/render/dashboardPage.js';
         import { initThemePicker } from './js/render/themePicker.js';
         import { initAdminButton } from './js/render/adminButton.js';
         import { initNavBar, initKeyboardShortcuts } from './js/render/navigation.js';
 
         await initNavBar();
-        await renderLeaguePage();
+        await renderDashboardPage();
         initThemePicker();
         if (!isPreviewMode()) initAdminButton();
         initKeyboardShortcuts();

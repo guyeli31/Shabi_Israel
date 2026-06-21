@@ -5,8 +5,8 @@
  *   [photo + status-dot overlay] [flag · name · title chips]
  *                                [full-name · Joined Mon YYYY · N leagues]
  *
- * Used by both player_general.html (cross-league profile) and
- * player.html (per-league profile) so the player identity surface is
+ * Used by both player.html (cross-league profile) and
+ * player_league.html (per-league profile) so the player identity surface is
  * identical across them.
  */
 
@@ -150,7 +150,7 @@ export function renderV7Header(target, data) {
         ? `<a class="pg-v7-name pg-v7-name-link" href="${escapeHtml(data.nameHref)}">${escapeHtml(data.name)}</a>`
         : `<span class="pg-v7-name">${escapeHtml(data.name)}</span>`;
 
-    // When the V7 card sits on a per-league surface (player.html, table
+    // When the V7 card sits on a per-league surface (player_league.html, table
     // E), the joined date and league count belong on the cross-league
     // profile instead — pass { inLeague: true } to omit them here.
     const inLeague = data.inLeague === true;
@@ -181,7 +181,7 @@ export function renderV7Header(target, data) {
 
 /**
  * Render the V12 hero-banner header into `target`. Used on
- * player_general.html.
+ * player.html.
  *
  * Top row: title ribbon(s) (Bebas-Neue Gold/Silver/Bronze gradients
  * driven by tier) on the left + status chip on the right.

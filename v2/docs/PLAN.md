@@ -208,9 +208,9 @@ v2/
 │   ├── pages/                           ── Layer 9: page composition ──
 │   │   ├── _shell.html                  # shared head/nav/footer fragment
 │   │   ├── landing/{landing.html, landing.css, landing.js}
-│   │   ├── league/{league.html, league.css, league.js}
-│   │   ├── dashboard/{dashboard.html, dashboard.css, dashboard.js}
-│   │   ├── player/{player.html, player.css, player.js}
+│   │   ├── league/{league_table.html, league.css, league.js}
+│   │   ├── dashboard/{league.html, dashboard.css, dashboard.js}
+│   │   ├── player/{player_league.html, player.css, player.js}
 │   │   ├── playerGeneral/{playerGeneral.html, playerGeneral.css, playerGeneral.js}
 │   │   └── admin/
 │   │       ├── admin.html
@@ -257,10 +257,10 @@ v2/
 │   │
 │   └── entry/                           # per-page Vite entries
 │       ├── landing.entry.js
+│       ├── leagueTable.entry.js
 │       ├── league.entry.js
-│       ├── dashboard.entry.js
+│       ├── playerLeague.entry.js
 │       ├── player.entry.js
-│       ├── playerGeneral.entry.js
 │       ├── admin.entry.js
 │       ├── designLab.entry.js
 │       ├── typoEditor.entry.js
@@ -366,7 +366,7 @@ Two override-style files exist:
 
 ### 4.1 designLab (`v2/src/tools/designLab/`)
 - **Purpose**: preview any production page inside lab chrome (variant switcher, viewport selector, theme selector).
-- **Implementation**: iframe loads the actual production page (`/league.html?league=X`); lab chrome is sibling. Lab CSS is scoped to `.dl-*` selectors only.
+- **Implementation**: iframe loads the actual production page (`/league_table.html?league=X`); lab chrome is sibling. Lab CSS is scoped to `.dl-*` selectors only.
 - **Production parity**: 100% — what the lab shows IS production.
 - **Differs from v1**: lab chrome no longer has its own duplicated styles. `.dl-*` selectors use the same tokens.
 
@@ -434,7 +434,7 @@ Each phase ends with a commit and an MCP verification checkpoint. If a phase fai
 - Each primitive: one CSS file (token-only), one JS file with a single `render(props)` export.
 - Each primitive: corresponding `*.test.js` if behavior is non-trivial (Button, Tooltip).
 - Extend `designCatalogue` to render every primitive in every state.
-- **MCP verification**: screenshot every primitive at 3 viewports × 8 themes. Compare against equivalent rendering in v1 (open v1 league.html, find a `.flag`, take a screenshot, compare). Allow ~2% pixel diff for sub-pixel rendering.
+- **MCP verification**: screenshot every primitive at 3 viewports × 8 themes. Compare against equivalent rendering in v1 (open v1 league_table.html, find a `.flag`, take a screenshot, compare). Allow ~2% pixel diff for sub-pixel rendering.
 
 ### Phase 3 — Components (5–6 hours)
 - Build `v2/src/components/{PlayerCell, StatusChip, TypePill, MedalRow, RankBadge, ScoreCell, ChartTooltip, Breadcrumbs, Navigation, ThemePicker, AdminButton, ExportButton, SearchBox, FilterPill, LeagueHero, PlayerHero, PlayerBarChart, ColorScale, Splash, ExportTableImage}/`.
@@ -458,7 +458,7 @@ Each phase ends with a commit and an MCP verification checkpoint. If a phase fai
 - Port all 23 presets to `v2/src/tables/presets/{A1..A7,B1..B6c,C0..C4,D,E,F1,F2,F3,F4,F5,F6}_*.js`. Each declares `export const variant = '...'` for lab auto-discovery. F1/F2/F3/F4/F6 use `variant: 'FF'`; **F5 is MF** (read-only CSV Import Preview — `mountMFTable`, `fontClass:'font-small'`, `stickyCols:1`); **A7 is SF** (Players directory — two stacked instances with shared cols, `tableId: 'A7'`, `fontClass: 'font-small'`, `stickyCols: 1`, second instance has `showTopN: 15`).
 - Source files are the **canonized** v1 lab files at `table-lab/formats/{base,mf,sf,exp,ff}/*.css` (Path-X canonization landed 2026-06-04; legacy mirrors in `css/components.css` etc. lose by cascade). The `Units policy` doc-block at the top of `base.css` (em for sizing-with-font; px for hairlines/shadows/viewport-caps/breakpoints/JS-fallbacks) ports verbatim into v2 as a non-negotiable foundation rule.
 - Build `v2/src/tools/tableLab/` with auto-discovery, args form, theme bridge, code snippet, iron rules panel.
-- **MCP verification**: open `/tableLab.html` in v2; for each preset, screenshot the preview at 3 viewports × dark+light themes. Open the same preset in v1 (e.g., open v1 league.html for D, dashboard.html for B-series). Pixel diff per cell — allow ≤2% delta for font rendering.
+- **MCP verification**: open `/tableLab.html` in v2; for each preset, screenshot the preview at 3 viewports × dark+light themes. Open the same preset in v1 (e.g., open v1 league_table.html for D, league.html for B-series). Pixel diff per cell — allow ≤2% delta for font rendering.
 
 ### Phase 6 — Pages: landing → league → dashboard → player → playerGeneral (8–10 hours)
 - Build each page under `v2/src/pages/{name}/`. HTML composes shell + components + tables. CSS only contains page-specific layout. JS imports primitives/components/tables and wires data.
@@ -512,8 +512,8 @@ Each phase ends with a commit and an MCP verification checkpoint. If a phase fai
 - Run `v2/scripts/migrate-v1-to-v2.sh`:
   ```bash
   mkdir -p _archive_v1
-  mv css js table-lab admin.html dashboard.html league.html \
-     player.html player_general.html design-lab.html typo-editor.html \
+  mv css js table-lab admin.html league.html league_table.html \
+     player_league.html player.html design-lab.html typo-editor.html \
      design-catalogue.html index.html docs _archive_v1/
   mv v2/* v2/.* .  2>/dev/null || true
   rmdir v2
@@ -575,7 +575,7 @@ For each page (landing, league, dashboard, player, playerGeneral, admin):
 ```markdown
 # Parity Log
 
-## 2026-05-26 — league.html @ vw=720 × theme=dark
+## 2026-05-26 — league_table.html @ vw=720 × theme=dark
 | Selector | Property | v1 | v2 | Δ | Pass |
 |---|---|---|---|---|---|
 | #leagueTable td | fontSize | 12.036px | 12.036px | 0 | ✓ |

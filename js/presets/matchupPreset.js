@@ -1,5 +1,5 @@
 /**
- * matchupPreset.js — C3 preset for the player_general.html head-to-head
+ * matchupPreset.js — C3 preset for the player.html head-to-head
  * (matchup) table. Mirrors lab's buildC3 shape; per-page enrichments
  * (league link) injected via callbacks.
  */

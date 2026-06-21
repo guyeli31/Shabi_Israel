@@ -7,7 +7,7 @@
 
 The previous approach in Step 6.5 (CSS-only table→cards at ≤640px) was implemented and verified, but the user viewed the result and rejected it as **"distortion"**. Tables on mobile must remain a **matrix** (rows × columns) like on desktop, rendered at **full page width**, **without horizontal scroll by default**. Same applies to high desktop zoom (>200%).
 
-**Visual reference:** the Championship Predictor table in [dashboard.html](../dashboard.html) — the user stated it "looks perfect" on mobile. Its CSS at [css/dashboard.css:411-434](../css/dashboard.css#L411) — `width:100%`, `font-size:0.8-0.9rem`, `padding: xs sm`, `text-align:center`. That is the standard to match.
+**Visual reference:** the Championship Predictor table in [league.html](../league.html) — the user stated it "looks perfect" on mobile. Its CSS at [css/dashboard.css:411-434](../css/dashboard.css#L411) — `width:100%`, `font-size:0.8-0.9rem`, `padding: xs sm`, `text-align:center`. That is the standard to match.
 
 **Explicit user requirements:**
 1. All tables on all pages — matrix at full page width, no horizontal scroll by default.
@@ -22,16 +22,16 @@ The previous approach in Step 6.5 (CSS-only table→cards at ≤640px) was imple
 
 | Selector | Page | Typical columns |
 |---|---|---|
-| `#leagueTable` | league.html | 7–11 (depends on leagueConfig) |
-| `#playerTable` | player.html | 8 |
-| `.dash-table` × 5 | dashboard.html | Top-5, Historical View, Rounds, Remaining, Prizes, What-If |
-| `#predictor-section table` | dashboard.html | **Already correct — sanity-check only** |
+| `#leagueTable` | league_table.html | 7–11 (depends on leagueConfig) |
+| `#playerTable` | player_league.html | 8 |
+| `.dash-table` × 5 | league.html | Top-5, Historical View, Rounds, Remaining, Prizes, What-If |
+| `#predictor-section table` | league.html | **Already correct — sanity-check only** |
 | `.completed-leagues-table` | index.html | 4 |
 | `.admin-table` | admin.html | Varies (Leagues included) |
-| `.pg-rank-table` | player_general.html | ~6 |
-| `.pg-leagues-table` | player_general.html | 9 (**exception — sticky+scroll**) |
-| `.pg-matches-table` | player_general.html | Varies (**cap to 25**) |
-| `.pg-mr-table` | player_general.html | Varies |
+| `.pg-rank-table` | player.html | ~6 |
+| `.pg-leagues-table` | player.html | 9 (**exception — sticky+scroll**) |
+| `.pg-matches-table` | player.html | Varies (**cap to 25**) |
+| `.pg-mr-table` | player.html | Varies |
 
 ---
 

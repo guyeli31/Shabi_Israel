@@ -2,13 +2,13 @@
  * playerNameInteraction.js — Shared helpers for player name click behavior
  * in the dashboard and player-page header.
  *
- * Left click / tap → league-specific player card (player.html) when a leagueId
- *                    is in scope; otherwise the general card (player_general.html).
+ * Left click / tap → league-specific player card (player_league.html) when a leagueId
+ *                    is in scope; otherwise the general card (player.html).
  * Right click / long-press → context menu with the general card as the
  *                    alternate option (and the league card, when leagueId exists).
  */
 
-import { playerUrl, playerGeneralUrl } from '../utils/helpers.js';
+import { playerLeagueUrl, playerUrl } from '../utils/helpers.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 
 /**
@@ -27,7 +27,7 @@ export function playerNameLink(playerName, meta = null) {
     const badgeHtml = meta ? getTitleAbbreviationsHtml(meta) : '';
     return `<a class="player-name-link"
               data-player="${escapeAttr(playerName)}"
-              href="${playerGeneralUrl(playerName)}"
+              href="${playerUrl(playerName)}"
               title="Open general player card">${escapeHtml(playerName)}</a>${badgeHtml}`;
 }
 
@@ -42,7 +42,7 @@ export function attachPlayerNameInteractions(rootEl, leagueId) {
     links.forEach(a => {
         if (leagueId) {
             const player = a.dataset.player;
-            a.setAttribute('href', playerUrl(leagueId, player));
+            a.setAttribute('href', playerLeagueUrl(leagueId, player));
             a.setAttribute('title', 'Open league player card');
         }
         a.addEventListener('contextmenu', (e) => {
@@ -63,11 +63,11 @@ function showContextMenu(x, y, leagueId, playerName) {
     menu.style.top = y + 'px';
     const generalItem = `
         <a class="cm-item"
-           href="${playerGeneralUrl(playerName)}"
+           href="${playerUrl(playerName)}"
            title="Open cross-league player profile">Open general card</a>`;
     const leagueItem = leagueId ? `
         <a class="cm-item"
-           href="${playerUrl(leagueId, playerName)}"
+           href="${playerLeagueUrl(leagueId, playerName)}"
            title="Open this player's card for this league">Open league player card</a>` : '';
     menu.innerHTML = generalItem + leagueItem;
     document.body.appendChild(menu);

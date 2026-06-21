@@ -201,7 +201,7 @@ function selectPlayer(container, name) {
         <div class="admin-card">
             <h2>Live preview</h2>
             <iframe class="player-preview-frame"
-                    src="player_general.html?player=${encodeURIComponent(name)}&preview=true"
+                    src="player.html?player=${encodeURIComponent(name)}&preview=true"
                     title="Player preview"></iframe>
         </div>
     `;

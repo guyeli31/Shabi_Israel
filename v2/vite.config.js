@@ -35,10 +35,13 @@ export default defineConfig({
       input: {
         index:            path.resolve(__dirname, 'index.html'),
         landing:          path.resolve(__dirname, 'src/pages/landing/landing.html'),
+        // Pages renamed 2026-06-20: dashboard→league (4-tab overview),
+        // league→leagueTable (D table), playerGeneral→player (cross-league),
+        // player→playerLeague (E table). See CLAUDE.md + docs/TABLE-DESIGN.md.
         league:           path.resolve(__dirname, 'src/pages/league/league.html'),
-        dashboard:        path.resolve(__dirname, 'src/pages/dashboard/dashboard.html'),
+        leagueTable:      path.resolve(__dirname, 'src/pages/leagueTable/leagueTable.html'),
         player:           path.resolve(__dirname, 'src/pages/player/player.html'),
-        playerGeneral:    path.resolve(__dirname, 'src/pages/playerGeneral/playerGeneral.html'),
+        playerLeague:     path.resolve(__dirname, 'src/pages/playerLeague/playerLeague.html'),
         admin:            path.resolve(__dirname, 'src/pages/admin/admin.html'),
         designLab:        path.resolve(__dirname, 'src/tools/designLab/designLab.html'),
         typoEditor:       path.resolve(__dirname, 'src/tools/typoEditor/typoEditor.html'),

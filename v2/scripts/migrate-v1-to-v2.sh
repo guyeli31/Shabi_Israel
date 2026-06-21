@@ -20,7 +20,7 @@ fi
 echo "[cutover] Archiving v1 files into _archive_v1/"
 mkdir -p _archive_v1
 mv css js table-lab docs \
-   admin.html dashboard.html league.html player.html player_general.html \
+   admin.html league.html league_table.html player_league.html player.html \
    design-lab.html typo-editor.html design-catalogue.html index.html \
    _archive_v1/ 2>/dev/null || true
 

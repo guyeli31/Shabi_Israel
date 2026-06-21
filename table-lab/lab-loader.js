@@ -8,7 +8,7 @@ import { setLeaguesBase, loadLandingSettings, loadLeague } from '../js/data/leag
 import { computeAllStats } from '../js/compute/stats.js';
 import { buildRankings, computeAverages, getLevel } from '../js/compute/rankings.js';
 import { getLeagueConfig } from '../js/compute/leagueTypes.js';
-import { getFlagCode, flagUrl, formatNumber, leagueUrl } from '../js/utils/helpers.js';
+import { getFlagCode, flagUrl, formatNumber, leagueTableUrl } from '../js/utils/helpers.js';
 import { getPlayerMatches, parseCSVAllWithRounds } from '../js/data/csvParser.js';
 import { colorForValue, colorForValueInverted, colorForLevel } from '../js/compute/colorScale.js';
 import { LEVELS } from '../js/compute/rankings.js';
@@ -1050,7 +1050,7 @@ async function buildA5SF() {
         { key: 'result',   label: 'Result',
           format: v => `<span class="${resultClass(v)}">${v}</span>` },
         { key: 'league',   label: 'League',
-          format: (_, r) => `<a class="league-link" href="${leagueUrl(r.leagueId)}">${r.leagueTitle}</a>` },
+          format: (_, r) => `<a class="league-link" href="${leagueTableUrl(r.leagueId)}">${r.leagueTitle}</a>` },
         { key: 'date',     label: 'Date',    format: (_, r) => formatShortDate(r.date) },
     ];
     const out = entries.map((r, i) => ({
@@ -1111,7 +1111,7 @@ async function buildA6SF() {
         { key: 'level',  label: 'Level' },
         { key: 'rankInLeague', label: 'Rank', format: (_, r) => rankCellHtml(r) },
         { key: 'league', label: 'League',
-          format: (_, r) => `<a class="league-link" href="${leagueUrl(r.leagueId)}">${r.leagueTitle}</a>` },
+          format: (_, r) => `<a class="league-link" href="${leagueTableUrl(r.leagueId)}">${r.leagueTitle}</a>` },
         { key: 'date',   label: 'Date',  format: (_, r) => formatShortDate(r.date) },
     ];
     const out = entries.map((r, i) => ({
@@ -1140,7 +1140,7 @@ async function buildC5SF(playerData, playerName) {
         { key: 'result',   label: 'Result',
           format: v => `<span class="${resultClass(v)}">${v}</span>` },
         { key: 'league',   label: 'League',
-          format: (_, r) => `<a class="league-link" href="${leagueUrl(r.leagueId)}">${r.leagueTitle}</a>` },
+          format: (_, r) => `<a class="league-link" href="${leagueTableUrl(r.leagueId)}">${r.leagueTitle}</a>` },
         { key: 'date',     label: 'Date',   format: (_, r) => formatShortDate(r.date) },
     ];
     const out = entries.map((r, i) => ({

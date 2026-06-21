@@ -3,7 +3,7 @@
 **Status:** in progress — Phase 1 ✅ Phase 2 ✅ Phase 3 ✅ Phase 4.1 ✅ (shim deleted 2026-06-03) Phase 4.2 ⏳ (B1–B6c + C1–C3 still hand-built) Phase 5 ✅ Phase 6 ✅ Phase 7 ◐ (7.1 wiring landed 2026-06-04 alongside Path-X canonization sweep; 7.2 JS rewiring + 7.3 grep gate + 7.4 destructive deletion still ⏳) Phase 8 ◐ (FF chrome restored in `admin.css` + production wears FF classes via JS; lab tabs / presets / `mountFFTable` wiring not yet done) Phase 9 ⏳
 **Owner:** ravivb7
 **Created:** 2026-05-11
-**Last updated:** 2026-06-04 — Path-X canonization sweep: Units policy doc-block + universal `.flag` + `.show-more-btn` added to `base.css`; 5 px→em violations eliminated across canon (`base/mf/sf/exp/ff`) and production mirrors (`components.css`, `dashboard.css`, `index-dashboard.css`, `player-general.css`, `admin.css`); pixelating `image-rendering:crisp-edges` removed from `player-general.css`; Phase 7.1 `<link>` wiring (`sf.css` + `exp.css`) landed in `league.html`, `player.html`, `player_general.html`, `dashboard.html`. Phase 7.2-7.4 (JS rewiring + Group A destructive sweep) still ⏳ — deferred until v2 cutover decision.
+**Last updated:** 2026-06-04 — Path-X canonization sweep: Units policy doc-block + universal `.flag` + `.show-more-btn` added to `base.css`; 5 px→em violations eliminated across canon (`base/mf/sf/exp/ff`) and production mirrors (`components.css`, `dashboard.css`, `index-dashboard.css`, `player-general.css`, `admin.css`); pixelating `image-rendering:crisp-edges` removed from `player-general.css`; Phase 7.1 `<link>` wiring (`sf.css` + `exp.css`) landed in `league_table.html`, `player_league.html`, `player.html`, `league.html`. Phase 7.2-7.4 (JS rewiring + Group A destructive sweep) still ⏳ — deferred until v2 cutover decision.
 
 ---
 
@@ -22,7 +22,7 @@
      > **FF — three cell modes per ColDef.** Display (read-only), Action (button + data-attrs), Edit (input/select + getValue). A single FF table mixes them freely. The earlier FF1/FF2 split was an intermediate naming — collapsed into a single FF format once it became clear the variation is per-column, not per-table.
 
    - Each table is produced by its own preset module (per `tableId`), bound to one of the five formats. The preset owns the data shape, column config, and any table-specific decorations (sticky cols, medal rows, show-top-N, sort, image-export, inline-edit, etc.).
-   - Production pages (`index.html`, `league.html`, `player.html`, `player-general.html`, `dashboard.html`, `admin.html`) consume those functions — they do not own table-rendering code.
+   - Production pages (`index.html`, `league_table.html`, `player_league.html`, `player-general.html`, `league.html`, `admin.html`) consume those functions — they do not own table-rendering code.
 
 2. **The project is free of any vestigial table styling / behavior.**
    - `css/components.css` contains zero table-specific rules — only shared atom components (flags, medals, pills, badges) and non-table UI (matchup card chrome, charts, export buttons).

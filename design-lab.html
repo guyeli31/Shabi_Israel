@@ -1584,19 +1584,19 @@
 
         /* When rendering the in-league card (table E), the player name
            becomes a link to the general player card. The lab's click
-           interceptor (rewriteToLab) catches `player_general.html?…`
+           interceptor (rewriteToLab) catches `player.html?…`
            and switches the lab view to `view=player-general` without a
            full reload, so the same variant choice carries over. */
         function nameLink(p, opts) {
             const text = escapeHtml(p.name);
             if (!opts || !opts.inLeague) return text;
-            return `<a class="pl-name-link" href="player_general.html?player=${encodeURIComponent(p.name)}">${text}</a>`;
+            return `<a class="pl-name-link" href="player.html?player=${encodeURIComponent(p.name)}">${text}</a>`;
         }
 
         /* All HEADER_RENDERERS take an optional second arg `opts`. When
            opts.inLeague is true, the renderer omits the "Joined …" and
            "N leagues" meta items — those belong on the general player
-           card (player_general), not on the per-league player card. */
+           card (player.html), not on the per-league player card. */
         const HEADER_RENDERERS = {
             v7(p, opts = {}) {
                 const avatar = p.photoPath
@@ -2238,17 +2238,17 @@
                 out.search = '';
                 if (file === 'index.html' || file === '' || file === '/') {
                     out.searchParams.set('view', 'home');
-                } else if (file === 'league.html') {
+                } else if (file === 'league_table.html') {
                     out.searchParams.set('view', 'league');
                     if (u.searchParams.get('league')) out.searchParams.set('league', u.searchParams.get('league'));
-                } else if (file === 'dashboard.html') {
+                } else if (file === 'league.html') {
                     out.searchParams.set('view', 'dashboard');
                     if (u.searchParams.get('league')) out.searchParams.set('league', u.searchParams.get('league'));
-                } else if (file === 'player.html') {
+                } else if (file === 'player_league.html') {
                     out.searchParams.set('view', 'player');
                     if (u.searchParams.get('league')) out.searchParams.set('league', u.searchParams.get('league'));
                     if (u.searchParams.get('player')) out.searchParams.set('player', u.searchParams.get('player'));
-                } else if (file === 'player_general.html') {
+                } else if (file === 'player.html') {
                     out.searchParams.set('view', 'player-general');
                     if (u.searchParams.get('player')) out.searchParams.set('player', u.searchParams.get('player'));
                 } else {

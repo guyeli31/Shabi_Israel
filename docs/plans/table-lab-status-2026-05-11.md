@@ -20,7 +20,7 @@
 
 ### טבלאות MF שעדיין hand-built (לא דרך הקנון)
 
-כל ה-B-series ב-`dashboard.html`. כולן מתויגות ב-`data-mf-table-id="B*"` אבל ה-DOM נבנה בידיים ב-`js/render/dashboardPage.js`:
+כל ה-B-series ב-`league.html`. כולן מתויגות ב-`data-mf-table-id="B*"` אבל ה-DOM נבנה בידיים ב-`js/render/dashboardPage.js`:
 
 - B1 Prizes & Medals
 - B2 Historical view

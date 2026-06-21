@@ -21,7 +21,7 @@ Table code mapping for the app. All future references to a table use the code be
 | A6 | League Records |
 | A7 | Players directory |
 
-### B — Dashboard / League overview (dashboard.html)
+### B — Dashboard / League overview (league.html)
 
 | Code | Table name |
 |---|---|
@@ -45,13 +45,13 @@ Table code mapping for the app. All future references to a table use the code be
 | C4 | All Opponents (H2H aggregate, player-general) |
 | C5 | Match Records |
 
-### D — League Table (league.html)
+### D — League Table (league_table.html)
 
 | Code | Table name |
 |---|---|
 | D | League Table |
 
-### E — Player Match History (player.html)
+### E — Player Match History (player_league.html)
 
 | Code | Table name |
 |---|---|
@@ -242,7 +242,7 @@ For C1/C2 specifically: tag a new clickable column's `<td>` with `league-cell` (
 
 #### C4 — All Opponents (H2H aggregate, player-general)
 
-The bottom section of the **H2H** tab on `player_general.html`. One MF table (`tableId: 'C4'`, `fontClass: 'font-small'`, `stickyCols: 1`, `showTopN: null` — always fully expanded) that collapses **every match the player has played across all league types** into one row per opponent, showing averages. Built by `js/presets/allOpponentsPreset.js` (`buildAllOpponentsPreset` + `aggregateOpponents`).
+The bottom section of the **H2H** tab on `player.html`. One MF table (`tableId: 'C4'`, `fontClass: 'font-small'`, `stickyCols: 1`, `showTopN: null` — always fully expanded) that collapses **every match the player has played across all league types** into one row per opponent, showing averages. Built by `js/presets/allOpponentsPreset.js` (`buildAllOpponentsPreset` + `aggregateOpponents`).
 
 Section title is **"All Opponents (x)"** where x = distinct opponents faced. Default sort: **Win% descending** (the data array is pre-sorted before mount). Every column is click-sortable.
 
@@ -318,7 +318,7 @@ Columns (left → right):
 |---|---|---|
 | 1 | `name` | Flag + `playerNameLink(name, meta)` + optional real-name (`.lp-realname`, hidden on mobile) |
 | 2 | `status` | `<span class="lp-status lp-status-active\|inactive">` pill with glowing `currentColor` dot. `active` = player appears in any league with `Running: true`. |
-| 3 | `lastActiveDate` | `<a class="league-link" href="leagueUrl(id)">Jun 2026</a>` — same quiet hover-underline style as A6's league column. `—` if the player has never appeared (notable-only). |
+| 3 | `lastActiveDate` | `<a class="league-link" href="leagueTableUrl(id)">Jun 2026</a>` — same quiet hover-underline style as A6's league column. `—` if the player has never appeared (notable-only). |
 | 4 | `titleDesc` | `getFullTitleDescription(meta)` in `<em>` — Master/Grandmaster/Champion/etc. `—` for rest-of-players. |
 
 To convert a table to SF in a future session, say:

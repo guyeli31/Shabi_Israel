@@ -20,12 +20,12 @@ const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
  *   rows         — pre-formatted display rows: { league, dateStr, leagueType, leagueId,
  *                                                leaderName|null, leaderHidden, leaderFlagCode, leaderMeta }
  *   flagUrl      — (code) => url
- *   dashboardUrl — (leagueId) => url
+ *   leagueUrl — (leagueId) => url
  */
-export function buildCompletedLeaguesPreset({ rows, flagUrl, dashboardUrl }) {
+export function buildCompletedLeaguesPreset({ rows, flagUrl, leagueUrl }) {
     const cols = [
         { key: 'league', label: 'League', type: 'string', sortable: false, colorFn: null,
-          format: (v, row) => `<a href="${dashboardUrl(row._leagueId)}">${escapeHtml(v)}</a>` },
+          format: (v, row) => `<a href="${leagueUrl(row._leagueId)}">${escapeHtml(v)}</a>` },
         { key: 'date',   label: 'Date',   type: 'string', sortable: false, colorFn: null },
         { key: 'type',   label: 'Type',   type: 'string', sortable: false, colorFn: null,
           format: v => `<span class="league-type-pill type-${v}">${TYPE_LABELS[v] || v}</span>` },

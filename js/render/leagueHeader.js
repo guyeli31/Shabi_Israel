@@ -3,13 +3,13 @@
  *
  * Two render functions, picked by page:
  *   • renderV13Header — Lichess-style centred title bar. Used on
- *     league.html (table-D page). Drops the "Started …" field by
+ *     league_table.html (table-D page). Drops the "Started …" field by
  *     default; the "Last updated …" line already establishes the
  *     league has been running, so duplicating the start date adds
  *     no information on that surface.
  *   • renderV16Header — Hero banner with type/status pills, Bebas
  *     display title and a 2-tile stat grid (Start Date + Last
- *     Updated). Used on dashboard.html.
+ *     Updated). Used on league.html.
  *
  * Both functions accept a `target` element (typically the page's
  * <h1 id="page-title">) and overwrite its innerHTML. Production

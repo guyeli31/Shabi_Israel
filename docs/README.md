@@ -57,8 +57,8 @@ User opens page
 
 ```
 index.html                          Landing page — list of all leagues
-  └─→ league.html?league=X         League summary — ranked player table
-        └─→ player.html?league=X&player=Y   Player detail — match history
+  └─→ league_table.html?league=X         League summary — ranked player table
+        └─→ player_league.html?league=X&player=Y   Player detail — match history
               └─→ (back to league)
         └─→ (back to index)
 ```

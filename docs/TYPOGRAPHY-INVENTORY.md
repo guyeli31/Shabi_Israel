@@ -27,7 +27,7 @@ Each section is one page. Each row is one textual element identified by:
 
 ---
 
-## League Dashboard — `dashboard.html` / `league.html`
+## League Dashboard — `league.html` / `league_table.html`
 
 ### Navigation chrome
 
@@ -107,7 +107,7 @@ Each section is one page. Each row is one textual element identified by:
 
 ---
 
-## League Table — `league.html` (Table D)
+## League Table — `league_table.html` (Table D)
 
 | Element | Selector | Size | Weight | Notes |
 |---|---|---|---|---|
@@ -118,11 +118,11 @@ Each section is one page. Each row is one textual element identified by:
 | Medal rank rows | `tr.rank-gold`, `tr.rank-silver`, `tr.rank-bronze` | | | (cell weight inherited; row tint is via background only) |
 | Last-5 status icons | `.status-pill .lh-dot` | | | non-text |
 
-(Other elements on `league.html` — nav, hero, breadcrumbs — share rows from §"League Dashboard" above.)
+(Other elements on `league_table.html` — nav, hero, breadcrumbs — share rows from §"League Dashboard" above.)
 
 ---
 
-## Player Profile — `player.html` (Table E)
+## Player Profile — `player_league.html` (Table E)
 
 | Element | Selector | Size | Weight | Notes |
 |---|---|---|---|---|
@@ -132,7 +132,7 @@ Each section is one page. Each row is one textual element identified by:
 
 ---
 
-## Player General — `player_general.html` (Tables C0–C5)
+## Player General — `player.html` (Tables C0–C5)
 
 ### Header (V7 / V12)
 

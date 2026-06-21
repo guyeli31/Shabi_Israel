@@ -13,7 +13,7 @@ import { buildAllTimeRankings } from '../compute/allTimeRankings.js';
 import { colorForValue } from '../compute/colorScale.js';
 import { luckBellCurveSvg } from './luckBellCurve.js';
 import { loadLandingSettings } from '../data/leagueLoader.js';
-import { dashboardUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueUrl, thLabel } from '../utils/helpers.js';
+import { leagueUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueTableUrl, thLabel } from '../utils/helpers.js';
 import { exportTableImage } from '../utils/exportTableImage.js';
 import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatches } from '../compute/matchRecords.js';
 import { luckPercentileStats } from '../compute/luckPercentile.js';
@@ -316,7 +316,7 @@ function buildPlayerCols() {
             format: (d, row) => {
                 if (!d) return '<span class="lp-muted">—</span>';
                 const label = `${MONTH_SHORT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-                const href = row.lastActiveLeagueId ? dashboardUrl(row.lastActiveLeagueId) : null;
+                const href = row.lastActiveLeagueId ? leagueUrl(row.lastActiveLeagueId) : null;
                 return href
                     ? `<a class="league-link" href="${href}">${label}</a>`
                     : label;
@@ -832,7 +832,7 @@ function renderActiveLeagues(container, running) {
         cardsHtml += `
             <div class="league-card" data-league-id="${escapeHtml(l.id)}">
                 <div class="league-card-title">
-                    <a href="${dashboardUrl(l.id)}">${escapeHtml(l.title)}</a>
+                    <a href="${leagueUrl(l.id)}">${escapeHtml(l.title)}</a>
                 </div>
                 <div class="league-card-meta">
                     <span class="league-type-pill ${typeClass}">${typeLabel}</span>
@@ -942,7 +942,7 @@ function renderCompletedLeagues(container, completed) {
         leaderFlagCode:  l.leader ? getFlagCode(l.leader.player, l.params.CustomFlags) : null,
         leaderMeta:      l.leader ? _playersMeta[l.leader.player] : null,
     }));
-    const preset = buildCompletedLeaguesPreset({ rows, flagUrl, dashboardUrl });
+    const preset = buildCompletedLeaguesPreset({ rows, flagUrl, leagueUrl });
     const { table } = mountMFTable(mountPoint, preset);
     // Preserve legacy class so existing CSS (.completed-leagues-table) continues to apply.
     table.classList.add('completed-leagues-table');
@@ -1689,7 +1689,7 @@ function matchRecordRow(rank, r, metricCell) {
             <td><img class="flag" src="${opponentFlag}" alt="flag"> ${playerNameLink(r.opponent, _playersMeta[r.opponent])}</td>
             <td>${r.scoreSelf}-${r.scoreOpp}</td>
             <td><span class="${resultClass}">${r.result}</span></td>
-            <td><a class="league-link" href="${leagueUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
+            <td><a class="league-link" href="${leagueTableUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
             <td>${formatShortDate(r.date)}</td>
         </tr>`;
 }
@@ -2026,7 +2026,7 @@ function leaguePRRecordRow(rowRank, r) {
             <td>${formatNumber(r.meanPR)}</td>
             <td>${escapeHtml(r.level)}</td>
             ${leagueRankCell(r)}
-            <td><a class="league-link" href="${leagueUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
+            <td><a class="league-link" href="${leagueTableUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
             <td>${formatShortDate(r.date)}</td>
         </tr>`;
 }
@@ -2040,7 +2040,7 @@ function leagueWinRateRecordRow(rowRank, r) {
             <td><img class="flag" src="${playerFlag}" alt="flag"> ${playerNameLink(r.player, _playersMeta[r.player])}</td>
             <td style="color:${color};font-weight:600;">${formatPercent(r.winRate)}</td>
             ${leagueRankCell(r)}
-            <td><a class="league-link" href="${leagueUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
+            <td><a class="league-link" href="${leagueTableUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
             <td>${formatShortDate(r.date)}</td>
         </tr>`;
 }
@@ -2055,7 +2055,7 @@ function leagueLuckRecordRow(rowRank, r) {
             <td><img class="flag" src="${playerFlag}" alt="flag"> ${playerNameLink(r.player, _playersMeta[r.player])}</td>
             <td style="color:${color};font-weight:600;">${r.percentile}</td>
             ${leagueRankCell(r)}
-            <td><a class="league-link" href="${leagueUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
+            <td><a class="league-link" href="${leagueTableUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
             <td>${formatShortDate(r.date)}</td>
         </tr>`;
 }

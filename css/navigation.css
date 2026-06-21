@@ -1,4 +1,43 @@
-/* navigation.css — Nav bar, breadcrumbs, search, keyboard focus */
+/* navigation.css — Nav bar, breadcrumbs, search, keyboard focus,
+   league prev/next arrows */
+
+/* ============================================
+   LEAGUE NAV ARROWS — pair of prev/next buttons rendered under the page
+   <h1> on the D and E table pages. Shared style so both surfaces match.
+   The parent .page-header is text-align:center, so inline-flex keeps the
+   pair centered.
+   ============================================ */
+.league-nav {
+    display: inline-flex;
+    gap: var(--space-xs);
+    vertical-align: middle;
+    margin-top: var(--space-md);
+}
+
+.league-nav .nav-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: var(--fs-120);
+    font-weight: 700;
+    transition: background 0.15s;
+}
+
+.league-nav .nav-arrow:hover:not(.disabled) {
+    background: var(--color-hover);
+}
+
+.league-nav .nav-arrow.disabled {
+    opacity: 0.35;
+    pointer-events: none;
+}
 
 /* ============================================
    SKIP LINK (a11y)

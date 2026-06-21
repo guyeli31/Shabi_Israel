@@ -1,5 +1,5 @@
 /**
- * allOpponentsPreset.js — C4 preset for the player_general.html H2H tab.
+ * allOpponentsPreset.js — C4 preset for the player.html H2H tab.
  *
  * Aggregates every match the player has played (across ALL league types) into
  * one row per opponent, showing averages. Left column (Opponent) is sticky and

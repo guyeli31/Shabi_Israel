@@ -7,11 +7,11 @@
  * and player-cell enrichments (link, title abbreviations, retired mark).
  */
 
-import { loadLeague } from '../data/leagueLoader.js';
+import { loadLeague, loadLeagueOrder, loadAllLeagueParams } from '../data/leagueLoader.js';
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { getQueryParam, flagUrl, playerUrl, dashboardUrl } from '../utils/helpers.js';
+import { getQueryParam, flagUrl, playerLeagueUrl, leagueUrl, leagueTableUrl } from '../utils/helpers.js';
 import { exportTableImage } from '../utils/exportTableImage.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
@@ -34,10 +34,13 @@ export async function renderLeaguePage() {
 
     startSplash();
     try {
-        const [{ params, matches, lastModified, totalPlayers, allPlayers }, playersMeta] = await Promise.all([
+        const [{ params, matches, lastModified, totalPlayers, allPlayers }, playersMeta, leagueOrder] = await Promise.all([
             loadLeague(leagueId),
-            loadPlayersMetadata()
+            loadPlayersMetadata(),
+            loadLeagueOrder().catch(() => [])
         ]);
+        const folderNames = leagueOrder.map(t => t.replace(' - ', ' '));
+        const allParams   = await loadAllLeagueParams(folderNames).catch(() => []);
         const leagueConfig = getLeagueConfig(params);
 
         const title = params.LeagueTitle || leagueId;
@@ -54,9 +57,15 @@ export async function renderLeaguePage() {
 
         renderBreadcrumbs([
             { label: 'Home', url: 'index.html' },
-            { label: title, url: dashboardUrl(leagueId) },
+            { label: title, url: leagueUrl(leagueId) },
             { label: 'League Table' }
         ]);
+
+        installLeagueTableNavArrows({
+            leagueId,
+            currentType: params.LeagueType || 'doubling',
+            allParams,
+        });
 
         const statsMap  = computeAllStats(matches, allPlayers);
         const rankings  = buildRankings(statsMap, leagueConfig, matches);
@@ -81,7 +90,7 @@ export async function renderLeaguePage() {
                 enrich: {
                     isHidden: (name) => !!(playersMeta[name] && playersMeta[name].hidden),
                     playerLink: (name) => ({
-                        open:  `<a href="${playerUrl(leagueId, name)}" title="Open ${name}'s card for this league">`,
+                        open:  `<a href="${playerLeagueUrl(leagueId, name)}" title="Open ${name}'s card for this league">`,
                         close: `</a>`,
                     }),
                     playerSuffix: (name) => {
@@ -127,4 +136,51 @@ function exportLeagueTableImage(title, mountPoint) {
         headerNode: headerCard,
         title: headerCard ? undefined : title,
     });
+}
+
+// ---- League nav arrows ----
+//
+// Mirrors the E-page arrows: prev/next within the same LeagueType, ordered by
+// landing DisplayOrder. Clicking an arrow stashes the current sort into
+// sessionStorage under `mf-sort-pending-D` so the next mount restores it.
+// Sort handover is scoped to *these arrows*: any other entry (breadcrumb,
+// search, direct URL, theme re-render) gets the preset's default sort.
+
+function installLeagueTableNavArrows({ leagueId, currentType, allParams }) {
+    const folders = allParams
+        .filter(({ params }) => (params.LeagueType || 'doubling') === currentType)
+        .map(({ id }) => id);
+
+    const idx = folders.indexOf(leagueId);
+    if (idx === -1) return;
+
+    const header = document.querySelector('.page-header');
+    if (!header || header.querySelector('.league-nav')) return;
+
+    const prev = idx > 0 ? folders[idx - 1] : null;
+    const next = idx < folders.length - 1 ? folders[idx + 1] : null;
+
+    const nav = document.createElement('div');
+    nav.className = 'league-nav';
+    nav.innerHTML = `
+        <a class="nav-arrow ${prev ? '' : 'disabled'}" ${prev ? `href="${leagueTableUrl(prev)}" title="Previous league: ${prev}"` : 'title="No previous league"'}>&lsaquo;</a>
+        <a class="nav-arrow ${next ? '' : 'disabled'}" ${next ? `href="${leagueTableUrl(next)}" title="Next league: ${next}"` : 'title="No next league"'}>&rsaquo;</a>
+    `;
+    (header.querySelector('#page-title') || header.querySelector('h1')).insertAdjacentElement('afterend', nav);
+
+    nav.querySelectorAll('a.nav-arrow:not(.disabled)').forEach(a => {
+        a.addEventListener('click', () => stashPendingSort('D'));
+    });
+}
+
+function stashPendingSort(tableId) {
+    if (typeof sessionStorage === 'undefined') return;
+    const table = document.querySelector(`table[data-mf-table-id="${tableId}"]`);
+    if (!table) return;
+    const colKey = table.dataset.sortColKey;
+    const dir    = table.dataset.sortDir;
+    if (!colKey) return;
+    try {
+        sessionStorage.setItem(`mf-sort-pending-${tableId}`, JSON.stringify({ colKey, dir }));
+    } catch { /* quota / disabled — ignore */ }
 }

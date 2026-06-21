@@ -65,7 +65,7 @@
    - אם 16px פוגע בעיצוב — `transform: scale(0.7); transform-origin: left center;` כפיצוי ויזואלי.
 
 3. **H4 — `lang`/`dir` mismatch**
-   - שינוי `<html lang="he" dir="ltr">` ל-`<html lang="en" dir="ltr">` בכל קבצי ה-HTML ([index.html](../index.html), [league.html](../league.html), [player.html](../player.html), [player_general.html](../player_general.html), [dashboard.html](../dashboard.html), [admin.html](../admin.html)).
+   - שינוי `<html lang="he" dir="ltr">` ל-`<html lang="en" dir="ltr">` בכל קבצי ה-HTML ([index.html](../index.html), [league_table.html](../league_table.html), [player_league.html](../player_league.html), [player.html](../player.html), [league.html](../league.html), [admin.html](../admin.html)).
 
 ### בדיקה ידנית
 - פתח index.html @ 375 — אין scroll אופקי.
@@ -105,7 +105,7 @@
 2. **M5** — להחליף את `bottom: 30px` הקשיח ב-CSS variable (`--stat-row-height`) שיוכל להתעדכן דינמית אם הטיפוגרפיה משתנה.
 
 ### בדיקה ידנית
-- פתח [league.html](../league.html?league=Shabi%20Israel%20April%202026) בדסקטופ + מובייל (375).
+- פתח [league_table.html](../league_table.html?league=Shabi%20Israel%20April%202026) בדסקטופ + מובייל (375).
 - גלול את הטבלה לתחתית.
 - **ציפייה:** avg-row + stat-row נשארים נעוצים מעל התחתית, גלויים.
 
@@ -332,7 +332,7 @@
 ### Verification gate (Playwright MCP, theme יחיד)
 
 Viewports: **375×812, 414×896, 768×1024, 1440×900**.
-Pages: index.html, league.html, player.html, dashboard.html, admin.html → Leagues.
+Pages: index.html, league_table.html, player_league.html, league.html, admin.html → Leagues.
 
 - [ ] `document.documentElement.scrollWidth === window.innerWidth` ב-375px בכל העמודים
 - [ ] כל שורה ב-`#leagueTable` / `#playerTable` ב-375px היא card ברוחב מלא (בדיקה: `tr.getBoundingClientRect().width === main.clientWidth - padding`)
@@ -367,15 +367,15 @@ Pages: index.html, league.html, player.html, dashboard.html, admin.html → Leag
 
 | viewport | page | docScrollWidth | תוצאה |
 |---|---|---|---|
-| 375×812 | league.html | 360 | ✅ 9 cols fit (tableScroll=352, wrap=352) |
-| 375×812 | player.html | 360 | ✅ 7 cols fit (352/352), sticky header רקע תקין |
+| 375×812 | league_table.html | 360 | ✅ 9 cols fit (tableScroll=352, wrap=352) |
+| 375×812 | player_league.html | 360 | ✅ 7 cols fit (352/352), sticky header רקע תקין |
 | 375×812 | index.html | 360 | ✅ `.completed-leagues-table` 352/352, `.leaderboard-table` 338/338 |
-| 375×812 | dashboard.html | 360 | ✅ Top-5, Round, What-If 352/352 |
-| 375×812 | player_general.html | 360 | ✅ pg-leagues scrolls פנימית (383/352), pg-matches 117 מוסתרות/142 סה"כ, chart 352 |
-| 414×896 | league.html | 414 | ✅ 9 cols fit (406/406) |
-| 576×900 | league.html (≡ zoom 2.5× @ 1440) | 576 | ✅ mobile mode engaged, 568/568 |
-| 720×900 | league.html (≡ zoom 2.0× @ 1440) | 705 | ⚠ tablet mode (mexpected), wrapper scrolls internally |
-| 768×1024 | league.html | 753 | ✅ dual-label swaps back to full labels (desktop) |
+| 375×812 | league.html | 360 | ✅ Top-5, Round, What-If 352/352 |
+| 375×812 | player.html | 360 | ✅ pg-leagues scrolls פנימית (383/352), pg-matches 117 מוסתרות/142 סה"כ, chart 352 |
+| 414×896 | league_table.html | 414 | ✅ 9 cols fit (406/406) |
+| 576×900 | league_table.html (≡ zoom 2.5× @ 1440) | 576 | ✅ mobile mode engaged, 568/568 |
+| 720×900 | league_table.html (≡ zoom 2.0× @ 1440) | 705 | ⚠ tablet mode (mexpected), wrapper scrolls internally |
+| 768×1024 | league_table.html | 753 | ✅ dual-label swaps back to full labels (desktop) |
 
 - [x] Dual-label: `.th-full display:none`, `.th-abbr display:inline` @ ≤640px; מתהפך @ ≥641px.
 - [x] Expand button: click → 117 hidden rows reveal, text updates to "Show only 25".

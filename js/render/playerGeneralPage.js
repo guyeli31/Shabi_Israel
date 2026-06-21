@@ -1,7 +1,7 @@
 /**
  * playerGeneralPage.js — Phase G: cross-league general player profile.
  *
- * URL: player_general.html?player=<name>
+ * URL: player.html?player=<name>
  *
  * Sections:
  *   G2 — Header: name, green-dot (active in Running league), flags
@@ -25,7 +25,7 @@ import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { colorForLevel } from '../compute/colorScale.js';
 import {
     getQueryParam, flagUrl, getFlagCode,
-    formatNumber, dashboardUrl, playerGeneralUrl, getLeagueYear, leagueUrl, thLabel,
+    formatNumber, leagueUrl, playerUrl, getLeagueYear, leagueTableUrl, thLabel,
     parseLeagueDate
 } from '../utils/helpers.js';
 import {
@@ -510,7 +510,7 @@ function renderLeaguesTable(section, perLeague) {
         perLeague,
         parseLeagueDate,
         enrich: {
-            leagueLink: (id, title) => `<a href="${dashboardUrl(id)}">${escapeHtml(title)}</a>`,
+            leagueLink: (id, title) => `<a href="${leagueUrl(id)}">${escapeHtml(title)}</a>`,
         },
     });
     mountMFTable(mountPoint, preset);
@@ -618,7 +618,7 @@ function renderMatchHistory(section, playerName, perLeague) {
         const preset = buildPlayerAllMatchesPreset({
             rows,
             enrich: {
-                leagueLink: (id, title) => `<a href="${dashboardUrl(id)}">${escapeHtml(title)}</a>`,
+                leagueLink: (id, title) => `<a href="${leagueUrl(id)}">${escapeHtml(title)}</a>`,
                 opponentCell: (name) => {
                     const flagHtml = _allMeta[name]?.hidden
                         ? ''
@@ -814,7 +814,7 @@ function renderMatchup(panel, playerName, allRows) {
             playerName,
             opponent,
             enrich: {
-                leagueLink: (id, title) => `<a href="${dashboardUrl(id)}">${escapeHtml(title)}</a>`,
+                leagueLink: (id, title) => `<a href="${leagueUrl(id)}">${escapeHtml(title)}</a>`,
             },
         });
         mountMFTable(mountPoint, preset);
@@ -972,7 +972,7 @@ function playerMatchRecordRow(rank, r) {
             <td>${opponentFlag ? `<img class="flag" src="${opponentFlag}" alt="flag">` : ''} ${playerNameLink(r.opponent, _allMeta[r.opponent])}</td>
             <td>${r.scoreSelf}-${r.scoreOpp}</td>
             <td><span class="${resultClass}">${r.result}</span></td>
-            <td><a class="league-link" href="${dashboardUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
+            <td><a class="league-link" href="${leagueUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
             <td>${formatShortDate(r.date)}</td>
         </tr>`;
 }

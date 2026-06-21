@@ -4,7 +4,7 @@
  */
 
 import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches } from '../data/leagueLoader.js';
-import { dashboardUrl, playerUrl, playerGeneralUrl, parseLeagueDate } from '../utils/helpers.js';
+import { leagueUrl, playerLeagueUrl, playerUrl, parseLeagueDate } from '../utils/helpers.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getInitials } from './playerHeader.js';
 import { isLoggedIn, getUsername } from '../admin/auth.js';
@@ -156,13 +156,13 @@ function populateLeagueDropdown(nav) {
     if (running.length > 0) {
         html += '<li class="dropdown-section">Running</li>';
         for (const l of running) {
-            html += `<li><a href="${dashboardUrl(l.id)}"><span class="status-dot running"></span>${escapeHtml(l.title)}</a></li>`;
+            html += `<li><a href="${leagueUrl(l.id)}"><span class="status-dot running"></span>${escapeHtml(l.title)}</a></li>`;
         }
     }
     if (completed.length > 0) {
         html += '<li class="dropdown-section">Completed</li>';
         for (const l of completed) {
-            html += `<li><a href="${dashboardUrl(l.id)}"><span class="status-dot completed"></span>${escapeHtml(l.title)}</a></li>`;
+            html += `<li><a href="${leagueUrl(l.id)}"><span class="status-dot completed"></span>${escapeHtml(l.title)}</a></li>`;
         }
     }
     dropdown.innerHTML = html;
@@ -347,7 +347,7 @@ function setupPlayerSearch(nav) {
             html += leagueMatches.map(l => {
                 const status = l.running ? 'running' : 'completed';
                 const statusLabel = l.running ? 'Running' : 'Completed';
-                const href = preview ? `${dashboardUrl(l.id)}&preview=true` : dashboardUrl(l.id);
+                const href = preview ? `${leagueUrl(l.id)}&preview=true` : leagueUrl(l.id);
                 const type = LEAGUE_TYPE_BADGE[l.leagueType] || LEAGUE_TYPE_BADGE.doubling;
                 const typeBadge = `<span class="search-type-badge type-${escapeHtml(l.leagueType)}" title="${escapeHtml(type.label)} league">${escapeHtml(type.label)}</span>`;
                 return `<li role="option"><a href="${href}"${targetAttr}>
@@ -378,7 +378,7 @@ function setupPlayerSearch(nav) {
                 const nameHtml = m.fullName
                     ? `<span class="search-player-name">${escapeHtml(m.name)}</span><span class="search-player-realname">${escapeHtml(m.fullName)}</span>`
                     : `<span class="search-player-name">${escapeHtml(m.name)}</span>`;
-                const href = preview ? `${playerGeneralUrl(m.name)}&preview=true` : playerGeneralUrl(m.name);
+                const href = preview ? `${playerUrl(m.name)}&preview=true` : playerUrl(m.name);
 
                 // Status dot — same logic as the player-card header
                 // (green = running league, orange = played this year, gray = inactive).

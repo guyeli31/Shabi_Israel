@@ -97,7 +97,7 @@ claude "Resume plan at docs/fix-plan-phase8-polish.md — execute PART A only (i
 # PART B — League Dashboard polish (items 7, 9 verify, 10)
 
 > **Self-contained context for a fresh window:**
-> League dashboard page = `dashboard.html?league=<id>` → [js/render/dashboardPage.js](../js/render/dashboardPage.js). CSS in [css/dashboard.css](../css/dashboard.css). Historical View (F2) sits above Predictor/What-If and is the reference for mobile font size (`0.65rem` in [css/components.css:502](../css/components.css)). Full UBC league table uses `#leagueTable` with GAMES column in [css/components.css](../css/components.css) ~line 183.
+> League dashboard page = `league.html?league=<id>` → [js/render/dashboardPage.js](../js/render/dashboardPage.js). CSS in [css/dashboard.css](../css/dashboard.css). Historical View (F2) sits above Predictor/What-If and is the reference for mobile font size (`0.65rem` in [css/components.css:502](../css/components.css)). Full UBC league table uses `#leagueTable` with GAMES column in [css/components.css](../css/components.css) ~line 183.
 
 ### B1 — Predictor & What-If mobile font match Historical (item 7)
 - In [css/dashboard.css](../css/dashboard.css) ~lines 849–911, inside the `@media (max-width:640px)` block, set both thead and tbody of `.predictor-scroll-wrap` and `.whatif-scroll-wrap` to `font-size: 0.65rem`. Keep existing padding/column-widths intact.
@@ -114,9 +114,9 @@ claude "Resume plan at docs/fix-plan-phase8-polish.md — execute PART A only (i
 - Apply on desktop too (keep 36px on desktop if that matches Doubling — confirm visually).
 
 ### B4 — Verify (Playwright MCP)
-1. Navigate to a UBC-type league at `http://localhost:8080/dashboard.html?league=<UBC id>`.
+1. Navigate to a UBC-type league at `http://localhost:8080/league.html?league=<UBC id>`.
 2. Mobile 375×812 → screenshot Historical + Predictor + What-If; confirm identical font. Scroll Rounds horizontally, confirm 3 left sticky cols hold.
-3. Navigate to `league.html?league=<UBC id>` → screenshot table; confirm GAMES column narrow like Doubling's G column.
+3. Navigate to `league_table.html?league=<UBC id>` → screenshot table; confirm GAMES column narrow like Doubling's G column.
 4. Desktop 1440×900 → same checks.
 
 ### Command to run Part B in a fresh window
@@ -151,7 +151,7 @@ claude "Resume plan at docs/fix-plan-phase8-polish.md — execute PART B only (i
 
 ### C4 — Verify (Playwright MCP)
 1. Landing → Completed Leagues pills: screenshot at mobile + desktop.
-2. Player-general page (`player_general.html?player=<name>`) → Leagues table pills: screenshot same viewports.
+2. Player-general page (`player.html?player=<name>`) → Leagues table pills: screenshot same viewports.
 3. Admin (`admin.html` → Leagues panel) → pills: screenshot.
 4. Compare all 3 side-by-side: same border-radius, padding, color per type, text. No emojis.
 
@@ -226,7 +226,7 @@ claude "Resume plan at docs/fix-plan-phase8-polish.md — execute PART E only (i
 # PART F — Player Card General page overhaul (items 3, 13a–13e)
 
 > **Self-contained context for a fresh window:**
-> Player card = `player_general.html?player=<name>` → [js/render/playerGeneralPage.js](../js/render/playerGeneralPage.js). CSS [css/player-general.css](../css/player-general.css). Three tables:
+> Player card = `player.html?player=<name>` → [js/render/playerGeneralPage.js](../js/render/playerGeneralPage.js). CSS [css/player-general.css](../css/player-general.css). Three tables:
 > - **Leagues** `.pg-leagues-table` (render ~line 433)
 > - **Match History** `.pg-matches-table` (render ~line 583, helper `renderTable()`)
 > - **Match Records** `.pg-mr-table` / `.match-records-table` (render via `renderPlayerMatchRecords` ~line 694)
@@ -263,7 +263,7 @@ claude "Resume plan at docs/fix-plan-phase8-polish.md — execute PART E only (i
 - Verify Title-badge rendering in [js/data/titleConstants.js](../js/data/titleConstants.js) — badge is inline span; ensure cell has `white-space: nowrap` and sufficient width.
 
 ### F7 — Verify (Playwright MCP)
-1. Navigate to `http://localhost:8080/player_general.html?player=YOSSI%20ELIEZER`.
+1. Navigate to `http://localhost:8080/player.html?player=YOSSI%20ELIEZER`.
 2. Mobile 375×812 → screenshot each of the 3 tables; scroll horizontally; confirm DATE + LEAGUE both sticky, font-size uniform, backgrounds opaque (no stripe bleed), rounded corners match dashboard tables.
 3. Confirm default row counts: Match Records shows 5 rows + "Show all" button, Match History shows 10 rows + "Show all" button. Click each → full list expands, button label flips.
 4. Desktop 1440×900 → repeat; confirm YOSSI ELIEZER's title badge no longer overflows Player column.
@@ -279,20 +279,20 @@ claude "Resume plan at docs/fix-plan-phase8-polish.md — execute PART F only (i
 # PART G — Click behavior swap (item 15)
 
 > **Self-contained context for a fresh window:**
-> Player-name click handling in [js/render/playerNameInteraction.js](../js/render/playerNameInteraction.js) (lines 1–82). `playerNameLink()` ~line 23 builds the anchor href. `attachPlayerNameInteractions()` ~line 35 wires right-click context menu. Called from [js/render/leaguePage.js:12](../js/render/leaguePage.js). Helpers: `playerUrl(leagueId, name)` and `playerGeneralUrl(name)` in [js/utils/helpers.js](../js/utils/helpers.js).
+> Player-name click handling in [js/render/playerNameInteraction.js](../js/render/playerNameInteraction.js) (lines 1–82). `playerNameLink()` ~line 23 builds the anchor href. `attachPlayerNameInteractions()` ~line 35 wires right-click context menu. Called from [js/render/leaguePage.js:12](../js/render/leaguePage.js). Helpers: `playerLeagueUrl(leagueId, name)` and `playerUrl(name)` in [js/utils/helpers.js](../js/utils/helpers.js).
 
 ### G1 — Swap mobile tap and desktop left-click
 - Today: left-click (desktop) + single-tap (mobile) both → **general** card. Right-click → context menu with **league-specific** card option.
 - Target:
-  - **Mobile single-tap** → league-specific card (`playerUrl(leagueId, name)`).
+  - **Mobile single-tap** → league-specific card (`playerLeagueUrl(leagueId, name)`).
   - **Desktop left-click** → league-specific card.
   - **Right-click / long-press** → context menu with general card option.
-- Implementation: change the default `href` in `playerNameLink()` to `playerUrl(leagueId, name)` (requires passing `leagueId` — already passed through `attachPlayerNameInteractions`). Update the right-click context menu option label to "Open general card" with URL `playerGeneralUrl(name)`.
+- Implementation: change the default `href` in `playerNameLink()` to `playerLeagueUrl(leagueId, name)` (requires passing `leagueId` — already passed through `attachPlayerNameInteractions`). Update the right-click context menu option label to "Open general card" with URL `playerUrl(name)`.
 
 ### G2 — Verify (Playwright MCP)
-1. Navigate to `http://localhost:8080/league.html?league=<any id>`.
-2. Desktop 1440×900 → left-click player name → navigates to `player.html?league=<id>&player=<name>`.
-3. Right-click same name → context menu shows "Open general card"; click → navigates to `player_general.html?player=<name>`.
+1. Navigate to `http://localhost:8080/league_table.html?league=<any id>`.
+2. Desktop 1440×900 → left-click player name → navigates to `player_league.html?league=<id>&player=<name>`.
+3. Right-click same name → context menu shows "Open general card"; click → navigates to `player.html?player=<name>`.
 4. Mobile 375×812 → tap player name → navigates to league-specific player page.
 5. Long-press / right-click on mobile → context menu shows general-card option.
 6. Check Championship Predictor, What-If, Rounds tables — same behavior (all use the same interaction helper).

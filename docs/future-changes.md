@@ -139,8 +139,8 @@
 המנהל יכול לסמן שחקן כ"פורש" מליגה פעילה.
 
 **התנהגות:**
-- **טבלת הליגה (league.html):** השחקן ממשיך להופיע עם כל הנתונים שלו (דירוג, WinRate, PR וכו') כאילו לא פרש, אבל עם סימון ויזואלי ייחודי (למשל: אייקון 🚪, שורה מעומעמת, או תגית "Retired")
-- **כרטיס השחקן (player.html):** סימון פרישה מוצג בכותרת הכרטיס. טבלת המשחקים נשארת ללא שינוי
+- **טבלת הליגה (league_table.html):** השחקן ממשיך להופיע עם כל הנתונים שלו (דירוג, WinRate, PR וכו') כאילו לא פרש, אבל עם סימון ויזואלי ייחודי (למשל: אייקון 🚪, שורה מעומעמת, או תגית "Retired")
+- **כרטיס השחקן (player_league.html):** סימון פרישה מוצג בכותרת הכרטיס. טבלת המשחקים נשארת ללא שינוי
 - **דירוג:** השחקן נשאר בדירוג הרגיל — הפרישה היא סימון תצוגתי בלבד, לא משפיעה על חישובים
 
 **מימוש:**
@@ -176,7 +176,7 @@
 
 **זמינות:**
 - למנהל: בממשק ה-admin, כפתור "דו"ח משחקים" ליד כל ליגה
-- באתר הציבורי: אפשרות להציג גם בדף הליגה (league.html) לכלל הגולשים
+- באתר הציבורי: אפשרות להציג גם בדף הליגה (league_table.html) לכלל הגולשים
 
 ---
 
@@ -344,7 +344,7 @@ css/admin.css                       — סגנונות ייחודיים לדף a
 
 ### Phase F — League Dashboard ✅ IMPLEMENTED
 
-> **Status:** Shipped. Dashboard is now the default landing target when clicking a league on the index page. See [dashboardPage.js](../js/render/dashboardPage.js), [dashboard.html](../dashboard.html), [matchHistory.js](../js/compute/matchHistory.js), [playerBarChart.js](../js/render/playerBarChart.js), [playerNameInteraction.js](../js/render/playerNameInteraction.js).
+> **Status:** Shipped. Dashboard is now the default landing target when clicking a league on the index page. See [dashboardPage.js](../js/render/dashboardPage.js), [league.html](../league.html), [matchHistory.js](../js/compute/matchHistory.js), [playerBarChart.js](../js/render/playerBarChart.js), [playerNameInteraction.js](../js/render/playerNameInteraction.js).
 >
 > **Design decisions:**
 > - **F2 historical view** uses per-match `updatedAt` stamps stored in `match_history.json` (no CSV snapshots). The history is reconciled on every admin publish: CSV uploads stamp only matches that are new or unchanged; manual edits always restamp with the publish time.

@@ -3,10 +3,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
     getQueryParam,
+    leagueTableUrl,
     leagueUrl,
-    dashboardUrl,
+    playerLeagueUrl,
     playerUrl,
-    playerGeneralUrl,
 } from "../../src/utils/urlParams.js";
 import {
     formatPercent,
@@ -29,14 +29,14 @@ describe("urlParams", () => {
     });
 
     it("URL builders URI-encode their parameters", () => {
+        expect(leagueTableUrl("Shabi Israel April 2026"))
+            .toBe("league_table.html?league=Shabi%20Israel%20April%202026");
         expect(leagueUrl("Shabi Israel April 2026"))
             .toBe("league.html?league=Shabi%20Israel%20April%202026");
-        expect(dashboardUrl("Shabi Israel April 2026"))
-            .toBe("dashboard.html?league=Shabi%20Israel%20April%202026");
-        expect(playerUrl("A B", "C D"))
-            .toBe("player.html?league=A%20B&player=C%20D");
-        expect(playerGeneralUrl("Alice"))
-            .toBe("player_general.html?player=Alice");
+        expect(playerLeagueUrl("A B", "C D"))
+            .toBe("player_league.html?league=A%20B&player=C%20D");
+        expect(playerUrl("Alice"))
+            .toBe("player.html?player=Alice");
     });
 });
 

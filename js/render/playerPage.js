@@ -7,7 +7,7 @@
 import { loadLeague, loadLeagueOrder, loadAllLeagueParams } from '../data/leagueLoader.js';
 import { getPlayerMatches } from '../data/csvParser.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { getQueryParam, flagUrl, getFlagCode, playerUrl, dashboardUrl, leagueUrl, playerGeneralUrl, getLeagueYear, parseLeagueDate } from '../utils/helpers.js';
+import { getQueryParam, flagUrl, getFlagCode, playerLeagueUrl, leagueUrl, leagueTableUrl, playerUrl, getLeagueYear, parseLeagueDate } from '../utils/helpers.js';
 import { renderBreadcrumbs, ensurePlayerIndex } from './navigation.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleBadgesHtml, getHighestTier, getTitleAbbreviationsHtml } from '../data/titleConstants.js';
@@ -83,7 +83,7 @@ export async function renderPlayerPage() {
         const pageTitle = document.getElementById('page-title');
         renderV7Header(pageTitle, {
             name: playerName,
-            nameHref: playerGeneralUrl(playerName),
+            nameHref: playerUrl(playerName),
             fullName: meta.fullName,
             photoPath: meta.photoPath,
             flagCode,
@@ -108,7 +108,7 @@ export async function renderPlayerPage() {
 
         renderBreadcrumbs([
             { label: 'Home', url: 'index.html' },
-            { label: title, url: dashboardUrl(leagueId) },
+            { label: title, url: leagueUrl(leagueId) },
             { label: playerName }
         ]);
 
@@ -122,7 +122,7 @@ export async function renderPlayerPage() {
 
         container.innerHTML = `
             <div class="dash-controls">
-                <a class="open-full-btn" href="${leagueUrl(leagueId)}" title="Back to the full league table">&lsaquo; Back to full table</a>
+                <a class="open-full-btn" href="${leagueTableUrl(leagueId)}" title="Back to the full league table">&lsaquo; Back to full table</a>
             </div>
             <div class="table-wrapper">
                 <div id="player-table-mount"></div>
@@ -135,7 +135,7 @@ export async function renderPlayerPage() {
                 enrich: {
                     isHidden: (name) => !!(allMeta[name] && allMeta[name].hidden),
                     opponentLink: (name) => ({
-                        open:  `<a href="${playerUrl(leagueId, name)}" class="player-name-link" data-player="${escapeHtml(name)}">`,
+                        open:  `<a href="${playerLeagueUrl(leagueId, name)}" class="player-name-link" data-player="${escapeHtml(name)}">`,
                         close: `</a>`,
                     }),
                     opponentSuffix: (name) => getTitleAbbreviationsHtml(allMeta[name]),
@@ -177,10 +177,30 @@ function installPlayerLeagueNavArrows({ leagueId, playerName, currentType, playe
     const nav = document.createElement('div');
     nav.className = 'league-nav';
     nav.innerHTML = `
-        <a class="nav-arrow ${prev ? '' : 'disabled'}" ${prev ? `href="${playerUrl(prev, playerName)}" title="Previous league: ${prev}"` : 'title="No previous league"'}>&lsaquo;</a>
-        <a class="nav-arrow ${next ? '' : 'disabled'}" ${next ? `href="${playerUrl(next, playerName)}" title="Next league: ${next}"` : 'title="No next league"'}>&rsaquo;</a>
+        <a class="nav-arrow ${prev ? '' : 'disabled'}" ${prev ? `href="${playerLeagueUrl(prev, playerName)}" title="Previous league: ${prev}"` : 'title="No previous league"'}>&lsaquo;</a>
+        <a class="nav-arrow ${next ? '' : 'disabled'}" ${next ? `href="${playerLeagueUrl(next, playerName)}" title="Next league: ${next}"` : 'title="No next league"'}>&rsaquo;</a>
     `;
     (header.querySelector('#page-title') || header.querySelector('h1')).insertAdjacentElement('afterend', nav);
+
+    // Sort handover — only nav-arrow clicks carry E's current sort to the
+    // next league. Any other entry (breadcrumb, search, direct URL,
+    // theme re-render) gets the preset default. See mountMFTable's
+    // one-shot pending-sort contract.
+    nav.querySelectorAll('a.nav-arrow:not(.disabled)').forEach(a => {
+        a.addEventListener('click', () => stashPendingSort('E'));
+    });
+}
+
+function stashPendingSort(tableId) {
+    if (typeof sessionStorage === 'undefined') return;
+    const table = document.querySelector(`table[data-mf-table-id="${tableId}"]`);
+    if (!table) return;
+    const colKey = table.dataset.sortColKey;
+    const dir    = table.dataset.sortDir;
+    if (!colKey) return;
+    try {
+        sessionStorage.setItem(`mf-sort-pending-${tableId}`, JSON.stringify({ colKey, dir }));
+    } catch { /* quota / disabled — ignore */ }
 }
 
 function computePlayerStatusDot({ playerName, playerIndex, allParams, currentLeagueId, currentParams, currentLeaguePlayers, currentYear }) {
@@ -225,7 +245,7 @@ async function renderAlsoPlaysIn(container, playerName, currentLeagueId) {
             <h3>Also plays in</h3>
             <div class="also-plays-links">
                 ${otherLeagues.map(l =>
-                    `<a href="${playerUrl(l.leagueId, playerName)}">${escapeHtml(l.title)}</a>`
+                    `<a href="${playerLeagueUrl(l.leagueId, playerName)}">${escapeHtml(l.title)}</a>`
                 ).join('')}
             </div>
         `;

@@ -152,7 +152,7 @@ Admin should be able to open the landing dashboard in **Edit Mode** and:
 
 ### OLD-3 — Global player search from main dashboard
 Searching for a player from the main dashboard should land on the player's **global** card (cross-league), not a league-specific one.
-- Files: [js/render/landingPage.js](../../js/render/landingPage.js) `renderPlayerSearch` (or its replacement after NEW-10), [js/render/navigation.js](../../js/render/navigation.js), [player_general.html](../../player_general.html).
+- Files: [js/render/landingPage.js](../../js/render/landingPage.js) `renderPlayerSearch` (or its replacement after NEW-10), [js/render/navigation.js](../../js/render/navigation.js), [player.html](../../player.html).
 - Note: NEW-10 removes the dashboard search box, so this becomes about ensuring the **header search** routes to the global card.
 
 ### OLD-4 — Trophy logos per league type (Gold/Silver/Bronze)
@@ -248,7 +248,7 @@ Three follow-ups requested after Chunk 7.5:
 - **A. Lock landing-page navigation while editing.** During `index.html?edit=1`, all anchors inside `.page-container` are visually dimmed and click-suppressed (CSS rule + delegated capture-phase click guard installed in `enterEditMode` / removed in `exitEditMode`). The embedded admin sidebar lives outside `.page-container` so its links remain functional.
 - **B. Players admin view + redesigned general profile.**
   - New optional file `leagues/players_metadata.json` keyed by player name with `{ fullName, bmabTitle, photoPath }`. Loader: [js/data/playersMetadata.js](../../js/data/playersMetadata.js).
-  - New admin view [js/admin/playerManager.js](../../js/admin/playerManager.js): search input over the union of all players, edit form for the three fields (photo via FileReader → base64), live preview as an iframe to `player_general.html?player=...&preview=true` so the existing preview interceptor surfaces staged changes.
+  - New admin view [js/admin/playerManager.js](../../js/admin/playerManager.js): search input over the union of all players, edit form for the three fields (photo via FileReader → base64), live preview as an iframe to `player.html?player=...&preview=true` so the existing preview interceptor surfaces staged changes.
   - Sidebar gets a **Players** entry (both `renderAdminShell` and `mountAdminSidebar`); `adminPage.initAdminPage` whitelist + `admin.html` lazy-loader updated.
   - [js/render/playerGeneralPage.js](../../js/render/playerGeneralPage.js) header redesigned: optional avatar, BMAB badge with gold styling + `pg-titled` accent, full name with `aka` alias, and a **3-state activity dot** (green = in a Running league, orange = played in current calendar year but not in a Running league, gray = inactive this year) with `title=` tooltip.
 - **C. Expandable Achievements / PR Statistics rows.** Each `(Nth / M)` cell on the general player page is now a `.pg-rank-toggle` button that lazily loads and slides open a full ordered table beneath the parent card/tile, with the current player's row highlighted. New helpers `listYearRanking` and `listMedalRanking` in [js/compute/crossLeague.js](../../js/compute/crossLeague.js) provide the full ordered lists; `rankWithinYear` was refactored to call `listYearRanking` so there's a single source of truth.

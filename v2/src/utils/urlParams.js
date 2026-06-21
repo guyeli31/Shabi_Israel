@@ -9,18 +9,21 @@ export function getQueryParam(name) {
     return new URLSearchParams(window.location.search).get(name);
 }
 
+// Page URL helpers. Names match the page filenames after the 2026-06-20
+// rename: dashboardUrl→leagueUrl, leagueUrl→leagueTableUrl,
+// playerUrl→playerLeagueUrl, playerGeneralUrl→playerUrl.
 export function leagueUrl(leagueId) {
     return `league.html?league=${encodeURIComponent(leagueId)}`;
 }
 
-export function dashboardUrl(leagueId) {
-    return `dashboard.html?league=${encodeURIComponent(leagueId)}`;
+export function leagueTableUrl(leagueId) {
+    return `league_table.html?league=${encodeURIComponent(leagueId)}`;
 }
 
-export function playerUrl(leagueId, playerName) {
-    return `player.html?league=${encodeURIComponent(leagueId)}&player=${encodeURIComponent(playerName)}`;
+export function playerLeagueUrl(leagueId, playerName) {
+    return `player_league.html?league=${encodeURIComponent(leagueId)}&player=${encodeURIComponent(playerName)}`;
 }
 
-export function playerGeneralUrl(playerName) {
-    return `player_general.html?player=${encodeURIComponent(playerName)}`;
+export function playerUrl(playerName) {
+    return `player.html?player=${encodeURIComponent(playerName)}`;
 }

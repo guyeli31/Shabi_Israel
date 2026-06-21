@@ -5,9 +5,9 @@
 ```
 /
 ├── index.html                   Landing page (league list)
-├── dashboard.html               League Dashboard (Phase F — default entry from index)
-├── league.html                  League summary (ranked player table — full view)
-├── player.html                  Player detail (match history)
+├── league.html               League Dashboard (Phase F — default entry from index)
+├── league_table.html                  League summary (ranked player table — full view)
+├── player_league.html                  Player detail (match history)
 ├── start.bat                    Windows launcher (server + browser)
 │
 ├── css/
@@ -31,8 +31,8 @@
 │   │   ├── dashboardPage.js     Render League Dashboard (F1–F4)
 │   │   ├── playerBarChart.js    Interactive Canvas bar chart with tooltips
 │   │   ├── playerNameInteraction.js  Player name left/right click + context menu
-│   │   ├── leaguePage.js        Render league table on league.html
-│   │   └── playerPage.js        Render match history on player.html
+│   │   ├── leaguePage.js        Render league table on league_table.html
+│   │   └── playerPage.js        Render match history on player_league.html
 │   └── utils/
 │       └── helpers.js           URL params, formatting, flag paths
 │
@@ -56,9 +56,9 @@ The app uses 3 static HTML files with **URL query parameters** for routing — n
 | Page | URL Pattern | Purpose |
 |------|------------|---------|
 | `index.html` | `/` | Lists all leagues with status and leader. Clicking a league opens its **Dashboard**. |
-| `dashboard.html` | `?league=Shabi Israel April 2026` | League Dashboard — summary cards, historical view, rounds, player insights (Phase F) |
-| `league.html` | `?league=Shabi Israel April 2026` | Full ranked player table for one league (reached via "Open full table" from dashboard) |
-| `player.html` | `?league=...&player=Idan1986` | Head-to-head match history for one player |
+| `league.html` | `?league=Shabi Israel April 2026` | League Dashboard — summary cards, historical view, rounds, player insights (Phase F) |
+| `league_table.html` | `?league=Shabi Israel April 2026` | Full ranked player table for one league (reached via "Open full table" from dashboard) |
+| `player_league.html` | `?league=...&player=Idan1986` | Head-to-head match history for one player |
 
 Each HTML file loads a single JS module (`type="module"`) that reads the query params, fetches data, computes stats, and renders the DOM.
 
@@ -93,7 +93,7 @@ The JS code is organized in 4 layers with strict dependency direction: **Data �
 
 | Module | Key Exports | Purpose |
 |--------|------------|---------|
-| `helpers.js` | `getQueryParam()`, `formatPercent()`, `formatNumber()`, `flagUrl()`, `leagueUrl()`, `playerUrl()`, `getFlagCode()`, `appendExportCredit()` | Shared utilities for URL parameter parsing, number formatting, flag/league/player URL construction, and custom flag resolution (default: IL). `appendExportCredit(wrap)` injects the disguised "Built by Guy Eliyahu · April 2026" footer into any element that's about to be rasterized via `html2canvas` — colour resolves with `color-mix` against the wrap's own background so it blends into every theme. |
+| `helpers.js` | `getQueryParam()`, `formatPercent()`, `formatNumber()`, `flagUrl()`, `leagueTableUrl()`, `playerLeagueUrl()`, `getFlagCode()`, `appendExportCredit()` | Shared utilities for URL parameter parsing, number formatting, flag/league/player URL construction, and custom flag resolution (default: IL). `appendExportCredit(wrap)` injects the disguised "Built by Guy Eliyahu · April 2026" footer into any element that's about to be rasterized via `html2canvas` — colour resolves with `color-mix` against the wrap's own background so it blends into every theme. |
 
 ## Image Export — Hidden Credit
 

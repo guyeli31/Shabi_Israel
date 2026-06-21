@@ -25,7 +25,7 @@ Displays a list of all leagues with their current status and leader.
 
 ---
 
-## League Page (`league.html` → `leaguePage.js`)
+## League Page (`league_table.html` → `leaguePage.js`)
 
 Displays the ranked player table for a single league. This is the most complex renderer.
 
@@ -83,7 +83,7 @@ In each numeric column, the **best** value is displayed in bold:
 
 ---
 
-## Player Page (`player.html` → `playerPage.js`)
+## Player Page (`player_league.html` → `playerPage.js`)
 
 Displays head-to-head match results for a single player against all opponents.
 

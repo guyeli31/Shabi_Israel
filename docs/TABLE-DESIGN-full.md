@@ -22,7 +22,7 @@
 
 קובץ רינדור: [js/render/landingPage.js](../js/render/landingPage.js)
 
-### B — Dashboard / League overview (dashboard.html)
+### B — Dashboard / League overview (league.html)
 
 | קוד | שם הטבלה | סלקטור |
 |---|---|---|
@@ -52,7 +52,7 @@
 
 ### D — טבלת ליגה כללית
 
-- סלקטור: `#leagueTable.font-small` בתוך `.table-scroll` ב-`.table-wrapper` בדף [league.html](../league.html)
+- סלקטור: `#leagueTable.font-small` בתוך `.table-scroll` ב-`.table-wrapper` בדף [league_table.html](../league_table.html)
 - קובץ רינדור: [js/render/leaguePage.js](../js/render/leaguePage.js)
 - **כותרות עמודה סטטיות מקוצרות:**
   - Doubling: `#`, `Player`, `MP`, `W`, `L`, `Win%`, `PR`, `Level`, `Luck`
@@ -81,7 +81,7 @@
 
 ### E — טבלת שחקן בליגה
 
-- סלקטור: `#playerTable.font-small` בתוך `.table-scroll` ב-`.table-wrapper` בדף [player.html](../player.html)
+- סלקטור: `#playerTable.font-small` בתוך `.table-scroll` ב-`.table-wrapper` בדף [player_league.html](../player_league.html)
 - קובץ רינדור: [js/render/playerPage.js](../js/render/playerPage.js)
 - **כותרות עמודה סטטיות:** `Opponent`, `Date`, `Score`, `PR`, `Opp PR`, `Luck`, `Result` (או `Points` כש-LeagueType=UBC)
 - **STICKY:** עמודה אחת בלבד — `Opponent` (השמאלית). לפי כלל ברזל 12 אין צורך במדידת JS עבור עמודה יחידה: `position: sticky; left: 0;` עובד עם `max-content` ישירות.

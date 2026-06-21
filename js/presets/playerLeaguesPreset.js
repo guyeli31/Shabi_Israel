@@ -1,5 +1,5 @@
 /**
- * playerLeaguesPreset.js — C1 preset for the player_general.html Leagues
+ * playerLeaguesPreset.js — C1 preset for the player.html Leagues
  * history table. Mirrors lab's buildC1 shape; page-specific enrichments
  * (league link, primary-col tooltip, medal-tinted rank cell) injected
  * via callbacks.
