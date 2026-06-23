@@ -79,15 +79,15 @@ function avg(arr, key) {
 }
 
 // ─── A1: Completed Leagues ────────────────────────
-// Matches real: League | Date | Type | Winner
+// Matches real: League | Type | Winner | Date
 
 function buildA1(completedResults, globalFlags) {
     const cols = [
         { key: 'league', label: 'League', type: 'string', sortable: false, colorFn: null },
-        { key: 'date',   label: 'Date',   type: 'string', sortable: false, colorFn: null },
         { key: 'type',   label: 'Type',   type: 'string', sortable: false, colorFn: null },
         { key: 'winner', label: 'Winner', type: 'string', sortable: false, colorFn: null,
           tdClass: 'player-cell', format: v => playerCell(v, globalFlags) },
+        { key: 'date',   label: 'Date',   type: 'string', sortable: false, colorFn: null },
     ];
 
     const data = completedResults.map(({ league, rankings }) => {
@@ -106,7 +106,7 @@ function buildA1(completedResults, globalFlags) {
 }
 
 // ─── A2: Annual Leaderboard ───────────────────────
-// Matches real: # | Player | [month cols...] | Tot | Win% | PR
+// Matches real: # | Player | Tot | Win% | PR | [month cols...]
 
 function buildA2(allResults, globalFlags) {
     // Group by (year, leagueType) — same logic as real buildAnnualLeaderboard
@@ -184,10 +184,6 @@ function buildA2(allResults, globalFlags) {
           format: v => rankBadge(v, 1, 1, 1) },
         { key: 'player', label: 'Player', type: 'string', sortable: true,  colorFn: null,
           tdClass: 'player-cell', format: (v, row) => playerCell(v, globalFlags) },
-        ...monthEntries.map(({ abbr }) => ({
-            key: abbr.toLowerCase(), label: abbr, type: 'number', sortable: true,
-            colorFn: null,
-        })),
         { key: 'total',   label: '<b>Tot</b>', type: 'number', sortable: true,
           colorFn: null,
           tdClass: 'total-col' },
@@ -197,6 +193,10 @@ function buildA2(allResults, globalFlags) {
         { key: 'meanPR',  label: 'PR',    type: 'number', sortable: true,
           colorFn: null,
           format: v => v.toFixed(2) },
+        ...monthEntries.map(({ abbr }) => ({
+            key: abbr.toLowerCase(), label: abbr, type: 'number', sortable: true,
+            colorFn: null,
+        })),
     ];
 
     return { data: rows, cols, medalCounts: { gold: 1, silver: 1, bronze: 1 } };
@@ -317,7 +317,24 @@ function buildE(allResults) {
         { key: 'opponent', label: 'Opponent', type: 'string', sortable: true, colorFn: null,
           tdClass: 'player-cell',
           format: (v, row) => playerCell(v, cf, row.unplayed ? { italic: true } : {}) },
-        { key: 'date',   label: 'Date',   type: 'string', sortable: true, colorFn: null },
+        // UBC: replace Result with Points (matchWin + prWin); other modes: show WIN/LOSS/DRAW
+        ...(config.playerResultMode === 'points' ? [
+            { key: 'matchPoints', label: 'Points', type: 'number', sortable: true, colorFn: null,
+              sortKey: row => typeof row.matchPoints === 'number' ? row.matchPoints : null,
+              format: v => {
+                  if (typeof v !== 'number') return '';
+                  if (v === 2) return `<b style="color:var(--color-win)">${v}</b>`;
+                  if (v === 0) return `<b style="color:var(--color-loss)">${v}</b>`;
+                  return String(v);
+              } },
+        ] : [
+            { key: 'result', label: 'Result', type: 'string', sortable: true, colorFn: null,
+              sortKey: row => row.result === 'WIN' ? 2 : row.result === 'LOSS' ? 0 : row.result === 'DRAW' ? 1 : -1,
+              format: v => v === 'WIN'  ? `<b style="color:var(--color-win)">WIN</b>`
+                         : v === 'LOSS' ? `<b style="color:var(--color-loss)">LOSS</b>`
+                         : v === 'DRAW' ? `<b>DRAW</b>`
+                         : v },
+        ]),
         { key: 'score',  label: 'Score',  type: 'string', sortable: true, colorFn: null,
           format: (v, row) => row.result === 'WIN' ? `<b>${v}</b>` : v },
         ...(config.showPR ? [
@@ -341,24 +358,7 @@ function buildE(allResults) {
               const str = v.toFixed(2);
               return v > 0 ? `<b>${str}</b>` : str;
           } },
-        // UBC: replace Result with Points (matchWin + prWin); other modes: show WIN/LOSS/DRAW
-        ...(config.playerResultMode === 'points' ? [
-            { key: 'matchPoints', label: 'Points', type: 'number', sortable: true, colorFn: null,
-              sortKey: row => typeof row.matchPoints === 'number' ? row.matchPoints : null,
-              format: v => {
-                  if (typeof v !== 'number') return '';
-                  if (v === 2) return `<b style="color:var(--color-win)">${v}</b>`;
-                  if (v === 0) return `<b style="color:var(--color-loss)">${v}</b>`;
-                  return String(v);
-              } },
-        ] : [
-            { key: 'result', label: 'Result', type: 'string', sortable: true, colorFn: null,
-              sortKey: row => row.result === 'WIN' ? 2 : row.result === 'LOSS' ? 0 : row.result === 'DRAW' ? 1 : -1,
-              format: v => v === 'WIN'  ? `<b style="color:var(--color-win)">WIN</b>`
-                         : v === 'LOSS' ? `<b style="color:var(--color-loss)">LOSS</b>`
-                         : v === 'DRAW' ? `<b>DRAW</b>`
-                         : v },
-        ]),
+        { key: 'date',   label: 'Date',   type: 'string', sortable: true, colorFn: null },
     ];
 
     const data = allMatches.map(m => {
@@ -655,7 +655,7 @@ function buildF5(runningResult, allMatchesIncUnplayed) {
 }
 
 // ─── B6a: All Remaining Matches ───────────────────
-// Matches real: Round | Player A | Player B
+// Matches real: Player A | Player B (full width, non-sticky)
 
 function buildB6a(runningResult, allMatchesIncUnplayed) {
     if (!runningResult || !allMatchesIncUnplayed) return { data: [], cols: [] };
@@ -764,14 +764,9 @@ function buildC1(playerData, playerName) {
     const cols = [
         { key: 'leagueTitle', label: 'League', type: 'string', sortable: true, colorFn: null,
           tdClass: 'league-cell' },
-        { key: 'date',        label: 'Date',   type: 'string', sortable: true, colorFn: null },
         { key: 'type',        label: 'Type',   type: 'string', sortable: true, colorFn: null,
           sortKey: row => row._type,
           format: v => v },
-        { key: 'status',      label: 'Status', type: 'string', sortable: true, colorFn: null,
-          format: v => v === 'Running'
-              ? '<span class="status-pill status-running">Running</span>'
-              : '<span class="status-pill status-completed">Completed</span>' },
         { key: 'rank',        label: 'Rank',   type: 'string', sortable: true, colorFn: null,
           sortKey: row => row._rank ?? 9999,
           format: (v, row) => {
@@ -790,6 +785,11 @@ function buildC1(playerData, playerName) {
           sortKey: row => row._primary ?? -1 },
         { key: 'pr',          label: 'PR',     type: 'string', sortable: true, colorFn: null,
           sortKey: row => row._pr ?? 9999 },
+        { key: 'status',      label: 'Status', type: 'string', sortable: true, colorFn: null,
+          format: v => v === 'Running'
+              ? '<span class="status-pill status-running">Running</span>'
+              : '<span class="status-pill status-completed">Completed</span>' },
+        { key: 'date',        label: 'Date',   type: 'string', sortable: true, colorFn: null },
     ];
 
     const data = playerData.map(e => {
@@ -827,7 +827,7 @@ function buildC1(playerData, playerName) {
 }
 
 // ─── C2: Player Match History (cross-league) ──────
-// Matches real: League | Date | Type | Opponent | Score | PR | Opp PR | Luck | Result
+// Matches real: League | Type | Result | Opponent | Score | PR | Opp PR | Luck | Date
 
 function buildC2(playerData, playerName, globalFlags) {
     if (!playerData || !playerData.length) return { data: [], cols: [] };
@@ -836,10 +836,13 @@ function buildC2(playerData, playerName, globalFlags) {
     const cols = [
         { key: 'leagueTitle', label: 'League',   type: 'string', sortable: true, colorFn: null,
           tdClass: 'league-cell' },
-        { key: 'date',        label: 'Date',     type: 'string', sortable: true, colorFn: null,
-          sortKey: row => row._timestamp ?? 0 },
         { key: 'leagueType',  label: 'Type',     type: 'string', sortable: true, colorFn: null,
           format: v => `<span class="league-type-pill type-${v}">${TYPE_LABELS[v] || v}</span>` },
+        { key: 'result',      label: 'Result',   type: 'string', sortable: true, colorFn: null,
+          sortKey: row => row.result === 'WIN' ? 2 : row.result === 'LOSS' ? 0 : 1,
+          format: (v, row) => v === 'WIN'  ? `<b style="color:var(--color-win)">WIN</b>${row._technical ? ' <small>(T)</small>' : ''}`
+                            : v === 'LOSS' ? `<b style="color:var(--color-loss)">LOSS</b>${row._technical ? ' <small>(T)</small>' : ''}`
+                            : v === 'DRAW' ? `<b>DRAW</b>` : v },
         { key: 'opponent',    label: 'Opponent', type: 'string', sortable: true, colorFn: null,
           tdClass: 'player-cell', format: v => playerCell(v, globalFlags) },
         { key: 'score',       label: 'Score',    type: 'string', sortable: false, colorFn: null },
@@ -852,11 +855,8 @@ function buildC2(playerData, playerName, globalFlags) {
         { key: 'luck',        label: 'Luck',     type: 'number', sortable: true, colorFn: null,
           sortKey: row => typeof row.luck === 'number' ? row.luck : null,
           format: (v, row) => row._technical || v == null ? '<span style="color:var(--color-text-muted)">N/A</span>' : v.toFixed(2) },
-        { key: 'result',      label: 'Result',   type: 'string', sortable: true, colorFn: null,
-          sortKey: row => row.result === 'WIN' ? 2 : row.result === 'LOSS' ? 0 : 1,
-          format: (v, row) => v === 'WIN'  ? `<b style="color:var(--color-win)">WIN</b>${row._technical ? ' <small>(T)</small>' : ''}`
-                            : v === 'LOSS' ? `<b style="color:var(--color-loss)">LOSS</b>${row._technical ? ' <small>(T)</small>' : ''}`
-                            : v === 'DRAW' ? `<b>DRAW</b>` : v },
+        { key: 'date',        label: 'Date',     type: 'string', sortable: true, colorFn: null,
+          sortKey: row => row._timestamp ?? 0 },
     ];
 
     const data = allRows.map(r => {
@@ -884,7 +884,7 @@ function buildC2(playerData, playerName, globalFlags) {
 }
 
 // ─── C3: Matchup (head-to-head) ───────────────────
-// Matches real: Date | League | Type | Winner | Score | PR A | PR B | Luck A | Luck B
+// Matches real: League | Type | Winner | Score | PR A | PR B | Luck A | Luck B | Date
 
 function buildC3(playerData, playerName, globalFlags) {
     if (!playerData || !playerData.length) return { data: [], cols: [] };
@@ -902,8 +902,6 @@ function buildC3(playerData, playerName, globalFlags) {
 
     const cols = [
         { key: 'leagueTitle',label: 'League',  type: 'string', sortable: true, colorFn: null },
-        { key: 'date',       label: 'Date',    type: 'string', sortable: true, colorFn: null,
-          sortKey: row => row._timestamp ?? 0 },
         { key: 'leagueType', label: 'Type',    type: 'string', sortable: true, colorFn: null,
           format: v => `<span class="league-type-pill type-${v}">${TYPE_LABELS[v] || v}</span>` },
         { key: 'winner',     label: 'Winner',  type: 'string', sortable: false, colorFn: null,
@@ -930,6 +928,8 @@ function buildC3(playerData, playerName, globalFlags) {
           format: v => typeof v === 'number' ? v.toFixed(2) : '—' },
         { key: 'luckB', label: 'Luck B', type: 'number', sortable: true, colorFn: null,
           format: v => typeof v === 'number' ? v.toFixed(2) : '—' },
+        { key: 'date',       label: 'Date',    type: 'string', sortable: true, colorFn: null,
+          sortKey: row => row._timestamp ?? 0 },
     ];
 
     const data = rows.map(r => {

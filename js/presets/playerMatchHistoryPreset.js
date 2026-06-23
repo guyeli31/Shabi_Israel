@@ -32,8 +32,26 @@ export function buildPlayerMatchHistoryPreset({ playerMatches, leagueConfig, par
         { key: 'opponent', label: 'Opponent', type: 'string', sortable: true, colorFn: null,
           tdClass: 'player-cell',
           format: (v, row) => oppCell(v, row._unplayed ? { italic: true } : {}) },
-        { key: 'date',  label: 'Date',  type: 'string', sortable: true, colorFn: null,
-          sortKey: row => row._timestamp ?? 0 },
+        ...(leagueConfig.playerResultMode === 'points' ? [
+            { key: 'matchPoints', label: 'Points', type: 'number', sortable: true, colorFn: null,
+              sortKey: row => typeof row.matchPoints === 'number' ? row.matchPoints : null,
+              format: v => {
+                  if (typeof v !== 'number') return '';
+                  if (v === 2) return `<b style="color:var(--color-win)">${v}</b>`;
+                  if (v === 0) return `<b style="color:var(--color-loss)">${v}</b>`;
+                  return String(v);
+              } },
+        ] : [
+            { key: 'result', label: 'Result', type: 'string', sortable: true, colorFn: null,
+              sortKey: row => row.result === 'WIN' ? 2 : row.result === 'LOSS' ? 0 : row.result === 'DRAW' ? 1 : -1,
+              format: (v, row) => {
+                  const t = row._technical ? ' <small>(T)</small>' : '';
+                  if (v === 'WIN')  return `<b style="color:var(--color-win)">WIN</b>${t}`;
+                  if (v === 'LOSS') return `<b style="color:var(--color-loss)">LOSS</b>${t}`;
+                  if (v === 'DRAW') return `<b>DRAW</b>`;
+                  return v;
+              } },
+        ]),
         { key: 'score', label: 'Score', type: 'string', sortable: false, colorFn: null,
           format: (v, row) => row.result === 'WIN' && v !== '—' ? `<b>${v}</b>` : v },
         ...(leagueConfig.showPR ? [
@@ -58,26 +76,8 @@ export function buildPlayerMatchHistoryPreset({ playerMatches, leagueConfig, par
                   return v > 0 ? `<b>${v.toFixed(2)}</b>` : v.toFixed(2);
               } },
         ] : []),
-        ...(leagueConfig.playerResultMode === 'points' ? [
-            { key: 'matchPoints', label: 'Points', type: 'number', sortable: true, colorFn: null,
-              sortKey: row => typeof row.matchPoints === 'number' ? row.matchPoints : null,
-              format: v => {
-                  if (typeof v !== 'number') return '';
-                  if (v === 2) return `<b style="color:var(--color-win)">${v}</b>`;
-                  if (v === 0) return `<b style="color:var(--color-loss)">${v}</b>`;
-                  return String(v);
-              } },
-        ] : [
-            { key: 'result', label: 'Result', type: 'string', sortable: true, colorFn: null,
-              sortKey: row => row.result === 'WIN' ? 2 : row.result === 'LOSS' ? 0 : row.result === 'DRAW' ? 1 : -1,
-              format: (v, row) => {
-                  const t = row._technical ? ' <small>(T)</small>' : '';
-                  if (v === 'WIN')  return `<b style="color:var(--color-win)">WIN</b>${t}`;
-                  if (v === 'LOSS') return `<b style="color:var(--color-loss)">LOSS</b>${t}`;
-                  if (v === 'DRAW') return `<b>DRAW</b>`;
-                  return v;
-              } },
-        ]),
+        { key: 'date',  label: 'Date',  type: 'string', sortable: true, colorFn: null,
+          sortKey: row => row._timestamp ?? 0 },
     ];
 
     const data = playerMatches.map(m => {

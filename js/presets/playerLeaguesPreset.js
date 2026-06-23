@@ -36,14 +36,9 @@ export function buildPlayerLeaguesPreset({ perLeague, parseLeagueDate, enrich = 
           tdClass: 'league-cell',
           sortKey: row => row.leagueTitle,
           format: (v, row) => enrich.leagueLink ? enrich.leagueLink(row._leagueId, v) : v },
-        { key: 'date',        label: 'Date',   type: 'string', sortable: true, colorFn: null },
         { key: 'type',        label: 'Type',   type: 'string', sortable: true, colorFn: null,
           sortKey: row => row._type,
           format: v => v },
-        { key: 'status',      label: 'Status', type: 'string', sortable: true, colorFn: null,
-          format: v => v === 'Running'
-              ? '<span class="status-pill status-running">Running</span>'
-              : '<span class="status-pill status-completed">Completed</span>' },
         { key: 'rank',        label: 'Rank',   type: 'string', sortable: true, colorFn: null,
           sortKey: row => row._rank ?? 9999,
           tdClass: null,
@@ -56,6 +51,11 @@ export function buildPlayerLeaguesPreset({ perLeague, parseLeagueDate, enrich = 
           format: (v, row) => `<span title="${row._primaryLabel}">${v}</span>` },
         { key: 'pr',          label: 'PR',     type: 'string', sortable: true, colorFn: null,
           sortKey: row => row._pr ?? Infinity },
+        { key: 'status',      label: 'Status', type: 'string', sortable: true, colorFn: null,
+          format: v => v === 'Running'
+              ? '<span class="status-pill status-running">Running</span>'
+              : '<span class="status-pill status-completed">Completed</span>' },
+        { key: 'date',        label: 'Date',   type: 'string', sortable: true, colorFn: null },
     ];
 
     const data = perLeague.map(e => {

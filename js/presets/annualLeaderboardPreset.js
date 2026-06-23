@@ -33,7 +33,6 @@ export function buildAnnualLeaderboardPreset({ rows, months, isUBC, flagUrl }) {
         { key: 'player', label: 'Player',      type: 'string', sortable: true,  colorFn: null,
           tdClass: 'player-cell',
           format: (v, row) => `<img class="flag" src="${flagUrl(row._flagCode)}" alt="${row._flagCode}"> ${playerNameLink(v, row._meta)}` },
-        ...monthCols,
         { key: 'total',  label: '<b>Tot</b>',  type: 'number', sortable: true, colorFn: null,
           tdClass: 'total-col' },
         ...(isUBC
@@ -43,6 +42,7 @@ export function buildAnnualLeaderboardPreset({ rows, months, isUBC, flagUrl }) {
                  format: v => v != null ? formatPercent(v) : '—' }]),
         { key: 'meanPR', label: 'PR', type: 'number', sortable: true, colorFn: null,
           format: v => v != null ? formatNumber(v) : 'N/A' },
+        ...monthCols,
     ];
 
     const data = rows.map(r => ({

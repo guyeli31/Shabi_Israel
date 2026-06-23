@@ -154,7 +154,7 @@ To convert a table to MF in a future session, say:
 | Scroll shadow | `attachStickyShadow()` toggles `.is-scrolled-x` → drop-shadow on sticky col boundary, only during horizontal scroll |
 | Frame shadow | `box-shadow: var(--shadow-sm)` on wrapper — no `border-radius` |
 | Wrapper overflow | `overflow-x: auto; overflow-y: clip` — `clip` is required: `overflow-x: auto` forces `overflow-y: auto` per CSS spec if it was `visible`, making the wrapper the vertical scroll container and breaking `thead`/`avg-row` sticky |
-| Max width | `width: 100%; max-width: 1100px` on wrapper |
+| Max width | `width: 100%; max-width: 1100px` on wrapper — **exception: B6a** overrides this to full display width (`max-width: none`), see B6a note below |
 
 ---
 
@@ -240,6 +240,18 @@ For C1/C2 specifically: tag a new clickable column's `<td>` with `league-cell` (
 
 ---
 
+#### B6a — All Remaining (deliberate MF deviations)
+
+The "All Remaining" panel on the dashboard. Currently hand-built (`buildRemainingListHtml` in `js/render/dashboardPage.js`, `data-mf-table-id="B6a"`), not yet routed through `mountMFTable`. Two columns only: **Player A | Player B** (the former Round column was removed). It carries three **intentional, user-approved deviations** from the MF canon, scoped to `.rem-b6a-wrap` in `css/dashboard.css`:
+
+- **Full display width** — wrapper is `width: 100%; max-width: none`, overriding MF's shared `max-width: 1100px` cap.
+- **Columns stretched to fill** — `table { width: 100%; table-layout: fixed }`, overriding MF's content-sizing (`white-space: nowrap`, columns size to content).
+- **Non-sticky** — `td.player-cell { position: static }`, overriding the dash sticky-left on the first player column (`stickyCols: 0` equivalent).
+
+These are the only MF tables permitted to break the wrapper cap; do not generalize the override to other B tables.
+
+---
+
 #### C4 — All Opponents (H2H aggregate, player-general)
 
 The bottom section of the **H2H** tab on `player.html`. One MF table (`tableId: 'C4'`, `fontClass: 'font-small'`, `stickyCols: 1`, `showTopN: null` — always fully expanded) that collapses **every match the player has played across all league types** into one row per opponent, showing averages. Built by `js/presets/allOpponentsPreset.js` (`buildAllOpponentsPreset` + `aggregateOpponents`).
@@ -251,11 +263,11 @@ Columns (left → right):
 | # | Key | Cell |
 |---|---|---|
 | 1 | `opponent` | **Sticky.** Flag + clickable name (`.c4-opp-link` button). Click opens the C3 head-to-head detail in the top section and scrolls up to it. |
-| 2 | `matches` | match count (includes technical results) |
-| 3 | `pr` | mean of the player's PR (technical results excluded) |
-| 4 | `oppPr` | mean of the opponent's PR |
-| 5 | `luck` | **differential** — mean(player luck) − mean(opponent luck) |
-| 6 | `winRate` | Win% — red→green tint on a fixed 0–1 range (same scale as landing's *Best Win Rate Appearances*), `tdClass: 'c4-winrate'` (`font-weight: 600`, mirroring the Luck Percentile right column) |
+| 2 | `winRate` | Win% — red→green tint on a fixed 0–1 range (same scale as landing's *Best Win Rate Appearances*), `tdClass: 'c4-winrate'` (`font-weight: 600`) |
+| 3 | `matches` | match count (includes technical results) |
+| 4 | `pr` | mean of the player's PR (technical results excluded) |
+| 5 | `oppPr` | mean of the opponent's PR |
+| 6 | `luck` | **differential** — mean(player luck) − mean(opponent luck) |
 
 Selecting an opponent via the smart search **or** clicking an opponent row both render C3 above; the row-click additionally scrolls the page up to reveal it. Both H2H sections are always open (no collapse).
 

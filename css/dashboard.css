@@ -13,6 +13,13 @@
     color: var(--color-text);
 }
 
+/* "Open player card ›" uses the .open-full-btn accent pill (same as
+   "Open full table ›"); cancel that button's right-pushing auto margin
+   so it keeps its place in the chart-controls row. */
+.open-full-btn.player-card-link {
+    margin-left: 0;
+}
+
 /* Summary cards — always one row, equal-width columns, fluid sizing down to mobile. */
 .dashboard-cards {
     display: grid;
@@ -957,12 +964,25 @@
 /* B6 Remaining Matches sub-tabs use the shared accordion sub-tabs
    (.subtab--accordion / .subtab-panel in css/subtabs.css, via mountAccordionTabs). */
 
-/* B6a — All Remaining */
+/* B6a — All Remaining.
+   Deliberate per-table override of the MF shared "width:100%; max-width:1100px"
+   wrapper cap: this table is full display width (no max-width) with columns
+   stretched to fill, and is NOT sticky (Round column removed; only Player A / B). */
 .rem-b6a-wrap {
-    width: 80%;
+    width: 100%;
+    max-width: none;
     margin: 0 auto;
     overflow-x: auto;
     box-shadow: var(--shadow-sm);
+}
+/* Stretch the two columns to fill the full width (MF default sizes to content). */
+.rem-b6a-wrap .dash-table {
+    width: 100%;
+    table-layout: fixed;
+}
+/* Override MF/dash sticky on the player cell — B6a is explicitly non-sticky. */
+.rem-b6a-wrap .dash-table td.player-cell {
+    position: static;
 }
 
 /* B6b — Remaining Report */

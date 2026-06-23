@@ -1415,7 +1415,6 @@ function buildB6cTableHtml(opponents, customFlags, playersMeta) {
 
 function buildRemainingListHtml(matches, customFlags, playersMeta) {
     let html = `<table class="dash-table font-small" data-mf-table-id="B6a"><thead><tr>`
-             + `<th scope="col">Round</th>`
              + `<th scope="col" class="player-col">Player A</th>`
              + `<th scope="col" class="player-col">Player B</th>`
              + `</tr></thead><tbody>`;
@@ -1425,7 +1424,6 @@ function buildRemainingListHtml(matches, customFlags, playersMeta) {
         const titlesA = getTitleAbbreviationsHtml(playersMeta[m.playerA]);
         const titlesB = getTitleAbbreviationsHtml(playersMeta[m.playerB]);
         html += `<tr class="unplayed-row">`
-             +  `<td>${m.round}</td>`
              +  `<td class="player-cell"><img class="flag" src="${flagUrl(flagA)}" alt="${flagA}"> ${m.playerA}${titlesA}</td>`
              +  `<td class="player-cell"><img class="flag" src="${flagUrl(flagB)}" alt="${flagB}"> ${m.playerB}${titlesB}</td>`
              +  `</tr>`;
@@ -1514,7 +1512,7 @@ function renderPlayerSection(ctx) {
                     <option value="pr">PR</option>
                     <option value="luck">Luck</option>
                 </select>
-                <a class="forward-link player-card-link" href="#" title="Open full player card">Open player card &rsaquo;</a>
+                <a class="open-full-btn player-card-link" href="#" title="Open full player card">Open player card &rsaquo;</a>
                 <button class="remove-chart" title="Remove this chart" style="margin-left:auto">&times;</button>
             </div>
             <div class="chart-host"></div>

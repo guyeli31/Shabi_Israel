@@ -17,10 +17,17 @@ export function buildPlayerAllMatchesPreset({ rows, enrich = {} }) {
         { key: 'leagueTitle', label: 'League', type: 'string', sortable: true, colorFn: null,
           tdClass: 'league-cell',
           format: (v, row) => enrich.leagueLink ? enrich.leagueLink(row._leagueId, v) : v },
-        { key: 'date',        label: 'Date',   type: 'string', sortable: true, colorFn: null,
-          sortKey: row => row._timestamp ?? 0 },
         { key: 'leagueType',  label: 'Type',   type: 'string', sortable: true, colorFn: null,
           format: v => `<span class="league-type-pill type-${v}">${TYPE_LABELS[v] || v}</span>` },
+        { key: 'result',      label: 'Result', type: 'string', sortable: true, colorFn: null,
+          sortKey: row => row.result === 'WIN' ? 2 : row.result === 'LOSS' ? 0 : 1,
+          format: (v, row) => {
+              const t = row._technical ? ' <small>(T)</small>' : '';
+              const cls = v === 'WIN'  ? 'result-win'
+                        : v === 'LOSS' ? 'result-loss'
+                        : 'result-draw';
+              return `<span class="${cls}">${v}${t}</span>`;
+          } },
         { key: 'opponent',    label: 'Opponent', type: 'string', sortable: true, colorFn: null,
           tdClass: 'player-cell',
           format: v => enrich.opponentCell ? enrich.opponentCell(v) : v },
@@ -40,15 +47,8 @@ export function buildPlayerAllMatchesPreset({ rows, enrich = {} }) {
           format: (v, row) => (row._technical || v == null)
               ? '<span class="na">N/A</span>'
               : v.toFixed(2) },
-        { key: 'result',      label: 'Result', type: 'string', sortable: true, colorFn: null,
-          sortKey: row => row.result === 'WIN' ? 2 : row.result === 'LOSS' ? 0 : 1,
-          format: (v, row) => {
-              const t = row._technical ? ' <small>(T)</small>' : '';
-              const cls = v === 'WIN'  ? 'result-win'
-                        : v === 'LOSS' ? 'result-loss'
-                        : 'result-draw';
-              return `<span class="${cls}">${v}${t}</span>`;
-          } },
+        { key: 'date',        label: 'Date',   type: 'string', sortable: true, colorFn: null,
+          sortKey: row => row._timestamp ?? 0 },
     ];
 
     const data = rows.map(r => {

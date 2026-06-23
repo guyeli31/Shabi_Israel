@@ -18,8 +18,6 @@ export function buildMatchupPreset({ rows, playerName, opponent, enrich = {} }) 
         { key: 'leagueTitle', label: 'League', type: 'string', sortable: true, colorFn: null,
           tdClass: 'matchup-league-cell',
           format: (v, row) => enrich.leagueLink ? enrich.leagueLink(row._leagueId, v) : v },
-        { key: 'date',        label: 'Date',   type: 'string', sortable: true, colorFn: null,
-          sortKey: row => row._timestamp ?? 0 },
         { key: 'leagueType',  label: 'Type',   type: 'string', sortable: true, colorFn: null,
           format: v => `<span class="league-type-pill type-${v}">${TYPE_LABELS[v] || v}</span>` },
         { key: 'winner',      label: 'Winner', type: 'string', sortable: false, colorFn: null,
@@ -54,6 +52,8 @@ export function buildMatchupPreset({ rows, playerName, opponent, enrich = {} }) 
               const better = typeof row.luckA === 'number' && v >= row.luckA;
               return `<span class="${better ? 'matchup-luck-best' : 'matchup-luck-other'}">${v.toFixed(2)}</span>`;
           } },
+        { key: 'date',        label: 'Date',   type: 'string', sortable: true, colorFn: null,
+          sortKey: row => row._timestamp ?? 0 },
     ];
 
     const data = rows.map(r => {

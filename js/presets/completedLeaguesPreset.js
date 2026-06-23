@@ -26,7 +26,6 @@ export function buildCompletedLeaguesPreset({ rows, flagUrl, leagueUrl }) {
     const cols = [
         { key: 'league', label: 'League', type: 'string', sortable: false, colorFn: null,
           format: (v, row) => `<a href="${leagueUrl(row._leagueId)}">${escapeHtml(v)}</a>` },
-        { key: 'date',   label: 'Date',   type: 'string', sortable: false, colorFn: null },
         { key: 'type',   label: 'Type',   type: 'string', sortable: false, colorFn: null,
           format: v => `<span class="league-type-pill type-${v}">${TYPE_LABELS[v] || v}</span>` },
         { key: 'winner', label: 'Winner', type: 'string', sortable: false, colorFn: null,
@@ -38,6 +37,7 @@ export function buildCompletedLeaguesPreset({ rows, flagUrl, leagueUrl }) {
                   : `<img class="flag" src="${flagUrl(row._leaderFlagCode)}" alt="${row._leaderFlagCode}"> `;
               return `${flagImg}${playerNameLink(v, row._leaderMeta)}`;
           } },
+        { key: 'date',   label: 'Date',   type: 'string', sortable: false, colorFn: null },
     ];
 
     const data = rows.map(r => ({

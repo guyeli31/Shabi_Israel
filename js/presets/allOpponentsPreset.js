@@ -78,6 +78,11 @@ export function buildAllOpponentsPreset({ opponents, enrich = {} }) {
               const flag = enrich.flagFor ? enrich.flagFor(v) : '';
               return `<button type="button" class="c4-opp-link" data-name="${esc(v)}">${flag}<span class="c4-opp-name">${esc(v)}</span></button>`;
           } },
+        { key: 'winRate',  label: 'Win%',     type: 'number', sortable: true,
+          tdClass: 'c4-winrate',
+          // Fixed 0–1 range matches "Best Win Rate Appearances" on the landing page.
+          colorFn: v => colorForValue(v, 0, 1),
+          format: v => `${Math.round(v * 100)}%` },
         { key: 'matches',  label: 'MP',       type: 'number', sortable: true, colorFn: null,
           format: v => String(v) },
         { key: 'pr',       label: 'PR',       type: 'number', sortable: true, colorFn: null,
@@ -86,14 +91,9 @@ export function buildAllOpponentsPreset({ opponents, enrich = {} }) {
           format: num2 },
         { key: 'luck',     label: 'Luck',     type: 'number', sortable: true, colorFn: null,
           format: num2 },
-        { key: 'winRate',  label: 'Win%',     type: 'number', sortable: true,
-          tdClass: 'c4-winrate',
-          // Fixed 0–1 range matches "Best Win Rate Appearances" on the landing page.
-          colorFn: v => colorForValue(v, 0, 1),
-          format: v => `${Math.round(v * 100)}%` },
     ];
 
-    // Default sort: Win% (right-most column) descending — highest at the top.
+    // Default sort: Win% descending — highest at the top.
     const data = [...opponents].sort((a, b) => b.winRate - a.winRate);
 
     return {
