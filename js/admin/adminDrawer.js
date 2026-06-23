@@ -19,6 +19,42 @@ function isMobile() {
     return window.matchMedia(MOBILE_MEDIA).matches;
 }
 
+let _vvBound = false;
+
+/**
+ * Publish the exact drawer height to CSS as `--admin-drawer-h`.
+ *
+ * `100dvh` only subtracts *docked* browser toolbars; floating/overlay URL bars
+ * (common on Android & some iOS browsers) are NOT subtracted, so the drawer
+ * footer (Home/Logout) ends up trapped behind them. Rather than hand-compute
+ * topbar height + safe-area offsets (error-prone), we measure both real edges
+ * from the DOM: the topbar's bottom and the visual viewport's bottom. The
+ * drawer height is simply the gap between them, so its bottom lands exactly on
+ * the last visible pixel regardless of chrome style.
+ */
+function syncDrawerHeight() {
+    const sidebar = document.querySelector('.admin-sidebar');
+    if (!sidebar) return;
+    const vv = window.visualViewport;
+    // Bottom edge of the genuinely-visible area, in client/layout coords.
+    const visibleBottom = vv ? (vv.offsetTop + vv.height) : window.innerHeight;
+    const topbar = document.querySelector('.admin-mobile-topbar');
+    const topbarBottom = topbar ? topbar.getBoundingClientRect().bottom : 60;
+    const h = Math.max(0, Math.round(visibleBottom - topbarBottom));
+    document.documentElement.style.setProperty('--admin-drawer-h', h + 'px');
+}
+
+function bindViewportSync() {
+    if (_vvBound) return;
+    _vvBound = true;
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', syncDrawerHeight);
+        window.visualViewport.addEventListener('scroll', syncDrawerHeight);
+    }
+    window.addEventListener('resize', syncDrawerHeight);
+    window.addEventListener('orientationchange', syncDrawerHeight);
+}
+
 function getFocusable() {
     if (!sidebarEl) return [];
     return Array.from(sidebarEl.querySelectorAll(
@@ -149,6 +185,11 @@ export function initAdminDrawer(username = '') {
     const mqHandler = (ev) => { if (!ev.matches) closeDrawer(); };
     if (mq.addEventListener) mq.addEventListener('change', mqHandler);
     else mq.addListener(mqHandler);
+
+    // Keep the drawer height pinned to the genuinely-visible viewport so the
+    // footer never hides behind a floating mobile URL bar.
+    bindViewportSync();
+    syncDrawerHeight();
 }
 
 /** Update the section title shown in the mobile topbar. */

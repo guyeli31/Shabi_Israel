@@ -847,9 +847,6 @@ table.matchup-table a:hover {
     text-decoration: underline;
 }
 
-/* Score cell — mono font, size inherits from table */
-.matchup-score { font-family: var(--font-mono); }
-
 /* PR / Luck emphasis */
 .matchup-pr-best   { font-weight: 700; }
 .matchup-pr-other  { color: var(--color-text-muted); }

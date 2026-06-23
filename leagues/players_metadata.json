@@ -1,13 +1,13 @@
 {
   "GuyEliyahu": {
-    "fullName": "Guy Eliyahu",
+    "fullName": "Moshe Cohen",
     "bmabTitle": "",
     "championshipTitles": [],
     "joined": "2025-09",
     "photoPath": "assets/players/GuyEliyahu.png"
   },
   "YossiEliezer23": {
-    "fullName": "Yossi Eliezer",
+    "fullName": "Yossi Levi",
     "championshipTitles": [
       {
         "type": "national",
@@ -18,11 +18,11 @@
     ]
   },
   "boutsky": {
-    "fullName": "Ido Levi",
+    "fullName": "David Mizrahi",
     "bmabTitle": "G2"
   },
   "OMRAD": {
-    "fullName": "Yakov Omrad",
+    "fullName": "Avi Peretz",
     "championshipTitles": [
       {
         "type": "world",
@@ -34,7 +34,7 @@
     ]
   },
   "Hummus": {
-    "fullName": "Itzhak Solsky",
+    "fullName": "Eli Biton",
     "bmabTitle": "M1",
     "championshipTitles": [
       {

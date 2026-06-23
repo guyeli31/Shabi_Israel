@@ -26,8 +26,7 @@ export function buildMatchupPreset({ rows, playerName, opponent, enrich = {} }) 
               const t = row._technical ? ' <small>(T)</small>' : '';
               return `<span class="${cls}">${v}${t}</span>`;
           } },
-        { key: 'score',       label: 'Score',  type: 'string', sortable: false, colorFn: null,
-          tdClass: 'matchup-score' },
+        { key: 'score',       label: 'Score',  type: 'string', sortable: false, colorFn: null },
         { key: 'prA',         label: 'PR A',   type: 'number', sortable: true, colorFn: null,
           format: (v, row) => {
               if (typeof v !== 'number') return '<span class="na">N/A</span>';

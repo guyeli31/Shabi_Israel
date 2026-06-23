@@ -1417,13 +1417,16 @@ table.font-large { font-size: var(--fs-093); }
         top: calc(60px + env(safe-area-inset-top, 0px));
         left: 0;
         width: min(284px, 82vw);
-        /* Fallback for engines without dvh. */
+        /* Height fallback chain, weakest → strongest:
+           1. 100vh  — works everywhere, but ignores mobile browser chrome.
+           2. 100dvh — subtracts *docked* toolbars (modern engines).
+           3. --admin-drawer-h — set from visualViewport.height by adminDrawer.js;
+              the only value that also accounts for *floating/overlay* URL bars,
+              so the footer (Home/Logout) is never trapped behind them. */
         height: calc(100vh - 60px - env(safe-area-inset-top, 0px));
-        /* dvh tracks the *visible* viewport as the browser's bottom URL bar
-           shows/hides, so the footer (Home/Logout) is never trapped behind it.
-           Bottom padding adds the home-indicator safe area on top of the base
-           sidebar padding so those buttons clear it too. */
         height: calc(100dvh - 60px - env(safe-area-inset-top, 0px));
+        height: var(--admin-drawer-h, calc(100dvh - 60px - env(safe-area-inset-top, 0px)));
+        /* Lift the footer above the iOS home indicator on top of base padding. */
         padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom, 0px));
         transform: translateX(-100%);
         /* iOS-style confident ease — hits, then settles. */
