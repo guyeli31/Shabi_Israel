@@ -37,6 +37,7 @@ import {
 import { drawPlayerBarChart } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { mountAppTabs } from './appTabs.js';
+import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountPillTabs } from './subTabs.js';
 import { getTitleBadgesHtml, getTitleAbbreviationsHtml, getHighestTier } from '../data/titleConstants.js';
@@ -94,11 +95,11 @@ export async function renderPlayerGeneralPage() {
         // Progressive-disclosure tabs (same chrome as HOME / dashboard via mountAppTabs).
         const shell = mountAppTabs({
             tabs: [
-                { id: 'statistics', label: 'Statistics' },
-                { id: 'leagues',    label: 'Leagues' },
-                { id: 'matches',    label: 'Matches' },
-                { id: 'h2h',        label: 'H2H' },
-                { id: 'records',    label: 'Records' }
+                { id: 'statistics', label: 'Statistics', icon: TAB_ICONS.statistics },
+                { id: 'leagues',    label: 'Leagues',    icon: TAB_ICONS.leagues },
+                { id: 'matches',    label: 'Matches',    icon: TAB_ICONS.matches },
+                { id: 'h2h',        label: 'H2H',        icon: TAB_ICONS.h2h },
+                { id: 'records',    label: 'Records',    icon: TAB_ICONS.records }
             ],
             urlKey: 'tab',
             ariaLabel: 'Player sections',

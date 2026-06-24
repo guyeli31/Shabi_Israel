@@ -92,6 +92,9 @@
 
 /* Home link */
 .nav-home {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
     color: var(--header-text);
     text-decoration: none;
     font-weight: 700;
@@ -102,6 +105,16 @@
 }
 .nav-home:hover {
     opacity: 0.8;
+}
+
+/* Round brand icon left of the "Shabi Israel" text — shares the home link so a
+   click anywhere on it routes to index.html. */
+.nav-home-logo {
+    height: 1.4em;
+    width: 1.4em;
+    object-fit: contain;
+    border-radius: 50%;
+    flex-shrink: 0;
 }
 
 /* Leagues dropdown */

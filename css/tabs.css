@@ -44,11 +44,15 @@
     min-width: 0;                                /* allow shrinking below intrinsic width */
     background: transparent;
     border: 0;
-    /* Linear scale: 320px viewport → ~10.5px font + tight padding;
-       1440px viewport → 13.5px font + comfortable padding. No jump. */
+    /* Linear scale: 320px viewport → ~12.5px font + tight padding;
+       1440px viewport → 16px font + comfortable padding. No jump.
+       The whole clamp (min / rem-base / vw-slope / max) was scaled by one
+       constant factor (≈1.18) off the previous 0.66/0.45/0.8/0.85 ramp, so the
+       slope and viewport breakpoints are unchanged — only the size shifts up,
+       preserving the proportional ratio with the rest of the type scale. */
     padding: clamp(0.40em, 0.9vw, 0.65em) clamp(0.30em, 1.0vw, 0.70em);
     font: inherit;
-    font-size: clamp(0.66rem, 0.45rem + 0.8vw, 0.85rem);
+    font-size: clamp(0.78rem, 0.53rem + 0.94vw, 1.0rem);
     font-weight: 600;
     color: var(--color-text-muted);
     border-radius: 7px;
@@ -96,6 +100,28 @@
 [data-theme="casino"]  .app-tab[aria-selected="true"] {
     background: var(--color-surface);
     box-shadow: 0 1px 2px rgba(0,0,0,0.35), 0 1px 6px rgba(0,0,0,0.18);
+}
+
+/* Decorative tab icon (emoji or inline SVG glyph) — sits left of the label.
+   The .app-tab flex `gap` already spaces it from the text. Icon never shrinks;
+   the label keeps the ellipsis behaviour on tiny viewports. */
+.app-tab-icon {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05em;                           /* emoji sizing relative to label */
+    line-height: 1;
+}
+.app-tab-glyph {
+    width: 1.15em;
+    height: 1.15em;
+    display: block;
+}
+.app-tab-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* Tab panels follow the same naming for symmetry. */

@@ -120,15 +120,13 @@ function renderLeagueList(container, leagues, displayOrder) {
         <div style="margin-bottom:var(--space-md)">
             <button class="btn btn-success" id="add-league-btn">+ Add League</button>
         </div>
-        <div class="admin-card">
-            <div class="ff-wrap">
-                <table class="admin-table font-large">
-                    <thead>
-                        <tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Date</th><th scope="col">Status</th><th scope="col">Actions</th></tr>
-                    </thead>
-                    <tbody>${rows}</tbody>
-                </table>
-            </div>
+        <div class="ff-wrap">
+            <table class="admin-table font-large" data-mf-table-id="F1">
+                <thead>
+                    <tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Date</th><th scope="col">Status</th><th scope="col">Actions</th></tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
         </div>`;
 
     attachStickyShadow(container.querySelector('.ff-wrap'));

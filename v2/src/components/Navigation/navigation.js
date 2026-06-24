@@ -31,7 +31,12 @@ export function render({ homeLabel = "Shabi Israel", homeHref = "/", leagues = [
     const home = document.createElement("a");
     home.className = "site-nav__home";
     home.href = homeHref;
-    home.textContent = homeLabel;
+    const homeLogo = document.createElement("img");
+    homeLogo.className = "site-nav__home-logo";
+    homeLogo.src = "/assets/favicon-round.png";
+    homeLogo.alt = "";
+    home.appendChild(homeLogo);
+    home.appendChild(document.createTextNode(homeLabel));
     inner.appendChild(home);
 
     // Leagues dropdown

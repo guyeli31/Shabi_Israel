@@ -44,6 +44,9 @@
     }
 
     .site-nav__home {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5em;
         color: var(--header-text);
         text-decoration: none;
         font-weight: var(--fw-heading);
@@ -54,6 +57,13 @@
     }
     .site-nav__home:hover {
         opacity: 0.8;
+    }
+    .site-nav__home-logo {
+        height: 1.4em;
+        width: 1.4em;
+        object-fit: contain;
+        border-radius: 50%;
+        flex-shrink: 0;
     }
 
     .site-nav__leagues {

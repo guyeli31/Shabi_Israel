@@ -116,6 +116,13 @@ v2/
 │   │   └── FormField/{formField.css, formField.js}  # input + label + error
 │   │
 │   ├── components/                      ── Layer 5 ──
+│   │   ├── Tabs/                        # canonical segmented app-tab bar — ports v1 mountAppTabs
+│   │   │                                #   (ARIA tablist + roving keyboard + ?tab= URL state + 1-N
+│   │   │                                #   hotkeys) PLUS per-tab decorative icon (emoji or inline SVG,
+│   │   │                                #   aria-hidden) via a shared tabIcons.js id→icon map. ONE source
+│   │   │                                #   for the landing / league / player main bars (concepts share
+│   │   │                                #   icons: Leagues=table-glyph reused from SearchBox, Matches=🎲,
+│   │   │                                #   Records=📜). Was missing from this inventory; added 2026-06-25.
 │   │   ├── PlayerCell/                  # flag + name + realname (ONE source)
 │   │   ├── StatusChip/                  # Running / Completed / This year
 │   │   ├── TypePill/                    # Doubling / Regular / UBC
@@ -437,7 +444,8 @@ Each phase ends with a commit and an MCP verification checkpoint. If a phase fai
 - **MCP verification**: screenshot every primitive at 3 viewports × 8 themes. Compare against equivalent rendering in v1 (open v1 league_table.html, find a `.flag`, take a screenshot, compare). Allow ~2% pixel diff for sub-pixel rendering.
 
 ### Phase 3 — Components (5–6 hours)
-- Build `v2/src/components/{PlayerCell, StatusChip, TypePill, MedalRow, RankBadge, ScoreCell, ChartTooltip, Breadcrumbs, Navigation, ThemePicker, AdminButton, ExportButton, SearchBox, FilterPill, LeagueHero, PlayerHero, PlayerBarChart, ColorScale, Splash, ExportTableImage}/`.
+- Build `v2/src/components/{Tabs, PlayerCell, StatusChip, TypePill, MedalRow, RankBadge, ScoreCell, ChartTooltip, Breadcrumbs, Navigation, ThemePicker, AdminButton, ExportButton, SearchBox, FilterPill, LeagueHero, PlayerHero, PlayerBarChart, ColorScale, Splash, ExportTableImage}/`.
+- **`Tabs`** (added 2026-06-25, previously missing) ports v1 `js/render/appTabs.js` (`mountAppTabs`) + `css/tabs.css` as the canonical segmented app-tab bar consumed by the landing / league / player pages in Phase 6 — it must NOT be re-derived per page. Contract: `mount({ tabs:[{id,label,icon?}], urlKey, ariaLabel, … }) → { root, panels, activate }` with ARIA tablist + roving tabindex, `?tab=` URL state, 1-N hotkeys, and a per-tab **decorative `icon`** (emoji or inline SVG) rendered `aria-hidden` before an `.app-tab-label`. Ship a shared `tabIcons.js` (id→icon map) so shared concepts use one icon everywhere (Leagues = the table/grid SVG glyph reused from `SearchBox`/search results via `currentColor`; Matches = 🎲; Records = 📜; Leaderboard = 👑; Player insights = 📈). CSS is token-only under `@layer components` (port the `--color-surface`/`--color-hover`/`--shadow-sm` chrome + the per-theme dark-strip overrides). See the v1 form in [MIGRATION-FROM-V1.md](MIGRATION-FROM-V1.md) (2026-06-25 tab-icons row).
 - Each component composes primitives + adds layout. CSS uses tokens only.
 - Extract from `js/data/titleConstants.js` (TIER_COLORS) into `v2/src/data/titleStyleMap.js` (returns class names) + corresponding CSS classes in the title-related component CSS.
 - Extract export-table rendering from `js/render/dashboardPage.js` (the B6a/B6b/B6c export functions) into `v2/src/components/ExportTableImage/`.

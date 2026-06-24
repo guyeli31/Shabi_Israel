@@ -460,7 +460,13 @@
     background: var(--color-surface);
     border-radius: var(--radius-md);
     box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
-    padding: var(--space-lg);
+    /* Fluid card padding: was a fixed 24px (var(--space-lg)). Now ≈0.8em of the
+       font-large fluid token (--fs-093) — same clamp slope as the --fs family,
+       so it scales linearly with the viewport like the cell padding does. Max
+       caps at ~11px (< half the old 24px). Expressed as clamp() rather than a
+       literal em because plain .admin-card font-size is a static 15px, so an em
+       would not be fluid; this keeps the slope without touching any font-size. */
+    padding: clamp(0.57rem, 0.45rem + 0.62vw, 0.74rem);
     margin-bottom: var(--space-lg);
     border: 1px solid var(--color-border);
     transition: box-shadow 0.2s;
@@ -717,6 +723,33 @@ table.font-large { font-size: var(--fs-093); }
 }
 .ff-wrap.is-scrolled-x .admin-table.font-large tbody tr:last-child td:first-child {
     box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+
+/* F1 (Leagues list) — the ONE FF table that sits directly on the page canvas
+   (--color-bg) with NO framing --color-surface .admin-card: the card wrapper
+   was removed (the table was its only child, so the card was redundant double
+   chrome). Per the Surface-elevation canon, a table that sits on the page bg
+   and is NOT nested in a section shifts UP one tier — exactly like the
+   dashboard's .dash-card. So body + sticky col paint --color-surface (not the
+   nested-well --color-inset).
+   HEADER — uses the per-theme table-header tokens --header-bg / --header-text
+   (the same deep, themed header tone the MF tables use), NOT --color-inset.
+   --color-inset is only 28% off --color-bg, so on the bare page canvas the
+   header read as nearly the page bg (too low contrast). --header-bg is a
+   distinct, theme-tailored tone (defined per theme in css/themes.css —
+   dark #14141e, vegas deep-red, casino #8b0000, x22 green, rainbow purple…),
+   so the header separates clearly from the canvas in EVERY theme automatically,
+   and --header-text guarantees readable text on it. Hover (--color-hover) and
+   the generic scroll-shadow rules above are unaffected — their selectors carry
+   higher specificity than these static background overrides. */
+.admin-table.font-large[data-mf-table-id="F1"] tbody td,
+.admin-table.font-large[data-mf-table-id="F1"] tbody td:first-child {
+    background: var(--color-surface);
+}
+.admin-table.font-large[data-mf-table-id="F1"] thead th,
+.admin-table.font-large[data-mf-table-id="F1"] thead th:first-child {
+    background: var(--header-bg);
+    color: var(--header-text);
 }
 
 /* Validation marker for Edit-mode cells (mountFFTable's validate() applies
@@ -1282,10 +1315,10 @@ table.font-large { font-size: var(--fs-093); }
 
 .admin-topbar-logo {
     height: 32px;
-    width: auto;
+    width: 32px;
     object-fit: contain;
     flex-shrink: 0;
-    border-radius: 4px;
+    border-radius: 50%;
 }
 
 .admin-topbar-title {

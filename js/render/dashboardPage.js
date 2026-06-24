@@ -27,6 +27,7 @@ import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { startSplash, endSplash } from '../utils/splash.js';
 import { buildLeagueHeaderData, renderV16Header } from './leagueHeader.js';
 import { mountAppTabs } from './appTabs.js';
+import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountAccordionTabs } from './subTabs.js';
 
@@ -110,10 +111,10 @@ export async function renderDashboardPage() {
         // Progressive-disclosure tabs (same chrome as HOME via mountAppTabs).
         const shell = mountAppTabs({
             tabs: [
-                { id: 'standings', label: 'Standings' },
-                { id: 'matches',   label: 'Matches' },
-                { id: 'predictor', label: 'Predictor' },
-                { id: 'insights',  label: 'Player insights' }
+                { id: 'standings', label: 'Standings',      icon: TAB_ICONS.standings },
+                { id: 'matches',   label: 'Matches',        icon: TAB_ICONS.matches },
+                { id: 'predictor', label: 'Predictor',      icon: TAB_ICONS.predictor },
+                { id: 'insights',  label: 'Player insights', icon: TAB_ICONS.insights }
             ],
             urlKey: 'tab',
             ariaLabel: 'Dashboard sections',

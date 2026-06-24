@@ -70,7 +70,11 @@ export function mountAppTabs({
         btn.setAttribute('aria-selected', 'false');
         btn.setAttribute('aria-controls', panelDomId(t.id));
         btn.tabIndex = -1;                       // roving — only the active tab is tabbable
-        btn.innerHTML = t.label;
+        // Optional decorative icon (emoji or inline SVG) before the label. The
+        // icon is aria-hidden so assistive tech reads only the label text.
+        btn.innerHTML = t.icon
+            ? `<span class="app-tab-icon" aria-hidden="true">${t.icon}</span><span class="app-tab-label">${t.label}</span>`
+            : t.label;
         tablist.appendChild(btn);
         buttons[t.id] = btn;
 

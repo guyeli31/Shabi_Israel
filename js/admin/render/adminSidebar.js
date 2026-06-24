@@ -31,7 +31,7 @@ export function mountAdminSidebar(opts = {}) {
     sidebar.className = 'admin-sidebar';
     const count = getChangeCount();
     sidebar.innerHTML = `
-        <img class="admin-sidebar-logo" src="assets/logo/logo.png" alt="Logo">
+        <img class="admin-sidebar-logo" src="assets/favicon-round.png" alt="Logo">
         <h2>Shabi Admin</h2>
         <div class="admin-welcome">
             <div class="admin-welcome-avatar">${getUsername().charAt(0).toUpperCase()}</div>

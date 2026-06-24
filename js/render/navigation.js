@@ -107,7 +107,7 @@ export async function initNavBar() {
 
     const adminBadge = isLoggedIn()
         ? `<div class="nav-admin-user">
-               <img class="nav-admin-logo" src="assets/logo/logo.png" alt="">
+               <img class="nav-admin-logo" src="assets/favicon-round.png" alt="">
                <div class="nav-admin-avatar">${getUsername().charAt(0).toUpperCase()}</div>
                <span class="nav-admin-name">${getUsername()}</span>
            </div>`
@@ -117,7 +117,7 @@ export async function initNavBar() {
     nav.className = 'site-nav';
     nav.innerHTML = `
         <div class="site-nav-inner">
-            <a href="index.html" class="nav-home">Shabi Israel</a>
+            <a href="index.html" class="nav-home"><img class="nav-home-logo" src="assets/favicon-round.png" alt="">Shabi Israel</a>
             <div class="nav-leagues">
                 <button class="nav-leagues-btn" aria-expanded="false">Leagues \u25BE</button>
                 <ul class="nav-leagues-dropdown" hidden></ul>

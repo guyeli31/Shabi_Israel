@@ -74,7 +74,7 @@ function renderAdminShell() {
     app.innerHTML = `
         <div class="admin-layout">
             <aside class="admin-sidebar" id="admin-sidebar">
-                <img class="admin-sidebar-logo" src="assets/logo/logo.png" alt="Logo">
+                <img class="admin-sidebar-logo" src="assets/favicon-round.png" alt="Logo">
                 <h2>Shabi Admin</h2>
                 <div class="admin-welcome">
                     <div class="admin-welcome-avatar">${getUsername().charAt(0).toUpperCase()}</div>

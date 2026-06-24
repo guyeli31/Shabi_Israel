@@ -877,14 +877,14 @@
 .whatif-scroll-wrap tbody td:nth-child(1) {
     position: sticky;
     left: 0;
-    background: var(--color-surface);
+    background: var(--color-inset);
     z-index: 3;
 }
 .predictor-scroll-wrap tbody td:nth-child(2),
 .whatif-scroll-wrap tbody td:nth-child(2) {
     position: sticky;
     left: var(--col1-w);
-    background: var(--color-surface);
+    background: var(--color-inset);
     z-index: 2;
 }
 /* Sticky header cells — use header background so sticky header row matches the rest of the thead */
@@ -940,7 +940,7 @@
 .rounds-scroll-wrap tbody td:nth-child(1) {
     position: sticky;
     left: 0;
-    background: var(--color-surface);
+    background: var(--color-inset);
     z-index: 3;
 }
 .rounds-scroll-wrap thead th:nth-child(1) {
@@ -953,7 +953,7 @@
 .rounds-scroll-wrap tbody td:nth-child(2) {
     position: sticky;
     left: var(--col1-w);
-    background: var(--color-surface);
+    background: var(--color-inset);
     z-index: 3;
 }
 .rounds-scroll-wrap thead th:nth-child(2) {

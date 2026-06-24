@@ -32,6 +32,7 @@ import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { hasTitles, compareTitlePriority, getFullTitleDescription } from '../data/titleConstants.js';
 import { startSplash, updateSplashLogo, endSplash } from '../utils/splash.js';
 import { mountAppTabs } from './appTabs.js';
+import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountPillTabs } from './subTabs.js';
 
@@ -169,10 +170,10 @@ function buildTabsShell() {
     // (.lp-tabs-shell / .lp-tab-panel) that css/index-dashboard.css styles.
     return mountAppTabs({
         tabs: [
-            { id: 'leagues',     label: 'Leagues' },
-            { id: 'leaderboard', label: 'Leaderboard' },
-            { id: 'records',     label: 'Records' },
-            { id: 'players',     label: 'Players' }
+            { id: 'leagues',     label: 'Leagues',     icon: TAB_ICONS.leagues },
+            { id: 'leaderboard', label: 'Leaderboard', icon: TAB_ICONS.leaderboard },
+            { id: 'records',     label: 'Records',     icon: TAB_ICONS.records },
+            { id: 'players',     label: 'Players',     icon: TAB_ICONS.players }
         ],
         urlKey: 'tab',
         ariaLabel: 'Home sections',

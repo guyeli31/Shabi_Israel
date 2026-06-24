@@ -144,7 +144,7 @@ export function initAdminDrawer(username = '') {
 
     const logoEl = document.createElement('img');
     logoEl.className = 'admin-topbar-logo';
-    logoEl.src = 'assets/logo/logo.png';
+    logoEl.src = 'assets/favicon-round.png';
     logoEl.alt = '';
     logoEl.setAttribute('aria-hidden', 'true');
 

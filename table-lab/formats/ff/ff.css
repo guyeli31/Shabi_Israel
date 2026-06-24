@@ -75,7 +75,15 @@
     vertical-align: middle;
     /* inset well so the FF table separates from its --color-surface .admin-card
        (matches MF/SF/exp). Edit-mode inputs / hover / validation / F3 match-block
-       state colours override per-cell on top. */
+       state colours override per-cell on top.
+       EXCEPTION — a standalone FF table with NO framing .admin-card (it sits
+       directly on the page --color-bg) shifts UP one tier: body + sticky col →
+       --color-surface (like the dashboard .dash-card). Its HEADER uses the
+       per-theme --header-bg / --header-text table-header tokens (the deep,
+       themed header tone MF tables use) — NOT --color-inset, which is only 28%
+       off --color-bg and reads too close to the page canvas.
+       Production case: admin F1 (Leagues list), scoped via [data-mf-table-id="F1"]
+       in css/admin.css. See docs/TABLE-DESIGN.md FF + Surface-elevation sections. */
     background: var(--color-inset);
 }
 
