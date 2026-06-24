@@ -6,6 +6,7 @@
 import { getStagedContent, stageManualOverrides } from './stagingStore.js';
 import { thLabel } from '../utils/helpers.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
+import { revealMsg } from './msgScroll.js';
 
 export async function renderOverridesList(container, leagueId, refreshBadge) {
     container.innerHTML = '<div class="loading">Loading overrides...</div>';
@@ -97,4 +98,5 @@ function showMsg(message, type) {
     const el = document.getElementById('overrides-msg');
     if (!el) return;
     el.innerHTML = `<div class="admin-msg admin-msg-${type}">${message}</div>`;
+    if (message) revealMsg(el);
 }

@@ -380,7 +380,7 @@ const CATEGORY_META = {
     'match-override':  { icon: '⚖️', action: 'Match override' },
     'edit-override':   { icon: '✏️', action: 'Override edited' },
     'remove-override': { icon: '➖', action: 'Override removed' },
-    'bgsync':          { icon: '🔄', action: 'BGStudio sync updated' },
+    'bgsync':          { icon: '🔄', action: 'Auto-sync updated' },
     'player-meta':     { icon: '👤', action: 'Player updated' },
     'player-photo':    { icon: '📷', action: 'Photo updated' },
     'player-rename':   { icon: '✏️', action: 'Renamed across leagues' },

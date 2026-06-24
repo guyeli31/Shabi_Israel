@@ -73,6 +73,10 @@
     border-bottom: 0;
     box-shadow: inset 0 -1px 0 var(--color-border);
     vertical-align: middle;
+    /* inset well so the FF table separates from its --color-surface .admin-card
+       (matches MF/SF/exp). Edit-mode inputs / hover / validation / F3 match-block
+       state colours override per-cell on top. */
+    background: var(--color-inset);
 }
 
 .admin-table.font-large tbody tr:last-child td {
@@ -98,7 +102,7 @@
     position: sticky;
     left: 0;
     z-index: 2;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .admin-table.font-large tbody tr:hover td:first-child {
     background: var(--color-hover);

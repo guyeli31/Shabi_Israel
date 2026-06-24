@@ -19,7 +19,7 @@ import { exportTableImage } from '../utils/exportTableImage.js';
 import { colorForValueInverted } from '../compute/colorScale.js';
 import { drawPlayerBarChart, computeNiceRange } from './playerBarChart.js';
 import { renderBreadcrumbs } from './navigation.js';
-import { predictChampionship, computeTopXPct } from '../compute/championshipPredictor.js';
+import { predictChampionship, computeTopXPct, prProbabilityTableHtml } from '../compute/championshipPredictor.js';
 import { batchLast300PRForSimulator } from '../compute/crossLeague.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
@@ -265,24 +265,25 @@ function predictorPanel() {
             <div class="predictor-info-popup" id="predictor-info-popup" hidden>
                 <button class="predictor-info-close" id="predictor-info-close">&times;</button>
                 <h3>How It Works</h3>
-                <p>The predictor runs a <b>Monte Carlo</b> simulation — playing out all remaining matches thousands of times — to estimate each player's probability of winning the championship. The same method is used for every league type, regardless of how many matches remain.</p>
-                <h4>Last-300 PR (player strength)</h4>
-                <p>Each player's strength is their <b>Last-300 PR</b> — a weighted mean over their most recent rated matches. For the predictor this pools <b>all PR-rated leagues together</b> (Doubling + UBC), not just this league's type, giving the truest picture of current form. REGULAR leagues record no PR, so they too lean on this combined value. Alongside the mean, the <b>standard deviation</b> of those matches is used (default 2.0 when fewer than 3 are available). If a player has no rated history, a fallback PR of 10.0 is used.</p>
-                <h4>Win Probability Per Match</h4>
-                <p>In every simulated match, each player's <b>PR on the night is drawn fresh</b> from a normal distribution N(μ, σ) using their Last-300 mean and standard deviation — independently, and re-drawn on every run. The gap between the two drawn PRs is then looked up in a calibrated table (indexed by PR difference and match length), with the win probability <b>linearly interpolated</b> between adjacent rows for the exact gap; beyond a gap of 10 it is linearly extrapolated and clamped to [50%, 99.9%]. The stronger (lower drawn-PR) player gets that probability, then a coin flip decides the match. Drawing the PR each time means an upset is always possible — a stronger player can have an off night.</p>
-                <h4>PR Win Point (UBC only)</h4>
-                <p>In UBC leagues each match awards up to 2 points: 1 for the match win + 1 for the <b>PR win</b>. The PR point goes to whoever drew the <b>lower PR</b> that match — so it follows the same nightly draw and is not guaranteed by the favorite.</p>
-                <h4>Determining the Champion</h4>
-                <p>After each simulated season the standings are ranked by the league's scoring rule (Win Rate or Average Points).</p>
+                <p>The predictor plays out all the matches still left in the league <b>thousands of times over</b>, each time with slightly different results, and simply counts how often each player ends up on top. A player who wins the title in, say, 6 out of every 10 imagined seasons gets a <b>60%</b> chance. The more matches are still to be played, the more open the race.</p>
+
+                <h4>How strong is each player?</h4>
+                <p>A player's strength comes from their recent <b>PR</b> (lower is better). But nobody plays exactly the same every night, so in each imagined match a player performs a little above or below their usual level. That built-in variation is what keeps upsets possible — a favourite can have an off night, and an underdog can shine.</p>
+
+                <h4>Who wins a single match?</h4>
+                <p>Two things decide the winner's odds: <b>how big the PR gap is</b> between the players, and <b>how long the match is</b>. A bigger gap favours the stronger player, and longer matches give the favourite more room to pull ahead (luck evens out over more games). The table below shows the stronger player's win chance (%):</p>
+                ${prProbabilityTableHtml()}
+                <p>In-between gaps are read smoothly off the table — a gap of 3.5 sits halfway between the “3” and “4” rows.</p>
+
+                <h4>Breaking a tie</h4>
+                <p>When players finish level on the league's main score, the tie is settled differently depending on the league:</p>
                 <ul>
-                    <li><b>PR-based leagues (Doubling / UBC):</b> ties are broken by <b>Mean PR</b> (lower is better), computed <i>per run</i>: a player's real recorded PRs for games already played, plus the PRs drawn for that run's remaining matches, divided by total games. Because the remaining PRs are re-drawn every run, the tiebreaker reflects that specific simulated season.</li>
-                    <li><b>REGULAR leagues</b> (no PR): Win-Rate ties are broken, over the still-tied group, by <b>(a)</b> head-to-head wins, then <b>(b)</b> points-difference (sum of game-score margins) among those players, then <b>(c)</b> points-difference across all their matches, then alphabetically. A simulated match contributes the winner's score as the match length and the loser's as ⌈match length ⁄ 2⌉.</li>
+                    <li><b>Doubling &amp; UBC leagues:</b> the player with the better (lower) <b>average PR</b> across the season comes out ahead.</li>
+                    <li><b>Regular leagues:</b> the tie is settled first by the <b>head-to-head</b> result between the tied players, then by overall <b>points difference</b>, and finally alphabetically.</li>
                 </ul>
-                <p>The championship percentage is how often each player finishes 1st across all simulated seasons.</p>
+
                 <h4>Margin of Error</h4>
-                <p>The margin of error is a 95% confidence interval on the leading player's championship probability, from the binomial sampling distribution:</p>
-                <p style="text-align:center"><code><b>MoE = 1.96 × √(p × (1 − p) / N) × 100%</b></code></p>
-                <p>where <i>p</i> is the leader's estimated probability and <i>N</i> is the number of simulated seasons. It reflects sampling uncertainty only.</p>
+                <p>Because the result comes from random simulation, the leader's percentage carries a small uncertainty. The <b>± figure</b> shown is a 95% confidence range — run more simulations and it shrinks. It reflects the randomness of the simulation only.</p>
             </div>
             <div class="predictor-moe" id="predictor-moe"></div>
             <div class="predictor-topx-control" id="predictor-topx-wrap" style="display:none">

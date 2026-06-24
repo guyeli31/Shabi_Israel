@@ -12,6 +12,7 @@
 import { parseCSVAllWithRounds } from '../data/csvParser.js';
 import { loadOverrides, loadLeagueParams } from '../data/leagueLoader.js';
 import { addChange, getStagedContent, stageManualOverrides } from './stagingStore.js';
+import { revealMsg } from './msgScroll.js';
 
 async function loadOverridesWithStaged(leagueId) {
     const encoded = encodeURIComponent(leagueId);
@@ -130,6 +131,7 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
                                 <button class="btn btn-xs btn-tech" data-tech="d" data-rid="${rowId}" title="Technical draw">TD</button>
                                 <button class="btn btn-xs btn-tech" data-tech="np" data-rid="${rowId}" title="Mark as not played">NP</button>
                                 <button class="btn btn-primary btn-xs btn-save-match" data-save="${rowId}" disabled>Save</button>
+                                <button class="btn btn-secondary btn-xs btn-revert-match" data-revert="${rowId}" title="Discard the unsaved change and restore the match to its last saved state" disabled>Revert</button>
                             </td>
                         </tr>
                         <tr class="match-row-b">
@@ -206,6 +208,19 @@ function attachFilter(root, content) {
 }
 
 function attachListeners(container, leagueId, refreshBadge, matchLength) {
+    // Snapshot each match-block's original (last-saved/loaded) state so Revert
+    // can restore it. Runs once, before any edits, so the live values are pristine.
+    container.querySelectorAll('tbody[data-rid]').forEach(block => {
+        block._orig = snapshotBlock(block);
+    });
+
+    container.querySelectorAll('[data-revert]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const block = container.querySelector(`tbody[data-rid="${btn.dataset.revert}"]`);
+            if (block) revertBlock(block);
+        });
+    });
+
     container.querySelectorAll('[data-save]').forEach(btn => {
         btn.addEventListener('click', async () => {
             const block = container.querySelector(`tbody[data-rid="${btn.dataset.save}"]`);
@@ -264,6 +279,11 @@ function attachListeners(container, leagueId, refreshBadge, matchLength) {
                 block.classList.add('match-block-overridden');
                 if (dateCell) dateCell.value = ts.slice(0, 10);
             }
+            // The just-saved state becomes the new "original" — a later edit reverts
+            // back to here, not to the pre-save state.
+            block._orig = snapshotBlock(block);
+            const revertBtn = block.querySelector('[data-revert]');
+            if (revertBtn) revertBtn.disabled = true;
             showMsg(`Saved: ${playerA} vs ${playerB}`, 'success');
         });
     });
@@ -338,6 +358,10 @@ function validateResultFields(block, matchLength) {
 
 function markPending(block, matchLength) {
     block.classList.add('match-block-pending');
+    // Revert opens on ANY unsaved change (valid or not) so a partial/invalid edit
+    // can still be undone — unlike Save, which also requires validity.
+    const revertBtn = block.querySelector('[data-revert]');
+    if (revertBtn) revertBtn.disabled = false;
     const saveBtn = block.querySelector('[data-save]');
     if (!saveBtn) return;
     const pendingType = block.dataset.pendingType;
@@ -346,6 +370,40 @@ function markPending(block, matchLength) {
         : !!pendingType;
     saveBtn.disabled = !valid;
     saveBtn.classList.toggle('btn-save-ready', valid);
+}
+
+/** Snapshot a match-block's editable state + status class for Revert. */
+function snapshotBlock(block) {
+    const val = (sel) => { const el = block.querySelector(sel); return el ? el.value : ''; };
+    const dateEl = block.querySelector('.match-edited-date');
+    return {
+        prA: val('[data-field="prA"]'), luckA: val('[data-field="luckA"]'), scoreA: val('[data-field="scoreA"]'),
+        prB: val('[data-field="prB"]'), luckB: val('[data-field="luckB"]'), scoreB: val('[data-field="scoreB"]'),
+        date: dateEl ? dateEl.value : '',
+        className: block.className,
+        pendingType: block.dataset.pendingType,
+        pendingWinner: block.dataset.pendingWinner
+    };
+}
+
+/** Restore a match-block to its snapshotted original, discarding the unsaved edit. */
+function revertBlock(block) {
+    const o = block._orig;
+    if (!o) return;
+    const set = (sel, v) => { const el = block.querySelector(sel); if (el) el.value = v; };
+    set('[data-field="prA"]', o.prA); set('[data-field="luckA"]', o.luckA); set('[data-field="scoreA"]', o.scoreA);
+    set('[data-field="prB"]', o.prB); set('[data-field="luckB"]', o.luckB); set('[data-field="scoreB"]', o.scoreB);
+    const dateEl = block.querySelector('.match-edited-date');
+    if (dateEl) dateEl.value = o.date;
+    // className restore drops match-block-pending and re-applies the original status
+    // (played / unplayed / overridden).
+    block.className = o.className;
+    if (o.pendingType) block.dataset.pendingType = o.pendingType; else delete block.dataset.pendingType;
+    if (o.pendingWinner) block.dataset.pendingWinner = o.pendingWinner; else delete block.dataset.pendingWinner;
+    const saveBtn = block.querySelector('[data-save]');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.classList.remove('btn-save-ready'); }
+    const revertBtn = block.querySelector('[data-revert]');
+    if (revertBtn) revertBtn.disabled = true;
 }
 
 function formatEdited(ts) {
@@ -378,4 +436,4 @@ async function stageOverride(leagueId, newOverride, refreshBadge) {
 
 function pairKey(a, b) { return [a, b].sort().join('|'); }
 function esc(str) { const d = document.createElement('div'); d.textContent = str || ''; return d.innerHTML; }
-function showMsg(msg, type) { const el = document.getElementById('round-msg'); if (el) el.innerHTML = `<div class="admin-msg admin-msg-${type}">${msg}</div>`; }
+function showMsg(msg, type) { const el = document.getElementById('round-msg'); if (el) { el.innerHTML = `<div class="admin-msg admin-msg-${type}">${msg}</div>`; if (msg) revealMsg(el); } }

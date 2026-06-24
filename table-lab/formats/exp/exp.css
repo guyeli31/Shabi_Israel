@@ -36,7 +36,9 @@
     margin: 0 auto;
     overflow: auto;
     max-height: 360px;
-    background: var(--color-surface);
+    /* inset well — the nested-table tone (shared with MF/SF), so the expandable
+       table reads as separated from the card it lives under. */
+    background: var(--color-inset);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
 }
@@ -88,7 +90,7 @@
 .pg-rank-table tbody td:nth-child(2) { z-index: 2; }
 .pg-rank-table tbody td:nth-child(1),
 .pg-rank-table tbody td:nth-child(2) {
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 
 .pg-rank-table tbody tr:hover td:nth-child(1),

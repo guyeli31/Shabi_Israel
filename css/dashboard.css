@@ -147,7 +147,7 @@
     position: sticky;
     left: 0;
     z-index: 4;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .dash-table-wrap tbody tr:hover td:nth-child(1) {
     background: var(--color-hover);
@@ -182,12 +182,13 @@
     box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
 
-/* Theme-aware dash tables */
+/* Theme-aware dash tables — sit on --color-inset so the table reads as a
+   recessed well inside its --color-surface section card (not the same colour). */
 .dash-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    background: var(--color-surface);
+    background: var(--color-inset);
     color: var(--color-text);
 }
 
@@ -232,7 +233,7 @@
 .dash-table td.player-cell {
     position: sticky;
     left: 0;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 
 .dash-table .flag {
@@ -398,6 +399,24 @@
 .predictor-info-popup p {
     margin: var(--space-xs) 0;
 }
+.pr-prob-table {
+    border-collapse: collapse;
+    margin: var(--space-sm) 0;
+    width: 100%;
+    font-size: var(--fs-075);
+    text-align: center;
+}
+.pr-prob-table th,
+.pr-prob-table td {
+    border: 1px solid var(--popover-border-color);
+    padding: 2px 4px;
+    white-space: nowrap;
+}
+.pr-prob-table thead th,
+.pr-prob-table th[scope="row"] {
+    background: var(--color-surface-alt, rgba(127, 127, 127, 0.12));
+    font-weight: 600;
+}
 .predictor-info-close {
     position: absolute;
     top: var(--space-xs);
@@ -491,14 +510,21 @@
 }
 .prizes-table {
 }
+/* B1 — Prizes & Medals: tint each tier row with its medal colour (theme-aware
+   tokens, matching the rank-gold/silver/bronze rows on the leaderboard + standings)
+   instead of the old faint hardcoded rgba. Text colour follows so the row stays
+   legible on the dark medal fills used by dark themes. */
 .prize-row-gold td {
-    background: rgba(245,158,11,0.1);
+    background: var(--color-gold-bg);
+    color: var(--color-gold-text);
 }
 .prize-row-silver td {
-    background: rgba(148,163,184,0.1);
+    background: var(--color-silver-bg);
+    color: var(--color-silver-text);
 }
 .prize-row-bronze td {
-    background: rgba(217,119,6,0.08);
+    background: var(--color-bronze-bg);
+    color: var(--color-bronze-text);
 }
 
 /* ── What-If Simulator ──────────────────────────────────

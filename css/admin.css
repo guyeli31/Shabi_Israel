@@ -671,6 +671,10 @@ table.font-large { font-size: var(--fs-093); }
     border-bottom: 0;
     box-shadow: inset 0 -1px 0 var(--color-border);
     vertical-align: middle;
+    /* inset well so the FF table separates from its --color-surface .admin-card
+       (matches MF/SF/exp). Edit inputs / hover / validation / F3 match-block
+       state colours override per-cell on top. */
+    background: var(--color-inset);
 }
 
 .admin-table.font-large tbody tr:last-child td {
@@ -693,7 +697,7 @@ table.font-large { font-size: var(--fs-093); }
     position: sticky;
     left: 0;
     z-index: 2;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .admin-table.font-large tbody tr:hover td:first-child {
     background: var(--color-hover);
@@ -1038,46 +1042,42 @@ table.font-large { font-size: var(--fs-093); }
     border-bottom: none;
 }
 
-/* Match-state colouring is on td (not tr/tbody) so sticky cells inherit
-   the row background without breaking opacity. */
-.match-block-unplayed td {
-    background: var(--color-surface);
+/* Match-state colouring tints the WHOLE match-block row (incl. the sticky
+   first column). The match-block is the <tbody> itself, so the selector is
+   `tbody.match-block-X td` (not `tbody .match-block-X td` — there is no inner
+   tbody to descend into). Scoped with the full FF table prefix so specificity
+   (0,4,2) beats FF's base body well `.admin-table.font-large tbody td` (0,2,2,
+   --color-inset) and its sticky `td:first-child` (0,2,1) — otherwise the FF
+   inset tier masks the state tint on every cell (regression fixed 2026-06-24). */
+.admin-table.font-large.admin-round-table tbody.match-block-unplayed td {
+    background: var(--color-inset);
     color: var(--color-text-muted);
     opacity: 0.6;
 }
 
-.match-block-overridden td {
+.admin-table.font-large.admin-round-table tbody.match-block-overridden td {
     background: var(--color-accent-light);
 }
 
-.match-block-pending td {
+.admin-table.font-large.admin-round-table tbody.match-block-pending td {
     background: var(--color-warning-bg);
 }
 
-/* Hover EDITED/ACTIONS (rowspan'd cells) → highlight the whole match-block. */
-.admin-round-table .match-block:has(.match-edited:hover) td,
-.admin-round-table .match-block:has(.match-actions:hover) td {
+/* HOVER (colour E) — one UNIFORM colour over the WHOLE match-block on hover,
+   regardless of status (played / unplayed / pending / overridden). Hovering any
+   cell, sub-row, or input lights the entire tbody.match-block as a single unit.
+   `:has(:hover)` + the full FF prefix gives specificity (0,5,2), which out-
+   specifies FF's base body well (0,2,2), its row hover (0,3,2), its sticky-col
+   hover (0,4,3), AND every per-state resting tint (0,4,2) — so the whole block
+   (both sub-rows + the sticky first column) flips to one colour and NO first-col
+   hover reconciliation is needed. `opacity: 1` overrides the unplayed resting
+   opacity:.6 so an unplayed block hovers at the SAME full strength as a played
+   one (its hover used to look faint/partial). This is the single hover rule for
+   ALL statuses — there are intentionally no per-state hover overrides.
+   (uniform whole-block hover, status-independent, 2026-06-24) */
+.admin-table.font-large.admin-round-table tbody.match-block:has(:hover) td {
     background: var(--color-hover);
-}
-
-/* Hover row-a's per-row cells (PLAYER/PR/LUCK/SCORE) → only those cells.
-   Don't extend the hover into the rowspan'd EDITED/ACTIONS cells, so that
-   row-a and row-b feel symmetric. */
-.admin-round-table .match-row-a:hover td:not(.match-edited):not(.match-actions) {
-    background: var(--color-hover);
-}
-
-/* Hover row-b → all of row-b's cells (no rowspan'd cells live in row-b). */
-.admin-round-table .match-row-b:hover td {
-    background: var(--color-hover);
-}
-
-/* Same logic for the overridden-state tinted hover. */
-.match-block-overridden:has(.match-edited:hover) td,
-.match-block-overridden:has(.match-actions:hover) td,
-.admin-round-table .match-block-overridden .match-row-a:hover td:not(.match-edited):not(.match-actions),
-.admin-round-table .match-block-overridden .match-row-b:hover td {
-    background: color-mix(in srgb, var(--color-accent-light) 70%, var(--color-hover) 30%);
+    opacity: 1;
 }
 
 /* All cells left-aligned per TABLE-DESIGN.md iron rule 7. */
@@ -1254,32 +1254,12 @@ table.font-large { font-size: var(--fs-093); }
         6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
 
-/* 2. Restore match-state backgrounds on the sticky first col. FF's default
-      .admin-table.font-large tbody td:first-child sets var(--color-surface),
-      which would mask the per-match tint. These selectors carry higher
-      specificity (4 classes vs FF's 3) and win. */
-.admin-table.font-large.admin-round-table tbody .match-block-overridden td:first-child {
-    background: var(--color-accent-light);
-}
-.admin-table.font-large.admin-round-table tbody .match-block-pending td:first-child {
-    background: var(--color-warning-bg);
-}
-.admin-table.font-large.admin-round-table tbody .match-block-unplayed td:first-child {
-    background: var(--color-surface);
-}
-/* Hover propagation onto sticky first col — same specificity strategy. */
-.admin-table.font-large.admin-round-table tbody .match-block:has(.match-edited:hover) td:first-child,
-.admin-table.font-large.admin-round-table tbody .match-block:has(.match-actions:hover) td:first-child,
-.admin-table.font-large.admin-round-table tbody .match-row-a:hover td:first-child,
-.admin-table.font-large.admin-round-table tbody .match-row-b:hover td:first-child {
-    background: var(--color-hover);
-}
-.admin-table.font-large.admin-round-table tbody .match-block-overridden:has(.match-edited:hover) td:first-child,
-.admin-table.font-large.admin-round-table tbody .match-block-overridden:has(.match-actions:hover) td:first-child,
-.admin-table.font-large.admin-round-table tbody .match-block-overridden .match-row-a:hover td:first-child,
-.admin-table.font-large.admin-round-table tbody .match-block-overridden .match-row-b:hover td:first-child {
-    background: color-mix(in srgb, var(--color-accent-light) 70%, var(--color-hover) 30%);
-}
+/* 2. Hover (whole-block) on the sticky first column is already handled by the
+      `tbody.match-block:has(:hover) td` rules near the top of this F3 section
+      — their (0,5,2) specificity covers `td:first-child` too, so no separate
+      first-col hover reconciliation is needed. The resting first-col tint comes
+      from the `tbody.match-block-X td` state rules (overridden/pending/unplayed)
+      or the FF inset base (default played). */
 
 /* ---- Mobile topbar (hamburger + title + user chip) ----
    Hidden on desktop; on mobile replaces the floating standalone hamburger.

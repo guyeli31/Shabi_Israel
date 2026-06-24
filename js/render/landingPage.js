@@ -1142,8 +1142,8 @@ function renderLeaderboards(container, leaderboards) {
                 <div class="achv-panels">${panelsHtml}</div>
             </div>`;
 
-        // Collapsible toggle (shared) — current year open, past years collapsed.
-        wireSectionCollapse(section.querySelector('.app-section'), { defaultOpen: year >= currentYear });
+        // Collapsible toggle (shared) — all years open by default.
+        wireSectionCollapse(section.querySelector('.app-section'), { defaultOpen: true });
 
         // Pill switching — shared sub-tabs; show the matching type panel.
         mountPillTabs(section.querySelector('.achv-tabs'), {
@@ -1942,7 +1942,7 @@ function renderLeagueRecordsPanel(winRateRows, prRows, luckRows, worstRows) {
     return `
         <div class="match-records-stack">
             <div class="achv-table-card">
-                <h3>Best Win Rate Appearances</h3>
+                <h3>Best Win Rate</h3>
                 <div class="achv-table-wrapper">
                     <table class="achv-table league-records-table font-small" data-mf-table-id="A6">
                         <thead><tr>
@@ -1958,7 +1958,7 @@ function renderLeagueRecordsPanel(winRateRows, prRows, luckRows, worstRows) {
                 </div>
             </div>
             <div class="achv-table-card">
-                <h3>Best PR Appearances</h3>
+                <h3>Best PR</h3>
                 <div class="achv-table-wrapper">
                     <table class="achv-table league-records-table font-small" data-mf-table-id="A6">
                         <thead><tr>
@@ -1975,7 +1975,7 @@ function renderLeagueRecordsPanel(winRateRows, prRows, luckRows, worstRows) {
                 </div>
             </div>
             <div class="achv-table-card">
-                <h3>Best Luck Appearances</h3>
+                <h3>Best Luck</h3>
                 <div class="achv-table-wrapper">
                     <table class="achv-table league-records-table font-small" data-mf-table-id="A6">
                         <thead><tr>
@@ -1991,7 +1991,7 @@ function renderLeagueRecordsPanel(winRateRows, prRows, luckRows, worstRows) {
                 </div>
             </div>
             <div class="achv-table-card">
-                <h3>Worst Luck Appearances</h3>
+                <h3>Worst Luck</h3>
                 <div class="achv-table-wrapper">
                     <table class="achv-table league-records-table font-small" data-mf-table-id="A6">
                         <thead><tr>

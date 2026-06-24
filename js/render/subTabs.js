@@ -18,7 +18,25 @@
  *     re-render). Returns { open(panelId), toggle(panelId) }.
  */
 
+/**
+ * Canonical left-to-right order for league-type pills. Every pill bar in the
+ * app switches league types, so the order is enforced here (once) rather than
+ * at each call site — callers may hand us tabs in data order, count order, etc.
+ * Tabs whose id isn't a known league type keep their given order, after the
+ * known ones (Array.sort is stable).
+ */
+const PILL_TYPE_ORDER = ['doubling', 'regular', 'ubc'];
+function orderPillTabs(tabs) {
+    const rank = (id) => {
+        const i = PILL_TYPE_ORDER.indexOf(id);
+        return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+    };
+    return [...tabs].sort((a, b) => rank(a.id) - rank(b.id));
+}
+
 export function mountPillTabs(mountEl, { tabs, defaultId = null, pillClassFor = null, onSelect } = {}) {
+    tabs = orderPillTabs(tabs);
+
     const bar = document.createElement('div');
     bar.className = 'subtabs subtabs--pill';
     bar.setAttribute('role', 'tablist');

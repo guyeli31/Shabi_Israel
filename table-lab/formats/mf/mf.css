@@ -34,9 +34,12 @@
 }
 
 /* Default opaque background on ALL body cells — including sticky ones.
-   Prevents non-sticky content bleeding through on scroll (iron rule 11). */
+   Prevents non-sticky content bleeding through on scroll (iron rule 11).
+   Uses the inset/well tone so the MF table reads as separated from the white
+   section card that frames it (medal/avg/unplayed rows below set their own
+   tints; --color-inset is tuned to stay clear of --color-silver-bg). */
 .mf-wrap tbody td {
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 
 /* Medal row tints — apply to ALL td (sticky + non-sticky) so the full row matches. */

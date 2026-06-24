@@ -161,10 +161,16 @@
 
 | מחלקה | מתי | רקע |
 |---|---|---|
-| ברירת מחדל | משחק ששוחק לפי ה-CSV ולא נערך | `var(--color-surface)` |
-| `.match-block-unplayed` | משחק שלא שוחק ואין override | רקע מעומעם, `opacity: 0.6` |
-| `.match-block-pending` | המשתמש שינה ערכים/לחץ טכני אך עוד לא לחץ Save | גוון אזהרה רך (mix של `accent-light` + `warning`) |
+| ברירת מחדל | משחק ששוחק לפי ה-CSV ולא נערך | `var(--color-inset)` (שכבת ה-inset של FF; קודם `--color-surface`) |
+| `.match-block-unplayed` | משחק שלא שוחק ואין override | `var(--color-inset)` מעומעם, `opacity: 0.6` |
+| `.match-block-pending` | המשתמש שינה ערכים/לחץ טכני אך עוד לא לחץ Save | `var(--color-warning-bg)` |
 | `.match-block-overridden` | קיים override שמור ב-staging או ב-repo | `var(--color-accent-light)` |
+
+> **צביעת כל השורה + specificity (תוקן 2026-06-24):** ה-match-block הוא ה-`<tbody>` עצמו, ולכן הסלקטור הוא `tbody.match-block-X td` (compound, ללא רווח-descendant) עם prefix מלא `.admin-table.font-large.admin-round-table` → specificity ‎(0,4,2)‎ שמנצח את שכבת ה-inset של FF ‎(0,2,2)‎. הצורה הקודמת `tbody .match-block-X td:first-child` (descendant) **לא תפסה כלל** והשאירה את כל השורה ב-inset.
+>
+> **מודל "צבע אחיד לכל הבלוק" (5 מצבים):** כל match-block מקבל תמיד צבע **אחיד אחד** לכל הבלוק (שתי שורות-המשנה + העמודה הדביקה). 4 מצבי-מנוחה כבטבלה למעלה (PLAYED→inset, UNPLAYED→inset+`opacity:.6`, pending→warning-bg, overridden→accent-light); **+ (5) HOVER→`--color-hover` (צבע ה), בלי תלות בסטטוס.**
+>
+> **HOVER = כלל יחיד לכל הסטטוסים:** `tbody.match-block:has(:hover) td { background: var(--color-hover); opacity: 1 }` עם prefix מלא (specificity ‎(0,5,2)‎ — מנצח את ה-inset/‏row-hover/‏sticky-col-hover של FF **וגם** כל גוון-מנוחה פר-state ב-‎(0,4,2)‎, ולכן **אין צורך** בריקונסיליאציה נפרדת לעמודה ראשונה). hover מעל כל תא/שורת-משנה/אינפוט הופך את **כל** הבלוק לצבע ה האחיד, בכל סטטוס — played/unplayed/pending/overridden כאחד. `opacity:1` מבטל את ה-`.6` של unplayed כך שהוא מודגש במלוא העוצמה כמו השאר. **אין כללי hover פר-state.**
 
 ---
 

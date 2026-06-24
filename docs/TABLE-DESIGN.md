@@ -98,6 +98,25 @@ The CSS canon in `table-lab/formats/` follows a strict unit rule. Read this befo
 
 **Why this matters:** mixing em-based width with px-based padding inside the same sizing chain causes the ratio between text and chrome to collapse at smaller viewports. The 2026-06-03 F3 score-select bug was the canonical retrospective: a `3.2em`-wide select with `18px` right padding left only ~14px for the digit at mobile font scale, hiding the score behind the arrow. The Units policy block at the top of `base.css` records this lesson.
 
+### Surface elevation tiers (load-bearing — applies to ALL formats)
+
+Every page composes three stacked surface tones on a shared elevation ladder,
+defined once in `css/variables.css` and themed per palette:
+
+| Token | Role | Examples |
+|---|---|---|
+| `--color-bg` | Page canvas (base) | the body background behind everything |
+| `--color-surface` | Section card — the prominent framed panel | `.app-section--card`, hero cards, the **section that frames** an SF/exp card |
+| `--color-inset` | The nested "well" — any data block **inside** a surface card | MF/SF/exp table bodies, chart canvases (`.bar-chart-canvas`), the `.achv-table-card` + `.pg-rank-table-wrap` chrome, nested mini-cards (`.pg-pr-card`, index `.league-card` + info cards) |
+
+`--color-inset` is **derived** — `color-mix(in srgb, var(--color-surface) 28%, var(--color-bg))` — so it lands between the other two in **every** theme automatically (the `var()`s resolve per-theme at use-time; no per-theme override). The bg-heavy weighting keeps it clear of the lighter, more neutral `--color-silver-bg`, so a **default (non-medal) MF row never collides with the silver medal row** (verified ≥3.5% apart across all themes).
+
+**The inset rule (every format):** a table/well nested in a section card paints its body with `--color-inset` — **including every opaque sticky cell** (thead *and* tbody, every pinned column). If only some cells are made inset and the pinned columns are left on `--color-surface`, those sticky columns read as a lighter, "hover-colored" island against the inset body (the 2026-06-23 SF regression — A4/A5/A6 pinned columns, **and the C5 Match-Records sticky header corner**, stayed `--color-surface` while the card + non-sticky cells moved to `--color-inset`). Medal / avg / unplayed / self-row / hover tints stack on top as before. The framing section card stays `--color-surface`; the page stays `--color-bg`.
+
+> **Nested cards share ONE rule.** Every card that sits inside a section — index info cards (Active/Total Players…) + Active-League cards, the player PR-stat card + Achievement tiles (`.pg-tile`), and the SF `.achv-table-card` — gets its `background: var(--color-inset)` + hairline border + `--radius-md` from a **single** grouped selector in `css/sections.css` (right under `.app-section--card`). Each card's own rule carries **only** its padding / layout — it must not re-declare background/border/radius. (The dashboard's own `.dash-card` sits on the page bg, not in a section, so it keeps `--color-surface` and is deliberately excluded from that group.)
+
+> **SHOW ALL / show-more button** follows the same separation, by variant: a button sitting directly in a section (`.app-section--card .show-more-btn` — MF leaderboard / completed / matches) uses `--color-inset`; a button on an inset card (SF — `.achv-table-card .show-more-btn`) uses `--color-surface` + a lift shadow. Each contrasts its own container.
+
 ### Canonical `.flag` rule
 
 Defined once in `table-lab/formats/base/base.css` (and mirrored to `css/components.css` + `css/admin.css` for production until Phase 7 closes):
@@ -143,7 +162,7 @@ To convert a table to MF in a future session, say:
 | Row hairlines | `inset 0 -1px 0 var(--color-border)` on all cells; removed on last row |
 | Text alignment | `text-align: left` |
 | Wrapping | `white-space: nowrap` |
-| Table background | `var(--color-surface)` on all `tbody td` (prevents non-sticky content bleeding through on scroll) |
+| Table background | `var(--color-inset)` on all `tbody td` (opaque so non-sticky content can't bleed through on scroll; inset tone so the table separates from its `--color-surface` section card — see Surface elevation tiers). Set in `mf.css` `.mf-wrap tbody td` |
 | Text color | `var(--color-text)` |
 | Header background | `var(--header-bg)` |
 | Header text | `var(--header-text)` |
@@ -169,7 +188,7 @@ To convert a table to MF in a future session, say:
 | `showTopN` | `number \| null` | `null` | Initially hide rows after N; Show All button reveals the rest; `null` = always show all |
 | `mfWidth` | `string \| null` | `null` | CSS `width` on wrapper; `null` = `100%` |
 | `mfMb` | `string \| null` | `null` | CSS `margin-bottom` on wrapper; `null` = `var(--space-lg)` |
-| `mfBg` | `string \| null` | `null` | CSS `background` on wrapper; use `var(--color-surface)` for opaque card tables |
+| `mfBg` | `string \| null` | `null` | CSS `background` on the `.mf-wrap` wrapper (rarely needed — cell backgrounds come from `--color-inset`; leave `null` unless a specific table needs an opaque wrapper fill) |
 | `flagSize` | `string \| null` | `null` | CSS `height` for flag images; `null` = `16px` |
 
 ---
@@ -348,12 +367,12 @@ To convert a table to SF in a future session, say:
 | Wrapping | `white-space: nowrap` on all cells |
 | Cell padding | `0.45em 0.5em` — em-based, scales with font-size |
 | Sticky header | `thead th { position: sticky; top: 0; z-index: 3 }` — resolves against `.achv-table-wrapper`'s internal scroll |
-| Header background | `var(--color-surface)` (same as body — header distinguished by typography, not background) |
+| Header background | `var(--color-inset)` (same as body — header distinguished by typography, not background) |
 | Header text | `var(--color-text-muted)` with `font-weight: 600` |
-| Card chrome | `.achv-table-card`: `background: var(--color-surface)`, `border: 1px solid var(--color-border)`, `border-radius: var(--radius-md)`, `padding: var(--space-md)` |
+| Card chrome | `.achv-table-card`: `background: var(--color-inset)` (the card is itself the nested well inside a `--color-surface` section), `border: 1px solid var(--color-border)`, `border-radius: var(--radius-md)`, `padding: var(--space-md)` |
 | Card title | Optional `<h3>` inside the card, above the wrapper |
 | Wrapper | `.achv-table-wrapper`: `max-height: 360px; overflow-x: auto; overflow-y: auto` — single scroll container in both axes |
-| Sticky col background | `var(--color-surface)` — explicit so non-sticky content doesn't bleed through |
+| Sticky col background | `var(--color-inset)` — explicit on **every** pinned thead+tbody cell so it matches the card/body and never reads as a lighter "hover-colored" island |
 | Hover | `var(--color-hover)` on hovered row's cells |
 | Scroll shadow | `attachStickyShadow()` toggles `.is-scrolled-x` on the wrapper → MF-style drop-shadow on the rightmost sticky col's right edge, only during horizontal scroll |
 | Frame shadow | None on the wrapper (card border provides the frame) |
@@ -460,7 +479,7 @@ To convert a table to exp in a future session, say:
 |---|---|
 | Outer panel | `.pg-rank-expanded`: `width: fit-content; max-width: 100%; margin: 10px auto 0; padding: 10px; background: rgba(0,0,0,0.03); border-radius: 6px` — caller-owned visibility via `hidden` attribute |
 | Scroll context | `.pg-rank-table-wrap`: `overflow: auto; max-height: 360px` — single scroll container for BOTH axes (so sticky thead `top:0` AND sticky cols `left:0` resolve against the same element) |
-| Wrap chrome | `background: var(--color-surface); border-radius: var(--radius-md); box-shadow: var(--shadow-sm)` |
+| Wrap chrome | `background: var(--color-inset); border-radius: var(--radius-md); box-shadow: var(--shadow-sm)` — inset well (the expandable table is nested under the PR/Achievements card) |
 | Table width | `width: max-content; max-width: 100%` — sum of column intrinsic widths (content + em padding), excess overflow handled by the wrap's scroll |
 | Collapse | `border-collapse: separate; border-spacing: 0` |
 | Row hairlines | `inset 0 -1px 0 var(--color-border)` on all `tbody td`; removed on last row (inherited from `base.css`) |
@@ -468,10 +487,10 @@ To convert a table to exp in a future session, say:
 | Wrapping | `white-space: nowrap` on all cells |
 | Cell padding | `0.45em 0.5em` — em-based, scales with font-size |
 | Sticky header | Always: `thead th { position: sticky; top: 0; z-index: 3 }` resolves against `.pg-rank-table-wrap` |
-| Header background | `var(--color-bg)` — subtle tint vs body `--color-surface` so header doesn't blend in |
+| Header background | `var(--color-bg)` — one step below the `--color-inset` body, so the header reads as a slightly-recessed tint without a hard colour change |
 | Header text | `var(--color-text-muted)` with `font-weight: 700` |
 | Sticky cols | Always 2 leftmost cols pinned; col-2 offset uses JS-measured `--c0-col1-w` |
-| Sticky col background | `var(--color-surface)` on tbody sticky cells (matches body) |
+| Sticky col background | `var(--color-inset)` on tbody sticky cells (matches body) |
 | Hover | `var(--color-hover)` on hovered row's cells (incl. sticky) |
 | Self-row highlight | `var(--color-accent-light)` background + `font-weight: 700` — theme-aware (every theme defines `--color-accent-light` with readable contrast against its `--color-text`). No per-theme override needed |
 | Scroll-to-centre | On every mount: `wrap.scrollTop = selfRow.offsetTop − (wrap.clientHeight − selfRow.offsetHeight) / 2`, clamped to `≥ 0` |
@@ -593,7 +612,9 @@ To convert a table to FF in a future session, say:
 | Header text | `var(--color-text-secondary)` with `font-weight: 700`, `font-size: var(--fs-078)`, `text-transform: uppercase`, `letter-spacing: 0.05em` (admin-style chrome) |
 | Header bottom hairline | `box-shadow: inset 0 -1px 0 var(--color-border)` (no `border-bottom`) |
 | Sticky col 1 | Always on — `th:first-child` and `tbody td:first-child` are sticky-left automatically via the canonical CSS (no JS measurement, no class) |
-| Sticky col background | `var(--color-surface)` on tbody sticky cells; `var(--color-bg)` on thead corner |
+| Body + sticky col background | `var(--color-inset)` on all `tbody td` **including** the pinned first column — FF adopted the inset-well tier (2026-06-24) like MF/SF/exp, so the table separates from its `--color-surface` `.admin-card`. Edit-mode inputs, hover, validation, and the F3 match-block state colours (overridden/pending/unplayed) override per-cell on top. |
+| F3 match-block state tint | The state colour tints the **whole** match-block row (incl. the sticky first col): overridden → `--color-accent-light`, pending → `--color-warning-bg`, unplayed → `--color-inset` + `opacity:.6`. The match-block **is** the `<tbody>`, so the selector is `tbody.match-block-X td` (compound, no descendant space) scoped with the full `.admin-table.font-large.admin-round-table` prefix → specificity (0,4,2), which must beat the FF inset body well (0,2,2). The earlier `tbody .match-block-X td:first-child` *descendant* form never matched and left the row inset (regression fixed 2026-06-24). **Per-block model — each match-block is ONE uniform colour:** 4 resting states (1) played→`--color-inset`, (2) unplayed→`--color-inset` + `opacity:.6` (faded), (3) pending/edited→`--color-warning-bg`, (4) overridden/edited+saved→`--color-accent-light`; **+ (5) hover→`--color-hover` (colour E), STATUS-INDEPENDENT.** Hover is a **single** rule `tbody.match-block:has(:hover) td { background: var(--color-hover); opacity: 1 }` (spec 0,5,2 — beats FF's inset/row-hover/sticky-col-hover **and** every per-state resting tint at 0,4,2, so no first-col reconciliation is needed) that flips the **entire** match (both sub-rows + sticky col) to one colour for **every** status, played/unplayed/pending/overridden alike. `opacity:1` overrides unplayed's resting `.6` so it hovers at full strength like the rest. There are intentionally **no per-state hover overrides**. |
+| Header background | `var(--color-bg)` on thead + the sticky thead corner — one step below the inset body, a slightly-recessed admin-chrome header (uppercase + letter-spacing + bold), matching exp's header-tint approach |
 | Sticky-corner z-index | Top-left corner z=4; sticky-thead non-corner z=3; sticky body z=2 (matches MF/SF/exp hierarchy) |
 | Hover | `var(--color-hover)` on hovered row's cells (incl. sticky) |
 | Scroll shadow | `attachStickyShadow()` toggles `.is-scrolled-x` on the wrap → MF-style drop-shadow on the rightmost sticky col's right edge, only during horizontal scroll |

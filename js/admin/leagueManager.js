@@ -12,6 +12,7 @@ import { renderOverridesList } from './overridesList.js';
 import { ensurePlayerIndex } from '../render/navigation.js';
 import { thLabel } from '../utils/helpers.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
+import { revealMsg } from './msgScroll.js';
 import { wireSectionCollapse } from '../render/sectionCollapse.js';
 import { mountAccordionTabs } from '../render/subTabs.js';
 import { filePickerHTML } from './render/formControls.js';
@@ -765,6 +766,36 @@ async function renderEditLeague(container, leagueId, displayOrder) {
     }
 }
 
+/**
+ * Keep a Save button dormant until something inside `scope` actually changes from
+ * its loaded state, then re-enable — mirroring the Round/CSV editors, where Save
+ * stays disabled until there's a pending edit. Returns a controller:
+ *   - markDirty(): force the dirty state (e.g. a row removed, not an input event)
+ *   - markClean(): re-snapshot the current values as the new baseline and disable
+ *     (call after a successful save so a fresh edit is needed to re-enable).
+ */
+function wireDirtySave(scope, saveBtn) {
+    if (!scope || !saveBtn) return { markDirty() {}, markClean() {} };
+    const snapshot = () => Array.from(scope.querySelectorAll('input, select, textarea'))
+        .map(c => (c.type === 'checkbox' || c.type === 'radio') ? (c.checked ? '1' : '0') : c.value)
+        .join('');
+    let baseline = snapshot();
+    let forcedDirty = false;
+    const refresh = () => {
+        const dirty = forcedDirty || snapshot() !== baseline;
+        saveBtn.disabled = !dirty;
+        saveBtn.classList.toggle('btn-save-ready', dirty);
+    };
+    scope.addEventListener('input', refresh);
+    scope.addEventListener('change', refresh);
+    saveBtn.disabled = true;
+    saveBtn.classList.remove('btn-save-ready');
+    return {
+        markDirty() { forcedDirty = true; refresh(); },
+        markClean() { forcedDirty = false; baseline = snapshot(); refresh(); }
+    };
+}
+
 function renderEditLeagueForm(container, leagueId, params, players, displayOrder) {
     const p = params;
     const running = p.Running === true;
@@ -886,7 +917,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             <h2 class="app-section-h2">Automatic Sync</h2>
             <div class="collapsible-body">
             <div class="admin-card edit-card-sm">
-                <h3 style="margin-bottom:var(--space-md)">BGStudio Sync</h3>
+                <h3 style="margin-bottom:var(--space-md)">Auto-Sync</h3>
                 <div id="bgsync-msg"></div>
 
                 <div class="form-group">
@@ -898,10 +929,10 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                 </div>
 
                 <div class="form-group">
-                    <label for="bgsync-league-name">BGStudio League Name</label>
+                    <label for="bgsync-league-name">Source League Name</label>
                     <input type="text" id="bgsync-league-name" placeholder="${esc(bgDefaultName)}" value="${esc(bgName)}">
                     <small style="color:var(--color-text-muted)">
-                        The exact league name shown on heroes3.backgammonstudio.com
+                        The exact league name as shown on the data source
                     </small>
                 </div>
 
@@ -930,7 +961,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                 </div>
 
                 <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md)">
-                    <button class="btn btn-primary" id="bgsync-save" type="button">Save BGStudio Settings</button>
+                    <button class="btn btn-primary" id="bgsync-save" type="button">Save Sync Settings</button>
                     <button class="btn btn-secondary" id="bgsync-run-now" type="button">Run now</button>
                 </div>
             </div>
@@ -968,6 +999,16 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
 
     // Automatic Sync (BGStudio) — staged into league_params.json under p.BGStudioSync.
     setupBGSync(leagueId, params, bgDefaultName, refreshBadgeFn);
+
+    // Keep "Save Settings" / "Save Player Changes" disabled until something in
+    // their section actually changes — same dormant-until-edited behaviour the
+    // Round/CSV editors already use. Re-enabled on any edit, re-disabled on save.
+    const settingsSaveBtn = document.getElementById('save-league-settings');
+    const settingsTracker = wireDirtySave(settingsSaveBtn && settingsSaveBtn.closest('.app-section'), settingsSaveBtn);
+    // Scope to the F2 player table only — the "Custom Flag" upload panel in the same
+    // section has its own Upload action and must not arm "Save Player Changes".
+    const playersSaveBtn = document.getElementById('save-players');
+    const playersTracker = wireDirtySave(container.querySelector('[data-ff-table="F2"]'), playersSaveBtn);
 
     // Status toggle label update
     document.getElementById('edit-status').addEventListener('change', function() {
@@ -1032,6 +1073,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         });
 
         if (refreshBadgeFn) refreshBadgeFn();
+        settingsTracker.markClean();
         showMsg('edit-msg', 'Settings staged. Go to Pending Changes to publish.', 'success');
     });
 
@@ -1044,6 +1086,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             removedPlayers.add(player);
             const row = btn.closest('tr');
             if (row) row.remove();
+            playersTracker.markDirty();
             showMsg('players-msg', `"${player}" marked for removal. Click "Save Player Changes" to apply.`, 'success');
         });
     });
@@ -1162,6 +1205,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             }
 
             if (refreshBadgeFn) refreshBadgeFn();
+            playersTracker.markClean();
             showMsg('players-msg', 'Player changes staged.', 'success');
         });
     }
@@ -1358,6 +1402,7 @@ function showMsg(elementId, message, type) {
     const el = document.getElementById(elementId);
     if (!el) return;
     el.innerHTML = `<div class="admin-msg admin-msg-${type}">${message}</div>`;
+    if (message) revealMsg(el);
 }
 
 /**
@@ -1408,6 +1453,12 @@ function setupBGSync(leagueId, params, defaultName, refreshBadgeFn) {
         ? params.BGStudioSync.times.slice()
         : [];
 
+    // Keep "Save BGStudio Settings" disabled until the config actually changes from
+    // its loaded state — same dormant-until-edited behaviour as the other Edit sections.
+    // Assigned just below (after the seed rows are laid down so they form the baseline);
+    // add/remove time-row are not input events, so they call markDirty() explicitly.
+    let bgTracker = { markDirty() {}, markClean() {} };
+
     function nowHHMM() {
         const d = new Date();
         return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -1428,13 +1479,21 @@ function setupBGSync(leagueId, params, defaultName, refreshBadgeFn) {
                 if (enabled) enabled.checked = false;
             }
             row.remove();
+            bgTracker.markDirty();
         });
         list.appendChild(row);
     }
 
     seed.forEach(t => addTimeRow(t));
 
-    document.getElementById('bgsync-add-time').addEventListener('click', () => addTimeRow(nowHHMM()));
+    // Snapshot the seeded state as the baseline, then keep Save disabled until it changes.
+    const bgSaveBtn = document.getElementById('bgsync-save');
+    bgTracker = wireDirtySave(bgSaveBtn && bgSaveBtn.closest('.app-section'), bgSaveBtn);
+
+    document.getElementById('bgsync-add-time').addEventListener('click', () => {
+        addTimeRow(nowHHMM());
+        bgTracker.markDirty();
+    });
 
     // Save BGStudio settings — stage into league_params.json (base = staged version if present).
     document.getElementById('bgsync-save').addEventListener('click', () => {
@@ -1463,13 +1522,14 @@ function setupBGSync(leagueId, params, defaultName, refreshBadgeFn) {
             type: 'update',
             path,
             content: JSON.stringify(newParams, null, 2),
-            description: `Update BGStudio sync: ${leagueId}`,
+            description: `Update auto-sync: ${leagueId}`,
             category: 'bgsync',
             subject: leagueId
         });
 
         if (refreshBadgeFn) refreshBadgeFn();
-        showMsg('bgsync-msg', 'BGStudio settings staged. Go to Pending Changes to publish.', 'success');
+        bgTracker.markClean();
+        showMsg('bgsync-msg', 'Sync settings staged. Go to Pending Changes to publish.', 'success');
     });
 
     // Run now — placeholder until the sync server / Supabase trigger exists.

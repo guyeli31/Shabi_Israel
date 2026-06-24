@@ -2,12 +2,16 @@
 
 :root {
     /* Colors */
-    --color-bg: #f0f2f5;
+    /* Elevation ladder (by lightness): --color-bg ◂ --color-inset ◂ --color-surface.
+       bg = page canvas, surface = section panel (most prominent), inset = the
+       nested "well" (card-in-section / graph / table cells) sitting between them.
+       Kept as subtle, evenly-stepped tones for a modern layered UI. */
+    --color-bg: #e0e3ea;
     --color-surface: #ffffff;
     --color-text: #1a1a2e;
     --color-text-secondary: #52546b;
     --color-text-muted: #6b6d84;
-    --color-border: #e2e4e9;
+    --color-border: #d4d7df;
     --color-hover: #f5f6f8;
     --color-accent: #2563eb;
     --color-accent-light: #dbeafe;
@@ -94,6 +98,16 @@
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
     --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
+
+    /* Inset / "well" surface — for data blocks (tables, chart canvas, chart-info
+       panel, nested mini-cards) sitting INSIDE a --color-surface section card.
+       Derived as a blend weighted toward bg, so it lands as a distinct middle tier
+       between bg and surface (see ladder above) in EVERY theme automatically — the
+       var()s resolve to each theme's own bg/surface at use-time, no per-theme
+       override needed. The bg-heavy weighting keeps it clear of the lighter, more
+       neutral --color-silver-bg, so a default MF table row (= inset) never
+       collides with the silver medal row. Verified ≥3.5% apart across all themes. */
+    --color-inset: color-mix(in srgb, var(--color-surface) 28%, var(--color-bg));
 
     /* Floating surface popover — single source for the elevated "text box"
        surfaces (tooltip, context menu, info popups, chart panel). Components

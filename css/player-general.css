@@ -558,7 +558,8 @@
     margin: 0 auto;
     overflow: auto;
     max-height: 360px;
-    background: var(--color-surface);
+    /* inset well — matches the MF/SF nested-table tone inside its card */
+    background: var(--color-inset);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
 }
@@ -591,7 +592,7 @@
    --c0-col1-w is JS-measured by applyC0StickyAndScroll() on every expand.
    Thead sticky-corner cells need z above both axes' stickies (z=4).
    thead sticky cells inherit --color-bg from the rule above; tbody sticky
-   cells get --color-surface here so they match the rest of the body. */
+   cells get --color-inset here so they match the rest of the body. */
 .pg-rank-table thead th:nth-child(1),
 .pg-rank-table thead th:nth-child(2),
 .pg-rank-table tbody td:nth-child(1),
@@ -600,7 +601,7 @@
 }
 .pg-rank-table tbody td:nth-child(1),
 .pg-rank-table tbody td:nth-child(2) {
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .pg-rank-table thead th:nth-child(1),
 .pg-rank-table tbody td:nth-child(1) { left: 0; }
@@ -664,10 +665,9 @@
 }
 .pg-pr-card {
     --card-fs: var(--fs-190);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
+    /* background + border + border-radius come from the shared nested-card rule
+       in sections.css (inset well + hairline + --radius-md). */
     padding: calc(var(--card-fs) * 0.46) calc(var(--card-fs) * 0.53);
-    background: var(--color-surface);
     font-size: var(--fs-105);
 }
 .pg-pr-type {
@@ -754,10 +754,10 @@
 }
 .pg-tile {
     --tile-fs: var(--fs-200);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
+    /* background + border + border-radius come from the shared nested-card rule
+       in sections.css (inset well + hairline + --radius-md) — Achievement tiles
+       now match the PR-stat card + the index info/league cards. */
     padding: calc(var(--tile-fs) * 0.375) calc(var(--tile-fs) * 0.4375);
-    background: var(--color-surface);
     min-width: 0;
     overflow: hidden;
 }
@@ -802,7 +802,8 @@
 .pg-matches-table {
     width: 100%;
     border-collapse: collapse;
-    background: var(--color-surface);
+    /* inset well so the table reads as separated from its white section card */
+    background: var(--color-inset);
 }
 .pg-leagues-table th,
 .pg-leagues-table td,
@@ -908,11 +909,9 @@
     width: 100%;
 }
 
-/* Card shell — identical to index-dashboard.css .achv-table-card */
+/* Card shell — background + border + border-radius come from the shared
+   nested-card rule in sections.css; only padding is card-specific. */
 .achv-table-card {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
     padding: var(--space-md);
 }
 .achv-table-card h3 {
@@ -944,7 +943,7 @@
     position: sticky;
     top: 0;
     z-index: 3;
-    background: var(--color-surface);
+    background: var(--color-inset);
     font-weight: 700;
     color: var(--color-text-muted);
 }
@@ -986,10 +985,10 @@
    states (base / stripe / hover). Order matters — later rule wins at equal
    specificity (0,2,3 for stripe and hover; 0,1,2 for base). */
 .pg-matches-table tbody td {
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .pg-matches-table tbody tr:nth-child(even) td {
-    background: color-mix(in srgb, var(--color-surface) 97.5%, black 2.5%);
+    background: color-mix(in srgb, var(--color-inset) 97.5%, black 2.5%);
 }
 .pg-matches-table tbody tr:hover td {
     background: var(--color-hover);
@@ -1065,7 +1064,7 @@
 .pg-matches-table tbody td:nth-child(1),
 .achv-table.pg-mr-table tbody td:nth-child(1),
 .achv-table.pg-mr-table tbody td:nth-child(2) {
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 /* Hover wins over background. */
 .pg-leagues-table tbody tr:hover td:nth-child(1),
@@ -1082,10 +1081,11 @@
     background: var(--header-bg, #1e293b) !important;
     z-index: 4;
 }
-/* Match records header sticky corners use surface bg (light header like dashboard). */
+/* Match records header sticky corners — inset (matches the rest of the SF header
+   + the card), so the pinned header cells don't read as a lighter island. */
 .achv-table.pg-mr-table thead th:nth-child(1),
 .achv-table.pg-mr-table thead th:nth-child(2) {
-    background: var(--color-surface) !important;
+    background: var(--color-inset) !important;
     z-index: 4;
 }
 

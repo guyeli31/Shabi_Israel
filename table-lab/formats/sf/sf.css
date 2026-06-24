@@ -14,7 +14,9 @@
 /* ── Card chrome ───────────────────────────────────────────────── */
 
 .achv-table-card {
-    background: var(--color-surface);
+    /* Inset/well tone so the SF card reads as distinct from the white section
+       card that frames it (was --color-surface → card blended into section). */
+    background: var(--color-inset);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     padding: var(--space-md);
@@ -52,7 +54,7 @@
     position: sticky;
     top: 0;
     z-index: 3;
-    background: var(--color-surface);
+    background: var(--color-inset);
     color: var(--color-text-muted);
     font-weight: 600;
 }
@@ -91,7 +93,7 @@
    Drives layout via --sf-col1-w / --sf-col2-w, measured in JS.
    Per-table specifics live in individual presets if needed. */
 
-.achv-table[data-mf-table-id] tbody td:nth-child(1) { background: var(--color-surface); }
+.achv-table[data-mf-table-id] tbody td:nth-child(1) { background: var(--color-inset); }
 
 /* 1-col sticky: col 1 */
 .achv-table.sf-sticky-1 thead th:nth-child(1),
@@ -99,7 +101,7 @@
     position: sticky;
     left: 0;
     z-index: 2;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .achv-table.sf-sticky-1 thead th:nth-child(1) { z-index: 4; }
 
@@ -110,7 +112,7 @@
 .achv-table.sf-sticky-2 tbody td:nth-child(2) {
     position: sticky;
     z-index: 2;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .achv-table.sf-sticky-2 thead th:nth-child(1),
 .achv-table.sf-sticky-2 tbody td:nth-child(1) { left: 0; }
@@ -128,7 +130,7 @@
 .achv-table.sf-sticky-3 tbody td:nth-child(3) {
     position: sticky;
     z-index: 2;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .achv-table.sf-sticky-3 thead th:nth-child(1),
 .achv-table.sf-sticky-3 tbody td:nth-child(1) { left: 0; }
@@ -171,4 +173,16 @@
 .table-row-hidden { display: none !important; }
 
 /* .show-more-btn — canonical rule lives in base.css (em-based, viewport-fluid).
-   SF previously duplicated it with px padding; removed 2026-06-04. */
+   SF previously duplicated it with px padding; removed 2026-06-04.
+
+   SF-local override: the button sits ON the inset card, so the base white
+   (--color-surface) fill is only a ~4% step from the card and barely reads.
+   Pin it to the raised surface tone + a lift shadow so the SHOW ALL pill is a
+   clearly distinct (raised) layer above the recessed card. */
+.achv-table-card .show-more-btn {
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+}
+.achv-table-card .show-more-btn:hover {
+    background: var(--color-hover);
+}

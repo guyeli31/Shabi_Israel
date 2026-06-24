@@ -35,6 +35,36 @@
     box-shadow: var(--shadow-sm);
 }
 
+/* ── Nested "well" card — ONE definition for every card that sits INSIDE a
+   section card. The framing section is --color-surface; these nested cards are
+   the recessed --color-inset well + a hairline border + the standard radius.
+   Covers: index info cards (Active/Total Players…) + Active-League cards, the
+   player PR-stat card + Achievement tiles, and the SF table cards. Each card's
+   own rule keeps ONLY its padding / layout / decoration — it must NOT re-declare
+   background / border / border-radius (single source, no duplication). */
+.index-info-cards .dash-card,
+.league-card,
+.pg-pr-card,
+.pg-tile,
+.achv-table-card {
+    background: var(--color-inset);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+/* SHOW ALL / show-more toggle that sits directly inside a section card (MF
+   tables: leaderboard, completed leagues, match history) takes the inset tone so
+   the pill reads as separated from the white section it lives in. The 2-class
+   specificity beats the base.css default (--color-surface). SF tables instead
+   nest their button on an inset card, so sf.css flips it back to --color-surface
+   for contrast there — that rule loads later and wins for the SF variant only. */
+.app-section--card .show-more-btn {
+    background: var(--color-inset);
+}
+.app-section--card .show-more-btn:hover {
+    background: var(--color-hover);
+}
+
 /* Standard section heading — a card border frames it, so a thin 1px divider. */
 .app-section-h2 {
     margin: 0 0 var(--space-md);

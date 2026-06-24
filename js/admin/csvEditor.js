@@ -9,6 +9,7 @@ import { loadLeagueMatchesAll, loadOverrides } from '../data/leagueLoader.js';
 import { addChange, getStagedContent, stageManualOverrides } from './stagingStore.js';
 import { renderExcelImporter } from './excelImporter.js';
 import { thLabel } from '../utils/helpers.js';
+import { revealMsg } from './msgScroll.js';
 
 /**
  * Render the CSV editor for a league.
@@ -492,4 +493,5 @@ function showMsg(elementId, message, type) {
     const el = document.getElementById(elementId);
     if (!el) return;
     el.innerHTML = `<div class="admin-msg admin-msg-${type}">${message}</div>`;
+    if (message) revealMsg(el);
 }

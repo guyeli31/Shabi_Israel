@@ -6,11 +6,19 @@
 
 @layer themes {
     :root {
-        /* surfaces */
-        --color-bg:             #f0f2f5;
+        /* surfaces — elevation ladder: --color-bg ◂ --color-inset ◂ --color-surface.
+           bg = page canvas, surface = section card, inset = the nested "well"
+           (table bodies, chart canvas, nested mini-cards) that sits inside a
+           surface card. --color-inset is derived (weighted toward bg) so it
+           themes itself in every [data-theme] without a per-theme override, and
+           stays clear of --color-silver-bg so a default table row never collides
+           with the silver medal row. Ported from v1 2026-06-23 (see
+           docs/TABLE-DESIGN.md §"Surface elevation tiers"). */
+        --color-bg:             #e0e3ea;
         --color-surface:        #ffffff;
+        --color-inset:          color-mix(in srgb, var(--color-surface) 28%, var(--color-bg));
         --color-hover:          #f5f6f8;
-        --color-border:         #e2e4e9;
+        --color-border:         #d4d7df;
 
         /* text */
         --color-text:           #1a1a2e;

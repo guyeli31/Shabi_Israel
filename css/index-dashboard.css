@@ -8,6 +8,11 @@
     margin-bottom: var(--space-lg);
 }
 
+/* A1 stat cards: nested inside the white hero, so they get the inset well tone —
+   now via the shared nested-card rule in sections.css (which lists
+   `.index-info-cards .dash-card`). The dashboard's own .dash-card sits on the
+   page bg and keeps --color-surface, so it is intentionally NOT in that list. */
+
 /* H3 — Player search */
 .index-search {
     margin-bottom: var(--space-xl);
@@ -113,9 +118,8 @@
 }
 
 .league-card {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
+    /* background + border + border-radius come from the shared nested-card rule
+       in sections.css — do not re-declare here. */
     padding: var(--space-md) var(--space-lg);
     box-shadow: var(--shadow-sm);
     transition: box-shadow 0.15s, transform 0.15s;
@@ -282,7 +286,7 @@
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    background: var(--color-surface);
+    background: var(--color-inset);
     color: var(--color-text);
 }
 
@@ -335,7 +339,7 @@
 .leaderboard-table tbody td:nth-child(2) {
     position: sticky;
     z-index: 2;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .leaderboard-table thead th:first-child,
 .leaderboard-table thead th:nth-child(2) {
@@ -394,7 +398,7 @@
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    background: var(--color-surface);
+    background: var(--color-inset);
     color: var(--color-text);
 }
 
@@ -440,7 +444,7 @@
     position: sticky;
     left: 0;
     z-index: 2;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .completed-leagues-table tr:hover td {
     background: var(--color-hover);
@@ -583,9 +587,8 @@
 }
 
 .achv-table-card {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
+    /* background + border + border-radius come from the shared nested-card rule
+       in sections.css — do not re-declare here. */
     padding: var(--space-md);
     /* As a grid/flex item, default min-width:auto refuses to shrink below the
        table's content width — a wide table (e.g. Medals) then blows the card
@@ -644,10 +647,10 @@
 }
 .pr-leaders-table thead th:nth-child(1) {
     z-index: 3;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .pr-leaders-table tbody td:nth-child(1) {
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .pr-leaders-table tbody tr:hover td:nth-child(1) {
     background: var(--color-hover);
@@ -697,20 +700,20 @@
     white-space: nowrap;
 }
 
-/* tbody sticky cells — use surface background */
+/* tbody sticky cells — inset well (matches card + non-sticky cells) */
 .match-records-table tbody td:nth-child(1) {
     position: sticky; left: 0; z-index: 3;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .match-records-table tbody td:nth-child(2) {
     position: sticky; left: var(--mr-col1-w); z-index: 2;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .match-records-table tbody td:nth-child(3) {
     position: sticky;
     left: calc(var(--mr-col1-w) + var(--mr-col2-w));
     z-index: 2;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 
 /* tbody sticky hover — explicit td-level override (tr:hover won't pierce sticky td background) */
@@ -723,17 +726,17 @@
 /* thead sticky cells — header row already sticky top:0; add left-sticky + higher z */
 .match-records-table thead th:nth-child(1) {
     position: sticky; left: 0; top: 0; z-index: 5;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .match-records-table thead th:nth-child(2) {
     position: sticky; left: var(--mr-col1-w); top: 0; z-index: 4;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .match-records-table thead th:nth-child(3) {
     position: sticky;
     left: calc(var(--mr-col1-w) + var(--mr-col2-w));
     top: 0; z-index: 4;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 
 /* A5 sticky-boundary drop-shadow on horizontal scroll — matches MF pattern.
@@ -777,17 +780,17 @@
 
 .league-records-table tbody td:nth-child(1) {
     position: sticky; left: 0; z-index: 3;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .league-records-table tbody td:nth-child(2) {
     position: sticky; left: var(--lr-col1-w); z-index: 2;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .league-records-table tbody td:nth-child(3) {
     position: sticky;
     left: calc(var(--lr-col1-w) + var(--lr-col2-w));
     z-index: 2;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 
 .league-records-table tbody tr:hover td:nth-child(1),
@@ -798,17 +801,17 @@
 
 .league-records-table thead th:nth-child(1) {
     position: sticky; left: 0; top: 0; z-index: 5;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .league-records-table thead th:nth-child(2) {
     position: sticky; left: var(--lr-col1-w); top: 0; z-index: 4;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 .league-records-table thead th:nth-child(3) {
     position: sticky;
     left: calc(var(--lr-col1-w) + var(--lr-col2-w));
     top: 0; z-index: 4;
-    background: var(--color-surface);
+    background: var(--color-inset);
 }
 
 /* A6 sticky-boundary drop-shadow on horizontal scroll — matches MF pattern.

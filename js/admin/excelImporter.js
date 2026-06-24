@@ -8,6 +8,7 @@ import { computeCsvImportReport, renderCsvImportReport } from './csvValidation.j
 import { parseCSV } from '../data/csvParser.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { formatNumber } from '../utils/helpers.js';
+import { revealMsg } from './msgScroll.js';
 
 /**
  * Render the Excel/CSV import UI into a container.
@@ -206,6 +207,7 @@ function showMsg(elementId, message, type) {
     const el = document.getElementById(elementId);
     if (!el) return;
     el.innerHTML = `<div class="admin-msg admin-msg-${type}">${message}</div>`;
+    if (message) revealMsg(el);
 }
 
 function escHtml(str) {

@@ -1006,7 +1006,7 @@ table.matchup-table a:hover {
 
 .bar-chart-canvas {
     display: block;
-    background: var(--color-surface);
+    background: var(--color-inset);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
 }
@@ -1014,7 +1014,7 @@ table.matchup-table a:hover {
 .chart-info-panel {
     margin-top: var(--space-sm);
     padding: var(--space-sm) var(--space-md);
-    background: var(--popover-bg);
+    background: var(--color-inset);
     border: 1px solid var(--popover-border-color);
     border-radius: var(--popover-radius);
     font-family: var(--font-main);

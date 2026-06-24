@@ -31,12 +31,15 @@
     border: 1px solid transparent;
     transition: opacity 0.15s, background 0.15s, color 0.15s;
 }
-.subtab--pill:not(.active) {
+/* Inactive state. Descendant-scoped (.subtabs--pill …) so it reliably beats the
+   equal-specificity .league-type-pill.type-* colour rule regardless of which
+   stylesheet loads last — every inactive pill looks identical, every type. */
+.subtabs--pill .subtab--pill:not(.active) {
     background: transparent;
     color: var(--color-text-muted);
     opacity: 0.55;
 }
-.subtab--pill:not(.active):hover { opacity: 0.85; }
+.subtabs--pill .subtab--pill:not(.active):hover { opacity: 0.85; }
 
 /* ---- ACCORDION variant ---- */
 .subtabs--accordion {

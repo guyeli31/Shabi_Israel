@@ -33,6 +33,29 @@ const PR_PROBABILITY_TABLE = {
 };
 
 /**
+ * Build an HTML table of the win-probability calibration data, indexed by
+ * PR difference (rows) and match length (columns). Generated from
+ * PR_PROBABILITY_TABLE so the displayed figures never drift from the engine.
+ */
+export function prProbabilityTableHtml() {
+    const lens = PR_PROBABILITY_TABLE.matchLengths;
+    const rows = PR_PROBABILITY_TABLE.probabilitiesByPrDiff;
+    const head = lens.map(l => `<th scope="col">${l}</th>`).join('');
+    const body = Object.keys(rows).map(diff => {
+        const cells = rows[diff].map(v => `<td>${v.toFixed(1)}</td>`).join('');
+        return `<tr><th scope="row">${diff}</th>${cells}</tr>`;
+    }).join('');
+    return `
+        <table class="pr-prob-table">
+            <thead>
+                <tr><th rowspan="2" scope="col">PR&nbsp;gap</th><th colspan="${lens.length}" scope="colgroup">Match length</th></tr>
+                <tr>${head}</tr>
+            </thead>
+            <tbody>${body}</tbody>
+        </table>`;
+}
+
+/**
  * Find the nearest index in matchLengths for a given match length.
  */
 export function nearestMatchLengthIdx(matchLength) {
