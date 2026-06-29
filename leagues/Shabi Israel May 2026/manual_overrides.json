@@ -4,8 +4,8 @@
     { "type": "technical_win", "playerA": "YKwin", "playerB": "OvedBenZeev", "winner": "OvedBenZeev", "reason": "Technical loss for YKwin", "timestamp": "2026-05-28T00:00:00.000Z" },
     { "type": "technical_draw", "playerA": "GS18671", "playerB": "sagivquina", "reason": "Technical draw", "timestamp": "2026-06-01T00:00:00.000Z" },
 
-    { "type": "result", "playerA": "YossiEliezer23", "playerB": "ilanblum", "scoreA": 7, "scoreB": 0, "prA": 8.99, "prB": 4.59, "luckA": 1.96,  "luckB": -0.35, "reason": "Match data from BGStudio screenshot", "timestamp": "2026-06-06T00:00:00.000Z" },
-    { "type": "result", "playerA": "MarcelDana",     "playerB": "gidio",    "scoreA": 7, "scoreB": 2, "prA": 5.66, "prB": 8.58, "luckA": 1.533, "luckB": -1.533, "reason": "Match data from BGStudio screenshot", "timestamp": "2026-06-06T00:00:00.000Z" },
+    { "type": "result", "playerA": "YossiEliezer23", "playerB": "ilanblum", "scoreA": 7, "scoreB": 0, "prA": 8.99, "prB": 4.59, "luckA": 1.96,  "luckB": -0.35, "reason": "Match data from External Source screenshot", "timestamp": "2026-06-06T00:00:00.000Z" },
+    { "type": "result", "playerA": "MarcelDana",     "playerB": "gidio",    "scoreA": 7, "scoreB": 2, "prA": 5.66, "prB": 8.58, "luckA": 1.533, "luckB": -1.533, "reason": "Match data from External Source screenshot", "timestamp": "2026-06-06T00:00:00.000Z" },
 
     { "type": "technical_win", "playerA": "Avi",   "playerB": "nadavd", "winner": "Avi",   "reason": "Technical win for Avi",   "timestamp": "2026-06-06T00:00:00.000Z" },
     { "type": "technical_win", "playerA": "gingi", "playerB": "nadavd", "winner": "gingi", "reason": "Technical win for gingi", "timestamp": "2026-06-06T00:00:00.000Z" },

@@ -1,4 +1,4 @@
-name: Sync BGStudio
+name: Sync External Source
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ on:
           - fast
           - full
       leagues:
-        description: 'JSON array of leagues to sync in one session. Empty = auto-detect active league. Example: [{"folder":"Shabi Israel June 2026","bgstudio_league_name":"Shabi Israel"}]'
+        description: 'JSON array of leagues to sync in one session. Empty = auto-detect active league. Example: [{"folder":"Shabi Israel June 2026","source_league_name":"Shabi Israel"}]'
         required: false
         default: ''
         type: string
@@ -45,28 +45,29 @@ jobs:
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
 
-      - name: Restore BGStudio session cookie
+      - name: Restore External Source session cookie
         uses: actions/cache/restore@v4
         with:
           path: scripts/out/session-state.json
-          key: bgstudio-session-${{ github.run_id }}
+          key: source-session-${{ github.run_id }}
           restore-keys: |
-            bgstudio-session-
+            source-session-
 
-      - name: Run BGStudio sync
+      - name: Run External Source sync
         env:
-          BGSTUDIO_USER: ${{ secrets.BGSTUDIO_USER }}
-          BGSTUDIO_PASS: ${{ secrets.BGSTUDIO_PASS }}
+          SOURCE_URL: ${{ secrets.SOURCE_URL }}
+          SOURCE_USER: ${{ secrets.SOURCE_USER }}
+          SOURCE_PASS: ${{ secrets.SOURCE_PASS }}
           SYNC_MODE: ${{ github.event_name == 'workflow_dispatch' && (inputs.mode || 'fast') || 'full' }}
           LEAGUES: ${{ inputs.leagues || '' }}
-        run: node sync-bgstudio.js
+        run: node sync-source.js
 
-      - name: Save BGStudio session cookie
+      - name: Save External Source session cookie
         if: success()
         uses: actions/cache/save@v4
         with:
           path: scripts/out/session-state.json
-          key: bgstudio-session-${{ github.run_id }}
+          key: source-session-${{ github.run_id }}
 
       - name: Upload league + roster + new flags artifact
         if: success()
@@ -95,7 +96,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           {
-            echo "## BGStudio sync"
+            echo "## External Source sync"
             echo ""
             echo "| Field | Value |"
             echo "|---|---|"

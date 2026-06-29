@@ -807,12 +807,12 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     const entryFee = p.EntryFee ?? 0;
     const prizes = p.Prizes || { Gold: 0, Silver: 0, Bronze: 0 };
 
-    // BGStudio automatic-sync settings (stored under p.BGStudioSync in league_params.json).
-    const bgSync = p.BGStudioSync || {};
+    // External Source automatic-sync settings (stored under p.ExternalSourceSync in league_params.json).
+    const bgSync = p.ExternalSourceSync || {};
     const bgEnabled = bgSync.enabled === true;
-    // Default BGStudio league name = LeagueTitle trimmed at " - " (e.g. "Shabi Israel - June 2026" → "Shabi Israel").
+    // Default External Source league name = LeagueTitle trimmed at " - " (e.g. "Shabi Israel - June 2026" → "Shabi Israel").
     const bgDefaultName = String(p.LeagueTitle || leagueId).split(' - ')[0].trim();
-    const bgName = bgSync.bgstudioLeagueName || bgDefaultName;
+    const bgName = bgSync.sourceLeagueName || bgDefaultName;
     const bgTimes = Array.isArray(bgSync.times) ? bgSync.times.slice() : [];
     const bgStartDate = bgSync.startDate ? String(bgSync.startDate).slice(0, 10) : '';
     const bgEndDate = bgSync.endDate ? String(bgSync.endDate).slice(0, 10) : '';
@@ -995,7 +995,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     // landing / dashboard / player pages. All open by default.
     container.querySelectorAll('.app-section').forEach(s => wireSectionCollapse(s, { defaultOpen: true }));
 
-    // Automatic Sync (BGStudio) — staged into league_params.json under p.BGStudioSync.
+    // Automatic Sync (External Source) — staged into league_params.json under p.ExternalSourceSync.
     setupBGSync(leagueId, params, bgDefaultName, refreshBadgeFn);
 
     // Keep "Save Settings" / "Save Player Changes" disabled until something in
@@ -1437,8 +1437,8 @@ function setupMatchResultsTabs(leagueId, params, refreshBadge) {
 }
 
 /**
- * Wire up the "Automatic Sync" card (BGStudio daily-sync settings).
- * For now this stages the config into league_params.json under `BGStudioSync`.
+ * Wire up the "Automatic Sync" card (External Source daily-sync settings).
+ * For now this stages the config into league_params.json under `ExternalSourceSync`.
  * Later the Save / Run now actions will upsert to Supabase / trigger the server.
  *
  * @param {string[]} initialTimes - HH:MM strings to seed the run-times list.
@@ -1447,11 +1447,11 @@ function setupBGSync(leagueId, params, defaultName, refreshBadgeFn) {
     const list = document.getElementById('bgsync-times-list');
     if (!list) return; // card not rendered (shouldn't happen)
 
-    const seed = (params.BGStudioSync && Array.isArray(params.BGStudioSync.times))
-        ? params.BGStudioSync.times.slice()
+    const seed = (params.ExternalSourceSync && Array.isArray(params.ExternalSourceSync.times))
+        ? params.ExternalSourceSync.times.slice()
         : [];
 
-    // Keep "Save BGStudio Settings" disabled until the config actually changes from
+    // Keep "Save External Source Settings" disabled until the config actually changes from
     // its loaded state — same dormant-until-edited behaviour as the other Edit sections.
     // Assigned just below (after the seed rows are laid down so they form the baseline);
     // add/remove time-row are not input events, so they call markDirty() explicitly.
@@ -1493,7 +1493,7 @@ function setupBGSync(leagueId, params, defaultName, refreshBadgeFn) {
         bgTracker.markDirty();
     });
 
-    // Save BGStudio settings — stage into league_params.json (base = staged version if present).
+    // Save External Source settings — stage into league_params.json (base = staged version if present).
     document.getElementById('bgsync-save').addEventListener('click', () => {
         const encoded = encodeURIComponent(leagueId);
         const path = `leagues/${encoded}/league_params.json`;
@@ -1508,9 +1508,9 @@ function setupBGSync(leagueId, params, defaultName, refreshBadgeFn) {
         const startDate = document.getElementById('bgsync-start-date').value;
         const endDate = document.getElementById('bgsync-end-date').value;
 
-        newParams.BGStudioSync = {
+        newParams.ExternalSourceSync = {
             enabled: document.getElementById('bgsync-enabled').checked,
-            bgstudioLeagueName: nameVal,
+            sourceLeagueName: nameVal,
             startDate: startDate || null,
             endDate: endDate || null,
             times

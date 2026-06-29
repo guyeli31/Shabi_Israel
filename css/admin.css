@@ -526,7 +526,7 @@
 }
 /* iOS Safari sizes native date/time controls to their intrinsic content width
    and ignores width:100% / min-width:0, so they overflow their column to the
-   right (the reported Issue Date + BGStudio Start/End Date bug on iPhone).
+   right (the reported Issue Date + External Source Start/End Date bug on iPhone).
    Resetting the native appearance — scoped to iOS only via the
    -webkit-touch-callout feature query — makes them honour the author box model
    and fill exactly 100% of the column. Desktop is untouched, so the themed
