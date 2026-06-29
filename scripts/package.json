@@ -2,9 +2,9 @@
   "name": "shabi-israel-scripts",
   "private": true,
   "type": "module",
-  "description": "CI automation scripts (BGStudio sync). Not part of the website runtime.",
+  "description": "CI automation scripts (External Source sync). Not part of the website runtime.",
   "scripts": {
-    "sync": "node sync-bgstudio.js"
+    "sync": "node sync-source.js"
   },
   "dependencies": {
     "playwright": "^1.49.0",

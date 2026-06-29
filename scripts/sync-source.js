@@ -12,7 +12,7 @@ import { parseCSV } from '../js/data/csvParser.js';
 import { applyOverrides } from '../js/data/leagueLoader.js';
 
 const DEFAULT_FLAG = 'IL';
-const SITE_URL = 'https://heroes3.backgammonstudio.com/';
+const SITE_URL = process.env.SOURCE_URL;
 const OUT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'out');
 const SESSION_PATH = resolve(OUT_DIR, 'session-state.json');
 
@@ -24,12 +24,12 @@ const VIEWPORTS = [
   { width: 1680, height: 1050 },
 ];
 
-const username = process.env.BGSTUDIO_USER;
-const password = process.env.BGSTUDIO_PASS;
+const username = process.env.SOURCE_USER;
+const password = process.env.SOURCE_PASS;
 const SYNC_MODE = (process.env.SYNC_MODE || 'full').toLowerCase();
 
-if (!username || !password) {
-  console.error('Missing BGSTUDIO_USER or BGSTUDIO_PASS env vars.');
+if (!SITE_URL || !username || !password) {
+  console.error('Missing SOURCE_URL, SOURCE_USER or SOURCE_PASS env vars.');
   process.exit(1);
 }
 if (!['full', 'fast'].includes(SYNC_MODE)) {
@@ -140,7 +140,7 @@ async function browseTab(page, tabName, durationS) {
 const STATUS_FLAGS = {
   friendReady: { code: 1, label: 'Friend ready' },
   tournamentReady: { code: 11, label: 'Tournament ready' },
-  bgStudioReady: { code: 18, label: 'BG Studio ready' },
+  sourceReady: { code: 18, label: 'External Source ready' },
   busy: { code: 16, label: 'Busy' },
 };
 
@@ -202,7 +202,7 @@ async function navigateToLeaguesList(page) {
       return;
     }
   }
-  throw new Error(`Leagues list did not render within 30s (s(113,'0') called ${calls} times — BGStudio state not ready)`);
+  throw new Error(`Leagues list did not render within 30s (s(113,'0') called ${calls} times — External Source state not ready)`);
 }
 
 /**
@@ -277,9 +277,9 @@ async function getBaselinePlayedCount(folder, repoRoot) {
   }
 }
 
-async function clickLeagueByName(page, bgstudioLeagueName) {
+async function clickLeagueByName(page, sourceLeagueName) {
   const MAX_PAGES = 10;
-  const leagueRegex = new RegExp(`^\\s*${bgstudioLeagueName}\\s*$`);
+  const leagueRegex = new RegExp(`^\\s*${sourceLeagueName}\\s*$`);
   let prevFirstId = null;
   for (let pageIdx = 0; pageIdx < MAX_PAGES; pageIdx++) {
     await page.locator('button.tablebutton[onclick^="lg(682,"]').first().waitFor({ timeout: 10000 });
@@ -294,14 +294,14 @@ async function clickLeagueByName(page, bgstudioLeagueName) {
       return b ? b.getAttribute('onclick') : null;
     });
     if (firstId === prevFirstId) {
-      throw new Error(`League "${bgstudioLeagueName}" not found — Next button no longer advances at firstId=${firstId}`);
+      throw new Error(`League "${sourceLeagueName}" not found — Next button no longer advances at firstId=${firstId}`);
     }
     console.log(`    Not on page ${pageIdx + 1} (firstId=${firstId}) — clicking Next`);
     prevFirstId = firstId;
     await page.locator('button.tablebutton:has-text("Next")').first().click();
     await page.waitForTimeout(600);
   }
-  throw new Error(`League "${bgstudioLeagueName}" not found within ${MAX_PAGES} pages`);
+  throw new Error(`League "${sourceLeagueName}" not found within ${MAX_PAGES} pages`);
 }
 
 async function waitForRosterAndRounds(page) {
@@ -363,7 +363,7 @@ async function triggerExportAndCollect(page) {
   return csv.data || null;
 }
 
-async function exportLeagueTask(page, bgstudioLeagueName, folder, repoRoot) {
+async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
   const outSubdir = resolve(dirname(fileURLToPath(import.meta.url)), 'out', folder);
   const csvOutputPath = join(outSubdir, 'leaguedata.csv');
   const playersOutputPath = join(outSubdir, 'players.json');
@@ -371,8 +371,8 @@ async function exportLeagueTask(page, bgstudioLeagueName, folder, repoRoot) {
   const newFlagsDir = join(outSubdir, 'new_flags');
 
   await page.waitForTimeout(randInt(500, 2500));
-  console.log(`  → Opening league "${bgstudioLeagueName}" (with pagination)`);
-  await clickLeagueByName(page, bgstudioLeagueName);
+  console.log(`  → Opening league "${sourceLeagueName}" (with pagination)`);
+  await clickLeagueByName(page, sourceLeagueName);
 
   await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
 
@@ -425,11 +425,11 @@ async function exportLeagueTask(page, bgstudioLeagueName, folder, repoRoot) {
         for (const u of newPlayers) console.log(`      • ${u}`);
       }
 
-      console.log('  → CustomFlags diff (BGStudio → local)');
+      console.log('  → CustomFlags diff (External Source → local)');
       const diff = computeCustomFlagsDiff(localParams.CustomFlags, players);
       const noChanges = diff.added.length === 0 && diff.changed.length === 0 && diff.removed.length === 0;
       if (noChanges) {
-        console.log('    ✓ No changes — local CustomFlags match BGStudio');
+        console.log('    ✓ No changes — local CustomFlags match External Source');
       } else {
         for (const a of diff.added) console.log(`    + ${a.username}: ${a.to} (new override)`);
         for (const c of diff.changed) console.log(`    ~ ${c.username}: ${c.from} → ${c.to}`);
@@ -515,18 +515,18 @@ async function exportLeagueTask(page, bgstudioLeagueName, folder, repoRoot) {
   let csvText = null;
   for (let attempt = 1; attempt <= MAX_EXPORT_ATTEMPTS; attempt++) {
     if (attempt === 2) {
-      console.log(`  → Retry 2/${MAX_EXPORT_ATTEMPTS}: re-navigating to leagues list and re-opening "${bgstudioLeagueName}"`);
+      console.log(`  → Retry 2/${MAX_EXPORT_ATTEMPTS}: re-navigating to leagues list and re-opening "${sourceLeagueName}"`);
       await navigateToLeaguesList(page);
-      await clickLeagueByName(page, bgstudioLeagueName);
+      await clickLeagueByName(page, sourceLeagueName);
       await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
       const retryRoster = await waitForRosterAndRounds(page);
       console.log(`    Trace: ${JSON.stringify(retryRoster.trace)}`);
       if (!retryRoster.ok) throw new Error('DL never repopulated within 15s after retry re-entry');
     } else if (attempt === 3) {
-      console.log(`  → Retry 3/${MAX_EXPORT_ATTEMPTS}: full disconnect + reconnect (logout, re-login, re-open "${bgstudioLeagueName}")`);
+      console.log(`  → Retry 3/${MAX_EXPORT_ATTEMPTS}: full disconnect + reconnect (logout, re-login, re-open "${sourceLeagueName}")`);
       await relogin(page);
       await navigateToLeaguesList(page);
-      await clickLeagueByName(page, bgstudioLeagueName);
+      await clickLeagueByName(page, sourceLeagueName);
       await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
       const retryRoster = await waitForRosterAndRounds(page);
       console.log(`    Trace: ${JSON.stringify(retryRoster.trace)}`);
@@ -559,10 +559,10 @@ async function exportLeagueTask(page, bgstudioLeagueName, folder, repoRoot) {
     );
     if (attempt === MAX_EXPORT_ATTEMPTS) {
       throw new Error(
-        `BGStudio export integrity check failed after ${MAX_EXPORT_ATTEMPTS} attempts ` +
+        `External Source export integrity check failed after ${MAX_EXPORT_ATTEMPTS} attempts ` +
           `(attempt 1: in-place, attempt 2: re-nav, attempt 3: full relogin): ` +
           `last attempt yielded ${newPlayed} effective played, baseline ${baseline}. ` +
-          `BGStudio is consistently under-delivering rounds — try again later or investigate.`,
+          `External Source is consistently under-delivering rounds — try again later or investigate.`,
       );
     }
   }
@@ -706,33 +706,33 @@ try {
       throw new Error('LEAGUES must be a non-empty array');
     }
     for (const t of targets) {
-      if (!t.folder || !t.bgstudio_league_name) {
-        throw new Error(`Each LEAGUES entry must have "folder" and "bgstudio_league_name" — got ${JSON.stringify(t)}`);
+      if (!t.folder || !t.source_league_name) {
+        throw new Error(`Each LEAGUES entry must have "folder" and "source_league_name" — got ${JSON.stringify(t)}`);
       }
     }
     console.log(`→ Sync targets (${targets.length}) from LEAGUES env:`);
-    targets.forEach((t, i) => console.log(`  ${i + 1}. "${t.bgstudio_league_name}" → ${t.folder}`));
+    targets.forEach((t, i) => console.log(`  ${i + 1}. "${t.source_league_name}" → ${t.folder}`));
   } else {
     const leaguesRoot = join(repoRoot, 'leagues');
     const active = await findActiveLeague(leaguesRoot);
     if (!active) {
       throw new Error('No active league found (no league_params.json with "Running": true) and LEAGUES env not set');
     }
-    targets = [{ folder: active.folder, bgstudio_league_name: 'Shabi Israel' }];
-    console.log(`→ Sync target (auto-detected active): "${targets[0].bgstudio_league_name}" → ${targets[0].folder}`);
+    targets = [{ folder: active.folder, source_league_name: 'Shabi Israel' }];
+    console.log(`→ Sync target (auto-detected active): "${targets[0].source_league_name}" → ${targets[0].folder}`);
   }
 
   async function runAllExports() {
     const leagueResults = [];
     for (let i = 0; i < targets.length; i++) {
       const target = targets[i];
-      console.log(`  → League ${i + 1}/${targets.length}: "${target.bgstudio_league_name}" → ${target.folder}`);
+      console.log(`  → League ${i + 1}/${targets.length}: "${target.source_league_name}" → ${target.folder}`);
       try {
         await navigateToLeaguesList(page);
-        await exportLeagueTask(page, target.bgstudio_league_name, target.folder, repoRoot);
+        await exportLeagueTask(page, target.source_league_name, target.folder, repoRoot);
         leagueResults.push({ folder: target.folder, status: 'ok' });
       } catch (err) {
-        console.error(`  ✗ League "${target.bgstudio_league_name}" failed after all retries: ${err.message}`);
+        console.error(`  ✗ League "${target.source_league_name}" failed after all retries: ${err.message}`);
         leagueResults.push({ folder: target.folder, status: 'fail', error: err.message });
       }
     }
