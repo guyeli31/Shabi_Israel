@@ -31,7 +31,7 @@ export function renderRoundEditor(container, leagueId, refreshBadge) {
         <div id="round-msg"></div>
         <div class="match-filter-bar" style="margin-bottom:var(--space-md)">
             <label for="round-filter-input" style="margin-right:var(--space-xs)">Filter by player:</label>
-            <input type="text" id="round-filter-input" list="round-player-list" placeholder="Type player name…" autocomplete="off">
+            <input type="text" id="round-filter-input" class="app-search-input" list="round-player-list" placeholder="Type player name…" autocomplete="off">
             <datalist id="round-player-list"></datalist>
             <button type="button" class="btn btn-secondary btn-xs" id="round-filter-clear" style="margin-left:var(--space-xs)">Clear</button>
         </div>

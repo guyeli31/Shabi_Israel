@@ -35,8 +35,9 @@ import { isLoggedIn, login, logout, getUsername } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
 import { buildThemePickerPanel } from './themePicker.js';
 import { TAB_ICONS } from './tabIcons.js';
-import { mountSearchInto, ensureLeagueIndex } from './navigation.js';
+import { mountSearchInto, ensureLeagueIndex, searchEntities } from './navigation.js';
 import { mountSidebarToggle, closeSidebar, isMobile as sharedIsMobile } from './sidebarToggle.js';
+import { installSearchOverlay, registerSearchAdapter } from './searchOverlay.js';
 
 
 /* ── Icon palette — pulls from TAB_ICONS where the concept matches, falls
@@ -242,7 +243,7 @@ function renderShell(sidebar, opts) {
         <div class="site-sidebar-search site-nav-flyout-host" data-flyout="search">
             <div class="site-sidebar-search-wrap">
                 <span class="site-sidebar-search-icon" aria-hidden="true">${ICON.search}</span>
-                <input class="site-sidebar-search-input" type="text" placeholder="Search…" autocomplete="off" aria-label="Search players and leagues">
+                <input class="site-sidebar-search-input app-search-input" type="text" placeholder="Search…" autocomplete="off" aria-label="Search players and leagues">
             </div>
             <div class="site-nav-flyout site-nav-flyout--search" data-submenu="search" role="menu">
                 <ul class="nav-search-results" hidden role="listbox"></ul>
@@ -489,11 +490,49 @@ function wireInteractions(sidebar, opts) {
     // when the user has typed something. mountSearchInto handles the input
     // event wiring — we pin the flyout-host whenever there's typed content
     // so the results panel stays open while the user is reading them.
+    // iOS search-sheet: intercepts taps on any .app-search-input on this page
+    // (sidebar search, matchup, What-If). No-op on non-iOS. Idempotent.
+    installSearchOverlay();
+
     const searchHost = sidebar.querySelector('.site-sidebar-search');
     if (searchHost) {
         // The legacy mountSearchInto expects the input + results both inside
         // the same root, which they are (root = .site-sidebar-search).
         mountSearchInto(searchHost);
+
+        // iOS search-sheet adapter: same matcher (searchEntities) as the flyout
+        // above, but feeds the 16px overlay. Picking navigates to the entity.
+        const sidebarInput = searchHost.querySelector('.site-sidebar-search-input');
+        registerSearchAdapter(sidebarInput, {
+            async suggest(query) {
+                const { leagues, players } = await searchEntities(query);
+                const preview = isPreviewMode();
+                const items = [];
+                for (const l of leagues) {
+                    items.push({
+                        label: l.title,
+                        sublabel: `League · ${l.running ? 'Running' : 'Completed'}`,
+                        key: 'L:' + l.id,
+                        href: preview ? `${leagueUrl(l.id)}&preview=true` : leagueUrl(l.id),
+                    });
+                }
+                for (const p of players) {
+                    const leagueCount = p.leagues.filter(l => l.leagueId).length;
+                    const hint = leagueCount === 0 ? 'inactive'
+                        : leagueCount === 1 ? p.leagues[0].title
+                        : `${leagueCount} leagues`;
+                    const sub = (p.fullName && p.fullName !== p.name) ? p.fullName : hint;
+                    items.push({
+                        label: p.name,
+                        sublabel: sub,
+                        key: 'P:' + p.name,
+                        href: preview ? `${playerUrl(p.name)}&preview=true` : playerUrl(p.name),
+                    });
+                }
+                return items;
+            },
+            pick(item) { location.href = item.href; },
+        });
 
         const input = searchHost.querySelector('.site-sidebar-search-input');
         const results = searchHost.querySelector('.nav-search-results');

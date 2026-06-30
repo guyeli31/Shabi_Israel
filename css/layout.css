@@ -29,6 +29,29 @@ button, input, select, textarea {
     font: inherit;
 }
 
+/* ── Canonical search / filter field ─────────────────────────────────────
+   Single source of truth for every "type a query here" input across the
+   site: sidebar global search, opponent matchup, dashboard player lookup,
+   What-If predictor, and the admin match/round filters. Each field keeps
+   its own skin (dark sidebar glass, dropdown positioning, etc.); only the
+   SIZE is defined here — uniform and fluid with viewport width, matching
+   the legacy "remaining matches" lookup. Tune it in ONE place (e.g. add a
+   `@media (pointer: coarse) { font-size: 16px }` iOS anti-zoom rule here). */
+.app-search-input {
+    font-size: var(--fs-090);
+}
+
+/* Touch-device anti-zoom, ANDROID path. Coarse-pointer phones get the input
+   enlarged to 16px so focusing it never triggers a zoom. iOS is excluded
+   (`html.is-ios`, set by searchOverlay.js) because there the field is replaced
+   by the 16px search sheet on tap — see js/render/searchOverlay.js. Desktop
+   (fine pointer) is untouched and keeps the compact --fs-090. */
+@media (pointer: coarse) {
+    html:not(.is-ios) .app-search-input {
+        font-size: 16px;
+    }
+}
+
 .page-container {
     max-width: 1100px;
     margin: 0 auto;

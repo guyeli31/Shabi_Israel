@@ -31,6 +31,7 @@ import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountAccordionTabs } from './subTabs.js';
 import { displayPlayerName } from '../utils/nameDisplay.js';
+import { registerSearchAdapter } from './searchOverlay.js';
 
 export async function renderDashboardPage() {
     const container = document.getElementById('content');
@@ -314,12 +315,12 @@ function predictorPanel() {
                 <div id="whatif-body">
                     <div class="whatif-picker">
                         <div class="whatif-combo">
-                            <input type="text" id="whatif-input-a" class="whatif-input" placeholder="Player A" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="whatif-opts-a">
+                            <input type="text" id="whatif-input-a" class="whatif-input app-search-input" placeholder="Player A" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="whatif-opts-a">
                             <ul id="whatif-opts-a" class="whatif-options" role="listbox" hidden></ul>
                         </div>
                         <span class="whatif-vs">vs</span>
                         <div class="whatif-combo">
-                            <input type="text" id="whatif-input-b" class="whatif-input" placeholder="Player B" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="whatif-opts-b">
+                            <input type="text" id="whatif-input-b" class="whatif-input app-search-input" placeholder="Player B" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="whatif-opts-b">
                             <ul id="whatif-opts-b" class="whatif-options" role="listbox" hidden></ul>
                         </div>
                         <button id="whatif-add" class="whatif-add-btn" type="button">+ Add match</button>
@@ -802,6 +803,18 @@ function renderWhatIfSimulator(ctx) {
             close();
             if (onSelect) onSelect();
         }
+
+        // iOS search-sheet adapter: same option source as this combo, feeding
+        // the 16px overlay. Picking runs the combo's own choose().
+        registerSearchAdapter(input, {
+            suggest(query) {
+                const q = query.trim().toLowerCase();
+                const all = getOptions();
+                const pool = q ? all.filter(p => p.toLowerCase().includes(q)) : all;
+                return pool.slice(0, 50).map(p => ({ label: displayPlayerName(p), key: p, value: p }));
+            },
+            pick(item) { choose(item.value); },
+        });
 
         input.addEventListener('focus', open);
         input.addEventListener('click', open);
@@ -1359,7 +1372,7 @@ function buildB6cPanel(panel, ctx, remaining, lastModified) {
     outer.innerHTML = `
         <div class="rem-b6c-content">
             <div class="rem-b6c-search-row">
-                <input type="text" id="rem-b6c-input" class="rem-b6c-input"
+                <input type="text" id="rem-b6c-input" class="rem-b6c-input app-search-input"
                     placeholder="Search player…" autocomplete="off" list="rem-b6c-list">
                 <datalist id="rem-b6c-list">
                     ${allPlayers.map(p => `<option value="${escapeHtml(p)}"></option>`).join('')}

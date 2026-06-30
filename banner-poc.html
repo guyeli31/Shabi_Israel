@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Banner POC — Shabi Israel</title>
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/typography-tokens.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/themes.css">
+  <style>
+    /* ============================================================
+       HYBRID HERO BANNER  —  POC
+       Photographic board layer (right) + live code layer (left).
+       Sized to fill the existing .page-header card.
+       Everything is theme-driven via the project's CSS variables.
+       ============================================================ */
+    .hero-banner {
+      position: relative;
+      width: 100%;
+      /* Fills the card; height scales with width but is clamped so it
+         never gets silly-tall on desktop or too-short on phones. */
+      aspect-ratio: 1983 / 560;
+      min-height: 180px;
+      max-height: 320px;
+      overflow: hidden;
+      border-radius: var(--radius-lg, 12px);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      box-shadow: var(--shadow-md);
+      isolation: isolate;
+    }
+
+    /* ---- Layer 1: the photograph (board crop), pinned right ---- */
+    .hero-photo {
+      position: absolute;
+      inset: 0 0 0 auto;
+      width: 62%;
+      height: 100%;
+      background: url('assets/logo/board-crop.jpg') center / cover no-repeat;
+      z-index: 1;
+    }
+
+    /* ---- Layer 2: theme tint over the photo ----
+       Multiply a theme colour over the board so it harmonises with
+       every palette, then fade the LEFT edge into the card surface so
+       the text sits on clean background — no hard seam. */
+    .hero-photo::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        90deg,
+        var(--color-surface) 0%,
+        color-mix(in srgb, var(--color-surface) 55%, transparent) 28%,
+        color-mix(in srgb, var(--color-accent) 22%, transparent) 70%,
+        color-mix(in srgb, var(--color-accent) 30%, transparent) 100%
+      );
+    }
+
+    /* ---- Layer 3: the live content (logo + text) ---- */
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      gap: clamp(0.75rem, 2.5vw, 1.75rem);
+      padding: clamp(0.75rem, 3vw, 2rem) clamp(1rem, 4vw, 2.5rem);
+      /* content occupies left ~55%, photo breathes on the right */
+      max-width: 62%;
+    }
+
+    .hero-logo {
+      flex: 0 0 auto;
+      height: clamp(64px, 14vw, 124px);
+      aspect-ratio: 1 / 1;
+      border-radius: 50%;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.35));
+    }
+
+    .hero-text { min-width: 0; }
+
+    .hero-title {
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      line-height: 1.05;
+      font-size: clamp(1.5rem, 5.5vw, 3rem);
+      color: var(--color-text);
+      margin: 0;
+    }
+    /* Accent the second word, echoing the original "BACKGAMMON" pop */
+    .hero-title .accent { color: var(--color-accent); }
+
+    .hero-subtitle {
+      margin: 0.35em 0 0;
+      font-style: italic;
+      font-size: clamp(0.8rem, 2.2vw, 1.05rem);
+      color: var(--color-text-secondary);
+    }
+
+    .hero-tagline {
+      margin: 0.6em 0 0;
+      font-size: clamp(0.6rem, 1.6vw, 0.8rem);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+      font-weight: 600;
+    }
+
+    /* On narrow phones, stack: photo becomes a faint full-width backdrop */
+    @media (max-width: 560px) {
+      .hero-banner { aspect-ratio: 16 / 9; max-height: 240px; }
+      .hero-photo { width: 100%; opacity: 0.9; }
+      .hero-photo::before {
+        background: linear-gradient(
+          90deg,
+          var(--color-surface) 8%,
+          color-mix(in srgb, var(--color-surface) 70%, transparent) 55%,
+          color-mix(in srgb, var(--color-accent) 25%, transparent) 100%
+        );
+      }
+      .hero-content { max-width: 100%; }
+    }
+
+    /* ---- POC chrome (not part of the component) ---- */
+    body { background: var(--color-bg); color: var(--color-text);
+           font-family: system-ui, sans-serif; margin: 0; padding: 24px; }
+    .poc-shell { max-width: 1100px; margin: 0 auto; }
+    .poc-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; align-items:center; }
+    .poc-bar button {
+      padding: 6px 12px; border: 1px solid var(--color-border);
+      background: var(--color-surface); color: var(--color-text);
+      border-radius: 6px; cursor: pointer; font-size: 13px;
+    }
+    .poc-bar button.active { outline: 2px solid var(--color-accent); }
+    .poc-note { margin-top: 16px; font-size: 13px; color: var(--color-text-muted); }
+    .poc-controls { margin-bottom: 14px; font-size: 13px; display:flex; gap:14px; flex-wrap:wrap; }
+    .poc-controls label { display:flex; align-items:center; gap:6px; }
+  </style>
+</head>
+<body>
+  <div class="poc-shell">
+    <div class="poc-bar" id="themeBar">
+      <strong style="margin-right:8px">Theme:</strong>
+    </div>
+
+    <div class="poc-controls">
+      <label>Title: <input id="ctlTitle" value="Shabi Israel" size="18"></label>
+      <label>Accent word: <input id="ctlAccent" value="" size="12" placeholder="(none)"></label>
+      <label>Subtitle: <input id="ctlSub" value="By Marcel Dana and Avshalom Yaish" size="30"></label>
+      <label>Width: <input id="ctlWidth" type="range" min="360" max="1100" value="1100"> <span id="wLabel">1100</span>px</label>
+    </div>
+
+    <div id="sizer" style="margin:0 auto;">
+      <!-- ===== THE COMPONENT ===== -->
+      <header class="hero-banner">
+        <div class="hero-photo" aria-hidden="true"></div>
+        <div class="hero-content">
+          <img class="hero-logo" src="assets/logo/logo.png" alt="Israeli Backgammon League">
+          <div class="hero-text">
+            <h1 class="hero-title" id="bTitle">Shabi Israel</h1>
+            <p class="hero-subtitle" id="bSub">By Marcel Dana and Avshalom Yaish</p>
+            <p class="hero-tagline">Compete · Connect · Elevate</p>
+          </div>
+        </div>
+      </header>
+      <!-- ===== /COMPONENT ===== -->
+    </div>
+
+    <p class="poc-note">
+      Photo (board) = real pixels, stays sharp. Logo + text = live code: editable & theme-driven.
+      Switch themes above; drag Width to test responsiveness; edit the fields to see live text.
+    </p>
+  </div>
+
+  <script>
+    const themes = ['(light)','dark','beige','nature','vegas','casino','rainbow','x22'];
+    const bar = document.getElementById('themeBar');
+    themes.forEach((t, i) => {
+      const b = document.createElement('button');
+      b.textContent = t;
+      b.onclick = () => {
+        if (t === '(light)') delete document.documentElement.dataset.theme;
+        else document.documentElement.dataset.theme = t;
+        [...bar.querySelectorAll('button')].forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+      };
+      if (i === 0) b.classList.add('active');
+      bar.appendChild(b);
+    });
+
+    const title = document.getElementById('bTitle');
+    const sub = document.getElementById('bSub');
+    const renderTitle = () => {
+      const t = document.getElementById('ctlTitle').value;
+      const acc = document.getElementById('ctlAccent').value.trim();
+      if (acc && t.includes(acc)) {
+        title.innerHTML = t.replace(acc, `<span class="accent">${acc}</span>`);
+      } else { title.textContent = t; }
+    };
+    document.getElementById('ctlTitle').oninput = renderTitle;
+    document.getElementById('ctlAccent').oninput = renderTitle;
+    document.getElementById('ctlSub').oninput = e => sub.textContent = e.target.value;
+
+    const sizer = document.getElementById('sizer');
+    const wLabel = document.getElementById('wLabel');
+    document.getElementById('ctlWidth').oninput = e => {
+      sizer.style.maxWidth = e.target.value + 'px';
+      wLabel.textContent = e.target.value;
+    };
+  </script>
+</body>
+</html>

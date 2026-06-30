@@ -226,6 +226,37 @@ export function getPlayerLeagues(playerName) {
 }
 
 /**
+ * Pure cross-league entity search — the single matching rule shared by the
+ * sidebar flyout (`mountSearchInto`) AND the iOS search overlay
+ * (`searchOverlay.js`). Returns leagues + players whose name (or a player's
+ * full name) contains the query. `ensurePlayerIndex()` is awaited internally;
+ * league results need `ensureLeagueIndex()` to have resolved (the sidebar
+ * kicks that off at mount, so it's warm by the first keystroke).
+ *
+ * @param {string} query
+ * @returns {Promise<{leagues: Array, players: Array<{name,leagues,fullName}>}>}
+ */
+export async function searchEntities(query, { leagueLimit = 5, playerLimit = 6 } = {}) {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) return { leagues: [], players: [] };
+
+    const leagues = leagueIndex
+        .filter(l => !l.hidden && l.title.toLowerCase().includes(q))
+        .slice(0, leagueLimit);
+
+    const index = await ensurePlayerIndex();
+    const players = [];
+    for (const [name, pLeagues] of index) {
+        const fullName = pLeagues[0]?.fullName || '';
+        if (name.toLowerCase().includes(q) || fullName.toLowerCase().includes(q)) {
+            players.push({ name, leagues: pLeagues, fullName });
+            if (players.length >= playerLimit) break;
+        }
+    }
+    return { leagues, players };
+}
+
+/**
  * Mount the search input + results dropdown into the given host element.
  * Used by the sidebar (and historically the top-nav). The host must
  * already contain `.nav-search input` and `.nav-search-results` — typical
@@ -254,24 +285,10 @@ export function mountSearchInto(searchRoot) {
             return;
         }
 
-        // ── Match leagues (top-level entities) ──
-        const leagueMatches = leagueIndex
-            .filter(l => !l.hidden && l.title.toLowerCase().includes(query))
-            .slice(0, 5);
-
-        // ── Match players (cross-league index) ──
-        const index = await ensurePlayerIndex();
-        // Bail if the query changed while the index was loading.
+        // ── Match leagues + players (shared matcher — see searchEntities) ──
+        const { leagues: leagueMatches, players: playerMatches } = await searchEntities(query);
+        // Bail if the query changed while the player index was loading.
         if (input.value.trim().toLowerCase() !== query) return;
-
-        const playerMatches = [];
-        for (const [name, leagues] of index) {
-            const fullName = leagues[0]?.fullName || '';
-            if (name.toLowerCase().includes(query) || fullName.toLowerCase().includes(query)) {
-                playerMatches.push({ name, leagues, fullName });
-                if (playerMatches.length >= 6) break;
-            }
-        }
 
         if (leagueMatches.length === 0 && playerMatches.length === 0) {
             results.innerHTML = '<li class="search-empty">No matches found</li>';

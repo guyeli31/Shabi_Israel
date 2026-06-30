@@ -218,6 +218,9 @@
     opacity: 1;
     pointer-events: auto;
     transform: translateX(0);
+    /* Open immediately — only the CLOSE is delayed (see the transition
+       block at the bottom of this file). */
+    transition-delay: 0s;
 }
 
 /* Pin-vs-hover precedence: once a host at some level is pinned, hovering a
@@ -419,7 +422,7 @@
     border: 1px solid rgba(255,255,255,0.16);
     border-radius: var(--radius-sm);
     padding: 7px 10px 7px 30px;        /* room for the inline icon */
-    font-size: var(--fs-085);
+    /* font-size is canonical — see .app-search-input in layout.css */
     font-family: inherit;
     outline: none;                     /* no UA focus ring — we use box-shadow inset instead */
     transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
@@ -686,10 +689,15 @@ body.site-sidebar-closed .site-main {
         transform 240ms cubic-bezier(0.32, 0.72, 0, 1),
         width    200ms cubic-bezier(0.32, 0.72, 0, 1);
 }
+/* HOVER-INTENT close delay. Opening is instant (the open-state rule below
+   zeroes the delay); closing waits --flyout-close-delay so a cursor crossing
+   the gap between two cascade levels doesn't collapse the whole chain the
+   moment :hover drops for a frame. Without this, a sequence of hovers
+   (item → submenu → sub-submenu) reads as flicker and snaps everything shut. */
 .site-nav-flyout {
     transition:
-        opacity   0.15s ease-out,
-        transform 0.15s ease-out,
+        opacity   0.15s ease-out var(--flyout-close-delay, 0.25s),
+        transform 0.15s ease-out var(--flyout-close-delay, 0.25s),
         width    200ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 .site-main {

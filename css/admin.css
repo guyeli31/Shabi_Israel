@@ -996,7 +996,7 @@ table.font-large { font-size: var(--fs-093); }
     padding: 6px 10px;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
-    font-size: var(--fs-090);
+    /* font-size is canonical — see .app-search-input in layout.css */
     background: var(--color-surface);
     color: var(--color-text);
     min-width: 200px;

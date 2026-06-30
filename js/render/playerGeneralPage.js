@@ -50,6 +50,7 @@ import { buildPlayerAllMatchesPreset } from '../presets/playerAllMatchesPreset.j
 import { buildMatchupPreset } from '../presets/matchupPreset.js';
 import { buildAllOpponentsPreset, aggregateOpponents } from '../presets/allOpponentsPreset.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
+import { registerSearchAdapter } from './searchOverlay.js';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
@@ -670,7 +671,7 @@ function renderMatchup(panel, playerName, allRows) {
 
     const input = document.createElement('input');
     input.type = 'text';
-    input.className = 'matchup-search-input';
+    input.className = 'matchup-search-input app-search-input';
     input.placeholder = 'Search opponent…';
     input.autocomplete = 'off';
 
@@ -762,6 +763,26 @@ function renderMatchup(panel, playerName, allRows) {
         dropdown.hidden = true;
         renderResults(name);
     }
+
+    // iOS search-sheet adapter: same opponent matcher as filterDropdown above,
+    // feeding the 16px overlay. Picking runs the normal in-place selection.
+    registerSearchAdapter(input, {
+        suggest(query) {
+            const q = query.trim().toLowerCase();
+            if (!q) return [];
+            return allOpponents.filter(p => {
+                const full = _allMeta[p]?.fullName || '';
+                return p.toLowerCase().includes(q) || full.toLowerCase().includes(q);
+            }).slice(0, 8).map(p => {
+                const fullName = _allMeta[p]?.fullName;
+                const primary = displayPlayerName(p, _allMeta[p]);
+                const secondary = (fullName && primary !== fullName) ? fullName
+                                : (primary !== p ? p : '');
+                return { label: primary, sublabel: secondary || undefined, key: p, name: p };
+            });
+        },
+        pick(item) { selectOpponent(item.name); },
+    });
 
     input.addEventListener('input', () => filterDropdown(input.value));
     input.addEventListener('blur', () => { dropdown.hidden = true; });

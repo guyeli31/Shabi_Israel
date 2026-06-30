@@ -1,0 +1,125 @@
+/* search-overlay.css — iOS-only search sheet (see js/render/searchOverlay.js).
+   The sheet is pinned to the top of the *visual* viewport so it stays put when
+   the iOS keyboard is up. Its input is locked to 16px — the whole point: at the
+   threshold iOS will not zoom on focus. Only ever mounted on iOS. */
+
+.search-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    /* --vv-top tracks visualViewport.offsetTop (set from JS); falls back to 0. */
+    top: var(--vv-top, 0px);
+    height: var(--vv-height, 100vh);
+    z-index: 1000;                 /* above the sidebar (z 50/51) */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Light scrim over the page — page stays visible (the request was "the whole
+   view stays the same"), just a touch dimmed so the results read clearly. Tap
+   to close. */
+.search-sheet-scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.28);
+}
+
+.search-sheet-panel {
+    position: relative;
+    z-index: 1;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.22);
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.search-sheet-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+}
+
+.search-sheet-icon {
+    flex-shrink: 0;
+    color: var(--color-text-secondary);
+}
+
+.search-sheet-input {
+    flex: 1;
+    min-width: 0;
+    /* The reason this whole feature exists — 16px keeps iOS from zooming. */
+    font-size: 16px;
+    font-family: inherit;
+    line-height: 1.3;
+    padding: 8px 10px;
+    color: var(--color-text);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    outline: none;
+    box-sizing: border-box;
+}
+.search-sheet-input:focus {
+    border-color: var(--color-accent);
+}
+
+.search-sheet-close {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border: none;
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+}
+.search-sheet-close:active { background: var(--color-border); }
+
+/* Results — scroll inside the panel, never push the page. */
+.search-sheet-results {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border-top: 1px solid var(--color-border);
+}
+.search-sheet-results:empty { border-top: none; }
+
+.search-sheet-option {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--color-border);
+    cursor: pointer;
+}
+.search-sheet-option:active { background: var(--color-hover); }
+
+.search-sheet-option-label {
+    font-size: var(--fs-095);
+    font-weight: 600;
+    color: var(--color-text);
+}
+.search-sheet-option-sub {
+    font-size: var(--fs-080);
+    color: var(--color-text-secondary);
+}
+
+.search-sheet-empty {
+    padding: 14px;
+    text-align: center;
+    font-size: var(--fs-085);
+    color: var(--color-text-secondary);
+}
+
+/* Stop the page behind the sheet from scrolling while it's open. */
+html.search-sheet-open,
+html.search-sheet-open body {
+    overflow: hidden;
+}

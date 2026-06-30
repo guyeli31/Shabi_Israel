@@ -246,7 +246,7 @@ async function renderMatchEditor(container, leagueId, refreshBadge) {
             <div id="editor-msg"></div>
             <div class="match-filter-bar">
                 <label for="match-filter-input">Filter by player:</label>
-                <input type="text" id="match-filter-input" list="match-player-list" placeholder="Type player name...">
+                <input type="text" id="match-filter-input" class="app-search-input" list="match-player-list" placeholder="Type player name...">
                 <datalist id="match-player-list">${datalistOptions}</datalist>
             </div>
             <div class="table-scroll" style="max-height:600px;overflow:auto">
