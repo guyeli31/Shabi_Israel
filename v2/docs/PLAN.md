@@ -131,7 +131,11 @@ v2/
 │   │   ├── ScoreCell/
 │   │   ├── ChartTooltip/
 │   │   ├── Breadcrumbs/
-│   │   ├── Navigation/                  # top bar + leagues dropdown + search
+│   │   ├── Sidebar/                     # left rail + flyout submenus (Players/Leagues/Records/Leaders/Settings/Admin Mode)
+│   │   │                                #   replaces the removed top-nav bar (Navigation/ obsolete — 2026-06-30 sidebar rewrite).
+│   │   │                                #   universal hamburger toggle (sidebarToggle.js) shared with admin sidebar.
+│   │   │                                #   patterns: rail-mode collapse on narrow viewport, hover-bridge pseudo,
+│   │   │                                #   pin-vs-hover precedence, 3-state status pills (active/this-year/inactive)
 │   │   ├── ThemePicker/
 │   │   ├── AdminButton/
 │   │   ├── ExportButton/
@@ -464,6 +468,7 @@ Each phase ends with a commit and an MCP verification checkpoint. If a phase fai
 - Build `v2/src/tables/{MFTable, SFTable, ExpandableTable, FormTable}/`. `FormTable` is the unified FF format covering 5 admin tables (three cell modes per ColDef: Display / Action / Edit).
 - Each variant: own CSS (token-only), own JS (`mount(el, args)`), own `argsSchema.js`, own `README.md` with iron rules.
 - Port all 23 presets to `v2/src/tables/presets/{A1..A7,B1..B6c,C0..C4,D,E,F1,F2,F3,F4,F5,F6}_*.js`. Each declares `export const variant = '...'` for lab auto-discovery. F1/F2/F3/F4/F6 use `variant: 'FF'`; **F5 is MF** (read-only CSV Import Preview — `mountMFTable`, `fontClass:'font-small'`, `stickyCols:1`); **A7 is SF** (Players directory — two stacked instances with shared cols, `tableId: 'A7'`, `fontClass: 'font-small'`, `stickyCols: 1`, second instance has `showTopN: 15`).
+- **MF tables flow with the page** — `MFTable` must NOT pin `thead` (`top:0`) or `tr.avg-row` (`bottom:0`) for D or E (vertical sticky was removed in v1 on 2026-06-30; see the matching row in `MIGRATION-FROM-V1.md`). The `.mf-wrap` wrapper stays a horizontal-only scroll container (`overflow-x:auto; overflow-y:clip`) with no D/E-specific `max-height` / vertical scroll promotion. Sticky cols (`stickyCols:2` D, `stickyCols:1` E) and the scroll-shadow on the sticky col boundary are kept. If a later preset needs a sticky header/footer, expose it as an opt-in arg (`stickyHeader: boolean`) on `mountMFTable` rather than scoping via legacy IDs.
 - Source files are the **canonized** v1 lab files at `table-lab/formats/{base,mf,sf,exp,ff}/*.css` (Path-X canonization landed 2026-06-04; legacy mirrors in `css/components.css` etc. lose by cascade). The `Units policy` doc-block at the top of `base.css` (em for sizing-with-font; px for hairlines/shadows/viewport-caps/breakpoints/JS-fallbacks) ports verbatim into v2 as a non-negotiable foundation rule.
 - Build `v2/src/tools/tableLab/` with auto-discovery, args form, theme bridge, code snippet, iron rules panel.
 - **MCP verification**: open `/tableLab.html` in v2; for each preset, screenshot the preview at 3 viewports × dark+light themes. Open the same preset in v1 (e.g., open v1 league_table.html for D, league.html for B-series). Pixel diff per cell — allow ≤2% delta for font rendering.

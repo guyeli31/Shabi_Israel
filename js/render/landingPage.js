@@ -126,7 +126,20 @@ export async function renderLandingPage() {
         // Tabs shell — groups the existing sections into 4 mental buckets.
         const presentTypes = [...new Set(leagues.map(l => l.leagueType))];
         const shell = buildTabsShell();
+        // Anchor for the sidebar's Records / Leaders links — landing them
+        // here ensures the tab bar sits at the viewport top (the panel
+        // content immediately follows it).
+        shell.root.id = 'sections';
         container.appendChild(shell.root);
+
+        // If the URL carries `?tab=` (deep link from the sidebar), scroll
+        // the tabs section into view after first paint so the user lands
+        // at the section title rather than at the page header.
+        if (new URLSearchParams(location.search).get('tab')) {
+            requestAnimationFrame(() => {
+                shell.root.scrollIntoView({ block: 'start', behavior: 'auto' });
+            });
+        }
 
         // Route renderers to their tab panel — each renderer keeps its existing signature.
         renderActiveLeagues(shell.panels.leagues, running);
@@ -171,7 +184,7 @@ function buildTabsShell() {
     return mountAppTabs({
         tabs: [
             { id: 'leagues',     label: 'Leagues',     icon: TAB_ICONS.leagues },
-            { id: 'leaderboard', label: 'Leaderboard', icon: TAB_ICONS.leaderboard },
+            { id: 'leaderboard', label: 'Leaders', icon: TAB_ICONS.leaderboard },
             { id: 'records',     label: 'Records',     icon: TAB_ICONS.records },
             { id: 'players',     label: 'Players',     icon: TAB_ICONS.players }
         ],
@@ -299,8 +312,12 @@ function buildPlayerCols() {
                 const realName = row.fullName
                     ? ` <span class="lp-realname">${escapeHtml(row.fullName)}</span>`
                     : '';
+                // A7 is the player directory — the username IS the row's
+                // identity, and the full name already shows as a secondary
+                // dim sub-label. Bypass the global "Show name as" toggle
+                // here so the row reads consistently for both modes.
                 return `<img class="flag" src="${flagUrl(row.flag)}" alt="${row.flag}">` +
-                       `${playerNameLink(row.name, row.meta)}${realName}`;
+                       `${playerNameLink(row.name, row.meta, { forceUsername: true })}${realName}`;
             },
         },
         {

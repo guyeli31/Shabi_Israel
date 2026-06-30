@@ -1,0 +1,838 @@
+/* site-sidebar.css — Left navigation sidebar for public pages.
+   Narrow (200px), with flyout submenus to the right (hover OR click-to-pin).
+   On mobile collapses to an off-canvas drawer behind a hamburger in a 56px
+   fixed topbar. Width matches the admin sidebar so the two surfaces feel
+   like the same chrome. */
+
+/* Width canon lives in css/variables.css under "Sidebar canon" — these
+   aliases keep the older `--flyout-width*` names working in this file
+   without having to rename every reference. */
+:root {
+    --flyout-width: var(--sidebar-flyout-width);
+    --flyout-width-wide: var(--sidebar-flyout-width-wide);
+}
+
+/* ---- Layout ----------------------------------------------------------- */
+.site-layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+.site-sidebar {
+    width: var(--sidebar-width);
+    background: var(--header-bg);
+    color: var(--header-text);
+    padding: 12px 10px;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    box-shadow: 1px 0 0 rgba(255,255,255,0.04);
+    /* overflow:visible so flyouts can leave the sidebar's bounding box; the
+       content scrolls inside .site-nav-tree instead. */
+    overflow: visible;
+    z-index: 50;
+}
+
+/* ---- Brand row (round logo + "Shabi Israel" text, links home) -------- */
+/* `padding-left: 48px` clears the always-visible hamburger (38×38 at
+   `left: 8px`) — without it the round logo would sit underneath the
+   hamburger button when the sidebar is open. */
+.site-sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 8px 10px 48px;
+    margin-bottom: 8px;
+    text-decoration: none;
+    color: var(--header-text);
+    border-bottom: 1px solid rgba(255,255,255,0.10);
+    transition: opacity 0.15s;
+}
+.site-sidebar-brand:hover { opacity: 0.85; }
+
+.site-sidebar-brand-logo {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.18), 0 1px 4px rgba(0,0,0,0.30);
+    background: rgba(255,255,255,0.04);
+}
+
+.site-sidebar-brand-text {
+    font-size: var(--fs-100);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: rgba(255,255,255,0.95);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ---- Nav tree -------------------------------------------------------- */
+/* No `overflow` here — flyouts need to escape sideways. The full 7-item
+   nav fits in 100vh comfortably, so we don't need internal scrolling. If
+   we ever add many items, switch to `position: fixed` flyouts positioned
+   from JS instead of CSS `position: absolute`. */
+.site-nav-tree {
+    flex: 1;
+    min-height: 0;
+    margin: 0 -2px;
+    padding: 0 2px;
+}
+
+/* Items (top-level entries) ------------------------------------------- */
+.site-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 9px;
+    color: rgba(255,255,255,0.78);
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    margin-bottom: 2px;
+    font-size: var(--fs-090);
+    transition: background 0.15s, color 0.15s;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    line-height: 1.25;
+    position: relative;
+}
+
+.site-nav-item:hover,
+.site-nav-item.active,
+.site-nav-item.current,
+.site-nav-flyout-host:hover > .site-nav-item,
+.site-nav-flyout-host.pinned > .site-nav-item {
+    background: rgba(255,255,255,0.10);
+    color: #fff;
+}
+
+.site-nav-icon {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;        /* emoji sizing — keeps glyphs legible without bloating row height */
+    line-height: 1;
+}
+
+.site-nav-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.site-nav-label {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.site-nav-chevron {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    opacity: 0.55;
+}
+
+.site-nav-flyout-host:hover > .site-nav-item .site-nav-chevron,
+.site-nav-flyout-host.pinned > .site-nav-item .site-nav-chevron {
+    opacity: 0.95;
+}
+
+/* ---- Flyouts -------------------------------------------------------- */
+/* The flyout panel sits to the RIGHT of its host. Opens on hover OR when
+   the host is `.pinned` (click toggles). Nested flyouts cascade further
+   right by attaching their own host inside the parent flyout. */
+.site-nav-flyout-host {
+    position: relative;
+}
+
+.site-nav-flyout {
+    position: absolute;
+    left: calc(100% + 4px);
+    top: 0;
+    min-width: var(--flyout-width);
+    max-width: var(--flyout-width-wide);
+    background: var(--header-bg);
+    color: var(--header-text);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: var(--radius-md);
+    padding: 6px;
+    box-shadow:
+        4px 0 12px rgba(15, 23, 42, 0.35),
+        12px 4px 28px rgba(15, 23, 42, 0.30);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-4px);
+    transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+    z-index: 51;
+    /* No overflow by default — short submenus (Settings, Leagues parent)
+       should not show redundant scrollbars. Long lists (Players, league
+       lists inside Dashboard/Table) opt in via the inner-scroll rule below. */
+}
+
+/* HOVER BRIDGE — invisible strip that extends the flyout's hit-area 10px
+   to the LEFT, spanning the visible gap between the host button and the
+   flyout. Without this, moving the cursor across the gap drops `:hover`
+   on the host for a tick and the flyout flickered shut mid-transit. The
+   pseudo is transparent (no fill, no border) — it just catches the
+   pointer so `:hover` on the host stays alive during the transit. */
+.site-nav-flyout::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -10px;
+    width: 10px;
+    background: transparent;
+    pointer-events: auto;
+}
+
+/* Long lists get internal scrolling. Targets the leaf flyouts that fill
+   with many rows: Players (~50) and the leagues lists inside Dashboard/
+   Table (10-20). The parent Leagues flyout itself only holds two rows. */
+.site-nav-flyout[data-submenu="players"],
+.site-nav-flyout[data-submenu="leagues-dashboard"],
+.site-nav-flyout[data-submenu="leagues-table"] {
+    max-height: min(70vh, 520px);
+    overflow-y: auto;
+}
+
+/* Hover-open: any pointer over the host (button or its flyout) keeps it shown.
+   Pinned-open: click on the host adds `.pinned` and stays until tap-outside. */
+.site-nav-flyout-host:hover > .site-nav-flyout,
+.site-nav-flyout-host.pinned > .site-nav-flyout,
+.site-nav-flyout-host:focus-within > .site-nav-flyout {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+}
+
+/* Pin-vs-hover precedence: once a host at some level is pinned, hovering a
+   DIFFERENT sibling host (at the same level) must NOT open that sibling.
+   Only the pinned host's flyout — and any hover inside IT — is honoured. */
+.site-nav-tree:has(> .site-nav-flyout-host.pinned) > .site-nav-flyout-host:not(.pinned):hover > .site-nav-flyout,
+.site-nav-flyout:has(> .site-nav-flyout-host--nested.pinned) > .site-nav-flyout-host--nested:not(.pinned):hover > .site-nav-flyout {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-4px);
+}
+
+/* Nested flyouts (Dashboard / Table inside Leagues) — same pattern, just
+   they live INSIDE another flyout, so their `left: 100%` cascades further. */
+.site-nav-flyout-host--nested {
+    display: block;
+}
+
+.site-nav-flyout--nested {
+    left: calc(100% + 6px);
+    top: -6px; /* compensate the parent flyout's padding so they align */
+}
+
+/* Items inside a flyout */
+.site-nav-flyout-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    color: rgba(255,255,255,0.78);
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-085);
+    background: none;
+    border: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 1.3;
+}
+.site-nav-flyout-item:hover,
+.site-nav-flyout-item.active {
+    background: rgba(255,255,255,0.10);
+    color: #fff;
+}
+
+/* Adopt the canonical A7 flag rule (table-lab/formats/base/base.css):
+   `height: 1em` + `width: auto` + `object-fit: contain` + `border-radius:
+   0.15em`. NO outline / box-shadow — the canonical rule renders the flag
+   bare, and a translucent white outline added a visible frame around each
+   flag that didn't belong in the design system. */
+.site-nav-flyout-item .flag {
+    height: 1em;
+    width: auto;
+    object-fit: contain;
+    border-radius: 0.15em;
+    vertical-align: middle;
+    flex-shrink: 0;
+    image-rendering: auto;
+}
+
+.site-nav-flyout-label {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.site-nav-flyout-loading {
+    padding: 10px 12px;
+    font-size: var(--fs-080);
+    opacity: 0.6;
+    color: rgba(255,255,255,0.65);
+}
+
+/* Player status pill — same visual format as the A7 landing-page directory
+   (.lp-status in css/index-dashboard.css). Duplicated here, scoped to the
+   sidebar's flyout-item rows, so league_table.html and player_league.html
+   (which don't load index-dashboard.css) still get the styled pill. The
+   only difference vs the A7 row is a smaller base font size to fit the
+   narrower flyout. Three states: active / this-year / inactive. */
+.site-nav-flyout-item .lp-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.18em 0.55em;
+    border-radius: var(--radius-full);
+    font-size: var(--fs-068);
+    font-weight: 600;
+    line-height: 1.5;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.site-nav-flyout-item .lp-status-dot {
+    width: 0.55em;
+    height: 0.55em;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 0 0.18em color-mix(in srgb, currentColor 25%, transparent);
+}
+/* On-dark pill variants — the sidebar flyout is ALWAYS painted with
+   var(--header-bg) (a dark chrome) regardless of the active theme, so the
+   light-theme --color-player-*-bg values (#d1fae5, #fde8c8, #f3f4f6) used
+   on the A7 pill would read as glaring patches here. Instead we tint the
+   pill background from `currentColor` and pick a foreground brightness
+   that reads well on dark — theme-independent, matches the sidebar's own
+   rgba(255,255,255,.10) hover language. */
+.site-nav-flyout-item .lp-status-active {
+    color: #34d399;
+    background: color-mix(in srgb, currentColor 16%, transparent);
+}
+.site-nav-flyout-item .lp-status-this-year {
+    color: #f59e0b;
+    background: color-mix(in srgb, currentColor 16%, transparent);
+}
+.site-nav-flyout-item .lp-status-inactive {
+    color: rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.08);
+}
+.site-nav-flyout-item .lp-status-inactive .lp-status-dot {
+    box-shadow: none;
+    opacity: 0.7;
+}
+
+/* League status dot */
+.site-nav-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.18);
+}
+.site-nav-status-dot.running   { background: #22c55e; }
+.site-nav-status-dot.completed { background: rgba(255,255,255,0.35); }
+
+/* ---- Settings flyout — radio-style flyout items ---------------------- */
+/* The "Show name as" sub-flyout uses a tick mark to signal which option is
+   currently active, instead of a native <select>. Hidden by default; only
+   the .active item reveals it. Same pattern works for any future "pick
+   one from N" sub-menu inside Settings. */
+.site-nav-flyout-check {
+    width: 14px;
+    flex-shrink: 0;
+    text-align: right;
+    color: #34d399;
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.site-nav-flyout-item.active .site-nav-flyout-check {
+    opacity: 1;
+}
+
+/* ---- Search block (bottom of the sidebar) ---------------------------- */
+/* The INPUT lives inside the sidebar — always visible — so the user can
+   type without first opening anything. The RESULTS panel is a flyout that
+   appears to the right when the user has typed text or focused the input. */
+.site-sidebar-search {
+    /* Sits in the natural flow of the sidebar's footer area. The previous
+       `margin-top: 8px` + `padding-top: 10px` pushed it down further than
+       the design needed — drop the gap so the input sits closer to the
+       last nav item, leaving more vertical breathing room for the banner
+       + nav above. */
+    margin-top: 0;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255,255,255,0.10);
+}
+
+/* Input wrap holds the input + an absolutely-positioned magnifying-glass
+   icon inside the input. The wrap has `position: relative; max-width:100%`
+   so even when the input grows on focus its border never extends past
+   the sidebar's content box. */
+.site-sidebar-search-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.site-sidebar-search-icon {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 13px;
+    line-height: 1;
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.site-sidebar-search-input {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    background: rgba(255,255,255,0.10);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: var(--radius-sm);
+    padding: 7px 10px 7px 30px;        /* room for the inline icon */
+    font-size: var(--fs-085);
+    font-family: inherit;
+    outline: none;                     /* no UA focus ring — we use box-shadow inset instead */
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.site-sidebar-search-input::placeholder { color: rgba(255,255,255,0.45); }
+.site-sidebar-search-input:focus,
+.site-sidebar-search-input:focus-visible {
+    /* Inset shadow keeps the focused frame INSIDE the input bounds — a
+       normal `box-shadow` (positive spread) would push the visible edge
+       beyond the sidebar's content box and look like overflow. */
+    background: rgba(255,255,255,0.14);
+    border-color: rgba(255,255,255,0.30);
+    box-shadow: inset 0 0 0 1px rgba(96,165,250,0.40);
+}
+
+/* Results flyout — fixed-width panel to the right of the sidebar.
+   `bottom: 0` anchors it to the same baseline as the search input so the
+   results read as a natural continuation. */
+.site-nav-flyout--search {
+    left: calc(100% + 4px);
+    top: auto;
+    bottom: 0;
+    width: min(360px, 84vw);
+    max-width: 92vw;
+    padding: 10px;
+    /* Only shown when host is .pinned (user has typed / focused).
+       Hover-only no longer opens it — the user expects intent. */
+}
+
+/* Override the hover-open rule from the generic flyout block so the search
+   flyout doesn't pop on every mouse pass. It only opens via `.pinned`,
+   which the JS adds when the input has content or focus. */
+.site-sidebar-search:hover > .site-nav-flyout--search {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-4px);
+}
+.site-sidebar-search.pinned > .site-nav-flyout--search {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+}
+
+/* The original .nav-search-results was a position:absolute popup anchored
+   below a top-nav input. Inside the sidebar flyout it should sit STATICALLY
+   so it fills the flyout's column. */
+.site-nav-flyout--search .nav-search-results {
+    position: static;
+    top: auto;
+    right: auto;
+    min-width: 0;
+    max-height: 50vh;
+    overflow-y: auto;
+    box-shadow: none;
+    border-radius: var(--radius-sm);
+}
+
+.site-nav-flyout--search-empty {
+    padding: 8px 10px;
+    font-size: var(--fs-080);
+    color: rgba(255,255,255,0.50);
+    text-align: center;
+}
+
+/* ---- Shared admin banner -------------------------------------------- */
+/* Used in BOTH the public site sidebar AND the admin sidebar (admin.css
+   also references this class). When the user is logged in, both surfaces
+   show the same "Welcome back / Name / Active" card so the admin status
+   reads as one coherent feature across the app, not two visuals. */
+.sidebar-admin-banner {
+    margin: 0 0 10px;
+    padding: 9px 10px;
+    background: linear-gradient(135deg, rgba(37,99,235,0.22) 0%, rgba(255,255,255,0.04) 100%);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-top-color: rgba(255,255,255,0.14);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    animation: sidebar-admin-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes sidebar-admin-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.sidebar-admin-banner::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(to bottom, #60a5fa 0%, #2563eb 100%);
+    border-radius: 0 2px 2px 0;
+}
+
+.sidebar-admin-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--fs-095);
+    font-weight: 800;
+    color: #fff;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    box-shadow: 0 0 0 2px rgba(96,165,250,0.25), 0 2px 6px rgba(37,99,235,0.40);
+}
+
+.sidebar-admin-body {
+    min-width: 0;
+    flex: 1;
+}
+
+.sidebar-admin-label {
+    font-size: var(--fs-060);
+    font-weight: 700;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.40);
+    margin-bottom: 1px;
+}
+
+.sidebar-admin-name {
+    font-size: var(--fs-088);
+    font-weight: 700;
+    color: rgba(255,255,255,0.95);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.01em;
+}
+
+.sidebar-admin-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 2px;
+    font-size: var(--fs-062);
+    color: rgba(52,211,153,0.85);
+    letter-spacing: 0.04em;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.sidebar-admin-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 0 2px rgba(52,211,153,0.2);
+    animation: sidebar-admin-pulse 2.4s ease-in-out infinite;
+    flex-shrink: 0;
+}
+
+@keyframes sidebar-admin-pulse {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(52,211,153,0.2); }
+    50%       { box-shadow: 0 0 0 4px rgba(52,211,153,0.12), 0 0 8px rgba(52,211,153,0.30); }
+}
+
+/* ---- Logout button (mirrors the admin sidebar's footer logout) ------- */
+.site-sidebar-logout {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 6px;
+    padding: 7px 9px;
+    width: 100%;
+    border: none;
+    background: none;
+    color: rgba(255,255,255,0.65);
+    font-family: inherit;
+    font-size: var(--fs-085);
+    text-align: left;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.site-sidebar-logout:hover {
+    background: rgba(220, 38, 38, 0.18);
+    color: #fca5a5;
+}
+.site-sidebar-logout svg { flex-shrink: 0; }
+
+/* ---- site-main: the rest of the page ------------------------------- */
+.site-main {
+    flex: 1;
+    min-width: 0;
+    background: var(--color-bg);
+    overflow-x: hidden;
+}
+
+/* ---- Universal hamburger toggle ------------------------------------- */
+/* Always-visible button (fixed top-left). Clicking toggles
+   body.site-sidebar-closed which controls sidebar visibility in every
+   viewport — desktop, tablet, mobile. The same affordance, the same
+   behaviour. */
+.site-hamburger {
+    position: fixed;
+    /* `top: 13px` (was 8px) vertically centres the 38×38 hamburger on the
+       sidebar brand row's centre line: sidebar padding-top (12) + brand
+       padding-top (6) + logo half-height (14) − hamburger half-height (19)
+       ≈ 13. Both sidebars (public + admin) share these brand metrics, so
+       the same offset aligns the hamburger in both surfaces. */
+    top: calc(13px + env(safe-area-inset-top, 0px));
+    left: 8px;
+    z-index: 120;
+    display: inline-flex;
+    width: 38px;
+    height: 38px;
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 10px;
+    background: var(--header-bg);
+    color: var(--header-text, #fff);
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(15,23,42,0.30), 0 0 0 1px rgba(0,0,0,0.05);
+    transition: background 160ms ease-out, transform 160ms ease-out;
+}
+.site-hamburger:hover  { background: color-mix(in srgb, var(--header-bg) 80%, white 12%); }
+.site-hamburger:active { transform: scale(0.94); }
+
+/* When the sidebar is open on DESKTOP, the hamburger sits inside the
+   sidebar's gutter — don't double up against the brand row. The sidebar's
+   own top padding already gives the brand row breathing room; the button
+   floats over the top-left corner of the sidebar at the same coordinates. */
+
+.site-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    /* Transparent backdrop — keeps the click-to-close hit-target on mobile
+       but doesn't dim/blur the page so live theme changes from the picker
+       remain clearly visible behind the sidebar. */
+    background: transparent;
+    z-index: 99;
+    opacity: 0;
+    transition: opacity 260ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.site-backdrop.visible { display: block; opacity: 1; }
+
+/* ---- Sidebar collapse state (universal — any viewport) -------------- */
+/* Default state: sidebar visible. Closed state: slides off-screen, main
+   reclaims the space. Same logic on desktop and mobile so the toggle is
+   conceptually one thing. */
+body.site-sidebar-closed .site-sidebar {
+    transform: translateX(-100%);
+}
+body.site-sidebar-closed .site-main {
+    /* On desktop the main column was constrained to (100vw - sidebar). When
+       the sidebar slides out, the column would otherwise leave a 200px gap
+       on the left. Negative margin pulls it back into that space. */
+    margin-left: calc(var(--sidebar-width) * -1);
+}
+
+.site-sidebar {
+    transition:
+        transform 240ms cubic-bezier(0.32, 0.72, 0, 1),
+        width    200ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.site-nav-flyout {
+    transition:
+        opacity   0.15s ease-out,
+        transform 0.15s ease-out,
+        width    200ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.site-main {
+    transition: margin-left 240ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* ---- Mobile-specific tweaks ----------------------------------------- */
+/* On narrow viewports the sidebar overlays the content with a backdrop —
+   the same pattern as desktop but with the sidebar treated as a floating
+   layer instead of a column. Flyouts continue to open to the right (no
+   inline-accordion fallback — the user wants flyouts everywhere). */
+@media (max-width: 767px) {
+    .site-layout { flex-direction: column; }
+
+    .site-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: var(--sidebar-width-mobile);
+        height: 100dvh;
+        padding-top: calc(env(safe-area-inset-top, 0px) + 54px);
+        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+        z-index: 100;
+        box-shadow:
+            6px 0 12px rgba(15, 23, 42, 0.28),
+            20px 0 48px rgba(15, 23, 42, 0.22);
+    }
+
+    /* Mobile-only flip: the sidebar is CLOSED by default (off-canvas drawer
+       pattern). Hamburger opens it. Toggle is the same physical thing as
+       desktop — only the default state flips. */
+    .site-main {
+        margin-left: 0 !important;          /* main always fills viewport on mobile */
+        padding-top: calc(env(safe-area-inset-top, 0px) + 50px);
+    }
+    .site-sidebar {
+        transform: translateX(-100%);
+    }
+    body:not(.site-sidebar-closed) .site-sidebar {
+        transform: translateX(0);
+    }
+    /* When closed on mobile, leave the sidebar hidden (no override needed —
+       the base translateX(-100%) above applies). */
+
+    /* Backdrop appears whenever the sidebar is OPEN on mobile (because the
+       sidebar overlays content there). */
+    body:not(.site-sidebar-closed) .site-backdrop {
+        display: block;
+        opacity: 1;
+    }
+
+    /* Flyouts still fly to the right of the sidebar — but they need to
+       overlay the rest of the screen. Pin width to the remaining space
+       beside the mobile sidebar. */
+    .site-nav-flyout {
+        max-width: calc(100vw - var(--sidebar-width-mobile) - 16px);
+    }
+
+    /* ---- RAIL MODE (mobile only) ----------------------------------------
+       When ANY top-level nav-tree group is pinned (user clicked a submenu
+       trigger), collapse the sidebar to an icons-only rail so the flyout
+       gets the full remaining viewport width. The hamburger stays
+       interactive; tapping it still closes the sidebar entirely. Tapping
+       empty space inside the rail (handled in JS) unpins everything and
+       restores the full sidebar.
+
+       The same idea recurses one level deeper: when a NESTED host inside
+       the first flyout is pinned, that first flyout itself collapses to a
+       rail of icons so the third-level (leaf) flyout has room. */
+
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) {
+        width: var(--sidebar-rail-width);
+    }
+    /* Hide labels, chevrons, brand text, banner text, search input — but
+       ONLY on the TOP-LEVEL items that make up the rail itself. Items
+       inside the open flyout(s) keep their full text + chevron so the user
+       can read them at full width. */
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-nav-tree > .site-nav-flyout-host > .site-nav-item .site-nav-label,
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-nav-tree > .site-nav-flyout-host > .site-nav-item .site-nav-chevron,
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-nav-tree > .site-nav-item .site-nav-label,
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-sidebar-brand .site-sidebar-brand-text,
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .sidebar-admin-banner .sidebar-admin-body,
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-sidebar-search .site-sidebar-search-wrap,
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-sidebar-logout span {
+        display: none;
+    }
+    /* Centering ALSO scoped to direct top-level rows so leaf rows inside
+       open flyouts keep their natural left-aligned layout. */
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-nav-tree > .site-nav-flyout-host > .site-nav-item,
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-nav-tree > .site-nav-item,
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-sidebar-brand,
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-sidebar-logout {
+        justify-content: center;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .sidebar-admin-banner {
+        padding: 6px;
+        justify-content: center;
+    }
+    /* Reclaim the freed space for the open flyout. */
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) .site-nav-flyout {
+        width: calc(100vw - var(--sidebar-rail-width) - 12px);
+        max-width: calc(100vw - var(--sidebar-rail-width) - 12px);
+    }
+
+    /* Recursive rail: a first-level flyout whose own nested host is pinned
+       collapses to an icons-only column (same idea, one level deeper).
+       Scoped under the outer sidebar rail rule too so its width override
+       wins the specificity battle against the "flyout fills remaining
+       width" rule above. */
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) .site-nav-flyout:has(> .site-nav-flyout-host--nested.pinned) {
+        width: var(--sidebar-rail-width);
+        min-width: var(--sidebar-rail-width);
+        max-width: var(--sidebar-rail-width);
+    }
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) .site-nav-flyout:has(> .site-nav-flyout-host--nested.pinned) .site-nav-label,
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) .site-nav-flyout:has(> .site-nav-flyout-host--nested.pinned) .site-nav-chevron {
+        display: none;
+    }
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) .site-nav-flyout:has(> .site-nav-flyout-host--nested.pinned) .site-nav-item {
+        justify-content: center;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+    /* The third-level (nested) flyout reclaims the remaining width:
+       viewport − rail (sidebar) − rail (first flyout) − gutters. */
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) .site-nav-flyout--nested {
+        width: calc(100vw - var(--sidebar-rail-width) * 2 - 20px);
+        max-width: calc(100vw - var(--sidebar-rail-width) * 2 - 20px);
+    }
+}
+
+/* On DESKTOP, the default is OPEN. On MOBILE the default is CLOSED. The
+   single `body.site-sidebar-closed` class still drives the toggle; the
+   default *interpretation* of "not closed" depends on viewport.
+
+   Implementation: we add `.site-sidebar-closed` by default in the JS for
+   mobile-sized viewports on mount; the hamburger then toggles it freely. */
+
+/* When the sidebar is mounted, hide the floating FABs and any vestigial
+   top-nav. The modal variant of the theme picker must NOT match this rule. */
+body.site-sidebar-mounted .theme-picker:not(.theme-picker-embedded),
+body.site-sidebar-mounted .admin-button,
+body.site-sidebar-mounted .site-nav,
+body.site-sidebar-mounted .nav-leagues { display: none !important; }

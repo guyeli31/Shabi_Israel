@@ -34,10 +34,13 @@
 }
 
 .admin-sidebar {
-    width: 240px;
+    /* Width comes from the SHARED canon in css/variables.css so the public
+       site sidebar (.site-sidebar) and the admin sidebar always stay in
+       lockstep. Changing --sidebar-width in variables.css updates both. */
+    width: var(--sidebar-width);
     background: var(--header-bg);
     color: var(--header-text);
-    padding: var(--space-md);
+    padding: 12px 10px;
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
@@ -45,25 +48,63 @@
     top: 0;
     height: 100vh;
     overflow-y: auto;
+    transition: transform 240ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.admin-sidebar-logo {
-    display: block;
-    height: 60px;
-    margin: 0 auto var(--space-sm);
-    object-fit: contain;
+/* Honor the universal collapse class. Same toggle behavior as the public
+   site sidebar so the same hamburger affordance can drive either surface. */
+body.site-sidebar-closed .admin-sidebar {
+    transform: translateX(-100%);
+}
+body.site-sidebar-closed .admin-main {
+    margin-left: calc(var(--sidebar-width) * -1);
+    transition: margin-left 240ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.admin-main {
+    transition: margin-left 240ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.admin-sidebar h2 {
-    font-size: var(--fs-110);
+/* Brand row — round logo + "Shabi Israel" text, links to index.html.
+   Mirrors the public site sidebar's brand row so admin chrome feels like
+   the same surface (just with admin-only nav below it). `padding-left:48px`
+   clears the always-visible universal hamburger (38×38 at left: 8px). */
+.admin-sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 8px 10px 48px;
+    margin-bottom: 8px;
+    text-decoration: none;
+    color: var(--header-text, #fff);
+    border-bottom: 1px solid rgba(255,255,255,0.10);
+    transition: opacity 0.15s;
+}
+.admin-sidebar-brand:hover { opacity: 0.85; }
+
+.admin-sidebar-brand-logo {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.18), 0 1px 4px rgba(0,0,0,0.30);
+    background: rgba(255,255,255,0.04);
+}
+
+.admin-sidebar-brand-text {
+    font-size: var(--fs-100);
     font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    margin-bottom: var(--space-md);
-    padding-bottom: var(--space-sm);
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.01em;
+    color: rgba(255,255,255,0.95);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
+
+/* Legacy admin-sidebar logo + h2 no longer rendered — keep selectors out
+   of new HTML so the rules don't shadow the brand row above. */
+.admin-sidebar-logo,
+.admin-sidebar h2 { display: none; }
 
 /* ---- Welcome Card ---- */
 .admin-welcome {
@@ -167,14 +208,19 @@
 }
 
 .admin-nav-item {
-    display: block;
-    padding: var(--space-sm) var(--space-md);
-    color: rgba(255,255,255,0.75);
+    /* Mirrors .site-nav-item in css/site-sidebar.css so both sidebars read
+       as the same component. Keep padding / font-size / spacing in lockstep. */
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 9px;
+    color: rgba(255,255,255,0.78);
     text-decoration: none;
     border-radius: var(--radius-sm);
     cursor: pointer;
-    margin-bottom: var(--space-xs);
-    font-size: var(--fs-095);
+    margin-bottom: 2px;
+    font-size: var(--fs-090);
+    line-height: 1.25;
     transition: background 0.15s, color 0.15s;
     border: none;
     background: none;
@@ -187,6 +233,23 @@
 .admin-nav-item.active {
     background: rgba(255,255,255,0.1);
     color: #fff;
+}
+
+/* Icons inside admin nav items — mirrors .site-nav-icon sizing so both
+   sidebars line up visually. */
+.admin-nav-icon {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    line-height: 1;
+}
+.admin-nav-icon svg {
+    width: 16px;
+    height: 16px;
 }
 
 .admin-sidebar-footer {
@@ -1415,86 +1478,55 @@ table.font-large { font-size: var(--fs-093); }
     to   { opacity: 1; transform: translateX(0); }
 }
 
-/* ---- Responsive: mobile drawer ---- */
+/* ---- Responsive: mobile drawer ----
+   The mobile drawer behavior is now driven by `body.site-sidebar-closed`
+   (toggled by the universal hamburger in js/render/sidebarToggle.js). On
+   mobile the sidebar is CLOSED by default; opening it overlays content.
+   The legacy `.admin-mobile-topbar` is no longer mounted — the floating
+   hamburger replaces it, and the page title <h1> in the main content
+   provides the "where am I" cue. */
 @media (max-width: 767px) {
     .admin-layout {
         flex-direction: column;
     }
 
-    .admin-mobile-topbar {
-        display: flex;
-    }
-
     .admin-sidebar {
         position: fixed;
-        top: calc(60px + env(safe-area-inset-top, 0px));
+        top: 0;
         left: 0;
-        width: min(284px, 82vw);
-        /* Height fallback chain, weakest → strongest:
-           1. 100vh  — works everywhere, but ignores mobile browser chrome.
-           2. 100dvh — subtracts *docked* toolbars (modern engines).
-           3. --admin-drawer-h — set from visualViewport.height by adminDrawer.js;
-              the only value that also accounts for *floating/overlay* URL bars,
-              so the footer (Home/Logout) is never trapped behind them. */
-        height: calc(100vh - 60px - env(safe-area-inset-top, 0px));
-        height: calc(100dvh - 60px - env(safe-area-inset-top, 0px));
-        height: var(--admin-drawer-h, calc(100dvh - 60px - env(safe-area-inset-top, 0px)));
+        width: var(--sidebar-width-mobile);
+        height: 100dvh;
+        padding-top: calc(env(safe-area-inset-top, 0px) + 54px);
         /* Lift the footer above the iOS home indicator on top of base padding. */
         padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom, 0px));
         transform: translateX(-100%);
-        /* iOS-style confident ease — hits, then settles. */
-        transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
         will-change: transform;
         z-index: 100;
-        /* Layered elevation: tight ambient + far soft. */
         box-shadow:
             1px 0 0 rgba(255, 255, 255, 0.04),
             6px 0 12px rgba(15, 23, 42, 0.28),
             20px 0 48px rgba(15, 23, 42, 0.22);
     }
 
-    /* Topbar already provides branding — hide the logo and compact the heading */
-    .admin-sidebar .admin-sidebar-logo {
-        display: none;
-    }
-    .admin-sidebar h2 {
-        font-size: var(--fs-085);
-        margin-top: 0;
-        margin-bottom: var(--space-sm);
-        padding-bottom: var(--space-xs, 4px);
-    }
-
-    .admin-sidebar.open {
+    /* Open state on mobile = NOT closed. The universal toggle starts in
+       closed state on mobile (via the JS), so the user must tap the
+       hamburger to slide the drawer in. */
+    body:not(.site-sidebar-closed) .admin-sidebar {
         transform: translateX(0);
     }
 
-    .admin-sidebar.open .admin-nav-item {
-        opacity: 0;
-        animation: admin-nav-reveal 280ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
-    }
-    .admin-sidebar.open nav .admin-nav-item:nth-child(1) { animation-delay: 120ms; }
-    .admin-sidebar.open nav .admin-nav-item:nth-child(2) { animation-delay: 160ms; }
-    .admin-sidebar.open nav .admin-nav-item:nth-child(3) { animation-delay: 200ms; }
-    .admin-sidebar.open nav .admin-nav-item:nth-child(4) { animation-delay: 240ms; }
-    .admin-sidebar.open nav .admin-nav-item:nth-child(5) { animation-delay: 280ms; }
-    .admin-sidebar.open .admin-sidebar-footer .admin-nav-item:nth-child(1) { animation-delay: 320ms; }
-    .admin-sidebar.open .admin-sidebar-footer .admin-nav-item:nth-child(2) { animation-delay: 360ms; }
-
-    @media (prefers-reduced-motion: reduce) {
-        .admin-sidebar,
-        .admin-backdrop { transition-duration: 0ms; }
-        .admin-sidebar.open .admin-nav-item { animation: none; opacity: 1; }
+    /* Backdrop appears whenever the drawer is open on mobile (same as the
+       public site sidebar). */
+    body:not(.site-sidebar-closed) .site-backdrop {
+        display: block;
+        opacity: 1;
     }
 
     .admin-main {
-        padding: calc(72px + env(safe-area-inset-top, 0px)) var(--space-md) var(--space-md);
+        padding: calc(54px + env(safe-area-inset-top, 0px)) var(--space-md) var(--space-md);
         width: 100%;
+        margin-left: 0 !important;       /* main fills viewport — sidebar overlays */
     }
-}
-
-@media (min-width: 768px) {
-    .admin-mobile-topbar,
-    .admin-backdrop { display: none !important; }
 }
 
 /* ---- Home link + Logout button footer items ---- */

@@ -171,10 +171,10 @@ To convert a table to MF in a future session, say:
 | Border / hairline color | `var(--color-border)` |
 | Hover | `var(--color-hover)` — applied to all cells in the hovered row, including sticky |
 | Cell padding | `0.45em var(--space-md)` — vertical scales proportionally with font-size |
-| Sticky header | `thead { position: sticky; top: 0 }` |
+| Sticky header | None — D and E used to pin `thead { position: sticky; top: 0 }`, but vertical pinning was removed (2026-06-30). Only the horizontal sticky cols remain. |
 | Scroll shadow | `attachStickyShadow()` toggles `.is-scrolled-x` → drop-shadow on sticky col boundary, only during horizontal scroll |
 | Frame shadow | `box-shadow: var(--shadow-sm)` on wrapper — no `border-radius` |
-| Wrapper overflow | `overflow-x: auto; overflow-y: clip` — `clip` is required: `overflow-x: auto` forces `overflow-y: auto` per CSS spec if it was `visible`, making the wrapper the vertical scroll container and breaking `thead`/`avg-row` sticky |
+| Wrapper overflow | `overflow-x: auto; overflow-y: clip` — `clip` keeps `.mf-wrap` a horizontal-only scroll container; vertical scroll is the page's job |
 | Max width | `width: 100%; max-width: 1100px` on wrapper — **exception: B6a** overrides this to full display width (`max-width: none`), see B6a note below |
 
 ---
@@ -200,7 +200,7 @@ To convert a table to MF in a future session, say:
 | Arg | Signature | Notes |
 |---|---|---|
 | `getRowClass` | `(row, index) => string \| null` | Extra CSS class per data row (e.g. `'unplayed'`); merged with medal class |
-| `buildSummaryRow` | `(data) => object` | Receives all data rows, returns a summary object; values rendered as-is (pre-formatted strings); produces `tr.avg-row` sticky at bottom |
+| `buildSummaryRow` | `(data) => object` | Receives all data rows, returns a summary object; values rendered as-is (pre-formatted strings); produces `tr.avg-row` at the bottom of the table body (not sticky) |
 
 ---
 

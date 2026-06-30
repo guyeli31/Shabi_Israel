@@ -124,6 +124,16 @@ function rgbToHex(rgb) {
     return '#' + [r, g, b].map(x => parseInt(x).toString(16).padStart(2, '0')).join('');
 }
 
+/**
+ * Apply any custom variables saved in localStorage. Safe to call from any page
+ * (with or without the floating picker). The FOUC bootstrap in <head> handles
+ * the theme *attribute*, but the CSS variable values get re-applied here once
+ * stylesheets have loaded.
+ */
+export function applyThemeBootstrap() {
+    applyCustomVars();
+}
+
 export function initThemePicker() {
     // Apply custom vars if any (the FOUC script handles theme attribute,
     // but custom vars need to be applied after CSS loads)
@@ -253,4 +263,103 @@ export function initThemePicker() {
     picker.appendChild(panel);
     picker.appendChild(toggle);
     document.body.appendChild(picker);
+}
+
+/**
+ * Build a standalone theme-picker panel (swatches + Customize sub-menu) as a
+ * detached DOM node. Used by the site sidebar to mount the picker as a nested
+ * flyout (Settings → Theme Customize → swatches/colors), so it opens like any
+ * other sidebar sub-menu instead of as a centered modal that closes other pins.
+ *
+ * Returns a `<div class="theme-picker theme-picker-embedded">` ready to append
+ * inside a `.site-nav-flyout`. Self-contained: swatch clicks apply the theme
+ * live, the Customize button toggles the colors sub-panel inline, and Reset
+ * restores theme defaults — no parent wiring required.
+ */
+export function buildThemePickerPanel() {
+    const host = document.createElement('div');
+    host.className = 'theme-picker theme-picker-embedded';
+
+    const panel = document.createElement('div');
+    panel.className = 'theme-picker-panel';
+    panel.hidden = false;
+
+    const label = document.createElement('div');
+    label.className = 'theme-picker-label';
+    label.textContent = 'Theme';
+    panel.appendChild(label);
+
+    const swatchRow = document.createElement('div');
+    swatchRow.className = 'theme-picker-options';
+    const activeTheme = getActiveTheme();
+    for (const theme of THEMES) {
+        const btn = document.createElement('button');
+        btn.className = `theme-swatch swatch-${theme.id}`;
+        if (theme.id === activeTheme) btn.classList.add('active');
+        btn.setAttribute('title', theme.label);
+        btn.setAttribute('aria-label', `${theme.label} theme`);
+        btn.addEventListener('click', () => {
+            applyTheme(theme.id);
+            swatchRow.querySelectorAll('.theme-swatch').forEach(s => s.classList.remove('active'));
+            btn.classList.add('active');
+            updateColorInputs();
+        });
+        swatchRow.appendChild(btn);
+    }
+    panel.appendChild(swatchRow);
+
+    const divider = document.createElement('div');
+    divider.className = 'theme-picker-divider';
+    panel.appendChild(divider);
+
+    const customizeBtn = document.createElement('button');
+    customizeBtn.className = 'theme-customize-btn';
+    customizeBtn.textContent = 'Customize';
+    panel.appendChild(customizeBtn);
+
+    const customPanel = document.createElement('div');
+    customPanel.className = 'theme-customize-panel';
+    customPanel.hidden = true;
+
+    const colorInputs = [];
+    for (const v of CUSTOMIZABLE_VARS) {
+        const row = document.createElement('div');
+        row.className = 'theme-color-row';
+        const lbl = document.createElement('label');
+        lbl.textContent = v.label;
+        const input = document.createElement('input');
+        input.type = 'color';
+        input.dataset.varKey = v.key;
+        input.value = rgbToHex(getComputedVar(v.key));
+        input.addEventListener('input', () => saveCustomVar(v.key, input.value));
+        colorInputs.push(input);
+        row.appendChild(lbl);
+        row.appendChild(input);
+        customPanel.appendChild(row);
+    }
+
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'theme-reset-btn';
+    resetBtn.textContent = 'Reset to theme defaults';
+    resetBtn.addEventListener('click', () => {
+        clearCustomVars();
+        updateColorInputs();
+    });
+    customPanel.appendChild(resetBtn);
+
+    panel.appendChild(customPanel);
+
+    customizeBtn.addEventListener('click', () => {
+        customPanel.hidden = !customPanel.hidden;
+        if (!customPanel.hidden) updateColorInputs();
+    });
+
+    function updateColorInputs() {
+        for (const input of colorInputs) {
+            input.value = rgbToHex(getComputedVar(input.dataset.varKey));
+        }
+    }
+
+    host.appendChild(panel);
+    return host;
 }

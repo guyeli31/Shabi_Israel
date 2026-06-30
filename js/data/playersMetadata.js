@@ -31,3 +31,14 @@ export async function loadPlayersMetadata() {
 export function clearPlayersMetadataCache() {
     _cache = null;
 }
+
+/**
+ * Synchronous cache accessor for callers that can't await — used by
+ * `displayPlayerName` so the global "Show name as" toggle can resolve
+ * the full name without each call site having to plumb metadata through.
+ * Returns `null` if the metadata hasn't been loaded yet (cache cold).
+ */
+export function getCachedPlayerMeta(name) {
+    if (!_cache) return null;
+    return _cache[name] || null;
+}

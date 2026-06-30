@@ -23,6 +23,8 @@
  *   Luck: ±max(5, ceil(maxAbs/5)*5)          — default ±5, symmetric, steps of 5.
  * Passing the same range to several charts keeps them on one shared Y scale.
  */
+import { displayPlayerName } from '../utils/nameDisplay.js';
+
 export function computeNiceRange(metric, values) {
     if (metric === 'luck') {
         let maxAbs = 0;
@@ -278,7 +280,7 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer,
         const prStr   = m.prSelf   != null ? m.prSelf.toFixed(2)   : '—';
         const luckStr = m.luckSelf != null ? m.luckSelf.toFixed(2) : '—';
         return `
-            <div class="cip-row cip-title">#${idx + 1} vs <b>${m.opponent}</b></div>
+            <div class="cip-row cip-title">#${idx + 1} vs <b>${displayPlayerName(m.opponent)}</b></div>
             <div class="cip-row">
                 <span class="cip-item"><span class="cip-k">Score</span><span class="cip-v">${m.scoreSelf} - ${m.scoreOpp}</span></span>
                 <span class="cip-item"><span class="cip-k">PR</span><span class="cip-v">${prStr}</span></span>

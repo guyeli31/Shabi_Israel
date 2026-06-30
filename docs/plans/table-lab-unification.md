@@ -80,7 +80,7 @@ Rules shared by **every** table format (MF + SF + exp; FF may opt in). Loaded by
 
 - `table.font-large`, `table.font-small` (font enum — used by all formats)
 - Generic `table { width, border-collapse, border-spacing, font-size }`
-- `thead { position: sticky; top: 0; z-index: 3 }`
+- ~~`thead { position: sticky; top: 0; z-index: 3 }`~~ — **REMOVED 2026-06-30** for D + E (and not adopted as a base rule); thead now flows with the page on MF tables. Other formats (SF/exp/FF) keep their own sticky-thead rules in their respective CSS files.
 - `thead th { background, color, padding, font-weight, text-align, white-space, cursor, user-select, transition }`
 - `thead th:hover`
 - `tbody td { padding, text-align: center, box-shadow hairline, white-space }`
@@ -107,7 +107,7 @@ Rules exclusive to the MF format (`.mf-wrap` wrapper and its specific layouts).
 - `.mf-wrap.is-scrolled-x` sticky-shadow rules
 - `.mf-wrap tbody tr.player-remaining-divider`, `.mf-wrap tbody tr.b6b-bold` (B6b/B6c MF-only row variants)
 - `thead th .sort-icon`, `thead th.sorted .sort-icon` (sort-arrow UI — currently MF-only; if SF ends up sortable too, promote to A-base later)
-- `tr.avg-row`, `tr.avg-row td`, `tr.stat-row`, `tr.stat-row td` (summary rows — MF-specific currently)
+- `tr.avg-row`, `tr.avg-row td`, `tr.stat-row`, `tr.stat-row td` (summary rows — MF-specific currently). The `position: sticky; bottom: 0` on `tr.avg-row` was removed on 2026-06-30 along with the matching `thead` top-pin — the averages row now sits at the bottom of the table body in normal flow.
 - `#leagueTable` sticky-col rules (D table — MF-exclusive)
 - `#playerTable` sticky-col rules (E table — MF-exclusive)
 - `.is-scrolled-x #leagueTable *`, `.is-scrolled-x #playerTable *` (sticky shadow on D/E)

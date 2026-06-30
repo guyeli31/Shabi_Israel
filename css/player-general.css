@@ -196,7 +196,7 @@
 .pg-v12-display {
     margin: 0;
     font-family: "Bebas Neue", "Impact", sans-serif;
-    font-size: 1.8em;
+    font-size: 1.4em;
     font-weight: 400;
     letter-spacing: 0.05em;
     color: var(--color-text);
@@ -308,7 +308,7 @@
     flex-shrink: 0;
 }
 .pg-v7-name {
-    font-size: 1.4em;
+    font-size: 1.1em;
     font-weight: 700;
     color: var(--color-text);
     letter-spacing: -0.01em;

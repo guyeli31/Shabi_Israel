@@ -224,14 +224,11 @@ body {
 
 /* ── Preview column (right) ──────────────────── */
 
-/* Layout pact for sticky thead/avg-row in D and E:
-   .preview-column does NOT scroll vertically — it just frames the panel.
-   #mf-mount is a flex column inside .preview-column.
-   .mf-wrap takes the available height (flex:1) and becomes the actual
-   vertical scroll container (mf.css already gives it overflow:auto via
-   the override below).  That way <thead position:sticky;top:0> and
-   <tr.avg-row position:sticky;bottom:0> pin to .mf-wrap's edges, which
-   are the edges of the visible panel — i.e. the intended behaviour. */
+/* Preview column framing.
+   D and E previously pinned thead (top:0) and avg-row (bottom:0) to the
+   .mf-wrap edges; that vertical pinning was removed and the wrapper now
+   grows to its content height. The flex layout below still applies so
+   the lab matches production sizing. */
 .preview-column {
     overflow: hidden;       /* no vertical scroll here — .mf-wrap handles it */
     min-width: 0;           /* allow grid item to shrink below content width */
@@ -252,18 +249,13 @@ body {
 }
 
 /* Lab-only override of mf.css's .mf-wrap overflow.
-   mf.css declares overflow-x:auto + overflow-y:clip for non-D/E tables —
-   but the browser converts that combination to overflow-y:hidden, making
-   .mf-wrap a vertical scroll ancestor that can't actually scroll.  For
-   the lab we want every .mf-wrap to genuinely scroll on both axes (only
-   D and E use sticky thead/avg-row, but it's harmless on the others).
-   max-height comes from mf.css for D/E — we reset it because the lab
-   uses flex sizing from #mf-mount instead of a viewport-calc cap. */
+   mf.css declares overflow-x:auto + overflow-y:clip — for the lab we
+   want every .mf-wrap to genuinely scroll on both axes so the preview
+   matches how the table would look on a page with vertical scroll. */
 #mf-mount > .mf-wrap {
     flex: 1;                /* fill #mf-mount vertically */
     min-height: 0;
     overflow: auto;         /* both axes scroll inside the wrapper */
-    max-height: none;       /* override mf.css's viewport cap for D/E */
 }
 
 /* ── Mobile layout (≤ 600px) ─────────────────── */

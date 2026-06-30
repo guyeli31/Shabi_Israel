@@ -43,6 +43,17 @@
     --color-completed: #4b5563;
     --color-completed-bg: #f3f4f6;
 
+    /* Player presence — independent of league Running/Completed and of the
+       medal palette so theme overrides of those tokens never re-tint the
+       player chips/dots (the A7 "This Year" pill used to flip green in X22
+       because it borrowed --color-bronze, which X22 maps to green). */
+    --color-player-active: #047857;
+    --color-player-active-bg: #d1fae5;
+    --color-player-recent: #d97706;
+    --color-player-recent-bg: #fde8c8;
+    --color-player-inactive: #6b7280;
+    --color-player-inactive-bg: #f3f4f6;
+
     /* Results */
     --color-win: #047857;
     --color-loss: #b91c1c;
@@ -87,6 +98,21 @@
     --space-lg: 24px;
     --space-xl: 40px;
     --space-2xl: 64px;
+
+    /* ── Sidebar canon ───────────────────────────────────────────
+       Single source of truth for sidebar width — consumed by BOTH
+       the public site sidebar (.site-sidebar in css/site-sidebar.css)
+       and the admin sidebar (.admin-sidebar in css/admin.css). Change
+       these to resize both at once. */
+    --sidebar-width: 200px;
+    --sidebar-width-mobile: min(280px, 84vw);
+    --sidebar-flyout-width: 240px;
+    --sidebar-flyout-width-wide: 280px;
+    /* Narrow-viewport "rail" mode: when a submenu is open on mobile, the
+       sidebar (and, recursively, an outer flyout that itself has a pinned
+       nested submenu) collapses to an icons-only column so the flyout has
+       room to read on the right. */
+    --sidebar-rail-width: 56px;
 
     /* Borders */
     --radius-sm: 6px;

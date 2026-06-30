@@ -4,6 +4,8 @@
  * (league link) injected via callbacks.
  */
 
+import { displayPlayerName } from '../utils/nameDisplay.js';
+
 const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 
 /**
@@ -24,7 +26,7 @@ export function buildMatchupPreset({ rows, playerName, opponent, enrich = {} }) 
           format: (v, row) => {
               const cls = row._selfWon ? 'matchup-winner-win' : 'matchup-winner-loss';
               const t = row._technical ? ' <small>(T)</small>' : '';
-              return `<span class="${cls}">${v}${t}</span>`;
+              return `<span class="${cls}">${displayPlayerName(v)}${t}</span>`;
           } },
         { key: 'score',       label: 'Score',  type: 'string', sortable: false, colorFn: null },
         { key: 'prA',         label: 'PR A',   type: 'number', sortable: true, colorFn: null,

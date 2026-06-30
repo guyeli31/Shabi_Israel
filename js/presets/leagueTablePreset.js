@@ -11,6 +11,7 @@
 import { LEVELS } from '../compute/rankings.js';
 import { colorForValue, colorForValueInverted, colorForGames, colorForLevel } from '../compute/colorScale.js';
 import { getFlagCode } from '../utils/helpers.js';
+import { displayPlayerName } from '../utils/nameDisplay.js';
 
 const LEVEL_EDGES = new Set([LEVELS[0].label, LEVELS[LEVELS.length - 1].label]);
 
@@ -21,7 +22,9 @@ function defaultPlayerCell(name, customFlags, flagUrl, enrich) {
     const img  = `<img class="flag" src="${flagUrl(code)}" alt="${code}">`;
     const linkOpen  = enrich?.playerLink   ? enrich.playerLink(name)   : { open: '', close: '' };
     const suffixHtml = enrich?.playerSuffix ? enrich.playerSuffix(name) : '';
-    return `${img}${linkOpen.open}${name}${linkOpen.close}${suffixHtml}`;
+    // Honor the global "Show name as" preference. displayPlayerName falls
+    // back to the username when no full-name metadata is available.
+    return `${img}${linkOpen.open}${displayPlayerName(name)}${linkOpen.close}${suffixHtml}`;
 }
 
 function rankBadge(rank, gold, silver, bronze, displayPos) {

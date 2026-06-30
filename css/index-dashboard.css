@@ -1257,16 +1257,16 @@ body:has(.edit-bar) .theme-picker {
     box-shadow: 0 0 0 0.18em color-mix(in srgb, currentColor 25%, transparent);
 }
 .lp-status-active {
-    background: var(--color-running-bg, #d1fae5);
-    color: var(--color-running, #047857);
+    background: var(--color-player-active-bg, #d1fae5);
+    color: var(--color-player-active, #047857);
 }
 .lp-status-this-year {
-    background: var(--color-bronze-bg, #fde8c8);
-    color: var(--color-bronze, #d97706);
+    background: var(--color-player-recent-bg, #fde8c8);
+    color: var(--color-player-recent, #d97706);
 }
 .lp-status-inactive {
-    background: var(--color-completed-bg, #f3f4f6);
-    color: var(--color-completed, #6b7280);
+    background: var(--color-player-inactive-bg, #f3f4f6);
+    color: var(--color-player-inactive, #6b7280);
 }
 .lp-status-inactive .lp-status-dot {
     box-shadow: none;

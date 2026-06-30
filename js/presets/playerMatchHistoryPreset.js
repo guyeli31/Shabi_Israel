@@ -4,6 +4,7 @@
  */
 
 import { getFlagCode, formatNumber } from '../utils/helpers.js';
+import { displayPlayerName } from '../utils/nameDisplay.js';
 
 function pct(n, total) { return ((n / total) * 100).toFixed(1) + '% wins'; }
 
@@ -24,7 +25,8 @@ export function buildPlayerMatchHistoryPreset({ playerMatches, leagueConfig, par
         const img  = `<img class="flag" src="${flagUrl(code)}" alt="${code}">`;
         const link = enrich.opponentLink ? enrich.opponentLink(name) : { open: '', close: '' };
         const suffix = enrich.opponentSuffix ? enrich.opponentSuffix(name) : '';
-        const text = opts.italic ? `<i style="color:var(--color-text-muted)">${name}</i>` : name;
+        const shown = displayPlayerName(name);
+        const text = opts.italic ? `<i style="color:var(--color-text-muted)">${shown}</i>` : shown;
         return `${img}${link.open}${text}${link.close}${suffix}`;
     }
 

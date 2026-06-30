@@ -13,6 +13,7 @@ import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleBadgesHtml, getHighestTier, getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { renderV7Header, buildHeaderTitles, formatJoinedShort } from './playerHeader.js';
 import { attachPlayerNameInteractions } from './playerNameInteraction.js';
+import { displayPlayerName } from '../utils/nameDisplay.js';
 import { startSplash, endSplash } from '../utils/splash.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildPlayerMatchHistoryPreset } from '../presets/playerMatchHistoryPreset.js';
@@ -104,12 +105,13 @@ export async function renderPlayerPage() {
         if (highestTier) pageTitle.classList.add(`pg-titled-${highestTier}`);
 
         document.getElementById('league-subtitle').textContent = title;
-        document.title = `${playerName} — ${title}`;
+        const displayName = displayPlayerName(playerName, meta);
+        document.title = `${displayName} — ${title}`;
 
         renderBreadcrumbs([
             { label: 'Home', url: 'index.html' },
             { label: title, url: leagueUrl(leagueId) },
-            { label: playerName }
+            { label: displayName }
         ]);
 
         installPlayerLeagueNavArrows({

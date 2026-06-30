@@ -9,6 +9,7 @@
  */
 
 import { colorForValue } from '../compute/colorScale.js';
+import { displayPlayerName } from '../utils/nameDisplay.js';
 
 function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
@@ -76,7 +77,7 @@ export function buildAllOpponentsPreset({ opponents, enrich = {} }) {
           tdClass: 'c4-opp-cell',
           format: v => {
               const flag = enrich.flagFor ? enrich.flagFor(v) : '';
-              return `<button type="button" class="c4-opp-link" data-name="${esc(v)}">${flag}<span class="c4-opp-name">${esc(v)}</span></button>`;
+              return `<button type="button" class="c4-opp-link" data-name="${esc(v)}">${flag}<span class="c4-opp-name">${esc(displayPlayerName(v))}</span></button>`;
           } },
         { key: 'winRate',  label: 'Win%',     type: 'number', sortable: true,
           tdClass: 'c4-winrate',

@@ -30,6 +30,7 @@ import { mountAppTabs } from './appTabs.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountAccordionTabs } from './subTabs.js';
+import { displayPlayerName } from '../utils/nameDisplay.js';
 
 export async function renderDashboardPage() {
     const container = document.getElementById('content');
@@ -114,7 +115,7 @@ export async function renderDashboardPage() {
                 { id: 'standings', label: 'Standings',      icon: TAB_ICONS.standings },
                 { id: 'matches',   label: 'Matches',        icon: TAB_ICONS.matches },
                 { id: 'predictor', label: 'Predictor',      icon: TAB_ICONS.predictor },
-                { id: 'insights',  label: 'Player insights', icon: TAB_ICONS.insights }
+                { id: 'insights',  label: 'Charts', icon: TAB_ICONS.insights }
             ],
             urlKey: 'tab',
             ariaLabel: 'Dashboard sections',
@@ -784,7 +785,7 @@ function renderWhatIfSimulator(ctx) {
             activeIdx = -1;
             if (filtered.length === 0) { close(); return; }
             dropdown.innerHTML = filtered
-                .map((p, i) => `<li class="whatif-option" role="option" data-idx="${i}">${escapeHtml(p)}</li>`)
+                .map((p, i) => `<li class="whatif-option" role="option" data-idx="${i}">${escapeHtml(displayPlayerName(p))}</li>`)
                 .join('');
             dropdown.hidden = false;
             input.setAttribute('aria-expanded', 'true');
@@ -1508,7 +1509,7 @@ function renderPlayerSection(ctx) {
         panel.innerHTML = `
             <div class="dash-controls">
                 <label>Player:</label>
-                <select class="player-pick">${players.map(p => `<option value="${p}" ${p === initialPlayer ? 'selected' : ''}>${p}</option>`).join('')}</select>
+                <select class="player-pick">${players.map(p => `<option value="${p}" ${p === initialPlayer ? 'selected' : ''}>${displayPlayerName(p)}</option>`).join('')}</select>
                 <label>Metric:</label>
                 <select class="metric-pick">
                     <option value="pr">PR</option>

@@ -187,6 +187,62 @@
     color: var(--color-loss);
 }
 
+/* ---- Embedded variant -----------------------------------------------
+   Used by the site sidebar's "Theme Customize" Settings item. The picker
+   is mounted as the CONTENT of a nested .site-nav-flyout, so the outer
+   flyout already supplies the chrome (background, border, shadow). We
+   strip the panel's own framing so it looks native inside the flyout. */
+.theme-picker.theme-picker-embedded {
+    position: static;
+    bottom: auto;
+    right: auto;
+    width: 100%;
+}
+
+.theme-picker.theme-picker-embedded .theme-picker-panel {
+    position: static;
+    bottom: auto;
+    right: auto;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 4px 2px;
+    min-width: 0;
+}
+
+/* The sidebar flyout paints itself with a dark var(--header-bg). The
+   embedded picker's label/text colors need to live on that surface
+   instead of inheriting from the page theme. */
+.theme-picker.theme-picker-embedded .theme-picker-label {
+    color: rgba(255, 255, 255, 0.55);
+}
+.theme-picker.theme-picker-embedded .theme-picker-divider {
+    background: rgba(255, 255, 255, 0.10);
+}
+.theme-picker.theme-picker-embedded .theme-customize-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.85);
+}
+.theme-picker.theme-picker-embedded .theme-customize-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+.theme-picker.theme-picker-embedded .theme-color-row label {
+    color: rgba(255, 255, 255, 0.75);
+}
+.theme-picker.theme-picker-embedded .theme-reset-btn {
+    border-color: rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.55);
+}
+
+/* Nested flyout that hosts the embedded picker — slightly wider than the
+   default 240px so the 8-swatch row + color-picker rows breathe. */
+.site-nav-flyout.site-nav-flyout--theme {
+    min-width: 240px;
+    max-width: 260px;
+}
+
 /* Responsive: smaller on mobile */
 @media (max-width: 768px) {
     .theme-picker {

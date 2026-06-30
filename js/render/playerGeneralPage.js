@@ -22,6 +22,7 @@ import {
     loadAllLeagues
 } from '../compute/crossLeague.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
+import { displayPlayerName } from '../utils/nameDisplay.js';
 import { colorForLevel } from '../compute/colorScale.js';
 import {
     getQueryParam, flagUrl, getFlagCode,
@@ -66,7 +67,6 @@ export async function renderPlayerGeneralPage() {
     }
 
     container.innerHTML = '<div class="loading">Loading cross-league data…</div>';
-    document.title = `${playerName} — Shabi Israel`;
 
     try {
         const [perLeague, allMeta] = await Promise.all([
@@ -75,6 +75,8 @@ export async function renderPlayerGeneralPage() {
         ]);
         const meta = allMeta[playerName] || {};
         _allMeta = allMeta;
+        const displayName = displayPlayerName(playerName, meta);
+        document.title = `${displayName} — Shabi Israel`;
 
         // Build merged custom flags from all leagues
         _mergedCustomFlags = {};
@@ -87,7 +89,7 @@ export async function renderPlayerGeneralPage() {
         renderHeader(playerName, perLeague, meta);
         renderBreadcrumbs([
             { label: 'Home', url: 'index.html' },
-            { label: playerName }
+            { label: displayName }
         ]);
 
         container.innerHTML = '';
@@ -95,7 +97,7 @@ export async function renderPlayerGeneralPage() {
         // Progressive-disclosure tabs (same chrome as HOME / dashboard via mountAppTabs).
         const shell = mountAppTabs({
             tabs: [
-                { id: 'statistics', label: 'Statistics', icon: TAB_ICONS.statistics },
+                { id: 'statistics', label: 'Stats', icon: TAB_ICONS.statistics },
                 { id: 'leagues',    label: 'Leagues',    icon: TAB_ICONS.leagues },
                 { id: 'matches',    label: 'Matches',    icon: TAB_ICONS.matches },
                 { id: 'h2h',        label: 'H2H',        icon: TAB_ICONS.h2h },
@@ -733,9 +735,16 @@ function renderMatchup(panel, playerName, allRows) {
         } else {
             dropdown.innerHTML = matches.map(p => {
                 const fullName = _allMeta[p]?.fullName;
-                const nameHtml = fullName
-                    ? `<span class="search-player-name">${escapeHtml(p)}</span><span class="search-player-realname">${escapeHtml(fullName)}</span>`
-                    : `<span class="search-player-name">${escapeHtml(p)}</span>`;
+                // displayPlayerName returns full name when the toggle is on
+                // and a full name exists in meta — otherwise the username.
+                // The secondary line shows the OTHER form so both are still
+                // discoverable when they differ.
+                const primary = displayPlayerName(p, _allMeta[p]);
+                const secondary = (fullName && primary !== fullName) ? fullName
+                                : (primary !== p ? p : '');
+                const nameHtml = secondary
+                    ? `<span class="search-player-name">${escapeHtml(primary)}</span><span class="search-player-realname">${escapeHtml(secondary)}</span>`
+                    : `<span class="search-player-name">${escapeHtml(primary)}</span>`;
                 return `<li><button class="matchup-search-option" type="button" data-name="${escapeHtml(p)}"><span class="search-player-info">${nameHtml}</span></button></li>`;
             }).join('');
             for (const btn of dropdown.querySelectorAll('.matchup-search-option')) {

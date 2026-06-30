@@ -31,6 +31,7 @@
     <link rel="stylesheet" href="css/sections.css">
     <link rel="stylesheet" href="css/subtabs.css">
     <link rel="stylesheet" href="css/player-general.css?v=11">
+    <link rel="stylesheet" href="css/site-sidebar.css">
     <link rel="stylesheet" href="css/typography-overrides.css">
     <link rel="stylesheet" href="table-lab/formats/mf/mf.css">
     <link rel="stylesheet" href="table-lab/formats/sf/sf.css">
@@ -56,9 +57,9 @@
     </div>
     <script type="module">
         import { renderPlayerGeneralPage } from './js/render/playerGeneralPage.js';
-        import { initThemePicker } from './js/render/themePicker.js';
-        import { initAdminButton } from './js/render/adminButton.js';
+        import { applyThemeBootstrap } from './js/render/themePicker.js';
         import { initNavBar, initKeyboardShortcuts } from './js/render/navigation.js';
+        import { mountSiteSidebar } from './js/render/siteSidebar.js';
         import { isPreviewMode, installPreviewInterceptor } from './js/admin/previewMode.js';
 
         // Install fetch interceptor BEFORE any data loads so staged changes are served
@@ -76,16 +77,20 @@
                 .nav-search-results a { cursor: pointer !important; }
                 .preview-banner { display: none !important; }
                 body.preview-active { padding-top: 0 !important; }
+                .site-sidebar, .site-mobile-topbar, .site-backdrop { display: none !important; }
             `;
             document.head.appendChild(style);
         }
 
+        applyThemeBootstrap();
         await initNavBar();
+        if (!isEmbedded) {
+            const playerName = new URLSearchParams(location.search).get('player') || '';
+            mountSiteSidebar({ activeView: 'player', playerName, topbarTitle: 'Player' });
+        }
         await renderPlayerGeneralPage();
 
         if (!isEmbedded) {
-            initThemePicker();
-            if (!isPreviewMode()) initAdminButton();
             initKeyboardShortcuts();
         }
     </script>

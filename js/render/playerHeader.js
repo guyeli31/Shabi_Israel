@@ -12,6 +12,20 @@
 
 import { flagUrl } from '../utils/helpers.js';
 import { getBmabInfo, getChampionshipInfo, getChampionshipTooltip } from '../data/titleConstants.js';
+import { getNameDisplayMode } from '../utils/nameDisplay.js';
+
+/* Resolve which string sits in the "big name" slot vs the secondary
+   "realname" line. When the global toggle is set to 'full' AND a
+   fullName exists, the two swap so full name is primary and username
+   is secondary. The canonical username (data.name) is always preserved
+   for links, alt text, and initials. */
+function resolveDisplayNames(data) {
+    const swap = getNameDisplayMode() === 'full' && !!data.fullName;
+    return {
+        primary:   swap ? data.fullName : data.name,
+        secondary: swap ? data.name     : data.fullName,
+    };
+}
 
 const TIER_ICONS = { gold: '♛', silver: '♜', bronze: '♝', white: '♞' };
 const CHAMP_ICON = '♚';
@@ -146,16 +160,17 @@ export function renderV7Header(target, data) {
         `</span>`
     ).join('');
 
+    const { primary, secondary } = resolveDisplayNames(data);
     const nameHtml = data.nameHref
-        ? `<a class="pg-v7-name pg-v7-name-link" href="${escapeHtml(data.nameHref)}">${escapeHtml(data.name)}</a>`
-        : `<span class="pg-v7-name">${escapeHtml(data.name)}</span>`;
+        ? `<a class="pg-v7-name pg-v7-name-link" href="${escapeHtml(data.nameHref)}">${escapeHtml(primary)}</a>`
+        : `<span class="pg-v7-name">${escapeHtml(primary)}</span>`;
 
     // When the V7 card sits on a per-league surface (player_league.html, table
     // E), the joined date and league count belong on the cross-league
     // profile instead — pass { inLeague: true } to omit them here.
     const inLeague = data.inLeague === true;
     const metaParts = [
-        data.fullName && `<span class="pg-v7-realname">${escapeHtml(data.fullName)}</span>`,
+        secondary && `<span class="pg-v7-realname">${escapeHtml(secondary)}</span>`,
         !inLeague && data.joinedFormatted && `Joined ${escapeHtml(data.joinedFormatted)}`,
         !inLeague && `<span class="pg-v7-leagues">${data.leagueCount} ${data.leagueCount === 1 ? 'league' : 'leagues'}</span>`,
         data.extraMetaHtml || ''
@@ -222,9 +237,10 @@ export function renderV12Header(target, data) {
         ? `<img class="pg-v12-flag" src="${flagUrl(data.flagCode)}" alt="${escapeHtml(data.flagCode)}" title="${escapeHtml(data.flagCode)}">`
         : '';
 
+    const { primary, secondary } = resolveDisplayNames(data);
     const nameInner = data.nameHref
-        ? `<a class="pg-v12-name-link" href="${escapeHtml(data.nameHref)}">${escapeHtml(data.name)}</a>`
-        : escapeHtml(data.name);
+        ? `<a class="pg-v12-name-link" href="${escapeHtml(data.nameHref)}">${escapeHtml(primary)}</a>`
+        : escapeHtml(primary);
 
     const inLeague = data.inLeague === true;
     const statGrid = inLeague ? '' : `
@@ -253,7 +269,7 @@ export function renderV12Header(target, data) {
                 ${photoHtml}
                 <div>
                     <h3 class="pg-v12-display">${flagHtml}${nameInner}</h3>
-                    ${data.fullName ? `<div class="pg-v12-real">${escapeHtml(data.fullName)}</div>` : ''}
+                    ${secondary ? `<div class="pg-v12-real">${escapeHtml(secondary)}</div>` : ''}
                 </div>
             </div>
             ${statGrid}

@@ -75,124 +75,54 @@ export function renderBreadcrumbs(crumbs) {
     container.insertBefore(nav, container.firstChild);
 }
 
-// ---- Nav Bar ----
+// ---- Nav Bar \u2014 top-nav DOM removed in the sidebar redesign ----
+// We still preload the league index because the search panel inside the
+// sidebar consults it. `ensureLeagueIndex()` is exposed for callers that
+// want to await readiness before mounting search.
 
-let navBarInstalled = false;
-let leagueIndex = []; // [{id, title, running, hidden}]
+let leagueIndexReady = null;
+let leagueIndex = []; // [{id, title, running, hidden, leagueType}]
+
+export function ensureLeagueIndex() {
+    if (leagueIndexReady) return leagueIndexReady;
+    leagueIndexReady = (async () => {
+        initTooltips(); // global themed hover tooltip (replaces native [title])
+        try {
+            const displayOrder = await loadLeagueOrder();
+            const folderNames = displayOrder.map(t => t.replace(' - ', ' '));
+            const allParams = await loadAllLeagueParams(folderNames);
+            leagueIndex = allParams.map((lp, i) => ({
+                id: lp.id,
+                title: lp.params?.LeagueTitle || displayOrder[i],
+                running: lp.params?.Running === true,
+                hidden: lp.params?.Hidden === true,
+                leagueType: lp.params?.LeagueType || 'doubling'
+            }));
+        } catch {
+            leagueIndex = [];
+        }
+
+        // Keep the skip-to-content a11y affordance even though the old top
+        // nav is gone \u2014 must be the first focusable element on the page.
+        if (!document.querySelector('.skip-link')) {
+            const skip = document.createElement('a');
+            skip.className = 'skip-link';
+            skip.href = '#main';
+            skip.textContent = 'Skip to content';
+            document.body.insertBefore(skip, document.body.firstChild);
+        }
+        return leagueIndex;
+    })();
+    return leagueIndexReady;
+}
 
 /**
- * Initialize the persistent nav bar. Safe to call multiple times.
+ * Back-compat shim: older HTML pages call `await initNavBar()` before
+ * rendering. The top nav is gone (the sidebar absorbs all navigation),
+ * but the search-index preload it triggered is still needed.
  */
 export async function initNavBar() {
-    if (navBarInstalled) return;
-    navBarInstalled = true;
-
-    initTooltips(); // global themed hover tooltip (replaces native [title])
-
-    try {
-        const displayOrder = await loadLeagueOrder();
-        const folderNames = displayOrder.map(t => t.replace(' - ', ' '));
-        const allParams = await loadAllLeagueParams(folderNames);
-
-        leagueIndex = allParams.map((lp, i) => ({
-            id: lp.id,
-            title: lp.params?.LeagueTitle || displayOrder[i],
-            running: lp.params?.Running === true,
-            hidden: lp.params?.Hidden === true,
-            leagueType: lp.params?.LeagueType || 'doubling'
-        }));
-    } catch {
-        leagueIndex = [];
-    }
-
-    const adminBadge = isLoggedIn()
-        ? `<div class="nav-admin-user">
-               <img class="nav-admin-logo" src="assets/favicon-round.png" alt="">
-               <div class="nav-admin-avatar">${getUsername().charAt(0).toUpperCase()}</div>
-               <span class="nav-admin-name">${getUsername()}</span>
-           </div>`
-        : '';
-
-    const nav = document.createElement('nav');
-    nav.className = 'site-nav';
-    nav.innerHTML = `
-        <div class="site-nav-inner">
-            <a href="index.html" class="nav-home"><img class="nav-home-logo" src="assets/favicon-round.png" alt="">Shabi Israel</a>
-            <div class="nav-leagues">
-                <button class="nav-leagues-btn" aria-expanded="false">Leagues \u25BE</button>
-                <ul class="nav-leagues-dropdown" hidden></ul>
-            </div>
-            <div class="nav-search">
-                <input type="text" placeholder="Search" autocomplete="off" aria-label="Search players and leagues">
-                <ul class="nav-search-results" hidden role="listbox"></ul>
-            </div>
-            ${adminBadge}
-        </div>
-    `;
-
-    document.body.insertBefore(nav, document.body.firstChild);
-
-    // Skip-to-main-content link (must be first focusable element)
-    if (!document.querySelector('.skip-link')) {
-        const skip = document.createElement('a');
-        skip.className = 'skip-link';
-        skip.href = '#main';
-        skip.textContent = 'Skip to content';
-        document.body.insertBefore(skip, document.body.firstChild);
-    }
-
-    populateLeagueDropdown(nav);
-    setupLeagueDropdown(nav);
-    setupPlayerSearch(nav);
-}
-
-function populateLeagueDropdown(nav) {
-    const dropdown = nav.querySelector('.nav-leagues-dropdown');
-    const visible = leagueIndex.filter(l => !l.hidden);
-    const running = visible.filter(l => l.running);
-    const completed = visible.filter(l => !l.running);
-
-    let html = '';
-    if (running.length > 0) {
-        html += '<li class="dropdown-section">Running</li>';
-        for (const l of running) {
-            html += `<li><a href="${leagueUrl(l.id)}"><span class="status-dot running"></span>${escapeHtml(l.title)}</a></li>`;
-        }
-    }
-    if (completed.length > 0) {
-        html += '<li class="dropdown-section">Completed</li>';
-        for (const l of completed) {
-            html += `<li><a href="${leagueUrl(l.id)}"><span class="status-dot completed"></span>${escapeHtml(l.title)}</a></li>`;
-        }
-    }
-    dropdown.innerHTML = html;
-}
-
-function setupLeagueDropdown(nav) {
-    const btn = nav.querySelector('.nav-leagues-btn');
-    const dropdown = nav.querySelector('.nav-leagues-dropdown');
-
-    btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const open = !dropdown.hidden;
-        closeAllDropdowns(nav);
-        if (!open) {
-            dropdown.hidden = false;
-            btn.setAttribute('aria-expanded', 'true');
-        }
-    });
-
-    document.addEventListener('click', () => closeAllDropdowns(nav));
-}
-
-function closeAllDropdowns(nav) {
-    const dropdown = nav.querySelector('.nav-leagues-dropdown');
-    const btn = nav.querySelector('.nav-leagues-btn');
-    if (dropdown) dropdown.hidden = true;
-    if (btn) btn.setAttribute('aria-expanded', 'false');
-
-    const searchResults = nav.querySelector('.nav-search-results');
-    if (searchResults) searchResults.hidden = true;
+    await ensureLeagueIndex();
 }
 
 // ---- Player Search ----
@@ -295,9 +225,22 @@ export function getPlayerLeagues(playerName) {
     return playerIndex?.get(playerName) || [];
 }
 
-function setupPlayerSearch(nav) {
-    const input = nav.querySelector('.nav-search input');
-    const results = nav.querySelector('.nav-search-results');
+/**
+ * Mount the search input + results dropdown into the given host element.
+ * Used by the sidebar (and historically the top-nav). The host must
+ * already contain `.nav-search input` and `.nav-search-results` — typical
+ * markup is built by the caller (sidebar.js) so it can decide layout.
+ *
+ * Caller is responsible for ensuring `ensureLeagueIndex()` has resolved
+ * before the user starts typing (call it during mount setup).
+ */
+export function mountSearchInto(searchRoot) {
+    // Look for any input within the host — older callers wrapped the input
+    // in an inner `.nav-search` div, the sidebar puts the input directly
+    // inside the host. Both shapes resolve to a single `input` descendant.
+    const input = searchRoot.querySelector('input[type="text"], input:not([type])');
+    const results = searchRoot.querySelector('.nav-search-results');
+    if (!input || !results) return;
 
     // Lazy-load player index on first focus
     input.addEventListener('focus', () => {
@@ -409,7 +352,7 @@ function setupPlayerSearch(nav) {
 
     // Close results on click outside
     document.addEventListener('click', (e) => {
-        if (!nav.querySelector('.nav-search').contains(e.target)) {
+        if (!searchRoot.contains(e.target)) {
             results.hidden = true;
         }
     });

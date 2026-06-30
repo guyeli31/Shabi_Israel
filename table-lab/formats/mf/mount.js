@@ -5,9 +5,12 @@
  * Production imports through js/render/mountMFTable.js (re-export shim).
  *
  * Implements all shared MF primitives internally:
- *   • sticky thead, sticky left cols (1 or 2), drop-shadow on sticky boundary
- *   • medal rows, avg summary row (sticky bottom), color gradients per col
+ *   • sticky left cols (1 or 2), drop-shadow on sticky boundary
+ *   • medal rows, avg summary row, color gradients per col
  *   • sort, show-top-N (state preserved across re-sorts)
+ *
+ * Vertical sticky (thead top:0 / avg-row bottom:0) was removed for D and E —
+ * those tables now scroll with the page; only horizontal sticky cols remain.
  *
  * External config infrastructure (for typo-editor & friends):
  *   • Pass `tableId` — wrapper gets [data-mf-table-id="<id>"] so external CSS

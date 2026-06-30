@@ -32,6 +32,7 @@
     <link rel="stylesheet" href="css/dashboard.css">
     <link rel="stylesheet" href="css/navigation.css?v=2">
     <link rel="stylesheet" href="css/league-header.css">
+    <link rel="stylesheet" href="css/site-sidebar.css">
     <link rel="stylesheet" href="css/typography-overrides.css">
     <link rel="stylesheet" href="table-lab/formats/mf/mf.css">
     <link rel="stylesheet" href="table-lab/formats/sf/sf.css">
@@ -60,14 +61,15 @@
         if (isPreviewMode()) installPreviewInterceptor();
 
         import { renderDashboardPage } from './js/render/dashboardPage.js';
-        import { initThemePicker } from './js/render/themePicker.js';
-        import { initAdminButton } from './js/render/adminButton.js';
+        import { applyThemeBootstrap } from './js/render/themePicker.js';
         import { initNavBar, initKeyboardShortcuts } from './js/render/navigation.js';
+        import { mountSiteSidebar } from './js/render/siteSidebar.js';
 
+        applyThemeBootstrap();
         await initNavBar();
+        const leagueId = new URLSearchParams(location.search).get('league') || '';
+        mountSiteSidebar({ activeView: 'league', leagueId, topbarTitle: 'Dashboard' });
         await renderDashboardPage();
-        initThemePicker();
-        if (!isPreviewMode()) initAdminButton();
         initKeyboardShortcuts();
     </script>
 </body>

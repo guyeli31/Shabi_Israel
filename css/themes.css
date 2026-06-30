@@ -33,6 +33,13 @@
     --color-completed: #9ca3af;
     --color-completed-bg: #2f2f3f;
 
+    --color-player-active: #34d399;
+    --color-player-active-bg: #0f2e22;
+    --color-player-recent: #d97706;
+    --color-player-recent-bg: #4a2f12;
+    --color-player-inactive: #9ca3af;
+    --color-player-inactive-bg: #2f2f3f;
+
     --color-win: #34d399;
     --color-loss: #f87171;
     --color-draw: #9ca3af;
@@ -91,6 +98,13 @@
     --color-completed: #5c5144;
     --color-completed-bg: #ede7dd;
 
+    --color-player-active: #3a6e46;
+    --color-player-active-bg: #dceede;
+    --color-player-recent: #b5651d;
+    --color-player-recent-bg: #f5e8d0;
+    --color-player-inactive: #5c5144;
+    --color-player-inactive-bg: #ede7dd;
+
     --color-win: #3a6e46;
     --color-loss: #9b2e22;
     --color-draw: #5c5144;
@@ -137,6 +151,13 @@
     --color-running-bg: #d9efc4;
     --color-completed: #5e7548;
     --color-completed-bg: #e3efd5;
+
+    --color-player-active: #2e6b31;
+    --color-player-active-bg: #d9efc4;
+    --color-player-recent: #b8702a;
+    --color-player-recent-bg: #f3dfc0;
+    --color-player-inactive: #5e7548;
+    --color-player-inactive-bg: #e3efd5;
 
     --color-win: #2e6b31;
     --color-loss: #9c2e22;
@@ -195,6 +216,13 @@
     --color-running-bg: #103a20;
     --color-completed: #9a8a5a;
     --color-completed-bg: #1c2418;
+
+    --color-player-active: #2ecc71;
+    --color-player-active-bg: #103a20;
+    --color-player-recent: #d97a32;
+    --color-player-recent-bg: #3e2410;
+    --color-player-inactive: #9a8a5a;
+    --color-player-inactive-bg: #1c2418;
 
     --color-win: #2ecc71;
     --color-loss: #e74c3c;
@@ -298,6 +326,13 @@
     --color-completed: #c9a84c;
     --color-completed-bg: #2a1a0a;
 
+    --color-player-active: #00e676;
+    --color-player-active-bg: #0a2a14;
+    --color-player-recent: #cd7f32;
+    --color-player-recent-bg: #4a2800;
+    --color-player-inactive: #c9a84c;
+    --color-player-inactive-bg: #2a1a0a;
+
     --color-win: #00e676;
     --color-loss: #ff1744;
     --color-draw: #ffd700;
@@ -399,6 +434,13 @@
     --color-completed: #8e24a3;
     --color-completed-bg: #f3e5f5;
 
+    --color-player-active: #007a33;
+    --color-player-active-bg: #e8f5e9;
+    --color-player-recent: #ff7043;
+    --color-player-recent-bg: #fbe9e7;
+    --color-player-inactive: #8e24a3;
+    --color-player-inactive-bg: #f3e5f5;
+
     --color-win: #007a33;
     --color-loss: #c7143a;
     --color-draw: #b35a00;
@@ -464,6 +506,13 @@
     --color-running-bg: #11241a;
     --color-completed: #9e9e9e;
     --color-completed-bg: #1f1f1f;
+
+    --color-player-active: #4caf50;
+    --color-player-active-bg: #11241a;
+    --color-player-recent: #d97706;
+    --color-player-recent-bg: #4a2f12;
+    --color-player-inactive: #9e9e9e;
+    --color-player-inactive-bg: #1f1f1f;
 
     --color-win: #4caf50;
     --color-loss: #e07070;

@@ -8,7 +8,7 @@
 
 .mf-wrap {
     overflow-x: auto;
-    overflow-y: clip;  /* prevents mf-wrap from becoming a vertical scroll context, so thead/avg-row sticky works relative to .preview-column */
+    overflow-y: clip;  /* keep .mf-wrap a horizontal-only scroll container — vertical scroll is the page's job */
     min-width: 0;
     box-shadow: var(--shadow-sm);
     margin-bottom: var(--mf-mb, var(--space-lg));
@@ -116,9 +116,6 @@ thead th.sorted .sort-icon {
 tr.avg-row {
     background: var(--color-avg-bg) !important;
     font-weight: 700;
-    position: sticky;
-    bottom: 0;
-    z-index: 2;
 }
 
 tr.avg-row td {
@@ -143,47 +140,12 @@ tr.stat-row td {
     box-shadow: none;
 }
 
-/* ── Sticky thead (D + E only) ──
-   Pinned header is a per-preset choice, not a default for every MF table.
-   Lab tables use [data-mf-table-id="D"|"E"] (set via tableId arg);
-   production pages use the legacy #leagueTable / #playerTable IDs. ── */
-#leagueTable thead,
-#playerTable thead,
-[data-mf-table-id="D"] thead,
-[data-mf-table-id="E"] thead {
-    position: sticky;
-    top: 0;
-    z-index: 3;
-}
-
-/* ── Make .mf-wrap the real scroll container for D and E ──
-   The default .mf-wrap rules use overflow-x:auto + overflow-y:clip, but
-   the browser silently converts that combination so .mf-wrap ends up as
-   a vertical scroll ancestor that can't actually scroll vertically.
-   That makes the sticky thead/avg-row above resolve against the wrong
-   element and not pin during scroll.
-   For D and E we promote the wrapper to a genuine scroll container with
-   a viewport-bound max-height, so the table scrolls inside the wrapper
-   and sticky resolves against an element that actually moves.
-   The lab overrides max-height to none (lab.css) — it uses a flex
-   layout that sizes the wrapper from its parent instead.
-   Below the sticky threshold (≤1000px) we drop the cap so the page
-   scrolls naturally; on narrower viewports the double-scroll feels
-   worse than losing sticky pinning. */
-.mf-wrap[data-mf-table-id="D"],
-.mf-wrap[data-mf-table-id="E"] {
-    overflow: auto;
-    max-height: calc(100dvh - 280px);
-}
-
-@media (max-width: 1000px) {
-    .mf-wrap[data-mf-table-id="D"],
-    .mf-wrap[data-mf-table-id="E"] {
-        max-height: none;
-    }
-}
-
 /* ── League table (D) — font enum + sticky left 2 cols (Rank + Player).
+   D and E used to pin both the thead (top:0) and the avg-row (bottom:0)
+   to the wrapper's edges, with a viewport-calc max-height on .mf-wrap
+   to create the scroll context. That vertical pinning was removed —
+   the page now scrolls naturally and the table grows to its content
+   height. Only the horizontal sticky cols below remain.
    ID selectors retained as-is for the first pass; long-term target is
    [data-mf-table-id="D"] (tracked as tech debt). ── */
 #leagueTable thead th,
