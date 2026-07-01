@@ -93,13 +93,27 @@
 
 .search-sheet-option {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
     padding: 11px 14px;
     border-bottom: 1px solid var(--color-border);
     cursor: pointer;
 }
 .search-sheet-option:active { background: var(--color-hover); }
+
+/* Leading icon column (league glyph / player avatar). The inner .search-icon*
+   markup is styled by navigation.css, shared with the flyout. */
+.search-sheet-option-icon {
+    flex-shrink: 0;
+    display: flex;
+}
+.search-sheet-option-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
 
 .search-sheet-option-label {
     font-size: var(--fs-095);

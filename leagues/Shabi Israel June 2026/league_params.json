@@ -6,7 +6,7 @@
   "Prizes": { "Gold": 2200, "Silver": 800, "Bronze": 180 },
   "BronzeCount": 4,
   "MatchLength": 7,
-  "Running": true,
+  "Running": false,
   "CustomFlags": {
     "Moriarty": "GE",
 	"Hummus": "BE",

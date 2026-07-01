@@ -95,15 +95,28 @@ function buildSheet() {
     sheetInput = sheet.querySelector('.search-sheet-input');
     sheetResults = sheet.querySelector('.search-sheet-results');
 
-    sheet.addEventListener('click', (e) => {
-        if (e.target.closest('[data-close]')) closeOverlay();
-    });
+    // ONE delegated pointer handler for every tap inside the sheet. We use raw
+    // Pointer Events (pointerup), NOT click/mousedown: when the sheet input is
+    // focused (keyboard up), iOS treats the first tap elsewhere as a
+    // keyboard-dismiss and SWALLOWS the synthesized click/mousedown — so those
+    // never fire on the option/✕. pointerup is a native pointer event, not a
+    // synthesized mouse event, so it fires normally; it also respects scroll (a
+    // drag emits pointercancel, not pointerup). Covers mouse on desktop too.
+    //   • tap on [data-close] (the ✕ button OR the backdrop scrim) → cancel
+    //   • tap on a result row → select it
+    const onSheetActivate = (e) => {
+        if (e.target.closest('[data-close]')) { e.preventDefault(); closeOverlay(); return; }
+        const opt = e.target.closest('.search-sheet-option');
+        if (opt && opt._item) { e.preventDefault(); selectItem(opt._item); }
+    };
+    sheet.addEventListener('pointerup', onSheetActivate);   // primary (iOS-safe)
+    sheet.addEventListener('click', onSheetActivate);        // desktop fallback; idempotent
     sheetInput.addEventListener('input', refreshResults);
     sheetInput.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') { closeOverlay(); return; }
         if (e.key === 'Enter') {
             const first = sheetResults.querySelector('.search-sheet-option');
-            if (first) { e.preventDefault(); first.click(); }
+            if (first && first._item) { e.preventDefault(); selectItem(first._item); }
         }
     });
 }
@@ -117,6 +130,12 @@ async function refreshResults() {
     try { items = await currentAdapter.suggest(query); } catch { items = []; }
     if (seq !== refreshSeq) return; // a newer keystroke won
     renderList(items);
+}
+
+function selectItem(item) {
+    const adapter = currentAdapter;
+    closeOverlay();
+    if (adapter) adapter.pick(item);
 }
 
 function renderList(items) {
@@ -134,21 +153,34 @@ function renderList(items) {
         const li = document.createElement('li');
         li.className = 'search-sheet-option';
         li.setAttribute('role', 'option');
+        li._item = item;
+
+        // Optional leading icon (league glyph / player avatar). The adapter
+        // hands us trusted, pre-escaped markup; we reuse the flyout's
+        // `.search-icon` styling, shared via navigation.css (.search-sheet-results).
+        if (item.iconHtml) {
+            const icon = document.createElement('span');
+            icon.className = 'search-sheet-option-icon';
+            icon.innerHTML = item.iconHtml;
+            li.appendChild(icon);
+        }
+
+        const text = document.createElement('span');
+        text.className = 'search-sheet-option-text';
         const name = document.createElement('span');
         name.className = 'search-sheet-option-label';
         name.textContent = item.label;
-        li.appendChild(name);
+        text.appendChild(name);
         if (item.sublabel) {
             const sub = document.createElement('span');
             sub.className = 'search-sheet-option-sub';
             sub.textContent = item.sublabel;
-            li.appendChild(sub);
+            text.appendChild(sub);
         }
-        li.addEventListener('click', () => {
-            const adapter = currentAdapter;
-            closeOverlay();
-            adapter.pick(item);
-        });
+        li.appendChild(text);
+
+        // Selection is handled by the ONE delegated `pointerup` on the sheet
+        // (see buildSheet) — it reads `li._item`. No per-row listener needed.
         sheetResults.appendChild(li);
     }
 }

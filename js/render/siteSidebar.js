@@ -38,6 +38,7 @@ import { TAB_ICONS } from './tabIcons.js';
 import { mountSearchInto, ensureLeagueIndex, searchEntities } from './navigation.js';
 import { mountSidebarToggle, closeSidebar, isMobile as sharedIsMobile } from './sidebarToggle.js';
 import { installSearchOverlay, registerSearchAdapter } from './searchOverlay.js';
+import { getInitials } from './playerHeader.js';
 
 
 /* ── Icon palette — pulls from TAB_ICONS where the concept matches, falls
@@ -49,6 +50,9 @@ const ICON = {
     dashboard:   TAB_ICONS.standings,               // 📊
     table:       TAB_ICONS.leagues,                 // same SVG, scoped to inner row
     records:     TAB_ICONS.records,                 // 📜
+    medal:       '🏅',                              // Records → Achievements
+    brain:       '🧠',                              // Records → PR
+    cube:        TAB_ICONS.matches,                 // 🎲 Records → Match
     leaders:     TAB_ICONS.leaderboard,             // 👑
     settings:    '⚙️',
     pencil:      '🎨',
@@ -58,6 +62,14 @@ const ICON = {
     dots:        '⋯',
     chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="site-nav-chevron"><polyline points="9 6 15 12 9 18"/></svg>`,
     hamburger:   `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>`,
+};
+
+/* League-type pill labels — mirrors LEAGUE_TYPE_BADGE in navigation.js so the
+   Dashboard/Table flyouts show the same D/R/UBC vocabulary as search results. */
+const LEAGUE_TYPE_LABEL = {
+    doubling: 'Doubling',
+    regular:  'Regular',
+    ubc:      'UBC',
 };
 
 /* ── Mount entry point ────────────────────────────────────────────────── */
@@ -98,6 +110,7 @@ export function mountSiteSidebar(opts = {}) {
     document.body.appendChild(layout);
 
     buildMobileChrome(opts.topbarTitle || labelForView(opts.activeView));
+    buildTopbar(opts);
     renderShell(sidebar, opts);
 
     // Warm the league index so search results are instant on first keystroke.
@@ -187,10 +200,31 @@ function renderShell(sidebar, opts) {
                 </div>
             </div>
 
-            <a class="site-nav-item" href="index.html?tab=records#sections" data-view="records">
-                <span class="site-nav-icon" aria-hidden="true">${ICON.records}</span>
-                <span class="site-nav-label">Records</span>
-            </a>
+            <div class="site-nav-flyout-host" data-flyout="records">
+                <button class="site-nav-item site-nav-group" data-group="records">
+                    <span class="site-nav-icon" aria-hidden="true">${ICON.records}</span>
+                    <span class="site-nav-label">Records</span>
+                    ${ICON.chevron}
+                </button>
+                <div class="site-nav-flyout" data-submenu="records" role="menu">
+                    <a class="site-nav-flyout-item" href="index.html?tab=records#records-achievements">
+                        <span class="site-nav-icon" aria-hidden="true">${ICON.medal}</span>
+                        <span class="site-nav-flyout-label">Achievements</span>
+                    </a>
+                    <a class="site-nav-flyout-item" href="index.html?tab=records#records-pr">
+                        <span class="site-nav-icon" aria-hidden="true">${ICON.brain}</span>
+                        <span class="site-nav-flyout-label">PR</span>
+                    </a>
+                    <a class="site-nav-flyout-item" href="index.html?tab=records#records-match">
+                        <span class="site-nav-icon" aria-hidden="true">${ICON.cube}</span>
+                        <span class="site-nav-flyout-label">Match</span>
+                    </a>
+                    <a class="site-nav-flyout-item" href="index.html?tab=records#records-league">
+                        <span class="site-nav-icon" aria-hidden="true">${ICON.leagues}</span>
+                        <span class="site-nav-flyout-label">League</span>
+                    </a>
+                </div>
+            </div>
 
             <a class="site-nav-item" href="index.html?tab=leaderboard#sections" data-view="leaderboard">
                 <span class="site-nav-icon" aria-hidden="true">${ICON.leaders}</span>
@@ -275,6 +309,14 @@ async function populateAsync(opts) {
     if (logoEl && settings.logoPath) logoEl.src = settings.logoPath;
     if (titleEl && settings.title)  titleEl.textContent = settings.title;
 
+    // Mirror into the top bar (shown while the sidebar is closed).
+    const topLogo = document.querySelector('#site-topbar-logo');
+    const topTitle = document.querySelector('#site-topbar-title');
+    const topAdminLogo = document.querySelector('#site-topbar-admin-logo');
+    if (topLogo && settings.logoPath) topLogo.src = settings.logoPath;
+    if (topTitle && settings.title)  topTitle.textContent = settings.title;
+    if (topAdminLogo && settings.logoPath) topAdminLogo.src = settings.logoPath;
+
     const folderNames = settings.displayOrder.map(t => t.replace(' - ', ' '));
     const allParams = await loadAllLeagueParams(folderNames);
     const adminLoggedIn = isLoggedIn() && !isPreviewMode();
@@ -293,6 +335,7 @@ async function populateAsync(opts) {
                 title: lp.params?.LeagueTitle || folderId,
                 running: lp.params?.Running === true,
                 hidden: lp.params?.Hidden === true,
+                type: lp.params?.LeagueType || 'doubling',
                 date,
             };
         })
@@ -363,9 +406,13 @@ function populateLeaguesSubmenu(container, leagues, urlFn, activeId) {
     }
     container.innerHTML = leagues.map(l => {
         const cls = (l.id === activeId) ? ' active' : '';
+        const type = l.type || 'doubling';
+        const typeLabel = LEAGUE_TYPE_LABEL[type] || LEAGUE_TYPE_LABEL.doubling;
+        const pill = `<span class="site-nav-type-pill site-nav-type-pill-${escapeAttr(type)}" title="${escapeAttr(typeLabel)} league">${escapeHtml(typeLabel)}</span>`;
         return `<a class="site-nav-flyout-item${cls}" href="${urlFn(l.id)}">
             <span class="site-nav-status-dot ${l.running ? 'running' : 'completed'}" aria-hidden="true"></span>
             <span class="site-nav-flyout-label">${escapeHtml(l.title)}</span>
+            ${pill}
         </a>`;
     }).join('');
 }
@@ -503,6 +550,33 @@ function wireInteractions(sidebar, opts) {
         // iOS search-sheet adapter: same matcher (searchEntities) as the flyout
         // above, but feeds the 16px overlay. Picking navigates to the entity.
         const sidebarInput = searchHost.querySelector('.site-sidebar-search-input');
+        const esc = (s) => String(s).replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const SEARCH_YEAR = new Date().getFullYear();
+        // League glyph + player avatar markup — identical to the flyout's
+        // (navigation.js), reusing the shared .search-icon* CSS so the sheet
+        // shows the same league icon / player photos as the inline results.
+        const leagueIconHtml = (running) => `
+            <span class="search-icon search-icon--league" aria-hidden="true">
+                <svg class="search-league-glyph" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
+                    <rect x="2" y="3" width="12" height="10" rx="1.5"/>
+                    <line x1="2" y1="6.5" x2="14" y2="6.5"/>
+                    <line x1="8" y1="6.5" x2="8" y2="13"/>
+                </svg>
+                <span class="status-dot ${running ? 'running' : 'completed'}"></span>
+            </span>`;
+        const playerIconHtml = (p, status) => {
+            const photoPath = p.leagues.find(l => l.photoPath)?.photoPath;
+            const inner = photoPath
+                ? `<img class="search-avatar-img" src="${esc(photoPath)}" alt="">`
+                : esc(getInitials(p.name, p.fullName) || (p.name.trim()[0] || '?').toUpperCase());
+            return `
+                <span class="search-icon search-icon--player${photoPath ? ' has-photo' : ''}" aria-hidden="true">
+                    ${inner}
+                    <span class="search-status-dot ${status}"></span>
+                </span>`;
+        };
+
         registerSearchAdapter(sidebarInput, {
             async suggest(query) {
                 const { leagues, players } = await searchEntities(query);
@@ -513,6 +587,7 @@ function wireInteractions(sidebar, opts) {
                         label: l.title,
                         sublabel: `League · ${l.running ? 'Running' : 'Completed'}`,
                         key: 'L:' + l.id,
+                        iconHtml: leagueIconHtml(l.running),
                         href: preview ? `${leagueUrl(l.id)}&preview=true` : leagueUrl(l.id),
                     });
                 }
@@ -522,10 +597,13 @@ function wireInteractions(sidebar, opts) {
                         : leagueCount === 1 ? p.leagues[0].title
                         : `${leagueCount} leagues`;
                     const sub = (p.fullName && p.fullName !== p.name) ? p.fullName : hint;
+                    const status = p.leagues.some(l => l.running) ? 'green'
+                        : p.leagues.some(l => l.year === SEARCH_YEAR) ? 'orange' : 'gray';
                     items.push({
                         label: p.name,
                         sublabel: sub,
                         key: 'P:' + p.name,
+                        iconHtml: playerIconHtml(p, status),
                         href: preview ? `${playerUrl(p.name)}&preview=true` : playerUrl(p.name),
                     });
                 }
@@ -590,6 +668,37 @@ function pickAutoGroup(opts) {
    on a leaf nav tap. */
 function buildMobileChrome(_titleText /* legacy arg, ignored */) {
     mountSidebarToggle({ ariaControlsId: 'site-sidebar' });
+}
+
+/* Top bar — restores the pre-sidebar top nav as the CLOSED-state chrome.
+   Left→right: hamburger (the floating .site-hamburger from sidebarToggle,
+   which overlays the bar's left edge) · round logo · "Shabi Israel" · admin
+   avatar (far right, only when logged in). Shown only while the sidebar is
+   closed; opening the menu hides the bar — see css/site-sidebar.css
+   `body.site-sidebar-closed .site-topbar`. */
+function buildTopbar(_opts) {
+    if (document.querySelector('.site-topbar')) return;
+
+    const loggedIn = isLoggedIn() && !isPreviewMode();
+    // Old .nav-admin-user unit: brand logo + avatar + username as one pill.
+    const adminUnit = loggedIn
+        ? `<div class="site-topbar-admin" aria-label="Signed in as ${escapeAttr(getUsername())}">
+               <img class="site-topbar-admin-logo" id="site-topbar-admin-logo" src="assets/favicon-round.png" alt="">
+               <div class="site-topbar-admin-avatar">${escapeHtml(getUsername().charAt(0).toUpperCase())}</div>
+               <span class="site-topbar-admin-name">${escapeHtml(getUsername())}</span>
+           </div>`
+        : '';
+
+    const bar = document.createElement('header');
+    bar.className = 'site-topbar';
+    bar.innerHTML = `
+        <a class="site-topbar-brand" href="index.html" aria-label="Shabi Israel — home">
+            <img class="site-topbar-logo" id="site-topbar-logo" src="assets/favicon-round.png" alt="">
+            <span class="site-topbar-title" id="site-topbar-title">Shabi Israel</span>
+        </a>
+        <div class="site-topbar-right">${adminUnit}</div>
+    `;
+    document.body.appendChild(bar);
 }
 
 const isMobile = sharedIsMobile;

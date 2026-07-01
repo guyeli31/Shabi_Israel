@@ -6,17 +6,7 @@
     "joined": "2025-09",
     "photoPath": "assets/players/GuyEliyahu.png"
   },
-  "YossiEliezer23": {
-    "fullName": "Yossi Levi",
-    "championshipTitles": [
-      {
-        "type": "national",
-        "country": "Israel",
-        "year": 2018,
-        "doubles": false
-      }
-    ]
-  },
+
   "boutsky": {
     "fullName": "David Mizrahi",
     "bmabTitle": "G2"
@@ -30,18 +20,6 @@
         "year": 1990,
         "doubles": true,
         "location": "Monte Carlo"
-      }
-    ]
-  },
-  "Hummus": {
-    "fullName": "Eli Biton",
-    "bmabTitle": "M1",
-    "championshipTitles": [
-      {
-        "type": "national",
-        "country": "Belgium",
-        "year": 2023,
-        "doubles": false
       }
     ]
   },

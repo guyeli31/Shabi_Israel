@@ -134,10 +134,14 @@ export async function renderLandingPage() {
 
         // If the URL carries `?tab=` (deep link from the sidebar), scroll
         // the tabs section into view after first paint so the user lands
-        // at the section title rather than at the page header.
+        // at the section title rather than at the page header. When the URL
+        // also carries a section hash (e.g. #records-pr from the Records
+        // sub-menu), land that specific section's title at the top instead.
         if (new URLSearchParams(location.search).get('tab')) {
+            const hashId = decodeURIComponent(location.hash.replace(/^#/, ''));
             requestAnimationFrame(() => {
-                shell.root.scrollIntoView({ block: 'start', behavior: 'auto' });
+                const target = (hashId && document.getElementById(hashId)) || shell.root;
+                target.scrollIntoView({ block: 'start', behavior: 'auto' });
             });
         }
 
@@ -1307,6 +1311,7 @@ function renderAchievementsSection(container, presentTypes) {
 
     const section = document.createElement('div');
     section.className = 'dash-section achievements-section';
+    section.id = 'records-achievements';
 
     const panelsHtml = types.map((t, i) => `
         <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${t}">
@@ -1520,6 +1525,7 @@ function renderPRLeadersSection(container, presentTypes) {
 
     const section = document.createElement('div');
     section.className = 'dash-section pr-leaders-section';
+    section.id = 'records-pr';
 
     const panelsHtml = types.map((t, i) => `
         <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${t}">
@@ -1601,6 +1607,7 @@ function renderMatchRecordsSection(container, allLeagues, presentTypes) {
 
     const section = document.createElement('div');
     section.className = 'dash-section match-records-section';
+    section.id = 'records-match';
 
     const panelsHtml = types.map((t, i) => {
         const luck = topLuckiestMatches(collectLuckMatches(leaguesByType[t]));
@@ -1811,6 +1818,7 @@ function renderLeagueRecordsSection(container, allLeagues, presentTypes) {
 
     const section = document.createElement('div');
     section.className = 'dash-section league-records-section';
+    section.id = 'records-league';
 
     const panelsHtml = types.map((t, i) => {
         const winRateRows  = collectLeagueWinRateRecords(leaguesByType[t]);

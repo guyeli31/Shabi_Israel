@@ -357,6 +357,30 @@
 .site-nav-status-dot.running   { background: #22c55e; }
 .site-nav-status-dot.completed { background: rgba(255,255,255,0.35); }
 
+/* League-type pill — mirrors the search-type-badge (navigation.js) but, like
+   the player status pill above, the sidebar flyout is ALWAYS painted with
+   var(--header-bg) (dark chrome) regardless of the active theme. So the
+   light-theme --lt-*-bg values would read as glaring patches here; instead we
+   tint the pill background from `currentColor` (matching the flyout's own
+   rgba(255,255,255,.10) hover language) and pick on-dark foreground colours.
+   Sits at the row's right edge next to the league title. */
+.site-nav-flyout-item .site-nav-type-pill {
+    margin-left: auto;
+    flex-shrink: 0;
+    padding: 0.18em 0.55em;
+    border-radius: var(--radius-full);
+    font-size: var(--fs-068);
+    font-weight: 600;
+    line-height: 1.5;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    background: color-mix(in srgb, currentColor 16%, transparent);
+}
+.site-nav-flyout-item .site-nav-type-pill-doubling { color: #93c5fd; }
+.site-nav-flyout-item .site-nav-type-pill-regular  { color: #5eead4; }
+.site-nav-flyout-item .site-nav-type-pill-ubc      { color: #c4b5fd; }
+
 /* ---- Settings flyout — radio-style flyout items ---------------------- */
 /* The "Show name as" sub-flyout uses a tick mark to signal which option is
    currently active, instead of a native <select>. Hidden by default; only
@@ -651,6 +675,122 @@
 .site-hamburger:hover  { background: color-mix(in srgb, var(--header-bg) 80%, white 12%); }
 .site-hamburger:active { transform: scale(0.94); }
 
+/* ---- Top bar (closed-state chrome) ---------------------------------- */
+/* Restores the pre-sidebar top nav (old .site-nav). Left→right: the floating
+   hamburger (.site-hamburger overlays the bar's left edge) · round logo ·
+   "Shabi Israel" · admin unit (far right — logo + avatar + name, one pill,
+   only when logged in). Sizing/height replicate the old top nav: bar height
+   = --nav-height, brand font = --fs-160, logo = 1.4em, admin pill = the old
+   .nav-admin-user. Visible ONLY while the sidebar is closed — opening the
+   menu hides the bar so the two chromes never show at once. The left padding
+   clears the floating hamburger, leaving a reasonable gap before the logo. */
+.site-topbar {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    min-height: calc(var(--nav-height) + env(safe-area-inset-top, 0px));
+    padding:
+        calc(env(safe-area-inset-top, 0px) + var(--fs-160) * 0.6)
+        var(--space-md)
+        calc(var(--fs-160) * 0.6)
+        58px;                          /* clears the 38px hamburger @ left:8px + gap */
+    align-items: center;
+    gap: var(--space-md);
+    background: var(--header-bg);
+    color: var(--header-text);
+    box-shadow: var(--shadow-md);
+    z-index: 110;
+}
+body.site-sidebar-closed .site-topbar { display: flex; }
+
+/* Brand — mirrors the old .nav-home (font-size on the link, logo/text scale
+   in em from it). */
+.site-topbar-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    text-decoration: none;
+    color: var(--header-text);
+    font-weight: 700;
+    font-size: var(--fs-160);
+    line-height: 1.1;
+    white-space: nowrap;
+    min-width: 0;
+    transition: opacity 0.15s;
+}
+.site-topbar-brand:hover { opacity: 0.8; }
+
+.site-topbar-logo {
+    height: 1.4em;
+    width: 1.4em;
+    object-fit: contain;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.site-topbar-title {
+    /* White in every theme — the bar is always painted on the dark
+       --header-bg chrome, so the brand name reads white regardless of the
+       active theme's --header-text. */
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.site-topbar-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* Admin unit — the old .nav-admin-user pill: brand logo + avatar + username
+   as one rounded chip on the far right. */
+.site-topbar-admin {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 10px 4px 6px;
+    border-radius: 22px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    white-space: nowrap;
+    font-size: var(--fs-085);
+    flex-shrink: 0;
+}
+
+.site-topbar-admin-logo {
+    height: clamp(18px, calc(0.71vw + 15.4px), 24px);
+    width: clamp(18px, calc(0.71vw + 15.4px), 24px);
+    object-fit: contain;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.site-topbar-admin-avatar {
+    width: clamp(18px, calc(0.71vw + 15.4px), 24px);
+    height: clamp(18px, calc(0.71vw + 15.4px), 24px);
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--fs-068);
+    font-weight: 800;
+    color: #fff;
+    flex-shrink: 0;
+    text-transform: uppercase;
+}
+
+.site-topbar-admin-name {
+    color: #fff;
+    font-weight: 600;
+}
+
 /* When the sidebar is open on DESKTOP, the hamburger sits inside the
    sidebar's gutter — don't double up against the brand row. The sidebar's
    own top padding already gives the brand row breathing room; the button
@@ -682,6 +822,8 @@ body.site-sidebar-closed .site-main {
        the sidebar slides out, the column would otherwise leave a 200px gap
        on the left. Negative margin pulls it back into that space. */
     margin-left: calc(var(--sidebar-width) * -1);
+    /* Clear the fixed top bar (shown only in this closed state). */
+    padding-top: calc(var(--nav-height) + env(safe-area-inset-top, 0px));
 }
 
 .site-sidebar {
@@ -731,7 +873,9 @@ body.site-sidebar-closed .site-main {
        desktop — only the default state flips. */
     .site-main {
         margin-left: 0 !important;          /* main always fills viewport on mobile */
-        padding-top: calc(env(safe-area-inset-top, 0px) + 50px);
+        /* Top padding to clear the bar is applied by the closed-state rule
+           (body.site-sidebar-closed .site-main) — no gap when the menu is
+           open and the bar is hidden. */
     }
     .site-sidebar {
         transform: translateX(-100%);
