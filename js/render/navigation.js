@@ -227,7 +227,7 @@ export function getPlayerLeagues(playerName) {
 
 /**
  * Pure cross-league entity search — the single matching rule shared by the
- * sidebar flyout (`mountSearchInto`) AND the iOS search overlay
+ * sidebar flyout (`mountSearchInto`) AND the mobile search overlay
  * (`searchOverlay.js`). Returns leagues + players whose name (or a player's
  * full name) contains the query. `ensurePlayerIndex()` is awaited internally;
  * league results need `ensureLeagueIndex()` to have resolved (the sidebar

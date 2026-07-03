@@ -139,10 +139,19 @@ export async function renderLandingPage() {
         // sub-menu), land that specific section's title at the top instead.
         if (new URLSearchParams(location.search).get('tab')) {
             const hashId = decodeURIComponent(location.hash.replace(/^#/, ''));
-            requestAnimationFrame(() => {
+            // Achievements / PR Leaders load their tables asynchronously and
+            // grow after first paint (see renderAchievementsSection /
+            // renderPRLeadersSection below) — scrolling before they resolve
+            // leaves the target drifting below the viewport top once they
+            // fill in. Wait for whichever of those sit above the target.
+            const needsAsyncWait = hashId === 'records-pr' || hashId === 'records-match' || hashId === 'records-league';
+            const ready = needsAsyncWait
+                ? Promise.allSettled(sortPresentTypes(presentTypes).map(t => buildAllTimeRankings(t)))
+                : Promise.resolve();
+            ready.then(() => requestAnimationFrame(() => {
                 const target = (hashId && document.getElementById(hashId)) || shell.root;
                 target.scrollIntoView({ block: 'start', behavior: 'auto' });
-            });
+            }));
         }
 
         // Route renderers to their tab panel — each renderer keeps its existing signature.

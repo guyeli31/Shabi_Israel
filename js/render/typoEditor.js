@@ -1167,7 +1167,7 @@ function onIframeLoad() {
     currentPage = pageFromUrl(iframeEl.contentWindow.location.href);
     document.querySelector('.te-page-select').value = currentPage + '.html';
 
-    // Ensure the iOS overlay flag matches the picked device. If this reloads the
+    // Ensure the mobile overlay flag matches the picked device. If this reloads the
     // iframe (Apple device but flag missing, or vice-versa), bail — onIframeLoad
     // fires again on the reload, now in sync.
     if (syncOverlayFlag()) return;

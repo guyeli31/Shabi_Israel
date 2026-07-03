@@ -12,6 +12,7 @@ import { loadPlayersMetadata, clearPlayersMetadataCache } from '../data/playersM
 import { addChange, getStagedContent, getChanges } from './stagingStore.js';
 import { BMAB_TITLES, bmabSelectOptionsHtml, COUNTRIES, getChampionshipTooltip } from '../data/titleConstants.js';
 import { filePickerHTML } from './render/formControls.js';
+import { mountCombobox } from '../utils/combobox.js';
 
 const KNOWN_FLAGS = ['BE', 'IL', 'RU', 'TZ', 'UN'];
 
@@ -145,9 +146,6 @@ function selectPlayer(container, name) {
     _state.championships = (meta.championshipTitles || []).map(t => ({ ...t }));
     const host = container.querySelector('#player-edit-host');
 
-    // Country datalist
-    const countryOptions = COUNTRIES.map(c => `<option value="${esc(c)}">`).join('');
-
     const isInactive = !!(meta && meta.inactive);
     const isHiddenMeta = !!(meta && meta.hidden);
     host.innerHTML = `
@@ -182,7 +180,6 @@ function selectPlayer(container, name) {
                 <label>Championship Titles</label>
                 <div id="pe-champ-list"></div>
                 <button class="btn btn-secondary btn-sm" id="pe-add-champ" style="margin-top:var(--space-sm)">+ Add Championship</button>
-                <datalist id="country-list">${countryOptions}</datalist>
             </div>
             <div class="form-group">
                 <label>Photo</label>
@@ -247,7 +244,7 @@ function renderChampionshipRows() {
             </select>
             ${isWorld
                 ? `<input type="text" data-ci="${i}" data-cf="location" value="${esc(ch.location || '')}" placeholder="Location (e.g. Monte Carlo)" style="width:160px;padding:4px 6px;border:1px solid var(--color-border);border-radius:4px">`
-                : `<input type="text" data-ci="${i}" data-cf="country" value="${esc(ch.country || '')}" placeholder="Country" list="country-list" style="width:160px;padding:4px 6px;border:1px solid var(--color-border);border-radius:4px">`
+                : `<input type="text" class="app-search-input" data-ci="${i}" data-cf="country" value="${esc(ch.country || '')}" placeholder="Country" style="width:160px;padding:4px 6px;border:1px solid var(--color-border);border-radius:4px">`
             }
             <input type="number" data-ci="${i}" data-cf="year" value="${ch.year || ''}" placeholder="Year" min="1900" max="2100" style="width:80px;padding:4px 6px;border:1px solid var(--color-border);border-radius:4px">
             <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;cursor:pointer">
@@ -276,6 +273,9 @@ function renderChampionshipRows() {
         };
         el.addEventListener('change', handler);
         if (el.tagName === 'INPUT' && el.type === 'text') el.addEventListener('input', handler);
+    });
+    list.querySelectorAll('input[data-cf="country"]').forEach(el => {
+        mountCombobox(el, { getOptions: () => COUNTRIES });
     });
 
     // Wire remove
@@ -686,7 +686,6 @@ function showNewPlayerForm(container) {
         championships: []
     };
 
-    const countryOptions = COUNTRIES.map(c => `<option value="${esc(c)}">`).join('');
     const flagOptions = KNOWN_FLAGS.map(f =>
         `<option value="${f}" ${f === 'IL' ? 'selected' : ''}>${f}</option>`
     ).join('');
@@ -745,7 +744,6 @@ function showNewPlayerForm(container) {
                 <label>Championship Titles</label>
                 <div id="np-champ-list"></div>
                 <button class="btn btn-secondary btn-sm" id="np-add-champ" style="margin-top:var(--space-sm)">+ Add Championship</button>
-                <datalist id="np-country-list">${countryOptions}</datalist>
             </div>
 
             <div class="form-group">
@@ -866,7 +864,7 @@ function showNewPlayerForm(container) {
                 </select>
                 ${isWorld
                     ? `<input type="text" data-nci="${i}" data-ncf="location" value="${esc(ch.location || '')}" placeholder="Location (e.g. Monte Carlo)" style="width:160px;padding:4px 6px;border:1px solid var(--color-border);border-radius:4px">`
-                    : `<input type="text" data-nci="${i}" data-ncf="country" value="${esc(ch.country || '')}" placeholder="Country" list="np-country-list" style="width:160px;padding:4px 6px;border:1px solid var(--color-border);border-radius:4px">`
+                    : `<input type="text" class="app-search-input" data-nci="${i}" data-ncf="country" value="${esc(ch.country || '')}" placeholder="Country" style="width:160px;padding:4px 6px;border:1px solid var(--color-border);border-radius:4px">`
                 }
                 <input type="number" data-nci="${i}" data-ncf="year" value="${ch.year || ''}" placeholder="Year" min="1900" max="2100" style="width:80px;padding:4px 6px;border:1px solid var(--color-border);border-radius:4px">
                 <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;cursor:pointer">
@@ -893,6 +891,9 @@ function showNewPlayerForm(container) {
             };
             el.addEventListener('change', handler);
             if (el.tagName === 'INPUT' && el.type === 'text') el.addEventListener('input', handler);
+        });
+        list.querySelectorAll('input[data-ncf="country"]').forEach(el => {
+            mountCombobox(el, { getOptions: () => COUNTRIES });
         });
         list.querySelectorAll('[data-nc-remove]').forEach(btn => {
             btn.addEventListener('click', () => {

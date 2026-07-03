@@ -37,6 +37,7 @@ import { buildThemePickerPanel } from './themePicker.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { mountSearchInto, ensureLeagueIndex, searchEntities } from './navigation.js';
 import { mountSidebarToggle, closeSidebar, isMobile as sharedIsMobile } from './sidebarToggle.js';
+import { wireNavFlyouts } from './navFlyout.js';
 import { installSearchOverlay, registerSearchAdapter } from './searchOverlay.js';
 import { getInitials } from './playerHeader.js';
 import { mountTopbar, setTopbarBrand } from './topbar.js';
@@ -436,56 +437,9 @@ function populatePlayersSubmenu(container, rows, activeName) {
 /* ── Interactions: flyout hover + click-pin ──────────────────────────── */
 
 function wireInteractions(sidebar, opts) {
-    // CLICK on any flyout-host's trigger pins it open.
-    // CLICK outside (anywhere not inside a pinned host) unpins everything.
-    sidebar.addEventListener('click', e => {
-        const trigger = e.target.closest('.site-nav-group, .site-sidebar-search-trigger');
-        if (trigger && sidebar.contains(trigger)) {
-            const host = trigger.closest('.site-nav-flyout-host');
-            if (host) {
-                const wasPinned = host.classList.contains('pinned');
-                // Unpin all hosts at the same level first.
-                const parent = host.parentElement;
-                parent.querySelectorAll(':scope > .site-nav-flyout-host.pinned').forEach(p => p.classList.remove('pinned'));
-                if (!wasPinned) host.classList.add('pinned');
-                e.preventDefault();
-                return;
-            }
-        }
-
-        // Leaf link tap on mobile closes the drawer.
-        const leaf = e.target.closest('a.site-nav-item, a.site-nav-flyout-item');
-        if (leaf && isMobile()) closeDrawer();
-
-        // Mobile rail-mode exit: a tap on blank sidebar space (not an
-        // interactive control) unpins everything in the nav tree and the
-        // sidebar springs back from rail → full width. This is how the
-        // user dismisses an open submenu without picking an item.
-        //
-        // `.site-nav-flyout` is included so ANY click landing inside an open
-        // flyout (e.g. theme picker swatches, the Customize button, color
-        // inputs, reset) counts as interactive — otherwise interacting with
-        // embedded controls that don't carry the standard nav-item classes
-        // would collapse the whole pin chain mid-interaction.
-        if (isMobile()) {
-            const onInteractive = e.target.closest(
-                '.site-nav-item, .site-nav-flyout-item, .site-nav-flyout, ' +
-                '.site-sidebar-brand, .site-sidebar-search, .site-sidebar-logout, ' +
-                '.sidebar-admin-banner'
-            );
-            if (!onInteractive) {
-                sidebar.querySelectorAll('.site-nav-tree .site-nav-flyout-host.pinned')
-                    .forEach(p => p.classList.remove('pinned'));
-            }
-        }
-    });
-
-    // Click anywhere outside a pinned host closes the pin.
-    document.addEventListener('click', e => {
-        if (!sidebar.contains(e.target)) {
-            sidebar.querySelectorAll('.site-nav-flyout-host.pinned').forEach(p => p.classList.remove('pinned'));
-        }
-    });
+    // Click-to-pin / hover-to-open / outside-click-to-close — canonical
+    // implementation shared with every admin sidebar surface (navFlyout.js).
+    wireNavFlyouts(sidebar);
 
     // Settings → Theme Customize: mount the picker as a nested flyout's
     // content so it opens like any other sidebar sub-menu (cascade right,
@@ -533,8 +487,8 @@ function wireInteractions(sidebar, opts) {
     // when the user has typed something. mountSearchInto handles the input
     // event wiring — we pin the flyout-host whenever there's typed content
     // so the results panel stays open while the user is reading them.
-    // iOS search-sheet: intercepts taps on any .app-search-input on this page
-    // (sidebar search, matchup, What-If). No-op on non-iOS. Idempotent.
+    // Mobile search-sheet: intercepts taps on any .app-search-input on this page
+    // (sidebar search, matchup, What-If). No-op off touch devices. Idempotent.
     installSearchOverlay();
 
     const searchHost = sidebar.querySelector('.site-sidebar-search');
@@ -543,7 +497,7 @@ function wireInteractions(sidebar, opts) {
         // the same root, which they are (root = .site-sidebar-search).
         mountSearchInto(searchHost);
 
-        // iOS search-sheet adapter: same matcher (searchEntities) as the flyout
+        // Mobile search-sheet adapter: same matcher (searchEntities) as the flyout
         // above, but feeds the 16px overlay. Picking navigates to the entity.
         const sidebarInput = searchHost.querySelector('.site-sidebar-search-input');
         const esc = (s) => String(s).replace(/[&<>"']/g, c =>

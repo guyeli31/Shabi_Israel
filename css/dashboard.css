@@ -277,6 +277,52 @@
     border-color: var(--color-accent);
 }
 
+/* ── PR <-> Result correlation rows ─────────────────── */
+.corr-panel {
+    padding-bottom: var(--space-sm);
+}
+
+.corr-panel--general {
+    background: var(--color-inset);
+    border-style: dashed;
+}
+
+.corr-host {
+    margin-top: var(--space-xs);
+}
+
+.corr-row-canvas,
+.corr-axis-canvas {
+    display: block;
+    width: 100%;
+    background: var(--color-inset);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.corr-panel--general .corr-row-canvas {
+    background: var(--color-surface);
+}
+
+.corr-axis-canvas {
+    border-top: none;
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    margin-top: -1px;
+}
+
+.corr-metric-pill {
+    background: var(--color-inset);
+    border-radius: var(--radius-sm);
+    padding: 3px 10px;
+    font-size: var(--fs-085);
+    font-variant-numeric: tabular-nums;
+    cursor: help;
+}
+
+.corr-metric-pill b {
+    color: var(--color-accent);
+}
+
 /* Open full table button (next to historical date select) */
 .open-full-btn {
     margin-left: auto;

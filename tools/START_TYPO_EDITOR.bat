@@ -1,5 +1,5 @@
 @echo off
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 REM Start server in background if not already running on port 8090
 curl -s -o NUL -w "%%{http_code}" http://localhost:8090/index.html 2>NUL | findstr /C:"200" >NUL

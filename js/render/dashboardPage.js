@@ -18,8 +18,9 @@ import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagu
 import { exportTableImage } from '../utils/exportTableImage.js';
 import { colorForValueInverted } from '../compute/colorScale.js';
 import { drawPlayerBarChart, computeNiceRange } from './playerBarChart.js';
+import { drawCorrelationRow, brierScore } from './prCorrelationChart.js';
 import { renderBreadcrumbs } from './navigation.js';
-import { predictChampionship, computeTopXPct, prProbabilityTableHtml } from '../compute/championshipPredictor.js';
+import { predictChampionship, computeTopXPct, prProbabilityTableHtml, getWinProbability, nearestMatchLengthIdx } from '../compute/championshipPredictor.js';
 import { batchLast300PRForSimulator } from '../compute/crossLeague.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
@@ -32,6 +33,7 @@ import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountAccordionTabs } from './subTabs.js';
 import { displayPlayerName } from '../utils/nameDisplay.js';
 import { registerSearchAdapter } from './searchOverlay.js';
+import { mountCombobox } from '../utils/combobox.js';
 
 export async function renderDashboardPage() {
     const container = document.getElementById('content');
@@ -140,6 +142,7 @@ export async function renderDashboardPage() {
         renderRounds(ctx);
         renderRemainingMatches(ctx);
         renderPlayerSection(ctx);
+        renderPrCorrelationSection(ctx);
     } catch (err) {
         container.innerHTML = `<div class="error">Failed to load dashboard: ${err.message}</div>`;
         console.error(err);
@@ -378,6 +381,40 @@ function insightsPanel() {
             <h2 class="app-section-h2">Player insights</h2>
             <div id="charts-container"></div>
             <button id="add-chart" class="add-chart-btn" title="Add another chart for comparison">+ Add chart</button>
+        </section>
+
+        <section class="app-section app-section--card dash-section" id="pr-corr-section">
+            <h2 class="app-section-h2">PR &harr; Result Correlation
+                <span class="predictor-tooltip" id="pr-corr-info-btn">?</span>
+            </h2>
+            <div class="whatif-info-popup" id="pr-corr-info-popup" hidden>
+                <button class="whatif-info-close" id="pr-corr-info-close">&times;</button>
+                <h4>What If PR predicted the result?</h4>
+                <p>Each row is a single X axis — no Y encoding, every dot is one match. For a player's row, X is
+                that player's <b>PR advantage</b>: the opponent's PR minus the player's own PR. Since a lower PR
+                means fewer errors, a dot further to the <b>right</b> means the player played better than their
+                opponent that match; further <b>left</b> means they played worse. <span style="color:var(--color-win)">Green</span>
+                = the player won that match, <span style="color:var(--color-loss)">red</span> = they lost.</p>
+                <p>The bottom row is always the <b>league-wide</b> chart: one uncoloured dot per match, at
+                <i>PR of the loser &minus; PR of the winner</i>. A positive value means the favourite (lower PR)
+                won as expected; a negative value is an upset.</p>
+                <p>All rows share the same X axis, sized symmetrically to &plusmn;the single largest PR gap seen
+                anywhere in the league, so every chart lines up and no dot ever sits at the very edge by accident.</p>
+                <h4>The Brier score</h4>
+                <p>Each row also shows a <b>Brier score</b> &mdash; not a correlation, but how well the site's own
+                PR-based win-probability model (the same one behind the Predictor and What If) actually predicted
+                these specific results. For every match, the model gives a win probability from the two PRs; Brier
+                is the average squared error between that probability and the real outcome:
+                <code>mean((outcome &minus; predicted)&sup2;)</code>. <b>0</b> means the model called every result
+                perfectly, <b>0.25</b> means it did no better than a coin flip, and higher means it was
+                confidently wrong.</p>
+                <p>Unlike a correlation, Brier stays well-defined even for a player with a perfect or winless
+                record &mdash; it only needs a predicted probability and an outcome per match, not variation
+                between wins and losses, so it never collapses to "undefined" the way a correlation coefficient
+                does for an undefeated player.</p>
+            </div>
+            <div id="corr-container"></div>
+            <button id="add-corr-chart" class="add-chart-btn" title="Add another player's correlation row">+ Add player chart</button>
         </section>
     `;
 }
@@ -804,7 +841,7 @@ function renderWhatIfSimulator(ctx) {
             if (onSelect) onSelect();
         }
 
-        // iOS search-sheet adapter: same option source as this combo, feeding
+        // Mobile search-sheet adapter: same option source as this combo, feeding
         // the 16px overlay. Picking runs the combo's own choose().
         registerSearchAdapter(input, {
             suggest(query) {
@@ -1373,10 +1410,7 @@ function buildB6cPanel(panel, ctx, remaining, lastModified) {
         <div class="rem-b6c-content">
             <div class="rem-b6c-search-row">
                 <input type="text" id="rem-b6c-input" class="rem-b6c-input app-search-input"
-                    placeholder="Search player…" autocomplete="off" list="rem-b6c-list">
-                <datalist id="rem-b6c-list">
-                    ${allPlayers.map(p => `<option value="${escapeHtml(p)}"></option>`).join('')}
-                </datalist>
+                    placeholder="Search player…" autocomplete="off">
             </div>
             <div id="rem-b6c-result"></div>
         </div>`;
@@ -1411,6 +1445,7 @@ function buildB6cPanel(panel, ctx, remaining, lastModified) {
 
     input.addEventListener('input', () => showPlayer(input.value));
     input.addEventListener('change', () => showPlayer(input.value));
+    mountCombobox(input, { getOptions: () => allPlayers });
 }
 
 function buildB6cTableHtml(opponents, customFlags, playersMeta) {
@@ -1594,4 +1629,195 @@ function buildPlayerSeries(liveMatches, player) {
             if (!b.updatedAt) return -1;
             return new Date(a.updatedAt) - new Date(b.updatedAt);
         });
+}
+
+// ---------- PR <-> Result correlation (Charts tab) ----------
+
+/** Per-player match list with both PRs present, needed for the advantage (x = prOpp - prSelf). */
+function buildPlayerAdvantageSeries(liveMatches, player) {
+    return liveMatches
+        .filter(m => m.playerA === player || m.playerB === player)
+        .map(m => {
+            const isA = m.playerA === player;
+            return {
+                opponent: isA ? m.playerB : m.playerA,
+                scoreSelf: isA ? m.scoreA : m.scoreB,
+                scoreOpp: isA ? m.scoreB : m.scoreA,
+                prSelf: isA ? m.prA : m.prB,
+                prOpp: isA ? m.prB : m.prA,
+                luckSelf: isA ? m.luckA : m.luckB,
+                updatedAt: m.updatedAt || null
+            };
+        })
+        .filter(m => m.scoreSelf != null && (m.scoreSelf > 0 || m.scoreOpp > 0) && m.prSelf != null && m.prOpp != null)
+        .map(m => ({ ...m, advantage: m.prOpp - m.prSelf, win: m.scoreSelf > m.scoreOpp }))
+        .sort((a, b) => {
+            if (!a.updatedAt && !b.updatedAt) return 0;
+            if (!a.updatedAt) return 1;
+            if (!b.updatedAt) return -1;
+            return new Date(a.updatedAt) - new Date(b.updatedAt);
+        });
+}
+
+/** One entry per league match: x = PR of the loser minus PR of the winner (no colour). */
+function buildGeneralAdvantageSeries(liveMatches) {
+    return liveMatches
+        .filter(m => m.scoreA != null && m.scoreB != null && (m.scoreA > 0 || m.scoreB > 0) && m.prA != null && m.prB != null && m.scoreA !== m.scoreB)
+        .map(m => {
+            const aWon = m.scoreA > m.scoreB;
+            return {
+                winner: aWon ? m.playerA : m.playerB,
+                loser: aWon ? m.playerB : m.playerA,
+                scoreWinner: aWon ? m.scoreA : m.scoreB,
+                scoreLoser: aWon ? m.scoreB : m.scoreA,
+                prWinner: aWon ? m.prA : m.prB,
+                prLoser: aWon ? m.prB : m.prA,
+                updatedAt: m.updatedAt || null
+            };
+        })
+        .map(m => ({ ...m, advantage: m.prLoser - m.prWinner }))
+        .sort((a, b) => {
+            if (!a.updatedAt && !b.updatedAt) return 0;
+            if (!a.updatedAt) return 1;
+            if (!b.updatedAt) return -1;
+            return new Date(a.updatedAt) - new Date(b.updatedAt);
+        });
+}
+
+/** Symmetric X domain shared by every row: +/- the single largest PR gap seen in the league. */
+function computeCorrelationDomain(generalSeries) {
+    let maxAbs = 0;
+    for (const m of generalSeries) maxAbs = Math.max(maxAbs, Math.abs(m.advantage));
+    const bound = Math.max(1, Math.ceil(maxAbs));
+    return { xMin: -bound, xMax: bound };
+}
+
+function corrMatchInfoHtml(m) {
+    const dateStr = m.updatedAt
+        ? new Date(m.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+        : '—';
+    if (m.opponent !== undefined) {
+        const prStr = m.prSelf != null ? m.prSelf.toFixed(2) : '—';
+        const luckStr = m.luckSelf != null ? m.luckSelf.toFixed(2) : '—';
+        return `
+            <div class="cip-row cip-title">${m.win ? 'Won' : 'Lost'} vs <b>${displayPlayerName(m.opponent)}</b></div>
+            <div class="cip-row">
+                <span class="cip-item"><span class="cip-k">Score</span><span class="cip-v">${m.scoreSelf} - ${m.scoreOpp}</span></span>
+                <span class="cip-item"><span class="cip-k">PR</span><span class="cip-v">${prStr}</span></span>
+                <span class="cip-item"><span class="cip-k">Luck</span><span class="cip-v">${luckStr}</span></span>
+                <span class="cip-item"><span class="cip-k">Date</span><span class="cip-v">${dateStr}</span></span>
+            </div>
+        `;
+    }
+    const prW = m.prWinner != null ? m.prWinner.toFixed(2) : '—';
+    const prL = m.prLoser != null ? m.prLoser.toFixed(2) : '—';
+    return `
+        <div class="cip-row cip-title"><b>${displayPlayerName(m.winner)}</b> def. <b>${displayPlayerName(m.loser)}</b></div>
+        <div class="cip-row">
+            <span class="cip-item"><span class="cip-k">Score</span><span class="cip-v">${m.scoreWinner} - ${m.scoreLoser}</span></span>
+            <span class="cip-item"><span class="cip-k">PR (W/L)</span><span class="cip-v">${prW} / ${prL}</span></span>
+            <span class="cip-item"><span class="cip-k">Date</span><span class="cip-v">${dateStr}</span></span>
+        </div>
+    `;
+}
+
+function renderPrCorrelationSection(ctx) {
+    const { liveMatches } = ctx;
+    const players = [...ctx.allPlayersSet].sort();
+    const container = document.getElementById('corr-container');
+    if (!container) return;
+
+    const infoBtn = document.getElementById('pr-corr-info-btn');
+    const infoPopup = document.getElementById('pr-corr-info-popup');
+    const infoClose = document.getElementById('pr-corr-info-close');
+    if (infoBtn && infoPopup) {
+        infoBtn.addEventListener('click', () => { infoPopup.hidden = !infoPopup.hidden; });
+        if (infoClose) infoClose.addEventListener('click', () => { infoPopup.hidden = true; });
+    }
+
+    const generalSeries = buildGeneralAdvantageSeries(liveMatches);
+    const domain = computeCorrelationDomain(generalSeries);
+    const panels = [];
+
+    function buildPanel(initialPlayer) {
+        const panel = document.createElement('div');
+        panel.className = 'chart-panel corr-panel';
+        panel.innerHTML = `
+            <div class="dash-controls">
+                <label>Player:</label>
+                <select class="player-pick">${players.map(p => `<option value="${p}" ${p === initialPlayer ? 'selected' : ''}>${displayPlayerName(p)}</option>`).join('')}</select>
+                <span class="corr-metric-pill" title="Brier score: 0 = the PR model predicted every result perfectly, 0.25 = no better than a coin flip, 1 = maximally wrong">Brier = <b class="corr-brier-val">—</b></span>
+                <button class="remove-chart" title="Remove this chart" style="margin-left:auto">&times;</button>
+            </div>
+            <div class="chart-host corr-host"></div>
+        `;
+        container.appendChild(panel);
+
+        const playerSel = panel.querySelector('.player-pick');
+        const brierVal = panel.querySelector('.corr-brier-val');
+        const host = panel.querySelector('.corr-host');
+        const removeBtn = panel.querySelector('.remove-chart');
+
+        function redraw() {
+            const player = playerSel.value;
+            const series = buildPlayerAdvantageSeries(liveMatches, player);
+            const mlIdx = nearestMatchLengthIdx(ctx.params.MatchLength || 7);
+            const items = series.map(m => ({
+                pWin: getWinProbability(m.prSelf, m.prOpp, mlIdx),
+                outcome: m.win ? 1 : 0
+            }));
+            const brier = brierScore(items);
+            brierVal.textContent = brier == null ? '—' : brier.toFixed(3);
+            drawCorrelationRow(host, series.map(m => ({ x: m.advantage, win: m.win, match: m })), {
+                xMin: domain.xMin,
+                xMax: domain.xMax,
+                showAxis: true,
+                buildInfoHtml: (p) => corrMatchInfoHtml(p.match)
+            });
+        }
+
+        const entry = { panel, playerSel, redraw };
+        panels.push(entry);
+
+        playerSel.addEventListener('change', redraw);
+        removeBtn.addEventListener('click', () => {
+            if (panels.length > 1) {
+                panel.remove();
+                panels.splice(panels.indexOf(entry), 1);
+            }
+        });
+
+        redraw();
+    }
+
+    buildPanel(players[0]);
+
+    const addBtn = document.getElementById('add-corr-chart');
+    if (addBtn) {
+        addBtn.addEventListener('click', () => buildPanel(players[0]));
+    }
+
+    // General row — always present, uncoloured, fixed at the bottom with the shared axis.
+    const generalPanel = document.createElement('div');
+    generalPanel.className = 'chart-panel corr-panel corr-panel--general';
+    const generalMlIdx = nearestMatchLengthIdx(ctx.params.MatchLength || 7);
+    const generalItems = generalSeries.map(m => ({
+        pWin: getWinProbability(m.prWinner, m.prLoser, generalMlIdx),
+        outcome: 1 // pWin was computed for the side that actually won
+    }));
+    const generalBrier = brierScore(generalItems);
+    generalPanel.innerHTML = `
+        <div class="dash-controls">
+            <label>League &mdash; all matches</label>
+            <span class="corr-metric-pill" title="Brier score: 0 = the PR model predicted every result perfectly, 0.25 = no better than a coin flip, 1 = maximally wrong">Brier = <b>${generalBrier == null ? '—' : generalBrier.toFixed(3)}</b></span>
+        </div>
+        <div class="chart-host corr-host"></div>
+    `;
+    container.appendChild(generalPanel);
+    drawCorrelationRow(generalPanel.querySelector('.corr-host'), generalSeries.map(m => ({ x: m.advantage, match: m })), {
+        xMin: domain.xMin,
+        xMax: domain.xMax,
+        showAxis: true,
+        buildInfoHtml: (p) => corrMatchInfoHtml(p.match)
+    });
 }

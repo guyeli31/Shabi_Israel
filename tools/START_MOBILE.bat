@@ -1,5 +1,5 @@
 @echo off
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 REM Start server in background if not already running
 curl -s -o NUL -w "%%{http_code}" http://localhost:8090/index.html 2>NUL | findstr /C:"200" >NUL
@@ -11,5 +11,8 @@ if errorlevel 1 (
     echo Server already running on port 8090.
 )
 
-REM Open Chrome as app (no browser chrome) at 390x844 CSS pixels with mobile UA
-start chrome --app=http://localhost:8090 --window-size=390,844 --user-agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+REM Open Chrome as app (no browser chrome) at iPhone 17 CSS viewport (402x874, 3x DPR) with mobile UA
+REM A dedicated --user-data-dir forces a brand-new Chrome process, since an
+REM already-running Chrome instance otherwise just forwards the URL and
+REM silently ignores --window-size/--user-agent/--force-device-scale-factor.
+start chrome --app=http://localhost:8090 --window-size=402,874 --force-device-scale-factor=3 --user-data-dir="%TEMP%\shabi-israel-mobile-profile" --user-agent="Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"

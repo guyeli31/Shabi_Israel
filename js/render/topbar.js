@@ -32,10 +32,9 @@ export function mountTopbar(opts = {}) {
     const loggedIn = opts.forceAdmin || (isLoggedIn() && !isPreviewMode());
     const initial = loggedIn ? escapeHtml(getUsername().charAt(0).toUpperCase()) : '';
     const name = loggedIn ? escapeHtml(getUsername()) : '';
-    // Old .nav-admin-user unit: brand logo + avatar + username as one pill.
+    // Admin unit: a single pill — avatar circle (admin initial/photo) + name.
     const adminUnit = loggedIn
         ? `<div class="site-topbar-admin" aria-label="Signed in as ${name}">
-               <img class="site-topbar-admin-logo" id="site-topbar-admin-logo" src="assets/favicon-round.png" alt="">
                <div class="site-topbar-admin-avatar">${initial}</div>
                <span class="site-topbar-admin-name">${name}</span>
            </div>`
@@ -61,9 +60,7 @@ export function mountTopbar(opts = {}) {
 export function setTopbarBrand({ logoPath, title } = {}) {
     if (logoPath) {
         const logo = document.querySelector('#site-topbar-logo');
-        const adminLogo = document.querySelector('#site-topbar-admin-logo');
         if (logo) logo.src = logoPath;
-        if (adminLogo) adminLogo.src = logoPath;
     }
     if (title) {
         const t = document.querySelector('#site-topbar-title');

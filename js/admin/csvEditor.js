@@ -10,6 +10,7 @@ import { addChange, getStagedContent, stageManualOverrides } from './stagingStor
 import { renderExcelImporter } from './excelImporter.js';
 import { thLabel } from '../utils/helpers.js';
 import { revealMsg } from './msgScroll.js';
+import { mountCombobox } from '../utils/combobox.js';
 
 /**
  * Render the CSV editor for a league.
@@ -65,9 +66,8 @@ async function renderMatchEditor(container, leagueId, refreshBadge) {
             return;
         }
 
-        // Player names for filter datalist
+        // Player names for filter combobox
         const sortedPlayers = [...allPlayers].sort((a, b) => a.localeCompare(b));
-        const datalistOptions = sortedPlayers.map(p => `<option value="${esc(p)}">`).join('');
 
         function buildRows(filterText) {
             const ft = (filterText || '').toLowerCase();
@@ -246,8 +246,7 @@ async function renderMatchEditor(container, leagueId, refreshBadge) {
             <div id="editor-msg"></div>
             <div class="match-filter-bar">
                 <label for="match-filter-input">Filter by player:</label>
-                <input type="text" id="match-filter-input" class="app-search-input" list="match-player-list" placeholder="Type player name...">
-                <datalist id="match-player-list">${datalistOptions}</datalist>
+                <input type="text" id="match-filter-input" class="app-search-input" placeholder="Type player name...">
             </div>
             <div class="table-scroll" style="max-height:600px;overflow:auto">
                 <table class="admin-table admin-table-compact">
@@ -266,6 +265,7 @@ async function renderMatchEditor(container, leagueId, refreshBadge) {
             </p>`;
 
         attachListeners();
+        mountCombobox(document.getElementById('match-filter-input'), { getOptions: () => sortedPlayers });
 
         // Live filter
         document.getElementById('match-filter-input').addEventListener('input', (e) => {

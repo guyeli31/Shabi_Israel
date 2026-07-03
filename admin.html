@@ -40,7 +40,7 @@
     </div>
     <script type="module">
         import { initAdminPage, navigateTo, refreshBadge } from './js/admin/render/adminPage.js';
-        import { initThemePicker } from './js/render/themePicker.js';
+        import { applyThemeBootstrap } from './js/render/themePicker.js';
         import { initTooltips } from './js/render/tooltip.js';
 
         // Lazy-load modules per view
@@ -61,7 +61,7 @@
             }
         });
 
-        initThemePicker();
+        applyThemeBootstrap();
         initTooltips(); // global themed hover tooltip (replaces native [title])
     </script>
 </body>

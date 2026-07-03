@@ -1,5 +1,6 @@
 @echo off
 setlocal
+cd /d "%~dp0.."
 
 REM ============================================================
 REM  run-design-lab.bat — start the dev server (if needed) and open

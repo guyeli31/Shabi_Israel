@@ -40,15 +40,18 @@
 /* `padding-left: 48px` clears the always-visible hamburger (38×38 at
    `left: 8px`) — without it the round logo would sit underneath the
    hamburger button when the sidebar is open. */
-/* Matches the top bar's brand exactly (.site-topbar-brand) — same 36px logo,
-   --fs-160 white text, and gap — so opening the menu keeps the logo + "Shabi
-   Israel" in the SAME place/size right after the hamburger. `padding-top: 2px`
-   centres the 36px logo on the hamburger's centre line (sidebar pad-top 12 +
-   2 + logo half 18 = 32 = the hamburger's centre). */
+/* Shares logo/text size with the top bar's brand (.site-topbar-brand) via
+   the --sidebar-brand-fs/--sidebar-brand-logo-size tokens, so opening/
+   closing the menu shows the SAME brand size in the SAME place — just the
+   surface (sidebar vs. bar) changes. Fixed rather than the fluid --fs-160
+   because this sidebar column is a fixed width (--sidebar-width); --sidebar-
+   width is sized to fit "SHABI ISRAEL" at this exact font/logo size (see
+   variables.css). `padding-top: 2px` centres the logo on the hamburger's
+   centre line — see .site-hamburger's `top` for the matching calc. */
 .site-sidebar-brand {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     padding: 2px 8px 10px 48px;
     margin-bottom: 8px;
     text-decoration: none;
@@ -59,15 +62,15 @@
 .site-sidebar-brand:hover { opacity: 0.85; }
 
 .site-sidebar-brand-logo {
-    width: 36px;
-    height: 36px;
+    width: var(--sidebar-brand-logo-size);
+    height: var(--sidebar-brand-logo-size);
     border-radius: 50%;
     object-fit: contain;
     flex-shrink: 0;
 }
 
 .site-sidebar-brand-text {
-    font-size: var(--fs-160);
+    font-size: var(--sidebar-brand-fs);
     font-weight: 700;
     line-height: 1.1;
     letter-spacing: 0.01em;
@@ -655,12 +658,14 @@
    behaviour. */
 .site-hamburger {
     position: fixed;
-    /* `top: 13px` (was 8px) vertically centres the 38×38 hamburger on the
-       sidebar brand row's centre line: sidebar padding-top (12) + brand
-       padding-top (6) + logo half-height (14) − hamburger half-height (19)
-       ≈ 13. Both sidebars (public + admin) share these brand metrics, so
-       the same offset aligns the hamburger in both surfaces. */
-    top: calc(13px + env(safe-area-inset-top, 0px));
+    /* Vertically centres the 38×38 hamburger on the sidebar brand row's
+       centre line: sidebar padding-top (12) + brand padding-top (2) +
+       logo half-height (--sidebar-brand-logo-size / 2) − hamburger
+       half-height (19). Derived from --sidebar-brand-logo-size so it
+       stays correct if that token is resized. Both sidebars (public +
+       admin) share these brand metrics, so the same offset aligns the
+       hamburger in both surfaces. */
+    top: calc(14px + (var(--sidebar-brand-logo-size) / 2) - 19px + env(safe-area-inset-top, 0px));
     left: 8px;
     z-index: 120;
     display: inline-flex;
@@ -684,7 +689,8 @@
    hamburger (.site-hamburger overlays the bar's left edge) · round logo ·
    "Shabi Israel" · admin unit (far right — logo + avatar + name, one pill,
    only when logged in). Sizing/height replicate the old top nav: bar height
-   = --nav-height, brand font = --fs-160, logo = 1.4em, admin pill = the old
+   = --nav-height, brand font/logo = --sidebar-brand-fs/--sidebar-brand-logo-size
+   (shared with the sidebar's brand row), admin pill = the old
    .nav-admin-user. Visible ONLY while the sidebar is closed — opening the
    menu hides the bar so the two chromes never show at once. The left padding
    clears the floating hamburger, leaving a reasonable gap before the logo. */
@@ -708,17 +714,18 @@
 }
 body.site-sidebar-closed .site-topbar { display: flex; }
 
-/* Brand — round logo + "Shabi Israel". Logo sized to match the 38px
-   hamburger so the three left-edge elements read at one size; text is the
-   old --fs-160 brand size. */
+/* Brand — round logo + "Shabi Israel". Sized from the same
+   --sidebar-brand-fs / --sidebar-brand-logo-size tokens as the sidebar's
+   brand row (.site-sidebar-brand) so the brand reads at the SAME size in
+   both the open (sidebar) and closed (this top bar) states. */
 .site-topbar-brand {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     text-decoration: none;
     color: var(--header-text);
     font-weight: 700;
-    font-size: var(--fs-160);
+    font-size: var(--sidebar-brand-fs);
     line-height: 1.1;
     white-space: nowrap;
     min-width: 0;
@@ -727,8 +734,8 @@ body.site-sidebar-closed .site-topbar { display: flex; }
 .site-topbar-brand:hover { opacity: 0.8; }
 
 .site-topbar-logo {
-    height: 36px;
-    width: 36px;
+    height: var(--sidebar-brand-logo-size);
+    width: var(--sidebar-brand-logo-size);
     object-fit: contain;
     border-radius: 50%;
     flex-shrink: 0;
@@ -765,14 +772,6 @@ body.site-sidebar-closed .site-topbar { display: flex; }
     border: 1px solid rgba(255,255,255,0.15);
     white-space: nowrap;
     font-size: var(--fs-095);
-    flex-shrink: 0;
-}
-
-.site-topbar-admin-logo {
-    height: 30px;
-    width: 30px;
-    object-fit: contain;
-    border-radius: 50%;
     flex-shrink: 0;
 }
 

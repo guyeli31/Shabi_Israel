@@ -764,7 +764,7 @@ function renderMatchup(panel, playerName, allRows) {
         renderResults(name);
     }
 
-    // iOS search-sheet adapter: same opponent matcher as filterDropdown above,
+    // Mobile search-sheet adapter: same opponent matcher as filterDropdown above,
     // feeding the 16px overlay. Picking runs the normal in-place selection.
     registerSearchAdapter(input, {
         suggest(query) {

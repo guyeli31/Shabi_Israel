@@ -42,6 +42,53 @@ button, input, select, textarea {
     font-size: var(--fs-090);
 }
 
+/* ── Canonical combobox dropdown ─────────────────────────────────────────
+   Replaces every native `<input list> + <datalist>` in the codebase (see
+   js/utils/combobox.js). Native datalist popups are OS/browser chrome — no
+   CSS can theme them, so they always render "white" regardless of the
+   site's dark/light mode. This is a plain DOM list, themed like every other
+   surface via --color-surface/--color-border, and identical on desktop and
+   mobile (mobile still layers the 16px search-sheet on top via the same
+   adapter registration). */
+.app-combo-wrap {
+    position: relative;
+}
+.app-combo-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 240px;
+    overflow-y: auto;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+    list-style: none;
+    margin: 0;
+    padding: var(--space-2xs, 2px);
+    z-index: 30;
+    -webkit-overflow-scrolling: touch;
+}
+.app-combo-dropdown[hidden] {
+    display: none;
+}
+.app-combo-option {
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    font-size: var(--fs-090);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.app-combo-option:hover,
+.app-combo-option.active {
+    background: var(--color-accent);
+    color: var(--color-bg);
+}
+
 .page-container {
     max-width: 1100px;
     margin: 0 auto;

@@ -33,84 +33,29 @@
     min-height: 100vh;
 }
 
-.admin-sidebar {
-    /* Width comes from the SHARED canon in css/variables.css so the public
-       site sidebar (.site-sidebar) and the admin sidebar always stay in
-       lockstep. Changing --sidebar-width in variables.css updates both. */
-    width: var(--sidebar-width);
-    background: var(--header-bg);
-    color: var(--header-text);
-    padding: 12px 10px;
-    display: flex;
-    flex-direction: column;
-    flex-shrink: 0;
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    overflow-y: auto;
-    transition: transform 240ms cubic-bezier(0.32, 0.72, 0, 1);
-}
+/* .admin-sidebar's layout, flyout system, and mobile rail-mode are now
+   entirely canonical — the aside carries BOTH `admin-sidebar` (id hook,
+   admin-only content below) and `site-sidebar` (css/site-sidebar.css: width,
+   flex layout, sticky/z-index/overflow, hover+pin flyouts, mobile off-canvas
+   drawer, rail-mode collapse). Nothing admin-specific needs redeclaring here
+   — see js/admin/render/adminSidebarNav.js for the shared markup. */
 
-/* Honor the universal collapse class. Same toggle behavior as the public
-   site sidebar so the same hamburger affordance can drive either surface. */
-body.site-sidebar-closed .admin-sidebar {
-    transform: translateX(-100%);
-}
 body.site-sidebar-closed .admin-main {
     margin-left: calc(var(--sidebar-width) * -1);
     transition: margin-left 240ms cubic-bezier(0.32, 0.72, 0, 1);
     /* Clear the fixed top bar (shown only in this closed state — same bar as
-       the public site, mounted via mountTopbar in admin). */
-    padding-top: calc(var(--topbar-height) + env(safe-area-inset-top, 0px));
+       the public site, mounted via mountTopbar in admin). The extra
+       --space-lg matches the breathing room .admin-main's own top padding
+       gives the title in the open/desktop state — without it the title sits
+       flush against the bar with no gap. */
+    padding-top: calc(var(--topbar-height) + env(safe-area-inset-top, 0px) + var(--space-lg));
 }
 .admin-main {
     transition: margin-left 240ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* Brand row — round logo + "Shabi Israel" text, links to index.html.
-   Mirrors the public site sidebar's brand row so admin chrome feels like
-   the same surface (just with admin-only nav below it). `padding-left:48px`
-   clears the always-visible universal hamburger (38×38 at left: 8px). */
-/* Matches the top bar's brand exactly (.site-topbar-brand) — same 36px logo,
-   --fs-160 white text — so opening the admin menu keeps the logo + "Shabi
-   Israel" in the SAME place/size right after the hamburger. `padding-top: 2px`
-   centres the 36px logo on the hamburger's centre line. */
-.admin-sidebar-brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 2px 8px 10px 48px;
-    margin-bottom: 8px;
-    text-decoration: none;
-    color: var(--header-text, #fff);
-    border-bottom: 1px solid rgba(255,255,255,0.10);
-    transition: opacity 0.15s;
-}
-.admin-sidebar-brand:hover { opacity: 0.85; }
-
-.admin-sidebar-brand-logo {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    object-fit: contain;
-    flex-shrink: 0;
-}
-
-.admin-sidebar-brand-text {
-    font-size: var(--fs-160);
-    font-weight: 700;
-    line-height: 1.1;
-    letter-spacing: 0.01em;
-    color: #fff;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-/* Legacy admin-sidebar logo + h2 no longer rendered — keep selectors out
-   of new HTML so the rules don't shadow the brand row above. */
-.admin-sidebar-logo,
-.admin-sidebar h2 { display: none; }
+/* Brand row now reuses .site-sidebar-brand* (css/site-sidebar.css) directly
+   — see js/admin/render/adminSidebarNav.js. No admin-specific override needed. */
 
 /* ---- Welcome Card ---- */
 .admin-welcome {
@@ -209,60 +154,9 @@ body.site-sidebar-closed .admin-main {
     50%       { box-shadow: 0 0 0 4px rgba(52,211,153,0.12), 0 0 8px rgba(52,211,153,0.3); }
 }
 
-.admin-sidebar nav {
-    flex: 1;
-}
-
-.admin-nav-item {
-    /* Mirrors .site-nav-item in css/site-sidebar.css so both sidebars read
-       as the same component. Keep padding / font-size / spacing in lockstep. */
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 7px 9px;
-    color: rgba(255,255,255,0.78);
-    text-decoration: none;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    margin-bottom: 2px;
-    font-size: var(--fs-090);
-    line-height: 1.25;
-    transition: background 0.15s, color 0.15s;
-    border: none;
-    background: none;
-    width: 100%;
-    text-align: left;
-    font-family: inherit;
-}
-
-.admin-nav-item:hover,
-.admin-nav-item.active {
-    background: rgba(255,255,255,0.1);
-    color: #fff;
-}
-
-/* Icons inside admin nav items — mirrors .site-nav-icon sizing so both
-   sidebars line up visually. */
-.admin-nav-icon {
-    display: inline-flex;
-    width: 18px;
-    height: 18px;
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: center;
-    font-size: 15px;
-    line-height: 1;
-}
-.admin-nav-icon svg {
-    width: 16px;
-    height: 16px;
-}
-
-.admin-sidebar-footer {
-    margin-top: auto;
-    padding-top: var(--space-md);
-    border-top: 1px solid rgba(255,255,255,0.15);
-}
+/* Nav items, icons, and the footer logout button now reuse .site-nav-item /
+   .site-nav-icon / .site-sidebar-logout directly (css/site-sidebar.css) —
+   see js/admin/render/adminSidebarNav.js. No admin-specific override needed. */
 
 .admin-main {
     flex: 1;
@@ -1014,6 +908,58 @@ table.font-large { font-size: var(--fs-093); }
     font-weight: 600;
 }
 
+/* ---- Round selection pills (F3 Round Editor) ----
+   Shows one round at a time instead of every round's match table rendering
+   simultaneously — the round editor was the heaviest-DOM admin view (every
+   match row carries 4 live inputs + 6 buttons; multiplied by every round in
+   the league at once). Existing tokens (surface/border/accent/bg) already
+   give the pill enough contrast in every theme — same tokens
+   .subtab--accordion's toggle state already relies on — so no new colour
+   token was needed. */
+.round-pills-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-md);
+}
+.round-pill {
+    padding: 4px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text-secondary);
+    font-family: var(--font-main);
+    font-size: var(--fs-085);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    user-select: none;
+}
+.round-pill:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+.round-pill.active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-bg);
+}
+.round-pill.active:hover {
+    color: var(--color-bg);
+}
+.round-pill-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 6px;
+    border-radius: 50%;
+    background: var(--color-warning);
+    vertical-align: middle;
+}
+.round-pill.active .round-pill-dot {
+    background: var(--color-bg);
+}
+
 /* ---- Inline match editing ---- */
 .admin-table-compact th,
 .admin-table-compact td {
@@ -1154,6 +1100,22 @@ table.font-large { font-size: var(--fs-093); }
 .admin-table.font-large.admin-round-table tbody.match-block-unplayed td {
     background: var(--color-inset);
     color: var(--color-text-muted);
+    opacity: 0.6;
+}
+
+/* Sticky first col (PLAYERS) must stay fully opaque — per TABLE-DESIGN.md
+   iron rules, sticky cells can never let the horizontally-scrolled columns
+   beneath them show through. `opacity: 0.6` above applies to the *whole*
+   cell paint (background + text), and since this td is `position: sticky`
+   it composites over whatever has scrolled underneath — so on an unplayed
+   match-block, the sticky column visibly picked up the scrolled-under text.
+   Reset opacity to 1 here and fade only the flag icon instead, so the
+   muted look survives without breaking sticky opacity (regression fixed
+   2026-07-03). */
+.admin-table.font-large.admin-round-table tbody.match-block-unplayed td.match-player-cell {
+    opacity: 1;
+}
+.admin-table.font-large.admin-round-table tbody.match-block-unplayed td.match-player-cell .flag {
     opacity: 0.6;
 }
 
@@ -1496,39 +1458,9 @@ table.font-large { font-size: var(--fs-093); }
         flex-direction: column;
     }
 
-    .admin-sidebar {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: var(--sidebar-width-mobile);
-        height: 100dvh;
-        /* 12px (same as desktop) so the brand row aligns with the hamburger —
-           opening the drawer keeps the brand exactly where the top bar had it. */
-        padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
-        /* Lift the footer above the iOS home indicator on top of base padding. */
-        padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom, 0px));
-        transform: translateX(-100%);
-        will-change: transform;
-        z-index: 100;
-        box-shadow:
-            1px 0 0 rgba(255, 255, 255, 0.04),
-            6px 0 12px rgba(15, 23, 42, 0.28),
-            20px 0 48px rgba(15, 23, 42, 0.22);
-    }
-
-    /* Open state on mobile = NOT closed. The universal toggle starts in
-       closed state on mobile (via the JS), so the user must tap the
-       hamburger to slide the drawer in. */
-    body:not(.site-sidebar-closed) .admin-sidebar {
-        transform: translateX(0);
-    }
-
-    /* Backdrop appears whenever the drawer is open on mobile (same as the
-       public site sidebar). */
-    body:not(.site-sidebar-closed) .site-backdrop {
-        display: block;
-        opacity: 1;
-    }
+    /* .admin-sidebar's mobile off-canvas drawer + backdrop are handled
+       entirely by the shared .site-sidebar rules in site-sidebar.css (the
+       aside carries both classes — see js/admin/render/adminSidebarNav.js). */
 
     .admin-main {
         /* Top padding to clear the bar is applied by the closed-state rule
@@ -1540,34 +1472,8 @@ table.font-large { font-size: var(--fs-093); }
     }
 }
 
-/* ---- Home link + Logout button footer items ---- */
-.admin-home-link {
-    text-decoration: none;
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    transition: color 0.2s;
-}
-.admin-home-link svg {
-    opacity: 0.7;
-    transition: opacity 0.2s;
-}
-.admin-home-link:hover svg {
-    opacity: 1;
-}
-.admin-logout-btn {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-}
-.admin-logout-btn svg {
-    opacity: 0.7;
-    flex-shrink: 0;
-    transition: opacity 0.2s;
-}
-.admin-logout-btn:hover svg {
-    opacity: 1;
-}
+/* Home + Logout footer items now reuse .site-nav-item / .site-sidebar-logout
+   directly (css/site-sidebar.css) — see js/admin/render/adminSidebarNav.js. */
 
 /* ---- Add League form: card grid ---- */
 .add-league-grid {

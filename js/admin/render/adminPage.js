@@ -1,16 +1,16 @@
 /**
- * adminPage.js — Render the admin panel shell: login, sidebar, settings, pending changes.
+ * adminPage.js — Render the admin panel shell: login, sidebar, pending changes.
  */
 
-import { isLoggedIn, logout, getToken, setToken, getRepo, setRepo, isGitHubConfigured, getUsername } from '../auth.js';
-import { testConnection } from '../githubApi.js';
+import { isLoggedIn, logout, isGitHubConfigured } from '../auth.js';
 import { getChanges, removeChange, removeGroup, removeOverrideFromChange, restoreOverrideToChange, removePlayerFromGroup, getChangeCount, publishAll, clearChanges, diffOverrides, overrideKey } from '../stagingStore.js';
 import { setTopbarSection } from '../adminDrawer.js';
 import { mountSidebarToggle } from '../../render/sidebarToggle.js';
 import { mountTopbar } from '../../render/topbar.js';
 import { installSearchOverlay } from '../../render/searchOverlay.js';
+import { buildAdminSidebarHtml, wireAdminSidebar } from './adminSidebarNav.js';
 
-const VIEW_TITLES = { leagues: 'Leagues', players: 'Players', pending: 'Pending Changes', settings: 'Settings' };
+const VIEW_TITLES = { leagues: 'Leagues', players: 'Players', pending: 'Pending Changes' };
 
 let currentView = 'leagues';
 let onNavigate = null; // callback set by admin.html to handle view switching
@@ -28,7 +28,7 @@ export function initAdminPage(viewCallback) {
     } else {
         renderAdminShell();
         const hash = (location.hash || '').replace('#', '');
-        const initial = (hash === 'pending' || hash === 'settings' || hash === 'leagues' || hash === 'players') ? hash : 'leagues';
+        const initial = (hash === 'pending' || hash === 'leagues' || hash === 'players') ? hash : 'leagues';
         navigateTo(initial);
     }
 }
@@ -41,16 +41,14 @@ export function navigateTo(view) {
     setTopbarSection(VIEW_TITLES[view] || view);
 
     // Update active nav item
-    document.querySelectorAll('.admin-nav-item').forEach(el => {
+    document.querySelectorAll('.site-nav-item[data-view]').forEach(el => {
         el.classList.toggle('active', el.dataset.view === view);
     });
 
     const main = document.getElementById('admin-content');
     if (!main) return;
 
-    if (view === 'settings') {
-        renderSettings(main);
-    } else if (view === 'pending') {
+    if (view === 'pending') {
         renderPendingChanges(main);
     } else if (onNavigate) {
         onNavigate(view, main);
@@ -72,73 +70,41 @@ export function refreshBadge() {
 
 function renderAdminShell() {
     const app = document.getElementById('app');
-    const count = getChangeCount();
 
     app.innerHTML = `
         <div class="admin-layout">
-            <aside class="admin-sidebar" id="admin-sidebar">
-                <a class="admin-sidebar-brand" href="index.html" aria-label="Shabi Israel — home">
-                    <img class="admin-sidebar-brand-logo" src="assets/favicon-round.png" alt="">
-                    <span class="admin-sidebar-brand-text">Shabi Israel</span>
-                </a>
-                <div class="sidebar-admin-banner">
-                    <div class="sidebar-admin-avatar">${getUsername().charAt(0).toUpperCase()}</div>
-                    <div class="sidebar-admin-body">
-                        <div class="sidebar-admin-label">Welcome back</div>
-                        <div class="sidebar-admin-name">${getUsername()}</div>
-                        <div class="sidebar-admin-status"><span class="sidebar-admin-dot"></span>Active</div>
-                    </div>
-                </div>
-                <nav>
-                    <a href="index.html?edit=1" class="admin-nav-item">
-                        <span class="admin-nav-icon" aria-hidden="true">🏠</span><span>Main Dashboard</span>
-                    </a>
-                    <button class="admin-nav-item" data-view="leagues">
-                        <span class="admin-nav-icon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><line x1="2" y1="6.5" x2="14" y2="6.5"/><line x1="8" y1="6.5" x2="8" y2="13"/></svg></span><span>Leagues</span>
-                    </button>
-                    <button class="admin-nav-item" data-view="players">
-                        <span class="admin-nav-icon" aria-hidden="true">👥</span><span>Players</span>
-                    </button>
-                    <button class="admin-nav-item" data-view="pending">
-                        <span class="admin-nav-icon" aria-hidden="true">📝</span><span>Pending Changes</span> <span id="staging-badge" class="staging-badge ${count === 0 ? 'empty' : ''}">${count}</span>
-                    </button>
-                    <button class="admin-nav-item" data-view="settings">
-                        <span class="admin-nav-icon" aria-hidden="true">⚙️</span><span>Settings</span>
-                    </button>
-                </nav>
-                <div class="admin-sidebar-footer">
-                    <a href="index.html" class="admin-nav-item admin-home-link" title="View Site">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12L12 3l9 9"/><path d="M5 10v10h14V10"/></svg>
-                        <span>Home</span>
-                    </a>
-                    <button class="admin-nav-item admin-logout-btn" id="logout-btn">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
-                        <span>Logout</span>
-                    </button>
-                </div>
+            <aside class="admin-sidebar site-sidebar" id="admin-sidebar">
+                ${buildAdminSidebarHtml({ mode: 'view' })}
             </aside>
             <main class="admin-main" id="admin-content">
                 <div class="loading">Loading...</div>
             </main>
         </div>`;
 
+    const sidebar = document.getElementById('admin-sidebar');
+
     // Nav clicks
-    document.querySelectorAll('.admin-nav-item[data-view]').forEach(btn => {
+    document.querySelectorAll('.site-nav-item[data-view]').forEach(btn => {
         btn.addEventListener('click', () => navigateTo(btn.dataset.view));
     });
 
     // Logout
-    document.getElementById('logout-btn').addEventListener('click', () => {
+    document.getElementById('admin-sidebar-logout').addEventListener('click', () => {
         logout();
         location.href = 'index.html';
     });
 
+    // Settings ▸ Theme Customize flyout + click-to-pin/hover — canonical,
+    // shared with the dashboard edit-mode sidebar (adminSidebarNav.js).
+    wireAdminSidebar(sidebar);
+
     // Mount the SAME universal hamburger that drives the public site sidebar.
-    // It manipulates `body.site-sidebar-closed`; the .admin-sidebar CSS in
-    // admin.css honors that class with the same transform/margin transition,
-    // so the toggle UX is identical across both surfaces. Replaces the older
-    // initAdminDrawer() topbar+drawer combo (the page title <h1> in the main
-    // content already provides the "where am I" cue the old topbar did).
+    // It manipulates `body.site-sidebar-closed`; .site-sidebar's CSS (shared
+    // by .admin-sidebar via the class above) honors that class with the same
+    // transform/margin transition, so the toggle UX is identical across both
+    // surfaces. Replaces the older initAdminDrawer() topbar+drawer combo (the
+    // page title <h1> in the main content already provides the "where am I"
+    // cue the old topbar did).
     mountSidebarToggle({ ariaControlsId: 'admin-sidebar' });
 
     // Same top bar as the public site (shown while the sidebar is closed).
@@ -146,77 +112,10 @@ function renderAdminShell() {
     // admin unit without the preview-mode check.
     mountTopbar({ forceAdmin: true });
 
-    // iOS search-sheet for the admin match/round filter inputs (datalist-backed,
-    // so they use the default adapter — no registration needed). No-op off iOS.
+    // Mobile search-sheet for the admin match/round filter inputs (datalist-
+    // backed, so they use the default adapter — no registration needed). No-op
+    // off touch devices.
     installSearchOverlay();
-}
-
-// ---- Settings ----
-
-function renderSettings(container) {
-    const repo = getRepo();
-    const repoStr = repo ? `${repo.owner}/${repo.repo}` : '';
-    const token = getToken();
-    const masked = token ? token.slice(0, 8) + '...' + token.slice(-4) : '';
-
-    container.innerHTML = `
-        <h1>Settings</h1>
-
-        <div class="admin-card">
-            <h2>GitHub Repository</h2>
-            <div id="settings-msg"></div>
-            <div class="form-group">
-                <label for="settings-repo">Repository (owner/repo)</label>
-                <input type="text" id="settings-repo" value="${repoStr}" placeholder="owner/repo">
-            </div>
-            <div class="form-group">
-                <label for="settings-token">Personal Access Token</label>
-                <input type="password" id="settings-token" value="${token}" placeholder="ghp_...">
-                ${masked ? `<small style="color:var(--color-text-muted)">Current: ${masked}</small>` : ''}
-            </div>
-            <button class="btn btn-primary" id="settings-save">Save</button>
-            <button class="btn btn-secondary" id="settings-test" style="margin-left:var(--space-sm)">Test Connection</button>
-        </div>
-
-        <div class="admin-card">
-            <h2>Session</h2>
-            <p style="color:var(--color-text-secondary);font-size:0.9rem">
-                Logged in as <b>admin</b>.
-                Token and repo settings persist across sessions in localStorage.
-            </p>
-        </div>`;
-
-    document.getElementById('settings-save').addEventListener('click', () => {
-        const repoVal = document.getElementById('settings-repo').value.trim();
-        const tokenVal = document.getElementById('settings-token').value.trim();
-
-        if (repoVal && !repoVal.includes('/')) {
-            showMsg('settings-msg', 'Repo must be in "owner/repo" format.', 'error');
-            return;
-        }
-
-        if (repoVal) setRepo(repoVal);
-        if (tokenVal) setToken(tokenVal);
-        showMsg('settings-msg', 'Settings saved.', 'success');
-    });
-
-    document.getElementById('settings-test').addEventListener('click', async () => {
-        if (!isGitHubConfigured()) {
-            showMsg('settings-msg', 'Please save repo and token first.', 'error');
-            return;
-        }
-        const btn = document.getElementById('settings-test');
-        btn.disabled = true;
-        btn.textContent = 'Testing...';
-        try {
-            const ok = await testConnection();
-            showMsg('settings-msg', ok ? 'Connection successful!' : 'Connection failed — check credentials.', ok ? 'success' : 'error');
-        } catch (err) {
-            showMsg('settings-msg', `Error: ${err.message}`, 'error');
-        }
-        btn.disabled = false;
-        btn.textContent = 'Test Connection';
-    });
 }
 
 // ---- Pending Changes ----
@@ -339,7 +238,7 @@ function renderPendingChanges(container) {
     // Publish
     document.getElementById('publish-btn').addEventListener('click', async () => {
         if (!isGitHubConfigured()) {
-            showMsg('publish-msg', 'GitHub not configured. Go to Settings first.', 'error');
+            showMsg('publish-msg', 'GitHub not configured.', 'error');
             return;
         }
 

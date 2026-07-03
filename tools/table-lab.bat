@@ -1,5 +1,5 @@
 @echo off
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 :: Check if server is already running on 8090
 curl -s -o nul -w "%%{http_code}" http://localhost:8090/index.html 2>nul | findstr "200" >nul

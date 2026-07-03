@@ -103,10 +103,22 @@
        Single source of truth for sidebar width — consumed by BOTH
        the public site sidebar (.site-sidebar in css/site-sidebar.css)
        and the admin sidebar (.admin-sidebar in css/admin.css). Change
-       these to resize both at once. */
-    --sidebar-width: 200px;
+       these to resize both at once.
+       240px is the minimum that fits "SHABI ISRAEL" in full at the
+       brand row's fixed 1.2rem/34px-logo sizing (see --sidebar-brand-fs) —
+       don't shrink below this without re-checking that text still fits. */
+    --sidebar-width: 240px;
     --sidebar-width-mobile: min(280px, 84vw);
     --sidebar-flyout-width: 240px;
+    /* Fixed (not vw-fluid like --fs-160) so the brand reads at the SAME
+       size whether shown in the sidebar (.site-sidebar-brand, open state)
+       or the top bar (.site-topbar-brand, closed state) — both reference
+       these same two tokens. Fixed rather than fluid also guarantees the
+       text always fits the sidebar's fixed-width column, regardless of
+       viewport (a vw-growing font in a non-growing column is what caused
+       the original "SHABI ISRAEL" clipping). */
+    --sidebar-brand-fs: 1.2rem;
+    --sidebar-brand-logo-size: 34px;
     --sidebar-flyout-width-wide: 280px;
     /* Narrow-viewport "rail" mode: when a submenu is open on mobile, the
        sidebar (and, recursively, an outer flyout that itself has a pinned

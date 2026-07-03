@@ -1218,6 +1218,14 @@ body:has(.edit-bar) .theme-picker {
 .lp-tabs-shell { margin-bottom: var(--space-lg); }
 .lp-tab-panel[hidden] { display: none; }
 
+/* Sidebar deep-links (Records sub-menu, ?tab=…) scroll these into view via
+   scrollIntoView — reserve space for the fixed topbar so the target's
+   heading doesn't land underneath it. */
+.lp-tabs-shell,
+.dash-section {
+    scroll-margin-top: calc(var(--topbar-height) + env(safe-area-inset-top, 0px) + var(--space-md));
+}
+
 /* Leaderboard export controls sit in their own row under the heading. */
 .lp-tab-panel > .leaderboard-section .leaderboard-header-row {
     margin-bottom: var(--space-md);

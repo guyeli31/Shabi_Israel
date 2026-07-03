@@ -25,16 +25,17 @@ async function loadOverridesWithStaged(leagueId) {
 }
 import { thLabel, flagUrl, getFlagCode } from '../utils/helpers.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
+import { mountCombobox } from '../utils/combobox.js';
 
 export function renderRoundEditor(container, leagueId, refreshBadge) {
     container.innerHTML = `
         <div id="round-msg"></div>
         <div class="match-filter-bar" style="margin-bottom:var(--space-md)">
             <label for="round-filter-input" style="margin-right:var(--space-xs)">Filter by player:</label>
-            <input type="text" id="round-filter-input" class="app-search-input" list="round-player-list" placeholder="Type player name…" autocomplete="off">
-            <datalist id="round-player-list"></datalist>
+            <input type="text" id="round-filter-input" class="app-search-input" placeholder="Type player name…" autocomplete="off">
             <button type="button" class="btn btn-secondary btn-xs" id="round-filter-clear" style="margin-left:var(--space-xs)">Clear</button>
         </div>
+        <div id="round-pills-bar" class="round-pills-bar"></div>
         <div id="round-content"><div class="loading">Loading matches...</div></div>`;
 
     loadAndRender(document.getElementById('round-content'), leagueId, refreshBadge, container);
@@ -69,6 +70,7 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
         }
         if (root) populatePlayerDatalist(root, playerSet);
 
+        const roundStats = [];
         let html = '';
         for (let r = 1; r <= roundCount; r++) {
             const rMatches = byRound[r] || [];
@@ -77,6 +79,7 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
                 const o = overrideMap.get(pairKey(m.playerA, m.playerB));
                 return o && o.type !== 'not_played';
             }).length;
+            roundStats.push({ round: r, played: playedCount, total: rMatches.length });
 
             let blocks = '';
             for (let i = 0; i < rMatches.length; i++) {
@@ -168,23 +171,41 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
         container.innerHTML = html || '<p style="color:var(--color-text-muted)">No matches found.</p>';
         container.querySelectorAll('.ff-wrap').forEach(w => attachStickyShadow(w));
         attachListeners(container, leagueId, refreshBadge, matchLength);
-        if (root) attachFilter(root, container);
+        if (root) attachRoundNav(root, container, roundStats);
     } catch (err) {
         container.innerHTML = `<div class="admin-msg admin-msg-error">${err.message}</div>`;
     }
 }
 
 function populatePlayerDatalist(root, playerSet) {
-    const dl = root.querySelector('#round-player-list');
-    if (!dl) return;
+    const input = root.querySelector('#round-filter-input');
+    if (!input) return;
     const sorted = [...playerSet].sort((a, b) => a.localeCompare(b));
-    dl.innerHTML = sorted.map(p => `<option value="${esc(p)}">`).join('');
+    mountCombobox(input, { getOptions: () => sorted });
 }
 
-function attachFilter(root, content) {
+/**
+ * Round pills + player filter, combined: with no filter text, exactly one
+ * round-card is shown at a time (picked via the pills — perf: hundreds of
+ * live <input>/<select> elements only ever render for one round instead of
+ * every round at once). Typing a filter temporarily searches across ALL
+ * rounds (that's the point of a player filter — find them wherever they
+ * are); clearing it snaps back to the selected pill's round.
+ */
+function attachRoundNav(root, content, roundStats) {
     const input = root.querySelector('#round-filter-input');
     const clearBtn = root.querySelector('#round-filter-clear');
-    if (!input) return;
+    const pillsBar = root.querySelector('#round-pills-bar');
+    if (!input || !pillsBar) return;
+
+    if (roundStats.length === 0) { pillsBar.innerHTML = ''; return; }
+
+    const firstIncomplete = roundStats.find(s => s.played < s.total);
+    let selectedRound = (firstIncomplete || roundStats[0]).round;
+
+    pillsBar.innerHTML = roundStats.map(s => `
+        <button type="button" class="round-pill${s.round === selectedRound ? ' active' : ''}" data-round="${s.round}">R${s.round}${s.played < s.total ? '<span class="round-pill-dot" title="Not fully played"></span>' : ''}</button>`
+    ).join('');
 
     function applyFilter() {
         const ft = input.value.trim().toLowerCase();
@@ -199,12 +220,24 @@ function attachFilter(root, content) {
                 b.style.display = match ? '' : 'none';
                 if (match) visible++;
             });
-            card.style.display = (ft && visible === 0) ? 'none' : '';
+            card.style.display = ft
+                ? (visible === 0 ? 'none' : '')
+                : (parseInt(card.dataset.round, 10) === selectedRound ? '' : 'none');
         });
     }
 
+    pillsBar.querySelectorAll('.round-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+            selectedRound = parseInt(pill.dataset.round, 10);
+            pillsBar.querySelectorAll('.round-pill').forEach(p => p.classList.toggle('active', p === pill));
+            applyFilter();
+        });
+    });
+
     input.addEventListener('input', applyFilter);
     if (clearBtn) clearBtn.addEventListener('click', () => { input.value = ''; applyFilter(); input.focus(); });
+
+    applyFilter();
 }
 
 function attachListeners(container, leagueId, refreshBadge, matchLength) {
