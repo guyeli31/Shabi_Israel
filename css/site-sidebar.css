@@ -217,9 +217,9 @@
     overflow-y: auto;
 }
 
-/* Hover-open: any pointer over the host (button or its flyout) keeps it shown.
-   Pinned-open: click on the host adds `.pinned` and stays until tap-outside. */
-.site-nav-flyout-host:hover > .site-nav-flyout,
+/* Pinned-open: click on the host adds `.pinned` and stays until tap-outside.
+   Focus-open: keyboard tab into the host's contents. Both work on every
+   input type, touch included. */
 .site-nav-flyout-host.pinned > .site-nav-flyout,
 .site-nav-flyout-host:focus-within > .site-nav-flyout {
     opacity: 1;
@@ -228,6 +228,25 @@
     /* Open immediately — only the CLOSE is delayed (see the transition
        block at the bottom of this file). */
     transition-delay: 0s;
+}
+
+/* Hover-open: any pointer over the host (button or its flyout) keeps it
+   shown — but ONLY for real pointers (mouse/trackpad). Gated behind
+   (hover: hover) so touch devices never open a flyout via CSS :hover: touch
+   input has no true hover, and mobile browsers can leave a synthetic hover
+   "stuck" on whatever's under the finger after a tap that navigates (a
+   known WebKit/Chrome-mobile quirk). Since these flyout panels sit at
+   real on-screen coordinates even while the sidebar itself is off-canvas
+   (the panel's rightward offset roughly cancels the sidebar's translateX),
+   a stuck hover would pop a submenu into view with no sidebar in sight.
+   Touch users still open flyouts via `.pinned` (click), above. */
+@media (hover: hover) and (pointer: fine) {
+    .site-nav-flyout-host:hover > .site-nav-flyout {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateX(0);
+        transition-delay: 0s;
+    }
 }
 
 /* Pin-vs-hover precedence: once a host at some level is pinned, hovering a
@@ -820,6 +839,21 @@ body.site-sidebar-closed .site-topbar { display: flex; }
    conceptually one thing. */
 body.site-sidebar-closed .site-sidebar {
     transform: translateX(-100%);
+}
+/* Belt-and-suspenders: a flyout panel's rightward offset can land it at
+   real on-screen coordinates even while its ancestor .site-sidebar is
+   off-canvas (translateX(-100%) on the host doesn't push a `position:
+   absolute` descendant's own `left: 100%` far enough past the viewport
+   edge once nested flyouts stack up — verified via devtools, e.g. the
+   Settings flyout rests at ~x:-10..230 in a 390px mobile viewport while
+   "closed"). If any host is left `.pinned` or catches a stray/stuck touch
+   hover, force every flyout invisible whenever the sidebar itself is
+   closed, no matter what CSS state its host is in. !important is
+   deliberate here — this is a hard safety net, not a themable style. */
+body.site-sidebar-closed .site-nav-flyout {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateX(-4px) !important;
 }
 body.site-sidebar-closed .site-main {
     /* On desktop the main column was constrained to (100vw - sidebar). When

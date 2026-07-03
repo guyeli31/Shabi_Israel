@@ -111,6 +111,7 @@
     font-family: var(--font-main);
 }
 
+
 .dash-controls button:hover:not(:disabled) {
     background: var(--color-hover);
 }

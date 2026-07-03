@@ -509,7 +509,7 @@ function renderHistorical(ctx) {
     const historyDates = getUpdateDates(history); // descending
     // Build options: "Current" first (always), then history dates
     const currentLabel = lastModified
-        ? `Current (Last updated: ${formatLastModified(lastModified)})`
+        ? `Current (${formatLastModified(lastModified)})`
         : 'Current';
     const options = [{ value: '__current__', label: currentLabel }];
     for (const d of historyDates) options.push({ value: d, label: d });

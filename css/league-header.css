@@ -63,7 +63,7 @@
 }
 .lh13-meta {
     margin-top: 0.4em;
-    font-size: 0.85em; color: var(--color-text-muted);
+    font-size: 0.7em; color: var(--color-text-muted);
     display: flex; align-items: center; justify-content: center;
     gap: 0.5em; flex-wrap: wrap;
 }
