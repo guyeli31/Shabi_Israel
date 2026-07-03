@@ -40,11 +40,16 @@
 /* `padding-left: 48px` clears the always-visible hamburger (38×38 at
    `left: 8px`) — without it the round logo would sit underneath the
    hamburger button when the sidebar is open. */
+/* Matches the top bar's brand exactly (.site-topbar-brand) — same 36px logo,
+   --fs-160 white text, and gap — so opening the menu keeps the logo + "Shabi
+   Israel" in the SAME place/size right after the hamburger. `padding-top: 2px`
+   centres the 36px logo on the hamburger's centre line (sidebar pad-top 12 +
+   2 + logo half 18 = 32 = the hamburger's centre). */
 .site-sidebar-brand {
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 6px 8px 10px 48px;
+    gap: 10px;
+    padding: 2px 8px 10px 48px;
     margin-bottom: 8px;
     text-decoration: none;
     color: var(--header-text);
@@ -54,20 +59,19 @@
 .site-sidebar-brand:hover { opacity: 0.85; }
 
 .site-sidebar-brand-logo {
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    object-fit: cover;
+    object-fit: contain;
     flex-shrink: 0;
-    box-shadow: 0 0 0 1px rgba(255,255,255,0.18), 0 1px 4px rgba(0,0,0,0.30);
-    background: rgba(255,255,255,0.04);
 }
 
 .site-sidebar-brand-text {
-    font-size: var(--fs-100);
+    font-size: var(--fs-160);
     font-weight: 700;
+    line-height: 1.1;
     letter-spacing: 0.01em;
-    color: rgba(255,255,255,0.95);
+    color: #fff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -690,14 +694,13 @@
     top: 0;
     left: 0;
     right: 0;
-    min-height: calc(var(--nav-height) + env(safe-area-inset-top, 0px));
-    padding:
-        calc(env(safe-area-inset-top, 0px) + var(--fs-160) * 0.6)
-        var(--space-md)
-        calc(var(--fs-160) * 0.6)
-        58px;                          /* clears the 38px hamburger @ left:8px + gap */
+    /* Fixed height + align-items:center → everything (hamburger, logo, brand,
+       pill) is vertically centred on one line. Height is a hair taller than
+       --nav-height so the 38px hamburger centres with 13px top & bottom. */
+    height: calc(var(--topbar-height) + env(safe-area-inset-top, 0px));
+    padding: env(safe-area-inset-top, 0px) var(--space-md) 0 58px; /* left clears the hamburger */
     align-items: center;
-    gap: var(--space-md);
+    gap: 12px;
     background: var(--header-bg);
     color: var(--header-text);
     box-shadow: var(--shadow-md);
@@ -705,12 +708,13 @@
 }
 body.site-sidebar-closed .site-topbar { display: flex; }
 
-/* Brand — mirrors the old .nav-home (font-size on the link, logo/text scale
-   in em from it). */
+/* Brand — round logo + "Shabi Israel". Logo sized to match the 38px
+   hamburger so the three left-edge elements read at one size; text is the
+   old --fs-160 brand size. */
 .site-topbar-brand {
     display: inline-flex;
     align-items: center;
-    gap: 0.5em;
+    gap: 10px;
     text-decoration: none;
     color: var(--header-text);
     font-weight: 700;
@@ -723,8 +727,8 @@ body.site-sidebar-closed .site-topbar { display: flex; }
 .site-topbar-brand:hover { opacity: 0.8; }
 
 .site-topbar-logo {
-    height: 1.4em;
-    width: 1.4em;
+    height: 36px;
+    width: 36px;
     object-fit: contain;
     border-radius: 50%;
     flex-shrink: 0;
@@ -749,37 +753,38 @@ body.site-sidebar-closed .site-topbar { display: flex; }
 }
 
 /* Admin unit — the old .nav-admin-user pill: brand logo + avatar + username
-   as one rounded chip on the far right. */
+   as one rounded chip on the far right. Sized up so it reads clearly next
+   to the taller bar. */
 .site-topbar-admin {
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 4px 10px 4px 6px;
-    border-radius: 22px;
+    gap: 8px;
+    padding: 5px 13px 5px 6px;
+    border-radius: 24px;
     background: rgba(255,255,255,0.08);
     border: 1px solid rgba(255,255,255,0.15);
     white-space: nowrap;
-    font-size: var(--fs-085);
+    font-size: var(--fs-095);
     flex-shrink: 0;
 }
 
 .site-topbar-admin-logo {
-    height: clamp(18px, calc(0.71vw + 15.4px), 24px);
-    width: clamp(18px, calc(0.71vw + 15.4px), 24px);
+    height: 30px;
+    width: 30px;
     object-fit: contain;
     border-radius: 50%;
     flex-shrink: 0;
 }
 
 .site-topbar-admin-avatar {
-    width: clamp(18px, calc(0.71vw + 15.4px), 24px);
-    height: clamp(18px, calc(0.71vw + 15.4px), 24px);
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: var(--fs-068);
+    font-size: var(--fs-085);
     font-weight: 800;
     color: #fff;
     flex-shrink: 0;
@@ -823,7 +828,7 @@ body.site-sidebar-closed .site-main {
        on the left. Negative margin pulls it back into that space. */
     margin-left: calc(var(--sidebar-width) * -1);
     /* Clear the fixed top bar (shown only in this closed state). */
-    padding-top: calc(var(--nav-height) + env(safe-area-inset-top, 0px));
+    padding-top: calc(var(--topbar-height) + env(safe-area-inset-top, 0px));
 }
 
 .site-sidebar {
@@ -860,7 +865,10 @@ body.site-sidebar-closed .site-main {
         left: 0;
         width: var(--sidebar-width-mobile);
         height: 100dvh;
-        padding-top: calc(env(safe-area-inset-top, 0px) + 54px);
+        /* 12px (same as desktop) so the brand row sits at the top aligned with
+           the hamburger — opening the drawer keeps the logo + "Shabi Israel"
+           exactly where the top bar had them (the bar is hidden while open). */
+        padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
         padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
         z-index: 100;
         box-shadow:
@@ -938,9 +946,23 @@ body.site-sidebar-closed .site-main {
         padding-left: 8px;
         padding-right: 8px;
     }
+    /* Rail mode: collapse the admin banner to JUST the avatar circle — the
+       same way brand → logo and logout → icon collapse. Strip the card chrome
+       (gradient bg, border, radius, shadow, accent stripe, padding) so the
+       leftover box doesn't crowd the avatar; the avatar keeps its own ring +
+       shadow, so it reads as a clean standalone token. */
     .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .sidebar-admin-banner {
-        padding: 6px;
+        padding: 0;
         justify-content: center;
+        background: none;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        overflow: visible;
+        animation: none;
+    }
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .sidebar-admin-banner::before {
+        display: none;   /* hide the 3px accent stripe in rail mode */
     }
     /* Reclaim the freed space for the open flyout. */
     .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) .site-nav-flyout {

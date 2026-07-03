@@ -674,6 +674,9 @@ function setViewport(deviceId, initial = false) {
         const orient = device.group === 'desktop' ? '' : (viewportRot ? ' (landscape)' : ' (portrait)');
         const dims = device.group === 'desktop' ? '' : ` — ${viewportRot ? device.h : device.w}×${viewportRot ? device.w : device.h}`;
         setStatus(`Device: ${device.label}${dims}${orient}.`);
+        // Switching to/from a touch device toggles the search overlay in the
+        // preview (device switches don't reload the iframe on their own).
+        syncOverlayFlag();
     }
 }
 
@@ -1119,6 +1122,29 @@ function navigateIframeTo(page) {
     iframeEl.src = page + params;
 }
 
+/* Touch devices (any phone/tablet) run the search overlay (searchOverlay.js).
+   The typo-editor device picker only resizes the iframe — it does NOT emulate a
+   touch pointer — so `isTouchDevice()` inside the iframe is false and the sheet
+   never installs. We bridge that by toggling the `?searchoverlay=force` flag
+   (the module's built-in override) on the iframe URL to match the picked
+   device, preserving the current page + its other params + hash. */
+function isTouchDevice(id) { return resolveDevice(id).group !== 'desktop'; }
+
+function syncOverlayFlag() {
+    if (!iframeEl) return false;
+    let loc;
+    try { loc = iframeEl.contentWindow.location; } catch { return false; }
+    const want = isTouchDevice(viewport);
+    const params = new URLSearchParams(loc.search);
+    const has = params.get('searchoverlay') === 'force';
+    if (want === has) return false;               // already in sync — no reload
+    if (want) params.set('searchoverlay', 'force');
+    else params.delete('searchoverlay');
+    const qs = params.toString();
+    iframeEl.src = loc.pathname + (qs ? '?' + qs : '') + loc.hash;
+    return true;                                   // reloading — caller should bail
+}
+
 function bindIframe() {
     iframeEl = document.getElementById('te-iframe');
     iframeEl.addEventListener('load', onIframeLoad);
@@ -1140,6 +1166,11 @@ function onIframeLoad() {
 
     currentPage = pageFromUrl(iframeEl.contentWindow.location.href);
     document.querySelector('.te-page-select').value = currentPage + '.html';
+
+    // Ensure the iOS overlay flag matches the picked device. If this reloads the
+    // iframe (Apple device but flag missing, or vice-versa), bail — onIframeLoad
+    // fires again on the reload, now in sync.
+    if (syncOverlayFlag()) return;
 
     injectOverridesIntoIframe();
     attachIframeListeners();

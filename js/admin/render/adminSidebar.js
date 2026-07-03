@@ -8,6 +8,7 @@ import { logout, getUsername } from '../auth.js';
 import { getChangeCount } from '../stagingStore.js';
 import { setTopbarSection } from '../adminDrawer.js';
 import { mountSidebarToggle } from '../../render/sidebarToggle.js';
+import { mountTopbar } from '../../render/topbar.js';
 
 let _wrapper = null;
 let _badgeEl = null;
@@ -95,6 +96,7 @@ export function mountAdminSidebar(opts = {}) {
     // toggle UX is identical in admin edit mode too. body.site-sidebar-closed
     // drives .admin-sidebar's transform via the shared rules in admin.css.
     mountSidebarToggle({ ariaControlsId: 'admin-sidebar' });
+    mountTopbar({ forceAdmin: true });
     setTopbarSection('Main Dashboard');
 }
 

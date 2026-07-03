@@ -39,6 +39,7 @@ import { mountSearchInto, ensureLeagueIndex, searchEntities } from './navigation
 import { mountSidebarToggle, closeSidebar, isMobile as sharedIsMobile } from './sidebarToggle.js';
 import { installSearchOverlay, registerSearchAdapter } from './searchOverlay.js';
 import { getInitials } from './playerHeader.js';
+import { mountTopbar, setTopbarBrand } from './topbar.js';
 
 
 /* ── Icon palette — pulls from TAB_ICONS where the concept matches, falls
@@ -110,7 +111,7 @@ export function mountSiteSidebar(opts = {}) {
     document.body.appendChild(layout);
 
     buildMobileChrome(opts.topbarTitle || labelForView(opts.activeView));
-    buildTopbar(opts);
+    mountTopbar();
     renderShell(sidebar, opts);
 
     // Warm the league index so search results are instant on first keystroke.
@@ -310,12 +311,7 @@ async function populateAsync(opts) {
     if (titleEl && settings.title)  titleEl.textContent = settings.title;
 
     // Mirror into the top bar (shown while the sidebar is closed).
-    const topLogo = document.querySelector('#site-topbar-logo');
-    const topTitle = document.querySelector('#site-topbar-title');
-    const topAdminLogo = document.querySelector('#site-topbar-admin-logo');
-    if (topLogo && settings.logoPath) topLogo.src = settings.logoPath;
-    if (topTitle && settings.title)  topTitle.textContent = settings.title;
-    if (topAdminLogo && settings.logoPath) topAdminLogo.src = settings.logoPath;
+    setTopbarBrand({ logoPath: settings.logoPath, title: settings.title });
 
     const folderNames = settings.displayOrder.map(t => t.replace(' - ', ' '));
     const allParams = await loadAllLeagueParams(folderNames);
@@ -668,37 +664,6 @@ function pickAutoGroup(opts) {
    on a leaf nav tap. */
 function buildMobileChrome(_titleText /* legacy arg, ignored */) {
     mountSidebarToggle({ ariaControlsId: 'site-sidebar' });
-}
-
-/* Top bar — restores the pre-sidebar top nav as the CLOSED-state chrome.
-   Left→right: hamburger (the floating .site-hamburger from sidebarToggle,
-   which overlays the bar's left edge) · round logo · "Shabi Israel" · admin
-   avatar (far right, only when logged in). Shown only while the sidebar is
-   closed; opening the menu hides the bar — see css/site-sidebar.css
-   `body.site-sidebar-closed .site-topbar`. */
-function buildTopbar(_opts) {
-    if (document.querySelector('.site-topbar')) return;
-
-    const loggedIn = isLoggedIn() && !isPreviewMode();
-    // Old .nav-admin-user unit: brand logo + avatar + username as one pill.
-    const adminUnit = loggedIn
-        ? `<div class="site-topbar-admin" aria-label="Signed in as ${escapeAttr(getUsername())}">
-               <img class="site-topbar-admin-logo" id="site-topbar-admin-logo" src="assets/favicon-round.png" alt="">
-               <div class="site-topbar-admin-avatar">${escapeHtml(getUsername().charAt(0).toUpperCase())}</div>
-               <span class="site-topbar-admin-name">${escapeHtml(getUsername())}</span>
-           </div>`
-        : '';
-
-    const bar = document.createElement('header');
-    bar.className = 'site-topbar';
-    bar.innerHTML = `
-        <a class="site-topbar-brand" href="index.html" aria-label="Shabi Israel — home">
-            <img class="site-topbar-logo" id="site-topbar-logo" src="assets/favicon-round.png" alt="">
-            <span class="site-topbar-title" id="site-topbar-title">Shabi Israel</span>
-        </a>
-        <div class="site-topbar-right">${adminUnit}</div>
-    `;
-    document.body.appendChild(bar);
 }
 
 const isMobile = sharedIsMobile;

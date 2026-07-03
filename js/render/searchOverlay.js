@@ -1,20 +1,19 @@
 /**
- * searchOverlay.js — iOS-only search "sheet" that sidesteps Safari's
- * focus-zoom-on-sub-16px-input behaviour.
+ * searchOverlay.js — touch-device search "sheet" for every mobile platform.
  *
- * On iOS, tapping any `.app-search-input` is intercepted BEFORE the native
- * input can focus (so iOS never zooms). Instead we open a fixed sheet pinned
- * to the top of the visual viewport whose own input is 16px — at/above the
- * threshold, so iOS leaves the zoom alone. For smart-search fields the results
- * render below the sheet input; picking a result either navigates (sidebar) or
- * writes the value back into the originating field and re-fires its `input`
- * handler (matchup / What-If / filters). Because we never zoom and never scroll
- * the underlying document, closing the sheet leaves the page exactly where it
- * was — only the field ends up filled.
+ * On any touch device (phones + tablets, iOS AND Android), tapping any
+ * `.app-search-input` is intercepted BEFORE the native input can focus, and we
+ * open a fixed sheet pinned to the top of the visual viewport whose own input
+ * is 16px. On iOS this also sidesteps Safari's focus-zoom-on-sub-16px bug (16px
+ * is at the threshold); on Android there is no zoom bug, but the same sheet
+ * gives one uniform mobile search UX across platforms. For smart-search fields
+ * the results render below the sheet input; picking a result either navigates
+ * (sidebar) or writes the value back into the originating field and re-fires its
+ * `input` handler (matchup / What-If / filters). Because we never zoom and never
+ * scroll the underlying document, closing the sheet leaves the page exactly
+ * where it was — only the field ends up filled.
  *
- * Non-iOS platforms don't have the zoom bug, so they never install this; on
- * Android the inline fields are simply enlarged to 16px via a coarse-pointer
- * media query (see `html:not(.is-ios) .app-search-input` in layout.css).
+ * Desktop (fine pointer) never installs this — the inline fields work as-is.
  *
  * Each field declares behaviour through a tiny adapter:
  *   registerSearchAdapter(inputEl, { suggest(query) => Item[]|Promise, pick(item) })
@@ -25,19 +24,18 @@
 
 import { isMobile, closeSidebar } from './sidebarToggle.js';
 
-/* ── iOS detection ────────────────────────────────────────────────────────
-   Covers iPhone/iPod/iPad plus iPadOS 13+ which masquerades as "MacIntel"
-   with a touch screen. A `?searchoverlay=force` / `=off` query param lets us
-   exercise the sheet on a desktop browser (Playwright) where real iOS zoom
-   can't be observed. */
-function detectIOS() {
+/* ── Touch-device detection ───────────────────────────────────────────────
+   The sheet runs on any touch / coarse-pointer device (phones + tablets, iOS
+   AND Android). A `?searchoverlay=force` / `=off` query param overrides
+   detection — used by the typo-editor device preview and by Playwright, where
+   there's no real touch input to detect. */
+function isTouchDevice() {
     const params = new URLSearchParams(location.search);
     const override = params.get('searchoverlay');
     if (override === 'force') return true;
     if (override === 'off') return false;
-    const ua = navigator.userAgent || '';
-    if (/iP(hone|od|ad)/.test(ua)) return true;
-    return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    return coarse || navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
 }
 
 let installed = false;
@@ -95,22 +93,23 @@ function buildSheet() {
     sheetInput = sheet.querySelector('.search-sheet-input');
     sheetResults = sheet.querySelector('.search-sheet-results');
 
-    // ONE delegated pointer handler for every tap inside the sheet. We use raw
-    // Pointer Events (pointerup), NOT click/mousedown: when the sheet input is
-    // focused (keyboard up), iOS treats the first tap elsewhere as a
-    // keyboard-dismiss and SWALLOWS the synthesized click/mousedown — so those
-    // never fire on the option/✕. pointerup is a native pointer event, not a
-    // synthesized mouse event, so it fires normally; it also respects scroll (a
-    // drag emits pointercancel, not pointerup). Covers mouse on desktop too.
-    //   • tap on [data-close] (the ✕ button OR the backdrop scrim) → cancel
-    //   • tap on a result row → select it
-    const onSheetActivate = (e) => {
-        if (e.target.closest('[data-close]')) { e.preventDefault(); closeOverlay(); return; }
+    // Delegated Pointer Events (not click/mousedown, which iOS swallows on the
+    // keyboard-dismiss first-tap). Split by role:
+    //   • CLOSE — the ✕ button OR the backdrop scrim ([data-close]) — acts on
+    //     `pointerdown`: the EARLIEST touch event, fired on finger-down before
+    //     the OS decides "keyboard dismiss" (so it can't be swallowed) and
+    //     before any scroll interpretation. This is why ✕/backdrop now close
+    //     reliably. `preventDefault` also stops the synthesized click that
+    //     could otherwise land on — and reopen from — an element underneath.
+    //   • SELECT — a result row — acts on `pointerup`, so a scroll-drag over a
+    //     long results list emits pointercancel and does NOT select.
+    sheet.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('[data-close]')) { e.preventDefault(); closeOverlay(); }
+    });
+    sheet.addEventListener('pointerup', (e) => {
         const opt = e.target.closest('.search-sheet-option');
         if (opt && opt._item) { e.preventDefault(); selectItem(opt._item); }
-    };
-    sheet.addEventListener('pointerup', onSheetActivate);   // primary (iOS-safe)
-    sheet.addEventListener('click', onSheetActivate);        // desktop fallback; idempotent
+    });
     sheetInput.addEventListener('input', refreshResults);
     sheetInput.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') { closeOverlay(); return; }
@@ -218,10 +217,12 @@ function openOverlay(srcInput) {
     if (sheetInput.value) refreshResults();
 }
 
+let lastCloseTs = 0;
 function closeOverlay() {
     if (!sheet || sheet.hidden) return;
     sheetInput.blur();                 // dismiss the keyboard → viewport restores
     sheet.hidden = true;
+    lastCloseTs = Date.now();          // guard against a ghost-click reopen (below)
     document.documentElement.classList.remove('search-sheet-open');
     window.visualViewport?.removeEventListener('resize', pinToViewport);
     window.visualViewport?.removeEventListener('scroll', pinToViewport);
@@ -229,11 +230,9 @@ function closeOverlay() {
     currentSrc = null;
 }
 
-/* ── Install — iOS only. Intercepts the tap before focus so no zoom fires. ── */
+/* ── Install — touch devices only. Intercepts the tap before focus. ── */
 export function installSearchOverlay() {
-    // Mark iOS once so the Android-only coarse-pointer 16px rule can exclude it.
-    if (!detectIOS()) return;
-    document.documentElement.classList.add('is-ios');
+    if (!isTouchDevice()) return;
     if (installed) return;
     installed = true;
 
@@ -254,6 +253,10 @@ export function installSearchOverlay() {
         if (!input) return;
         e.preventDefault();
         e.stopPropagation();
+        // Ignore the "ghost click" that fires right after a close-tap: closing
+        // on pointerdown hides the sheet, then the tap's synthesized click can
+        // land on the field underneath and re-open. Swallow opens for a beat.
+        if (Date.now() - lastCloseTs < 500) return;
         input.blur();
         openOverlay(input);
     }, true);

@@ -8,7 +8,7 @@
 ├── league.html               League Dashboard (Phase F — default entry from index)
 ├── league_table.html                  League summary (ranked player table — full view)
 ├── player_league.html                  Player detail (match history)
-├── start.bat                    Windows launcher (server + browser)
+├── tools/start.bat              Windows launcher (server + browser)
 │
 ├── css/
 │   ├── variables.css            Design tokens (colors, spacing, fonts)

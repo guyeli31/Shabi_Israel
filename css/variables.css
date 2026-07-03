@@ -171,6 +171,11 @@
        48px floor matches the original at narrow viewports; grows ~10px at 1440+ widths. */
     --nav-height: clamp(48px, calc(0.93vw + 44.7px), 58px);
 
+    /* Fixed top bar (closed-state chrome — hamburger · logo · brand · admin
+       pill). A touch taller than --nav-height so the 38px hamburger sits
+       vertically centred with equal 13px padding top & bottom (13+38+13=64). */
+    --topbar-height: 64px;
+
     /* Color scale filter (for theme adaptation of inline colors) */
     --color-scale-filter: none;
 

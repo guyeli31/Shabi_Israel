@@ -7,6 +7,7 @@ import { testConnection } from '../githubApi.js';
 import { getChanges, removeChange, removeGroup, removeOverrideFromChange, restoreOverrideToChange, removePlayerFromGroup, getChangeCount, publishAll, clearChanges, diffOverrides, overrideKey } from '../stagingStore.js';
 import { setTopbarSection } from '../adminDrawer.js';
 import { mountSidebarToggle } from '../../render/sidebarToggle.js';
+import { mountTopbar } from '../../render/topbar.js';
 import { installSearchOverlay } from '../../render/searchOverlay.js';
 
 const VIEW_TITLES = { leagues: 'Leagues', players: 'Players', pending: 'Pending Changes', settings: 'Settings' };
@@ -139,6 +140,11 @@ function renderAdminShell() {
     // initAdminDrawer() topbar+drawer combo (the page title <h1> in the main
     // content already provides the "where am I" cue the old topbar did).
     mountSidebarToggle({ ariaControlsId: 'admin-sidebar' });
+
+    // Same top bar as the public site (shown while the sidebar is closed).
+    // forceAdmin: admin.html is logged-in by definition, so always render the
+    // admin unit without the preview-mode check.
+    mountTopbar({ forceAdmin: true });
 
     // iOS search-sheet for the admin match/round filter inputs (datalist-backed,
     // so they use the default adapter — no registration needed). No-op off iOS.

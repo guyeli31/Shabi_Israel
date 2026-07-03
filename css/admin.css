@@ -59,6 +59,9 @@ body.site-sidebar-closed .admin-sidebar {
 body.site-sidebar-closed .admin-main {
     margin-left: calc(var(--sidebar-width) * -1);
     transition: margin-left 240ms cubic-bezier(0.32, 0.72, 0, 1);
+    /* Clear the fixed top bar (shown only in this closed state — same bar as
+       the public site, mounted via mountTopbar in admin). */
+    padding-top: calc(var(--topbar-height) + env(safe-area-inset-top, 0px));
 }
 .admin-main {
     transition: margin-left 240ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -68,11 +71,15 @@ body.site-sidebar-closed .admin-main {
    Mirrors the public site sidebar's brand row so admin chrome feels like
    the same surface (just with admin-only nav below it). `padding-left:48px`
    clears the always-visible universal hamburger (38×38 at left: 8px). */
+/* Matches the top bar's brand exactly (.site-topbar-brand) — same 36px logo,
+   --fs-160 white text — so opening the admin menu keeps the logo + "Shabi
+   Israel" in the SAME place/size right after the hamburger. `padding-top: 2px`
+   centres the 36px logo on the hamburger's centre line. */
 .admin-sidebar-brand {
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 6px 8px 10px 48px;
+    gap: 10px;
+    padding: 2px 8px 10px 48px;
     margin-bottom: 8px;
     text-decoration: none;
     color: var(--header-text, #fff);
@@ -82,20 +89,19 @@ body.site-sidebar-closed .admin-main {
 .admin-sidebar-brand:hover { opacity: 0.85; }
 
 .admin-sidebar-brand-logo {
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    object-fit: cover;
+    object-fit: contain;
     flex-shrink: 0;
-    box-shadow: 0 0 0 1px rgba(255,255,255,0.18), 0 1px 4px rgba(0,0,0,0.30);
-    background: rgba(255,255,255,0.04);
 }
 
 .admin-sidebar-brand-text {
-    font-size: var(--fs-100);
+    font-size: var(--fs-160);
     font-weight: 700;
+    line-height: 1.1;
     letter-spacing: 0.01em;
-    color: rgba(255,255,255,0.95);
+    color: #fff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1496,7 +1502,9 @@ table.font-large { font-size: var(--fs-093); }
         left: 0;
         width: var(--sidebar-width-mobile);
         height: 100dvh;
-        padding-top: calc(env(safe-area-inset-top, 0px) + 54px);
+        /* 12px (same as desktop) so the brand row aligns with the hamburger —
+           opening the drawer keeps the brand exactly where the top bar had it. */
+        padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
         /* Lift the footer above the iOS home indicator on top of base padding. */
         padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom, 0px));
         transform: translateX(-100%);
@@ -1523,7 +1531,10 @@ table.font-large { font-size: var(--fs-093); }
     }
 
     .admin-main {
-        padding: calc(54px + env(safe-area-inset-top, 0px)) var(--space-md) var(--space-md);
+        /* Top padding to clear the bar is applied by the closed-state rule
+           (body.site-sidebar-closed .admin-main) so no gap remains when the
+           drawer is open and the bar is hidden. */
+        padding: 0 var(--space-md) var(--space-md);
         width: 100%;
         margin-left: 0 !important;       /* main fills viewport — sidebar overlays */
     }
