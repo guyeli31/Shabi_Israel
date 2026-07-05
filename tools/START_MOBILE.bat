@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0.."
 
 set "PORT="
-for /l %%P in (8090,1,8094) do (
+for /l %%P in (8090,1,8099) do (
     if not defined PORT (
         netstat -ano -p tcp | findstr /c:":%%P " | findstr /c:"LISTENING" >nul
         if errorlevel 1 (
@@ -15,7 +15,7 @@ for /l %%P in (8090,1,8094) do (
 )
 
 if not defined PORT (
-    echo No free port found in range 8090-8094.
+    echo No free port found in range 8090-8099.
     pause
     exit /b 1
 )

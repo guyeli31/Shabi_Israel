@@ -13,6 +13,7 @@ import { buildAllTimeRankings } from '../compute/allTimeRankings.js';
 import { colorForValue } from '../compute/colorScale.js';
 import { luckBellCurveSvg } from './luckBellCurve.js';
 import { loadLandingSettings } from '../data/leagueLoader.js';
+import { loadBannerConfig, renderHeroBanner } from './heroBanner.js';
 import { leagueUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueTableUrl, thLabel } from '../utils/helpers.js';
 import { exportTableImage } from '../utils/exportTableImage.js';
 import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatches } from '../compute/matchRecords.js';
@@ -66,15 +67,23 @@ export async function renderLandingPage() {
     container.innerHTML = '<div class="loading">Loading leagues...</div>';
 
     const logoEl = document.getElementById('site-logo');
-    if (logoEl) logoEl.classList.add('logo-loading');
-
-    startSplash();
+    let heroBanner = null;
 
     try {
         // Load landing settings and populate header
         _landingSettings = await loadLandingSettings();
         populateHeader(_landingSettings);
-        updateSplashLogo(_landingSettings.logoPath);
+        heroBanner = await applyHeroBanner();
+        if (heroBanner) {
+            // Banner pages show an in-banner text loader (see hero-banner.css);
+            // the full-screen logo "breathe" splash is skipped for them.
+            const anim = heroBanner.dataset.loadanim;
+            if (anim && anim !== 'none') heroBanner.classList.add('is-loading', 'load-' + anim);
+        } else {
+            if (logoEl) logoEl.classList.add('logo-loading');
+            startSplash();
+            updateSplashLogo(_landingSettings.logoPath);
+        }
 
         const [allLeagues, playersMeta] = await Promise.all([
             loadAllLeagues(),
@@ -183,6 +192,7 @@ export async function renderLandingPage() {
         container.innerHTML = `<div class="error">Failed to load leagues: ${err.message}</div>`;
     } finally {
         if (logoEl) logoEl.classList.remove('logo-loading');
+        if (heroBanner) heroBanner.classList.remove('is-loading');
         endSplash();
     }
 }
@@ -370,6 +380,45 @@ function populateHeader(settings) {
     if (logo) logo.src = settings.logoPath;
     if (title) title.textContent = settings.title;
     if (subtitle) subtitle.textContent = settings.subtitle;
+}
+
+/**
+ * If a saved hero-banner config exists, replace the classic logo/title header
+ * with the designed banner. Non-destructive: when no config is saved the
+ * classic header stays exactly as-is. Skipped in admin edit mode so the
+ * contentEditable title/subtitle flow keeps working on the original elements.
+ */
+let _bannerResizeBound = false;
+async function applyHeroBanner() {
+    const editIntent = isLoggedIn() && !isPreviewMode()
+        && new URLSearchParams(location.search).get('edit') === '1';
+    if (editIntent) return null;
+
+    const header = document.getElementById('page-header');
+    if (!header) return null;
+
+    const cfg = await loadBannerConfig();
+    if (!cfg || !Array.isArray(cfg.els) || cfg.els.length === 0) return null; // keep classic header
+
+    header.classList.add('page-header--banner');
+    let banner = header.querySelector('.hero-banner');
+    if (!banner) {
+        header.innerHTML = '';
+        banner = document.createElement('div');
+        banner.className = 'hero-banner';
+        header.appendChild(banner);
+    }
+    banner.dataset.loadanim = cfg.loadingAnim || 'none';
+    renderHeroBanner(banner, cfg);
+
+    if (!_bannerResizeBound) {
+        window.addEventListener('resize', () => {
+            const b = document.querySelector('#page-header .hero-banner');
+            if (b) renderHeroBanner(b, cfg);
+        });
+        _bannerResizeBound = true;
+    }
+    return banner;
 }
 
 /* ── Admin Edit Mode ──────────────────────────────────── */

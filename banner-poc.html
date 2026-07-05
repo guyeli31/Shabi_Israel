@@ -3,214 +3,360 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Banner POC — Shabi Israel</title>
+  <title>Banner Editor — Shabi Israel</title>
+
+  <!-- Google Fonts: incl. Montserrat (≈ original league font) + Hebrew-capable faces -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Poppins:wght@400;600;800&family=Oswald:wght@400;600;700&family=Anton&family=Bebas+Neue&family=Rubik:wght@400;600;800&family=Heebo:wght@400;600;800&family=Assistant:wght@400;600;800&family=Playfair+Display:wght@600;800&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="css/variables.css">
   <link rel="stylesheet" href="css/typography-tokens.css">
   <link rel="stylesheet" href="css/layout.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/theme.css">
   <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/hero-banner.css">
   <style>
-    /* ============================================================
-       HYBRID HERO BANNER  —  POC
-       Photographic board layer (right) + live code layer (left).
-       Sized to fill the existing .page-header card.
-       Everything is theme-driven via the project's CSS variables.
-       ============================================================ */
-    .hero-banner {
-      position: relative;
-      width: 100%;
-      /* Fills the card; height scales with width but is clamped so it
-         never gets silly-tall on desktop or too-short on phones. */
-      aspect-ratio: 1983 / 560;
-      min-height: 180px;
-      max-height: 320px;
-      overflow: hidden;
-      border-radius: var(--radius-lg, 12px);
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      box-shadow: var(--shadow-md);
-      isolation: isolate;
-    }
-
-    /* ---- Layer 1: the photograph (board crop), pinned right ---- */
-    .hero-photo {
-      position: absolute;
-      inset: 0 0 0 auto;
-      width: 62%;
-      height: 100%;
-      background: url('assets/logo/board-crop.jpg') center / cover no-repeat;
-      z-index: 1;
-    }
-
-    /* ---- Layer 2: theme tint over the photo ----
-       Multiply a theme colour over the board so it harmonises with
-       every palette, then fade the LEFT edge into the card surface so
-       the text sits on clean background — no hard seam. */
-    .hero-photo::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(
-        90deg,
-        var(--color-surface) 0%,
-        color-mix(in srgb, var(--color-surface) 55%, transparent) 28%,
-        color-mix(in srgb, var(--color-accent) 22%, transparent) 70%,
-        color-mix(in srgb, var(--color-accent) 30%, transparent) 100%
-      );
-    }
-
-    /* ---- Layer 3: the live content (logo + text) ---- */
-    .hero-content {
-      position: relative;
-      z-index: 2;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      gap: clamp(0.75rem, 2.5vw, 1.75rem);
-      padding: clamp(0.75rem, 3vw, 2rem) clamp(1rem, 4vw, 2.5rem);
-      /* content occupies left ~55%, photo breathes on the right */
-      max-width: 62%;
-    }
-
-    .hero-logo {
-      flex: 0 0 auto;
-      height: clamp(64px, 14vw, 124px);
-      aspect-ratio: 1 / 1;
-      border-radius: 50%;
-      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.35));
-    }
-
-    .hero-text { min-width: 0; }
-
-    .hero-title {
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      line-height: 1.05;
-      font-size: clamp(1.5rem, 5.5vw, 3rem);
-      color: var(--color-text);
-      margin: 0;
-    }
-    /* Accent the second word, echoing the original "BACKGAMMON" pop */
-    .hero-title .accent { color: var(--color-accent); }
-
-    .hero-subtitle {
-      margin: 0.35em 0 0;
-      font-style: italic;
-      font-size: clamp(0.8rem, 2.2vw, 1.05rem);
-      color: var(--color-text-secondary);
-    }
-
-    .hero-tagline {
-      margin: 0.6em 0 0;
-      font-size: clamp(0.6rem, 1.6vw, 0.8rem);
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      color: var(--color-text-muted);
-      font-weight: 600;
-    }
-
-    /* On narrow phones, stack: photo becomes a faint full-width backdrop */
-    @media (max-width: 560px) {
-      .hero-banner { aspect-ratio: 16 / 9; max-height: 240px; }
-      .hero-photo { width: 100%; opacity: 0.9; }
-      .hero-photo::before {
-        background: linear-gradient(
-          90deg,
-          var(--color-surface) 8%,
-          color-mix(in srgb, var(--color-surface) 70%, transparent) 55%,
-          color-mix(in srgb, var(--color-accent) 25%, transparent) 100%
-        );
-      }
-      .hero-content { max-width: 100%; }
-    }
-
-    /* ---- POC chrome (not part of the component) ---- */
+    /* ---- editor chrome (not part of the component) ---- */
     body { background: var(--color-bg); color: var(--color-text);
            font-family: system-ui, sans-serif; margin: 0; padding: 24px; }
-    .poc-shell { max-width: 1100px; margin: 0 auto; }
-    .poc-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; align-items:center; }
-    .poc-bar button {
-      padding: 6px 12px; border: 1px solid var(--color-border);
-      background: var(--color-surface); color: var(--color-text);
-      border-radius: 6px; cursor: pointer; font-size: 13px;
-    }
-    .poc-bar button.active { outline: 2px solid var(--color-accent); }
-    .poc-note { margin-top: 16px; font-size: 13px; color: var(--color-text-muted); }
-    .poc-controls { margin-bottom: 14px; font-size: 13px; display:flex; gap:14px; flex-wrap:wrap; }
-    .poc-controls label { display:flex; align-items:center; gap:6px; }
+    .poc-shell { max-width: 1180px; margin: 0 auto; }
+    h2.poc-h { font-size: 13px; text-transform: uppercase; letter-spacing:.1em;
+               color: var(--color-text-muted); margin: 26px 0 10px; }
+    .poc-bar { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:14px; }
+    .poc-bar button { padding:6px 12px; border:1px solid var(--color-border);
+      background:var(--color-surface); color:var(--color-text); border-radius:6px;
+      cursor:pointer; font-size:13px; }
+    .poc-bar button.active { outline:2px solid var(--color-accent); }
+
+    .savebar { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+      padding:12px 14px; margin-bottom:16px; border:1px solid var(--color-border);
+      border-radius:10px; background:var(--color-surface); }
+    .savebar .btn-save { padding:8px 20px; border:none; border-radius:7px; cursor:pointer;
+      font-size:14px; font-weight:700; background:var(--color-accent);
+      color:var(--color-on-accent, #fff); }
+    .savebar .btn-ghost { padding:8px 14px; border:1px solid var(--color-border); border-radius:7px;
+      cursor:pointer; font-size:13px; background:transparent; color:var(--color-text); }
+    .savebar .status { font-size:13px; color:var(--color-text-muted); }
+    .savebar .status.ok { color: var(--color-running, #2e9e5b); font-weight:600; }
+
+    .cap { font-size:12px; color:var(--color-text-muted); margin:0 0 8px; }
+
+    .poc-add { display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+    .poc-add select, .poc-add button { padding:6px 10px; border:1px solid var(--color-border);
+      border-radius:6px; background:var(--color-surface); color:var(--color-text); font-size:13px; cursor:pointer; }
+    .poc-add button { font-weight:600; }
+    .poc-panels { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:14px; }
+    .poc-card { border:1px solid var(--color-border); border-radius:10px; padding:12px 14px;
+      background:var(--color-surface); }
+    .poc-card .hd { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+    .poc-card .hd b { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--color-text-secondary); }
+    .poc-card .hd button { border:none; background:transparent; color:var(--color-loss,#e05); cursor:pointer; font-size:16px; line-height:1; }
+    .poc-row { display:flex; align-items:center; gap:8px; margin:7px 0; font-size:12px; }
+    .poc-row label { flex:0 0 66px; color:var(--color-text-muted); }
+    .poc-row input[type=range]{ flex:1; }
+    .poc-row input[type=text]{ flex:1; min-width:0; padding:4px 6px; border:1px solid var(--color-border);
+      border-radius:5px; background:var(--color-bg); color:var(--color-text); }
+    .poc-row input[type=color]{ flex:0 0 34px; height:26px; padding:0; border:1px solid var(--color-border); border-radius:5px; background:none; }
+    .poc-row select{ flex:1; padding:4px 6px; border:1px solid var(--color-border); border-radius:5px;
+      background:var(--color-bg); color:var(--color-text); }
+    .poc-row .val{ flex:0 0 40px; text-align:right; color:var(--color-text-secondary); font-variant-numeric:tabular-nums; }
+    .poc-note{ margin-top:18px; font-size:13px; color:var(--color-text-muted); }
+    .poc-note code{ background:var(--color-surface); padding:1px 5px; border-radius:4px; }
   </style>
 </head>
 <body>
   <div class="poc-shell">
-    <div class="poc-bar" id="themeBar">
-      <strong style="margin-right:8px">Theme:</strong>
+    <div class="poc-bar" id="themeBar"><strong style="margin-right:8px">Theme:</strong></div>
+
+    <div class="savebar">
+      <button class="btn-save" id="saveBtn">💾 Save to site</button>
+      <button class="btn-ghost" id="dlBtn">Download JSON</button>
+      <button class="btn-ghost" id="clearBtn">Clear local draft</button>
+      <span class="status" id="saveStatus"></span>
     </div>
 
-    <div class="poc-controls">
-      <label>Title: <input id="ctlTitle" value="Shabi Israel" size="18"></label>
-      <label>Accent word: <input id="ctlAccent" value="" size="12" placeholder="(none)"></label>
-      <label>Subtitle: <input id="ctlSub" value="By Marcel Dana and Avshalom Yaish" size="30"></label>
-      <label>Width: <input id="ctlWidth" type="range" min="360" max="1100" value="1100"> <span id="wLabel">1100</span>px</label>
+    <p class="cap">Preview — fills the page-header card (≤1100px)</p>
+    <div style="margin:0 auto;">
+      <header class="hero-banner" id="deskBanner"></header>
     </div>
 
-    <div id="sizer" style="margin:0 auto;">
-      <!-- ===== THE COMPONENT ===== -->
-      <header class="hero-banner">
-        <div class="hero-photo" aria-hidden="true"></div>
-        <div class="hero-content">
-          <img class="hero-logo" src="assets/logo/logo.png" alt="Israeli Backgammon League">
-          <div class="hero-text">
-            <h1 class="hero-title" id="bTitle">Shabi Israel</h1>
-            <p class="hero-subtitle" id="bSub">By Marcel Dana and Avshalom Yaish</p>
-            <p class="hero-tagline">Compete · Connect · Elevate</p>
-          </div>
-        </div>
-      </header>
-      <!-- ===== /COMPONENT ===== -->
+    <h2 class="poc-h">Logo</h2>
+    <div class="poc-panels" id="logoPanel"></div>
+
+    <h2 class="poc-h">Loading animation</h2>
+    <div class="poc-panels"><div class="poc-card" id="loadCard"></div></div>
+
+    <h2 class="poc-h">Text elements</h2>
+    <div class="poc-add">
+      <select id="presetSel">
+        <option value="Title">Title</option>
+        <option value="Subtitle">Subtitle</option>
+        <option value="Tagline">Tagline</option>
+      </select>
+      <button id="addBtn">+ Add text</button>
     </div>
+    <div class="poc-panels" id="textPanels"></div>
 
     <p class="poc-note">
-      Photo (board) = real pixels, stays sharp. Logo + text = live code: editable & theme-driven.
-      Switch themes above; drag Width to test responsiveness; edit the fields to see live text.
+      <b>Save banner</b> stores your design and it shows on the site immediately in this browser.
+      To publish it for everyone, commit the downloaded file to
+      <code>assets/banner/banner-config.json</code>. Photo (board) = real pixels; logo + texts = live
+      theme-driven code.
     </p>
   </div>
 
-  <script>
-    const themes = ['(light)','dark','beige','nature','vegas','casino','rainbow','x22'];
-    const bar = document.getElementById('themeBar');
-    themes.forEach((t, i) => {
-      const b = document.createElement('button');
-      b.textContent = t;
-      b.onclick = () => {
-        if (t === '(light)') delete document.documentElement.dataset.theme;
-        else document.documentElement.dataset.theme = t;
-        [...bar.querySelectorAll('button')].forEach(x => x.classList.remove('active'));
-        b.classList.add('active');
-      };
-      if (i === 0) b.classList.add('active');
-      bar.appendChild(b);
+  <script type="module">
+  import { renderHeroBanner, loadBannerConfig, BANNER_STORAGE_KEY, BANNER_CONFIG_PATH }
+    from './js/render/heroBanner.js';
+
+  /* ---------- theme switcher ---------- */
+  const themes = ['(light)','dark','beige','nature','vegas','casino','rainbow','x22'];
+  const bar = document.getElementById('themeBar');
+  themes.forEach((t,i)=>{
+    const b=document.createElement('button'); b.textContent=t;
+    b.onclick=()=>{
+      if(t==='(light)') delete document.documentElement.dataset.theme;
+      else document.documentElement.dataset.theme=t;
+      [...bar.querySelectorAll('button')].forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+    };
+    if(i===0) b.classList.add('active');
+    bar.appendChild(b);
+  });
+
+  /* ---------- option lists ---------- */
+  const FONTS = [
+    ["League Original (Montserrat)","'Montserrat', sans-serif"],
+    ["Poppins","'Poppins', sans-serif"],
+    ["Oswald (condensed)","'Oswald', sans-serif"],
+    ["Anton (heavy)","'Anton', sans-serif"],
+    ["Bebas Neue (tall)","'Bebas Neue', sans-serif"],
+    ["Rubik","'Rubik', sans-serif"],
+    ["Heebo (Hebrew)","'Heebo', sans-serif"],
+    ["Assistant (Hebrew)","'Assistant', sans-serif"],
+    ["Playfair (serif)","'Playfair Display', serif"],
+    ["System default","system-ui, sans-serif"],
+  ];
+  const COLORS = [
+    ["Theme · Primary","var(--color-text)"],
+    ["Theme · Secondary","var(--color-text-secondary)"],
+    ["Theme · Muted","var(--color-text-muted)"],
+    ["Theme · Accent","var(--color-accent)"],
+    ["White","#ffffff"],
+    ["Custom…","custom"],
+  ];
+  const PRESETS = {
+    Title:    { size:46, weight:800, font:"'Montserrat', sans-serif", color:"var(--color-text)",           italic:false, upper:false, tracking:"-0.5px", accent:true },
+    Subtitle: { size:17, weight:400, font:"'Montserrat', sans-serif", color:"var(--color-text-secondary)", italic:true,  upper:false, tracking:"normal", accent:false },
+    Tagline:  { size:13, weight:600, font:"'Montserrat', sans-serif", color:"var(--color-text-muted)",     italic:false, upper:true,  tracking:"0.22em", accent:false },
+  };
+
+  /* ---------- config (the saved shape) ---------- */
+  const config = {
+    version: 1,
+    photo: 'assets/logo/board-clean.jpg',
+    logo: { src:'assets/logo/logo.png', size:150, x:7, y:48, show:true },
+    loadingAnim: 'shimmer',   // none | shimmer | reveal | underline | glow
+    els: []
+  };
+
+  const deskBanner = document.getElementById('deskBanner');
+  const render = () => renderHeroBanner(deskBanner, config);
+  window.addEventListener('resize', render);
+
+  /* ---------- control builders ---------- */
+  const rowRange=(lbl,id,min,max,val)=>
+    `<div class="poc-row"><label>${lbl}</label><input type="range" id="${id}" min="${min}" max="${max}" value="${val}"><span class="val" id="${id}_v">${val}</span></div>`;
+
+  function buildLogoCard(){
+    const L = config.logo;
+    const c=document.createElement('div'); c.className='poc-card';
+    c.innerHTML=`<div class="hd"><b>Logo</b>
+        <label style="font-size:12px;color:var(--color-text-muted)">
+        <input type="checkbox" id="logo_show" ${L.show?'checked':''}> show</label></div>
+      ${rowRange('Size','logo_size',48,220,L.size)}
+      ${rowRange('X pos','logo_x',0,95,L.x)}
+      ${rowRange('Y pos','logo_y',0,100,L.y)}`;
+    document.getElementById('logoPanel').appendChild(c);
+    const bind=(id,key,unit)=>{ const i=c.querySelector('#'+id),v=c.querySelector('#'+id+'_v');
+      i.oninput=()=>{ L[key]=+i.value; v.textContent=i.value+(unit||''); render(); }; };
+    bind('logo_size','size'); bind('logo_x','x','%'); bind('logo_y','y','%');
+    c.querySelector('#logo_show').onchange=e=>{ L.show=e.target.checked; render(); };
+  }
+
+  function buildTextCard(el){
+    const c=document.createElement('div'); c.className='poc-card';
+    const fontOpts=FONTS.map(f=>`<option value="${f[1]}"${f[1]===el.font?' selected':''}>${f[0]}</option>`).join('');
+    const isCustomColor = !COLORS.some(k=>k[1]===el.color);
+    const colorOpts=COLORS.map(k=>{
+      const sel = (k[1]==='custom' ? isCustomColor : k[1]===el.color) ? ' selected':'';
+      return `<option value="${k[1]}"${sel}>${k[0]}</option>`;
+    }).join('');
+    c.innerHTML=`
+      <div class="hd"><b>${el._preset}</b><button title="remove">✕</button></div>
+      <div class="poc-row"><label>Text</label><input type="text" id="t_txt" value="${(el.text||'').replace(/"/g,'&quot;')}"></div>
+      ${el.accent?`<div class="poc-row"><label>Accent</label><input type="text" id="t_acc" placeholder="word to color" value="${(el.accentWord||'').replace(/"/g,'&quot;')}"></div>`:''}
+      <div class="poc-row"><label>Font</label><select id="t_font">${fontOpts}</select></div>
+      <div class="poc-row"><label>Color</label><select id="t_col">${colorOpts}</select>
+           <input type="color" id="t_cpick" value="${isCustomColor?el.color:'#ffffff'}" style="${isCustomColor?'':'display:none'}"></div>
+      ${rowRange('Size','t_size',8,120,el.size)}
+      ${rowRange('X pos','t_x',0,95,el.x)}
+      ${rowRange('Y pos','t_y',0,100,el.y)}`;
+    document.getElementById('textPanels').appendChild(c);
+
+    c.querySelector('.hd button').onclick=()=>{ config.els=config.els.filter(e=>e!==el); c.remove(); render(); };
+    c.querySelector('#t_txt').oninput=e=>{ el.text=e.target.value; render(); };
+    if(el.accent) c.querySelector('#t_acc').oninput=e=>{ el.accentWord=e.target.value; render(); };
+    c.querySelector('#t_font').onchange=e=>{ el.font=e.target.value; render(); };
+
+    const colSel=c.querySelector('#t_col'), cpick=c.querySelector('#t_cpick');
+    colSel.onchange=()=>{
+      if(colSel.value==='custom'){ cpick.style.display=''; el.color=cpick.value; }
+      else { cpick.style.display='none'; el.color=colSel.value; }
+      render();
+    };
+    cpick.oninput=()=>{ el.color=cpick.value; render(); };
+
+    const bind=(id,key,unit)=>{ const i=c.querySelector('#'+id),v=c.querySelector('#'+id+'_v');
+      i.oninput=()=>{ el[key]=+i.value; v.textContent=i.value+(unit||''); render(); }; };
+    bind('t_size','size'); bind('t_x','x','%'); bind('t_y','y','%');
+  }
+
+  /* ---------- loading-animation control ---------- */
+  const LOAD_OPTS = [['none','None'],['shimmer','Shimmer sweep'],['reveal','Reveal wave'],['underline','Progress bar'],['glow','Breathing glow']];
+  let _prevTimer = null;
+  function previewLoading(){
+    const b = deskBanner;
+    b.classList.remove('is-loading','load-shimmer','load-reveal','load-underline','load-glow');
+    const a = config.loadingAnim;
+    if (!a || a==='none') return;
+    void b.offsetWidth;                       // restart animation
+    b.classList.add('is-loading','load-'+a);
+    clearTimeout(_prevTimer);
+    _prevTimer = setTimeout(() => b.classList.remove('is-loading','load-'+a), 2600);
+  }
+  function buildLoadCard(){
+    const c = document.getElementById('loadCard');
+    const opts = LOAD_OPTS.map(o=>`<option value="${o[0]}"${o[0]===config.loadingAnim?' selected':''}>${o[1]}</option>`).join('');
+    c.innerHTML = `<div class="hd"><b>Loading</b></div>
+      <div class="poc-row"><label>Style</label><select id="load_sel">${opts}</select></div>
+      <div class="poc-row"><button id="load_prev" class="btn-ghost" style="flex:1;cursor:pointer">▶ Preview loading (2.5s)</button></div>`;
+    c.querySelector('#load_sel').onchange = e => { config.loadingAnim = e.target.value; previewLoading(); };
+    c.querySelector('#load_prev').onclick = previewLoading;
+  }
+
+  /* ---------- add elements ---------- */
+  let seedCount = 0;
+  function addEl(preset, text, x, y){
+    const p=PRESETS[preset];
+    const el={ _preset:preset, text:text??preset, font:p.font, weight:p.weight,
+      size:p.size, italic:p.italic, upper:p.upper, tracking:p.tracking,
+      color:p.color, accent:p.accent, accentWord:'',
+      x: x??20, y: y ?? (24 + seedCount++*16) };
+    config.els.push(el); buildTextCard(el); render();
+    return el;
+  }
+  document.getElementById('addBtn').onclick=()=>
+    addEl(document.getElementById('presetSel').value);
+
+  /* ---------- SAVE ---------- */
+  const status = document.getElementById('saveStatus');
+  const flash = (msg, ok=true) => { status.textContent=msg; status.className='status'+(ok?' ok':''); };
+
+  // Strip editor-only fields (_preset) before persisting.
+  const serialise = () => JSON.stringify({
+    ...config,
+    els: config.els.map(({_preset, ...rest}) => rest)
+  }, null, 2);
+
+  /* --- tiny IndexedDB kv store, to remember the chosen file across sessions --- */
+  const idb = () => new Promise((res,rej)=>{ const r=indexedDB.open('shabi-banner',1);
+    r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); });
+  const idbSet = async (k,v)=>{ const db=await idb(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readwrite'); t.objectStore('kv').put(v,k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); };
+  const idbGet = async (k)=>{ const db=await idb(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readonly'); const rq=t.objectStore('kv').get(k); rq.onsuccess=()=>res(rq.result); rq.onerror=()=>rej(rq.error); }); };
+
+  // Reuse the previously-granted file, else prompt once for its location.
+  async function getFileHandle(){
+    let h = await idbGet('fileHandle').catch(()=>null);
+    if (h) {
+      const opts = { mode:'readwrite' };
+      if (await h.queryPermission(opts) === 'granted') return h;
+      if (await h.requestPermission(opts) === 'granted') return h;
+    }
+    h = await window.showSaveFilePicker({
+      suggestedName: 'banner-config.json',
+      types: [{ description:'Banner config', accept:{ 'application/json':['.json'] } }]
     });
+    await idbSet('fileHandle', h).catch(()=>{});
+    return h;
+  }
 
-    const title = document.getElementById('bTitle');
-    const sub = document.getElementById('bSub');
-    const renderTitle = () => {
-      const t = document.getElementById('ctlTitle').value;
-      const acc = document.getElementById('ctlAccent').value.trim();
-      if (acc && t.includes(acc)) {
-        title.innerHTML = t.replace(acc, `<span class="accent">${acc}</span>`);
-      } else { title.textContent = t; }
-    };
-    document.getElementById('ctlTitle').oninput = renderTitle;
-    document.getElementById('ctlAccent').oninput = renderTitle;
-    document.getElementById('ctlSub').oninput = e => sub.textContent = e.target.value;
+  function downloadJson(){
+    const blob = new Blob([serialise()], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'banner-config.json'; a.click();
+    URL.revokeObjectURL(a.href);
+  }
 
-    const sizer = document.getElementById('sizer');
-    const wLabel = document.getElementById('wLabel');
-    document.getElementById('ctlWidth').oninput = e => {
-      sizer.style.maxWidth = e.target.value + 'px';
-      wLabel.textContent = e.target.value;
-    };
+  // One button: write the real repo file (so any port/device shows it on load),
+  // and mirror to localStorage for instant same-origin preview.
+  async function saveToSite(){
+    const json = serialise();
+    try { localStorage.setItem(BANNER_STORAGE_KEY, json); } catch {}
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await getFileHandle();
+        const w = await handle.createWritable();
+        await w.write(json); await w.close();
+        flash('Saved to site ✓ — reload index.html (any port) to see it.');
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') { flash('Save cancelled.', false); return; }
+        // fall through to download if the API failed for another reason
+      }
+    }
+    downloadJson();
+    flash(`Your browser can't write files directly — downloaded instead; put it at ${BANNER_CONFIG_PATH}.`);
+  }
+
+  document.getElementById('saveBtn').onclick = saveToSite;
+  document.getElementById('dlBtn').onclick = () => { downloadJson(); flash(`Downloaded — place it at ${BANNER_CONFIG_PATH}.`); };
+  document.getElementById('clearBtn').onclick = () => {
+    localStorage.removeItem(BANNER_STORAGE_KEY);
+    flash('Cleared local draft — site now uses the committed banner-config.json.');
+  };
+
+  /* ---------- seed from an existing save, else the current header ---------- */
+  (async () => {
+    buildLogoCard();
+    const saved = await loadBannerConfig();
+    if (saved && Array.isArray(saved.els) && saved.els.length) {
+      Object.assign(config, saved);
+      // re-tag presets for the control labels (best-effort)
+      config.els.forEach(el => { el._preset = el.upper ? 'Tagline' : (el.italic ? 'Subtitle' : 'Title'); buildTextCard(el); });
+      // logo card already built from defaults; sync its inputs
+      document.getElementById('logoPanel').innerHTML=''; buildLogoCard();
+      render();
+    } else {
+      // Default = the original banner artwork, reproduced as live code:
+      // logo left, 3-line title (BACKGAMMON accented), tagline, modest credit.
+      const MONT = "'Montserrat', sans-serif";
+      const defaults = [
+        { _preset:'Title',    text:'ISRAELI',    font:MONT, weight:800, size:40, italic:false, upper:false, tracking:'0.5px',  color:'var(--color-text)',           accent:false, accentWord:'', x:22, y:33 },
+        { _preset:'Title',    text:'BACKGAMMON', font:MONT, weight:800, size:40, italic:false, upper:false, tracking:'0.5px',  color:'var(--color-accent)',         accent:false, accentWord:'', x:22, y:48 },
+        { _preset:'Title',    text:'LEAGUE',     font:MONT, weight:800, size:40, italic:false, upper:false, tracking:'0.5px',  color:'var(--color-text)',           accent:false, accentWord:'', x:22, y:63 },
+        { _preset:'Tagline',  text:'COMPETE. CONNECT. ELEVATE.', font:MONT, weight:600, size:12, italic:false, upper:true, tracking:'0.22em', color:'var(--color-text-muted)', accent:false, accentWord:'', x:22, y:78 },
+        { _preset:'Subtitle', text:'By Marcel Dana and Avshalom Yaish', font:MONT, weight:400, size:14, italic:true, upper:false, tracking:'normal', color:'var(--color-text-secondary)', accent:false, accentWord:'', x:22, y:91 },
+      ];
+      defaults.forEach(el => { config.els.push(el); buildTextCard(el); });
+      render();
+    }
+    buildLoadCard();   // built after config is finalised so it reflects any saved choice
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(render);
+  })();
+  window.addEventListener('load', render);
   </script>
 </body>
 </html>

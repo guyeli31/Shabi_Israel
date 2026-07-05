@@ -475,6 +475,7 @@ Each phase ends with a commit and an MCP verification checkpoint. If a phase fai
 
 ### Phase 6 — Pages: landing → league → dashboard → player → playerGeneral (8–10 hours)
 - Build each page under `v2/src/pages/{name}/`. HTML composes shell + components + tables. CSS only contains page-specific layout. JS imports primitives/components/tables and wires data.
+- **Canonical inter-block spacing**: the gap between top-level page blocks (hero/`LeagueHero`/`PlayerHero` → `Tabs`, a table → the next block, cards row → `Tabs`) must be `var(--space-md)` (16px) everywhere, applied by construction (component's own `margin-bottom`, or a `Stack`/layout wrapper with a fixed `gap`) rather than declared ad hoc per page. Do NOT let each page's own CSS own this margin independently — that's what caused the v1 bug tracked in [MIGRATION-FROM-V1.md](MIGRATION-FROM-V1.md) (2026-07-04 spacing-consistency row): four different gaps (0/16/24/40px) for the same conceptual transition across the 4 pages, plus a 3-way margin-collapse chain (page CSS + `MFTable`'s `--mf-mb` default) that made the true contributor hard to find. Decide once, in Phase 3 (`Tabs`, `LeagueHero`, `PlayerHero`) or Phase 5 (`MFTable`), which component owns the trailing margin — don't leave it to Phase 6 to reinvent per page.
 - One page at a time. After each page is built, run MCP parity check (see §6) against v1's equivalent page.
 - Admin page deferred to Phase 8.
 - **MCP verification per page**:

@@ -146,6 +146,7 @@ export function buildPlayerMatchHistoryPreset({ playerMatches, leagueConfig, par
         stickyCols: 1,
         medalRows:  false,
         showTopN:   null,
+        mfMb:       'var(--space-md)',
         getRowClass,
         buildSummaryRow,
     };

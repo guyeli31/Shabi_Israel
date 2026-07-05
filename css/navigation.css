@@ -551,7 +551,7 @@
    ALSO PLAYS IN
    ============================================ */
 .also-plays-in {
-    margin-top: var(--space-lg);
+    margin-top: var(--space-md);
     padding: var(--space-md);
     background: var(--color-surface);
     border-radius: var(--radius-lg);

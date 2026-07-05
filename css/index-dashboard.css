@@ -1206,7 +1206,7 @@ body:has(.edit-bar) .theme-picker {
     border-radius: 0 0 var(--radius-md) var(--radius-md);
     padding: var(--space-md);
     margin-top: 0;
-    margin-bottom: var(--space-lg);
+    margin-bottom: var(--space-md);
     box-shadow: var(--shadow-sm);
 }
 

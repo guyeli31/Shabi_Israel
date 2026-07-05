@@ -58,6 +58,7 @@
 .pg-v12-hero {
     position: relative;
     display: inline-block;          /* shrink-to-fit so .page-header centres it */
+    vertical-align: top;            /* drop the inline-block's phantom descender gap below it */
     width: min(35em, 80vw);
     padding: 1.125em 1.375em;
     background:

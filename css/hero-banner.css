@@ -1,0 +1,122 @@
+/* hero-banner.css — Hybrid hero banner (shared by index + banner editor)
+   Photographic board layer (right) + freely-positioned live text/logo layer.
+   Font px sizes are "design px" @1100-wide; the renderer scales them by the
+   banner's actual width so proportions stay consistent across viewports. */
+
+.hero-banner {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1983 / 560;
+    min-height: 120px;
+    max-height: 340px;
+    overflow: hidden;
+    border-radius: var(--radius-lg, 12px);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-md);
+    isolation: isolate;
+}
+
+/* Layer 1 — the photograph (clean board), pinned right */
+.hero-photo {
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: 62%;
+    height: 100%;
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+    z-index: 1;
+}
+
+/* Layer 2 — theme tint over the photo; fades the left edge into the card
+   so the text sits on clean surface with no hard seam. */
+.hero-photo::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg,
+        var(--color-surface) 0%,
+        color-mix(in srgb, var(--color-surface) 55%, transparent) 28%,
+        color-mix(in srgb, var(--color-accent) 22%, transparent) 70%,
+        color-mix(in srgb, var(--color-accent) 30%, transparent) 100%);
+}
+
+/* Layer 3 — freely positioned live content */
+.hero-layer { position: absolute; inset: 0; z-index: 2; }
+
+.hero-el {
+    position: absolute;
+    transform: translate(0, -50%);   /* anchored by its vertical middle */
+    white-space: nowrap;
+    margin: 0;
+    line-height: 1.05;
+}
+
+.hero-logo {
+    border-radius: 50%;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, .35));
+}
+
+/* When the landing header hosts the banner, drop the old header spacing/centering. */
+.page-header.page-header--banner {
+    display: block;
+    padding: 0;
+    text-align: initial;
+}
+
+/* ============================================================
+   LOADING-STATE ANIMATIONS
+   Applied while the page is fetching data: add `.is-loading`
+   plus one `.load-<style>` variant to the banner. Removed when
+   ready → text settles to its normal look. Replaces the old
+   full-screen logo "breathe" for banner-equipped pages.
+   ============================================================ */
+
+/* 1) Shimmer sweep — a light band travels across the letters. */
+@keyframes hero-shimmer { 0% { background-position: 220% 0; } 100% { background-position: -220% 0; } }
+.hero-banner.is-loading.load-shimmer .hero-el:not(.hero-logo) {
+    color: transparent !important;      /* beat the inline per-element color */
+    background-image: linear-gradient(100deg,
+        var(--color-text-muted) 25%, var(--color-text) 50%, var(--color-text-muted) 75%);
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: hero-shimmer 1.25s linear infinite;
+}
+
+/* 2) Reveal wave — lines blur-in / brighten in a staggered ripple. */
+@keyframes hero-wave { 0%, 100% { opacity: .35; filter: blur(2px); } 50% { opacity: 1; filter: blur(0); } }
+.hero-banner.is-loading.load-reveal .hero-el:not(.hero-logo) { animation: hero-wave 1.4s ease-in-out infinite; }
+.hero-banner.is-loading.load-reveal .hero-el:nth-of-type(2) { animation-delay: .12s; }
+.hero-banner.is-loading.load-reveal .hero-el:nth-of-type(3) { animation-delay: .24s; }
+.hero-banner.is-loading.load-reveal .hero-el:nth-of-type(4) { animation-delay: .36s; }
+.hero-banner.is-loading.load-reveal .hero-el:nth-of-type(5) { animation-delay: .48s; }
+
+/* 3) Progress bar — indeterminate accent sweep along the bottom edge. */
+@keyframes hero-bar { 0% { left: -45%; } 100% { left: 100%; } }
+.hero-banner.is-loading.load-underline .hero-layer::after {
+    content: "";
+    position: absolute;
+    left: -45%;
+    bottom: 0;
+    height: 3px;
+    width: 45%;
+    background: linear-gradient(90deg, transparent, var(--color-accent), transparent);
+    animation: hero-bar 1.15s ease-in-out infinite;
+}
+
+/* 4) Breathing glow — gentle opacity pulse + accent halo on the text. */
+@keyframes hero-glow {
+    0%, 100% { opacity: .6; text-shadow: none; }
+    50%      { opacity: 1; text-shadow: 0 0 14px color-mix(in srgb, var(--color-accent) 60%, transparent); }
+}
+.hero-banner.is-loading.load-glow .hero-el:not(.hero-logo) { animation: hero-glow 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+    .hero-banner.is-loading .hero-el,
+    .hero-banner.is-loading .hero-layer::after { animation: none !important; }
+    .hero-banner.is-loading.load-shimmer .hero-el:not(.hero-logo) {
+        color: var(--color-text-muted) !important; background-image: none;
+    }
+}
