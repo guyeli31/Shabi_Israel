@@ -64,7 +64,7 @@ export function drawCorrelationRow(host, points, opts) {
 
     const ctx = canvas.getContext('2d');
     const ROW_H = 76;
-    const AXIS_H = 40;
+    const AXIS_H = 52;
     const H = showAxis ? ROW_H + AXIS_H : ROW_H;
     const padL = 16, padR = 16;
 
@@ -187,7 +187,7 @@ export function drawCorrelationRow(host, points, opts) {
         }
         ctx.font = `600 11px ${C.fontFamily}`;
         ctx.textAlign = 'center';
-        ctx.fillText('← PR disadvantage        PR advantage →', W / 2, axisTop + AXIS_H - 8);
+        ctx.fillText('← PR disadvantage        PR advantage →', W / 2, axisTop + AXIS_H - 14);
     }
 
     function placeholderHtml() {

@@ -35,6 +35,8 @@ import { mountAppTabs } from './appTabs.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountPillTabs } from './subTabs.js';
+import { registerSearchAdapter } from './searchOverlay.js';
+import { getInitials } from './playerHeader.js';
 
 /* ── Helpers ─────────────────────────────────────────── */
 
@@ -69,12 +71,19 @@ export async function renderLandingPage() {
     let heroBanner = null;
 
     try {
-        _landingSettings = await loadLandingSettings();
+        // Kick off the banner fetch alongside landing settings instead of behind
+        // it — the two requests are independent, and the banner is what mobile
+        // users see first, so it shouldn't wait on an unrelated fetch.
+        const [landingSettings, heroBannerEl] = await Promise.all([
+            loadLandingSettings(),
+            applyHeroBanner(),
+        ]);
+        _landingSettings = landingSettings;
 
         // The hero banner IS the landing header — always. #page-header starts
         // hidden and is revealed only once the banner is rendered, so nothing
         // flashes before it.
-        heroBanner = await applyHeroBanner();
+        heroBanner = heroBannerEl;
         if (heroBanner) {
             const anim = heroBanner.dataset.loadanim;
             if (anim && anim !== 'none') heroBanner.classList.add('is-loading', 'load-' + anim);
@@ -131,10 +140,13 @@ export async function renderLandingPage() {
         // Tabs shell — groups the existing sections into 4 mental buckets.
         const presentTypes = [...new Set(leagues.map(l => l.leagueType))];
         const shell = buildTabsShell();
-        // Anchor for the sidebar's Records / Leaders links — landing them
-        // here ensures the tab bar sits at the viewport top (the panel
-        // content immediately follows it).
         shell.root.id = 'sections';
+        // Stable per-tab anchors for the sidebar's Leaders / Players links —
+        // landing on the PANEL (not shell.root) so the tab strip itself stays
+        // scrolled out of view above, same as jumping straight to a specific
+        // Records sub-section (see records-* ids below).
+        shell.panels.leaderboard.id = 'leaderboard-panel';
+        shell.panels.players.id = 'players-panel';
         container.appendChild(shell.root);
 
         // If the URL carries `?tab=` (deep link from the sidebar), scroll
@@ -144,6 +156,13 @@ export async function renderLandingPage() {
         // sub-menu), land that specific section's title at the top instead.
         if (new URLSearchParams(location.search).get('tab')) {
             const hashId = decodeURIComponent(location.hash.replace(/^#/, ''));
+            // Strip the hash from the URL bar right away — the browser's own
+            // native "scroll to fragment" retry keeps re-firing (with NO
+            // awareness of the fixed topbar) for as long as this page keeps
+            // loading resources, which can be several seconds after our own
+            // corrected scroll already ran, silently overriding it. With no
+            // hash left to chase, only our own scrollTo below ever runs.
+            if (hashId) history.replaceState(history.state, '', location.pathname + location.search);
             // Achievements / PR Leaders load their tables asynchronously and
             // grow after first paint (see renderAchievementsSection /
             // renderPRLeadersSection below) — scrolling before they resolve
@@ -294,6 +313,38 @@ function renderPlayersTab(container, allMeta, leagues) {
     }
 
     searchInput.addEventListener('input', () => renderTable(searchInput.value));
+
+    // Mobile search-sheet adapter: same look as the general sidebar search
+    // (avatar/monogram + status dot), scoped to players only. The sheet has
+    // its own 16px input (mobile anti-zoom), so `suggest` mirrors every
+    // keystroke back into the real field + re-filters the table live —
+    // matching the desktop "type to filter" behaviour rather than requiring
+    // a pick step. Tapping a suggestion still works as a shortcut that jumps
+    // straight to one name and closes the sheet.
+    registerSearchAdapter(searchInput, {
+        suggest(query) {
+            searchInput.value = query;
+            renderTable(query);
+            const q = query.trim().toLowerCase();
+            if (!q) return [];
+            return rows
+                .filter(r => r.name.toLowerCase().includes(q) || r.fullName.toLowerCase().includes(q))
+                .slice(0, 50)
+                .map(r => {
+                    const photoPath = r.meta.photoPath;
+                    const inner = photoPath
+                        ? `<img class="search-avatar-img" src="${escapeHtml(photoPath)}" alt="">`
+                        : escapeHtml(getInitials(r.name, r.fullName) || (r.name.trim()[0] || '?').toUpperCase());
+                    const iconHtml = `<span class="search-icon search-icon--player${photoPath ? ' has-photo' : ''}" aria-hidden="true">${inner}<span class="search-status-dot ${PLAYER_STATUS_DOT[r.status] || 'gray'}"></span></span>`;
+                    return { label: r.name, sublabel: r.fullName || undefined, key: r.name, iconHtml };
+                });
+        },
+        pick(item) {
+            searchInput.value = item.key;
+            renderTable(item.key);
+        },
+    });
+
     renderTable('');
 }
 
@@ -303,6 +354,10 @@ function renderPlayersTab(container, allMeta, leagues) {
  *  inactive → none of the above                              (gray)
  */
 const PLAYER_STATUS_LABEL = { active: 'Active', 'this-year': 'This Year', inactive: 'Inactive' };
+
+/** Same 3-state → colour mapping as the sidebar's player search results
+ *  (.search-status-dot green/orange/gray in css/navigation.css). */
+const PLAYER_STATUS_DOT = { active: 'green', 'this-year': 'orange', inactive: 'gray' };
 
 function computePlayerRows(allMeta, leagues) {
     const allNames = new Set(Object.keys(allMeta || {}));

@@ -208,9 +208,8 @@
 }
 
 /* Long lists get internal scrolling. Targets the leaf flyouts that fill
-   with many rows: Players (~50) and the leagues lists inside Dashboard/
-   Table (10-20). The parent Leagues flyout itself only holds two rows. */
-.site-nav-flyout[data-submenu="players"],
+   with many rows: the leagues lists inside Dashboard/Table (10-20). The
+   parent Leagues flyout itself only holds two rows. */
 .site-nav-flyout[data-submenu="leagues-dashboard"],
 .site-nav-flyout[data-submenu="leagues-table"] {
     max-height: min(70vh, 520px);
@@ -294,21 +293,6 @@
     color: #fff;
 }
 
-/* Adopt the canonical A7 flag rule (table-lab/formats/base/base.css):
-   `height: 1em` + `width: auto` + `object-fit: contain` + `border-radius:
-   0.15em`. NO outline / box-shadow — the canonical rule renders the flag
-   bare, and a translucent white outline added a visible frame around each
-   flag that didn't belong in the design system. */
-.site-nav-flyout-item .flag {
-    height: 1em;
-    width: auto;
-    object-fit: contain;
-    border-radius: 0.15em;
-    vertical-align: middle;
-    flex-shrink: 0;
-    image-rendering: auto;
-}
-
 .site-nav-flyout-label {
     flex: 1;
     white-space: nowrap;
@@ -321,55 +305,6 @@
     font-size: var(--fs-080);
     opacity: 0.6;
     color: rgba(255,255,255,0.65);
-}
-
-/* Player status pill — same visual format as the A7 landing-page directory
-   (.lp-status in css/index-dashboard.css). Duplicated here, scoped to the
-   sidebar's flyout-item rows, so league_table.html and player_league.html
-   (which don't load index-dashboard.css) still get the styled pill. The
-   only difference vs the A7 row is a smaller base font size to fit the
-   narrower flyout. Three states: active / this-year / inactive. */
-.site-nav-flyout-item .lp-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4em;
-    padding: 0.18em 0.55em;
-    border-radius: var(--radius-full);
-    font-size: var(--fs-068);
-    font-weight: 600;
-    line-height: 1.5;
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-.site-nav-flyout-item .lp-status-dot {
-    width: 0.55em;
-    height: 0.55em;
-    border-radius: 50%;
-    background: currentColor;
-    box-shadow: 0 0 0 0.18em color-mix(in srgb, currentColor 25%, transparent);
-}
-/* On-dark pill variants — the sidebar flyout is ALWAYS painted with
-   var(--header-bg) (a dark chrome) regardless of the active theme, so the
-   light-theme --color-player-*-bg values (#d1fae5, #fde8c8, #f3f4f6) used
-   on the A7 pill would read as glaring patches here. Instead we tint the
-   pill background from `currentColor` and pick a foreground brightness
-   that reads well on dark — theme-independent, matches the sidebar's own
-   rgba(255,255,255,.10) hover language. */
-.site-nav-flyout-item .lp-status-active {
-    color: #34d399;
-    background: color-mix(in srgb, currentColor 16%, transparent);
-}
-.site-nav-flyout-item .lp-status-this-year {
-    color: #f59e0b;
-    background: color-mix(in srgb, currentColor 16%, transparent);
-}
-.site-nav-flyout-item .lp-status-inactive {
-    color: rgba(255, 255, 255, 0.55);
-    background: rgba(255, 255, 255, 0.08);
-}
-.site-nav-flyout-item .lp-status-inactive .lp-status-dot {
-    box-shadow: none;
-    opacity: 0.7;
 }
 
 /* League status dot */

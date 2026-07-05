@@ -3,12 +3,12 @@
  *
  *  Header        — round logo + "Shabi Israel" (links to index.html);
  *                  matches the brand row of the (removed) top nav.
- *  Players ▸     — flag · name · ACTIVE pill (sorted titled→A-Z, like A7).
+ *  Players       — links to index.html?tab=players#players-panel (jumps straight to the A7 directory panel, tab strip scrolled out of view).
  *  Leagues ▸
  *      Dashboard ▸ — chronological list of every league.
  *      Table ▸     — chronological list of every league.
- *  Records       — links to index.html?tab=records (page jumps to tab section).
- *  Leaders       — links to index.html?tab=leaderboard (page jumps to tab section).
+ *  Records       — links to index.html?tab=records#records-* (jumps straight to that sub-section, tab strip scrolled out of view).
+ *  Leaders       — links to index.html?tab=leaderboard#leaderboard-panel (jumps straight to the leaderboard panel, tab strip scrolled out of view).
  *  Settings ▸
  *      Theme Customize  — opens the existing theme-picker modal.
  *      Show name as     — Username | Full (persists in localStorage; reload).
@@ -26,11 +26,9 @@
  *  sidebar as in the tab bar.
  */
 
-import { loadLandingSettings, loadAllLeagueParams, loadLeagueMatches } from '../data/leagueLoader.js';
-import { loadPlayersMetadata } from '../data/playersMetadata.js';
-import { hasTitles } from '../data/titleConstants.js';
-import { leagueUrl, leagueTableUrl, playerUrl, flagUrl, getFlagCode, parseLeagueDate } from '../utils/helpers.js';
-import { displayPlayerName, getNameDisplayMode, setNameDisplayMode } from '../utils/nameDisplay.js';
+import { loadLandingSettings, loadAllLeagueParams } from '../data/leagueLoader.js';
+import { leagueUrl, leagueTableUrl, playerUrl, parseLeagueDate } from '../utils/helpers.js';
+import { getNameDisplayMode, setNameDisplayMode } from '../utils/nameDisplay.js';
 import { isLoggedIn, login, logout, getUsername } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
 import { buildThemePickerPanel } from './themePicker.js';
@@ -161,16 +159,10 @@ function renderShell(sidebar, opts) {
         ${adminFooter}
 
         <nav aria-label="Site sections" class="site-nav-tree">
-            <div class="site-nav-flyout-host" data-flyout="players">
-                <button class="site-nav-item site-nav-group" data-group="players">
-                    <span class="site-nav-icon" aria-hidden="true">${ICON.players}</span>
-                    <span class="site-nav-label">Players</span>
-                    ${ICON.chevron}
-                </button>
-                <div class="site-nav-flyout" data-submenu="players" role="menu">
-                    <div class="site-nav-flyout-loading">Loading…</div>
-                </div>
-            </div>
+            <a class="site-nav-item" href="index.html?tab=players#players-panel" data-view="players">
+                <span class="site-nav-icon" aria-hidden="true">${ICON.players}</span>
+                <span class="site-nav-label">Players</span>
+            </a>
 
             <div class="site-nav-flyout-host" data-flyout="leagues">
                 <button class="site-nav-item site-nav-group" data-group="leagues">
@@ -228,7 +220,7 @@ function renderShell(sidebar, opts) {
                 </div>
             </div>
 
-            <a class="site-nav-item" href="index.html?tab=leaderboard#sections" data-view="leaderboard">
+            <a class="site-nav-item" href="index.html?tab=leaderboard#leaderboard-panel" data-view="leaderboard">
                 <span class="site-nav-icon" aria-hidden="true">${ICON.leaders}</span>
                 <span class="site-nav-label">Leaders</span>
             </a>
@@ -296,6 +288,7 @@ function renderShell(sidebar, opts) {
 
     if (opts.activeView === 'records') sidebar.querySelector('[data-view="records"]')?.classList.add('active');
     if (opts.activeView === 'leaderboard') sidebar.querySelector('[data-view="leaderboard"]')?.classList.add('active');
+    if (opts.activeView === 'player' || opts.activeView === 'playerLeague') sidebar.querySelector('[data-view="players"]')?.classList.add('active');
 
     const select = sidebar.querySelector('#site-name-display-select');
     if (select) select.value = getNameDisplayMode();
@@ -343,56 +336,6 @@ async function populateAsync(opts) {
         leaguesAll, leagueUrl, opts.activeView === 'league' ? opts.leagueId : null);
     populateLeaguesSubmenu(_sidebarEl.querySelector('[data-submenu="leagues-table"]'),
         leaguesAll, leagueTableUrl, opts.activeView === 'leagueTable' ? opts.leagueId : null);
-
-    const [meta, allCsvResults] = await Promise.all([
-        loadPlayersMetadata().catch(() => ({})),
-        Promise.allSettled(leaguesAll.map(l => loadLeagueMatches(l.id))),
-    ]);
-
-    const allPlayers = new Set(Object.keys(meta || {}));
-    const activeSet = new Set();
-    const lastLeagueDate = new Map();   // player → Date of latest league they appeared in
-    const playerFlags = {};
-    allCsvResults.forEach((r, idx) => {
-        if (r.status !== 'fulfilled') return;
-        const l = leaguesAll[idx];
-        const customFlags = allParams.find(p => p.id === l.id)?.params?.CustomFlags;
-        for (const p of r.value.allPlayers) {
-            allPlayers.add(p);
-            if (l.running) activeSet.add(p);
-            if (!playerFlags[p]) playerFlags[p] = getFlagCode(p, customFlags);
-            const prev = lastLeagueDate.get(p);
-            if (!prev || l.date > prev) lastLeagueDate.set(p, l.date);
-        }
-    });
-
-    // Three-state status mirrors the landing page's A7 directory: active =
-    // playing in a Running league NOW; this-year = appeared in any league this
-    // calendar year; inactive = neither. Same labels + colors as .lp-status.
-    const currentYear = new Date().getUTCFullYear();
-    function statusFor(name) {
-        if (activeSet.has(name)) return 'active';
-        const last = lastLeagueDate.get(name);
-        if (last && last.getUTCFullYear() === currentYear) return 'this-year';
-        return 'inactive';
-    }
-
-    const rows = [...allPlayers]
-        .filter(name => !(meta?.[name]?.hidden))
-        .map(name => ({
-            name,
-            meta: meta?.[name] || {},
-            flag: playerFlags[name] || 'IL',
-            status: statusFor(name),
-            titled: hasTitles(meta?.[name] || {}),
-        }))
-        .sort((a, b) => {
-            if (a.titled !== b.titled) return a.titled ? -1 : 1;
-            return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-        });
-
-    const activePlayerName = (opts.activeView === 'player' || opts.activeView === 'playerLeague') ? opts.playerName : null;
-    populatePlayersSubmenu(_sidebarEl.querySelector('[data-submenu="players"]'), rows, activePlayerName);
 }
 
 function populateLeaguesSubmenu(container, leagues, urlFn, activeId) {
@@ -409,26 +352,6 @@ function populateLeaguesSubmenu(container, leagues, urlFn, activeId) {
         return `<a class="site-nav-flyout-item${cls}" href="${urlFn(l.id)}">
             <span class="site-nav-status-dot ${l.running ? 'running' : 'completed'}" aria-hidden="true"></span>
             <span class="site-nav-flyout-label">${escapeHtml(l.title)}</span>
-            ${pill}
-        </a>`;
-    }).join('');
-}
-
-function populatePlayersSubmenu(container, rows, activeName) {
-    if (!container) return;
-    if (rows.length === 0) {
-        container.innerHTML = `<div class="site-nav-flyout-loading">No players</div>`;
-        return;
-    }
-    const STATUS_LABEL = { active: 'Active', 'this-year': 'This Year', inactive: 'Inactive' };
-    container.innerHTML = rows.map(r => {
-        const shown = displayPlayerName(r.name, r.meta);
-        const cls = (r.name === activeName) ? ' active' : '';
-        const s = r.status || 'inactive';
-        const pill = `<span class="lp-status lp-status-${s}"><span class="lp-status-dot"></span>${STATUS_LABEL[s]}</span>`;
-        return `<a class="site-nav-flyout-item${cls}" href="${playerUrl(r.name)}" data-player="${escapeAttr(r.name)}">
-            <img class="flag" src="${flagUrl(r.flag)}" alt="${escapeAttr(r.flag)}">
-            <span class="site-nav-flyout-label">${escapeHtml(shown)}</span>
             ${pill}
         </a>`;
     }).join('');
@@ -620,8 +543,6 @@ function pickAutoGroup(opts) {
     switch (opts.activeView) {
         case 'league':       return 'leagues';
         case 'leagueTable':  return 'leagues';
-        case 'player':
-        case 'playerLeague': return 'players';
         default:             return null;
     }
 }

@@ -1821,6 +1821,35 @@ function renderPrCorrelationSection(ctx) {
     const domain = computeCorrelationDomain(generalSeries);
     const panels = [];
 
+    // General row — always present, uncoloured, fixed at the TOP of the stack;
+    // appended first so every later panel (initial + "+ Add") lands below it.
+    const generalPanel = document.createElement('div');
+    generalPanel.className = 'chart-panel corr-panel corr-panel--general';
+    const generalMlIdx = nearestMatchLengthIdx(ctx.params.MatchLength || 7);
+    const generalItems = generalSeries.map(m => ({
+        pWin: getWinProbability(m.prWinner, m.prLoser, generalMlIdx),
+        outcome: 1 // pWin was computed for the side that actually won
+    }));
+    const generalBrier = brierScore(generalItems);
+    const generalStatsMap = computeAllStats(liveMatches, ctx.allPlayersSet);
+    const generalRankings = buildRankings(generalStatsMap, ctx.leagueConfig, liveMatches);
+    const generalMatchStats = computeMatchStats(generalRankings, ctx.allPlayersSet.size);
+    generalPanel.innerHTML = `
+        <div class="dash-controls">
+            <label>League &mdash; all matches (${generalMatchStats.playedMatches}/${generalMatchStats.totalMatches})</label>
+            <span class="corr-metric-pill"></span>
+        </div>
+        <div class="chart-host corr-host"></div>
+    `;
+    applyMetricPill(generalPanel.querySelector('.corr-metric-pill'), generalBrier);
+    container.appendChild(generalPanel);
+    drawCorrelationRow(generalPanel.querySelector('.corr-host'), generalSeries.map(m => ({ x: m.advantage, win: true, match: m })), {
+        xMin: domain.xMin,
+        xMax: domain.xMax,
+        showAxis: true,
+        buildInfoHtml: (p) => corrMatchInfoHtml(p.match)
+    });
+
     function buildPanel(initialPlayer) {
         const panel = document.createElement('div');
         panel.className = 'chart-panel corr-panel';
@@ -1881,29 +1910,4 @@ function renderPrCorrelationSection(ctx) {
     if (addBtn) {
         addBtn.addEventListener('click', () => buildPanel(players[0]));
     }
-
-    // General row — always present, uncoloured, fixed at the bottom with the shared axis.
-    const generalPanel = document.createElement('div');
-    generalPanel.className = 'chart-panel corr-panel corr-panel--general';
-    const generalMlIdx = nearestMatchLengthIdx(ctx.params.MatchLength || 7);
-    const generalItems = generalSeries.map(m => ({
-        pWin: getWinProbability(m.prWinner, m.prLoser, generalMlIdx),
-        outcome: 1 // pWin was computed for the side that actually won
-    }));
-    const generalBrier = brierScore(generalItems);
-    generalPanel.innerHTML = `
-        <div class="dash-controls">
-            <label>League &mdash; all matches</label>
-            <span class="corr-metric-pill"></span>
-        </div>
-        <div class="chart-host corr-host"></div>
-    `;
-    applyMetricPill(generalPanel.querySelector('.corr-metric-pill'), generalBrier);
-    container.appendChild(generalPanel);
-    drawCorrelationRow(generalPanel.querySelector('.corr-host'), generalSeries.map(m => ({ x: m.advantage, win: true, match: m })), {
-        xMin: domain.xMin,
-        xMax: domain.xMax,
-        showAxis: true,
-        buildInfoHtml: (p) => corrMatchInfoHtml(p.match)
-    });
 }
