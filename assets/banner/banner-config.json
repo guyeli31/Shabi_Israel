@@ -3,82 +3,83 @@
   "photo": "assets/logo/board-clean.jpg",
   "logo": {
     "src": "assets/logo/logo.png",
-    "size": 150,
-    "x": 7,
-    "y": 48,
+    "size": 220,
+    "x": 4,
+    "y": 42,
     "show": true
   },
-  "loadingAnim": "shimmer",
+  "loadingAnim": "reveal",
+  "heightAdd": 120,
   "els": [
     {
       "text": "ISRAELI",
       "font": "'Montserrat', sans-serif",
       "weight": 800,
-      "size": 40,
+      "size": 55,
       "italic": false,
       "upper": false,
       "tracking": "0.5px",
       "color": "var(--color-text)",
       "accent": false,
       "accentWord": "",
-      "x": 22,
-      "y": 33
+      "x": 26,
+      "y": 28
     },
     {
       "text": "BACKGAMMON",
       "font": "'Montserrat', sans-serif",
       "weight": 800,
-      "size": 40,
+      "size": 55,
       "italic": false,
       "upper": false,
       "tracking": "0.5px",
       "color": "var(--color-accent)",
       "accent": false,
       "accentWord": "",
-      "x": 22,
-      "y": 48
+      "x": 26,
+      "y": 42
     },
     {
       "text": "LEAGUE",
       "font": "'Montserrat', sans-serif",
       "weight": 800,
-      "size": 40,
+      "size": 55,
       "italic": false,
       "upper": false,
       "tracking": "0.5px",
       "color": "var(--color-text)",
       "accent": false,
       "accentWord": "",
-      "x": 22,
-      "y": 63
+      "x": 26,
+      "y": 56
     },
     {
       "text": "COMPETE. CONNECT. ELEVATE.",
       "font": "'Montserrat', sans-serif",
       "weight": 600,
-      "size": 12,
+      "size": 22,
       "italic": false,
       "upper": true,
       "tracking": "0.22em",
       "color": "var(--color-text-muted)",
       "accent": false,
       "accentWord": "",
-      "x": 22,
-      "y": 78
+      "x": 26,
+      "y": 72
     },
     {
       "text": "By Marcel Dana and Avshalom Yaish",
       "font": "'Playfair Display', serif",
       "weight": 400,
-      "size": 12,
+      "size": 21,
       "italic": true,
       "upper": false,
       "tracking": "normal",
       "color": "var(--color-text-secondary)",
       "accent": false,
       "accentWord": "",
-      "x": 22,
-      "y": 91
+      "x": 26,
+      "y": 84
     }
   ]
 }

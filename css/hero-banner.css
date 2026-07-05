@@ -6,6 +6,10 @@
 .hero-banner {
     position: relative;
     width: 100%;
+    /* Base aspect = the source crop (1983×560). This is only a pre-JS fallback:
+       renderHeroBanner() sets an explicit height = this base + config.heightAdd
+       (the editor's "Extra height" slider), so the added pixels reveal more of
+       the board via `cover` — no stretching. min-height clamps tiny widths. */
     aspect-ratio: 1983 / 560;
     min-height: 120px;
     max-height: 340px;
@@ -63,6 +67,42 @@
     display: block;
     padding: 0;
     text-align: initial;
+}
+
+/* ── Banner-as-header: dissolve the old "unified hero card" ──────────────
+   On the landing page the `.page-header` + `.index-info-cards` used to render
+   as ONE bordered card (see index-dashboard.css). With the banner they should
+   NOT look carded: the banner is flat + full-width, and the info tiles sit on
+   the page background like the league dashboard's stat cards. Spacing between
+   banner → info cards → tabs is the project-standard --space-md.
+   Scoped to `.page-container.has-hero-banner` (set by applyHeroBanner) and
+   given enough specificity to beat the index-dashboard hero-card rules. */
+.page-container.has-hero-banner > .page-header {
+    background: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    margin-bottom: var(--space-md);
+}
+.page-container.has-hero-banner #content > .index-info-cards:first-child {
+    background: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    margin: 0 0 var(--space-md) 0;
+}
+/* Info tiles take the normal surface tone on the page bg (like the league
+   dashboard's .dash-card), not the recessed inset well from sections.css. */
+.page-container.has-hero-banner .index-info-cards .dash-card {
+    background: var(--color-surface);
+}
+/* The banner itself is flat and full-width — no card frame. */
+.page-container.has-hero-banner .hero-banner {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
 }
 
 /* ============================================================

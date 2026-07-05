@@ -46,33 +46,30 @@ No build step — pure vanilla HTML/CSS/JS running in the browser. Deployed on G
 
 ## Development
 
-Serve locally (ES modules require a server). **Default port: 8090** (we standardised off 8080 because other tools collide on it).
+Serve locally (ES modules require a server). **Preferred port: 8090** (we standardised off 8080 because other tools collide on it), but don't fixate on it — see below.
 
-### Dev server — reuse, don't relaunch
+### Dev server — reuse if already up, else claim the next free port
 
-The `http-server` process is OS-level, independent of any Claude window. If a sibling window already started it, every other window should reuse it. Before starting a server, always probe:
+The `http-server` process is OS-level, independent of any Claude window. If a sibling window already started one on 8090, every other window should reuse it. Before starting a server, always probe:
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}" http://localhost:8090/index.html
 ```
 
 - `200` → server is up, reuse `http://localhost:8090/` as-is. Do **not** relaunch.
-- anything else → start it once in the background:
+- anything else → try to start it on 8090; if that port is already held by something that isn't this app (EADDRINUSE, or a 200 comes back but not from this app's index.html), walk up sequentially (8091, 8092, …) until one binds cleanly:
   ```bash
   npx http-server -p 8090 --cors -c-1
   ```
-  Run with `run_in_background: true` so it survives the turn. A follow-up 200 on the probe confirms bind success even if the bash task reports a non-zero exit (harmless EADDRINUSE race when the port is already held).
+  Run with `run_in_background: true` so it survives the turn. A follow-up 200 probe on the chosen port confirms bind success even if the bash task reports a non-zero exit.
 
-Never kill a running `http-server` just to "start clean" — other windows (and the user's own browser tabs) may depend on it.
+Never kill a running `http-server` just to "start clean" — other windows (and the user's own browser tabs) may depend on it. This reuse-or-increment pattern applies to every project, not just this one.
 
-### Playwright MCP — shared Chrome profile
+### Playwright MCP — isolated per session (parallel-safe)
 
-Playwright MCP uses a single Chrome profile at `C:\Users\User\AppData\Local\ms-playwright\mcp-chrome-*`. Only one Claude window can drive it at a time; a second concurrent call returns *"Browser is already in use … use --isolated"* (we can't pass `--isolated` from the MCP tool). When this happens:
-1. Do other work (code edits, static verification) first.
-2. Retry the browser call later — the sibling window releases the lock when it finishes or when its page is closed.
-3. If the wait is long, use `ScheduleWakeup` to retry in ~90–180 s rather than busy-polling.
+`.mcp.json` passes `--isolated` to the Playwright MCP server, so each Claude window gets its own in-memory browser profile instead of sharing one Chrome profile. This means multiple windows/sessions can drive Playwright MCP at the same time without the old "Browser is already in use" lock.
 
-Pages already navigated in the shared browser persist across windows — a new window's first `browser_navigate` just reuses the same tab.
+Trade-off: an isolated profile does **not** persist logins/cookies across sessions — each session starts logged out. For BGStudio automation, log in fresh each session (see `reference_mcp_credentials` memory for the test account) rather than expecting a shared authenticated session.
 
 ### Playwright MCP — output directory (NEVER write to repo root)
 

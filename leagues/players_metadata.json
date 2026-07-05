@@ -1,17 +1,16 @@
 {
   "GuyEliyahu": {
-    "fullName": "Moshe Cohen",
     "bmabTitle": "",
     "championshipTitles": [],
     "joined": "2025-09"
   },
 
   "boutsky": {
-    "fullName": "David Mizrahi",
+    "fullName": "DM",
     "bmabTitle": "G2"
   },
   "OMRAD": {
-    "fullName": "Avi Peretz",
+    "fullName": "AP",
     "championshipTitles": [
       {
         "type": "world",
@@ -21,6 +20,10 @@
         "location": "Monte Carlo"
       }
     ]
+  },
+  "Hummus": {
+    "fullName": "I S",
+    "bmabTitle": "M1"
   },
   "Avshalom": {}
 }

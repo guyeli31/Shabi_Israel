@@ -361,5 +361,10 @@ export function buildThemePickerPanel() {
     }
 
     host.appendChild(panel);
+    // Exposed so the mounting flyout can collapse the Customize sub-panel
+    // back shut once its own parent flyout closes — this DOM is built once
+    // and reused, so without this the Customize panel would still be
+    // expanded next time the flyout merely re-opens on hover.
+    host.collapseCustomize = () => { customPanel.hidden = true; };
     return host;
 }

@@ -106,6 +106,24 @@ export function buildAdminSidebarHtml(opts = {}) {
  */
 export function wireAdminSidebar(sidebar) {
     const themeSubmenu = sidebar.querySelector('[data-submenu="settings-theme"]');
-    if (themeSubmenu) themeSubmenu.appendChild(buildThemePickerPanel());
+    if (themeSubmenu) {
+        const themePanel = buildThemePickerPanel();
+        themeSubmenu.appendChild(themePanel);
+
+        // Collapse the Customize sub-panel once this flyout actually closes
+        // (mouse leaves it while unpinned, or its pin is removed) so hovering
+        // it open again later doesn't resurrect a stale expanded state.
+        const themeHost = sidebar.querySelector('[data-flyout="settings-theme"]');
+        if (themeHost) {
+            const collapseIfClosed = () => {
+                if (!themeHost.classList.contains('pinned') && !themeHost.matches(':hover')) {
+                    themePanel.collapseCustomize();
+                }
+            };
+            themeHost.addEventListener('mouseleave', collapseIfClosed);
+            new MutationObserver(collapseIfClosed)
+                .observe(themeHost, { attributes: true, attributeFilter: ['class'] });
+        }
+    }
     wireNavFlyouts(sidebar);
 }

@@ -248,17 +248,29 @@
 
 /* .chart-panel, .chart-host, .bar-chart-canvas, .chart-info-panel — shared, defined in components.css */
 
+/* Pinned to the panel's own top-right corner (not a flex child of
+   .dash-controls), so it never drops onto a wrapped line on narrow screens —
+   it stays put no matter how the player/metric controls reflow beneath it. */
 .remove-chart {
+    position: absolute !important;
+    top: var(--space-sm) !important;
+    right: var(--space-sm) !important;
     background: transparent !important;
     border: none !important;
     font-size: var(--fs-140) !important;
     color: var(--color-text-muted) !important;
-    padding: 0 8px !important;
+    padding: 0 4px !important;
     cursor: pointer;
+    z-index: 1;
 }
 
 .remove-chart:hover {
     color: var(--color-loss) !important;
+}
+
+/* Reserve room so wrapped controls never run under the pinned close button. */
+.chart-panel .dash-controls {
+    padding-right: 30px;
 }
 
 .add-chart-btn {
@@ -292,8 +304,7 @@
     margin-top: var(--space-xs);
 }
 
-.corr-row-canvas,
-.corr-axis-canvas {
+.corr-row-canvas {
     display: block;
     width: 100%;
     background: var(--color-inset);
@@ -305,23 +316,124 @@
     background: var(--color-surface);
 }
 
-.corr-axis-canvas {
-    border-top: none;
-    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-    margin-top: -1px;
-}
-
 .corr-metric-pill {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 6px;
+    max-width: 100%;
     background: var(--color-inset);
     border-radius: var(--radius-sm);
     padding: 3px 10px;
     font-size: var(--fs-085);
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
     cursor: help;
 }
 
 .corr-metric-pill b {
     color: var(--color-accent);
+    flex-shrink: 0;
+}
+
+.corr-metric-pill i {
+    color: var(--color-text-muted);
+    font-style: normal;
+}
+
+.brier-caption {
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+}
+
+/* Mini 0-1 Brier scale shown inline next to the number, same gradient as the
+   full .brier-scale legend in the "?" popup. Fixed narrow width + flex-shrink:0
+   so it never forces horizontal overflow inside .dash-controls (which already
+   wraps), even on narrow phone screens. */
+.brier-mini-scale {
+    position: relative;
+    width: 60px;
+    height: 10px;
+    border-radius: 5px;
+    flex-shrink: 0;
+    background: linear-gradient(to right, var(--brier-good) 0%, var(--brier-mid) 25%, var(--brier-bad) 100%);
+}
+
+.brier-mini-marker {
+    position: absolute;
+    top: -2px;
+    width: 3px;
+    height: 14px;
+    border-radius: 1px;
+    background: var(--color-text);
+    box-shadow: 0 0 0 1px var(--color-surface);
+    transform: translateX(-50%);
+}
+
+.brier-label {
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+    .brier-caption { display: none; }
+    .brier-mini-scale { width: 44px; }
+    .luck-mini-scale { width: 44px; }
+}
+
+/* Signed-luck mini scale — same shape/marker as .brier-mini-scale, but the
+   gradient is centred at 50% (score 0) instead of Brier's 25% coin-flip
+   pivot, since luck ranges [-1,+1] not [0,1]. Reuses the same --brier-*
+   tokens (bad=unlucky, mid=balanced, good=lucky) so it follows the theme too. */
+.luck-mini-scale {
+    position: relative;
+    width: 60px;
+    height: 10px;
+    border-radius: 5px;
+    flex-shrink: 0;
+    background: linear-gradient(to right, var(--brier-bad) 0%, var(--brier-mid) 50%, var(--brier-good) 100%);
+}
+
+/* Same gradient as .luck-mini-scale, for the "?" popup's full-size legend. */
+.luck-scale-bar {
+    background: linear-gradient(to right, var(--brier-bad) 0%, var(--brier-mid) 50%, var(--brier-good) 100%);
+}
+
+/* Brier 0-1 visual scale, shown in the "?" explanation popup. */
+.brier-scale {
+    position: relative;
+    margin: var(--space-md) 4px var(--space-lg);
+}
+
+.brier-scale-bar {
+    height: 12px;
+    border-radius: 6px;
+    background: linear-gradient(to right, var(--brier-good) 0%, var(--brier-mid) 25%, var(--brier-bad) 100%);
+}
+
+.brier-scale-ticks {
+    position: relative;
+    height: 34px;
+}
+
+.brier-scale-tick {
+    position: absolute;
+    top: 4px;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: var(--fs-078);
+    color: var(--color-text);
+    white-space: nowrap;
+}
+
+.brier-scale-tick:first-child { transform: translateX(0); align-items: flex-start; }
+.brier-scale-tick:last-child { transform: translateX(-100%); align-items: flex-end; }
+
+.brier-scale-tick small {
+    color: var(--color-text-muted);
+    font-size: var(--fs-070);
 }
 
 /* Open full table button (next to historical date select) */

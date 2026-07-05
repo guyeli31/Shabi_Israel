@@ -49,11 +49,9 @@
 </head>
 <body>
     <div class="page-container" id="main" role="main">
-        <div class="page-header" id="page-header">
-            <img class="logo" id="site-logo" src="assets/logo/logo.png" alt="Logo">
-            <h1 id="site-title"></h1>
-            <p class="subtitle" id="site-subtitle"></p>
-        </div>
+        <!-- Hero banner is injected here by applyHeroBanner(); starts hidden so
+             nothing paints before it. -->
+        <div class="page-header" id="page-header" style="visibility:hidden"></div>
         <div id="content">
             <div class="loading">Loading leagues...</div>
         </div>

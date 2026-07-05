@@ -65,6 +65,14 @@
     --color-danger: var(--color-loss);
     --color-success: var(--color-win);
 
+    /* Brier-score traffic-light scale (PR <-> Result Correlation): green at 0
+       (perfect fit), amber at 0.25 (coin-flip), red near 1 (mostly upsets).
+       Aliased to the existing themed/constant tokens so it follows theme
+       switches automatically, with no per-theme overrides needed. */
+    --brier-good: var(--color-win);
+    --brier-mid:  var(--color-warning);
+    --brier-bad:  var(--color-loss);
+
     /* Warning — intentionally CONSTANT across all themes. A caution signal
        (like a traffic light) shouldn't shift with the palette. Foreground use:
        the .whatif-warn icon and CSV-validation messages. */

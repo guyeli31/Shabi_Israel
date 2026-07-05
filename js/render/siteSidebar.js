@@ -447,7 +447,23 @@ function wireInteractions(sidebar, opts) {
     // sub-menus stay open since no JS unpinning runs here.
     const themeFlyout = sidebar.querySelector('[data-submenu="settings-theme"]');
     if (themeFlyout) {
-        themeFlyout.replaceChildren(buildThemePickerPanel());
+        const themePanel = buildThemePickerPanel();
+        themeFlyout.replaceChildren(themePanel);
+
+        // Collapse the Customize sub-panel once this flyout actually closes
+        // (mouse leaves it while unpinned, or its pin is removed) so hovering
+        // it open again later doesn't resurrect a stale expanded state.
+        const themeHost = sidebar.querySelector('[data-flyout="settings-theme"]');
+        if (themeHost) {
+            const collapseIfClosed = () => {
+                if (!themeHost.classList.contains('pinned') && !themeHost.matches(':hover')) {
+                    themePanel.collapseCustomize();
+                }
+            };
+            themeHost.addEventListener('mouseleave', collapseIfClosed);
+            new MutationObserver(collapseIfClosed)
+                .observe(themeHost, { attributes: true, attributeFilter: ['class'] });
+        }
     }
 
     // Admin Mode (top-level)

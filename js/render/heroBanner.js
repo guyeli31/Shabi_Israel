@@ -22,6 +22,11 @@ export const DESIGN_W = 1100;
 export const BANNER_STORAGE_KEY = 'shabi-banner-config';
 export const BANNER_CONFIG_PATH = 'assets/banner/banner-config.json';
 
+/* Base banner aspect = the source board crop (1983×560). Any extra height comes
+   from config.heightAdd (design px at DESIGN_W, added to the banner top+bottom).
+   Keep this ratio in sync with the aspect-ratio fallback in hero-banner.css. */
+const HERO_BASE_RATIO = 560 / 1983;
+
 /* Google Fonts specs per family the editor offers — including the weight AND
    italic axes the banner actually uses (e.g. Playfair Display 400 italic for
    the credit line). Pages hosting the banner don't ship these <link>s, so the
@@ -128,7 +133,16 @@ export function renderHeroBanner(bannerEl, config) {
     layer.className = 'hero-layer';
     bannerEl.appendChild(layer);
 
-    const scale = (bannerEl.getBoundingClientRect().width || DESIGN_W) / DESIGN_W;
+    const w = bannerEl.getBoundingClientRect().width || DESIGN_W;
+    const scale = w / DESIGN_W;
+
+    // Height = base crop aspect (1983×560) + the config's extra height (design px
+    // at DESIGN_W, scaled by width so it stays proportional). Overrides the CSS
+    // aspect-ratio/max-height. min-height in CSS still clamps very small widths.
+    const add = Math.max(0, Number(config.heightAdd) || 0) * scale;
+    bannerEl.style.height = Math.round(w * HERO_BASE_RATIO + add) + 'px';
+    bannerEl.style.maxHeight = 'none';
+
     if (config.logo && config.logo.show !== false) layer.appendChild(buildLogo(config.logo, scale));
     (config.els || []).forEach(el => layer.appendChild(buildEl(el, scale)));
 }

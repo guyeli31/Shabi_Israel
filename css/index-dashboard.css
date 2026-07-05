@@ -104,7 +104,11 @@
 /* H1 — Active league cards (horizontal scroll) */
 .active-leagues-wrapper {
     position: relative;
-    margin-bottom: var(--space-md);
+    /* No extra bottom margin — the cards' bottom gap comes only from the
+       section card's padding, exactly like the A1 (Completed Leagues) table,
+       whose .mf-wrap has --mf-mb:0. (The grid keeps a small padding-bottom for
+       the horizontal scrollbar / card hover-shadow clearance.) */
+    margin-bottom: 0;
 }
 
 .active-leagues-grid {
@@ -1219,12 +1223,10 @@ body:has(.edit-bar) .theme-picker {
 .lp-tab-panel[hidden] { display: none; }
 
 /* Sidebar deep-links (Records sub-menu, ?tab=…) scroll these into view via
-   scrollIntoView — reserve space for the fixed topbar so the target's
-   heading doesn't land underneath it. */
-.lp-tabs-shell,
-.dash-section {
-    scroll-margin-top: calc(var(--topbar-height) + env(safe-area-inset-top, 0px) + var(--space-md));
-}
+   a manual scrollTo in landingPage.js that measures the fixed topbar's live
+   height at scroll time (measureFixedTopOffset) — no scroll-margin-top
+   needed/used here; keep it that way so there's a single dynamic source of
+   truth instead of a CSS constant that can drift out of sync with it. */
 
 /* Leaderboard export controls sit in their own row under the heading. */
 .lp-tab-panel > .leaderboard-section .leaderboard-header-row {
@@ -1235,6 +1237,25 @@ body:has(.edit-bar) .theme-picker {
 /* (tab theme overrides moved to css/tabs.css — single source for .app-tabs) */
 
 /* ---- Players sections (stacked Notable + Rest, A7 format) ---- */
+.lp-players-search-wrap {
+    width: 50%;
+    margin-bottom: var(--space-md);
+}
+.lp-players-search-input {
+    width: 100%;
+    padding: 7px 12px;
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    background: var(--color-surface);
+    outline: none;
+    box-sizing: border-box;
+}
+.lp-players-search-input:focus {
+    border-color: var(--color-accent);
+    outline: 2px solid var(--color-accent);
+    outline-offset: -1px;
+}
 .lp-players-section + .lp-players-section {
     margin-top: var(--space-md);
 }

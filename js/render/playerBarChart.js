@@ -123,8 +123,10 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer,
         const C = themeColors();
         const dpr = window.devicePixelRatio || 1;
 
-        // Resize canvas to host width (CSS px). Height fixed at H.
-        const cssW = Math.max(host.clientWidth || W, 320);
+        // Resize canvas to host width (CSS px). Height fixed at H. No artificial
+        // minimum — on narrow phones the host can be under 320px, and forcing a
+        // floor there would overflow past the host/info-panel (iron rule 1).
+        const cssW = host.clientWidth || W;
         W = cssW;
         canvas.style.width = cssW + 'px';
         canvas.style.height = H + 'px';

@@ -31,7 +31,6 @@ import { addChange, getChangeCount } from '../admin/stagingStore.js';
 import { mountAdminSidebar, refreshBadge as refreshSidebarBadge } from '../admin/render/adminSidebar.js';
 import { loadPlayersMetadata } from '../data/playersMetadata.js';
 import { hasTitles, compareTitlePriority, getFullTitleDescription } from '../data/titleConstants.js';
-import { startSplash, updateSplashLogo, endSplash } from '../utils/splash.js';
 import { mountAppTabs } from './appTabs.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
@@ -66,24 +65,21 @@ export async function renderLandingPage() {
     const container = document.getElementById('content');
     container.innerHTML = '<div class="loading">Loading leagues...</div>';
 
-    const logoEl = document.getElementById('site-logo');
+    const headerEl = document.getElementById('page-header');
     let heroBanner = null;
 
     try {
-        // Load landing settings and populate header
         _landingSettings = await loadLandingSettings();
-        populateHeader(_landingSettings);
+
+        // The hero banner IS the landing header — always. #page-header starts
+        // hidden and is revealed only once the banner is rendered, so nothing
+        // flashes before it.
         heroBanner = await applyHeroBanner();
         if (heroBanner) {
-            // Banner pages show an in-banner text loader (see hero-banner.css);
-            // the full-screen logo "breathe" splash is skipped for them.
             const anim = heroBanner.dataset.loadanim;
             if (anim && anim !== 'none') heroBanner.classList.add('is-loading', 'load-' + anim);
-        } else {
-            if (logoEl) logoEl.classList.add('logo-loading');
-            startSplash();
-            updateSplashLogo(_landingSettings.logoPath);
         }
+        if (headerEl) headerEl.style.visibility = 'visible';
 
         const [allLeagues, playersMeta] = await Promise.all([
             loadAllLeagues(),
@@ -159,7 +155,10 @@ export async function renderLandingPage() {
                 : Promise.resolve();
             ready.then(() => requestAnimationFrame(() => {
                 const target = (hashId && document.getElementById(hashId)) || shell.root;
-                target.scrollIntoView({ block: 'start', behavior: 'auto' });
+                const BREATHING_ROOM = 16; // small gap so the heading isn't flush against the chrome above it
+                const offset = measureFixedTopOffset() + BREATHING_ROOM;
+                const targetY = target.getBoundingClientRect().top + window.scrollY - offset;
+                window.scrollTo({ top: Math.max(0, targetY), behavior: 'auto' });
             }));
         }
 
@@ -191,10 +190,30 @@ export async function renderLandingPage() {
     } catch (err) {
         container.innerHTML = `<div class="error">Failed to load leagues: ${err.message}</div>`;
     } finally {
-        if (logoEl) logoEl.classList.remove('logo-loading');
         if (heroBanner) heroBanner.classList.remove('is-loading');
-        endSplash();
+        if (headerEl) headerEl.style.visibility = 'visible';
     }
+}
+
+/** Height of whatever is currently pinned to the very top of the viewport
+ *  (the site topbar today) — measured live from the rendered DOM instead of
+ *  a hardcoded constant, so any future top-of-page chrome (e.g. a fixed/
+ *  sticky hero banner) is picked up automatically with no change here.
+ *  Scoped to body/#app direct children — that's where global chrome mounts
+ *  (see js/render/topbar.js's `document.body.appendChild`) — so this stays
+ *  cheap instead of walking the whole page on every scroll. */
+function measureFixedTopOffset() {
+    const app = document.getElementById('app');
+    const candidates = [...document.body.children, ...(app ? app.children : [])];
+    let offset = 0;
+    for (const el of candidates) {
+        const cs = getComputedStyle(el);
+        if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
+        if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.height > 0 && rect.top <= 1) offset = Math.max(offset, rect.bottom);
+    }
+    return offset;
 }
 
 /* ── Tabs shell (Progressive Disclosure) ──────────────── */
@@ -227,23 +246,55 @@ function renderPlayersTab(container, allMeta, leagues) {
 
     const cols = buildPlayerCols();
 
+    const section = document.createElement('div');
+    section.className = 'app-section app-section--card lp-players-section';
+    section.innerHTML = `
+        <h2 class="app-section-h2">Players</h2>
+        <div class="collapsible-body"></div>`;
+    container.appendChild(section);
+    wireSectionCollapse(section, { defaultOpen: true });
+
+    const body = section.querySelector('.collapsible-body');
+
+    const searchWrap = document.createElement('div');
+    searchWrap.className = 'lp-players-search-wrap';
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'lp-players-search-input app-search-input';
+    searchInput.placeholder = 'Search player…';
+    searchInput.autocomplete = 'off';
+    searchWrap.appendChild(searchInput);
+    body.appendChild(searchWrap);
+
     const mount = document.createElement('div');
-    mount.className = 'app-section app-section--card lp-players-section';
-    container.appendChild(mount);
+    body.appendChild(mount);
 
-    const { table } = mountSFTable(mount, {
-        tableId:   'A7',
-        title:     `Players (${rows.length})`,
-        data:      rows,
-        cols,
-        fontClass: 'font-small',
-        stickyCols: 1,
-        showTopN:  50
-    });
-    table.classList.add('sf-sticky-1');
+    // Live filter-as-you-type — no dropdown/selection step. While a query is
+    // active, showTopN is dropped so every match is visible (the "Show all"
+    // toggle only makes sense against the unfiltered default view).
+    function renderTable(query) {
+        const q = query.trim().toLowerCase();
+        const filtered = q
+            ? rows.filter(r => r.name.toLowerCase().includes(q) || r.fullName.toLowerCase().includes(q))
+            : rows;
 
-    // Right-click context menu on every player-name link (no leagueId → general profile).
-    attachPlayerNameInteractions(mount, null);
+        const { table } = mountSFTable(mount, {
+            tableId:   'A7',
+            title:     null,
+            data:      filtered,
+            cols,
+            fontClass: 'font-small',
+            stickyCols: 1,
+            showTopN:  q ? null : 50
+        });
+        table.classList.add('sf-sticky-1');
+
+        // Right-click context menu on every player-name link (no leagueId → general profile).
+        attachPlayerNameInteractions(mount, null);
+    }
+
+    searchInput.addEventListener('input', () => renderTable(searchInput.value));
+    renderTable('');
 }
 
 /** 3-state player status → label/color map.
@@ -371,36 +422,24 @@ function buildPlayerCols() {
     ];
 }
 
-/* ── Header population ────────────────────────────────── */
-
-function populateHeader(settings) {
-    const logo = document.getElementById('site-logo');
-    const title = document.getElementById('site-title');
-    const subtitle = document.getElementById('site-subtitle');
-    if (logo) logo.src = settings.logoPath;
-    if (title) title.textContent = settings.title;
-    if (subtitle) subtitle.textContent = settings.subtitle;
-}
+/* ── Hero banner ──────────────────────────────────────── */
 
 /**
- * If a saved hero-banner config exists, replace the classic logo/title header
- * with the designed banner. Non-destructive: when no config is saved the
- * classic header stays exactly as-is. Skipped in admin edit mode so the
- * contentEditable title/subtitle flow keeps working on the original elements.
+ * Render the designed hero banner into #page-header. The banner is the landing
+ * header on every load (public and admin edit mode alike); there is no classic
+ * logo/title header any more. Returns the banner element, or null if the config
+ * is missing/empty.
  */
 let _bannerResizeBound = false;
 async function applyHeroBanner() {
-    const editIntent = isLoggedIn() && !isPreviewMode()
-        && new URLSearchParams(location.search).get('edit') === '1';
-    if (editIntent) return null;
-
     const header = document.getElementById('page-header');
     if (!header) return null;
 
     const cfg = await loadBannerConfig();
-    if (!cfg || !Array.isArray(cfg.els) || cfg.els.length === 0) return null; // keep classic header
+    if (!cfg || !Array.isArray(cfg.els) || cfg.els.length === 0) return null;
 
     header.classList.add('page-header--banner');
+    document.querySelector('.page-container')?.classList.add('has-hero-banner');
     let banner = header.querySelector('.hero-banner');
     if (!banner) {
         header.innerHTML = '';
@@ -429,11 +468,6 @@ let _editState = null; // tracks dirty values during edit
 function enterEditMode(settings) {
     _editModeActive = true;
     _editState = {
-        title: settings.title,
-        subtitle: settings.subtitle,
-        logoPath: settings.logoPath,
-        logoData: null,       // base64 if user picked a new image
-        logoFileName: null,
         displayOrder: [...settings.displayOrder],
         dirty: false
     };
@@ -443,30 +477,8 @@ function enterEditMode(settings) {
     // Mount admin sidebar so navigation + Pending badge stay visible while editing
     mountAdminSidebar({ activeView: 'dashboard' });
 
-    // Make title/subtitle editable
-    const titleEl = document.getElementById('site-title');
-    const subtitleEl = document.getElementById('site-subtitle');
-    titleEl.contentEditable = 'true';
-    subtitleEl.contentEditable = 'true';
-    titleEl.classList.add('editable-field');
-    subtitleEl.classList.add('editable-field');
-
-    titleEl.addEventListener('input', onHeaderInput);
-    subtitleEl.addEventListener('input', onHeaderInput);
-
-    // Add logo overlay
-    const logo = document.getElementById('site-logo');
-    const logoWrap = document.createElement('div');
-    logoWrap.className = 'logo-edit-wrapper';
-    logo.parentNode.insertBefore(logoWrap, logo);
-    logoWrap.appendChild(logo);
-    const overlay = document.createElement('div');
-    overlay.className = 'logo-edit-overlay';
-    overlay.textContent = 'Change';
-    overlay.addEventListener('click', pickLogo);
-    logoWrap.appendChild(overlay);
-
-    // Add drag handles to completed leagues table rows
+    // The header is the hero banner (not editable here) — edit mode only
+    // reorders leagues. Add drag handles to the league cards + completed table.
     addDragHandles();
 
     // Show save/cancel bar
@@ -494,27 +506,6 @@ function exitEditMode() {
     _editModeActive = false;
     document.querySelector('.page-container').classList.remove('edit-mode');
 
-    // Restore header
-    const titleEl = document.getElementById('site-title');
-    const subtitleEl = document.getElementById('site-subtitle');
-    titleEl.contentEditable = 'false';
-    subtitleEl.contentEditable = 'false';
-    titleEl.classList.remove('editable-field');
-    subtitleEl.classList.remove('editable-field');
-    titleEl.removeEventListener('input', onHeaderInput);
-    subtitleEl.removeEventListener('input', onHeaderInput);
-
-    // Restore original values
-    populateHeader(_landingSettings);
-
-    // Remove logo wrapper
-    const logoWrap = document.querySelector('.logo-edit-wrapper');
-    if (logoWrap) {
-        const logo = logoWrap.querySelector('.logo');
-        logoWrap.parentNode.insertBefore(logo, logoWrap);
-        logoWrap.remove();
-    }
-
     // Remove drag handles
     removeDragHandles();
 
@@ -538,38 +529,11 @@ function exitEditMode() {
     _editState = null;
 }
 
-function onHeaderInput() {
-    if (!_editState) return;
-    _editState.title = document.getElementById('site-title').textContent.trim();
-    _editState.subtitle = document.getElementById('site-subtitle').textContent.trim();
-    markDirty();
-}
-
 function markDirty() {
     if (!_editState) return;
     _editState.dirty = true;
     const saveBtn = document.querySelector('.edit-bar-save');
     if (saveBtn) saveBtn.disabled = false;
-}
-
-function pickLogo() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.addEventListener('change', () => {
-        const file = input.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-            const base64 = reader.result.split(',')[1];
-            _editState.logoData = base64;
-            _editState.logoFileName = file.name;
-            document.getElementById('site-logo').src = reader.result;
-            markDirty();
-        };
-        reader.readAsDataURL(file);
-    });
-    input.click();
 }
 
 /* ── Drag-and-drop league reorder ─────────────────────── */
@@ -776,33 +740,25 @@ function showEditBar() {
 async function saveEditChanges() {
     if (!_editState || !_editState.dirty) return;
 
-    // Compare against original to detect actual changes
+    // Edit mode only reorders leagues now — title/subtitle/logo live in the banner.
     const orig = _landingSettings;
-    const titleChanged = _editState.title !== orig.title;
-    const subtitleChanged = _editState.subtitle !== orig.subtitle;
-    const logoChanged = !!_editState.logoData;
     const orderChanged = JSON.stringify(_editState.displayOrder) !== JSON.stringify(orig.displayOrder);
 
-    if (!titleChanged && !subtitleChanged && !logoChanged && !orderChanged) {
+    if (!orderChanged) {
         exitEditMode();
         return;
     }
 
-    // Build updated landing_settings.json
+    // Build updated landing_settings.json — preserve title/subtitle/logo as-is,
+    // only the league DisplayOrder changes here.
     const newSettings = {
-        title: _editState.title,
-        subtitle: _editState.subtitle,
-        logoPath: _editState.logoData ? _landingSettings.logoPath : _editState.logoPath,
+        title: orig.title,
+        subtitle: orig.subtitle,
+        logoPath: orig.logoPath,
         DisplayOrder: _editState.displayOrder
     };
 
-    // Build single grouped description summarizing what changed
-    const parts = [];
-    if (titleChanged) parts.push('title');
-    if (subtitleChanged) parts.push('subtitle');
-    if (logoChanged) parts.push('logo');
-    if (orderChanged) parts.push('order');
-    const groupDescription = `Dashboard updated (${parts.join(', ')})`;
+    const groupDescription = 'Dashboard updated (order)';
     const groupId = 'dashboard-edit-' + Date.now();
 
     addChange({
@@ -813,19 +769,6 @@ async function saveEditChanges() {
         group: groupId,
         groupDescription
     });
-
-    // Stage logo if changed
-    if (_editState.logoData) {
-        addChange({
-            type: 'update',
-            path: _landingSettings.logoPath,
-            content: _editState.logoData,
-            binary: true,
-            description: groupDescription,
-            group: groupId,
-            groupDescription
-        });
-    }
 
     // Update in-memory settings
     _landingSettings = {
@@ -838,13 +781,8 @@ async function saveEditChanges() {
     // Refresh admin sidebar badge
     refreshSidebarBadge();
 
-    // Stay in edit mode after save — reset dirty state and resync editState to saved values
-    _editState.title = _landingSettings.title;
-    _editState.subtitle = _landingSettings.subtitle;
-    _editState.logoPath = _landingSettings.logoPath;
+    // Stay in edit mode after save — reset dirty state and resync editState
     _editState.displayOrder = [..._landingSettings.displayOrder];
-    _editState.logoData = null;
-    _editState.logoFileName = null;
     _editState.dirty = false;
 
     const saveBtn = document.querySelector('.edit-bar-save');

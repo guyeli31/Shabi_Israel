@@ -765,6 +765,7 @@ tr.retired {
     font-weight: 600;
     white-space: nowrap;
 }
+.matchup-count-badge[hidden] { display: none; }
 
 .matchup-table-wrapper {
     /* plain layout container — card visual lives on inner .mf-wrap */

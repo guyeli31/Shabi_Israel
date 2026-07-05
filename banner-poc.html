@@ -42,6 +42,8 @@
     .savebar .status.ok { color: var(--color-running, #2e9e5b); font-weight:600; }
 
     .cap { font-size:12px; color:var(--color-text-muted); margin:0 0 8px; }
+    /* Match production: the banner ships flat + full-width (no card frame). */
+    #deskBanner { border:0; border-radius:0; box-shadow:none; }
 
     .poc-add { display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
     .poc-add select, .poc-add button { padding:6px 10px; border:1px solid var(--color-border);
@@ -77,16 +79,17 @@
       <span class="status" id="saveStatus"></span>
     </div>
 
-    <p class="cap">Preview — fills the page-header card (≤1100px)</p>
+    <p class="cap">Preview — full-width banner header (≤1100px), flat like production</p>
     <div style="margin:0 auto;">
       <header class="hero-banner" id="deskBanner"></header>
     </div>
 
-    <h2 class="poc-h">Logo</h2>
-    <div class="poc-panels" id="logoPanel"></div>
-
-    <h2 class="poc-h">Loading animation</h2>
-    <div class="poc-panels"><div class="poc-card" id="loadCard"></div></div>
+    <h2 class="poc-h">Configuration</h2>
+    <div class="poc-panels">
+      <div class="poc-card" id="logoCard"></div>
+      <div class="poc-card" id="sizeCard"></div>
+      <div class="poc-card" id="loadCard"></div>
+    </div>
 
     <h2 class="poc-h">Text elements</h2>
     <div class="poc-add">
@@ -159,6 +162,7 @@
     photo: 'assets/logo/board-clean.jpg',
     logo: { src:'assets/logo/logo.png', size:150, x:7, y:48, show:true },
     loadingAnim: 'shimmer',   // none | shimmer | reveal | underline | glow
+    heightAdd: 62,            // extra banner height in design px (added top+bottom)
     els: []
   };
 
@@ -172,14 +176,13 @@
 
   function buildLogoCard(){
     const L = config.logo;
-    const c=document.createElement('div'); c.className='poc-card';
+    const c = document.getElementById('logoCard');
     c.innerHTML=`<div class="hd"><b>Logo</b>
         <label style="font-size:12px;color:var(--color-text-muted)">
         <input type="checkbox" id="logo_show" ${L.show?'checked':''}> show</label></div>
-      ${rowRange('Size','logo_size',48,220,L.size)}
+      ${rowRange('Size','logo_size',48,250,L.size)}
       ${rowRange('X pos','logo_x',0,95,L.x)}
       ${rowRange('Y pos','logo_y',0,100,L.y)}`;
-    document.getElementById('logoPanel').appendChild(c);
     const bind=(id,key,unit)=>{ const i=c.querySelector('#'+id),v=c.querySelector('#'+id+'_v');
       i.oninput=()=>{ L[key]=+i.value; v.textContent=i.value+(unit||''); render(); }; };
     bind('logo_size','size'); bind('logo_x','x','%'); bind('logo_y','y','%');
@@ -245,6 +248,18 @@
       <div class="poc-row"><button id="load_prev" class="btn-ghost" style="flex:1;cursor:pointer">▶ Preview loading (2.5s)</button></div>`;
     c.querySelector('#load_sel').onchange = e => { config.loadingAnim = e.target.value; previewLoading(); };
     c.querySelector('#load_prev').onclick = previewLoading;
+  }
+
+  /* ---------- banner-size control (extra height in px) ---------- */
+  function buildSizeCard(){
+    const c = document.getElementById('sizeCard');
+    const val = config.heightAdd || 0;
+    c.innerHTML = `<div class="hd"><b>Banner</b></div>
+      <div class="poc-row"><label>Extra height</label>
+        <input type="range" id="b_hadd" min="0" max="320" value="${val}">
+        <span class="val" id="b_hadd_v">${val}px</span></div>`;
+    const i = c.querySelector('#b_hadd'), v = c.querySelector('#b_hadd_v');
+    i.oninput = () => { config.heightAdd = +i.value; v.textContent = i.value + 'px'; render(); };
   }
 
   /* ---------- add elements ---------- */
@@ -336,8 +351,8 @@
       Object.assign(config, saved);
       // re-tag presets for the control labels (best-effort)
       config.els.forEach(el => { el._preset = el.upper ? 'Tagline' : (el.italic ? 'Subtitle' : 'Title'); buildTextCard(el); });
-      // logo card already built from defaults; sync its inputs
-      document.getElementById('logoPanel').innerHTML=''; buildLogoCard();
+      // re-populate the logo card so its sliders reflect the saved logo values
+      buildLogoCard();
       render();
     } else {
       // Default = the original banner artwork, reproduced as live code:
@@ -353,6 +368,7 @@
       defaults.forEach(el => { config.els.push(el); buildTextCard(el); });
       render();
     }
+    buildSizeCard();   // built after config is finalised so it reflects any saved height
     buildLoadCard();   // built after config is finalised so it reflects any saved choice
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(render);
   })();

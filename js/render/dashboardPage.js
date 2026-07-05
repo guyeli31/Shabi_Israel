@@ -18,7 +18,7 @@ import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagu
 import { exportTableImage } from '../utils/exportTableImage.js';
 import { colorForValueInverted } from '../compute/colorScale.js';
 import { drawPlayerBarChart, computeNiceRange } from './playerBarChart.js';
-import { drawCorrelationRow, brierScore } from './prCorrelationChart.js';
+import { drawCorrelationRow, brierScore, brierAssessment, signedLuckScore, luckAssessment } from './prCorrelationChart.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { predictChampionship, computeTopXPct, prProbabilityTableHtml, getWinProbability, nearestMatchLengthIdx } from '../compute/championshipPredictor.js';
 import { batchLast300PRForSimulator } from '../compute/crossLeague.js';
@@ -395,23 +395,65 @@ function insightsPanel() {
                 means fewer errors, a dot further to the <b>right</b> means the player played better than their
                 opponent that match; further <b>left</b> means they played worse. <span style="color:var(--color-win)">Green</span>
                 = the player won that match, <span style="color:var(--color-loss)">red</span> = they lost.</p>
-                <p>The bottom row is always the <b>league-wide</b> chart: one uncoloured dot per match, at
+                <p>The bottom row is always the <b>league-wide</b> chart: one <span style="color:var(--color-win)">green</span>
+                dot per match (every dot is that match's winner, so there's no loss side to colour), at
                 <i>PR of the loser &minus; PR of the winner</i>. A positive value means the favourite (lower PR)
                 won as expected; a negative value is an upset.</p>
                 <p>All rows share the same X axis, sized symmetrically to &plusmn;the single largest PR gap seen
                 anywhere in the league, so every chart lines up and no dot ever sits at the very edge by accident.</p>
                 <h4>The Brier score</h4>
-                <p>Each row also shows a <b>Brier score</b> &mdash; not a correlation, but how well the site's own
-                PR-based win-probability model (the same one behind the Predictor and What If) actually predicted
-                these specific results. For every match, the model gives a win probability from the two PRs; Brier
-                is the average squared error between that probability and the real outcome:
-                <code>mean((outcome &minus; predicted)&sup2;)</code>. <b>0</b> means the model called every result
-                perfectly, <b>0.25</b> means it did no better than a coin flip, and higher means it was
-                confidently wrong.</p>
+                <p>Each row also shows a <b>Brier score</b> &mdash; how well the site's own PR-based
+                win-probability model (the same one behind the Predictor and What If) actually predicted these
+                specific results. For every match, the model gives a win probability from the two PRs; Brier is
+                the average squared error between that probability and the real outcome, evaluated from the actual
+                winner's side: <code>mean((1 &minus; p<sub>winner</sub>)&sup2;)</code>.</p>
+                <div class="brier-scale">
+                    <div class="brier-scale-bar"></div>
+                    <div class="brier-scale-ticks">
+                        <span class="brier-scale-tick" style="left:0%"><b>0</b><small>Perfect fit</small></span>
+                        <span class="brier-scale-tick" style="left:25%"><b>0.25</b><small>Coin-flip</small></span>
+                        <span class="brier-scale-tick" style="left:100%"><b>1</b><small>Mostly upsets</small></span>
+                    </div>
+                </div>
+                <ul>
+                    <li><b>0</b> = the model was 100% sure the actual winner would win, every single match
+                    &mdash; results match PR-gap theory perfectly.</li>
+                    <li><b>0.25</b> = on average, the model was no more sure than a coin flip &mdash; it isn't
+                    predicting anything.</li>
+                    <li><b>close to 1</b> = the model kept expecting the loser to win, and kept being wrong
+                    &mdash; constant upsets.</li>
+                </ul>
+                <p>A short word next to the number gives the same read at a glance (Excellent / Strong / Good
+                fit &hellip; Coin-flip &hellip; Weak fit / Mostly upsets), coloured along the same green
+                &rarr; amber &rarr; red scale.</p>
                 <p>Unlike a correlation, Brier stays well-defined even for a player with a perfect or winless
-                record &mdash; it only needs a predicted probability and an outcome per match, not variation
-                between wins and losses, so it never collapses to "undefined" the way a correlation coefficient
-                does for an undefeated player.</p>
+                record, and even for the league-wide row (where every entry is, by definition, a win) &mdash; it
+                only needs a predicted probability and an outcome per match, not variation between wins and
+                losses.</p>
+                <p>Unlike a correlation or a Z-score/percentile, Brier needs no minimum sample size to stay
+                well-defined &mdash; it's shown from a row's very first match. With only a handful of games it's
+                naturally noisier (like any average), so treat rows with few matches as a rougher read than ones
+                built on a full season.</p>
+                <h4>The Luck score</h4>
+                <p>Each <b>player</b> row also shows a signed <b>Luck</b> score, from the same per-match building
+                block as Brier &mdash; but keeping the sign instead of squaring it away. A win always counts
+                <i>for</i> the player (more, the bigger the underdog they were); a loss always counts
+                <i>against</i> them (more, the bigger the favourite they were). Averaged over all their matches,
+                this lands in <code>[&minus;1, +1]</code>.</p>
+                <div class="brier-scale">
+                    <div class="brier-scale-bar luck-scale-bar"></div>
+                    <div class="brier-scale-ticks">
+                        <span class="brier-scale-tick" style="left:0%"><b>&minus;1</b><small>Very unlucky</small></span>
+                        <span class="brier-scale-tick" style="left:50%"><b>0</b><small>Balanced</small></span>
+                        <span class="brier-scale-tick" style="left:100%"><b>+1</b><small>Very lucky</small></span>
+                    </div>
+                </div>
+                <p><b>+1</b> = always the underdog and always won (maximally lucky); <b>&minus;1</b> = always the
+                favourite and still always lost (maximally unlucky); <b>0</b> = results matched what the PR model
+                expected, win or lose. It needs no variance either, so it's just as well-defined at n=1 as Brier is
+                &mdash; but it is <b>not</b> shown for the league-wide row: that row is, by construction, always
+                "the winner's own side" of every match (there's no loss side to weigh against), so a signed score
+                there would always come out positive and wouldn't mean anything. Use that row's Brier score only.</p>
             </div>
             <div id="corr-container"></div>
             <button id="add-corr-chart" class="add-chart-btn" title="Add another player's correlation row">+ Add player chart</button>
@@ -1564,7 +1606,7 @@ function renderPlayerSection(ctx) {
                     <option value="luck">Luck</option>
                 </select>
                 <a class="open-full-btn player-card-link" href="#" title="Open full player card">Open player card &rsaquo;</a>
-                <button class="remove-chart" title="Remove this chart" style="margin-left:auto">&times;</button>
+                <button class="remove-chart" title="Remove this chart">&times;</button>
             </div>
             <div class="chart-host"></div>
         `;
@@ -1721,6 +1763,46 @@ function corrMatchInfoHtml(m) {
     `;
 }
 
+// Unlike a correlation or Z-score/percentile, Brier is just an average of
+// bounded [0,1] terms — well-defined and readable at any n (even n=1), with
+// no reliance on a normal approximation. So no minimum-games gate is needed;
+// it's just noisier (like any average) with fewer matches.
+function applyMetricPill(pillEl, brier) {
+    if (brier == null) {
+        pillEl.innerHTML = `<span class="brier-caption">Brier</span><span class="brier-mini-scale"></span><b>&mdash;</b>`;
+        pillEl.title = 'No rated matches yet.';
+        return;
+    }
+    const { text, color } = brierAssessment(brier, pillEl);
+    const markerPct = Math.max(0, Math.min(100, brier * 100));
+    pillEl.innerHTML = `
+        <span class="brier-caption">Brier</span>
+        <span class="brier-mini-scale"><span class="brier-mini-marker" style="left:${markerPct}%"></span></span>
+        <b>${brier.toFixed(3)}</b>
+        <span class="brier-label" style="color:${color}">${text}</span>
+    `;
+    pillEl.title = 'Brier score: mean squared error between the PR model\'s predicted win probability and the actual result. 0 = the model was fully confident in every actual winner, 0.25 = no better than a coin flip, 1 = confidently wrong every time.';
+}
+
+// Signed-luck: only meaningful for a player row (real win/loss variation) —
+// never call this for the general row, see signedLuckScore()'s doc comment.
+function applyLuckPill(pillEl, luck) {
+    if (luck == null) {
+        pillEl.innerHTML = `<span class="brier-caption">Luck</span><span class="luck-mini-scale"></span><b>&mdash;</b>`;
+        pillEl.title = 'No rated matches yet.';
+        return;
+    }
+    const { text, color } = luckAssessment(luck, pillEl);
+    const markerPct = Math.max(0, Math.min(100, (luck + 1) / 2 * 100));
+    pillEl.innerHTML = `
+        <span class="brier-caption">Luck</span>
+        <span class="luck-mini-scale"><span class="brier-mini-marker" style="left:${markerPct}%"></span></span>
+        <b>${luck >= 0 ? '+' : ''}${luck.toFixed(3)}</b>
+        <span class="brier-label" style="color:${color}">${text}</span>
+    `;
+    pillEl.title = 'Signed-luck score: same per-match building block as Brier, but keeps the sign. +1 = maximally lucky (always the underdog, always won), -1 = maximally unlucky (always favoured, always lost), 0 = results matched the PR model exactly.';
+}
+
 function renderPrCorrelationSection(ctx) {
     const { liveMatches } = ctx;
     const players = [...ctx.allPlayersSet].sort();
@@ -1746,15 +1828,17 @@ function renderPrCorrelationSection(ctx) {
             <div class="dash-controls">
                 <label>Player:</label>
                 <select class="player-pick">${players.map(p => `<option value="${p}" ${p === initialPlayer ? 'selected' : ''}>${displayPlayerName(p)}</option>`).join('')}</select>
-                <span class="corr-metric-pill" title="Brier score: 0 = the PR model predicted every result perfectly, 0.25 = no better than a coin flip, 1 = maximally wrong">Brier = <b class="corr-brier-val">—</b></span>
-                <button class="remove-chart" title="Remove this chart" style="margin-left:auto">&times;</button>
+                <span class="corr-metric-pill"></span>
+                <span class="corr-metric-pill corr-luck-pill"></span>
+                <button class="remove-chart" title="Remove this chart">&times;</button>
             </div>
             <div class="chart-host corr-host"></div>
         `;
         container.appendChild(panel);
 
         const playerSel = panel.querySelector('.player-pick');
-        const brierVal = panel.querySelector('.corr-brier-val');
+        const metricPill = panel.querySelector('.corr-metric-pill:not(.corr-luck-pill)');
+        const luckPill = panel.querySelector('.corr-luck-pill');
         const host = panel.querySelector('.corr-host');
         const removeBtn = panel.querySelector('.remove-chart');
 
@@ -1767,7 +1851,8 @@ function renderPrCorrelationSection(ctx) {
                 outcome: m.win ? 1 : 0
             }));
             const brier = brierScore(items);
-            brierVal.textContent = brier == null ? '—' : brier.toFixed(3);
+            applyMetricPill(metricPill, brier);
+            applyLuckPill(luckPill, signedLuckScore(items));
             drawCorrelationRow(host, series.map(m => ({ x: m.advantage, win: m.win, match: m })), {
                 xMin: domain.xMin,
                 xMax: domain.xMax,
@@ -1809,12 +1894,13 @@ function renderPrCorrelationSection(ctx) {
     generalPanel.innerHTML = `
         <div class="dash-controls">
             <label>League &mdash; all matches</label>
-            <span class="corr-metric-pill" title="Brier score: 0 = the PR model predicted every result perfectly, 0.25 = no better than a coin flip, 1 = maximally wrong">Brier = <b>${generalBrier == null ? '—' : generalBrier.toFixed(3)}</b></span>
+            <span class="corr-metric-pill"></span>
         </div>
         <div class="chart-host corr-host"></div>
     `;
+    applyMetricPill(generalPanel.querySelector('.corr-metric-pill'), generalBrier);
     container.appendChild(generalPanel);
-    drawCorrelationRow(generalPanel.querySelector('.corr-host'), generalSeries.map(m => ({ x: m.advantage, match: m })), {
+    drawCorrelationRow(generalPanel.querySelector('.corr-host'), generalSeries.map(m => ({ x: m.advantage, win: true, match: m })), {
         xMin: domain.xMin,
         xMax: domain.xMax,
         showAxis: true,
