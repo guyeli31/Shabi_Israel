@@ -278,6 +278,8 @@ export function mountSearchInto(searchRoot) {
         ensurePlayerIndex();
     }, { once: true });
 
+    let searchTrackTimer = null;
+
     input.addEventListener('input', async () => {
         const query = input.value.trim().toLowerCase();
         if (query.length < 1) {
@@ -289,6 +291,17 @@ export function mountSearchInto(searchRoot) {
         const { leagues: leagueMatches, players: playerMatches } = await searchEntities(query);
         // Bail if the query changed while the player index was loading.
         if (input.value.trim().toLowerCase() !== query) return;
+
+        // Debounced (once per pause in typing, not per keystroke) so analytics
+        // isn't spammed while someone is still typing. A custom DOM event, not
+        // a direct import of analytics.js — this file is also used by pages
+        // (design-lab.html) that deliberately don't load analytics.js, and a
+        // static import would have pulled its tracking in there too.
+        const foundResults = leagueMatches.length > 0 || playerMatches.length > 0;
+        clearTimeout(searchTrackTimer);
+        searchTrackTimer = setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('shabi:search-performed', { detail: { foundResults } }));
+        }, 800);
 
         if (leagueMatches.length === 0 && playerMatches.length === 0) {
             results.innerHTML = '<li class="search-empty">No matches found</li>';

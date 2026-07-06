@@ -20,7 +20,10 @@
  * today, in case a fork/local checkout doesn't have it wired up).
  */
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './data/supabaseConfig.js';
+// resolvedUrl/resolvedAnonKey (not the raw SUPABASE_URL/ANON_KEY constants)
+// so local/dev testing writes to the local Docker project, matching every
+// other data path in the app — never polluting production analytics.
+import { resolvedUrl as SUPABASE_URL, resolvedAnonKey as SUPABASE_ANON_KEY } from './data/supabaseClient.js';
 
 const PAGE_BY_FILENAME = {
     'index.html': 'landing',
@@ -59,21 +62,32 @@ function detectDevice() {
     return { device_type: deviceType, os, browser };
 }
 
-// Only a coarse category is kept — never the raw referrer URL (which could
-// carry identifying query-string content) and never used to link events.
+// Only a coarse category is kept — never the raw referrer URL. The one
+// exception is league/player query params when the referrer is internal:
+// those are the same non-identifying content identifiers (public league
+// names, player nicknames) already stored for the CURRENT page — reading
+// them off the referrer's own query string is symmetric, not a new category
+// of data, and lets "page-to-page flow" show which league/player the visitor
+// came from, not just which page type.
 function detectReferrer() {
     const raw = document.referrer || '';
-    if (!raw) return { referrer_kind: 'direct', from_page: null };
+    if (!raw) return { referrer_kind: 'direct', from_page: null, from_league_id: null, from_player: null };
     try {
         const refUrl = new URL(raw);
         if (refUrl.hostname === location.hostname) {
-            return { referrer_kind: 'internal', from_page: pageFromPathname(refUrl.pathname) };
+            const refParams = new URLSearchParams(refUrl.search);
+            return {
+                referrer_kind: 'internal',
+                from_page: pageFromPathname(refUrl.pathname),
+                from_league_id: refParams.get('league') || null,
+                from_player: refParams.get('player') || null,
+            };
         }
-        if (/google|bing|duckduckgo|yahoo/i.test(refUrl.hostname)) return { referrer_kind: 'search', from_page: null };
-        if (/facebook|instagram|twitter|x\.com|t\.co|linkedin|whatsapp/i.test(refUrl.hostname)) return { referrer_kind: 'social', from_page: null };
-        return { referrer_kind: 'other', from_page: null };
+        if (/google|bing|duckduckgo|yahoo/i.test(refUrl.hostname)) return { referrer_kind: 'search', from_page: null, from_league_id: null, from_player: null };
+        if (/facebook|instagram|twitter|x\.com|t\.co|linkedin|whatsapp/i.test(refUrl.hostname)) return { referrer_kind: 'social', from_page: null, from_league_id: null, from_player: null };
+        return { referrer_kind: 'other', from_page: null, from_league_id: null, from_player: null };
     } catch {
-        return { referrer_kind: 'other', from_page: null };
+        return { referrer_kind: 'other', from_page: null, from_league_id: null, from_player: null };
     }
 }
 
@@ -141,7 +155,7 @@ document.addEventListener('visibilitychange', () => {
 function sendDuration() {
     bankVisibleTime();
     if (accumulatedMs < 100) return; // negligible dwell — skip noise
-    const { from_page, ...fields } = baseFields();
+    const { from_page, from_league_id, from_player, ...fields } = baseFields();
     send({ ...fields, event_type: 'duration', duration_ms: Math.round(accumulatedMs) }, { useBeacon: true });
     accumulatedMs = 0;
 }
@@ -152,15 +166,42 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ---- clicks (delegated) ----
+// `.img-export-btn` matches every "Export Image" button across dashboardPage/
+// leaguePage/landingPage/typoEditor generically — no need to touch each call
+// site. `#whatif-run` (Run Simulation) is handled via `[data-track]` instead:
+// dashboardPage.js sets that button's `data-track` to a per-click summary of
+// the staged scenario right before this event bubbles up, so the summary
+// (which matches were forced, not just "the button was clicked") comes along
+// for free through the existing data-track path below.
 document.addEventListener('click', (e) => {
     const trackEl = e.target.closest('[data-track]');
+    const exportBtn = e.target.closest('.img-export-btn');
     const linkEl = e.target.closest('a');
-    if (!trackEl && !linkEl) return;
+    if (!trackEl && !exportBtn && !linkEl) return;
 
     const clickTarget = trackEl
         ? trackEl.dataset.track
+        : exportBtn
+        ? 'export_image'
         : (linkEl.textContent || '').trim().slice(0, 80) || linkEl.href;
 
-    const { from_page, ...fields } = baseFields();
+    const { from_page, from_league_id, from_player, ...fields } = baseFields();
     send({ ...fields, event_type: 'click', click_target: clickTarget });
+});
+
+/**
+ * navigation.js dispatches this (debounced — once per pause in typing, not
+ * per keystroke) when a search was performed. A custom DOM event, not a
+ * direct import, since navigation.js is also used by pages (design-lab.html)
+ * that deliberately don't load this module — this listener simply does
+ * nothing there. Deliberately does NOT record the query text itself: unlike
+ * page/league/player, search input is free text a visitor could type
+ * anything into, so only a coarse outcome is kept — same "categorical, never
+ * raw" principle as referrer_kind/device_type elsewhere in this file. A
+ * resulting click-through (player/league link) is already fully tracked via
+ * the delegated click listener above.
+ */
+window.addEventListener('shabi:search-performed', (e) => {
+    const { from_page, from_league_id, from_player, ...fields } = baseFields();
+    send({ ...fields, event_type: 'click', click_target: e.detail.foundResults ? 'search_performed: results_found' : 'search_performed: no_results' });
 });

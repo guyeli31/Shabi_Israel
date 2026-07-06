@@ -642,6 +642,15 @@
     color: var(--color-text-muted);
 }
 
+/* Medals table (A3) — 🥇🥈🥉 column headers matched to the card's own
+   "Medals 🏅" title icon (.achv-table-card h3 uses the same --fs-100 token),
+   so both medal icons on this card read as the same visual size. */
+.achv-medals-card thead th:nth-child(3),
+.achv-medals-card thead th:nth-child(4),
+.achv-medals-card thead th:nth-child(5) {
+    font-size: var(--fs-100);
+}
+
 /* A4 PR Leaders — sticky rank col (iron rule 12: single sticky → left:0 directly, no JS) */
 .pr-leaders-table thead th:nth-child(1),
 .pr-leaders-table tbody td:nth-child(1) {

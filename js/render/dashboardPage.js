@@ -1043,6 +1043,15 @@ function renderWhatIfSimulator(ctx) {
     });
 
     runBtn.addEventListener('click', async () => {
+        // Per-click summary of the staged scenario (which matches were
+        // forced, not just "the button was clicked") — read via the existing
+        // `[data-track]` path in js/analytics.js's click listener, which
+        // fires on this same click event after this synchronous line runs.
+        const stagedSummary = staged.map((s) =>
+            s.result === 'NP' ? `${s.a} vs ${s.b} not played` : `${s.result === 'A' ? s.a : s.b} beats ${s.result === 'A' ? s.b : s.a}`
+        ).join('; ');
+        runBtn.dataset.track = `run_simulation: ${staged.length} staged${stagedSummary ? ' — ' + stagedSummary : ''}`.slice(0, 300);
+
         addErr.textContent = '';
         if (staged.length === 0) {
             addErr.textContent = 'Add at least one match before running the simulation';

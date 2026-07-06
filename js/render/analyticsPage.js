@@ -6,14 +6,18 @@
  * session identifier anywhere in this system, so there is no per-visit view
  * to build here even in principle; everything below is a population-level
  * statistic, never a trace of one visitor.
+ *
+ * Sections/tables follow the same conventions as the production pages
+ * (`.app-section`/wireSectionCollapse from css/sections.css, MF table format
+ * from table-lab/formats/mf/mf.css) instead of the generic admin look.
  */
 
 import { supabase } from '../data/supabaseClient.js';
 import { escapeHtml } from '../utils/sanitize.js';
+import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountAppTabs } from './appTabs.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DOW_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DWELL_BUCKET_ORDER = ['<10s', '10-30', '30-60', '1-5m', '5m+'];
 const PAGE_LABELS = {
     landing: 'Home',
@@ -23,6 +27,19 @@ const PAGE_LABELS = {
     player_league: 'Player History',
 };
 const pageLabel = (p) => PAGE_LABELS[p] || p;
+const contextLabel = (page, leagueId, player) => {
+    const base = pageLabel(page);
+    if (player) return `${base} (${player})`;
+    if (leagueId) return `${base} (${leagueId})`;
+    return base;
+};
+
+const RANGE_OPTIONS = [
+    { key: '30d', label: 'Last 30 days', days: 30, granularity: 'day' },
+    { key: '3m', label: 'Last 3 months', days: 90, granularity: 'month' },
+    { key: '6m', label: 'Last 6 months', days: 182, granularity: 'month' },
+    { key: '12m', label: 'Last 12 months', days: 365, granularity: 'month' },
+];
 
 function formatMs(ms) {
     if (ms < 1000) return `${ms}ms`;
@@ -31,8 +48,37 @@ function formatMs(ms) {
     return `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
-/** Simple canvas bar chart — host div + canvas, matching the site's existing
- *  "draw into a host div" pattern (js/render/playerBarChart.js) at a smaller scale. */
+/** Exact "Last Updated" convention used by the League Dashboard's own card. */
+function formatLastUpdated(dateOrNull) {
+    if (!dateOrNull) return 'N/A';
+    const opts = { timeZone: 'Asia/Jerusalem' };
+    return dateOrNull.toLocaleDateString('en-GB', { ...opts, day: '2-digit', month: 'short', year: 'numeric' })
+        + ' ' + dateOrNull.toLocaleTimeString('en-GB', { ...opts, hour: '2-digit', minute: '2-digit' });
+}
+
+function hexToRgba(color, alpha) {
+    const hex = color.replace('#', '');
+    if (![3, 6].includes(hex.length)) return `rgba(74,144,217,${alpha})`;
+    const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex;
+    const r = parseInt(full.slice(0, 2), 16);
+    const g = parseInt(full.slice(2, 4), 16);
+    const b = parseInt(full.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function makeSection(title) {
+    const section = document.createElement('div');
+    section.className = 'app-section app-section--card';
+    const h2 = document.createElement('h2');
+    h2.className = 'app-section-h2';
+    h2.textContent = title;
+    section.appendChild(h2);
+    return section;
+}
+
+/** Bar chart — host div + canvas. Reads theme colours live, clamps every
+ *  label/value to its own bar width so nothing can overlap or overflow, and
+ *  thins labels on dense charts (e.g. a 12-month timeseries). */
 function drawBarChart(host, items, { labelKey, valueKey, labelFmt = (v) => v }) {
     host.innerHTML = '';
     if (!items || items.length === 0) {
@@ -56,9 +102,6 @@ function drawBarChart(host, items, { labelKey, valueKey, labelFmt = (v) => v }) 
     const axisColor = (style.getPropertyValue('--color-border') || '#ddd').trim() || '#ddd';
     const baseY = height - 20;
 
-    // Dense charts (e.g. a 30-day timeseries) would otherwise overlap every
-    // label into an unreadable smear — thin them out to roughly one per
-    // 40px of bar width instead of forcing every single one.
     const labelEvery = Math.max(1, Math.ceil((items.length * 32) / width));
 
     ctx.strokeStyle = axisColor;
@@ -89,21 +132,37 @@ function drawBarChart(host, items, { labelKey, valueKey, labelFmt = (v) => v }) 
     });
 }
 
-/** Day-of-week x hour-of-day traffic heatmap. Purely aggregate counts — no
- *  correlation to any individual visit, just "how many pageviews land in this
- *  hour/day bucket overall". */
-function drawHeatmap(host, rows) {
+/** Traffic heatmap: real calendar buckets (day or month, Israel time) x hour-of-day,
+ *  with a colour-scale legend whose range matches the data actually shown. */
+function drawDateHeatmap(host, rows, granularity) {
     host.innerHTML = '';
-    const grid = Array.from({ length: 7 }, () => Array(24).fill(0));
-    for (const r of rows || []) {
-        if (r.dow >= 0 && r.dow < 7 && r.hour >= 0 && r.hour < 24) grid[r.dow][r.hour] = r.views;
+    if (!rows || rows.length === 0) {
+        host.innerHTML = '<p class="muted">No data yet.</p>';
+        return;
     }
-    const max = Math.max(...grid.flat(), 1);
+    const buckets = [...new Set(rows.map((r) => r.bucket))].sort();
+    const max = Math.max(...rows.map((r) => r.views), 1);
 
     const style = getComputedStyle(document.documentElement);
-    const accent = (style.getPropertyValue('--color-accent') || '#4a90d9').trim();
-    const textColor = (style.getPropertyValue('--color-text') || '#333').trim();
+    const accent = (style.getPropertyValue('--color-accent') || '#4a90d9').trim() || '#4a90d9';
+    const textColor = (style.getPropertyValue('--color-text') || '#333').trim() || '#333';
 
+    const grid = new Map();
+    for (const b of buckets) grid.set(b, Array(24).fill(0));
+    for (const r of rows) grid.get(r.bucket)[r.hour] = r.views;
+
+    const bucketLabel = (b) => {
+        // Bucket comes from Postgres as a bare "YYYY-MM-DD" date already
+        // computed in Israel time; appending a local midnight avoids the
+        // UTC-parse day-shift that plain `new Date("YYYY-MM-DD")` causes.
+        const d = new Date(`${b}T00:00:00`);
+        return granularity === 'month'
+            ? d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
+            : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    };
+
+    const wrap = document.createElement('div');
+    wrap.style.overflowX = 'auto';
     const table = document.createElement('table');
     table.className = 'analytics-heatmap';
 
@@ -119,40 +178,39 @@ function drawHeatmap(host, rows) {
     table.appendChild(thead);
 
     const tbody = document.createElement('tbody');
-    for (let d = 0; d < 7; d++) {
+    for (const b of buckets) {
         const tr = document.createElement('tr');
         const th = document.createElement('th');
         th.scope = 'row';
-        th.textContent = DOW_LABELS[d];
+        th.textContent = bucketLabel(b);
         tr.appendChild(th);
+        const hours = grid.get(b);
         for (let h = 0; h < 24; h++) {
             const td = document.createElement('td');
-            const v = grid[d][h];
+            const v = hours[h];
             const alpha = v === 0 ? 0 : 0.12 + 0.88 * (v / max);
             td.style.backgroundColor = v === 0 ? 'transparent' : hexToRgba(accent, alpha);
             td.style.color = textColor;
-            td.title = `${DOW_LABELS[d]} ${h}:00 — ${v} view${v === 1 ? '' : 's'}`;
+            td.title = `${bucketLabel(b)} ${h}:00 — ${v} view${v === 1 ? '' : 's'}`;
             if (v > 0) td.textContent = v;
             tr.appendChild(td);
         }
         tbody.appendChild(tr);
     }
     table.appendChild(tbody);
-    host.appendChild(table);
+    wrap.appendChild(table);
+    host.appendChild(wrap);
+
+    const legend = document.createElement('div');
+    legend.className = 'analytics-heatmap-legend';
+    legend.innerHTML = `
+        <span>0</span>
+        <div class="analytics-heatmap-gradient" style="background: linear-gradient(to right, transparent, ${accent})"></div>
+        <span>${max}</span>`;
+    host.appendChild(legend);
 }
 
-function hexToRgba(color, alpha) {
-    // Accepts #rgb/#rrggbb; falls back to a flat accent blue if parsing fails.
-    const hex = color.replace('#', '');
-    if (![3, 6].includes(hex.length)) return `rgba(74,144,217,${alpha})`;
-    const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex;
-    const r = parseInt(full.slice(0, 2), 16);
-    const g = parseInt(full.slice(2, 4), 16);
-    const b = parseInt(full.slice(4, 6), 16);
-    return `rgba(${r},${g},${b},${alpha})`;
-}
-
-function renderTable(host, items, columns) {
+function renderMfTable(host, items, columns) {
     if (!items || items.length === 0) {
         host.innerHTML = '<p class="muted">No data yet.</p>';
         return;
@@ -161,20 +219,230 @@ function renderTable(host, items, columns) {
         `<tr>${columns.map((c) => `<td>${escapeHtml(String(item[c.key] ?? ''))}</td>`).join('')}</tr>`
     ).join('');
     host.innerHTML = `
-        <table class="admin-table">
-            <thead><tr>${columns.map((c) => `<th scope="col">${escapeHtml(c.label)}</th>`).join('')}</tr></thead>
-            <tbody>${rows}</tbody>
-        </table>`;
+        <div class="mf-wrap">
+            <table class="dash-table font-small">
+                <thead><tr>${columns.map((c) => `<th scope="col">${escapeHtml(c.label)}</th>`).join('')}</tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
 }
 
-function renderKpiCards(host, data) {
+/** Chronological, un-aggregated, click-to-sort log of every transition —
+ *  same From/To pair repeats across rows on purpose (each occurrence is its
+ *  own row); `running_count` is that pair's cumulative count so far. Rows
+ *  are tinted by device type, reusing the site's existing per-theme medal
+ *  tint tokens (already themed across all 8 themes, no new tokens needed).
+ *  `section` must contain #transitions-log-from/#transitions-log-to (the
+ *  time-window filter inputs) and #table-transitions-log (the table host). */
+function renderTransitionsLog(section, transitionsLog) {
+    const host = section.querySelector('#table-transitions-log');
+    const fromInput = section.querySelector('#transitions-log-from');
+    const toInput = section.querySelector('#transitions-log-to');
+
+    const allRows = (transitionsLog || []).map((t) => ({
+        date: new Date(t.created_at),
+        from: contextLabel(t.from_page, t.from_league_id, t.from_player),
+        to: contextLabel(t.to_page, t.to_league_id, t.to_player),
+        device: t.device_type || 'unknown',
+        count: t.running_count,
+    }));
+
+    if (allRows.length === 0) {
+        fromInput.disabled = true;
+        toInput.disabled = true;
+        host.innerHTML = '<p class="muted">No data yet.</p>';
+        return;
+    }
+
+    // datetime-local wants "YYYY-MM-DDTHH:mm" in LOCAL time (no timezone
+    // suffix) — toISOString() is UTC, so build it from local getters instead.
+    const toLocalInputValue = (d) => {
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    // Default window on every refresh: from the dawn of history to right now
+    // — i.e. show everything — rather than clamping to the fetched data's own
+    // min/max (which shifted every time new data arrived).
+    fromInput.value = toLocalInputValue(new Date(0));
+    toInput.value = toLocalInputValue(new Date());
+
+    const columns = [
+        { key: 'date', label: 'Date' },
+        { key: 'from', label: 'From' },
+        { key: 'to', label: 'To' },
+        { key: 'device', label: 'Device' },
+        { key: 'count', label: 'Count' },
+    ];
+    let sortKey = 'date';
+    let sortDir = 'desc'; // newest first by default
+
+    function draw() {
+        const fromTime = fromInput.value ? new Date(fromInput.value).getTime() : -Infinity;
+        const toTime = toInput.value ? new Date(toInput.value).getTime() : Infinity;
+        const rows = allRows.filter((r) => r.date.getTime() >= fromTime && r.date.getTime() <= toTime);
+
+        const sorted = [...rows].sort((a, b) => {
+            let av = a[sortKey];
+            let bv = b[sortKey];
+            if (av instanceof Date) { av = av.getTime(); bv = bv.getTime(); }
+            else if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+            if (av < bv) return sortDir === 'asc' ? -1 : 1;
+            if (av > bv) return sortDir === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        if (sorted.length === 0) {
+            host.innerHTML = '<p class="muted">No transitions in this time window.</p>';
+            return;
+        }
+
+        const theadHtml = columns.map((c) => {
+            const arrow = c.key === sortKey ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+            return `<th scope="col" data-sort-key="${c.key}" style="cursor:pointer">${escapeHtml(c.label)}${arrow}</th>`;
+        }).join('');
+
+        const rowsHtml = sorted.map((r) => `
+            <tr class="device-${escapeHtml(r.device)}">
+                <td>${escapeHtml(formatLastUpdated(r.date))}</td>
+                <td>${escapeHtml(r.from)}</td>
+                <td>${escapeHtml(r.to)}</td>
+                <td>${escapeHtml(r.device)}</td>
+                <td>${r.count}</td>
+            </tr>`).join('');
+
+        host.innerHTML = `
+            <div class="mf-wrap">
+                <table class="dash-table font-small" id="transitions-log-table">
+                    <thead><tr>${theadHtml}</tr></thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+            </div>`;
+
+        host.querySelectorAll('th[data-sort-key]').forEach((th) => {
+            th.addEventListener('click', () => {
+                const key = th.dataset.sortKey;
+                if (sortKey === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+                else { sortKey = key; sortDir = 'asc'; }
+                draw();
+            });
+        });
+    }
+
+    fromInput.addEventListener('change', draw);
+    toInput.addEventListener('change', draw);
+    draw();
+}
+
+/** Chronological, click-to-sort log of every click/interaction event (Export
+ *  Image, Run Simulation with its staged summary, search outcomes, link
+ *  clicks). Same shape/behaviour as renderTransitionsLog (device-tinted rows,
+ *  default From/To window = dawn of history → now on every refresh), but
+ *  flat (no from/to pair, no running count) since click_target text is often
+ *  unique per row rather than a small repeating set. `section` must contain
+ *  #clicks-log-from/#clicks-log-to and #table-clicks-log. */
+function renderClicksLog(section, clicksLog) {
+    const host = section.querySelector('#table-clicks-log');
+    const fromInput = section.querySelector('#clicks-log-from');
+    const toInput = section.querySelector('#clicks-log-to');
+
+    const allRows = (clicksLog || []).map((c) => ({
+        date: new Date(c.created_at),
+        page: contextLabel(c.page, c.league_id, c.player),
+        target: c.click_target || '',
+        device: c.device_type || 'unknown',
+    }));
+
+    if (allRows.length === 0) {
+        fromInput.disabled = true;
+        toInput.disabled = true;
+        host.innerHTML = '<p class="muted">No data yet.</p>';
+        return;
+    }
+
+    const toLocalInputValue = (d) => {
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    fromInput.value = toLocalInputValue(new Date(0));
+    toInput.value = toLocalInputValue(new Date());
+
+    const columns = [
+        { key: 'date', label: 'Date' },
+        { key: 'page', label: 'Page' },
+        { key: 'target', label: 'Click target' },
+        { key: 'device', label: 'Device' },
+    ];
+    let sortKey = 'date';
+    let sortDir = 'desc';
+
+    function draw() {
+        const fromTime = fromInput.value ? new Date(fromInput.value).getTime() : -Infinity;
+        const toTime = toInput.value ? new Date(toInput.value).getTime() : Infinity;
+        const rows = allRows.filter((r) => r.date.getTime() >= fromTime && r.date.getTime() <= toTime);
+
+        const sorted = [...rows].sort((a, b) => {
+            let av = a[sortKey];
+            let bv = b[sortKey];
+            if (av instanceof Date) { av = av.getTime(); bv = bv.getTime(); }
+            else if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+            if (av < bv) return sortDir === 'asc' ? -1 : 1;
+            if (av > bv) return sortDir === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        if (sorted.length === 0) {
+            host.innerHTML = '<p class="muted">No clicks in this time window.</p>';
+            return;
+        }
+
+        const theadHtml = columns.map((c) => {
+            const arrow = c.key === sortKey ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+            return `<th scope="col" data-sort-key="${c.key}" style="cursor:pointer">${escapeHtml(c.label)}${arrow}</th>`;
+        }).join('');
+
+        const rowsHtml = sorted.map((r) => `
+            <tr class="device-${escapeHtml(r.device)}">
+                <td>${escapeHtml(formatLastUpdated(r.date))}</td>
+                <td>${escapeHtml(r.page)}</td>
+                <td>${escapeHtml(r.target)}</td>
+                <td>${escapeHtml(r.device)}</td>
+            </tr>`).join('');
+
+        host.innerHTML = `
+            <div class="mf-wrap">
+                <table class="dash-table font-small" id="clicks-log-table">
+                    <thead><tr>${theadHtml}</tr></thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+            </div>`;
+
+        host.querySelectorAll('th[data-sort-key]').forEach((th) => {
+            th.addEventListener('click', () => {
+                const key = th.dataset.sortKey;
+                if (sortKey === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+                else { sortKey = key; sortDir = 'asc'; }
+                draw();
+            });
+        });
+    }
+
+    fromInput.addEventListener('change', draw);
+    toInput.addEventListener('change', draw);
+    draw();
+}
+
+function renderKpiCards(host, data, fetchedAt) {
     const cards = [
-        { label: 'Pageviews (30d)', value: data.total_pageviews },
+        { label: 'Pageviews', value: data.total_pageviews },
         { label: 'Avg. dwell time', value: formatMs(data.avg_dwell_ms) },
         { label: 'Bounce rate', value: `${data.bounce_pct}%` },
+        // Confirms this view is live — every refresh means a fresh request to
+        // Supabase, so this always shows "just now", not the underlying data's
+        // own timestamp (that's `data.last_event_at`, unused here on purpose).
+        { label: 'Last Updated', value: formatLastUpdated(fetchedAt), flex: true },
     ];
     host.innerHTML = cards.map((c) => `
-        <div class="dash-card">
+        <div class="dash-card${c.flex ? ' dash-card--flex' : ''}">
             <div class="dash-card-label">${escapeHtml(c.label)}</div>
             <div class="dash-card-value">${c.value}</div>
         </div>
@@ -192,12 +460,9 @@ function renderDwellBuckets(host, dwellBuckets) {
         host.innerHTML = '<p class="muted">No data yet.</p>';
         return;
     }
-    // Two passes: attach every card first, then measure/draw. Reading
-    // clientWidth mid-loop (draw right after each card is inserted) sees a
-    // flex row that hasn't settled on its final per-item width yet — each
-    // canvas would bake in whatever stale width existed when *that* card was
-    // inserted, then silently overflow its own (correctly-sized) box since
-    // nothing clips a canvas by default.
+    // Two passes: attach every card first, then measure/draw — reading
+    // clientWidth mid-loop sees a flex row that hasn't settled on its final
+    // per-item width yet, which would bake a stale (too-wide) canvas size.
     const pending = [];
     for (const [page, buckets] of byPage) {
         const card = document.createElement('div');
@@ -218,12 +483,13 @@ function renderDwellBuckets(host, dwellBuckets) {
     }
 }
 
-export async function renderAnalyticsPage() {
+export async function renderAnalyticsPage(rangeKey = '30d') {
     const content = document.getElementById('content');
     content.innerHTML = '<div class="loading">Loading analytics...</div>';
 
+    const range = RANGE_OPTIONS.find((r) => r.key === rangeKey) || RANGE_OPTIONS[0];
     const toDate = new Date();
-    const fromDate = new Date(toDate.getTime() - 30 * DAY_MS);
+    const fromDate = new Date(toDate.getTime() - range.days * DAY_MS);
 
     const { data, error } = await supabase.rpc('analytics_summary', {
         from_date: fromDate.toISOString(),
@@ -235,13 +501,27 @@ export async function renderAnalyticsPage() {
         return;
     }
 
+    const fetchedAt = new Date();
     content.innerHTML = '';
 
+    // ── KPI cards (includes "Last Updated" = when THIS refresh actually queried Supabase) ──
     const cardsHost = document.createElement('div');
     cardsHost.className = 'dashboard-cards';
     content.appendChild(cardsHost);
-    renderKpiCards(cardsHost, data);
+    renderKpiCards(cardsHost, data, fetchedAt);
 
+    // ── Range control — themed like the desktop player-search pill ──
+    const rangeBar = document.createElement('div');
+    rangeBar.className = 'analytics-range-bar';
+    const select = document.createElement('select');
+    select.id = 'analytics-range';
+    select.className = 'analytics-range-select';
+    select.innerHTML = RANGE_OPTIONS.map((r) => `<option value="${r.key}" ${r.key === range.key ? 'selected' : ''}>${r.label}</option>`).join('');
+    select.addEventListener('change', () => renderAnalyticsPage(select.value));
+    rangeBar.appendChild(select);
+    content.appendChild(rangeBar);
+
+    // ── Tabs (same chrome as the League Dashboard — mountAppTabs) ──
     const shell = mountAppTabs({
         tabs: [
             { id: 'overview', label: 'Overview', icon: '📈' },
@@ -256,72 +536,105 @@ export async function renderAnalyticsPage() {
     });
     content.appendChild(shell.root);
 
-    // ---- Overview ----
-    shell.panels.overview.innerHTML = `
-        <div class="admin-card" style="margin-bottom:var(--space-md)">
-            <h3>Pageviews over time</h3>
-            <div id="chart-timeseries"></div>
-        </div>
+    // ── Overview: Pageviews over time + device/referrer breakdown ──
+    const tsSection = makeSection('Pageviews over time');
+    const tsChart = document.createElement('div');
+    tsChart.id = 'chart-timeseries';
+    tsSection.appendChild(tsChart);
+    shell.panels.overview.appendChild(tsSection);
+    const timeseries = (data.timeseries || []).map((t) => ({
+        day: new Date(`${t.day}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+        views: t.views,
+    }));
+    drawBarChart(tsChart, timeseries, { labelKey: 'day', valueKey: 'views' });
+
+    const breakdownSection = makeSection('Device & referrer breakdown');
+    breakdownSection.innerHTML += `
         <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
             <div class="admin-card" style="flex:1;min-width:260px">
-                <h3>Device breakdown</h3>
+                <h4>Device</h4>
                 <div id="chart-device"></div>
             </div>
             <div class="admin-card" style="flex:1;min-width:260px">
-                <h3>Referrer breakdown</h3>
+                <h4>Referrer</h4>
                 <div id="chart-referrer"></div>
             </div>
         </div>`;
+    shell.panels.overview.appendChild(breakdownSection);
+    drawBarChart(breakdownSection.querySelector('#chart-device'), data.by_device, { labelKey: 'device_type', valueKey: 'views' });
+    drawBarChart(breakdownSection.querySelector('#chart-referrer'), data.by_referrer, { labelKey: 'referrer_kind', valueKey: 'views' });
 
-    const timeseries = (data.timeseries || []).map((t) => ({ day: new Date(t.day).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), views: t.views }));
-    drawBarChart(document.getElementById('chart-timeseries'), timeseries, { labelKey: 'day', valueKey: 'views' });
-    drawBarChart(document.getElementById('chart-device'), data.by_device, { labelKey: 'device_type', valueKey: 'views' });
-    drawBarChart(document.getElementById('chart-referrer'), data.by_referrer, { labelKey: 'referrer_kind', valueKey: 'views' });
+    // ── Traffic Patterns: day/hour heatmap ──
+    const heatmapSection = makeSection('Traffic by day & hour');
+    heatmapSection.innerHTML += `<p class="muted">Israel time. Aggregate pageview counts only — no individual visit is tracked.</p><div id="heatmap-traffic"></div>`;
+    shell.panels.traffic.appendChild(heatmapSection);
+    const heatmapRows = range.granularity === 'month' ? data.by_hour_month : data.by_hour_day;
+    drawDateHeatmap(heatmapSection.querySelector('#heatmap-traffic'), heatmapRows, range.granularity);
 
-    // ---- Traffic Patterns ----
-    shell.panels.traffic.innerHTML = `
-        <div class="admin-card">
-            <h3>Traffic by day &amp; hour</h3>
-            <p class="muted">Aggregate pageview counts only — no individual visit is tracked.</p>
-            <div id="heatmap-traffic" style="overflow-x:auto"></div>
-        </div>`;
-    drawHeatmap(document.getElementById('heatmap-traffic'), data.by_hour_dow);
-
-    // ---- Content ----
-    shell.panels.content.innerHTML = `
-        <div style="display:flex;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-md)">
-            <div class="admin-card" style="flex:1;min-width:260px">
-                <h3>Top pages</h3>
+    // ── Content: top pages/leagues/players ──
+    const contentSection = makeSection('Content');
+    contentSection.innerHTML += `
+        <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
+            <div style="flex:1;min-width:220px">
+                <h4>Top pages</h4>
                 <div id="table-pages"></div>
             </div>
-            <div class="admin-card" style="flex:1;min-width:260px">
-                <h3>Top leagues</h3>
+            <div style="flex:1;min-width:220px">
+                <h4>Top leagues</h4>
                 <div id="table-leagues"></div>
             </div>
-            <div class="admin-card" style="flex:1;min-width:260px">
-                <h3>Top players</h3>
+            <div style="flex:1;min-width:220px">
+                <h4>Top players</h4>
                 <div id="table-players"></div>
             </div>
         </div>`;
-    renderTable(document.getElementById('table-pages'), (data.top_pages || []).map(p => ({ ...p, page: pageLabel(p.page) })), [{ key: 'page', label: 'Page' }, { key: 'views', label: 'Views' }]);
-    renderTable(document.getElementById('table-leagues'), data.top_leagues, [{ key: 'league_id', label: 'League' }, { key: 'views', label: 'Views' }]);
-    renderTable(document.getElementById('table-players'), data.top_players, [{ key: 'player', label: 'Player' }, { key: 'views', label: 'Views' }]);
+    shell.panels.content.appendChild(contentSection);
+    renderMfTable(contentSection.querySelector('#table-pages'), (data.top_pages || []).map((p) => ({ ...p, page: pageLabel(p.page) })), [{ key: 'page', label: 'Page' }, { key: 'views', label: 'Views' }]);
+    renderMfTable(contentSection.querySelector('#table-leagues'), data.top_leagues, [{ key: 'league_id', label: 'League' }, { key: 'views', label: 'Views' }]);
+    renderMfTable(contentSection.querySelector('#table-players'), data.top_players, [{ key: 'player', label: 'Player' }, { key: 'views', label: 'Views' }]);
 
-    // ---- Behavior ----
-    shell.panels.behavior.innerHTML = `
-        <div class="admin-card" style="margin-bottom:var(--space-md)">
-            <h3>Dwell time by page</h3>
-            <div id="dwell-buckets" style="display:flex;gap:var(--space-md);flex-wrap:wrap"></div>
+    const transitionsLogSection = makeSection('All page-to-page transitions');
+    transitionsLogSection.innerHTML += `
+        <div class="analytics-time-filter">
+            <label>From <input type="datetime-local" id="transitions-log-from"></label>
+            <label>To <input type="datetime-local" id="transitions-log-to"></label>
         </div>
-        <div class="admin-card">
-            <h3>Page-to-page flow</h3>
-            <p class="muted">Derived from the browser's own referrer on the next pageview — not a tracked session.</p>
-            <div id="table-transitions"></div>
-        </div>`;
-    renderDwellBuckets(document.getElementById('dwell-buckets'), data.dwell_buckets);
-    renderTable(
-        document.getElementById('table-transitions'),
-        (data.transitions || []).map(t => ({ from: pageLabel(t.from_page), to: pageLabel(t.to_page), n: t.n })),
-        [{ key: 'from', label: 'From' }, { key: 'to', label: 'To' }, { key: 'n', label: 'Count' }]
+        <div id="table-transitions-log"></div>`;
+    shell.panels.content.appendChild(transitionsLogSection);
+    renderTransitionsLog(transitionsLogSection, data.transitions_log);
+
+    // ── Behavior: dwell time + page-to-page flow ──
+    const dwellSection = makeSection('Dwell time by page');
+    const dwellHost = document.createElement('div');
+    dwellHost.id = 'dwell-buckets';
+    dwellHost.style.cssText = 'display:flex;gap:var(--space-md);flex-wrap:wrap';
+    dwellSection.appendChild(dwellHost);
+    shell.panels.behavior.appendChild(dwellSection);
+    renderDwellBuckets(dwellHost, data.dwell_buckets);
+
+    const flowSection = makeSection('Page-to-page flow');
+    flowSection.innerHTML += `<p class="muted">Derived from the browser's own referrer on the next pageview — not a tracked session.</p><div id="table-transitions"></div>`;
+    shell.panels.behavior.appendChild(flowSection);
+    renderMfTable(
+        flowSection.querySelector('#table-transitions'),
+        (data.transitions || []).map((t) => ({
+            from: contextLabel(t.from_page, t.from_league_id, t.from_player),
+            to: contextLabel(t.to_page, t.to_league_id, t.to_player),
+            n: t.n,
+            lastSeen: t.last_seen ? formatLastUpdated(new Date(t.last_seen)) : 'N/A',
+        })),
+        [{ key: 'from', label: 'From' }, { key: 'to', label: 'To' }, { key: 'n', label: 'Count' }, { key: 'lastSeen', label: 'Last seen' }]
     );
+
+    const clicksLogSection = makeSection('All clicks & interactions');
+    clicksLogSection.innerHTML += `
+        <div class="analytics-time-filter">
+            <label>From <input type="datetime-local" id="clicks-log-from"></label>
+            <label>To <input type="datetime-local" id="clicks-log-to"></label>
+        </div>
+        <div id="table-clicks-log"></div>`;
+    shell.panels.behavior.appendChild(clicksLogSection);
+    renderClicksLog(clicksLogSection, data.clicks_log);
+
+    content.querySelectorAll('.app-section').forEach((s) => wireSectionCollapse(s, { defaultOpen: true }));
 }

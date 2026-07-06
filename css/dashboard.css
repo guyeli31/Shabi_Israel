@@ -669,6 +669,11 @@
 }
 .prizes-table {
 }
+/* Medal icon cell — sized relative to the table's font-small variant (em),
+   so it stays proportional if the table ever switches font-size class. */
+.prizes-table td:first-child {
+    font-size: 1.6em;
+}
 /* B1 — Prizes & Medals: tint each tier row with its medal colour (theme-aware
    tokens, matching the rank-gold/silver/bronze rows on the leaderboard + standings)
    instead of the old faint hardcoded rgba. Text colour follows so the row stays
