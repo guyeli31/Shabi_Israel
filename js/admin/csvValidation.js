@@ -13,10 +13,33 @@
 
 import { getStagedContent } from './stagingStore.js';
 import { parseCSV, parseCSVWithRounds, getAllPlayersFromCSV } from '../data/csvParser.js';
+import { loadLeagueMatchesAll, loadOverrides } from '../data/supabaseLoader.js';
+
+/** Reconstruct leaguedata.csv-style text from Supabase match rows, grouped by
+ *  round with a "Player,..." header line per round (parseCSV*'s round-detection
+ *  keys off any line starting with "player"), so downstream parseCSV/
+ *  parseCSVWithRounds keep working unchanged on the reconstructed text. */
+function matchesToCsvText(matches) {
+    const byRound = new Map();
+    for (const m of matches) {
+        const r = m.round || 1;
+        if (!byRound.has(r)) byRound.set(r, []);
+        byRound.get(r).push(m);
+    }
+    const lines = [];
+    for (const round of [...byRound.keys()].sort((a, b) => a - b)) {
+        lines.push('Player,PR,Luck,Score,Player,PR,Luck,Score');
+        for (const m of byRound.get(round)) {
+            lines.push([m.playerA, m.prA, m.luckA, m.scoreA, m.playerB, m.prB, m.luckB, m.scoreB].join(','));
+        }
+    }
+    return lines.join('\n');
+}
 
 /**
- * Read the league's current CSV + overrides. Prefers staged (unpublished) content
- * so the comparison reflects what the admin is actually about to publish.
+ * Read the league's current state (as CSV text + overrides) from Supabase.
+ * Prefers staged (unpublished) content so the comparison reflects what the
+ * admin is actually about to publish.
  */
 async function readCurrentState(leagueId) {
     const enc = encodeURIComponent(leagueId);
@@ -24,21 +47,17 @@ async function readCurrentState(leagueId) {
     let csv = getStagedContent(`leagues/${enc}/leaguedata.csv`);
     if (csv == null) {
         try {
-            const r = await fetch(`leagues/${enc}/leaguedata.csv`);
-            if (r.ok) csv = await r.text();
+            const { matches } = await loadLeagueMatchesAll(leagueId);
+            csv = matchesToCsvText(matches);
         } catch { /* brand-new league or offline — treat as empty */ }
     }
 
-    let ovText = getStagedContent(`leagues/${enc}/manual_overrides.json`);
-    if (ovText == null) {
-        try {
-            const r = await fetch(`leagues/${enc}/manual_overrides.json`);
-            if (r.ok) ovText = await r.text();
-        } catch { /* no overrides file */ }
-    }
     let overrides = [];
-    if (ovText) {
+    const ovText = getStagedContent(`leagues/${enc}/manual_overrides.json`);
+    if (ovText != null) {
         try { overrides = JSON.parse(ovText).overrides || []; } catch { /* ignore */ }
+    } else {
+        try { overrides = await loadOverrides(leagueId); } catch { /* no overrides yet */ }
     }
 
     return { csv: csv || '', overrides };

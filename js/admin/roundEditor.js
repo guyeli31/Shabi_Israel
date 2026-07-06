@@ -9,8 +9,7 @@
  * via rowspan="2". Only the leftmost (PLAYERS) column is sticky on horizontal scroll.
  */
 
-import { parseCSVAllWithRounds } from '../data/csvParser.js';
-import { loadOverrides, loadLeagueParams } from '../data/leagueLoader.js';
+import { loadOverrides, loadLeagueParams, loadLeagueMatchesAll } from '../data/supabaseLoader.js';
 import { addChange, getStagedContent, stageManualOverrides } from './stagingStore.js';
 import { revealMsg } from './msgScroll.js';
 
@@ -43,11 +42,8 @@ export function renderRoundEditor(container, leagueId, refreshBadge) {
 
 async function loadAndRender(container, leagueId, refreshBadge, root) {
     try {
-        const encoded = encodeURIComponent(leagueId);
-        const resp = await fetch(`leagues/${encoded}/leaguedata.csv`);
-        if (!resp.ok) throw new Error('Could not load match data.');
-        const csvText = await resp.text();
-        const { matches, roundCount } = parseCSVAllWithRounds(csvText);
+        const { matches } = await loadLeagueMatchesAll(leagueId);
+        const roundCount = Math.max(1, ...matches.map(m => m.round || 1));
         const [params, overrides] = await Promise.all([
             loadLeagueParams(leagueId).catch(() => ({})),
             loadOverridesWithStaged(leagueId)
@@ -454,10 +450,7 @@ async function stageOverride(leagueId, newOverride, refreshBadge) {
     if (staged) {
         try { overrides = JSON.parse(staged).overrides || []; } catch { }
     } else {
-        try {
-            const resp = await fetch(`leagues/${encoded}/manual_overrides.json`);
-            if (resp.ok) overrides = (await resp.json()).overrides || [];
-        } catch { }
+        try { overrides = await loadOverrides(leagueId); } catch { }
     }
     const key = pairKey(newOverride.playerA, newOverride.playerB);
     const idx = overrides.findIndex(o => pairKey(o.playerA, o.playerB) === key);

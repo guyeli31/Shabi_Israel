@@ -7,10 +7,9 @@
  * Plus: prev/next league navigation arrows in the header.
  */
 
-import { loadLeagueParams, loadLeagueOrder, loadOverrides, loadAllLeagueParams, applyOverrides } from '../data/leagueLoader.js';
+import { loadLeagueParams, loadLeagueOrder, loadOverrides, loadAllLeagueParams, loadLeagueMatchesAll, loadMatchHistory, applyOverrides } from '../data/dataSourceLoader.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
-import { loadMatchHistory, getMatchesAsOf, getUpdateDates, mergeHistoryIntoMatches, matchKey } from '../compute/matchHistory.js';
-import { parseCSVAllWithRounds, parseCSV, getAllPlayersFromCSV } from '../data/csvParser.js';
+import { getMatchesAsOf, getUpdateDates, mergeHistoryIntoMatches, matchKey } from '../compute/matchHistory.js';
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
@@ -22,7 +21,7 @@ import { drawCorrelationRow, brierScore, brierAssessment, signedLuckScore, luckA
 import { renderBreadcrumbs } from './navigation.js';
 import { predictChampionship, computeTopXPct, prProbabilityTableHtml, getWinProbability, nearestMatchLengthIdx } from '../compute/championshipPredictor.js';
 import { batchLast300PRForSimulator } from '../compute/crossLeague.js';
-import { loadPlayersMetadata } from '../data/playersMetadata.js';
+import { loadPlayersMetadata } from '../data/dataSourceMeta.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { startSplash, endSplash } from '../utils/splash.js';
@@ -47,18 +46,15 @@ export async function renderDashboardPage() {
 
     startSplash();
     try {
-        const encoded = encodeURIComponent(leagueId);
-        const csvResp = await fetch(`leagues/${encoded}/leaguedata.csv`);
-        const csvText = await csvResp.text();
-        const lastModified = csvResp.headers.get('Last-Modified') || null;
-
-        const [params, overrides, history, leagueOrder, playersMeta] = await Promise.all([
+        const [params, overrides, history, leagueOrder, playersMeta, matchesAllData] = await Promise.all([
             loadLeagueParams(leagueId),
             loadOverrides(leagueId),
             loadMatchHistory(leagueId),
             loadLeagueOrder().catch(() => []),
-            loadPlayersMetadata()
+            loadPlayersMetadata(),
+            loadLeagueMatchesAll(leagueId)
         ]);
+        const lastModified = params.LastUpdated || null;
 
         // Per-type navigation requires params of all leagues
         const folderNamesAll = (leagueOrder || []).map(t => t.replace(' - ', ' '));
@@ -84,11 +80,13 @@ export async function renderDashboardPage() {
 
         installLeagueNavArrows(leagueId, allParams, params.LeagueType || 'doubling');
 
-        // Parse CSV — both with-unplayed and only-played variants
-        const parsedAll = parseCSVAllWithRounds(csvText);
-        const allMatchesIncUnplayedRaw = parsedAll.matches;
-        const playedMatchesRaw = parseCSV(csvText);
-        const allPlayersSet = getAllPlayersFromCSV(csvText);
+        // Both with-unplayed and only-played variants, from the single all-rows query
+        const allMatchesIncUnplayedRaw = matchesAllData.matches;
+        const playedMatchesRaw = allMatchesIncUnplayedRaw
+            .filter(m => m.played)
+            .map(({ playerA, prA, luckA, scoreA, playerB, prB, luckB, scoreB }) => ({ playerA, prA, luckA, scoreA, playerB, prB, luckB, scoreB }));
+        const allPlayersSet = matchesAllData.allPlayers;
+        const roundCount = Math.max(1, ...allMatchesIncUnplayedRaw.map(m => m.round || 1));
 
         // Apply manual overrides (consistency with league table)
         const playedMatches = applyOverrides(playedMatchesRaw, overrides);
@@ -100,7 +98,7 @@ export async function renderDashboardPage() {
         const ctx = {
             leagueId, params, leagueConfig, lastModified,
             allMatchesIncUnplayed, playedMatches, liveMatches, allPlayersSet,
-            roundCount: parsedAll.roundCount,
+            roundCount,
             history, playersMeta
         };
 

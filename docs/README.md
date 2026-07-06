@@ -24,7 +24,7 @@ cd Shabi_Israel
 npx http-server -p 3000 --cors -c-1
 ```
 
-Open `http://localhost:3000` in your browser. On Windows, double-click `tools/start.bat` to launch automatically.
+Open `http://localhost:3000` in your browser. On Windows, double-click `tools/START_SITE.bat` to launch automatically.
 
 > **Note:** A local HTTP server is required because the app uses ES modules and `fetch()`, which browsers block under the `file://` protocol.
 

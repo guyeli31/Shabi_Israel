@@ -7,14 +7,14 @@
  * and player-cell enrichments (link, title abbreviations, retired mark).
  */
 
-import { loadLeague, loadLeagueOrder, loadAllLeagueParams } from '../data/leagueLoader.js';
+import { loadLeague, loadLeagueOrder, loadAllLeagueParams } from '../data/dataSourceLoader.js';
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { getQueryParam, flagUrl, playerLeagueUrl, leagueUrl, leagueTableUrl } from '../utils/helpers.js';
 import { exportTableImage } from '../utils/exportTableImage.js';
 import { renderBreadcrumbs } from './navigation.js';
-import { loadPlayersMetadata } from '../data/playersMetadata.js';
+import { loadPlayersMetadata } from '../data/dataSourceMeta.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { startSplash, endSplash } from '../utils/splash.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';

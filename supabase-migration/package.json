@@ -1,0 +1,16 @@
+{
+  "name": "shabi-israel-supabase-migration",
+  "private": true,
+  "type": "module",
+  "description": "One-off local seed script migrating leagues/** + assets/** into Supabase. Not part of the website runtime.",
+  "scripts": {
+    "migrate": "node migrate-to-supabase.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "supabase": "^2.109.0"
+  }
+}

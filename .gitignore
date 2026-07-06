@@ -429,3 +429,8 @@ v2/tests/visual/__diff__/
 
 # CI sync scripts — local-only output
 scripts/out/
+
+# Local-only secrets (Supabase service_role key etc.) — never commit
+.env
+supabase-migration/.env
+scripts/.env

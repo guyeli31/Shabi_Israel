@@ -26,7 +26,7 @@
  *  sidebar as in the tab bar.
  */
 
-import { loadLandingSettings, loadAllLeagueParams } from '../data/leagueLoader.js';
+import { loadLandingSettings, loadAllLeagueParams } from '../data/dataSourceLoader.js';
 import { leagueUrl, leagueTableUrl, playerUrl, parseLeagueDate } from '../utils/helpers.js';
 import { getNameDisplayMode, setNameDisplayMode } from '../utils/nameDisplay.js';
 import { isLoggedIn, login, logout, getUsername } from '../admin/auth.js';
@@ -574,8 +574,8 @@ function openLoginModal() {
         <h2 class="admin-login-modal-title">Admin Login</h2>
         <div id="admin-modal-msg"></div>
         <div class="form-group">
-            <label for="admin-modal-user">Username</label>
-            <input type="text" id="admin-modal-user" autocomplete="username">
+            <label for="admin-modal-user">Email</label>
+            <input type="email" id="admin-modal-user" autocomplete="username">
         </div>
         <div class="form-group">
             <label for="admin-modal-pass">Password</label>
@@ -604,12 +604,12 @@ function openLoginModal() {
     async function doLogin() {
         const user = userInput.value.trim();
         const pass = passInput.value;
-        if (!user || !pass) return showMsg('Please enter username and password.', 'error');
+        if (!user || !pass) return showMsg('Please enter email and password.', 'error');
         loginBtn.disabled = true;
         loginBtn.textContent = 'Logging in…';
         const ok = await login(user, pass);
         if (ok) location.href = 'admin.html';
-        else { loginBtn.disabled = false; loginBtn.textContent = 'Login'; showMsg('Invalid username or password.', 'error'); }
+        else { loginBtn.disabled = false; loginBtn.textContent = 'Login'; showMsg('Invalid email or password.', 'error'); }
     }
     function showMsg(msg, type) {
         const el = modal.querySelector('#admin-modal-msg');

@@ -12,7 +12,7 @@ import { loadAllLeagues } from '../compute/crossLeague.js';
 import { buildAllTimeRankings } from '../compute/allTimeRankings.js';
 import { colorForValue } from '../compute/colorScale.js';
 import { luckBellCurveSvg } from './luckBellCurve.js';
-import { loadLandingSettings } from '../data/leagueLoader.js';
+import { loadLandingSettings } from '../data/dataSourceLoader.js';
 import { loadBannerConfig, renderHeroBanner } from './heroBanner.js';
 import { leagueUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueTableUrl, thLabel } from '../utils/helpers.js';
 import { exportTableImage } from '../utils/exportTableImage.js';
@@ -29,7 +29,8 @@ import { isLoggedIn } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
 import { addChange, getChangeCount } from '../admin/stagingStore.js';
 import { mountAdminSidebar, refreshBadge as refreshSidebarBadge } from '../admin/render/adminSidebar.js';
-import { loadPlayersMetadata } from '../data/playersMetadata.js';
+import { loadPlayersMetadata } from '../data/dataSourceMeta.js';
+import { escapeHtml } from '../utils/sanitize.js';
 import { hasTitles, compareTitlePriority, getFullTitleDescription } from '../data/titleConstants.js';
 import { mountAppTabs } from './appTabs.js';
 import { TAB_ICONS } from './tabIcons.js';
@@ -50,11 +51,6 @@ const MONTH_SHORT = [
 ];
 
 const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
-
-function escapeHtml(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 /* ── Main entry ──────────────────────────────────────── */
 
@@ -199,7 +195,7 @@ export async function renderLandingPage() {
 
         const credit = document.createElement('div');
         credit.className = 'platform-credit';
-        credit.textContent = 'Built by Guy Eliyahu';
+        credit.textContent = 'Built by Guy Eliyahu - 2026';
         container.appendChild(credit);
 
         // Auto-enter edit mode if admin and ?edit=1 in URL

@@ -5,7 +5,7 @@
  * quick technical result buttons, and override management.
  */
 
-import { loadLeagueMatchesAll, loadOverrides } from '../data/leagueLoader.js';
+import { loadLeagueMatchesAll, loadOverrides } from '../data/supabaseLoader.js';
 import { addChange, getStagedContent, stageManualOverrides } from './stagingStore.js';
 import { renderExcelImporter } from './excelImporter.js';
 import { thLabel } from '../utils/helpers.js';
@@ -385,14 +385,7 @@ async function renderOverridesList(container, leagueId, refreshBadge) {
     container.innerHTML = '<div class="loading">Loading overrides...</div>';
 
     try {
-        const encoded = encodeURIComponent(leagueId);
-        const resp = await fetch(`leagues/${encoded}/manual_overrides.json`);
-
-        let overrides = [];
-        if (resp.ok) {
-            const data = await resp.json();
-            overrides = data.overrides || [];
-        }
+        const overrides = await loadOverrides(leagueId);
 
         if (overrides.length === 0) {
             container.innerHTML = '<p style="color:var(--color-text-muted)">No manual overrides for this league.</p>';
@@ -451,13 +444,7 @@ async function stageOverride(leagueId, newOverride, refreshBadge) {
     if (staged) {
         try { overrides = JSON.parse(staged).overrides || []; } catch { /* ignore */ }
     } else {
-        try {
-            const resp = await fetch(`leagues/${encoded}/manual_overrides.json`);
-            if (resp.ok) {
-                const data = await resp.json();
-                overrides = data.overrides || [];
-            }
-        } catch { /* no overrides file yet */ }
+        try { overrides = await loadOverrides(leagueId); } catch { /* no overrides yet */ }
     }
 
     // Check if override for same match exists — replace it

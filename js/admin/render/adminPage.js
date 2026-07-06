@@ -2,15 +2,17 @@
  * adminPage.js — Render the admin panel shell: login, sidebar, pending changes.
  */
 
-import { isLoggedIn, logout, isGitHubConfigured } from '../auth.js';
+import { isLoggedIn, logout } from '../auth.js';
 import { getChanges, removeChange, removeGroup, removeOverrideFromChange, restoreOverrideToChange, removePlayerFromGroup, getChangeCount, publishAll, clearChanges, diffOverrides, overrideKey } from '../stagingStore.js';
 import { setTopbarSection } from '../adminDrawer.js';
 import { mountSidebarToggle } from '../../render/sidebarToggle.js';
 import { mountTopbar } from '../../render/topbar.js';
 import { installSearchOverlay } from '../../render/searchOverlay.js';
 import { buildAdminSidebarHtml, wireAdminSidebar } from './adminSidebarNav.js';
+import { renderHistoricalChanges } from './historicalChanges.js';
 
-const VIEW_TITLES = { leagues: 'Leagues', players: 'Players', pending: 'Pending Changes' };
+const VIEW_TITLES = { leagues: 'Leagues', players: 'Players', pending: 'Pending Changes', history: 'Historical Changes' };
+const VIEW_KEYS = ['leagues', 'players', 'pending', 'history'];
 
 let currentView = 'leagues';
 let onNavigate = null; // callback set by admin.html to handle view switching
@@ -28,7 +30,7 @@ export function initAdminPage(viewCallback) {
     } else {
         renderAdminShell();
         const hash = (location.hash || '').replace('#', '');
-        const initial = (hash === 'pending' || hash === 'leagues' || hash === 'players') ? hash : 'leagues';
+        const initial = VIEW_KEYS.includes(hash) ? hash : 'leagues';
         navigateTo(initial);
     }
 }
@@ -50,6 +52,8 @@ export function navigateTo(view) {
 
     if (view === 'pending') {
         renderPendingChanges(main);
+    } else if (view === 'history') {
+        renderHistoricalChanges(main);
     } else if (onNavigate) {
         onNavigate(view, main);
     }
@@ -237,11 +241,6 @@ function renderPendingChanges(container) {
 
     // Publish
     document.getElementById('publish-btn').addEventListener('click', async () => {
-        if (!isGitHubConfigured()) {
-            showMsg('publish-msg', 'GitHub not configured.', 'error');
-            return;
-        }
-
         const pubBtn = document.getElementById('publish-btn');
         pubBtn.disabled = true;
         pubBtn.textContent = 'Publishing...';

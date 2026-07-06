@@ -8,7 +8,7 @@
 ├── league.html               League Dashboard (Phase F — default entry from index)
 ├── league_table.html                  League summary (ranked player table — full view)
 ├── player_league.html                  Player detail (match history)
-├── tools/start.bat              Windows launcher (server + browser)
+├── tools/START_SITE.bat         Windows launcher (server + browser)
 │
 ├── css/
 │   ├── variables.css            Design tokens (colors, spacing, fonts)
@@ -93,19 +93,11 @@ The JS code is organized in 4 layers with strict dependency direction: **Data �
 
 | Module | Key Exports | Purpose |
 |--------|------------|---------|
-| `helpers.js` | `getQueryParam()`, `formatPercent()`, `formatNumber()`, `flagUrl()`, `leagueTableUrl()`, `playerLeagueUrl()`, `getFlagCode()`, `appendExportCredit()` | Shared utilities for URL parameter parsing, number formatting, flag/league/player URL construction, and custom flag resolution (default: IL). `appendExportCredit(wrap)` injects the disguised "Built by Guy Eliyahu · April 2026" footer into any element that's about to be rasterized via `html2canvas` — colour resolves with `color-mix` against the wrap's own background so it blends into every theme. |
+| `helpers.js` | `getQueryParam()`, `formatPercent()`, `formatNumber()`, `flagUrl()`, `leagueTableUrl()`, `playerLeagueUrl()`, `getFlagCode()` | Shared utilities for URL parameter parsing, number formatting, flag/league/player URL construction, and custom flag resolution (default: IL). |
 
-## Image Export — Hidden Credit
+## Platform Credit
 
-Every `Export Image` flow (PNG download via `html2canvas`) appends the platform credit to the offscreen wrapper *just before* rasterisation. Inline styles only (no class) so the snapshot is self-contained:
-
-| Caller | Function | Wrapper |
-|--------|----------|---------|
-| `landingPage.js` | `exportLeaderboardImage()` | offscreen `<div>` |
-| `leaguePage.js` | `exportLeagueTableImage()` | offscreen `<div>` |
-| `dashboardPage.js` | `exportRemainingMatchesImage()`, `exportB6bImage()`, `exportB6cImage()` | offscreen `<div>` |
-
-The visible UI also shows the same credit on `index.html` only — appended at the end of `renderLandingPage()` via the `.platform-credit` class in `dashboard.css`. League/player pages do **not** show it on screen.
+The "Built by Guy Eliyahu - 2026" credit only appears on `index.html`, appended at the end of `renderLandingPage()` via the `.platform-credit` class in `dashboard.css` (colour resolves with `color-mix` against the page's own background so it blends into every theme). `Export Image` (PNG download via `html2canvas`) flows no longer include this credit.
 
 ## CSS Responsibilities
 

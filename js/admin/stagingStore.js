@@ -5,9 +5,7 @@
  * and publishes all at once. Each publish also saves a snapshot for league history.
  */
 
-import { getFile, putFile, deleteFile, putBinaryFile } from './githubApi.js';
-import { parseCSVWithRounds } from '../data/csvParser.js';
-import { matchKey } from '../compute/matchHistory.js';
+import * as supabaseAdmin from './supabaseAdmin.js';
 
 const STORAGE_KEY = 'shabi-admin-staging';
 
@@ -321,12 +319,30 @@ export function getChangeCount() {
 }
 
 /**
- * Publish all pending changes to GitHub sequentially.
- * For each change:
- *   - create/update: get current SHA (if exists), then PUT
- *   - delete: get current SHA, then DELETE
+ * Parse a staged change's repo-style path into a (kind, ids) descriptor, so
+ * publishAll() can dispatch to the right supabaseAdmin.js function. Every
+ * staged path already carries the FULL current content for what it
+ * represents (see file header) — this function only figures out WHERE it goes.
+ */
+function parseChangePath(path) {
+    let m;
+    if ((m = path.match(/^leagues\/([^/]+)\/league_params\.json$/))) return { kind: 'league_params', leagueId: decodeURIComponent(m[1]) };
+    if ((m = path.match(/^leagues\/([^/]+)\/leaguedata\.csv$/))) return { kind: 'leaguedata_csv', leagueId: decodeURIComponent(m[1]) };
+    if ((m = path.match(/^leagues\/([^/]+)\/manual_overrides\.json$/))) return { kind: 'manual_overrides', leagueId: decodeURIComponent(m[1]) };
+    if (path === 'leagues/players_metadata.json') return { kind: 'players_metadata' };
+    if (path === 'leagues/landing_settings.json') return { kind: 'landing_settings' };
+    if ((m = path.match(/^assets\/flags\/([^/]+)\.png$/))) return { kind: 'flag_asset', code: m[1] };
+    if ((m = path.match(/^assets\/players\/(.+)$/))) return { kind: 'player_photo', filename: m[1] };
+    return { kind: 'unknown' };
+}
+
+/**
+ * Publish all pending changes to Supabase sequentially. Each change's `path`
+ * is parsed (see parseChangePath) and dispatched to the matching
+ * supabaseAdmin.js function — Admin no longer touches GitHub at all.
  *
- * After publishing league data changes, saves a history snapshot.
+ * After publishing league data changes, saves a history snapshot + reconciles
+ * match_history, same as before (now against Supabase instead of repo files).
  *
  * @param {function} onProgress — callback(index, total, description) for progress UI
  * @returns {Promise<{success: boolean, published: number, errors: string[]}>}
@@ -343,32 +359,51 @@ export async function publishAll(onProgress) {
         const change = changes[i];
         if (onProgress) onProgress(i, changes.length, change.description);
 
+        const desc = parseChangePath(change.path);
         try {
-            if (change.type === 'delete') {
-                const file = await getFile(change.path);
-                if (file && file.sha) {
-                    await deleteFile(change.path, file.sha, `Admin: ${change.description}`);
-                }
-            } else {
-                // create or update
-                const file = await getFile(change.path);
-                const sha = file ? file.sha : null;
-
-                if (change.binary) {
-                    // Binary content is already base64 — decode to bytes for putBinaryFile
-                    const binary = Uint8Array.from(atob(change.content), c => c.charCodeAt(0));
-                    await putBinaryFile(change.path, binary, sha, `Admin: ${change.description}`);
-                } else {
-                    await putFile(change.path, change.content, sha, `Admin: ${change.description}`);
-                }
+            switch (desc.kind) {
+                case 'league_params':
+                    // Settings only (type/title/prizes/etc.) — no match/override
+                    // data changed, so this deliberately does NOT add to
+                    // leagueDataChanges: no snapshot, no match_history reconcile,
+                    // no last_updated bump. That field is a public-facing "when
+                    // were results last updated" stat (see leagueHeader.js) — a
+                    // pure settings edit touching it would be misleading. It also
+                    // sidesteps a delete case bug: createSnapshot() afterward
+                    // would violate the league_snapshots FK once the league row
+                    // is gone.
+                    if (change.type === 'delete') await supabaseAdmin.deleteLeague(desc.leagueId);
+                    else await supabaseAdmin.upsertLeague(desc.leagueId, JSON.parse(change.content));
+                    break;
+                case 'leaguedata_csv':
+                    if (change.type !== 'delete') {
+                        // A standalone delete is redundant — deleteLeague() already
+                        // cascades matches when the league itself is removed.
+                        await supabaseAdmin.bulkImportCSV(desc.leagueId, change.content);
+                        leagueDataChanges.add(desc.leagueId);
+                    }
+                    break;
+                case 'manual_overrides':
+                    await supabaseAdmin.syncOverrides(desc.leagueId, JSON.parse(change.content).overrides || []);
+                    leagueDataChanges.add(desc.leagueId);
+                    break;
+                case 'players_metadata':
+                    await supabaseAdmin.syncPlayersMetadata(JSON.parse(change.content));
+                    break;
+                case 'landing_settings':
+                    await supabaseAdmin.updateLandingSettings(JSON.parse(change.content));
+                    break;
+                case 'flag_asset':
+                    await supabaseAdmin.uploadFlagAsset(desc.code, change.content);
+                    break;
+                case 'player_photo':
+                    if (change.type === 'delete') await supabaseAdmin.deletePlayerPhoto(desc.filename);
+                    else await supabaseAdmin.uploadPlayerPhoto(desc.filename, change.content);
+                    break;
+                default:
+                    throw new Error(`Unrecognized staged path: ${change.path}`);
             }
             published++;
-
-            // Track league data changes for snapshots
-            const leagueMatch = change.path.match(/^leagues\/([^/]+)\/(leaguedata\.csv|manual_overrides\.json)/);
-            if (leagueMatch) {
-                leagueDataChanges.add(leagueMatch[1]);
-            }
         } catch (err) {
             errors.push(`${change.path}: ${err.message}`);
         }
@@ -377,12 +412,12 @@ export async function publishAll(onProgress) {
     // Save history snapshots + per-match history for affected leagues
     for (const leagueId of leagueDataChanges) {
         try {
-            await saveSnapshot(leagueId);
+            await supabaseAdmin.createSnapshot(leagueId);
         } catch (err) {
             errors.push(`Snapshot for "${leagueId}": ${err.message}`);
         }
         try {
-            await updateMatchHistory(leagueId);
+            await supabaseAdmin.reconcileMatchHistory(leagueId);
         } catch (err) {
             errors.push(`Match history for "${leagueId}": ${err.message}`);
         }
@@ -394,143 +429,4 @@ export async function publishAll(onProgress) {
     }
 
     return { success: errors.length === 0, published, errors };
-}
-
-/**
- * Save a history snapshot for a league.
- * Reads the current CSV and overrides from the repo and saves them as a timestamped JSON.
- */
-async function saveSnapshot(leagueId) {
-    const encoded = encodeURIComponent(leagueId);
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-
-    // Read current state from repo
-    const csvFile = await getFile(`leagues/${encoded}/leaguedata.csv`);
-    const overridesFile = await getFile(`leagues/${encoded}/manual_overrides.json`);
-
-    const snapshot = {
-        timestamp: new Date().toISOString(),
-        csvContent: csvFile ? csvFile.content : '',
-        overrides: overridesFile ? JSON.parse(overridesFile.content) : null
-    };
-
-    const snapshotPath = `leagues/${encoded}/history/${timestamp}.json`;
-    await putFile(snapshotPath, JSON.stringify(snapshot, null, 2), null, `Snapshot: ${leagueId}`);
-
-    // Update LastUpdated in league_params.json
-    const paramsFile = await getFile(`leagues/${encoded}/league_params.json`);
-    if (paramsFile) {
-        const params = JSON.parse(paramsFile.content);
-        params.LastUpdated = new Date().toISOString();
-        await putFile(
-            `leagues/${encoded}/league_params.json`,
-            JSON.stringify(params, null, 2),
-            paramsFile.sha,
-            `Update LastUpdated: ${leagueId}`
-        );
-    }
-}
-
-/**
- * Reconcile match_history.json against the current CSV + manual_overrides for a league.
- *
- * Per-match logic:
- *   - Each CSV match is converted to a record. If history already has the same match
- *     with identical numeric fields, keep its existing updatedAt + source. Otherwise,
- *     stamp with `now` and source = "csv".
- *   - Each manual override stamps the matching record with `now` and source = "manual"
- *     (always — manual edits are explicit timeline events).
- */
-async function updateMatchHistory(leagueId) {
-    const encoded = encodeURIComponent(leagueId);
-    const now = new Date().toISOString();
-
-    const csvFile = await getFile(`leagues/${encoded}/leaguedata.csv`);
-    if (!csvFile) return;
-    const overridesFile = await getFile(`leagues/${encoded}/manual_overrides.json`);
-    const historyFile = await getFile(`leagues/${encoded}/match_history.json`);
-
-    const { matches: csvMatches } = parseCSVWithRounds(csvFile.content);
-    const overrides = overridesFile ? (JSON.parse(overridesFile.content).overrides || []) : [];
-    const previous = historyFile ? (JSON.parse(historyFile.content).matches || []) : [];
-    const prevByKey = new Map(previous.map(m => [matchKey(m.playerA, m.playerB), m]));
-
-    const next = [];
-    const seen = new Set();
-
-    function sameNumericFields(a, b) {
-        return a.scoreA === b.scoreA && a.scoreB === b.scoreB
-            && a.prA === b.prA && a.prB === b.prB
-            && a.luckA === b.luckA && a.luckB === b.luckB;
-    }
-
-    for (const m of csvMatches) {
-        const key = matchKey(m.playerA, m.playerB);
-        seen.add(key);
-        const prev = prevByKey.get(key);
-        if (prev && sameNumericFields(prev, m) && prev.source !== 'manual') {
-            next.push({ ...prev, round: m.round });
-        } else if (prev && prev.source === 'manual') {
-            // Manual edits take precedence over CSV — keep prev as-is
-            next.push({ ...prev, round: m.round });
-        } else {
-            next.push({
-                playerA: m.playerA, playerB: m.playerB,
-                scoreA: m.scoreA, scoreB: m.scoreB,
-                prA: m.prA, prB: m.prB,
-                luckA: m.luckA, luckB: m.luckB,
-                round: m.round,
-                updatedAt: now,
-                source: 'csv'
-            });
-        }
-    }
-
-    // Manual overrides — always stamp `now` and mark source = "manual"
-    for (const o of overrides) {
-        const key = matchKey(o.playerA, o.playerB);
-        seen.add(key);
-        let record;
-        if (o.type === 'result') {
-            record = {
-                playerA: o.playerA, playerB: o.playerB,
-                scoreA: o.scoreA, scoreB: o.scoreB,
-                prA: o.prA, prB: o.prB,
-                luckA: o.luckA, luckB: o.luckB
-            };
-        } else if (o.type === 'technical_win') {
-            const aWins = o.winner === o.playerA;
-            record = {
-                playerA: o.playerA, playerB: o.playerB,
-                scoreA: aWins ? 1 : 0, scoreB: aWins ? 0 : 1,
-                prA: null, prB: null, luckA: null, luckB: null
-            };
-        } else if (o.type === 'technical_draw') {
-            record = {
-                playerA: o.playerA, playerB: o.playerB,
-                scoreA: 0, scoreB: 0,
-                prA: null, prB: null, luckA: null, luckB: null
-            };
-        } else if (o.type === 'not_played') {
-            record = {
-                playerA: o.playerA, playerB: o.playerB,
-                scoreA: 0, scoreB: 0,
-                prA: 0, prB: 0, luckA: 0, luckB: 0
-            };
-        } else continue;
-
-        // Replace or append (overrides win)
-        const idx = next.findIndex(x => matchKey(x.playerA, x.playerB) === key);
-        const stamped = { ...record, round: idx >= 0 ? next[idx].round : null, updatedAt: now, source: 'manual' };
-        if (idx >= 0) next[idx] = stamped;
-        else next.push(stamped);
-    }
-
-    const out = { matches: next };
-    await putFile(
-        `leagues/${encoded}/match_history.json`,
-        JSON.stringify(out, null, 2),
-        historyFile ? historyFile.sha : null,
-        `Update match history: ${leagueId}`
-    );
 }

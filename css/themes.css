@@ -42,6 +42,7 @@
 
     --color-win: #34d399;
     --color-loss: #f87171;
+    --color-loss-bg: #3a1616;
     --color-draw: #9ca3af;
 
     --color-avg-bg: #162b23;
@@ -226,6 +227,7 @@
 
     --color-win: #2ecc71;
     --color-loss: #e74c3c;
+    --color-loss-bg: #3a1414;
     --color-draw: #c4a14a;
 
     --color-avg-bg: #1a3220;
@@ -335,6 +337,7 @@
 
     --color-win: #00e676;
     --color-loss: #ff1744;
+    --color-loss-bg: #3a1018;
     --color-draw: #ffd700;
 
     --color-avg-bg: #2a1414;
@@ -516,6 +519,7 @@
 
     --color-win: #4caf50;
     --color-loss: #e07070;
+    --color-loss-bg: #2a1414;
     --color-draw: #ff9800;
 
     --color-avg-bg: #11241a;

@@ -14,8 +14,6 @@
  *  of the fixes below and replace each v1 call with a v2 component call.)
  */
 
-import { appendExportCredit } from './helpers.js';
-
 // Hard upper bound for the exported PNG's CSS-pixel width. ~ iPhone Pro
 // Max class long-side — fits any modern phone (landscape) and stays
 // useful on desktop. If natural wrap exceeds this, font + cell padding
@@ -174,8 +172,6 @@ export async function exportTableImage({
             el.style.fontSize = (f * ratio) + 'px';
         });
     }
-
-    appendExportCredit(wrap);
 
     try {
         if (document.fonts && document.fonts.ready) await document.fonts.ready;

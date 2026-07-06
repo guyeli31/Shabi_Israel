@@ -1,103 +1,67 @@
 /**
- * auth.js — Admin authentication (login/logout, session, token management).
+ * auth.js — Admin authentication via Supabase Auth (email + password).
  *
- * Security layers:
- *  1. Username + password hash (cosmetic — deters casual users)
- *  2. GitHub PAT in localStorage (real protection — required for writes)
- *  3. GitHub repo permissions (absolute — only collaborators can generate valid tokens)
+ * Replaces the old SHA-256 password hash + GitHub PAT (real write authority
+ * used to come from the PAT; now Supabase RLS is the real gate — any
+ * `authenticated` Supabase user has full admin write access, per the flat
+ * "any authenticated = admin" model this project chose. See
+ * C:\Users\User\.claude\plans\shiny-cooking-frog.md section E for the full
+ * rationale, including local-vs-cloud Auth environment behavior.
+ *
+ * isLoggedIn()/getUsername() stay SYNCHRONOUS (same contract every call site
+ * already depends on) by keeping a warm in-memory session cache, populated
+ * once at module load via getSession() and kept current via onAuthStateChange.
+ * There is a brief window on cold page load, before the initial getSession()
+ * resolves, where isLoggedIn() may read false even if a session exists —
+ * accepted tradeoff to avoid refactoring every synchronous call site to async.
  */
 
-// SHA-256 hash of "admin123"
-const ADMIN_USER = 'admin';
-const ADMIN_PASS_HASH = '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9';
+import { supabase } from '../data/supabaseClient.js';
 
-const KEYS = {
-    session: 'shabi-admin-session',
-    username: 'shabi-admin-user',
-    token: 'shabi-github-token',
-    repo: 'shabi-github-repo'
-};
+let _session = null;
 
-/**
- * Compute SHA-256 hex digest of a string (uses Web Crypto API).
- */
-async function sha256(text) {
-    const data = new TextEncoder().encode(text);
-    const hash = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+// Top-level await: any module that imports auth.js (directly or transitively)
+// waits for this to resolve before running, so isLoggedIn()/getUsername()
+// are correct from the very first synchronous call — no cold-load race.
+{
+    const { data } = await supabase.auth.getSession();
+    _session = data.session;
 }
+
+supabase.auth.onAuthStateChange((_event, session) => {
+    _session = session;
+});
 
 /**
  * Attempt login. Returns true on success.
  */
-export async function login(username, password) {
-    if (username !== ADMIN_USER) return false;
-    const hash = await sha256(password);
-    if (hash !== ADMIN_PASS_HASH) return false;
-    localStorage.setItem(KEYS.session, 'true');
-    localStorage.setItem(KEYS.username, username);
+export async function login(email, password) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return false;
+    _session = data.session;
     return true;
 }
 
 /**
- * Log out — clears session (keeps token and repo for convenience).
+ * Log out. Clears the local session cache immediately (synchronous, so
+ * dependent UI updates right away) and fires the server-side sign-out in
+ * the background.
  */
 export function logout() {
-    localStorage.removeItem(KEYS.session);
-    localStorage.removeItem(KEYS.username);
+    _session = null;
+    supabase.auth.signOut();
 }
 
 /**
- * Get the currently logged-in username.
+ * Get the currently logged-in admin's email.
  */
 export function getUsername() {
-    return localStorage.getItem(KEYS.username) || '';
+    return _session?.user?.email || '';
 }
 
 /**
  * Check if admin is currently logged in.
  */
 export function isLoggedIn() {
-    return localStorage.getItem(KEYS.session) === 'true';
-}
-
-/**
- * Get the stored GitHub Personal Access Token.
- */
-export function getToken() {
-    return localStorage.getItem(KEYS.token) || '';
-}
-
-/**
- * Save GitHub PAT.
- */
-export function setToken(token) {
-    localStorage.setItem(KEYS.token, token.trim());
-}
-
-/**
- * Get the stored GitHub repo as { owner, repo }.
- * Stored as "owner/repo" string.
- */
-export function getRepo() {
-    const raw = localStorage.getItem(KEYS.repo) || '';
-    const parts = raw.split('/');
-    if (parts.length === 2 && parts[0] && parts[1]) {
-        return { owner: parts[0], repo: parts[1] };
-    }
-    return null;
-}
-
-/**
- * Save GitHub repo (expects "owner/repo" string).
- */
-export function setRepo(repoString) {
-    localStorage.setItem(KEYS.repo, repoString.trim());
-}
-
-/**
- * Check if GitHub config is complete (token + repo).
- */
-export function isGitHubConfigured() {
-    return !!getToken() && !!getRepo();
+    return _session !== null;
 }

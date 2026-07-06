@@ -60,6 +60,8 @@ jobs:
           SOURCE_PASS: ${{ secrets.SOURCE_PASS }}
           SYNC_MODE: ${{ github.event_name == 'workflow_dispatch' && (inputs.mode || 'fast') || 'full' }}
           LEAGUES: ${{ inputs.leagues || '' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node sync-source.js
 
       - name: Save External Source session cookie

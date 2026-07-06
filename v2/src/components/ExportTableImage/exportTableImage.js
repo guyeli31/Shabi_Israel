@@ -15,29 +15,6 @@ function loadHtml2Canvas() {
     return _html2canvasPromise;
 }
 
-const CREDIT_TEXT = "Built by Guy Eliyahu  ·  v2";
-
-function parseRgb(str) {
-    const m = String(str).match(/rgba?\((\d+)[, ]+(\d+)[, ]+(\d+)/);
-    return m ? [+m[1], +m[2], +m[3]] : null;
-}
-function mixRgb(a, b, t) {
-    return [0, 1, 2].map((i) => Math.round(a[i] * (1 - t) + b[i] * t));
-}
-
-function appendCredit(wrap, text = CREDIT_TEXT) {
-    const credit = document.createElement("div");
-    const bg = parseRgb(getComputedStyle(wrap).backgroundColor) || [255, 255, 255];
-    const fg = parseRgb(getComputedStyle(wrap).color) || [0, 0, 0];
-    const mixed = mixRgb(bg, fg, 0.06);
-    credit.style.cssText =
-        "margin-top:18px;padding-top:8px;text-align:center;" +
-        "font-size:8px;font-weight:300;letter-spacing:0.12em;" +
-        `color:rgb(${mixed.join(",")});user-select:none;`;
-    credit.textContent = text;
-    wrap.appendChild(credit);
-}
-
 /**
  * Export a table (or arbitrary HTML node) as a PNG download.
  *
@@ -46,7 +23,6 @@ function appendCredit(wrap, text = CREDIT_TEXT) {
  * @param {string} props.filename              — base filename (without extension).
  * @param {string} [props.title]               — heading prepended to the capture.
  * @param {string} [props.subtitle]            — secondary line under the heading.
- * @param {boolean} [props.includeCredit=true]
  * @param {number} [props.scale=2]             — html2canvas pixel ratio.
  * @returns {Promise<void>}
  */
@@ -55,7 +31,6 @@ export async function exportToImage({
     filename,
     title,
     subtitle,
-    includeCredit = true,
     scale = 2,
 }) {
     if (!source) throw new Error("exportToImage: source element required");
@@ -103,7 +78,6 @@ export async function exportToImage({
     wrap.appendChild(scroll);
 
     document.body.appendChild(wrap);
-    if (includeCredit) appendCredit(wrap);
 
     try {
         if (document.fonts && document.fonts.ready) await document.fonts.ready;

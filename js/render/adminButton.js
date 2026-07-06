@@ -41,8 +41,8 @@ function openLoginModal() {
         <h2 class="admin-login-modal-title">Admin Login</h2>
         <div id="admin-modal-msg"></div>
         <div class="form-group">
-            <label for="admin-modal-user">Username</label>
-            <input type="text" id="admin-modal-user" autocomplete="username">
+            <label for="admin-modal-user">Email</label>
+            <input type="email" id="admin-modal-user" autocomplete="username">
         </div>
         <div class="form-group">
             <label for="admin-modal-pass">Password</label>
@@ -77,7 +77,7 @@ function openLoginModal() {
         const user = userInput.value.trim();
         const pass = passInput.value;
         if (!user || !pass) {
-            showMsg('Please enter username and password.', 'error');
+            showMsg('Please enter email and password.', 'error');
             return;
         }
         loginBtn.disabled = true;
@@ -88,7 +88,7 @@ function openLoginModal() {
         } else {
             loginBtn.disabled = false;
             loginBtn.textContent = 'Login';
-            showMsg('Invalid username or password.', 'error');
+            showMsg('Invalid email or password.', 'error');
         }
     }
 

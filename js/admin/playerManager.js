@@ -8,7 +8,7 @@
  */
 
 import { loadAllLeagues } from '../compute/crossLeague.js';
-import { loadPlayersMetadata, clearPlayersMetadataCache } from '../data/playersMetadata.js';
+import { loadPlayersMetadata, clearPlayersMetadataCache } from '../data/supabasePlayersMetadata.js';
 import { addChange, getStagedContent, getChanges } from './stagingStore.js';
 import { BMAB_TITLES, bmabSelectOptionsHtml, COUNTRIES, getChampionshipTooltip } from '../data/titleConstants.js';
 import { filePickerHTML } from './render/formControls.js';

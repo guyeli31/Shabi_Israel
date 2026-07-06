@@ -57,6 +57,7 @@
     /* Results */
     --color-win: #047857;
     --color-loss: #b91c1c;
+    --color-loss-bg: #fef2f2;
     --color-draw: #4b5563;
 
     /* Semantic aliases — these names were referenced across the app with

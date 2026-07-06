@@ -2,8 +2,8 @@
  * leagueManager.js — Admin league management: list, create, edit, delete leagues + player editing.
  */
 
-import { loadLeagueOrder, loadLeagueParams, loadLeagueMatches, loadLandingSettings } from '../data/leagueLoader.js';
-import { getFile } from './githubApi.js';
+import { loadLeagueOrder, loadLeagueParams, loadLeagueMatches, loadLeagueMatchesAll, loadLandingSettings } from '../data/supabaseLoader.js';
+import { supabase } from '../data/supabaseClient.js';
 import { addChange, getStagedContent } from './stagingStore.js';
 import { getAllPlayersFromCSV } from '../data/csvParser.js';
 import { renderRoundEditor } from './roundEditor.js';
@@ -22,6 +22,25 @@ const KNOWN_FLAGS = ['BE', 'IL', 'RU', 'TZ', 'UN'];
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 
 let refreshBadgeFn = null;
+
+/** Reconstruct leaguedata.csv-style text from Supabase match rows (round-grouped,
+ *  "Player,..." header per round), so existing string-level rename logic keeps working. */
+function matchesToCsvText(matches) {
+    const byRound = new Map();
+    for (const m of matches) {
+        const r = m.round || 1;
+        if (!byRound.has(r)) byRound.set(r, []);
+        byRound.get(r).push(m);
+    }
+    const lines = [];
+    for (const round of [...byRound.keys()].sort((a, b) => a - b)) {
+        lines.push('Player,PR,Luck,Score,Player,PR,Luck,Score');
+        for (const m of byRound.get(round)) {
+            lines.push([m.playerA, m.prA, m.luckA, m.scoreA, m.playerB, m.prB, m.luckB, m.scoreB].join(','));
+        }
+    }
+    return lines.join('\n');
+}
 
 /**
  * Convert any image file (jpg, png, gif, webp, heic, etc.) to a PNG base64 string.
@@ -360,7 +379,7 @@ async function renderAddLeagueForm(container, displayOrder) {
         let flag = 'IL';
         if (inRegistry) {
             try {
-                const { loadPlayersMetadata } = await import('../data/playersMetadata.js');
+                const { loadPlayersMetadata } = await import('../data/supabasePlayersMetadata.js');
                 const meta = await loadPlayersMetadata();
                 if (meta[name]?.defaultFlag) flag = meta[name].defaultFlag;
                 // Staged metadata takes precedence
@@ -390,7 +409,7 @@ async function renderAddLeagueForm(container, displayOrder) {
         try {
             const [index, { loadPlayersMetadata }] = await Promise.all([
                 ensurePlayerIndex(),
-                import('../data/playersMetadata.js')
+                import('../data/supabasePlayersMetadata.js')
             ]);
             const meta = await loadPlayersMetadata();
             const names = new Set([...index.keys()]);
@@ -636,7 +655,7 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
     // parse them as known players. Existing players already have records and are
     // left untouched. Build on any already-staged metadata so prior edits survive.
     try {
-        const { loadPlayersMetadata } = await import('../data/playersMetadata.js');
+        const { loadPlayersMetadata } = await import('../data/supabasePlayersMetadata.js');
         let metadata = {};
         const stagedMeta = getStagedContent('leagues/players_metadata.json');
         if (stagedMeta) {
@@ -1169,10 +1188,8 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             // Handle renames in CSV
             if (renames.length > 0) {
                 try {
-                    const { matches } = await loadLeagueMatches(leagueId);
-                    // Re-read raw CSV to do string-level rename
-                    const csvResp = await fetch(`leagues/${encodeURIComponent(leagueId)}/leaguedata.csv`);
-                    let csvText = await csvResp.text();
+                    const { matches: allMatches } = await loadLeagueMatchesAll(leagueId);
+                    let csvText = matchesToCsvText(allMatches);
 
                     for (const { from, to } of renames) {
                         // Replace player name at start of field (column 0 or column 4)
@@ -1530,9 +1547,21 @@ function setupBGSync(leagueId, params, defaultName, refreshBadgeFn) {
         showMsg('bgsync-msg', 'Sync settings staged. Go to Pending Changes to publish.', 'success');
     });
 
-    // Run now — placeholder until the sync server / Supabase trigger exists.
-    document.getElementById('bgsync-run-now').addEventListener('click', () => {
-        console.log('TODO: trigger ad-hoc sync');
-        showMsg('bgsync-msg', 'Ad-hoc sync is not wired up yet.', 'success');
+    // Run now — dispatches the External Source sync workflow immediately for
+    // this league via Postgres (pg_net), entirely server-side: no GitHub PAT
+    // ever touches this client code (see sql/external_source_scheduler.sql).
+    document.getElementById('bgsync-run-now').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        showMsg('bgsync-msg', 'Triggering sync…', 'success');
+        try {
+            const { error } = await supabase.rpc('trigger_external_source_sync_now', { p_league_id: leagueId });
+            if (error) throw error;
+            showMsg('bgsync-msg', 'Sync triggered — check Historical Changes shortly for the result.', 'success');
+        } catch (err) {
+            showMsg('bgsync-msg', `Failed to trigger sync: ${err.message}`, 'error');
+        } finally {
+            btn.disabled = false;
+        }
     });
 }

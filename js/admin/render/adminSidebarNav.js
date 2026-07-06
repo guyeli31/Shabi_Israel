@@ -24,7 +24,8 @@ const NAV_ITEMS = [
     { key: 'dashboard', label: 'Main Dashboard', icon: '🏠', href: 'index.html?edit=1' },
     { key: 'leagues',   label: 'Leagues',        icon: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><line x1="2" y1="6.5" x2="14" y2="6.5"/><line x1="8" y1="6.5" x2="8" y2="13"/></svg>' },
     { key: 'players',   label: 'Players',        icon: '👥' },
-    { key: 'pending',   label: 'Pending Changes', icon: '📝', badge: true }
+    { key: 'pending',   label: 'Pending Changes', icon: '📝', badge: true },
+    { key: 'history',   label: 'Historical Changes', icon: '🕘' }
 ];
 
 const CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="site-nav-chevron"><polyline points="9 6 15 12 9 18"/></svg>';

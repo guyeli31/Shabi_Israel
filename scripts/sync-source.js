@@ -8,13 +8,21 @@ import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
-import { parseCSV } from '../js/data/csvParser.js';
+import { createClient } from '@supabase/supabase-js';
+
+import { parseCSV, parseCSVAllWithRounds } from '../js/data/csvParser.js';
 import { applyOverrides } from '../js/data/leagueLoader.js';
 
 const DEFAULT_FLAG = 'IL';
 const SITE_URL = process.env.SOURCE_URL;
 const OUT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'out');
 const SESSION_PATH = resolve(OUT_DIR, 'session-state.json');
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY)
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+  : null;
 
 const VIEWPORTS = [
   { width: 1920, height: 1080 },
@@ -251,17 +259,39 @@ async function relogin(page) {
  *
  *   Phase 1 (default — no Supabase configured): read CSV + manual_overrides.json
  *     from the repo working tree. Same logic the dashboard renders with.
- *   Phase 2 (SUPABASE_URL + SUPABASE_KEY set): query the database for the
- *     effective played count + overrides. Repo files are ignored.
+ *   Phase 2 (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY set): query the database
+ *     for the effective played count + overrides. Repo files are ignored.
  *
  * Returns { baseline, overrides } so the caller can re-apply the same overrides
  * to the freshly-downloaded CSV (apples-to-apples comparison). Returns null when
  * no baseline is available (first-ever sync of a new league) — check is skipped.
  */
 async function getBaselinePlayedCount(folder, repoRoot) {
-  if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
-    // Phase 2 — implement when Supabase wiring lands.
-    throw new Error('Supabase baseline not implemented yet (SUPABASE_URL set but query path missing)');
+  if (supabase) {
+    const { data: overrideRows, error: ovErr } = await supabase
+      .from('manual_overrides')
+      .select('*')
+      .eq('league_id', folder);
+    if (ovErr) throw new Error(`Supabase baseline: manual_overrides query failed: ${ovErr.message}`);
+
+    const { data: matchRows, error: mErr } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('league_id', folder)
+      .eq('played', true);
+    if (mErr) throw new Error(`Supabase baseline: matches query failed: ${mErr.message}`);
+
+    const overrides = (overrideRows || []).map((o) => ({
+      type: o.type, playerA: o.player_a, playerB: o.player_b, winner: o.winner,
+      scoreA: o.score_a, scoreB: o.score_b, prA: o.pr_a, prB: o.pr_b, luckA: o.luck_a, luckB: o.luck_b,
+    }));
+    const matches = (matchRows || []).map((m) => ({
+      playerA: m.player_a, prA: m.pr_a, luckA: m.luck_a, scoreA: m.score_a,
+      playerB: m.player_b, prB: m.pr_b, luckB: m.luck_b, scoreB: m.score_b,
+    }));
+    if (matches.length === 0 && overrides.length === 0) return null; // first-ever sync
+    const baseline = applyOverrides(matches, overrides).length;
+    return { baseline, overrides };
   }
   try {
     const csv = await readFile(join(repoRoot, 'leagues', folder, 'leaguedata.csv'), 'utf8');
@@ -572,6 +602,149 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
   await mkdir(outSubdir, { recursive: true });
   await writeFile(csvOutputPath, csvText, 'utf8');
   console.log(`  ✓ Saved to ${csvOutputPath}`);
+
+  if (supabase) {
+    console.log('  → Writing matches + match_history to Supabase');
+    await writeMatchesToSupabase(folder, csvText);
+    await reconcileMatchHistoryInSupabase(folder);
+    console.log('  ✓ Supabase updated');
+  }
+}
+
+/**
+ * Upsert a league's matches table to match this CSV text (delete-stale + upsert,
+ * keyed on league_id+round+player_a+player_b). Never touches admin-controlled
+ * fields on the leagues row itself — only bumps last_updated, and only if the
+ * row already exists (league creation stays an Admin operation).
+ */
+async function writeMatchesToSupabase(folder, csvText) {
+  const { data: leagueRow } = await supabase.from('leagues').select('id').eq('id', folder).single();
+  if (!leagueRow) {
+    console.warn(`    ⚠ leagues row "${folder}" not found — skipping Supabase write (create the league via Admin first)`);
+    return;
+  }
+
+  const { matches } = parseCSVAllWithRounds(csvText);
+
+  const { data: existing, error: fetchErr } = await supabase
+    .from('matches')
+    .select('id, round, player_a, player_b')
+    .eq('league_id', folder);
+  if (fetchErr) throw new Error(`matches fetch failed for ${folder}: ${fetchErr.message}`);
+
+  const freshKeys = new Set(matches.map((m) => `${m.round}|${m.playerA}|${m.playerB}`));
+  const staleIds = (existing || [])
+    .filter((row) => !freshKeys.has(`${row.round}|${row.player_a}|${row.player_b}`))
+    .map((row) => row.id);
+  if (staleIds.length > 0) {
+    const { error } = await supabase.from('matches').delete().in('id', staleIds);
+    if (error) throw new Error(`matches stale-delete failed for ${folder}: ${error.message}`);
+  }
+
+  if (matches.length > 0) {
+    const rows = matches.map((m) => ({
+      league_id: folder, round: m.round, player_a: m.playerA, player_b: m.playerB,
+      pr_a: m.prA, luck_a: m.luckA, score_a: m.scoreA,
+      pr_b: m.prB, luck_b: m.luckB, score_b: m.scoreB, played: m.played,
+    }));
+    const { error } = await supabase.from('matches').upsert(rows, { onConflict: 'league_id,round,player_a,player_b' });
+    if (error) throw new Error(`matches upsert failed for ${folder}: ${error.message}`);
+  }
+
+  await supabase.from('leagues').update({ last_updated: new Date().toISOString() }).eq('id', folder);
+}
+
+/**
+ * Reconcile match_history for a league (same reconciliation rule as
+ * js/admin/supabaseAdmin.js's reconcileMatchHistory — preserve existing
+ * updated_at+source when numeric fields are unchanged and source isn't
+ * 'manual', else stamp now()/source='csv'). Duplicated here rather than
+ * shared, since this runs in Node against the service_role key while the
+ * admin version runs in the browser against the anon+RLS session — two
+ * legitimately different callers of the same rule.
+ */
+async function reconcileMatchHistoryInSupabase(folder) {
+  const now = new Date().toISOString();
+
+  const { data: matchRows } = await supabase
+    .from('matches').select('*').eq('league_id', folder).eq('played', true).order('round', { ascending: true });
+  const { data: overrideRows } = await supabase.from('manual_overrides').select('*').eq('league_id', folder);
+  const { data: historyRows } = await supabase.from('match_history').select('*').eq('league_id', folder);
+
+  const key = (a, b) => [a, b].sort().join('|');
+  const csvMatches = (matchRows || []).map((m) => ({
+    playerA: m.player_a, playerB: m.player_b, scoreA: m.score_a, scoreB: m.score_b,
+    prA: m.pr_a, prB: m.pr_b, luckA: m.luck_a, luckB: m.luck_b, round: m.round,
+  }));
+  const overrides = (overrideRows || []).map((o) => ({
+    type: o.type, playerA: o.player_a, playerB: o.player_b, winner: o.winner,
+    scoreA: o.score_a, scoreB: o.score_b, prA: o.pr_a, prB: o.pr_b, luckA: o.luck_a, luckB: o.luck_b,
+  }));
+  const previous = (historyRows || []).map((h) => ({
+    playerA: h.player_a, playerB: h.player_b, scoreA: h.score_a, scoreB: h.score_b,
+    prA: h.pr_a, prB: h.pr_b, luckA: h.luck_a, luckB: h.luck_b, round: h.round,
+    updatedAt: h.updated_at, source: h.source,
+  }));
+  const prevByKey = new Map(previous.map((m) => [key(m.playerA, m.playerB), m]));
+
+  const sameNumericFields = (a, b) =>
+    a.scoreA === b.scoreA && a.scoreB === b.scoreB && a.prA === b.prA && a.prB === b.prB
+    && a.luckA === b.luckA && a.luckB === b.luckB;
+
+  const next = [];
+  for (const m of csvMatches) {
+    const k = key(m.playerA, m.playerB);
+    const prev = prevByKey.get(k);
+    if (prev && sameNumericFields(prev, m) && prev.source !== 'manual') {
+      next.push({ ...prev, round: m.round });
+    } else if (prev && prev.source === 'manual') {
+      next.push({ ...prev, round: m.round });
+    } else {
+      next.push({
+        playerA: m.playerA, playerB: m.playerB, scoreA: m.scoreA, scoreB: m.scoreB,
+        prA: m.prA, prB: m.prB, luckA: m.luckA, luckB: m.luckB, round: m.round,
+        updatedAt: now, source: 'csv',
+      });
+    }
+  }
+
+  for (const o of overrides) {
+    const k = key(o.playerA, o.playerB);
+    let record;
+    if (o.type === 'result') {
+      record = { playerA: o.playerA, playerB: o.playerB, scoreA: o.scoreA, scoreB: o.scoreB, prA: o.prA, prB: o.prB, luckA: o.luckA, luckB: o.luckB };
+    } else if (o.type === 'technical_win') {
+      const aWins = o.winner === o.playerA;
+      record = { playerA: o.playerA, playerB: o.playerB, scoreA: aWins ? 1 : 0, scoreB: aWins ? 0 : 1, prA: null, prB: null, luckA: null, luckB: null };
+    } else if (o.type === 'technical_draw') {
+      record = { playerA: o.playerA, playerB: o.playerB, scoreA: 0, scoreB: 0, prA: null, prB: null, luckA: null, luckB: null };
+    } else if (o.type === 'not_played') {
+      record = { playerA: o.playerA, playerB: o.playerB, scoreA: 0, scoreB: 0, prA: 0, prB: 0, luckA: 0, luckB: 0 };
+    } else continue;
+
+    const idx = next.findIndex((x) => key(x.playerA, x.playerB) === k);
+    const stamped = { ...record, round: idx >= 0 ? next[idx].round : null, updatedAt: now, source: 'manual' };
+    if (idx >= 0) next[idx] = stamped;
+    else next.push(stamped);
+  }
+
+  const freshKeys = new Set(next.map((m) => key(m.playerA, m.playerB)));
+  const staleIds = (historyRows || [])
+    .filter((row) => !freshKeys.has(key(row.player_a, row.player_b)))
+    .map((row) => row.id);
+  if (staleIds.length > 0) {
+    const { error } = await supabase.from('match_history').delete().in('id', staleIds);
+    if (error) throw new Error(`match_history stale-delete failed for ${folder}: ${error.message}`);
+  }
+  if (next.length > 0) {
+    const rows = next.map((m) => ({
+      league_id: folder, player_a: m.playerA, player_b: m.playerB,
+      score_a: m.scoreA, score_b: m.scoreB, pr_a: m.prA, pr_b: m.prB, luck_a: m.luckA, luck_b: m.luckB,
+      round: m.round, source: m.source, updated_at: m.updatedAt,
+    }));
+    const { error } = await supabase.from('match_history').upsert(rows, { onConflict: 'league_id,player_a,player_b' });
+    if (error) throw new Error(`match_history upsert failed for ${folder}: ${error.message}`);
+  }
 }
 
 console.log(`→ Sync mode: ${SYNC_MODE}`);

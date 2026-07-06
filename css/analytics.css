@@ -1,0 +1,46 @@
+/* analytics.css — Traffic heatmap grid (day-of-week x hour-of-day).
+   Everything else on analytics.html reuses existing themed components
+   (dashboard-cards/dash-card, admin-card, admin-table, app-tabs). */
+
+.analytics-heatmap {
+    border-collapse: collapse;
+    font-size: var(--fs-xs, 11px);
+    white-space: nowrap;
+}
+
+.analytics-heatmap th,
+.analytics-heatmap td {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    text-align: center;
+    border: 1px solid var(--color-border, #ddd);
+    padding: 0;
+}
+
+.analytics-heatmap thead th {
+    border: none;
+    color: var(--color-text-muted, #777);
+    font-weight: normal;
+    height: auto;
+}
+
+.analytics-heatmap tbody th {
+    text-align: right;
+    padding-right: var(--space-xs, 4px);
+    color: var(--color-text-muted, #777);
+    font-weight: normal;
+    border: none;
+}
+
+/* Safety net: a bar-chart canvas's bitmap width is set once in JS from a
+   layout measurement; if that measurement is ever stale (e.g. read mid-loop
+   before a flex row settles), an unconstrained canvas would silently overflow
+   past its own card. This caps the display size to the card regardless. */
+#dwell-buckets canvas,
+#chart-timeseries canvas,
+#chart-device canvas,
+#chart-referrer canvas {
+    max-width: 100%;
+    display: block;
+}
