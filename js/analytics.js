@@ -199,8 +199,17 @@ document.addEventListener('click', (e) => {
     // `.img-export-btn` above. These only exist on admin.html, so they're
     // always "(Admin Mode)".
     const actionBtn = e.target.closest('.btn-success, .btn-primary');
+    // Prev/next chronological arrows between leagues (dashboardPage.js/
+    // leaguePage.js) or a player's adjacent leagues (playerPage.js) all share
+    // this one class — checked before the generic link branch so the
+    // direction (not which specific league/player) is what's tracked.
+    const navArrowEl = e.target.closest('a.nav-arrow:not(.disabled)');
+    // Home ▸ League ▸ Player breadcrumb (js/render/navigation.js's
+    // renderBreadcrumbs, up to 3 levels) — its own category distinct from a
+    // plain content link, checked before the generic link branch.
+    const breadcrumbEl = e.target.closest('nav.breadcrumbs a');
     const linkEl = e.target.closest('a');
-    if (!trackEl && !exportBtn && !tabEl && !menuEl && !actionBtn && !linkEl) return;
+    if (!trackEl && !exportBtn && !tabEl && !menuEl && !actionBtn && !navArrowEl && !breadcrumbEl && !linkEl) return;
 
     // The "Leagues" nav is a 2-level flyout (Leagues > Dashboard/Table >
     // <league name>). Only the final league selection is a real navigation —
@@ -241,6 +250,13 @@ document.addEventListener('click', (e) => {
         clickTarget = `Menu: ${label}${isAdminSidebar ? ' (Admin Mode)' : ''}`;
     } else if (actionBtn) {
         clickTarget = `Action: ${labelOf(actionBtn)} (Admin Mode)`;
+    } else if (navArrowEl) {
+        // "‹"/"›" (&lsaquo;/&rsaquo;) is the only text content — direction is
+        // all that's meaningful here, not which specific league/player it
+        // landed on (the resulting pageview already records that).
+        clickTarget = `Nav: ${navArrowEl.textContent.trim() === '‹' ? 'previous' : 'next'}`;
+    } else if (breadcrumbEl) {
+        clickTarget = `Breadcrumb: ${labelOf(breadcrumbEl)}`;
     } else {
         let params;
         try { params = new URL(linkEl.getAttribute('href') || '', location.href).searchParams; } catch { params = new URLSearchParams(); }

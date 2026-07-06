@@ -352,6 +352,9 @@ const CLICK_TYPE_ICONS = [
     { prefix: 'Export: ', icon: '🖼️' },
     { prefix: 'Search: ', icon: '🔍' },
     { prefix: 'Action: ', icon: '💾' },
+    { prefix: 'Nav: previous', icon: '⬅️' },
+    { prefix: 'Nav: next', icon: '➡️' },
+    { prefix: 'Breadcrumb: ', icon: '🧭' }, // proposed — pending approval
     { prefix: 'Player link: ', icon: '🔗' },
     { prefix: 'League link: ', icon: '🔗' },
     { prefix: 'Link: ', icon: '🔗' },
@@ -362,6 +365,12 @@ const CLICK_TYPE_ICONS = [
 // js/render/siteSidebar.js both use this same markup), so it's copied here
 // rather than referenced.
 const LOGOUT_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>';
+
+// Site brand logo, scaled down to icon size — used for the "Shabi Israel"
+// brand link in the sidebar (both the current "Menu: Shabi Israel" click and
+// the bare legacy "Shabi Israel" text recorded before this classification
+// existed).
+const BRAND_ICON = '<img src="assets/favicon-round.png" alt="" style="width:14px;height:14px;border-radius:50%;vertical-align:-2px">';
 
 // The sidebar's own icon per nav item (js/render/siteSidebar.js's ICON map),
 // keyed by the same clean label js/analytics.js now reads from
@@ -389,11 +398,15 @@ const MENU_LABEL_ICONS = {
     'Main Dashboard': '🏠',
     'Pending Changes': '📝',
     'Historical Changes': '🕘',
+    'Shabi Israel': BRAND_ICON,
 };
 
-/** Best-effort icon for a click_target string. Rows recorded before this
- *  prefix convention existed (no recognised prefix at all) fall back to a
- *  generic click glyph. */
+/** Best-effort icon for a click_target string. Rows recorded before today's
+ *  "Type: label" convention existed have no prefix at all — but the click
+ *  listener back then only ever tracked data-track/.img-export-btn/<a> (see
+ *  js/analytics.js's history), so any such unprefixed text is safe to assume
+ *  was a plain link click, EXCEPT the two known literal values the old code
+ *  produced for other cases ('export_image', and the brand link's own text). */
 function clickIcon(target) {
     if (target.startsWith('Tab: ')) {
         const id = target.slice(5).trim();
@@ -411,7 +424,16 @@ function clickIcon(target) {
         return MENU_LABEL_ICONS[label] || '';
     }
     const match = CLICK_TYPE_ICONS.find((c) => target.startsWith(c.prefix));
-    return match ? match.icon : '🖱️';
+    if (match) return match.icon;
+    if (target === 'export_image') return CLICK_TYPE_ICONS.find((c) => c.prefix === 'Export: ').icon;
+    if (target === 'Shabi Israel') return BRAND_ICON;
+    if (!target) return '';
+    // Legacy sidebar/tab clicks (recorded before Tab/Menu classification
+    // existed) captured the element's full raw textContent, icon glyph
+    // included (e.g. "👥 Players") — those already have their own icon, so
+    // adding 🔗 on top would double up. Only plain content text with no
+    // leading icon (e.g. "July 2026", "Home") gets the generic Link icon.
+    return /^\p{Extended_Pictographic}/u.test(target) ? '' : '🔗';
 }
 
 /** Chronological, click-to-sort log of every click/interaction event (Export

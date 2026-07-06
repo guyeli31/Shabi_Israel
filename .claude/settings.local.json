@@ -21,7 +21,9 @@
       "mcp__playwright__browser_close",
       "Bash(node --check js/data/dataSourceConfig.js)",
       "Bash(node --check js/data/supabaseClient.js)",
-      "Bash(psql --version)"
+      "Bash(psql --version)",
+      "mcp__playwright__browser_evaluate",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
