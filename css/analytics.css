@@ -112,9 +112,15 @@
    themes in css/themes.css) instead of inventing new device-specific tokens.
    #transitions-log-table (an id) is needed to outrank .mf-wrap's own
    `tbody td { background: var(--color-inset) }` default. */
-#transitions-log-table tr.device-desktop td { background: var(--color-gold-bg); }
-#transitions-log-table tr.device-mobile  td { background: var(--color-silver-bg); }
-#transitions-log-table tr.device-tablet  td { background: var(--color-bronze-bg); }
-#transitions-log-table tr.device-desktop:hover td { background: var(--color-gold-bg-hover); }
-#transitions-log-table tr.device-mobile:hover  td { background: var(--color-silver-bg-hover); }
-#transitions-log-table tr.device-tablet:hover  td { background: var(--color-bronze-bg-hover); }
+#transitions-log-table tr.device-desktop td,
+#clicks-log-table tr.device-desktop td { background: var(--color-gold-bg); }
+#transitions-log-table tr.device-mobile  td,
+#clicks-log-table tr.device-mobile  td { background: var(--color-silver-bg); }
+#transitions-log-table tr.device-tablet  td,
+#clicks-log-table tr.device-tablet  td { background: var(--color-bronze-bg); }
+#transitions-log-table tr.device-desktop:hover td,
+#clicks-log-table tr.device-desktop:hover td { background: var(--color-gold-bg-hover); }
+#transitions-log-table tr.device-mobile:hover  td,
+#clicks-log-table tr.device-mobile:hover  td { background: var(--color-silver-bg-hover); }
+#transitions-log-table tr.device-tablet:hover  td,
+#clicks-log-table tr.device-tablet:hover  td { background: var(--color-bronze-bg-hover); }

@@ -1050,7 +1050,7 @@ function renderWhatIfSimulator(ctx) {
         const stagedSummary = staged.map((s) =>
             s.result === 'NP' ? `${s.a} vs ${s.b} not played` : `${s.result === 'A' ? s.a : s.b} beats ${s.result === 'A' ? s.b : s.a}`
         ).join('; ');
-        runBtn.dataset.track = `run_simulation: ${staged.length} staged${stagedSummary ? ' — ' + stagedSummary : ''}`.slice(0, 300);
+        runBtn.dataset.track = `What if: ${staged.length} staged${stagedSummary ? ' — ' + stagedSummary : ''}`.slice(0, 300);
 
         addErr.textContent = '';
         if (staged.length === 0) {

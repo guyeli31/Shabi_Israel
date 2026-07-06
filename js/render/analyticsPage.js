@@ -16,6 +16,7 @@ import { supabase } from '../data/supabaseClient.js';
 import { escapeHtml } from '../utils/sanitize.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountAppTabs } from './appTabs.js';
+import { TAB_ICONS } from './tabIcons.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DWELL_BUCKET_ORDER = ['<10s', '10-30', '30-60', '1-5m', '5m+'];
@@ -25,9 +26,18 @@ const PAGE_LABELS = {
     league_table: 'League Table',
     player: 'Player',
     player_league: 'Player History',
+    admin: 'Admin',
 };
 const pageLabel = (p) => PAGE_LABELS[p] || p;
+// League IDs are folder names (e.g. "Shabi Israel July 2026" — see CLAUDE.md's
+// "Key Conventions"); stripping the fixed "Shabi Israel " prefix leaves the
+// short display form ("July 2026") already used elsewhere in the site's own
+// nav (js/render/siteSidebar.js's league menu entries).
+const shortLeague = (leagueId) => (leagueId ? leagueId.replace(/^Shabi Israel /, '') : leagueId);
 const contextLabel = (page, leagueId, player) => {
+    if (page === 'player_league' && player) {
+        return `Player in league (${player}${leagueId ? ', ' + shortLeague(leagueId) : ''})`;
+    }
     const base = pageLabel(page);
     if (player) return `${base} (${player})`;
     if (leagueId) return `${base} (${leagueId})`;
@@ -333,6 +343,77 @@ function renderTransitionsLog(section, transitionsLog) {
     draw();
 }
 
+// Fixed icon per click_target TYPE prefix (js/analytics.js's own
+// classification) — purely a display affordance in the "All clicks" table,
+// never stored. "League link: " is a plain content link like any other, so
+// it shares the generic Link icon rather than a distinct one.
+const CLICK_TYPE_ICONS = [
+    { prefix: 'What if: ', icon: '🧪' },
+    { prefix: 'Export: ', icon: '🖼️' },
+    { prefix: 'Search: ', icon: '🔍' },
+    { prefix: 'Action: ', icon: '💾' },
+    { prefix: 'Player link: ', icon: '🔗' },
+    { prefix: 'League link: ', icon: '🔗' },
+    { prefix: 'Link: ', icon: '🔗' },
+];
+
+// Logout's icon is an inline SVG defined directly on its own button (not in
+// the shared ICON map — js/admin/render/adminSidebarNav.js /
+// js/render/siteSidebar.js both use this same markup), so it's copied here
+// rather than referenced.
+const LOGOUT_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>';
+
+// The sidebar's own icon per nav item (js/render/siteSidebar.js's ICON map),
+// keyed by the same clean label js/analytics.js now reads from
+// .site-nav-label/.site-nav-flyout-label — so "Menu: <label>" shows the
+// EXACT icon that item has in the real sidebar, not a guess. Items with no
+// distinct icon there (theme swatches, Username/Full name, per-league
+// entries) get none. "Dashboard: <league>"/"Table: <league>" are the final
+// leaf click under the 2-level Leagues flyout (js/analytics.js skips the
+// "Leagues"/"Dashboard"/"Table" toggle clicks themselves) — Dashboard gets
+// its own icon, Table reuses the site's line-glyph league icon (an inline
+// SVG, the one case here that isn't a plain emoji).
+const MENU_LABEL_ICONS = {
+    Players: '👥',
+    Dashboard: '📊',
+    Records: '📜',
+    Achievements: '🏅',
+    PR: '🧠',
+    Match: '🎲',
+    Leaders: '👑',
+    Settings: '⚙️',
+    'Theme Customize': '🎨',
+    'Show name as': '🔤',
+    'Admin Login': '👷',
+    'Admin Mode': '👷',
+    'Main Dashboard': '🏠',
+    'Pending Changes': '📝',
+    'Historical Changes': '🕘',
+};
+
+/** Best-effort icon for a click_target string. Rows recorded before this
+ *  prefix convention existed (no recognised prefix at all) fall back to a
+ *  generic click glyph. */
+function clickIcon(target) {
+    if (target.startsWith('Tab: ')) {
+        const id = target.slice(5).trim();
+        return TAB_ICONS[id] || '🗂️';
+    }
+    if (target.startsWith('Menu: ')) {
+        // Strip the "(Admin Mode)" suffix (js/analytics.js appends it AFTER
+        // the label) before matching — otherwise every admin-sidebar item's
+        // label becomes e.g. "Settings (Admin Mode)" and never exact-matches
+        // MENU_LABEL_ICONS at all.
+        const label = target.slice(6).trim().replace(/ \(Admin Mode\)$/, '');
+        if (label.startsWith('Dashboard: ')) return MENU_LABEL_ICONS.Dashboard;
+        if (label.startsWith('Table: ')) return TAB_ICONS.leagues;
+        if (label === 'Logout') return LOGOUT_ICON;
+        return MENU_LABEL_ICONS[label] || '';
+    }
+    const match = CLICK_TYPE_ICONS.find((c) => target.startsWith(c.prefix));
+    return match ? match.icon : '🖱️';
+}
+
 /** Chronological, click-to-sort log of every click/interaction event (Export
  *  Image, Run Simulation with its staged summary, search outcomes, link
  *  clicks). Same shape/behaviour as renderTransitionsLog (device-tinted rows,
@@ -400,13 +481,16 @@ function renderClicksLog(section, clicksLog) {
             return `<th scope="col" data-sort-key="${c.key}" style="cursor:pointer">${escapeHtml(c.label)}${arrow}</th>`;
         }).join('');
 
-        const rowsHtml = sorted.map((r) => `
+        const rowsHtml = sorted.map((r) => {
+            const icon = clickIcon(r.target);
+            return `
             <tr class="device-${escapeHtml(r.device)}">
                 <td>${escapeHtml(formatLastUpdated(r.date))}</td>
                 <td>${escapeHtml(r.page)}</td>
-                <td>${escapeHtml(r.target)}</td>
+                <td>${icon ? icon + ' ' : ''}${escapeHtml(r.target)}</td>
                 <td>${escapeHtml(r.device)}</td>
-            </tr>`).join('');
+            </tr>`;
+        }).join('');
 
         host.innerHTML = `
             <div class="mf-wrap">
@@ -564,12 +648,20 @@ export async function renderAnalyticsPage(rangeKey = '30d') {
     drawBarChart(breakdownSection.querySelector('#chart-device'), data.by_device, { labelKey: 'device_type', valueKey: 'views' });
     drawBarChart(breakdownSection.querySelector('#chart-referrer'), data.by_referrer, { labelKey: 'referrer_kind', valueKey: 'views' });
 
-    // ── Traffic Patterns: day/hour heatmap ──
+    // ── Traffic Patterns: day/hour heatmap, then dwell time (bottom section) ──
     const heatmapSection = makeSection('Traffic by day & hour');
-    heatmapSection.innerHTML += `<p class="muted">Israel time. Aggregate pageview counts only — no individual visit is tracked.</p><div id="heatmap-traffic"></div>`;
+    heatmapSection.innerHTML += `<div id="heatmap-traffic"></div>`;
     shell.panels.traffic.appendChild(heatmapSection);
     const heatmapRows = range.granularity === 'month' ? data.by_hour_month : data.by_hour_day;
     drawDateHeatmap(heatmapSection.querySelector('#heatmap-traffic'), heatmapRows, range.granularity);
+
+    const dwellSection = makeSection('Dwell time by page');
+    const dwellHost = document.createElement('div');
+    dwellHost.id = 'dwell-buckets';
+    dwellHost.style.cssText = 'display:flex;gap:var(--space-md);flex-wrap:wrap';
+    dwellSection.appendChild(dwellHost);
+    shell.panels.traffic.appendChild(dwellSection);
+    renderDwellBuckets(dwellHost, data.dwell_buckets);
 
     // ── Content: top pages/leagues/players ──
     const contentSection = makeSection('Content');
@@ -603,29 +695,7 @@ export async function renderAnalyticsPage(rangeKey = '30d') {
     shell.panels.content.appendChild(transitionsLogSection);
     renderTransitionsLog(transitionsLogSection, data.transitions_log);
 
-    // ── Behavior: dwell time + page-to-page flow ──
-    const dwellSection = makeSection('Dwell time by page');
-    const dwellHost = document.createElement('div');
-    dwellHost.id = 'dwell-buckets';
-    dwellHost.style.cssText = 'display:flex;gap:var(--space-md);flex-wrap:wrap';
-    dwellSection.appendChild(dwellHost);
-    shell.panels.behavior.appendChild(dwellSection);
-    renderDwellBuckets(dwellHost, data.dwell_buckets);
-
-    const flowSection = makeSection('Page-to-page flow');
-    flowSection.innerHTML += `<p class="muted">Derived from the browser's own referrer on the next pageview — not a tracked session.</p><div id="table-transitions"></div>`;
-    shell.panels.behavior.appendChild(flowSection);
-    renderMfTable(
-        flowSection.querySelector('#table-transitions'),
-        (data.transitions || []).map((t) => ({
-            from: contextLabel(t.from_page, t.from_league_id, t.from_player),
-            to: contextLabel(t.to_page, t.to_league_id, t.to_player),
-            n: t.n,
-            lastSeen: t.last_seen ? formatLastUpdated(new Date(t.last_seen)) : 'N/A',
-        })),
-        [{ key: 'from', label: 'From' }, { key: 'to', label: 'To' }, { key: 'n', label: 'Count' }, { key: 'lastSeen', label: 'Last seen' }]
-    );
-
+    // ── Behavior: clicks & interactions ──
     const clicksLogSection = makeSection('All clicks & interactions');
     clicksLogSection.innerHTML += `
         <div class="analytics-time-filter">

@@ -62,10 +62,10 @@ alter table public.analytics_events drop constraint if exists analytics_events_e
 alter table public.analytics_events add constraint analytics_events_event_type_check check (event_type in ('pageview','duration','click'));
 
 alter table public.analytics_events drop constraint if exists analytics_events_page_check;
-alter table public.analytics_events add constraint analytics_events_page_check check (page in ('landing','league','league_table','player','player_league'));
+alter table public.analytics_events add constraint analytics_events_page_check check (page in ('landing','league','league_table','player','player_league','admin'));
 
 alter table public.analytics_events drop constraint if exists analytics_events_from_page_check;
-alter table public.analytics_events add constraint analytics_events_from_page_check check (from_page in ('landing','league','league_table','player','player_league'));
+alter table public.analytics_events add constraint analytics_events_from_page_check check (from_page in ('landing','league','league_table','player','player_league','admin'));
 
 alter table public.analytics_events drop constraint if exists analytics_events_referrer_kind_check;
 alter table public.analytics_events add constraint analytics_events_referrer_kind_check check (referrer_kind in ('direct','search','social','internal','other'));

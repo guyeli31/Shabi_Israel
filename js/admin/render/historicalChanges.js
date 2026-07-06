@@ -132,6 +132,11 @@ export async function renderHistoricalChanges(container) {
         const badge = isAutomation
             ? `<span class="status-pill" style="background:var(--color-bg-muted)">🤖 Automation</span>`
             : `<span class="status-pill status-completed">👤 ${esc(row.changed_by || 'unknown')}</span>`;
+        // Same summary shown on screen, carried into data-track so an Undo/✕
+        // click's analytics row records exactly which change it acted on —
+        // not just "a click happened", same idea as Run Simulation's staged
+        // summary in dashboardPage.js.
+        const rowSummary = `${s.label} ${s.subject} ${s.action}`.replace(/\s+/g, ' ').trim();
 
         return `
             <li class="pending-item history-item" data-log-id="${row.id}">
@@ -143,8 +148,8 @@ export async function renderHistoricalChanges(container) {
                 </span>
                 <span class="pending-item-time">${time}</span>
                 <button class="btn btn-secondary btn-sm" data-toggle-diff="${row.id}">Details</button>
-                <button class="btn btn-danger btn-sm" data-undo="${row.id}">Undo</button>
-                <button class="btn btn-danger btn-sm" data-undo-delete="${row.id}" title="Undo and remove from history">✕</button>
+                <button class="btn btn-danger btn-sm" data-undo="${row.id}" data-track="Action: Undo — ${esc(rowSummary)} (Admin Mode)">Undo</button>
+                <button class="btn btn-danger btn-sm" data-undo-delete="${row.id}" title="Undo and remove from history" data-track="Action: Remove from history — ${esc(rowSummary)} (Admin Mode)">✕</button>
                 <div class="history-diff" id="diff-${row.id}" hidden></div>
             </li>`;
     }).join('');

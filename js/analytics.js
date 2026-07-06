@@ -11,10 +11,13 @@
  * screen/viewport pixel dimensions, which could otherwise act as an
  * incidental fingerprint.
  *
- * Transport: fetch(..., {keepalive:true}) is primary (works across the whole
- * lifecycle including unload, and can set the headers Supabase needs).
- * navigator.sendBeacon is the unload-path fallback only (can't set custom
- * headers, so the anon key goes in the query string instead).
+ * Transport: fetch(..., {keepalive:true}) only — works across the whole
+ * lifecycle including unload, and can set the headers Supabase needs.
+ * navigator.sendBeacon was tried for the unload path but is NOT usable here:
+ * sendBeacon always sends with credentials included, and Supabase's REST
+ * endpoint answers CORS preflight with a wildcard Access-Control-Allow-Origin,
+ * which browsers refuse to pair with credentialed requests — every beacon
+ * was silently dropped before reaching the network.
  *
  * No-config = silent no-op (kept as a guard even though config is populated
  * today, in case a fork/local checkout doesn't have it wired up).
@@ -31,6 +34,7 @@ const PAGE_BY_FILENAME = {
     'league_table.html': 'league_table',
     'player.html': 'player',
     'player_league.html': 'player_league',
+    'admin.html': 'admin',
 };
 
 const ENDPOINT = SUPABASE_URL ? `${SUPABASE_URL}/rest/v1/analytics_events` : null;
@@ -103,16 +107,10 @@ function baseFields() {
     };
 }
 
-function send(event, { useBeacon = false } = {}) {
+function send(event) {
     if (!ENDPOINT) return; // no-config = silent no-op
 
     const body = JSON.stringify(event);
-
-    if (useBeacon && navigator.sendBeacon) {
-        const url = `${ENDPOINT}?apikey=${encodeURIComponent(SUPABASE_ANON_KEY)}`;
-        navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
-        return;
-    }
 
     fetch(ENDPOINT, {
         method: 'POST',
@@ -156,7 +154,7 @@ function sendDuration() {
     bankVisibleTime();
     if (accumulatedMs < 100) return; // negligible dwell — skip noise
     const { from_page, from_league_id, from_player, ...fields } = baseFields();
-    send({ ...fields, event_type: 'duration', duration_ms: Math.round(accumulatedMs) }, { useBeacon: true });
+    send({ ...fields, event_type: 'duration', duration_ms: Math.round(accumulatedMs) });
     accumulatedMs = 0;
 }
 
@@ -166,24 +164,94 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ---- clicks (delegated) ----
+// Every click_target starts with the button/element TYPE so the "All clicks &
+// interactions" log reads consistently at a glance:
+//   What if / Export / Tab / Menu / Player link / League link / Link
 // `.img-export-btn` matches every "Export Image" button across dashboardPage/
 // leaguePage/landingPage/typoEditor generically — no need to touch each call
-// site. `#whatif-run` (Run Simulation) is handled via `[data-track]` instead:
-// dashboardPage.js sets that button's `data-track` to a per-click summary of
-// the staged scenario right before this event bubbles up, so the summary
-// (which matches were forced, not just "the button was clicked") comes along
-// for free through the existing data-track path below.
+// site. Run Simulation is handled via `[data-track]` instead: dashboardPage.js
+// sets that button's `data-track` to "What if: ..." (a per-click summary of
+// the staged scenario) right before this event bubbles up, so the summary
+// comes along for free through the data-track path below. `[role="tab"]`
+// matches every app-tabs button generically (js/render/appTabs.js) —
+// `dataset.tab` is the stable tab id, not the display label, so it survives
+// label/icon changes. `aside a, aside button` matches every sidebar nav item
+// and flyout entry (leagues/table/records/settings/theme/admin-login) — the
+// whole site sidebar lives in a single <aside>, so this needs no per-item
+// wiring. Plain content links are split into player/league by their own href
+// query params (the same params baseFields() already reads off the CURRENT
+// page — reading them off a link's own target URL is symmetric, not new
+// data), falling back to a generic link label/href.
+function labelOf(el) {
+    return (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+}
+
 document.addEventListener('click', (e) => {
     const trackEl = e.target.closest('[data-track]');
     const exportBtn = e.target.closest('.img-export-btn');
+    const tabEl = e.target.closest('[role="tab"]');
+    const menuEl = e.target.closest('aside a, aside button');
+    // `.btn-success`/`.btn-primary` is the admin panel's own consistent
+    // convention for its primary action per screen (Publish to Site, Create
+    // League, Save Settings, Save Player Changes, Confirm & Stage, per-row
+    // Save, etc. — js/admin/*.js) — matching the classes generically covers
+    // every admin action without touching each call site, the same idea as
+    // `.img-export-btn` above. These only exist on admin.html, so they're
+    // always "(Admin Mode)".
+    const actionBtn = e.target.closest('.btn-success, .btn-primary');
     const linkEl = e.target.closest('a');
-    if (!trackEl && !exportBtn && !linkEl) return;
+    if (!trackEl && !exportBtn && !tabEl && !menuEl && !actionBtn && !linkEl) return;
 
-    const clickTarget = trackEl
-        ? trackEl.dataset.track
-        : exportBtn
-        ? 'export_image'
-        : (linkEl.textContent || '').trim().slice(0, 80) || linkEl.href;
+    // The "Leagues" nav is a 2-level flyout (Leagues > Dashboard/Table >
+    // <league name>). Only the final league selection is a real navigation —
+    // "Leagues"/"Dashboard"/"Table" are just submenu toggles, so they're
+    // skipped entirely rather than logged as their own meaningless clicks.
+    if (menuEl && menuEl.matches('.site-nav-group') &&
+        ['leagues', 'leagues-dashboard', 'leagues-table'].includes(menuEl.dataset.group)) {
+        return;
+    }
+
+    let clickTarget;
+    if (trackEl) {
+        clickTarget = trackEl.dataset.track;
+    } else if (exportBtn) {
+        clickTarget = 'Export: image';
+    } else if (tabEl) {
+        clickTarget = `Tab: ${tabEl.dataset.tab || labelOf(tabEl)}`;
+    } else if (menuEl) {
+        // Sidebar items keep their icon and label in separate spans
+        // (.site-nav-icon / .site-nav-label|.site-nav-flyout-label — see
+        // js/render/siteSidebar.js) specifically so the label alone can be
+        // read here without the icon glyph folded into the same string —
+        // analyticsPage.js maps this clean label back to that same icon for
+        // display, rather than guessing from embedded text.
+        const labelEl = menuEl.querySelector('.site-nav-label, .site-nav-flyout-label');
+        const rawLabel = labelEl ? labelOf(labelEl) : labelOf(menuEl);
+        // A league entry under Leagues > Dashboard or Leagues > Table needs
+        // its parent section named too ("Dashboard: July 2026"), since the
+        // league name alone is ambiguous between the two destinations.
+        const label = menuEl.closest('[data-flyout="leagues-dashboard"]') ? `Dashboard: ${rawLabel}`
+            : menuEl.closest('[data-flyout="leagues-table"]') ? `Table: ${rawLabel}`
+            : rawLabel;
+        // Only the admin's OWN sidebar (admin.html, class "admin-sidebar" —
+        // see js/admin/render/adminSidebarNav.js) is admin-exclusive; the
+        // public site sidebar shares the same markup/classes but is not, so
+        // an admin browsing the public site never gets tagged "(Admin Mode)".
+        const isAdminSidebar = !!menuEl.closest('.admin-sidebar');
+        clickTarget = `Menu: ${label}${isAdminSidebar ? ' (Admin Mode)' : ''}`;
+    } else if (actionBtn) {
+        clickTarget = `Action: ${labelOf(actionBtn)} (Admin Mode)`;
+    } else {
+        let params;
+        try { params = new URL(linkEl.getAttribute('href') || '', location.href).searchParams; } catch { params = new URLSearchParams(); }
+        const player = params.get('player');
+        const league = params.get('league');
+        clickTarget = player
+            ? `Player link: ${player}`
+            : league
+            ? `League link: ${league}`
+            : `Link: ${labelOf(linkEl) || linkEl.href}`;
+    }
 
     const { from_page, from_league_id, from_player, ...fields } = baseFields();
     send({ ...fields, event_type: 'click', click_target: clickTarget });
@@ -203,5 +271,5 @@ document.addEventListener('click', (e) => {
  */
 window.addEventListener('shabi:search-performed', (e) => {
     const { from_page, from_league_id, from_player, ...fields } = baseFields();
-    send({ ...fields, event_type: 'click', click_target: e.detail.foundResults ? 'search_performed: results_found' : 'search_performed: no_results' });
+    send({ ...fields, event_type: 'click', click_target: e.detail.foundResults ? 'Search: results found' : 'Search: no results' });
 });
