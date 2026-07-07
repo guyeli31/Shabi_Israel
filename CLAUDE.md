@@ -13,6 +13,10 @@ A parallel clean-slate rebuild lives under `v2/` and is the end-state target. Pl
 - **Bug fixes during rebuild**: any fix landing in v1 must also be re-applied to the corresponding v2 destination. Track in `v2/docs/MIGRATION-FROM-V1.md`.
 - **Cutover**: single scripted commit via `bash v2/scripts/migrate-v1-to-v2.sh`. Archives v1 to `_archive_v1/`, promotes `v2/*` to repo root. Rollback = `git revert HEAD`.
 
+## Data & query standards
+
+v1's read path moved from static CSV/JSON to Supabase (see `js/data/supabaseLoader.js`). A ground-up redesign of the query strategy is proposed in `docs/data-architecture/` — read `docs/data-architecture/README.md` first. Once approved and implemented, all future pages/features touching data reads must follow `docs/data-architecture/02-query-standards.md`.
+
 ## Project Overview
 
 Shabi Israel is a Backgammon league statistics web app. It loads CSV match data client-side, computes player statistics (win rate, PR, luck, rankings), and renders interactive HTML pages with sortable tables and color-coded stats.

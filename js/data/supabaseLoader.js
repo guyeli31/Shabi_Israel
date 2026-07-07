@@ -242,11 +242,18 @@ async function fetchAllRows(buildQuery) {
 }
 
 export async function loadLeaguesBulk(leagueIds) {
+    // Every paginated query orders by its primary key as a final, unique
+    // tiebreaker. Without one, .range() pagination over a column with many
+    // ties (e.g. `round`, which repeats across every league) is NOT
+    // guaranteed stable between the separate page requests — Postgres can
+    // place a tied row on either side of the page boundary differently each
+    // time, so a row can come back twice (inflating that match into a
+    // player's stats) while a different tied row is silently dropped.
     const [leagueRows, matchRows, overrideRows, historyRows] = await Promise.all([
-        fetchAllRows(() => supabase.from('leagues').select('*').in('id', leagueIds)),
-        fetchAllRows(() => supabase.from('matches').select('*').in('league_id', leagueIds).order('round', { ascending: true })),
-        fetchAllRows(() => supabase.from('manual_overrides').select('*').in('league_id', leagueIds)),
-        fetchAllRows(() => supabase.from('match_history').select('*').in('league_id', leagueIds)),
+        fetchAllRows(() => supabase.from('leagues').select('*').in('id', leagueIds).order('id', { ascending: true })),
+        fetchAllRows(() => supabase.from('matches').select('*').in('league_id', leagueIds).order('round', { ascending: true }).order('id', { ascending: true })),
+        fetchAllRows(() => supabase.from('manual_overrides').select('*').in('league_id', leagueIds).order('id', { ascending: true })),
+        fetchAllRows(() => supabase.from('match_history').select('*').in('league_id', leagueIds).order('id', { ascending: true })),
     ]);
 
     const paramsById = new Map(leagueRows.map((row) => [row.id, mapDbLeagueToParams(row)]));

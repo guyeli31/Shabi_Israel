@@ -4,6 +4,8 @@ Authoritative mapping table. Every v1 source file lands in exactly one v2 destin
 
 **Follow-up (2026-07-06): v1 Phase 2 Supabase migration landed** — v1's data layer moved from static `leagues/**` CSV/JSON files to Supabase (read path via `js/data/supabaseLoader.js`, admin write path via `js/admin/supabaseAdmin.js` + Supabase Auth, External Source automation writes directly to Supabase, plus a new Historical Changes admin tab and an analytics POC). Entirely out of scope for this v2 rebuild effort — v2 still reads from the static files/Vite proxy per its existing plan. When v2's own data-layer phase (whichever phase owns `src/data/`) comes up, port the read path (`supabaseLoader.js`'s function-signature contract) and re-evaluate whether v2's admin should also target Supabase directly given v1 no longer writes to `leagues/**` at all post-cutover. See `C:\Users\User\.claude\plans\shiny-cooking-frog.md` (Phase 2 plan) for the full design.
 
+**Follow-up (2026-07-07): query-strategy redesign proposed** — `docs/data-architecture/` (repo root) documents a ground-up rework of v1's Supabase read path (single-RPC bundle + versioned localStorage cache, replacing the current per-page granular queries). Proposed, not yet implemented — see `docs/data-architecture/README.md` for phase status. When v2 reaches its own Supabase data-layer phase, adopt the same `store.js`/bundle design (framework-agnostic by construction) rather than designing a second data layer from scratch.
+
 > Status legend: ◯ pending — ◐ partial — ● complete
 
 ## CSS files (15 files in v1, all dissolved into layered structure in v2)
