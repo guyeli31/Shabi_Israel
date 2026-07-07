@@ -17,10 +17,10 @@ import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagu
 import { exportTableImage } from '../utils/exportTableImage.js';
 import { colorForValueInverted } from '../compute/colorScale.js';
 import { drawPlayerBarChart, computeNiceRange } from './playerBarChart.js';
-import { drawCorrelationRow, brierScore, brierAssessment, signedLuckScore, luckAssessment } from './prCorrelationChart.js';
+import { drawCorrelationRow, drawHistogramRow, brierScore, brierAssessment, signedLuckScore, luckAssessment } from './prCorrelationChart.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { predictChampionship, computeTopXPct, prProbabilityTableHtml, getWinProbability, nearestMatchLengthIdx } from '../compute/championshipPredictor.js';
-import { batchLast300PRForSimulator } from '../compute/crossLeague.js';
+import { batchLast300PRForSimulator, loadVisibleLeagues } from '../compute/crossLeague.js';
 import { loadPlayersMetadata } from '../data/dataSourceMeta.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
@@ -302,8 +302,8 @@ function predictorPanel() {
             <h2 class="app-section-h2">What If
                 <span class="predictor-tooltip" id="whatif-info-btn">?</span>
             </h2>
-            <div class="whatif-info-popup" id="whatif-info-popup" hidden>
-                    <button class="whatif-info-close" id="whatif-info-close">&times;</button>
+            <div class="predictor-info-popup" id="whatif-info-popup" hidden>
+                    <button class="predictor-info-close" id="whatif-info-close">&times;</button>
                     <h4>What If</h4>
                     <p>Pick any scheduled match in the league and force its outcome (A wins, B wins, or Not Played). Add as many matches as you like, then <b>Run Simulation</b> to see how the championship odds would change in that alternate scenario.</p>
                     <ul>
@@ -376,35 +376,38 @@ function matchesPanel() {
 function insightsPanel() {
     return `
         <section class="app-section app-section--card dash-section">
-            <h2 class="app-section-h2">Player insights</h2>
+            <h2 class="app-section-h2">Player match history</h2>
             <div id="charts-container"></div>
             <button id="add-chart" class="add-chart-btn" title="Add another chart for comparison">+ Add chart</button>
         </section>
 
         <section class="app-section app-section--card dash-section" id="pr-corr-section">
-            <h2 class="app-section-h2">PR &harr; Result Correlation
+            <h2 class="app-section-h2">Player PR &harr; Result Correlation
                 <span class="predictor-tooltip" id="pr-corr-info-btn">?</span>
             </h2>
-            <div class="whatif-info-popup" id="pr-corr-info-popup" hidden>
-                <button class="whatif-info-close" id="pr-corr-info-close">&times;</button>
-                <h4>What If PR predicted the result?</h4>
-                <p>Each row is a single X axis — no Y encoding, every dot is one match. For a player's row, X is
-                that player's <b>PR advantage</b>: the opponent's PR minus the player's own PR. Since a lower PR
-                means fewer errors, a dot further to the <b>right</b> means the player played better than their
-                opponent that match; further <b>left</b> means they played worse. <span style="color:var(--color-win)">Green</span>
-                = the player won that match, <span style="color:var(--color-loss)">red</span> = they lost.</p>
-                <p>The bottom row is always the <b>league-wide</b> chart: one <span style="color:var(--color-win)">green</span>
-                dot per match (every dot is that match's winner, so there's no loss side to colour), at
-                <i>PR of the loser &minus; PR of the winner</i>. A positive value means the favourite (lower PR)
-                won as expected; a negative value is an upset.</p>
-                <p>All rows share the same X axis, sized symmetrically to &plusmn;the single largest PR gap seen
-                anywhere in the league, so every chart lines up and no dot ever sits at the very edge by accident.</p>
+            <div class="predictor-info-popup" id="pr-corr-info-popup" hidden>
+                <button class="predictor-info-close" id="pr-corr-info-close">&times;</button>
+                <h4>The win chance behind every match</h4>
+                <p>Every match has an expected win chance for the stronger player, based on the <b>PR gap</b>
+                between the two players and the match length:</p>
+                ${prProbabilityTableHtml()}
+                <p>The chart and scores below all come from comparing that expected win chance to what actually
+                happened.</p>
+
+                <h4>Reading the chart</h4>
+                <p>Each player has their own row of dots, one per match, placed by that player's <b>PR
+                advantage</b> in the match — the opponent's PR minus their own (lower PR means fewer mistakes).
+                A dot further <b>right</b> means the player outplayed their opponent that match; further
+                <b>left</b> means they were outplayed. <span style="color:var(--color-win)">Green</span> = win,
+                <span style="color:var(--color-loss)">red</span> = loss.</p>
+                <p>All player rows share one axis, sized to the widest PR gap seen between any two players
+                (plus a little padding), so every player's row can be compared directly against every other.
+                (The <b>League PR &harr; Result Correlation</b> section further down is a separate view with
+                its own scale and its own "?" for details.)</p>
+
                 <h4>The Brier score</h4>
-                <p>Each row also shows a <b>Brier score</b> &mdash; how well the site's own PR-based
-                win-probability model (the same one behind the Predictor and What If) actually predicted these
-                specific results. For every match, the model gives a win probability from the two PRs; Brier is
-                the average squared error between that probability and the real outcome, evaluated from the actual
-                winner's side: <code>mean((1 &minus; p<sub>winner</sub>)&sup2;)</code>.</p>
+                <p>Each row also has a <b>Brier score</b> &mdash; how well the win chance above matched what
+                actually happened in these specific matches.</p>
                 <div class="brier-scale">
                     <div class="brier-scale-bar"></div>
                     <div class="brier-scale-ticks">
@@ -413,48 +416,103 @@ function insightsPanel() {
                         <span class="brier-scale-tick" style="left:100%"><b>1</b><small>Mostly upsets</small></span>
                     </div>
                 </div>
-                <ul>
-                    <li><b>0</b> = the model was 100% sure the actual winner would win, every single match
-                    &mdash; results match PR-gap theory perfectly.</li>
-                    <li><b>0.25</b> = on average, the model was no more sure than a coin flip &mdash; it isn't
-                    predicting anything.</li>
-                    <li><b>close to 1</b> = the model kept expecting the loser to win, and kept being wrong
-                    &mdash; constant upsets.</li>
-                </ul>
-                <p>A short word next to the number gives the same read at a glance (Excellent / Strong / Good
-                fit &hellip; Coin-flip &hellip; Weak fit / Mostly upsets), coloured along the same green
-                &rarr; amber &rarr; red scale.</p>
-                <p>Unlike a correlation, Brier stays well-defined even for a player with a perfect or winless
-                record, and even for the league-wide row (where every entry is, by definition, a win) &mdash; it
-                only needs a predicted probability and an outcome per match, not variation between wins and
-                losses.</p>
-                <p>Unlike a correlation or a Z-score/percentile, Brier needs no minimum sample size to stay
-                well-defined &mdash; it's shown from a row's very first match. With only a handful of games it's
-                naturally noisier (like any average), so treat rows with few matches as a rougher read than ones
-                built on a full season.</p>
+                <table class="corr-band-table">
+                    <tr><th>Brier</th><th>Label</th></tr>
+                    <tr><td>0.00 &ndash; 0.05</td><td>Excellent fit</td></tr>
+                    <tr><td>0.05 &ndash; 0.15</td><td>Strong fit</td></tr>
+                    <tr><td>0.15 &ndash; 0.22</td><td>Good fit</td></tr>
+                    <tr><td>0.22 &ndash; 0.28</td><td>Coin-flip</td></tr>
+                    <tr><td>0.28 &ndash; 0.45</td><td>Weak fit</td></tr>
+                    <tr><td>0.45 &ndash; 1.00</td><td>Mostly upsets</td></tr>
+                </table>
+                <p>It's shown from a player's very first match, even for someone who's won or lost every
+                game so far &mdash; though like any average, it's noisier with only a handful of games.</p>
+
                 <h4>The Luck score</h4>
-                <p>Each <b>player</b> row also shows a signed <b>Luck</b> score, from the same per-match building
-                block as Brier &mdash; but keeping the sign instead of squaring it away. A win always counts
-                <i>for</i> the player (more, the bigger the underdog they were); a loss always counts
-                <i>against</i> them (more, the bigger the favourite they were). Averaged over all their matches,
-                this lands in <code>[&minus;1, +1]</code>.</p>
+                <p>Each player also gets a signed <b>Luck</b> score, from <code>&minus;1</code> to
+                <code>+1</code>: a win always counts in their favour (more, the bigger the underdog they were),
+                a loss always counts against them (more, the bigger the favourite they were).</p>
                 <div class="brier-scale">
                     <div class="brier-scale-bar luck-scale-bar"></div>
                     <div class="brier-scale-ticks">
-                        <span class="brier-scale-tick" style="left:0%"><b>&minus;1</b><small>Very unlucky</small></span>
+                        <span class="brier-scale-tick" style="left:0%"><b>&minus;1</b><small>Extremely unlucky</small></span>
                         <span class="brier-scale-tick" style="left:50%"><b>0</b><small>Balanced</small></span>
-                        <span class="brier-scale-tick" style="left:100%"><b>+1</b><small>Very lucky</small></span>
+                        <span class="brier-scale-tick" style="left:100%"><b>+1</b><small>Extremely lucky</small></span>
                     </div>
                 </div>
-                <p><b>+1</b> = always the underdog and always won (maximally lucky); <b>&minus;1</b> = always the
-                favourite and still always lost (maximally unlucky); <b>0</b> = results matched what the PR model
-                expected, win or lose. It needs no variance either, so it's just as well-defined at n=1 as Brier is
-                &mdash; but it is <b>not</b> shown for the league-wide row: that row is, by construction, always
-                "the winner's own side" of every match (there's no loss side to weigh against), so a signed score
-                there would always come out positive and wouldn't mean anything. Use that row's Brier score only.</p>
+                <table class="corr-band-table">
+                    <tr><th>|Luck|</th><th>Label</th></tr>
+                    <tr><td>0.00 &ndash; 0.05</td><td>Balanced</td></tr>
+                    <tr><td>0.05 &ndash; 0.15</td><td>Slightly lucky / unlucky</td></tr>
+                    <tr><td>0.15 &ndash; 0.30</td><td>Lucky / Unlucky</td></tr>
+                    <tr><td>0.30 &ndash; 0.55</td><td>Very lucky / unlucky</td></tr>
+                    <tr><td>0.55 &ndash; 1.00</td><td>Extremely lucky / unlucky</td></tr>
+                </table>
+                <p>The direction (lucky vs. unlucky) follows the score's sign: <b>+1</b> means always the
+                underdog and always winning; <b>&minus;1</b> means always the favourite and still losing;
+                <b>0</b> means results matched expectations either way. It isn't shown for the league-wide row,
+                since that row only ever contains winners and a signed score there wouldn't mean anything
+                &mdash; use that row's Brier score instead.</p>
             </div>
             <div id="corr-container"></div>
             <button id="add-corr-chart" class="add-chart-btn" title="Add another player's correlation row">+ Add player chart</button>
+        </section>
+
+        <section class="app-section app-section--card dash-section" id="league-corr-section">
+            <h2 class="app-section-h2">League PR &harr; Result Correlation
+                <span class="predictor-tooltip" id="league-corr-info-btn">?</span>
+            </h2>
+            <div class="predictor-info-popup" id="league-corr-info-popup" hidden>
+                <button class="predictor-info-close" id="league-corr-info-close">&times;</button>
+                <h4>Reading the histograms</h4>
+                <p>Instead of one dot per match (as in the Player section above), each row here is a
+                <b>histogram</b>: bars are 1 PR point wide, and a bar's height is the share (%) of matches at
+                that gap, measured as <i>PR of the loser &minus; PR of the winner</i>. A positive value means
+                the favourite won as expected; a negative value means an upset.</p>
+                <p><b>League &mdash; all matches</b> pools every match played in this league; <b>All League
+                Matches</b> pools every match ever played in every league of this same league type. This
+                section has its own axis, sized to the widest PR gap seen in the league (or across all-time
+                history, once that loads) &mdash; independent of the player rows' axis above.</p>
+
+                <h4>The controls</h4>
+                <ul>
+                    <li><b>PR-gap shift</b> (all-time row only) adds a constant to every match's gap before
+                    Model Fit is recomputed, to test whether the model's calibration point is off by a fixed
+                    amount.</li>
+                    <li><b>Trim to 99%</b> zooms a row's own view in to the middle 99% of its matches, hiding
+                    the outlier bins &mdash; display only, it never changes Model Fit.</li>
+                    <li><b>Gaussian fit</b> overlays a normal curve fitted to that row's own mean and standard
+                    deviation (shown as &mu; and &sigma;), plus dashed lines at the mean and at &plusmn;1
+                    standard deviation. It's a visual reference only &mdash; not a claim that PR gaps are
+                    actually normally distributed. It's disabled when a row doesn't have enough matches yet
+                    for a mean/standard deviation to mean anything.</li>
+                </ul>
+
+                <h4>The Brier score</h4>
+                <p>Each row also has a <b>Brier score</b> (labelled "Model fit") &mdash; how well the win
+                chance predicted by the PR gap matched what actually happened in these specific matches.</p>
+                <div class="brier-scale">
+                    <div class="brier-scale-bar"></div>
+                    <div class="brier-scale-ticks">
+                        <span class="brier-scale-tick" style="left:0%"><b>0</b><small>Perfect fit</small></span>
+                        <span class="brier-scale-tick" style="left:25%"><b>0.25</b><small>Coin-flip</small></span>
+                        <span class="brier-scale-tick" style="left:100%"><b>1</b><small>Mostly upsets</small></span>
+                    </div>
+                </div>
+                <table class="corr-band-table">
+                    <tr><th>Brier</th><th>Label</th></tr>
+                    <tr><td>0.00 &ndash; 0.05</td><td>Excellent fit</td></tr>
+                    <tr><td>0.05 &ndash; 0.15</td><td>Strong fit</td></tr>
+                    <tr><td>0.15 &ndash; 0.22</td><td>Good fit</td></tr>
+                    <tr><td>0.22 &ndash; 0.28</td><td>Coin-flip</td></tr>
+                    <tr><td>0.28 &ndash; 0.45</td><td>Weak fit</td></tr>
+                    <tr><td>0.45 &ndash; 1.00</td><td>Mostly upsets</td></tr>
+                </table>
+                <p>There's no Luck score here: these rows only ever contain winners (from the winner's own
+                side of each match), so a signed score wouldn't mean anything &mdash; Model Fit is the only
+                score shown.</p>
+            </div>
+            <div id="corr-league-container"></div>
         </section>
     `;
 }
@@ -1733,12 +1791,73 @@ function buildGeneralAdvantageSeries(liveMatches) {
         });
 }
 
-/** Symmetric X domain shared by every row: +/- the single largest PR gap seen in the league. */
+/** Symmetric X domain shared by every League row: +/- the single largest PR gap seen in the league. */
 function computeCorrelationDomain(generalSeries) {
     let maxAbs = 0;
     for (const m of generalSeries) maxAbs = Math.max(maxAbs, Math.abs(m.advantage));
     const bound = Math.max(1, Math.ceil(maxAbs));
     return { xMin: -bound, xMax: bound };
+}
+
+/**
+ * Symmetric X domain for the player rows (PR <-> Result Correlation Player
+ * section) — independent of the League section's domain above, and never
+ * touched by the cross-league all-time fetch. +/- 10% padding beyond the
+ * single largest PR gap so the outermost dot isn't flush against the axis
+ * edge. Every player's advantage magnitude for a given match equals the
+ * league-wide advantage magnitude for that same match (just the sign flips
+ * depending on which side of the match you're viewing from), so the same
+ * `generalSeries` can be reused to find that largest gap.
+ */
+function computePlayerDomain(generalSeries) {
+    let maxAbs = 0;
+    for (const m of generalSeries) maxAbs = Math.max(maxAbs, Math.abs(m.advantage));
+    const bound = Math.max(1, maxAbs * 1.1);
+    return { xMin: -bound, xMax: bound };
+}
+
+/**
+ * Fixed-width (1 PR point) density buckets for the "All League Matches"
+ * heatmap. `shift` (whole PR points) is added to every match's advantage
+ * before binning — the same shifted value also feeds the Model Fit
+ * recompute in renderPrCorrelationSection, so nudging the shift control
+ * visibly slides the heatmap left/right along the fixed axis.
+ *
+ * `dropOutOfRange` controls what happens to a match whose (shifted)
+ * advantage falls outside [xMin, xMax): false (default) folds it into the
+ * nearest edge bin (used for the shift control, so no match ever vanishes);
+ * true drops it entirely (used by the "Trim to 99%" toggle, which is meant
+ * to hide the outlier bins rather than pile them up at the edge). Either
+ * way the percentage denominator stays the full `rows.length`.
+ */
+function buildDensityBuckets(rows, shift, xMin, xMax, dropOutOfRange = false) {
+    const lo = Math.floor(xMin), hi = Math.ceil(xMax);
+    const counts = new Map();
+    for (const r of rows) {
+        const raw = r.advantage + shift;
+        if (dropOutOfRange && (raw < lo || raw >= hi)) continue;
+        const bx = Math.max(lo, Math.min(hi - 1, Math.floor(raw)));
+        counts.set(bx, (counts.get(bx) || 0) + 1);
+    }
+    const total = rows.length;
+    const buckets = [];
+    for (let x = lo; x < hi; x++) {
+        const count = counts.get(x) || 0;
+        buckets.push({ x0: x, x1: x + 1, count, pct: total > 0 ? (count / total * 100) : 0 });
+    }
+    return buckets;
+}
+
+// Below this many matches, a sample mean/std isn't a meaningful summary —
+// the "Gaussian fit" toggle is disabled and explains why instead of drawing
+// a curve off 1-2 points.
+const MIN_GAUSSIAN_N = 5;
+
+function meanStd(values) {
+    const n = values.length;
+    const mean = n ? values.reduce((s, v) => s + v, 0) / n : 0;
+    const variance = n ? values.reduce((s, v) => s + (v - mean) ** 2, 0) / n : 0;
+    return { mean, std: Math.sqrt(variance) };
 }
 
 function corrMatchInfoHtml(m) {
@@ -1774,18 +1893,29 @@ function corrMatchInfoHtml(m) {
 // bounded [0,1] terms — well-defined and readable at any n (even n=1), with
 // no reliance on a normal approximation. So no minimum-games gate is needed;
 // it's just noisier (like any average) with fewer matches.
+// Keeps a marker's/value's horizontal position a few points shy of the bar's
+// own edges, so the value text (centred on that position) never overflows
+// past the bar into the caption or label column at the extremes (0 or 1).
+function clampPct(pct) {
+    return Math.max(8, Math.min(92, pct));
+}
+
 function applyMetricPill(pillEl, brier) {
     if (brier == null) {
-        pillEl.innerHTML = `<span class="brier-caption">Brier</span><span class="brier-mini-scale"></span><b>&mdash;</b>`;
+        pillEl.innerHTML = `<span class="brier-caption">Model fit</span><span class="brier-mini-scale"><span class="brier-mini-track"></span></span><span class="brier-label">&mdash;</span>`;
         pillEl.title = 'No rated matches yet.';
         return;
     }
     const { text, color } = brierAssessment(brier, pillEl);
     const markerPct = Math.max(0, Math.min(100, brier * 100));
+    const valuePct = clampPct(markerPct);
     pillEl.innerHTML = `
-        <span class="brier-caption">Brier</span>
-        <span class="brier-mini-scale"><span class="brier-mini-marker" style="left:${markerPct}%"></span></span>
-        <b>${brier.toFixed(3)}</b>
+        <span class="brier-caption">Model fit</span>
+        <span class="brier-mini-scale">
+            <span class="brier-mini-track"></span>
+            <span class="brier-mini-marker" style="left:${markerPct}%"></span>
+            <b class="brier-mini-value" style="left:${valuePct}%">${brier.toFixed(3)}</b>
+        </span>
         <span class="brier-label" style="color:${color}">${text}</span>
     `;
     pillEl.title = 'Brier score: mean squared error between the PR model\'s predicted win probability and the actual result. 0 = the model was fully confident in every actual winner, 0.25 = no better than a coin flip, 1 = confidently wrong every time.';
@@ -1795,84 +1925,200 @@ function applyMetricPill(pillEl, brier) {
 // never call this for the general row, see signedLuckScore()'s doc comment.
 function applyLuckPill(pillEl, luck) {
     if (luck == null) {
-        pillEl.innerHTML = `<span class="brier-caption">Luck</span><span class="luck-mini-scale"></span><b>&mdash;</b>`;
+        pillEl.innerHTML = `<span class="brier-caption">Luck</span><span class="luck-mini-scale"><span class="luck-mini-track"></span></span><span class="brier-label">&mdash;</span>`;
         pillEl.title = 'No rated matches yet.';
         return;
     }
     const { text, color } = luckAssessment(luck, pillEl);
     const markerPct = Math.max(0, Math.min(100, (luck + 1) / 2 * 100));
+    const valuePct = clampPct(markerPct);
     pillEl.innerHTML = `
         <span class="brier-caption">Luck</span>
-        <span class="luck-mini-scale"><span class="brier-mini-marker" style="left:${markerPct}%"></span></span>
-        <b>${luck >= 0 ? '+' : ''}${luck.toFixed(3)}</b>
+        <span class="luck-mini-scale">
+            <span class="luck-mini-track"></span>
+            <span class="brier-mini-marker" style="left:${markerPct}%"></span>
+            <b class="brier-mini-value" style="left:${valuePct}%">${luck >= 0 ? '+' : ''}${luck.toFixed(3)}</b>
+        </span>
         <span class="brier-label" style="color:${color}">${text}</span>
     `;
     pillEl.title = 'Signed-luck score: same per-match building block as Brier, but keeps the sign. +1 = maximally lucky (always the underdog, always won), -1 = maximally unlucky (always favoured, always lost), 0 = results matched the PR model exactly.';
+}
+
+function wireInfoPopup(btnId, popupId, closeId) {
+    const btn = document.getElementById(btnId);
+    const popup = document.getElementById(popupId);
+    const close = document.getElementById(closeId);
+    if (!btn || !popup) return;
+    btn.addEventListener('click', () => { popup.hidden = !popup.hidden; });
+    if (close) close.addEventListener('click', () => { popup.hidden = true; });
 }
 
 function renderPrCorrelationSection(ctx) {
     const { liveMatches } = ctx;
     const players = [...ctx.allPlayersSet].sort();
     const container = document.getElementById('corr-container');
-    if (!container) return;
+    const leagueContainer = document.getElementById('corr-league-container');
+    if (!container || !leagueContainer) return;
 
-    const infoBtn = document.getElementById('pr-corr-info-btn');
-    const infoPopup = document.getElementById('pr-corr-info-popup');
-    const infoClose = document.getElementById('pr-corr-info-close');
-    if (infoBtn && infoPopup) {
-        infoBtn.addEventListener('click', () => { infoPopup.hidden = !infoPopup.hidden; });
-        if (infoClose) infoClose.addEventListener('click', () => { infoPopup.hidden = true; });
-    }
+    wireInfoPopup('pr-corr-info-btn', 'pr-corr-info-popup', 'pr-corr-info-close');
+    wireInfoPopup('league-corr-info-btn', 'league-corr-info-popup', 'league-corr-info-close');
 
     const generalSeries = buildGeneralAdvantageSeries(liveMatches);
     const domain = computeCorrelationDomain(generalSeries);
+    const playerDomain = computePlayerDomain(generalSeries);
     const panels = [];
 
-    // General row — always present, uncoloured, fixed at the TOP of the stack;
-    // appended first so every later panel (initial + "+ Add") lands below it.
+    // League row (current league only) — always present, uncoloured, top of
+    // the League PR <-> Result Correlation section.
     const generalPanel = document.createElement('div');
     generalPanel.className = 'chart-panel corr-panel corr-panel--general';
     const generalMlIdx = nearestMatchLengthIdx(ctx.params.MatchLength || 7);
-    const generalItems = generalSeries.map(m => ({
-        pWin: getWinProbability(m.prWinner, m.prLoser, generalMlIdx),
-        outcome: 1 // pWin was computed for the side that actually won
-    }));
-    const generalBrier = brierScore(generalItems);
     const generalStatsMap = computeAllStats(liveMatches, ctx.allPlayersSet);
     const generalRankings = buildRankings(generalStatsMap, ctx.leagueConfig, liveMatches);
     const generalMatchStats = computeMatchStats(generalRankings, ctx.allPlayersSet.size);
     generalPanel.innerHTML = `
-        <div class="dash-controls">
-            <label>League &mdash; all matches (${generalMatchStats.playedMatches}/${generalMatchStats.totalMatches})</label>
+        <div class="dash-controls corr-controls">
+            <div class="corr-controls-top">
+                <label>League &mdash; all matches (${generalMatchStats.playedMatches}/${generalMatchStats.totalMatches})</label>
+                <span class="corr-gaussian-stats"></span>
+                <div class="corr-shift-group">
+                    <button class="corr-gaussian-toggle" type="button" disabled title="Overlays a fitted normal (Gaussian) curve on this histogram, using this data's own mean and standard deviation &mdash; a visual reference only, not a claim that the data is actually normally distributed.">Gaussian fit</button>
+                    <button class="corr-trim-toggle" type="button" disabled title="Zooms the X-axis in to the middle 99% of this league's matches (symmetric around 0), hiding the outlier bins beyond that. Display only: Model Fit below always uses the full, untrimmed data.">Trim to 99%</button>
+                    <div class="corr-shift-control" title="Adds this many PR points to every match's PR gap before recomputing Model Fit below &mdash; use it to test whether the model's calibration point is off by a constant amount. 0 = the model's real, unshifted PR gaps.">
+                        <button class="corr-shift-btn" data-dir="-1" aria-label="Decrease PR-gap shift" disabled>&minus;</button>
+                        <span class="corr-shift-value">
+                            <span class="corr-shift-caption">PR-gap shift</span>
+                            <b class="corr-shift-amount">0</b>
+                        </span>
+                        <button class="corr-shift-btn" data-dir="1" aria-label="Increase PR-gap shift" disabled>+</button>
+                    </div>
+                </div>
+            </div>
             <span class="corr-metric-pill"></span>
         </div>
         <div class="chart-host corr-host"></div>
     `;
-    applyMetricPill(generalPanel.querySelector('.corr-metric-pill'), generalBrier);
-    container.appendChild(generalPanel);
-    drawCorrelationRow(generalPanel.querySelector('.corr-host'), generalSeries.map(m => ({ x: m.advantage, win: true, match: m })), {
-        xMin: domain.xMin,
-        xMax: domain.xMax,
-        showAxis: true,
-        buildInfoHtml: (p) => corrMatchInfoHtml(p.match)
-    });
+    leagueContainer.appendChild(generalPanel);
+
+    // All League Matches — density histogram across EVERY league of this
+    // same league type ever played, below "League — all matches". The
+    // cross-league fetch is async, so this panel is appended first
+    // (reserving its slot) and filled in once loadVisibleLeagues() resolves,
+    // below.
+    const allTimePanel = document.createElement('div');
+    allTimePanel.className = 'chart-panel corr-panel corr-panel--general';
+    allTimePanel.innerHTML = `
+        <div class="dash-controls corr-controls">
+            <div class="corr-controls-top">
+                <label class="corr-alltime-label">All League Matches &hellip;</label>
+                <span class="corr-gaussian-stats"></span>
+                <div class="corr-shift-group">
+                    <button class="corr-gaussian-toggle" type="button" disabled title="Overlays a fitted normal (Gaussian) curve on this histogram, using this data's own mean and standard deviation &mdash; a visual reference only, not a claim that the data is actually normally distributed.">Gaussian fit</button>
+                    <button class="corr-trim-toggle" type="button" disabled title="Zooms the X-axis in to the middle 99% of all-time matches (symmetric around 0), hiding the outlier bins beyond that. Display only: Model Fit below always uses the full, untrimmed data.">Trim to 99%</button>
+                    <div class="corr-shift-control" title="Adds this many PR points to every match's PR gap before recomputing Model Fit below &mdash; use it to test whether the model's calibration point is off by a constant amount. 0 = the model's real, unshifted PR gaps.">
+                        <button class="corr-shift-btn" data-dir="-1" aria-label="Decrease PR-gap shift" disabled>&minus;</button>
+                        <span class="corr-shift-value">
+                            <span class="corr-shift-caption">PR-gap shift</span>
+                            <b class="corr-shift-amount">0</b>
+                        </span>
+                        <button class="corr-shift-btn" data-dir="1" aria-label="Increase PR-gap shift" disabled>+</button>
+                    </div>
+                </div>
+            </div>
+            <span class="corr-metric-pill"></span>
+        </div>
+        <div class="chart-host corr-host"></div>
+    `;
+    leagueContainer.appendChild(allTimePanel);
+    applyMetricPill(allTimePanel.querySelector('.corr-metric-pill'), null);
+
+    const generalGaussianToggle = generalPanel.querySelector('.corr-gaussian-toggle');
+    const generalTrimToggle = generalPanel.querySelector('.corr-trim-toggle');
+    const generalGaussianStatsEl = generalPanel.querySelector('.corr-gaussian-stats');
+    const generalShiftAmountEl = generalPanel.querySelector('.corr-shift-amount');
+    const [generalMinusBtn, generalPlusBtn] = generalPanel.querySelectorAll('.corr-shift-btn');
+    let generalTrimmed = false;
+    let generalShowGaussian = false;
+    let generalShift = 0;
+
+    function generalTrimmedBound() {
+        const vals = generalSeries.map(m => Math.abs(m.advantage + generalShift)).sort((a, b) => a - b);
+        if (!vals.length) return domain.xMax;
+        const idx = Math.min(vals.length - 1, Math.floor(0.99 * vals.length));
+        return Math.min(domain.xMax, Math.max(1, Math.ceil(vals[idx])));
+    }
+
+    function redrawGeneral() {
+        const generalItems = generalSeries.map(m => ({
+            pWin: getWinProbability(0, m.advantage + generalShift, generalMlIdx),
+            outcome: 1 // pWin was computed for the side that actually won
+        }));
+        applyMetricPill(generalPanel.querySelector('.corr-metric-pill'), brierScore(generalItems));
+        generalShiftAmountEl.textContent = `${generalShift > 0 ? '+' : ''}${generalShift}`;
+
+        const enoughForGaussian = generalSeries.length >= MIN_GAUSSIAN_N;
+        generalGaussianToggle.disabled = !enoughForGaussian;
+        generalGaussianToggle.textContent = enoughForGaussian ? 'Gaussian fit' : 'Gaussian fit (not enough data)';
+        generalGaussianToggle.title = enoughForGaussian
+            ? 'Overlays a fitted normal (Gaussian) curve on this histogram, using this data\'s own mean and standard deviation — a visual reference only, not a claim that the data is actually normally distributed.'
+            : `Needs at least ${MIN_GAUSSIAN_N} played matches before a mean/standard deviation is meaningful.`;
+        if (!enoughForGaussian) generalShowGaussian = false;
+        generalGaussianToggle.classList.toggle('is-active', generalShowGaussian);
+
+        generalTrimToggle.disabled = false;
+        generalTrimToggle.textContent = generalTrimmed ? 'Show full range' : 'Trim to 99%';
+        generalTrimToggle.classList.toggle('is-active', generalTrimmed);
+
+        const bound = generalTrimmed ? generalTrimmedBound() : domain.xMax;
+        const localXMin = -bound, localXMax = bound;
+        const buckets = buildDensityBuckets(generalSeries, generalShift, localXMin, localXMax, generalTrimmed);
+
+        let gaussian = null;
+        if (generalShowGaussian) {
+            const { mean, std } = meanStd(generalSeries.map(m => m.advantage + generalShift));
+            gaussian = { mean, std };
+            generalGaussianStatsEl.textContent = `μ = ${mean.toFixed(2)}   σ = ${std.toFixed(2)}`;
+        } else {
+            generalGaussianStatsEl.textContent = '';
+        }
+
+        drawHistogramRow(generalPanel.querySelector('.corr-host'), buckets, {
+            xMin: localXMin,
+            xMax: localXMax,
+            showAxis: true,
+            totalCount: generalSeries.length,
+            gaussian
+        });
+    }
+    redrawGeneral();
+
+    generalGaussianToggle.addEventListener('click', () => { generalShowGaussian = !generalShowGaussian; redrawGeneral(); });
+    generalTrimToggle.addEventListener('click', () => { generalTrimmed = !generalTrimmed; redrawGeneral(); });
+    generalMinusBtn.disabled = false;
+    generalPlusBtn.disabled = false;
+    generalMinusBtn.addEventListener('click', () => { generalShift = Math.max(-10, generalShift - 1); redrawGeneral(); });
+    generalPlusBtn.addEventListener('click', () => { generalShift = Math.min(10, generalShift + 1); redrawGeneral(); });
 
     function buildPanel(initialPlayer) {
         const panel = document.createElement('div');
         panel.className = 'chart-panel corr-panel';
         panel.innerHTML = `
-            <div class="dash-controls">
-                <label>Player:</label>
-                <select class="player-pick">${players.map(p => `<option value="${p}" ${p === initialPlayer ? 'selected' : ''}>${displayPlayerName(p)}</option>`).join('')}</select>
+            <div class="dash-controls corr-controls">
+                <div class="corr-controls-top">
+                    <label>Player:</label>
+                    <select class="player-pick">${players.map(p => `<option value="${p}" ${p === initialPlayer ? 'selected' : ''}>${displayPlayerName(p)}</option>`).join('')}</select>
+                    <span class="corr-games-count"></span>
+                    <button class="remove-chart" title="Remove this chart">&times;</button>
+                </div>
                 <span class="corr-metric-pill"></span>
                 <span class="corr-metric-pill corr-luck-pill"></span>
-                <button class="remove-chart" title="Remove this chart">&times;</button>
             </div>
             <div class="chart-host corr-host"></div>
         `;
         container.appendChild(panel);
 
         const playerSel = panel.querySelector('.player-pick');
+        const gamesCount = panel.querySelector('.corr-games-count');
         const metricPill = panel.querySelector('.corr-metric-pill:not(.corr-luck-pill)');
         const luckPill = panel.querySelector('.corr-luck-pill');
         const host = panel.querySelector('.corr-host');
@@ -1881,6 +2127,7 @@ function renderPrCorrelationSection(ctx) {
         function redraw() {
             const player = playerSel.value;
             const series = buildPlayerAdvantageSeries(liveMatches, player);
+            gamesCount.textContent = `(${series.length}/${players.length - 1} matches)`;
             const mlIdx = nearestMatchLengthIdx(ctx.params.MatchLength || 7);
             const items = series.map(m => ({
                 pWin: getWinProbability(m.prSelf, m.prOpp, mlIdx),
@@ -1890,8 +2137,8 @@ function renderPrCorrelationSection(ctx) {
             applyMetricPill(metricPill, brier);
             applyLuckPill(luckPill, signedLuckScore(items));
             drawCorrelationRow(host, series.map(m => ({ x: m.advantage, win: m.win, match: m })), {
-                xMin: domain.xMin,
-                xMax: domain.xMax,
+                xMin: playerDomain.xMin,
+                xMax: playerDomain.xMax,
                 showAxis: true,
                 buildInfoHtml: (p) => corrMatchInfoHtml(p.match)
             });
@@ -1917,4 +2164,117 @@ function renderPrCorrelationSection(ctx) {
     if (addBtn) {
         addBtn.addEventListener('click', () => buildPanel(players[0]));
     }
+
+    // All-time cross-league data (async, may already be warm from other
+    // pages via loadVisibleLeagues()'s own memoization). Populates the
+    // All-League-Matches heatmap once resolved; expands the shared domain
+    // and redraws every already-built row if all-time history has a larger
+    // PR gap than this league alone, so everything stays aligned.
+    let shift = 0;
+    loadVisibleLeagues().then(leagues => {
+        const leagueType = ctx.leagueConfig.type;
+        const typeLeagues = leagues.filter(l => l.leagueType === leagueType);
+        const rows = [];
+        for (const league of typeLeagues) {
+            const mlIdx = nearestMatchLengthIdx(league.params.MatchLength || 7);
+            for (const m of buildGeneralAdvantageSeries(league.matches)) {
+                rows.push({ ...m, mlIdx });
+            }
+        }
+
+        const labelEl = allTimePanel.querySelector('.corr-alltime-label');
+        if (!rows.length) {
+            labelEl.textContent = 'All League Matches — no data yet';
+            return;
+        }
+
+        let allTimeMaxAbs = 0;
+        for (const r of rows) allTimeMaxAbs = Math.max(allTimeMaxAbs, Math.abs(r.advantage));
+        const expandedBound = Math.max(domain.xMax, Math.ceil(allTimeMaxAbs));
+        const domainChanged = expandedBound > domain.xMax;
+        if (domainChanged) {
+            domain.xMin = -expandedBound;
+            domain.xMax = expandedBound;
+        }
+
+        labelEl.textContent = `All League Matches (${rows.length} matches, ${typeLeagues.length} league${typeLeagues.length === 1 ? '' : 's'})`;
+        const shiftAmountEl = allTimePanel.querySelector('.corr-shift-amount');
+        const trimToggle = allTimePanel.querySelector('.corr-trim-toggle');
+        const metricPill = allTimePanel.querySelector('.corr-metric-pill');
+        const host = allTimePanel.querySelector('.corr-host');
+        const [minusBtn, plusBtn] = allTimePanel.querySelectorAll('.corr-shift-btn');
+
+        // Trim view is independent of the shared `domain` — toggling it only
+        // narrows the X-axis (dropping outlier bins entirely, not folding
+        // them into the edge) for THIS row's own display. Model Fit always
+        // recomputes over the full, untrimmed `rows` data below, so trimming
+        // never changes the score.
+        const fullBound = domain.xMax;
+        let trimmed = false;
+
+        const gaussianToggle = allTimePanel.querySelector('.corr-gaussian-toggle');
+        const gaussianStatsEl = allTimePanel.querySelector('.corr-gaussian-stats');
+        let showGaussian = false;
+
+        function trimmedBound() {
+            const vals = rows.map(r => Math.abs(r.advantage + shift)).sort((a, b) => a - b);
+            if (!vals.length) return fullBound;
+            const idx = Math.min(vals.length - 1, Math.floor(0.99 * vals.length));
+            return Math.min(fullBound, Math.max(1, Math.ceil(vals[idx])));
+        }
+
+        function redrawAllTime() {
+            const bound = trimmed ? trimmedBound() : fullBound;
+            const localXMin = -bound, localXMax = bound;
+            const buckets = buildDensityBuckets(rows, shift, localXMin, localXMax, trimmed);
+            const items = rows.map(r => ({
+                pWin: getWinProbability(0, r.advantage + shift, r.mlIdx),
+                outcome: 1
+            }));
+            applyMetricPill(metricPill, brierScore(items));
+            shiftAmountEl.textContent = `${shift > 0 ? '+' : ''}${shift}`;
+            trimToggle.textContent = trimmed ? 'Show full range' : 'Trim to 99%';
+            trimToggle.classList.toggle('is-active', trimmed);
+
+            const enoughForGaussian = rows.length >= MIN_GAUSSIAN_N;
+            gaussianToggle.disabled = !enoughForGaussian;
+            gaussianToggle.textContent = enoughForGaussian ? 'Gaussian fit' : 'Gaussian fit (not enough data)';
+            gaussianToggle.title = enoughForGaussian
+                ? 'Overlays a fitted normal (Gaussian) curve on this histogram, using this data\'s own mean and standard deviation — a visual reference only, not a claim that the data is actually normally distributed.'
+                : `Needs at least ${MIN_GAUSSIAN_N} matches before a mean/standard deviation is meaningful.`;
+            if (!enoughForGaussian) showGaussian = false;
+            gaussianToggle.classList.toggle('is-active', showGaussian);
+
+            let gaussian = null;
+            if (showGaussian) {
+                const { mean, std } = meanStd(rows.map(r => r.advantage + shift));
+                gaussian = { mean, std };
+                gaussianStatsEl.textContent = `μ = ${mean.toFixed(2)}   σ = ${std.toFixed(2)}`;
+            } else {
+                gaussianStatsEl.textContent = '';
+            }
+
+            drawHistogramRow(host, buckets, {
+                xMin: localXMin,
+                xMax: localXMax,
+                showAxis: true,
+                totalCount: rows.length,
+                gaussian
+            });
+        }
+
+        minusBtn.disabled = false;
+        plusBtn.disabled = false;
+        minusBtn.addEventListener('click', () => { shift = Math.max(-10, shift - 1); redrawAllTime(); });
+        plusBtn.addEventListener('click', () => { shift = Math.min(10, shift + 1); redrawAllTime(); });
+        trimToggle.disabled = false;
+        trimToggle.addEventListener('click', () => { trimmed = !trimmed; redrawAllTime(); });
+        gaussianToggle.disabled = false;
+        gaussianToggle.addEventListener('click', () => { showGaussian = !showGaussian; redrawAllTime(); });
+        redrawAllTime();
+
+        if (domainChanged) {
+            redrawGeneral();
+        }
+    });
 }

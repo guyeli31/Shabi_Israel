@@ -74,6 +74,15 @@
     --brier-mid:  var(--color-warning);
     --brier-bad:  var(--color-loss);
 
+    /* Match-density heatmap (All League Matches strip): single sequential hue,
+       aliased to the theme accent so the ramp follows every theme automatically
+       with no per-theme overrides. The "cold" (0% density) stop is derived FROM
+       this same colour in JS (darkened, not lightened toward white/pale — see
+       prCorrelationChart.js's densityFill) so both ends of the ramp visibly
+       track the theme's actual accent hue instead of collapsing toward a
+       near-white tint that reads the same across every theme. */
+    --density-hot: var(--color-accent);
+
     /* Warning — intentionally CONSTANT across all themes. A caution signal
        (like a traffic light) shouldn't shift with the palette. Foreground use:
        the .whatif-warn icon and CSV-validation messages. */

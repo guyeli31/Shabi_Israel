@@ -5,7 +5,7 @@
  * aggregate across leagues for the Phase G general player card.
  */
 
-import { loadLeagueOrder, loadLeague } from '../data/dataSourceLoader.js';
+import { loadLeagueOrder, loadLeaguesBulk } from '../data/dataSourceLoader.js';
 import { computeAllStats } from './stats.js';
 import { buildRankings, getLevel } from './rankings.js';
 import { getLeagueConfig } from './leagueTypes.js';
@@ -28,9 +28,14 @@ export function loadAllLeagues() {
             id: title.replace(' - ', ' ')
         }));
 
-        const results = await Promise.allSettled(
-            entries.map(async e => {
-                const league = await loadLeague(e.id);
+        // Fixed number of round trips regardless of league count (loadLeaguesBulk
+        // batches params/matches/overrides/history across all leagues at once),
+        // instead of fanning out to loadLeague() once per league.
+        const byId = await loadLeaguesBulk(entries.map(e => e.id));
+        return entries
+            .filter(e => byId.has(e.id))
+            .map(e => {
+                const league = byId.get(e.id);
                 const config = getLeagueConfig(league.params);
                 const leagueType = config.type;
                 const statsMap = computeAllStats(league.matches, league.allPlayers);
@@ -47,11 +52,7 @@ export function loadAllLeagues() {
                     statsMap,
                     rankings
                 };
-            })
-        );
-        return results
-            .filter(r => r.status === 'fulfilled')
-            .map(r => r.value);
+            });
     })();
     return allLeaguesPromise;
 }

@@ -51,6 +51,7 @@ import { buildMatchupPreset } from '../presets/matchupPreset.js';
 import { buildAllOpponentsPreset, aggregateOpponents } from '../presets/allOpponentsPreset.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { registerSearchAdapter } from './searchOverlay.js';
+import { scrollToClearingTopbar } from '../utils/scrollOffset.js';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
@@ -700,8 +701,10 @@ function renderMatchup(panel, playerName, allRows) {
         : `<img class="flag" src="${flagUrl(getFlagCode(name, _mergedCustomFlags))}" alt="flag">`;
     mountMFTable(c4Mount, buildAllOpponentsPreset({ opponents, enrich: { flagFor } }));
 
-    // Clicking an opponent in C4 opens the C3 detail above and jumps to the
-    // very top edge of the page (Page Up), where the lookup section lives.
+    // Clicking an opponent in C4 opens the C3 detail above it and jumps
+    // straight to that lookup section — NOT the page top (window.scrollTo
+    // top:0 landed at the page header/hero above it, one section too high,
+    // and ignored the fixed topbar besides).
     c4Mount.addEventListener('click', (e) => {
         const link = e.target.closest('.c4-opp-link');
         if (!link) return;
@@ -709,7 +712,7 @@ function renderMatchup(panel, playerName, allRows) {
         input.value = name;
         dropdown.hidden = true;
         renderResults(name);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        requestAnimationFrame(() => scrollToClearingTopbar(topSection, { behavior: 'smooth' }));
     });
 
     // Smart-search opponent list spans every league (lets you search anyone).

@@ -135,8 +135,8 @@ const GROUPS = [
     { id: 'whatif-input',      pages: ['league'], tier: 't6', bold: false, label: 'What-If: input',         sel: '.whatif-input, .whatif-vs' },
     { id: 'whatif-buttons',    pages: ['league'], tier: 't6', bold: false, label: 'What-If: buttons',       sel: '.whatif-add-btn, .whatif-run-btn, .whatif-clear-btn' },
     { id: 'whatif-row',        pages: ['league'], tier: 't6', bold: false, label: 'What-If: row text',      sel: '.whatif-row, .whatif-empty, .whatif-err' },
-    { id: 'whatif-info-popup', pages: ['league'], tier: 't6', bold: false, label: 'What-If: info popup',    sel: '.whatif-info-popup p, .whatif-info-popup ul, .whatif-info-popup li' },
-    { id: 'whatif-info-h4',    pages: ['league'], tier: 't4', bold: true,  label: 'What-If: info popup heading', sel: '.whatif-info-popup h4' },
+    { id: 'info-popup-body',   pages: ['league', 'index'], tier: 't6', bold: false, label: 'Info popup ("?"): body',    sel: '.predictor-info-popup p, .predictor-info-popup ul, .predictor-info-popup li' },
+    { id: 'info-popup-h4',     pages: ['league', 'index'], tier: 't4', bold: true,  label: 'Info popup ("?"): sub-heading', sel: '.predictor-info-popup h4' },
     { id: 'predictor-moe',     pages: ['league'], tier: 't7', bold: false, label: 'Margin of Error (MoE)',  sel: '.predictor-moe' }
 ];
 

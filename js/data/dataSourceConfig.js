@@ -13,6 +13,12 @@
  * specific choice (skips the probe) — useful for deliberately testing the
  * fallback path, or viewing the frozen snapshot even when Supabase IS reachable.
  *
+ * The probe only runs on localhost/127.0.0.1 (a dev machine that may have no
+ * Docker/no internet). On any other host — the real deployed site — Supabase
+ * is assumed reachable and selected immediately with no round trip: post
+ * cutover, `leagues/**` is a frozen historical snapshot, so falling back to
+ * it on production would silently serve stale data instead of a clear error.
+ *
  * Scope: read path only (js/data/dataSourceLoader.js / dataSourceMeta.js).
  * Admin (js/admin/**) always targets Supabase directly regardless of this —
  * 'files' mode has no writer, so mixing it into Admin would silently
@@ -22,6 +28,7 @@
 import { resolvedUrl, resolvedAnonKey } from './supabaseClient.js';
 
 const PROBE_TIMEOUT_MS = 2500;
+const isLocal = ['localhost', '127.0.0.1'].includes(location.hostname);
 
 async function probeSupabaseReachable() {
     try {
@@ -50,6 +57,8 @@ const forced = new URLSearchParams(location.search).get('datasource');
 let _source;
 if (forced === 'files' || forced === 'supabase') {
     _source = forced;
+} else if (!isLocal) {
+    _source = 'supabase';
 } else {
     _source = (await probeSupabaseReachable()) ? 'supabase' : 'files';
 }

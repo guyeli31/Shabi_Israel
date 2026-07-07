@@ -307,9 +307,7 @@ export async function reconcileMatchHistory(leagueId) {
             record = { playerA: o.playerA, playerB: o.playerB, scoreA: aWins ? 1 : 0, scoreB: aWins ? 0 : 1, prA: null, prB: null, luckA: null, luckB: null };
         } else if (o.type === 'technical_draw') {
             record = { playerA: o.playerA, playerB: o.playerB, scoreA: 0, scoreB: 0, prA: null, prB: null, luckA: null, luckB: null };
-        } else if (o.type === 'not_played') {
-            record = { playerA: o.playerA, playerB: o.playerB, scoreA: 0, scoreB: 0, prA: 0, prB: 0, luckA: 0, luckB: 0 };
-        } else continue;
+        } else continue; // 'not_played' (and any other type): no match_history row should exist for this pairing
 
         const idx = next.findIndex((x) => matchKey(x.playerA, x.playerB) === key);
         // A match with no played=true row in `matches` (e.g. a 'not_played'

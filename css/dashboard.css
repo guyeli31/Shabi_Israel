@@ -273,6 +273,19 @@
     padding-right: 30px;
 }
 
+/* .corr-controls carries the reservation on its own top row only (the row
+   the close button actually sits above) — the full-width pills below it
+   don't need to dodge the button, and should span the same width as the
+   graph canvas beside them, so they get their padding-right reset to 0.
+   (Matches ".chart-panel .dash-controls" specificity above so it actually
+   wins the cascade instead of losing to it.) */
+.chart-panel .corr-controls {
+    padding-right: 0;
+}
+.corr-controls-top {
+    padding-right: 30px;
+}
+
 .add-chart-btn {
     padding: 8px 16px;
     border: 1px dashed var(--color-border);
@@ -304,6 +317,158 @@
     margin-top: var(--space-xs);
 }
 
+/* Controls block: player/label row on top, then one full-width metric pill
+   per row below. Same structure and rules at every viewport width — no
+   mobile-only hides or shrink breakpoints, so mobile and desktop always show
+   identical content, just reflowed by the fluid --fs-* font tokens. */
+.corr-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-sm);
+}
+
+.corr-controls-top {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+}
+
+.corr-alltime-label {
+    color: var(--color-text-secondary);
+    font-size: var(--fs-085);
+}
+
+/* Groups the "Gaussian fit" and "Trim to 99%" toggles and the PR-gap shift
+   stepper together, pushed to the far side of the control row away from the
+   label. */
+.corr-shift-group {
+    display: flex;
+    align-items: stretch;
+    gap: var(--space-sm);
+    margin-left: auto;
+    flex-wrap: wrap;
+}
+
+.corr-gaussian-stats {
+    color: var(--color-warning);
+    font-size: var(--fs-085);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* Plain on/off toggles (All League Matches row) — pressed state just tints
+   the button, no stepper affordance. */
+.corr-trim-toggle,
+.corr-gaussian-toggle {
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-inset);
+    color: var(--color-text-secondary);
+    font-family: var(--font-main);
+    font-size: var(--fs-085);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.corr-trim-toggle:hover:not(:disabled),
+.corr-gaussian-toggle:hover:not(:disabled) {
+    background: var(--color-hover);
+    color: var(--color-text);
+}
+
+.corr-trim-toggle.is-active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-on-accent);
+}
+
+.corr-gaussian-toggle.is-active {
+    background: var(--color-warning);
+    border-color: var(--color-warning);
+    color: #fff;
+}
+
+.corr-trim-toggle:disabled,
+.corr-gaussian-toggle:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+/* Shift stepper (All League Matches row) — a single connected segmented
+   control (decrement | caption+value | increment). Hover the whole control
+   for the full explanation of what "shift" means (see the title attribute
+   set in dashboardPage.js) — the caption above the number is just a short
+   label, not the full explanation, so it stays legible at any --fs-* size. */
+.corr-shift-control {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-inset);
+    overflow: hidden;
+    cursor: help;
+}
+
+.corr-shift-value {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 12px;
+    min-width: 6.5em;
+    border-left: 1px solid var(--color-border);
+    border-right: 1px solid var(--color-border);
+}
+
+.corr-shift-caption {
+    color: var(--color-text-muted);
+    font-size: var(--fs-070);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
+
+.corr-shift-amount {
+    color: var(--color-accent);
+    font-size: var(--fs-095);
+    font-variant-numeric: tabular-nums;
+}
+
+.corr-shift-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.2em;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: var(--fs-120);
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.corr-shift-btn:hover:not(:disabled) {
+    background: var(--color-hover);
+    color: var(--color-accent);
+}
+
+.corr-shift-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.corr-games-count {
+    color: var(--color-text-muted);
+    font-size: var(--fs-085);
+    font-variant-numeric: tabular-nums;
+}
+
 .corr-row-canvas {
     display: block;
     width: 100%;
@@ -316,24 +481,41 @@
     background: var(--color-surface);
 }
 
+/* Grid, not flex: each part of the pill (caption / bar / label) owns a fixed
+   proportional column of the pill's own width, in `fr` units (NOT percent —
+   a raw percentage track ignores column-gap and adds it on top, so columns
+   summing to 100% plus gaps would overflow the container; `fr` correctly
+   divides only the space left AFTER subtracting gaps, so these columns
+   always sum to exactly the container's width, at every viewport). The
+   value (e.g. "0.116") isn't a column of its own — it sits UNDER the bar,
+   directly below its marker (see .brier-mini-value), so it doesn't compete
+   with the caption/label for horizontal room at narrow viewports; the pill
+   is simply a little taller instead. The 27/46/27 split is chosen so the
+   bar column's own midpoint (27 + 46/2 = 50, out of 100) lands on the
+   pill's midpoint. */
 .corr-metric-pill {
-    display: inline-flex;
+    display: grid;
+    grid-template-columns: 27fr 46fr 27fr;
     align-items: center;
-    flex-wrap: nowrap;
-    gap: 6px;
-    max-width: 100%;
+    column-gap: var(--space-sm);
+    width: 100%;
+    box-sizing: border-box;
     background: var(--color-inset);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
-    padding: 3px 10px;
+    padding: 8px 16px;
     font-size: var(--fs-085);
     font-variant-numeric: tabular-nums;
-    white-space: nowrap;
     cursor: help;
 }
 
-.corr-metric-pill b {
-    color: var(--color-accent);
-    flex-shrink: 0;
+/* A grid track's default min-width is "auto" — big enough to fit its item's
+   full unbroken content (min-content), which for a nowrap text span is the
+   ENTIRE text width. That silently overrides the fr track sizes above and
+   pushes the row wider than the pill at narrow viewports. min-width 0 here
+   is what actually makes the 27/46/27 split hold everywhere. */
+.corr-metric-pill > * {
+    min-width: 0;
 }
 
 .corr-metric-pill i {
@@ -343,25 +525,58 @@
 
 .brier-caption {
     color: var(--color-text-secondary);
-    flex-shrink: 0;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Mini 0-1 Brier scale shown inline next to the number, same gradient as the
-   full .brier-scale legend in the "?" popup. Fixed narrow width + flex-shrink:0
-   so it never forces horizontal overflow inside .dash-controls (which already
-   wraps), even on narrow phone screens. */
-.brier-mini-scale {
+   full .brier-scale legend in the "?" popup. Fills its grid column exactly
+   (a grid item stretches to its track's width by default), so it's always
+   the same fraction of the pill at every viewport, never wider than its
+   column, and never pushes a neighbouring column past the pill's edge. Its
+   height sets the whole row's height, so the caption/label (vertically
+   centred by .corr-metric-pill's align-items:center) end up centred on this
+   box too — the track inside is positioned to share that same centre line
+   (see .brier-mini-track), with .brier-mini-value's fixed room reserved
+   below it. */
+.brier-mini-scale,
+.luck-mini-scale {
     position: relative;
-    width: 60px;
+    height: 46px;
+}
+
+/* The visible coloured strip — a fixed-height child of .brier-mini-scale /
+   .luck-mini-scale now, rather than the scale element itself, so the taller
+   wrapper above can reserve room for the value text below without stretching
+   the bar's own visible height. Vertically centred within the wrapper (top:
+   18px = (46 - 10) / 2) so it lines up with the caption/label text beside
+   it, instead of sitting pinned to the wrapper's top edge. */
+.brier-mini-track {
+    position: absolute;
+    top: 18px;
+    left: 0;
+    right: 0;
     height: 10px;
     border-radius: 5px;
-    flex-shrink: 0;
     background: linear-gradient(to right, var(--brier-good) 0%, var(--brier-mid) 25%, var(--brier-bad) 100%);
+}
+
+.luck-mini-track {
+    position: absolute;
+    top: 18px;
+    left: 0;
+    right: 0;
+    height: 10px;
+    border-radius: 5px;
+    background: linear-gradient(to right, var(--brier-bad) 0%, var(--brier-mid) 50%, var(--brier-good) 100%);
 }
 
 .brier-mini-marker {
     position: absolute;
-    top: -2px;
+    top: 16px; /* tracks .brier-mini-track's new top (18px), minus the same
+        2px overhang it always had */
     width: 3px;
     height: 14px;
     border-radius: 1px;
@@ -370,31 +585,29 @@
     transform: translateX(-50%);
 }
 
+/* The metric's own number (e.g. "0.116"), positioned directly under its
+   marker on the bar above — freeing up the caption/label columns so they no
+   longer have to share horizontal room with the value at narrow viewports.
+   Its `left` is set inline per-render to the same (clamped) percentage as
+   the marker, so it always tracks the marker's position. */
+.brier-mini-value {
+    position: absolute;
+    top: 32px; /* just below .brier-mini-track's new bottom edge (18+10=28px) */
+    color: var(--color-accent);
+    font-weight: 600;
+    white-space: nowrap;
+    transform: translateX(-50%);
+}
+
 .brier-label {
     font-weight: 600;
-    flex-shrink: 0;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-@media (max-width: 480px) {
-    .brier-caption { display: none; }
-    .brier-mini-scale { width: 44px; }
-    .luck-mini-scale { width: 44px; }
-}
-
-/* Signed-luck mini scale — same shape/marker as .brier-mini-scale, but the
-   gradient is centred at 50% (score 0) instead of Brier's 25% coin-flip
-   pivot, since luck ranges [-1,+1] not [0,1]. Reuses the same --brier-*
-   tokens (bad=unlucky, mid=balanced, good=lucky) so it follows the theme too. */
-.luck-mini-scale {
-    position: relative;
-    width: 60px;
-    height: 10px;
-    border-radius: 5px;
-    flex-shrink: 0;
-    background: linear-gradient(to right, var(--brier-bad) 0%, var(--brier-mid) 50%, var(--brier-good) 100%);
-}
-
-/* Same gradient as .luck-mini-scale, for the "?" popup's full-size legend. */
+/* Same gradient as .luck-mini-track, for the "?" popup's full-size legend. */
 .luck-scale-bar {
     background: linear-gradient(to right, var(--brier-bad) 0%, var(--brier-mid) 50%, var(--brier-good) 100%);
 }
@@ -562,8 +775,30 @@
     border-collapse: collapse;
     margin: var(--space-sm) 0;
     width: 100%;
-    font-size: var(--fs-075);
+    font-size: var(--fs-085);
     text-align: center;
+}
+
+/* Small reference table under a Brier/Luck mini-scale in the "?" popups,
+   listing every band's exact range and label — the gradient bar itself only
+   has room for a couple of anchor ticks (0/0.25/1, or -1/0/+1), not all 5-6
+   bands, so this is where the full breakdown lives. */
+.corr-band-table {
+    border-collapse: collapse;
+    margin: var(--space-sm) 0;
+    width: 100%;
+    font-size: var(--fs-085);
+}
+.corr-band-table th,
+.corr-band-table td {
+    border: 1px solid var(--popover-border-color);
+    padding: 3px 8px;
+    text-align: left;
+}
+.corr-band-table th {
+    background: var(--header-bg);
+    color: var(--header-text);
+    font-weight: 600;
 }
 .pr-prob-table th,
 .pr-prob-table td {
@@ -573,8 +808,23 @@
 }
 .pr-prob-table thead th,
 .pr-prob-table th[scope="row"] {
-    background: var(--color-surface-alt, rgba(127, 127, 127, 0.12));
+    background: var(--header-bg);
+    color: var(--header-text);
     font-weight: 600;
+}
+
+/* Mobile: drop the longest match-length columns (19+) instead of clipping
+   them off-screen, then let the now-narrower table shrink to its content
+   and center itself instead of stretching to the popup's full width. */
+@media (max-width: 640px) {
+    .pr-prob-table {
+        width: auto;
+        margin: var(--space-sm) auto;
+    }
+    .pr-prob-table thead tr:nth-child(2) > th:nth-child(n+10),
+    .pr-prob-table tbody tr > td:nth-child(n+11) {
+        display: none;
+    }
 }
 .predictor-info-close {
     position: absolute;
@@ -693,30 +943,9 @@
 
 /* ── What-If Simulator ──────────────────────────────────
    Collapsible .app-section card (shared chrome); the `?` reuses
-   .predictor-tooltip — shared with the predictor + landing page. */
-.whatif-info-popup {
-    position: relative;
-    margin: var(--space-sm) 0;
-    padding: var(--space-md);
-    background: var(--popover-bg);
-    border: 1px dashed var(--color-accent); /* intentional accent variant */
-    border-radius: var(--radius-md);
-    font-size: var(--fs-088);
-    line-height: 1.5;
-}
-.whatif-info-popup h4 { margin: 0 0 var(--space-xs); font-size: var(--fs-100); }
-.whatif-info-popup p { margin: var(--space-xs) 0; }
-.whatif-info-popup ul { margin: var(--space-xs) 0; padding-left: var(--space-lg); }
-.whatif-info-close {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    background: none;
-    border: none;
-    color: var(--color-text-muted);
-    font-size: var(--fs-120);
-    cursor: pointer;
-}
+   .predictor-tooltip and .predictor-info-popup — shared with every
+   other "?" explainer (Predictor, PR-corr, Luck Percentile) so all
+   four use identical box styling and theme tokens. */
 
 #whatif-body {
     margin-top: var(--space-sm);

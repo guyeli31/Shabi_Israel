@@ -11,6 +11,7 @@
 import { loadAllLeagues } from '../compute/crossLeague.js';
 import { buildAllTimeRankings } from '../compute/allTimeRankings.js';
 import { colorForValue } from '../compute/colorScale.js';
+import { prProbabilityTableHtml } from '../compute/championshipPredictor.js';
 import { luckBellCurveSvg } from './luckBellCurve.js';
 import { loadLandingSettings } from '../data/dataSourceLoader.js';
 import { loadBannerConfig, renderHeroBanner } from './heroBanner.js';
@@ -37,6 +38,7 @@ import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountPillTabs } from './subTabs.js';
 import { registerSearchAdapter } from './searchOverlay.js';
+import { scrollToClearingTopbar } from '../utils/scrollOffset.js';
 import { getInitials } from './playerHeader.js';
 
 /* ── Helpers ─────────────────────────────────────────── */
@@ -170,10 +172,7 @@ export async function renderLandingPage() {
                 : Promise.resolve();
             ready.then(() => requestAnimationFrame(() => {
                 const target = (hashId && document.getElementById(hashId)) || shell.root;
-                const BREATHING_ROOM = 16; // small gap so the heading isn't flush against the chrome above it
-                const offset = measureFixedTopOffset() + BREATHING_ROOM;
-                const targetY = target.getBoundingClientRect().top + window.scrollY - offset;
-                window.scrollTo({ top: Math.max(0, targetY), behavior: 'auto' });
+                scrollToClearingTopbar(target);
             }));
         }
 
@@ -208,27 +207,6 @@ export async function renderLandingPage() {
         if (heroBanner) heroBanner.classList.remove('is-loading');
         if (headerEl) headerEl.style.visibility = 'visible';
     }
-}
-
-/** Height of whatever is currently pinned to the very top of the viewport
- *  (the site topbar today) — measured live from the rendered DOM instead of
- *  a hardcoded constant, so any future top-of-page chrome (e.g. a fixed/
- *  sticky hero banner) is picked up automatically with no change here.
- *  Scoped to body/#app direct children — that's where global chrome mounts
- *  (see js/render/topbar.js's `document.body.appendChild`) — so this stays
- *  cheap instead of walking the whole page on every scroll. */
-function measureFixedTopOffset() {
-    const app = document.getElementById('app');
-    const candidates = [...document.body.children, ...(app ? app.children : [])];
-    let offset = 0;
-    for (const el of candidates) {
-        const cs = getComputedStyle(el);
-        if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
-        if (cs.display === 'none' || cs.visibility === 'hidden') continue;
-        const rect = el.getBoundingClientRect();
-        if (rect.height > 0 && rect.top <= 1) offset = Math.max(offset, rect.bottom);
-    }
-    return offset;
 }
 
 /* ── Tabs shell (Progressive Disclosure) ──────────────── */
@@ -1532,7 +1510,9 @@ function renderLuckPercentileCard(data, leagueType) {
             <div class="predictor-info-popup luck-info-popup" id="luck-info-popup-${leagueType}" hidden>
                 <button class="predictor-info-close" id="luck-info-close-${leagueType}">&times;</button>
                 <h3>How It Works</h3>
-                <p>For each historical match we look up the a-priori win probability <i>p<sub>i</sub></i> from the PR difference and match length, then compare <b>actual wins</b> to <b>expected wins</b>. The result is standardized into a Z-score and mapped to a percentile via the standard normal distribution.</p>
+                <p>For each historical match, the player's <b>PR gap</b> against their opponent and the match length give an expected win chance <i>p<sub>i</sub></i>, shown below:</p>
+                ${prProbabilityTableHtml()}
+                <p>We then compare <b>actual wins</b> to <b>expected wins</b> across every match. The result is standardized into a Z-score and mapped to a percentile via the standard normal distribution.</p>
                 <ul>
                     <li><b>EW</b> (expected wins) = Σ p<sub>i</sub></li>
                     <li><b>Var</b> = Σ p<sub>i</sub>(1 − p<sub>i</sub>)</li>

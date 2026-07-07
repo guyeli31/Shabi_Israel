@@ -18,6 +18,87 @@
 const DOT_RADIUS = 5;
 const MIN_DIST = DOT_RADIUS * 2 + 1.5;
 
+// Tick spacing shared by every row's axis — picks the coarsest interval that
+// still keeps at most 40 gridlines across the current domain.
+function tickStep(xMin, xMax) {
+    const span = xMax - xMin;
+    const intervals = [1, 2, 5, 10, 20, 50];
+    for (const iv of intervals) {
+        if (Math.ceil(span / iv) <= 40) return iv;
+    }
+    return 50;
+}
+
+function xToPxAt(x, xMin, xMax, plotW, padL) {
+    return padL + plotW * (x - xMin) / (xMax - xMin);
+}
+
+// One shared axis-tick renderer used by every row type (dot-strip and density
+// heatmap alike) so the ruler is pixel-identical wherever it's drawn.
+function drawAxisTicks(ctx, { xMin, xMax, W, padL, padR, axisTop, AXIS_H, plotW, step, C }) {
+    ctx.strokeStyle = C.axis;
+    ctx.beginPath();
+    ctx.moveTo(padL, axisTop + 4);
+    ctx.lineTo(W - padR, axisTop + 4);
+    ctx.stroke();
+
+    ctx.font = `10px ${C.fontFamily}`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = C.label;
+    const majorEvery = step * 5;
+    for (let x = Math.ceil(xMin / step) * step; x <= xMax; x += step) {
+        const px = xToPxAt(x, xMin, xMax, plotW, padL);
+        const major = Math.abs(x % majorEvery) < 1e-9;
+        ctx.strokeStyle = major ? C.axis : C.grid;
+        ctx.beginPath();
+        ctx.moveTo(px, axisTop + 4);
+        ctx.lineTo(px, axisTop + (major ? 11 : 8));
+        ctx.stroke();
+        if (major) ctx.fillText(String(Math.round(x)), px, axisTop + 22);
+    }
+    ctx.font = `600 11px ${C.fontFamily}`;
+    ctx.textAlign = 'center';
+    ctx.fillText('← PR disadvantage        PR advantage →', W / 2, axisTop + AXIS_H - 14);
+}
+
+function normalPdf(x, mean, std) {
+    if (!(std > 0)) return 0;
+    const z = (x - mean) / std;
+    return Math.exp(-0.5 * z * z) / (std * Math.sqrt(2 * Math.PI));
+}
+
+// Overlays a fitted normal curve (scaled into the same "% of matches per
+// 1-PR bin" units as the histogram bars) plus dashed reference lines at the
+// mean and at +/-1 standard deviation, for the "Show Gaussian fit" toggle.
+function drawGaussianOverlay(ctx, { mean, std }, { xMin, xMax, padL, plotW, plotTop, plotBottom, niceMax, C }) {
+    const toY = (pct) => plotBottom - Math.min(pct, niceMax) / niceMax * (plotBottom - plotTop);
+
+    ctx.save();
+    ctx.strokeStyle = C.gaussian;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const steps = 120;
+    for (let i = 0; i <= steps; i++) {
+        const x = xMin + (xMax - xMin) * i / steps;
+        const px = xToPxAt(x, xMin, xMax, plotW, padL);
+        const y = toY(normalPdf(x, mean, std) * 100);
+        if (i === 0) ctx.moveTo(px, y); else ctx.lineTo(px, y);
+    }
+    ctx.stroke();
+
+    ctx.setLineDash([4, 3]);
+    ctx.lineWidth = 1.5;
+    for (const x of [mean, mean - std, mean + std]) {
+        if (x < xMin || x > xMax) continue;
+        const px = xToPxAt(x, xMin, xMax, plotW, padL);
+        ctx.beginPath();
+        ctx.moveTo(px, plotTop - 2);
+        ctx.lineTo(px, plotBottom + 2);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
 /**
  * Beeswarm layout: points are sorted by X and each is nudged vertically away
  * from the row's centerline until it no longer overlaps an already-placed
@@ -94,15 +175,6 @@ export function drawCorrelationRow(host, points, opts) {
         return padL + (plotW) * (x - xMin) / (xMax - xMin);
     }
 
-    function tickStep() {
-        const span = xMax - xMin;
-        const intervals = [1, 2, 5, 10, 20, 50];
-        for (const iv of intervals) {
-            if (Math.ceil(span / iv) <= 40) return iv;
-        }
-        return 50;
-    }
-
     function drawRow() {
         const C = themeColors();
         const dpr = window.devicePixelRatio || 1;
@@ -118,7 +190,7 @@ export function drawCorrelationRow(host, points, opts) {
 
         const plotW = W - padL - padR;
         const midY = ROW_H / 2;
-        const step = tickStep();
+        const step = tickStep(xMin, xMax);
 
         // Gridlines at fixed resolution, zero line emphasised.
         ctx.lineWidth = 1;
@@ -164,30 +236,7 @@ export function drawCorrelationRow(host, points, opts) {
     // Axis drawn into the same canvas, below the dot band (offset by ROW_H) —
     // one canvas per row, no separate glued-on element.
     function drawAxis(C, plotW, step) {
-        const axisTop = ROW_H;
-        ctx.strokeStyle = C.axis;
-        ctx.beginPath();
-        ctx.moveTo(padL, axisTop + 4);
-        ctx.lineTo(W - padR, axisTop + 4);
-        ctx.stroke();
-
-        ctx.font = `10px ${C.fontFamily}`;
-        ctx.textAlign = 'center';
-        ctx.fillStyle = C.label;
-        const majorEvery = step * 5;
-        for (let x = Math.ceil(xMin / step) * step; x <= xMax; x += step) {
-            const px = xToPx(x, plotW);
-            const major = Math.abs(x % majorEvery) < 1e-9;
-            ctx.strokeStyle = major ? C.axis : C.grid;
-            ctx.beginPath();
-            ctx.moveTo(px, axisTop + 4);
-            ctx.lineTo(px, axisTop + (major ? 11 : 8));
-            ctx.stroke();
-            if (major) ctx.fillText(String(Math.round(x)), px, axisTop + 22);
-        }
-        ctx.font = `600 11px ${C.fontFamily}`;
-        ctx.textAlign = 'center';
-        ctx.fillText('← PR disadvantage        PR advantage →', W / 2, axisTop + AXIS_H - 14);
+        drawAxisTicks(ctx, { xMin, xMax, W, padL, padR, axisTop: ROW_H, AXIS_H, plotW, step, C });
     }
 
     function placeholderHtml() {
@@ -257,6 +306,202 @@ export function drawCorrelationRow(host, points, opts) {
 }
 
 /**
+ * Histogram row — same 1-D X domain and axis geometry as drawCorrelationRow
+ * (so PR-gap positions still line up vertically across the whole stack),
+ * but Y now encodes each fixed-width PR-gap bin's share of all matches (%)
+ * as a bar height, instead of colour intensity. Y gridlines at multiples of
+ * 5%, scaled to a "nice" max just above the tallest bin; percent labels are
+ * drawn INSIDE the plot (not a separate margin column) so padL/padR stay
+ * identical to every other row type. buckets: [{ x0, x1, count, pct }]
+ * sorted by x0 ascending (pct is 0-100, share of `opts.totalCount`).
+ */
+export function drawHistogramRow(host, buckets, opts) {
+    host.innerHTML = '';
+    host.style.position = 'relative';
+
+    const { xMin, xMax, showAxis = false, totalCount = 0, placeholderText = 'Hover a bar to see details', gaussian = null } = opts;
+
+    const canvas = document.createElement('canvas');
+    canvas.className = 'corr-row-canvas';
+    canvas.style.display = 'block';
+    canvas.style.touchAction = 'manipulation';
+    host.appendChild(canvas);
+
+    const infoPanel = document.createElement('div');
+    infoPanel.className = 'chart-info-panel';
+    host.appendChild(infoPanel);
+
+    const ctx = canvas.getContext('2d');
+    const ROW_H = 76;
+    const AXIS_H = 52;
+    const H = showAxis ? ROW_H + AXIS_H : ROW_H;
+    const padL = 16, padR = 16;
+    // plotTop leaves room for the topmost gridline's "%" label (drawn just
+    // above its line, per the loop below) so it doesn't clip off the top of
+    // the canvas.
+    const plotTop = 16, plotBottom = ROW_H - 6;
+
+    let W = 900;
+    let hoverIndex = -1;
+    let pinnedIndex = -1;
+    let lastRects = [];
+    // A normal curve scaled to the same "% of matches per 1-PR bin" units as
+    // the bars (bin width is 1, so pdf(x) * 100 is directly comparable to a
+    // bar's height) — its peak (at x = mean) is folded into the y-scale so
+    // the curve never clips off the top of the plot.
+    const gaussianPeakPct = gaussian ? normalPdf(gaussian.mean, gaussian.mean, gaussian.std) * 100 : 0;
+    const maxPct = Math.max(0, gaussianPeakPct, ...buckets.map(b => b.pct));
+    const niceMax = Math.max(5, Math.ceil(maxPct / 5) * 5);
+
+    function themeColors() {
+        const cs = getComputedStyle(canvas);
+        const v = (name, fallback) => {
+            const val = cs.getPropertyValue(name).trim();
+            return val || fallback;
+        };
+        return {
+            grid:         v('--chart-grid',  'rgba(0,0,0,0.18)'),
+            axis:         v('--chart-axis',  'rgba(0,0,0,0.35)'),
+            label:        v('--chart-label', 'rgba(0,0,0,0.6)'),
+            hoverOutline: v('--chart-hover-outline', '#000'),
+            bar:          v('--density-hot', '#2563eb'),
+            gaussian:     v('--color-warning', '#d97706'),
+            fontFamily:   v('--font-main', 'sans-serif'),
+        };
+    }
+
+    function drawRow() {
+        const C = themeColors();
+        const dpr = window.devicePixelRatio || 1;
+        const cssW = Math.max(host.clientWidth || W, 280);
+        W = cssW;
+
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = H + 'px';
+        canvas.width = Math.round(cssW * dpr);
+        canvas.height = Math.round(H * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, W, H);
+
+        const plotW = W - padL - padR;
+        const step = tickStep(xMin, xMax);
+
+        // Y gridlines at multiples of 5%, value labelled inline (no separate
+        // left-margin column, so X stays aligned with every other row type).
+        ctx.font = `10px ${C.fontFamily}`;
+        ctx.textAlign = 'left';
+        for (let p = 0; p <= niceMax; p += 5) {
+            const y = plotBottom - (p / niceMax) * (plotBottom - plotTop);
+            ctx.strokeStyle = C.grid;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(padL, y);
+            ctx.lineTo(W - padR, y);
+            ctx.stroke();
+            if (p > 0) {
+                ctx.fillStyle = C.label;
+                ctx.fillText(`${p}%`, padL + 3, y - 2);
+            }
+        }
+
+        lastRects = buckets.map(b => ({
+            b,
+            x0: xToPxAt(b.x0, xMin, xMax, plotW, padL),
+            x1: xToPxAt(b.x1, xMin, xMax, plotW, padL)
+        }));
+
+        const activeIdx = pinnedIndex >= 0 ? pinnedIndex : hoverIndex;
+        lastRects.forEach((r, i) => {
+            const barH = (r.b.pct / niceMax) * (plotBottom - plotTop);
+            const y = plotBottom - barH;
+            ctx.fillStyle = C.bar;
+            ctx.fillRect(r.x0 + 0.5, y, Math.max(0, r.x1 - r.x0 - 1), barH);
+            if (i === activeIdx) {
+                ctx.strokeStyle = C.hoverOutline;
+                ctx.lineWidth = i === pinnedIndex ? 2.5 : 2;
+                ctx.strokeRect(r.x0 + 1, y, Math.max(1, r.x1 - r.x0 - 2), Math.max(1, barH));
+            }
+        });
+
+        const zeroPx = xToPxAt(0, xMin, xMax, plotW, padL);
+        ctx.strokeStyle = C.axis;
+        ctx.beginPath();
+        ctx.moveTo(zeroPx, plotTop - 2);
+        ctx.lineTo(zeroPx, plotBottom + 2);
+        ctx.stroke();
+
+        if (gaussian) drawGaussianOverlay(ctx, gaussian, { xMin, xMax, padL, plotW, plotTop, plotBottom, niceMax, C });
+
+        if (showAxis) drawAxisTicks(ctx, { xMin, xMax, W, padL, padR, axisTop: ROW_H, AXIS_H, plotW, step, C });
+    }
+
+    function placeholderHtml() {
+        return `<span class="chart-info-placeholder">${placeholderText}</span>`;
+    }
+
+    function bucketInfoHtml(b) {
+        const pctOfTotal = totalCount > 0 ? (b.count / totalCount * 100) : 0;
+        return `
+            <div class="cip-row">
+                <div class="cip-title">PR gap ${b.x0} to ${b.x1}</div>
+                <span class="cip-item"><span class="cip-k">Matches</span><span class="cip-v">${b.count}</span></span>
+                <span class="cip-item"><span class="cip-k">Share</span><span class="cip-v">${pctOfTotal.toFixed(1)}%</span></span>
+            </div>
+        `;
+    }
+
+    function updateInfoPanel() {
+        const idx = pinnedIndex >= 0 ? pinnedIndex : hoverIndex;
+        infoPanel.innerHTML = idx >= 0 ? bucketInfoHtml(buckets[idx]) : placeholderHtml();
+    }
+
+    function hitTest(clientX) {
+        const rect = canvas.getBoundingClientRect();
+        const mx = clientX - rect.left;
+        return lastRects.findIndex(r => mx >= r.x0 && mx < r.x1);
+    }
+
+    updateInfoPanel();
+    drawRow();
+
+    const onThemeChange = () => drawRow();
+    window.addEventListener('themechange', onThemeChange);
+
+    const ro = new ResizeObserver(() => drawRow());
+    ro.observe(host);
+
+    const mo = new MutationObserver(() => {
+        if (!document.body.contains(canvas)) {
+            window.removeEventListener('themechange', onThemeChange);
+            ro.disconnect();
+            mo.disconnect();
+        }
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+
+    canvas.addEventListener('mousemove', (e) => {
+        hoverIndex = hitTest(e.clientX);
+        canvas.style.cursor = hoverIndex >= 0 ? 'pointer' : 'default';
+        updateInfoPanel();
+        drawRow();
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        hoverIndex = -1;
+        canvas.style.cursor = 'default';
+        updateInfoPanel();
+        drawRow();
+    });
+
+    canvas.addEventListener('click', (e) => {
+        const hit = hitTest(e.clientX);
+        pinnedIndex = pinnedIndex === hit ? -1 : hit;
+        updateInfoPanel();
+        drawRow();
+    });
+}
+
+/**
  * Brier score: mean squared error between the site's own PR-based win
  * probability model and the actual outcome, evaluated from the actual
  * winner's side of each match (outcome is always 1, pWin is the model's
@@ -307,11 +552,24 @@ export function signedLuckScore(items) {
 
 function lerp(a, b, t) { return a + (b - a) * t; }
 
-// getComputedStyle always resolves colour custom properties to "rgb(r, g, b)"
-// (or "rgba(r, g, b, a)"), so parsing is just pulling out the three numbers.
+// Unlike a real CSS colour property, getComputedStyle() on a CUSTOM property
+// (--foo) returns the value verbatim as authored — never normalised to
+// rgb(...) — so every theme token here (--color-win, --color-accent, etc.,
+// all declared as #rrggbb hex in variables.css/themes.css) comes back as hex,
+// not rgb(). Must handle both forms, or every theme silently falls back to
+// the hardcoded default and only "looks themed" by coincidence in whichever
+// theme happens to match that default.
 function parseRgb(str, fallback) {
-    const m = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(str || '');
-    return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : fallback;
+    const s = (str || '').trim();
+    const rgbMatch = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(s);
+    if (rgbMatch) return [Number(rgbMatch[1]), Number(rgbMatch[2]), Number(rgbMatch[3])];
+    const hexMatch = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(s);
+    if (hexMatch) {
+        let hex = hexMatch[1];
+        if (hex.length <= 4) hex = hex.split('').map(c => c + c).join('');
+        return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
+    }
+    return fallback;
 }
 
 // Brier is bounded [0, 1]; colour interpolated --brier-good -> --brier-mid ->
@@ -367,10 +625,11 @@ function luckColor(score, el) {
 }
 
 const LUCK_ABS_LABELS = [
-    { max: 0.08, text: 'Balanced' },
-    { max: 0.25, text: 'Slightly {dir}' },
-    { max: 0.5,  text: '{Dir}' },
-    { max: Infinity, text: 'Very {dir}' },
+    { max: 0.05, text: 'Balanced' },
+    { max: 0.15, text: 'Slightly {dir}' },
+    { max: 0.3,  text: '{Dir}' },
+    { max: 0.55, text: 'Very {dir}' },
+    { max: Infinity, text: 'Extremely {dir}' },
 ];
 
 /**

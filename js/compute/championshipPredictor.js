@@ -9,8 +9,12 @@
  *     per-match PR is modeled as N(mean, std) and the PR win outcome is sampled
  *     via the normal CDF: P(A wins PR) = Φ((μB−μA) / √(σA²+σB²)).
  *
- * Pure compute module: no DOM, no async.
+ * Pure compute module: no DOM, no async — except prProbabilityTableHtml(),
+ * which builds a static HTML string and reads the active theme (via
+ * colorScale.js) to color its cells, same as the render layer does elsewhere.
  */
+
+import { colorForValue } from './colorScale.js';
 
 // ── Probability lookup table ────────────────────────────────────────
 // Win probability (%) for the better (lower PR) player, indexed by
@@ -40,9 +44,12 @@ const PR_PROBABILITY_TABLE = {
 export function prProbabilityTableHtml() {
     const lens = PR_PROBABILITY_TABLE.matchLengths;
     const rows = PR_PROBABILITY_TABLE.probabilitiesByPrDiff;
+    const allValues = Object.values(rows).flat();
+    const minV = Math.min(...allValues);
+    const maxV = Math.max(...allValues);
     const head = lens.map(l => `<th scope="col">${l}</th>`).join('');
     const body = Object.keys(rows).map(diff => {
-        const cells = rows[diff].map(v => `<td>${v.toFixed(1)}</td>`).join('');
+        const cells = rows[diff].map(v => `<td style="color:${colorForValue(v, minV, maxV)}">${v.toFixed(1)}</td>`).join('');
         return `<tr><th scope="row">${diff}</th>${cells}</tr>`;
     }).join('');
     return `

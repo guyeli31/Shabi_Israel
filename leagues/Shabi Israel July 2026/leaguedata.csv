@@ -1,6 +1,6 @@
 Player, PR, Luck, Score, Player, PR, Luck, Score
 Moriarty,0,0,0,Idan1986,0,0,0
-bardak65,0,0,0,Nissimb,0,0,0
+bardak65,7.4,0.09,7,Nissimb,5.44,-0.02,6
 Tezka11,0,0,0,UziMutsafy,0,0,0
 GuyEliyahu,3.86,-1.57,6,Avshalom,7.29,-2.49,7
 MarcelDana,9.91,-0.66,2,YossiEliezer23,3.68,2.26,7
@@ -14,7 +14,7 @@ ilanblum,11.44,-0.16,5,Izhako,16.68,3.16,7
 Motitaly,0,0,7,Bye,0,0,0
 Player, PR, Luck, Score, Player, PR, Luck, Score
 Moriarty,7.94,0.5,5,bardak65,11.62,2.45,7
-Tezka11,0,0,0,Idan1986,0,0,0
+Tezka11,22.8,-0.61,3,Idan1986,7.81,-0.22,7
 GuyEliyahu,0,0,0,Nissimb,0,0,0
 MarcelDana,0,0,0,UziMutsafy,0,0,0
 ys,0,0,0,Avshalom,0,0,0
@@ -72,7 +72,7 @@ Player, PR, Luck, Score, Player, PR, Luck, Score
 Moriarty,10.37,3.29,4,ys,3.83,4.94,7
 Yannay,10.55,-2.28,2,MarcelDana,11.04,2.17,7
 Ran1976,0,0,0,GuyEliyahu,0,0,0
-OvedBenZeev,0,0,0,Tezka11,0,0,0
+OvedBenZeev,9.62,2.44,7,Tezka11,12.81,-1.42,1
 Danny_kondrea,0,0,0,bardak65,0,0,0
 Hummus,4.61,0,7,Idan1986,5.95,-1.82,4
 ilanblum,0,0,0,Nissimb,0,0,0
@@ -84,14 +84,14 @@ fridlich,0,0,0,sagivquina,0,0,0
 Avi,0,0,0,Yaniv162,0,0,0
 Player, PR, Luck, Score, Player, PR, Luck, Score
 Moriarty,5.14,0.63,7,Yannay,13.64,-2.11,6
-Ran1976,0,0,0,ys,0,0,0
+Ran1976,8.45,1.72,7,ys,3.62,-1.91,4
 OvedBenZeev,0,0,0,MarcelDana,0,0,0
 Danny_kondrea,0,0,0,GuyEliyahu,0,0,0
 Hummus,0,0,0,Tezka11,0,0,0
-ilanblum,0,0,0,bardak65,0,0,0
+ilanblum,7.77,-2.14,3,bardak65,7.95,1.84,7
 Motitaly,0,0,0,Idan1986,0,0,0
 Bye,0,0,7,Nissimb,0,0,0
-Izhako,0,0,0,UziMutsafy,0,0,0
+Izhako,6.55,3.05,7,UziMutsafy,10.73,1.8,2
 rina,0,0,0,Avshalom,0,0,0
 fridlich,0,0,0,YossiEliezer23,0,0,0
 Avi,0,0,0,GS18671,0,0,0
@@ -193,7 +193,7 @@ YossiEliezer23,0,0,0,ys,0,0,0
 Avshalom,0,0,0,MarcelDana,0,0,0
 UziMutsafy,0,0,0,GuyEliyahu,0,0,0
 Nissimb,0,0,0,Tezka11,0,0,0
-Idan1986,0,0,0,bardak65,0,0,0
+Idan1986,17.83,-1.44,4,bardak65,12.65,0.64,7
 Player, PR, Luck, Score, Player, PR, Luck, Score
 Moriarty,0,0,0,Izhako,0,0,0
 rina,0,0,7,Bye,0,0,0
@@ -214,9 +214,9 @@ fridlich,0,0,0,Izhako,0,0,0
 Avi,0,0,7,Bye,0,0,0
 Yaniv162,0,0,0,Motitaly,0,0,0
 sagivquina,0,0,0,ilanblum,0,0,0
-GS18671,0,0,0,Hummus,0,0,0
+GS18671,16.21,1.9,7,Hummus,10.54,0.4,5
 YossiEliezer23,0,0,0,Danny_kondrea,0,0,0
-Avshalom,0,0,0,OvedBenZeev,0,0,0
+Avshalom,8.63,2.67,7,OvedBenZeev,10.18,-1.61,0
 UziMutsafy,13.27,-0.14,7,Ran1976,12.84,-1.71,6
 Nissimb,0,0,0,Yannay,0,0,0
 Idan1986,13.31,-1.86,6,ys,8.01,-0.68,7
@@ -270,7 +270,7 @@ GS18671,0,0,0,Yaniv162,0,0,0
 YossiEliezer23,0,0,0,Avi,0,0,0
 Avshalom,10.89,7.29,7,fridlich,5.3,3.99,4
 UziMutsafy,0,0,0,rina,0,0,0
-Nissimb,0,0,0,Izhako,0,0,0
+Nissimb,7.41,1.2,7,Izhako,13.56,-1.11,4
 Idan1986,0,0,7,Bye,0,0,0
 bardak65,0,0,0,Motitaly,0,0,0
 Tezka11,0,0,0,ilanblum,0,0,0
@@ -279,7 +279,7 @@ MarcelDana,0,0,0,Danny_kondrea,0,0,0
 ys,5.43,1.3,3,OvedBenZeev,15.49,2.42,7
 Yannay,0,0,0,Ran1976,0,0,0
 Player, PR, Luck, Score, Player, PR, Luck, Score
-Moriarty,0,0,0,GS18671,0,0,0
+Moriarty,5.48,3.46,7,GS18671,7.92,-0.67,0
 YossiEliezer23,4.55,3.73,7,sagivquina,8.28,-1.86,0
 Avshalom,0,0,0,Yaniv162,0,0,0
 UziMutsafy,0,0,0,Avi,0,0,0
@@ -330,14 +330,14 @@ GuyEliyahu,0,0,0,Yaniv162,0,0,0
 MarcelDana,0,0,0,Avi,0,0,0
 ys,0,0,0,fridlich,0,0,0
 Yannay,0,0,0,rina,0,0,0
-Ran1976,0,0,0,Izhako,0,0,0
+Ran1976,17.35,-0.19,7,Izhako,23.15,-1.2,5
 OvedBenZeev,0,0,7,Bye,0,0,0
 Danny_kondrea,0,0,0,Motitaly,0,0,0
 Hummus,4.37,-0.51,7,ilanblum,4.1,-4.54,3
 Player, PR, Luck, Score, Player, PR, Luck, Score
 Moriarty,0,0,0,Nissimb,0,0,0
 Idan1986,12.54,0.75,7,UziMutsafy,13.73,-2.91,0
-bardak65,0,0,0,Avshalom,0,0,0
+bardak65,5.21,-0.67,4,Avshalom,13.19,3.75,7
 Tezka11,0,0,0,YossiEliezer23,0,0,0
 GuyEliyahu,0,0,0,GS18671,0,0,0
 MarcelDana,0,0,0,sagivquina,0,0,0

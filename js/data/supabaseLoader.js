@@ -6,6 +6,7 @@
 
 import { supabase } from './supabaseClient.js';
 import { matchKey, mergeHistoryIntoMatches } from '../compute/matchHistory.js';
+import { getCachedLeague, setCachedLeague } from './leagueCache.js';
 
 // No-op compat shim — supabaseLoader.js has no notion of a "base path".
 export function setLeaguesBase() {}
@@ -97,7 +98,9 @@ export async function loadLeagueParams(leagueId) {
 
 /**
  * Load a single league's match data (played matches only).
- * Returns parsed array of match objects, plus lastModified/totalPlayers/allPlayers.
+ * Returns parsed array of match objects, plus totalPlayers/allPlayers.
+ * (lastModified lives on the league row itself — see loadLeagueParams/loadLeague —
+ * not fetched here to avoid a duplicate query for a value callers already have.)
  */
 export async function loadLeagueMatches(leagueId) {
     const { data, error } = await supabase
@@ -119,12 +122,7 @@ export async function loadLeagueMatches(leagueId) {
 
     const matches = allRows.filter((row) => row.played).map(mapDbMatch);
 
-    // lastModified comes from leagues.last_updated (already fetched alongside
-    // params by callers) — fetch it here too so this function stays self-contained.
-    const { data: leagueRow } = await supabase.from('leagues').select('last_updated').eq('id', leagueId).single();
-    const lastModified = leagueRow?.last_updated || null;
-
-    return { matches, lastModified, totalPlayers: allPlayers.size, allPlayers };
+    return { matches, totalPlayers: allPlayers.size, allPlayers };
 }
 
 /**
@@ -181,8 +179,14 @@ export async function loadMatchHistory(leagueId) {
 
 /**
  * Load everything for a single league: params + matches + overrides applied.
+ * Checks the short-TTL sessionStorage cache first — see leagueCache.js — so a
+ * league already fetched moments ago (e.g. by the landing page's bulk load)
+ * doesn't get re-fetched from scratch on a fresh page navigation.
  */
 export async function loadLeague(leagueId) {
+    const cached = getCachedLeague(leagueId);
+    if (cached) return cached;
+
     const [params, matchData, overrides, history] = await Promise.all([
         loadLeagueParams(leagueId),
         loadLeagueMatches(leagueId),
@@ -193,15 +197,122 @@ export async function loadLeague(leagueId) {
     const withOverrides = applyOverrides(matchData.matches, overrides);
     const mergedMatches = mergeHistoryIntoMatches(withOverrides, history.matches);
 
-    return {
+    const league = {
         id: leagueId,
         params,
         matches: mergedMatches,
-        lastModified: matchData.lastModified,
+        lastModified: params.LastUpdated || null,
         totalPlayers: matchData.totalPlayers,
         allPlayers: matchData.allPlayers,
         history,
     };
+    setCachedLeague(leagueId, league);
+    return league;
+}
+
+/**
+ * Load every league in leagueIds with a fixed small number of round trips
+ * (4 total, regardless of how many leagues) instead of loadLeague()'s 4-per-
+ * league — used by crossLeague.js's loadAllLeagues(), which otherwise fans
+ * out to 4×N requests for the landing page's cross-league aggregations.
+ * Also populates the per-league sessionStorage cache so a subsequent direct
+ * loadLeague(id) call (e.g. after navigating into that league's own page)
+ * is served instantly instead of re-querying.
+ * Returns Map<leagueId, league> (same per-league shape as loadLeague()).
+ * Leagues missing a `leagues` row are silently omitted (matches loadLeague()
+ * throwing + Promise.allSettled filtering it out).
+ */
+// Supabase/PostgREST caps a single response at 1000 rows by default — with 11
+// leagues × ~100-300 matches each, `matches` alone can hold 3000+ rows, well
+// past that cap. A plain .in() query silently truncates instead of erroring,
+// so this pages through with .range() until a page comes back short.
+const PAGE_SIZE = 1000;
+
+async function fetchAllRows(buildQuery) {
+    const rows = [];
+    let from = 0;
+    for (;;) {
+        const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        rows.push(...(data || []));
+        if (!data || data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+    }
+    return rows;
+}
+
+export async function loadLeaguesBulk(leagueIds) {
+    const [leagueRows, matchRows, overrideRows, historyRows] = await Promise.all([
+        fetchAllRows(() => supabase.from('leagues').select('*').in('id', leagueIds)),
+        fetchAllRows(() => supabase.from('matches').select('*').in('league_id', leagueIds).order('round', { ascending: true })),
+        fetchAllRows(() => supabase.from('manual_overrides').select('*').in('league_id', leagueIds)),
+        fetchAllRows(() => supabase.from('match_history').select('*').in('league_id', leagueIds)),
+    ]);
+
+    const paramsById = new Map(leagueRows.map((row) => [row.id, mapDbLeagueToParams(row)]));
+
+    const matchesById = new Map();
+    const allPlayersById = new Map();
+    for (const row of matchRows) {
+        if (!matchesById.has(row.league_id)) {
+            matchesById.set(row.league_id, []);
+            allPlayersById.set(row.league_id, new Set());
+        }
+        allPlayersById.get(row.league_id).add(row.player_a);
+        allPlayersById.get(row.league_id).add(row.player_b);
+        if (row.played) matchesById.get(row.league_id).push(mapDbMatch(row));
+    }
+
+    const overridesById = new Map();
+    for (const row of overrideRows) {
+        if (!overridesById.has(row.league_id)) overridesById.set(row.league_id, []);
+        overridesById.get(row.league_id).push(mapDbOverride(row));
+    }
+
+    const historyById = new Map();
+    for (const row of historyRows) {
+        if (!historyById.has(row.league_id)) historyById.set(row.league_id, []);
+        historyById.get(row.league_id).push({
+            playerA: row.player_a,
+            playerB: row.player_b,
+            scoreA: row.score_a,
+            scoreB: row.score_b,
+            prA: row.pr_a,
+            prB: row.pr_b,
+            luckA: row.luck_a,
+            luckB: row.luck_b,
+            round: row.round,
+            updatedAt: row.updated_at,
+            source: row.source,
+        });
+    }
+
+    const results = new Map();
+    for (const leagueId of leagueIds) {
+        const params = paramsById.get(leagueId);
+        if (!params) continue;
+
+        const matches = matchesById.get(leagueId) || [];
+        const allPlayers = allPlayersById.get(leagueId) || new Set();
+        const overrides = overridesById.get(leagueId) || [];
+        const history = { matches: historyById.get(leagueId) || [] };
+
+        const withOverrides = applyOverrides(matches, overrides);
+        const mergedMatches = mergeHistoryIntoMatches(withOverrides, history.matches);
+
+        const league = {
+            id: leagueId,
+            params,
+            matches: mergedMatches,
+            lastModified: params.LastUpdated || null,
+            totalPlayers: allPlayers.size,
+            allPlayers,
+            history,
+        };
+        setCachedLeague(leagueId, league);
+        results.set(leagueId, league);
+    }
+    return results;
 }
 
 /**

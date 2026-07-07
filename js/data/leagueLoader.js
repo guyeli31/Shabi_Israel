@@ -125,6 +125,21 @@ export async function loadLeague(leagueId) {
 }
 
 /**
+ * Interface parity with supabaseLoader.js's loadLeaguesBulk() — this mode
+ * reads static local files, so there's no network round-trip cost to batch
+ * away; just fan out to the existing per-league loader.
+ * Returns Map<leagueId, league>.
+ */
+export async function loadLeaguesBulk(leagueIds) {
+    const results = await Promise.allSettled(leagueIds.map((id) => loadLeague(id)));
+    const map = new Map();
+    results.forEach((r, i) => {
+        if (r.status === 'fulfilled') map.set(leagueIds[i], r.value);
+    });
+    return map;
+}
+
+/**
  * Apply manual overrides on top of CSV-parsed matches.
  * Each override replaces or adds a match by playerA+playerB key.
  */

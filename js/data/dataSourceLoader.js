@@ -23,6 +23,7 @@ export function loadLeagueMatchesAll(...args) { return impl().loadLeagueMatchesA
 export function loadOverrides(...args) { return impl().loadOverrides(...args); }
 export function loadLeague(...args) { return impl().loadLeague(...args); }
 export function loadAllLeagueParams(...args) { return impl().loadAllLeagueParams(...args); }
+export function loadLeaguesBulk(...args) { return impl().loadLeaguesBulk(...args); }
 
 // Pure function, identical in both implementations — either works.
 export function applyOverrides(...args) { return impl().applyOverrides(...args); }
