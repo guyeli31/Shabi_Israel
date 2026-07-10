@@ -940,6 +940,26 @@ table.font-large { font-size: var(--fs-093); }
     border: 1px solid var(--color-accent);
 }
 
+/* Sync activity log — running list of the last few status lines (scrolls). */
+.bgsync-log {
+    max-height: 240px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-md);
+}
+
+.bgsync-log .admin-msg {
+    margin-bottom: 0;
+}
+
+.bgsync-log-time {
+    opacity: 0.6;
+    font-variant-numeric: tabular-nums;
+    margin-inline-end: var(--space-xs);
+}
+
 /* ---- Publish Progress ---- */
 .publish-progress {
     margin-top: var(--space-md);

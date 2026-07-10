@@ -24,6 +24,37 @@ const supabase = (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY)
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
   : null;
 
+// GitHub sets GITHUB_RUN_ID automatically; fall back to a timestamp locally so
+// each run's UI events are still grouped under one id.
+const GITHUB_RUN_ID = process.env.GITHUB_RUN_ID || String(Date.now());
+let eventRetentionDone = false;
+
+/**
+ * Stream one plain-language progress line to Supabase so the Admin UI's sync log
+ * can show it live. This is the ONLY place user-facing sync messages are authored
+ * (the job is the only layer that knows what actually happened inside the source
+ * site). Best-effort by design: a telemetry failure must never break the actual
+ * sync, so every error is swallowed with a warning.
+ */
+async function logEvent(leagueId, level, message) {
+  console.log(`    [ui] ${message}`);
+  if (!supabase || !leagueId) return;
+  try {
+    if (!eventRetentionDone) {
+      eventRetentionDone = true;
+      await supabase
+        .from('external_source_sync_events')
+        .delete()
+        .lt('created_at', new Date(Date.now() - 14 * 864e5).toISOString());
+    }
+    await supabase
+      .from('external_source_sync_events')
+      .insert({ league_id: leagueId, run_id: GITHUB_RUN_ID, level, message });
+  } catch (e) {
+    console.warn(`    (ui event log failed: ${e.message})`);
+  }
+}
+
 const VIEWPORTS = [
   { width: 1920, height: 1080 },
   { width: 1536, height: 864 },
@@ -400,6 +431,7 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
   const updatedParamsPath = join(outSubdir, 'league_params.json');
   const newFlagsDir = join(outSubdir, 'new_flags');
 
+  await logEvent(folder, 'info', `Starting sync for "${sourceLeagueName}"…`);
   await page.waitForTimeout(randInt(500, 2500));
   console.log(`  → Opening league "${sourceLeagueName}" (with pagination)`);
   await clickLeagueByName(page, sourceLeagueName);
@@ -413,6 +445,7 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
     throw new Error('DL never populated within 15s after league click');
   }
   console.log(`    DL = ${rosterReady.dl} players, FL[RG] = ${rosterReady.rg} rounds played — ready after ${rosterReady.t}ms`);
+  await logEvent(folder, 'info', `Opened the league — ${rosterReady.dl} players, ${rosterReady.rg} rounds so far.`);
 
   console.log('  → Extracting player roster (DL) for players.json');
   const players = await page.evaluate(() => {
@@ -453,6 +486,7 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
       } else {
         console.log(`    ⚠ ${newPlayers.length} NEW player(s) (never seen in any past league):`);
         for (const u of newPlayers) console.log(`      • ${u}`);
+        await logEvent(folder, 'info', `${newPlayers.length} new player(s): ${newPlayers.join(', ')}`);
       }
 
       console.log('  → CustomFlags diff (External Source → local)');
@@ -503,6 +537,7 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
     if (missing.length === 0) {
       console.log('    ✓ No new flags needed — all player flags already in repo');
     } else {
+      await logEvent(folder, 'info', `${missing.length} new flag(s): ${missing.join(', ')}`);
       console.log(`    ⚠ ${missing.length} new flag(s) detected:`);
       for (const code of missing) {
         const info = flagUsage[code];
@@ -578,6 +613,11 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
         `  ✓ Integrity check passed: ${newPlayed} played (post-overrides)` +
           (baseline === null ? ' — first sync, no baseline' : ` ≥ baseline ${baseline}`),
       );
+      const added = baseline === null ? null : newPlayed - baseline;
+      await logEvent(folder, 'success',
+        baseline === null
+          ? `Data looks healthy — ${newPlayed} games (first sync).`
+          : `Data looks healthy — ${newPlayed} games, none lost${added > 0 ? ` (+${added} new)` : ' (no new games)'}.`);
       csvText = data;
       break;
     }
@@ -587,6 +627,9 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
         `effective played (after overrides) = ${newPlayed}, expected ≥ ${baseline} (matches don't disappear). ` +
         `Likely incomplete WS round delivery — will retry.`,
     );
+    if (attempt < MAX_EXPORT_ATTEMPTS) {
+      await logEvent(folder, 'info', 'Data looked incomplete — retrying…');
+    }
     if (attempt === MAX_EXPORT_ATTEMPTS) {
       throw new Error(
         `External Source export integrity check failed after ${MAX_EXPORT_ATTEMPTS} attempts ` +
@@ -609,6 +652,8 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
     await reconcileMatchHistoryInSupabase(folder);
     console.log('  ✓ Supabase updated');
   }
+
+  await logEvent(folder, 'success', `Sync complete — "${sourceLeagueName}" data updated.`);
 }
 
 /**
@@ -906,6 +951,7 @@ try {
         leagueResults.push({ folder: target.folder, status: 'ok' });
       } catch (err) {
         console.error(`  ✗ League "${target.source_league_name}" failed after all retries: ${err.message}`);
+        await logEvent(target.folder, 'error', 'Sync failed while fetching data — please try again later.');
         leagueResults.push({ folder: target.folder, status: 'fail', error: err.message });
       }
     }

@@ -48,7 +48,12 @@
       "Bash(PYTHONIOENCODING=utf-8 python - docker-index-tables.json files-index-tables.json)",
       "Bash(PYTHONIOENCODING=utf-8 python -)",
       "Bash(node scripts/verify-csv-parity.mjs --target=local)",
-      "Bash(node scripts/verify-csv-parity.mjs --target=local --out=docs/data-architecture/verification/params-consensus-proof-2026-07-10.json)"
+      "Bash(node scripts/verify-csv-parity.mjs --target=local --out=docs/data-architecture/verification/params-consensus-proof-2026-07-10.json)",
+      "Bash(node --check scripts/sync-source.js)",
+      "Bash(node --check js/admin/leagueManager.js)",
+      "Bash(git symbolic-ref *)",
+      "Bash(git ls-tree *)",
+      "Bash(git rev-list *)"
     ]
   }
 }

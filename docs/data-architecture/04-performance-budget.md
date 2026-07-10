@@ -1,8 +1,8 @@
 # 04 — Performance Budget & Measurement Harness
 
-Status: standards binding. **Harness built; "before" baseline captured against production (Phase 0, 2026-07-09); "after" captured against local Docker (Phase 3, 2026-07-10).** Raw output: [`verification/perf-baseline-2026-07-09.json`](verification/perf-baseline-2026-07-09.json) (before, production) and [`verification/perf-after-local-2026-07-10.json`](verification/perf-after-local-2026-07-10.json) (after, local Docker).
+Status: standards binding. **Harness built; "before" baseline captured against production (Phase 0, 2026-07-09); "after" captured against local Docker (Phase 3, 2026-07-10) AND then re-run against production after the cloud deploy (2026-07-10) — closing the one apples-to-apples gap.** Raw output: [`verification/perf-baseline-2026-07-09.json`](verification/perf-baseline-2026-07-09.json) (before, production), [`verification/perf-after-local-2026-07-10.json`](verification/perf-after-local-2026-07-10.json) (after, local Docker), and [`verification/perf-after-production-2026-07-10.json`](verification/perf-after-production-2026-07-10.json) (**after, production — same environment as the before baseline**).
 
-> **Read the two columns for different things.** The *request-count* columns are directly comparable before↔after and carry the headline result (the architectural win). The *millisecond* columns are **not** directly comparable across the two: "before" ms were measured on production (`golan.me.uk`, real network + cloud DB latency), "after" ms on local Docker (no network hop, local Postgres) — localhost is inherently faster for reasons unrelated to the code change. A true apples-to-apples ms comparison requires re-running the "after" harness against production once this code is deployed there (not done — Phase 3 stayed on local Docker per scope). See [After results](#after-results-phase-3-2026-07-10) for the three measurement caveats that shaped these numbers.
+> **The production after-run makes the ms directly comparable.** Both the "before" baseline (2026-07-09) and the production "after" run (2026-07-10) were measured on `golan.me.uk` against the cloud DB — same network, same Postgres. The earlier local-Docker "after" run is kept for the request-count proof but its ms were never cross-comparable (localhost has no network hop). **Use the [production after results](#after-results-production-2026-07-10) for the real before↔after ms delta.**
 
 ## Binding standards (from `01-architecture.md` §A6)
 
@@ -80,7 +80,32 @@ Run against **local Docker** (`http://localhost:8090` + `127.0.0.1:54321`), 5 ru
 - **Warm forward nav: 0 blocking Supabase requests**, 167–500ms — down from 8–20. Meets the warm budget (0 blocking, < 300ms locally for 4 of 5; `player_league → player` at 500ms reflects that page's heavy render, not a data fetch).
 - **Warm back-nav: 0 blocking requests, 129–230ms.** bfcache hit rate reads 0% here, but that is caveat #4 above (dev server's `no-store` disables bfcache) — **not** a regression: the code adds no bfcache blocker (structurally verified), and the Phase 0 production baseline measured 100% on these same navigations. On production this code path keeps that 100%.
 
-**What still needs a production run to close out:** the absolute after-ms (localhost is faster than production for network reasons) and the bfcache hit rate (localhost's dev server disables it). Both are measurement-environment limits, not open questions about the code — but an honest "after == before minus the requests, same bfcache" claim on production numbers requires re-running the harness (no flags → defaults to production) once this code is deployed. That is the one remaining verification item; everything measurable on local Docker meets budget.
+**What still needs a production run to close out:** the absolute after-ms (localhost is faster than production for network reasons) and the bfcache hit rate (localhost's dev server disables it). Both are measurement-environment limits, not open questions about the code — but an honest "after == before minus the requests, same bfcache" claim on production numbers requires re-running the harness (no flags → defaults to production) once this code is deployed. **This is now done — see below.**
+
+## After results (production, 2026-07-10)
+
+Run against the **deployed production site** (`https://golan.me.uk` + cloud Supabase), 5 runs per scenario, headed Chromium, *after* the SQL was applied to the cloud SQL Editor and the JS was committed + pushed. This is the apples-to-apples closeout: **same environment as the 2026-07-09 "before" baseline**, so the ms below are directly comparable. Raw: [`verification/perf-after-production-2026-07-10.json`](verification/perf-after-production-2026-07-10.json).
+
+| Transition | Requests before → after | ms before (prod) → after (prod) | Improvement |
+|---|---|---|---|
+| → index.html (cold) | 8 → **1** | 3832 → **2396** | −37% |
+| → league.html (cold) | 12 → **1** | 2848 → **2246** | −21% |
+| → league_table.html (cold) | 12 → **1** | 2739 → **2425** | −11% |
+| → player_league.html (cold) | 24 → **1** | 3206 → **2237** | −30% |
+| → player.html (cold) | 14 → **1** | 5322 → **2189** | **−59%** |
+| index → league_table (warm fwd) | 8 → **0** | 1757 → **447** | **−75%** |
+| league_table → player_league (warm fwd) | 20 → **0** | 2285 → **445** | **−81%** |
+| player_league → player (warm fwd) | 14 → **0** | 4826 → **472** | **−90%** |
+| league → index (warm fwd) | — → **0** | — → **95** | — |
+| index → league (warm fwd) | — → **0** | — → **535** | — |
+| back-nav, bfcache hit | 0 → **0** | 50–66 → **39–53** | 100% hit both |
+
+**Closeout result — the redesign delivered on production, measured, same environment before and after:**
+- **Cold entry: exactly 1 blocking Supabase request** on every page (was 8–24). The worst offender, `player.html`, went **5322ms → 2189ms (−59%)** — the old `loadLeaguesBulk` fan-out is gone.
+- **Warm forward nav: 0 blocking requests**, 95–535ms (was 8–20 requests, 1447–4826ms). The heaviest transition, `player_league → player`, dropped **4826ms → 472ms (−90%)** — served entirely from the localStorage bundle.
+- **Back-nav bfcache: 100% hit rate preserved** (25/25), ~39–53ms — the new code added no bfcache blocker, exactly as the structural check predicted. The local-Docker `no-store` 0% reading was confirmed to be a dev-server artifact, not a regression.
+
+Every budget in the standards table is met on production. This closes the last open verification item; the local-Docker "after" run remains on file for the request-count proof but is superseded by this run for ms.
 
 ## Standing use
 

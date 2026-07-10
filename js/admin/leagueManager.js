@@ -1420,6 +1420,127 @@ function showMsg(elementId, message, type) {
     if (message) revealMsg(el);
 }
 
+// ── Sync activity log (running list, plain-language, last N lines) ──────
+const BG_LOG_MAX = 10;
+
+/** Append one timestamped, colour-coded line to the sync log; keep last N, auto-scroll. */
+function bgLog(message, type = 'info') {
+    const el = document.getElementById('bgsync-msg');
+    if (!el) return;
+    el.classList.add('bgsync-log');
+    const line = document.createElement('div');
+    line.className = `admin-msg admin-msg-${type}`;
+    const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    line.innerHTML = `<span class="bgsync-log-time">${t}</span> ${message}`;
+    el.appendChild(line);
+    while (el.children.length > BG_LOG_MAX) el.removeChild(el.firstChild);
+    el.scrollTop = el.scrollHeight;
+    revealMsg(el);
+}
+
+/** Reset the log panel before a fresh run. */
+function bgLogClear() {
+    const el = document.getElementById('bgsync-msg');
+    if (el) { el.innerHTML = ''; el.classList.remove('bgsync-log'); }
+}
+
+/** Turn a raw dispatch failure into one plain sentence the site owner can act on. */
+function friendlySyncError(err) {
+    if (err && err.rejectedCode != null) {
+        const c = err.rejectedCode;
+        if (c === 401 || c === 403) return "Couldn't start — the site connection isn't authorized (check the access token).";
+        if (c === 422) return "Couldn't start — the automation isn't published on the site yet (needs the main branch).";
+        return "Couldn't start — the site refused the request.";
+    }
+    const m = (err && err.message) || '';
+    if (/Could not find the function/i.test(m)) return "The sync isn't fully set up on the server yet.";
+    if (/vault|github_dispatch_pat/i.test(m)) return "The sync isn't fully configured — the site access token is missing.";
+    return "Couldn't start the sync — please try again in a moment.";
+}
+
+/**
+ * After a "Run now" dispatch, poll external_source_sync_status() and log each
+ * stage in plain language: waiting → accepted (sync running) or rejected. The
+ * site's response is async (pg_net writes it later), so we poll to a deadline.
+ * Returns on accepted/timeout; throws (with .rejectedCode) on rejection so the
+ * caller logs a red line. If the status probe isn't installed yet, the dispatch
+ * already succeeded — log the plain confirmation and stop.
+ */
+async function pollSyncDispatch(leagueId) {
+    const DEADLINE_MS = 30000;
+    const INTERVAL_MS = 2000;
+    const start = Date.now();
+    let waitingLogged = false;
+    while (Date.now() - start < DEADLINE_MS) {
+        await new Promise(r => setTimeout(r, INTERVAL_MS));
+        const { data, error } = await supabase.rpc('external_source_sync_status', { p_league_id: leagueId });
+        if (error) {
+            bgLog('Sync started. Results will appear in Historical Changes shortly.', 'success');
+            return false;
+        }
+        const stage = data && data.stage;
+        if (stage === 'accepted') {
+            bgLog('The site accepted the request — the sync is now running.', 'success');
+            return true;
+        }
+        if (stage === 'rejected') {
+            const e = new Error('rejected');
+            e.rejectedCode = data.status_code;
+            e.rejectedDetail = data.error;
+            throw e;
+        }
+        if (!waitingLogged) { bgLog('Waiting for the site to respond…', 'info'); waitingLogged = true; }
+    }
+    bgLog('Still waiting — the site is slow to respond. You can leave this page; results will show in Historical Changes.', 'info');
+    return false;
+}
+
+/**
+ * Live-stream the job's progress events into the log panel until a terminal
+ * event ("Sync complete" / an error line) arrives or we hit the deadline. Each
+ * event is authored by the sync job (see scripts/sync-source.js) and stored in
+ * external_source_sync_events; here we just poll and render new rows in order.
+ * `sinceIso` scopes to events from this run. Stops quietly if the events table
+ * isn't installed yet (older DB) — the dispatch confirmation already showed.
+ */
+async function streamSyncEvents(leagueId, sinceIso) {
+    const DEADLINE_MS = 4 * 60 * 1000;
+    const INTERVAL_MS = 3000;
+    const seen = new Set();
+    const start = Date.now();
+    while (Date.now() - start < DEADLINE_MS) {
+        await new Promise(r => setTimeout(r, INTERVAL_MS));
+        const { data, error } = await supabase
+            .from('external_source_sync_events')
+            .select('id, level, message')
+            .eq('league_id', leagueId)
+            .gt('created_at', sinceIso)
+            .order('created_at', { ascending: true })
+            .limit(50);
+        if (error) return; // events table not available — stop quietly
+        for (const ev of (data || [])) {
+            if (seen.has(ev.id)) continue;
+            seen.add(ev.id);
+            bgLog(ev.message, ev.level);
+            if (ev.level === 'error' || /sync complete/i.test(ev.message)) return;
+        }
+    }
+    bgLog('Still running — you can leave this page; the log updates on your next visit.', 'info');
+}
+
+/** Load the most recent run's log lines when the sync card opens (persisted history). */
+async function loadRecentSyncEvents(leagueId) {
+    const { data, error } = await supabase
+        .from('external_source_sync_events')
+        .select('id, level, message')
+        .eq('league_id', leagueId)
+        .order('created_at', { ascending: false })
+        .limit(BG_LOG_MAX);
+    if (error || !data || data.length === 0) return;
+    bgLogClear();
+    for (const ev of data.reverse()) bgLog(ev.message, ev.level);
+}
+
 /**
  * Wire up the Match Results sub-tabs (Round Editor / Upload CSV / View Overrides).
  * Round Editor opens by default. Tabs follow the same pattern as the dashboard
@@ -1550,18 +1671,30 @@ function setupBGSync(leagueId, params, defaultName, refreshBadgeFn) {
     // Run now — dispatches the External Source sync workflow immediately for
     // this league via Postgres (pg_net), entirely server-side: no GitHub PAT
     // ever touches this client code (see sql/external_source_scheduler.sql).
+    // After dispatching we poll external_source_sync_status() so the user sees
+    // which stage the request is at (sending → dispatched → accepted/rejected).
+    // The button stays disabled for the whole flow so a second click can't fire
+    // a duplicate sync until the request reaches a terminal state.
     document.getElementById('bgsync-run-now').addEventListener('click', async (e) => {
         const btn = e.currentTarget;
         btn.disabled = true;
-        showMsg('bgsync-msg', 'Triggering sync…', 'success');
+        bgLogClear();
+        // Backdate slightly so the job's very first event isn't missed to clock skew.
+        const since = new Date(Date.now() - 5000).toISOString();
+        bgLog('Starting sync…', 'info');
         try {
             const { error } = await supabase.rpc('trigger_external_source_sync_now', { p_league_id: leagueId });
             if (error) throw error;
-            showMsg('bgsync-msg', 'Sync triggered — check Historical Changes shortly for the result.', 'success');
+            bgLog('Request sent to the league site.', 'info');
+            const running = await pollSyncDispatch(leagueId);
+            if (running) await streamSyncEvents(leagueId, since);
         } catch (err) {
-            showMsg('bgsync-msg', `Failed to trigger sync: ${err.message}`, 'error');
+            bgLog(friendlySyncError(err), 'error');
         } finally {
             btn.disabled = false;
         }
     });
+
+    // Show the last run's log lines when the card opens (best-effort).
+    loadRecentSyncEvents(leagueId);
 }

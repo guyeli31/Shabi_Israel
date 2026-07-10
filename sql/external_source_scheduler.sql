@@ -37,6 +37,26 @@ create policy ess_log_authenticated_select on public.external_source_sync_log fo
 grant select on public.external_source_sync_log to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
 
+-- ── Live progress events — streamed by the sync job, shown in the Admin UI ──
+-- The GitHub sync job inserts one plain-language row per milestone (via the
+-- service_role key, which bypasses RLS). The Admin UI polls these to render a
+-- live activity log. Authored ONLY by the job — Postgres never composes these
+-- messages, it just stores and serves them.
+create table if not exists public.external_source_sync_events (
+  id         bigint generated always as identity primary key,
+  league_id  text not null references public.leagues(id) on delete cascade,
+  run_id     text,
+  created_at timestamptz not null default now(),
+  level      text not null default 'info' check (level in ('info', 'success', 'error')),
+  message    text not null
+);
+
+create index if not exists idx_ess_events_league_time on public.external_source_sync_events (league_id, created_at);
+
+alter table public.external_source_sync_events enable row level security;
+create policy ess_events_authenticated_select on public.external_source_sync_events for select to authenticated using (true);
+grant select on public.external_source_sync_events to authenticated;
+
 -- ── Shared dispatch helper ──────────────────────────────────────────────
 -- Fires one workflow_dispatch call for one league and logs the attempt.
 create or replace function public._dispatch_external_source_sync(p_league_id text, p_kind text)
@@ -67,9 +87,15 @@ begin
       'Content-Type', 'application/json'
     ),
     body := jsonb_build_object(
-      'ref', 'main',
+      -- Which branch's workflow + code actually runs. Dispatch is still only
+      -- *accepted* because sync-source.yml exists on the default branch (main),
+      -- but the run itself checks out this ref. Point it at the branch that
+      -- holds the current code. Flip back to 'main' at cutover.
+      'ref', 'development',
       'inputs', jsonb_build_object(
-        'mode', 'full',
+        -- Manual "Run now" wants an immediate result, so it uses fast mode
+        -- (~20s). Scheduled runs stay on full mode for the anti-bot disguise.
+        'mode', case when p_kind = 'manual' then 'fast' else 'full' end,
         'leagues', jsonb_build_array(jsonb_build_object('folder', p_league_id, 'source_league_name', source_name))::text
       )
     )
@@ -145,6 +171,60 @@ $$;
 
 revoke all on function public.trigger_external_source_sync_now(text) from public;
 grant execute on function public.trigger_external_source_sync_now(text) to authenticated;
+
+-- ── Status probe — polled by the Admin UI after "Run now" ──────────────
+-- Correlates the latest trigger-log row for a league with pg_net's async
+-- HTTP response, so the UI can show the dispatch stage (pending → accepted /
+-- rejected) without exposing the whole `net` schema to the anon/authenticated
+-- role. Returns one jsonb row; `stage='none'` when nothing was ever triggered.
+create or replace function public.external_source_sync_status(p_league_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  l public.external_source_sync_log%rowtype;
+  resp_status int;
+  resp_error  text;
+  resp_body   text;
+begin
+  select * into l
+  from public.external_source_sync_log
+  where league_id = p_league_id
+  order by triggered_at desc
+  limit 1;
+
+  if not found then
+    return jsonb_build_object('stage', 'none');
+  end if;
+
+  select status_code, error_msg, content
+    into resp_status, resp_error, resp_body
+  from net._http_response
+  where id = l.request_id;
+
+  if not found then
+    return jsonb_build_object(
+      'stage', 'pending', 'request_id', l.request_id, 'triggered_at', l.triggered_at
+    );
+  end if;
+
+  return jsonb_build_object(
+    'stage', case when resp_status between 200 and 299 then 'accepted' else 'rejected' end,
+    'request_id', l.request_id,
+    'trigger_kind', l.trigger_kind,
+    'triggered_at', l.triggered_at,
+    'status_code', resp_status,
+    'error', case when resp_status >= 300
+                  then left(coalesce(nullif(resp_error, ''), resp_body), 300)
+                  else null end
+  );
+end;
+$$;
+
+revoke all on function public.external_source_sync_status(text) from public;
+grant execute on function public.external_source_sync_status(text) to authenticated;
 
 -- ── One-time manual step (run separately, never commit the real value) ──
 -- select vault.create_secret(
