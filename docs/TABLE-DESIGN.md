@@ -67,6 +67,7 @@ Table code mapping for the app. All future references to a table use the code be
 | F4 | View Overrides (manual override list inside Edit League) |
 | F5 | CSV Import Preview (Edit League → Import CSV/Excel) |
 | F6 | Medals & Prizes (Edit League + Add New League → League Settings) |
+| F7 | Active Leagues (Sync page → Active Leagues: Source League Name + plan membership) |
 
 ---
 
@@ -79,7 +80,7 @@ The project has **four** table formats. Each format is owned by `table-lab/` and
 | Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3, C4, **F5** |
 | Secondary Format | **SF** | A3, A4, A5, A6, C5 |
 | Expandable Format | **exp** | C0 |
-| Form Format | **FF** | F1 (League Manager), F2 (Players), F3 (Round Editor), F4 (View Overrides), F6 (Medals & Prizes) |
+| Form Format | **FF** | F1 (League Manager), F2 (Players), F3 (Round Editor), F4 (View Overrides), F6 (Medals & Prizes), F7 (Sync ▸ Active Leagues) |
 
 > **F5 is the lone admin table on MF** (every other admin table is FF). It is a read-only CSV-import preview, so MF — not the editable FF — is the right format. It renders through `mountMFTable` with `fontClass:'font-small'` (matching B3) and `stickyCols:1` (left column pinned). The MF sticky **header** is a no-op here because `.mf-wrap` is `overflow-y:clip` (never a vertical scroll context) — satisfying the "no floating header" requirement without any change to the shared MF format. `admin.html` loads `table-lab/formats/mf/mf.css` for this one table. The preview shows **only the "N updates"**: matches played in the upload that were not already played and are not override-covered (computed in `js/admin/csvValidation.js`).
 
@@ -578,7 +579,9 @@ mountExpTable(mountPoint, {
 
 ### FF (Form Format — Admin tables)
 
-Unified admin table format used by: **F1 (Leagues / League Manager), F2 (Players in Edit League), F3 (Round Editor), F4 (View Overrides), F6 (Medals & Prizes in Edit + Add League) — all on admin.html.**
+Unified admin table format used by: **F1 (Leagues / League Manager), F2 (Players in Edit League), F3 (Round Editor), F4 (View Overrides), F6 (Medals & Prizes in Edit + Add League), F7 (Active Leagues on the Sync page) — all on admin.html.**
+
+> **F7 — Sync ▸ Active Leagues.** Standalone (no `.admin-card` wrapper is required, but it is rendered inside one), `data-mf-table-id="F7"`, `font-large`. One row per **Running** league: *League* (name + type pill), *Source League Name* (Edit-mode text input — the enabling key), *Plans* (Display cell of per-plan membership checkboxes). Membership is the single source of truth in the DOM here; the Auto Sync section only owns plan meta. Rendered hand-built (FF chrome via `css/admin.css`) by `js/admin/syncManager.js`; the `mountFFTable` rewire rides along in Phase 8.
 
 Rendered by `mountFFTable(mountPoint, args)` (`table-lab/formats/ff/mount.js`). CSS canon lives in `table-lab/formats/ff/ff.css` (auto-imports `base/base.css`). Production rewiring is tracked as Phase 8 of `docs/plans/table-lab-unification.md`; until then, the FF chrome rules are duplicated in `css/admin.css`.
 

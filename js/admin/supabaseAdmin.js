@@ -168,6 +168,81 @@ export async function updateLandingSettings({ title, subtitle, logoPath, Display
     if (error) throw new Error(`updateLandingSettings failed: ${error.message}`);
 }
 
+/**
+ * Mirror leagues/sync_settings.json into the plan-scheduler tables the pg_cron
+ * check reads (see sql/external_source_scheduler.sql):
+ *   • sync_plans           — one row per named plan
+ *   • sync_plan_members    — plan ↔ league membership
+ *   • leagues.source_league_name — per-league source-site search name
+ * The file is always the WHOLE current state, so this is a full reconcile:
+ * upsert what's present, delete what's gone. `sourceNames` is authoritative for
+ * every league — a league absent from the map has its name cleared (which also
+ * removes it from any plan on the next scheduled tick).
+ */
+export async function updateSyncSettings(payload) {
+    try {
+        return await _updateSyncSettings(payload);
+    } catch (err) {
+        // The whole feature depends on sql/external_source_scheduler.sql having been
+        // run. Turn PostgREST's cryptic "schema cache" / missing-column errors into
+        // one actionable line so the site owner knows exactly what to do.
+        const m = (err && err.message) || '';
+        if (/schema cache|could not find the table|could not find the .*column|does not exist|relation .* does not exist/i.test(m)) {
+            throw new Error('Sync tables are not set up yet — run sql/external_source_scheduler.sql in Supabase (SQL Editor) once, then Publish again.');
+        }
+        throw err;
+    }
+}
+
+async function _updateSyncSettings({ plans = [], sourceNames = {} }) {
+    // 1. Plans — upsert present, delete absent.
+    const planRows = plans.map((p) => ({
+        id: p.id,
+        name: p.name || p.id,
+        enabled: p.enabled !== false,
+        mode: p.mode === 'fast' ? 'fast' : 'full',
+        times: Array.isArray(p.times) ? p.times : [],
+        jitter_minutes: p.jitterMinutes ?? 60,
+        start_date: p.startDate || null,
+        end_date: p.endDate || null,
+        updated_at: new Date().toISOString(),
+    }));
+    if (planRows.length) {
+        const { error } = await supabase.from('sync_plans').upsert(planRows);
+        if (error) throw new Error(`updateSyncSettings: sync_plans upsert failed: ${error.message}`);
+    }
+    const keepIds = plans.map((p) => p.id);
+    {
+        // Delete plans no longer in the file (cascades to sync_plan_members).
+        const del = supabase.from('sync_plans').delete();
+        const { error } = keepIds.length
+            ? await del.not('id', 'in', `(${keepIds.map((id) => `"${id.replace(/"/g, '')}"`).join(',')})`)
+            : await del.neq('id', ' '); // no plans kept → delete all
+        if (error) throw new Error(`updateSyncSettings: stale sync_plans delete failed: ${error.message}`);
+    }
+
+    // 2. Membership — replace each plan's members wholesale.
+    for (const p of plans) {
+        const { error: delErr } = await supabase.from('sync_plan_members').delete().eq('plan_id', p.id);
+        if (delErr) throw new Error(`updateSyncSettings: member clear failed for ${p.id}: ${delErr.message}`);
+        const members = Array.isArray(p.leagues) ? [...new Set(p.leagues)] : [];
+        if (members.length) {
+            const rows = members.map((league_id) => ({ plan_id: p.id, league_id }));
+            const { error: insErr } = await supabase.from('sync_plan_members').insert(rows);
+            if (insErr) throw new Error(`updateSyncSettings: member insert failed for ${p.id}: ${insErr.message}`);
+        }
+    }
+
+    // 3. Per-league source name — faithful mirror across ALL leagues.
+    const { data: leagueRows, error: lErr } = await supabase.from('leagues').select('id');
+    if (lErr) throw new Error(`updateSyncSettings: leagues fetch failed: ${lErr.message}`);
+    for (const { id } of leagueRows || []) {
+        const name = sourceNames[id] || null;
+        const { error } = await supabase.from('leagues').update({ source_league_name: name }).eq('id', id);
+        if (error) throw new Error(`updateSyncSettings: source name update failed for ${id}: ${error.message}`);
+    }
+}
+
 /** Upload a flag PNG (base64 content, as staged) to the public `flags` bucket. */
 export async function uploadFlagAsset(code, base64Content) {
     const { error } = await supabase.storage.from('flags').upload(`${code}.png`, b64ToUint8Array(base64Content), {

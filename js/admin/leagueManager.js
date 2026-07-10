@@ -3,7 +3,6 @@
  */
 
 import { loadLeagueOrder, loadLeagueParams, loadLeagueMatches, loadLeagueMatchesAll, loadLandingSettings } from '../data/supabaseLoader.js';
-import { supabase } from '../data/supabaseClient.js';
 import { addChange, getStagedContent } from './stagingStore.js';
 import { getAllPlayersFromCSV } from '../data/csvParser.js';
 import { renderRoundEditor } from './roundEditor.js';
@@ -826,15 +825,8 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     const entryFee = p.EntryFee ?? 0;
     const prizes = p.Prizes || { Gold: 0, Silver: 0, Bronze: 0 };
 
-    // External Source automatic-sync settings (stored under p.ExternalSourceSync in league_params.json).
-    const bgSync = p.ExternalSourceSync || {};
-    const bgEnabled = bgSync.enabled === true;
-    // Default External Source league name = LeagueTitle trimmed at " - " (e.g. "Shabi Israel - June 2026" → "Shabi Israel").
-    const bgDefaultName = String(p.LeagueTitle || leagueId).split(' - ')[0].trim();
-    const bgName = bgSync.sourceLeagueName || bgDefaultName;
-    const bgTimes = Array.isArray(bgSync.times) ? bgSync.times.slice() : [];
-    const bgStartDate = bgSync.startDate ? String(bgSync.startDate).slice(0, 10) : '';
-    const bgEndDate = bgSync.endDate ? String(bgSync.endDate).slice(0, 10) : '';
+    // External Source sync is now managed on the dedicated Sync page
+    // (js/admin/syncManager.js → leagues/sync_settings.json), not per-league here.
 
     // F2 players-table rows (shared builder — see ffPlayersTableHTML).
     const editPlayerRows = players.map(name => ({
@@ -911,6 +903,20 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
           </div>
         </div>
 
+        <div class="dash-section" id="match-results-section">
+          <div class="app-section app-section--card">
+            <h2 class="app-section-h2">Match Results</h2>
+            <div class="collapsible-body">
+            <div id="match-tab-bar"></div>
+            <div id="match-panel-rounds" class="subtab-panel" hidden></div>
+            ${!params.ManualEntry ? `
+            <div id="match-panel-upload" class="subtab-panel" hidden></div>
+            <div id="match-panel-overrides" class="subtab-panel" hidden></div>
+            ` : ''}
+            </div>
+          </div>
+        </div>
+
         ${players.length > 0 ? `
         <div class="dash-section">
           <div class="app-section app-section--card">
@@ -929,77 +935,6 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         </div>
         ` : '<div class="admin-card"><p style="color:var(--color-text-muted)">No players yet. Upload a CSV first.</p></div>'}
 
-        <div class="dash-section">
-          <div class="app-section app-section--card">
-            <h2 class="app-section-h2">Automatic Sync</h2>
-            <div class="collapsible-body">
-            <div class="admin-card edit-card-sm">
-                <h3 style="margin-bottom:var(--space-md)">Auto-Sync</h3>
-                <div id="bgsync-msg"></div>
-
-                <div class="form-group">
-                    <label for="bgsync-enabled">Enabled</label>
-                    <label class="toggle-switch" style="display:block;margin-top:4px">
-                        <input type="checkbox" id="bgsync-enabled" ${bgEnabled ? 'checked' : ''}>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-
-                <div class="form-group">
-                    <label for="bgsync-league-name">Source League Name</label>
-                    <input type="text" id="bgsync-league-name" placeholder="${esc(bgDefaultName)}" value="${esc(bgName)}">
-                    <small style="color:var(--color-text-muted)">
-                        The exact league name as shown on the data source
-                    </small>
-                </div>
-
-                <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
-                    <div class="form-group" style="flex:1;min-width:140px">
-                        <label for="bgsync-start-date">Start Date</label>
-                        <input type="date" id="bgsync-start-date" class="themed-date" value="${bgStartDate}">
-                    </div>
-                    <div class="form-group" style="flex:1;min-width:140px">
-                        <label for="bgsync-end-date">End Date</label>
-                        <input type="date" id="bgsync-end-date" class="themed-date" value="${bgEndDate}">
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Run Times (every day, with &plusmn;1h randomization)</label>
-                    <div id="bgsync-times-list"></div>
-                    <button class="btn btn-secondary btn-sm" id="bgsync-add-time" type="button">
-                        + Add time
-                    </button>
-                </div>
-
-                <div style="margin-top:var(--space-md);font-size:0.9em;color:var(--color-text-muted)">
-                    <div>Last sync: <span id="bgsync-last">&mdash;</span></div>
-                    <div>Next window: <span id="bgsync-next">&mdash;</span></div>
-                </div>
-
-                <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md)">
-                    <button class="btn btn-primary" id="bgsync-save" type="button">Save Sync Settings</button>
-                    <button class="btn btn-secondary" id="bgsync-run-now" type="button">Run now</button>
-                </div>
-            </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="dash-section" id="match-results-section">
-          <div class="app-section app-section--card">
-            <h2 class="app-section-h2">Match Results</h2>
-            <div class="collapsible-body">
-            <div id="match-tab-bar"></div>
-            <div id="match-panel-rounds" class="subtab-panel" hidden></div>
-            ${!params.ManualEntry ? `
-            <div id="match-panel-upload" class="subtab-panel" hidden></div>
-            <div id="match-panel-overrides" class="subtab-panel" hidden></div>
-            ` : ''}
-            </div>
-          </div>
-        </div>
-
     `;
 
     // F2 (Players) — sticky-col drop-shadow on horizontal scroll, same as F1/F4 (FF chrome).
@@ -1009,13 +944,10 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     // Round Editor renders Table F2 for ALL leagues; manual overrides win over CSV.
     setupMatchResultsTabs(leagueId, params, refreshBadgeFn);
 
-    // Collapsible section headers (League Settings / Players / Automatic Sync / Match Results).
+    // Collapsible section headers (League Settings / Match Results / Players).
     // Shared mechanism (css/sections.css + sectionCollapse.js), identical to the
     // landing / dashboard / player pages. All open by default.
     container.querySelectorAll('.app-section').forEach(s => wireSectionCollapse(s, { defaultOpen: true }));
-
-    // Automatic Sync (External Source) — staged into league_params.json under p.ExternalSourceSync.
-    setupBGSync(leagueId, params, bgDefaultName, refreshBadgeFn);
 
     // Keep "Save Settings" / "Save Player Changes" disabled until something in
     // their section actually changes — same dormant-until-edited behaviour the
@@ -1420,146 +1352,6 @@ function showMsg(elementId, message, type) {
     if (message) revealMsg(el);
 }
 
-// ── Sync activity log (running list, plain-language, last N lines) ──────
-const BG_LOG_MAX = 10;
-
-/** Append one timestamped, colour-coded line to the sync log; keep last N, auto-scroll. */
-function bgLog(message, type = 'info') {
-    const el = document.getElementById('bgsync-msg');
-    if (!el) return;
-    el.classList.add('bgsync-log');
-    const line = document.createElement('div');
-    line.className = `admin-msg admin-msg-${type}`;
-    const t = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    line.innerHTML = `<span class="bgsync-log-time">${t}</span> ${message}`;
-    el.appendChild(line);
-    while (el.children.length > BG_LOG_MAX) el.removeChild(el.firstChild);
-    el.scrollTop = el.scrollHeight;
-    revealMsg(el);
-}
-
-/** Reset the log panel before a fresh run. */
-function bgLogClear() {
-    const el = document.getElementById('bgsync-msg');
-    if (el) { el.innerHTML = ''; el.classList.remove('bgsync-log'); }
-}
-
-/** Turn a raw dispatch failure into one plain sentence the site owner can act on. */
-function friendlySyncError(err) {
-    if (err && err.rejectedCode != null) {
-        const c = err.rejectedCode;
-        if (c === 401 || c === 403) return "Couldn't start — the site connection isn't authorized (check the access token).";
-        if (c === 422) return "Couldn't start — the automation isn't published on the site yet (needs the main branch).";
-        return "Couldn't start — the site refused the request.";
-    }
-    const m = (err && err.message) || '';
-    if (/Could not find the function/i.test(m)) return "The sync isn't fully set up on the server yet.";
-    if (/vault|github_dispatch_pat/i.test(m)) return "The sync isn't fully configured — the site access token is missing.";
-    return "Couldn't start the sync — please try again in a moment.";
-}
-
-/**
- * After a "Run now" dispatch, poll external_source_sync_status() and log each
- * stage in plain language: waiting → accepted (sync running) or rejected. The
- * site's response is async (pg_net writes it later), so we poll to a deadline.
- * Returns on accepted/timeout; throws (with .rejectedCode) on rejection so the
- * caller logs a red line. If the status probe isn't installed yet, the dispatch
- * already succeeded — log the plain confirmation and stop.
- */
-async function pollSyncDispatch(leagueId) {
-    const DEADLINE_MS = 30000;
-    const INTERVAL_MS = 2000;
-    const start = Date.now();
-    let waitingLogged = false;
-    while (Date.now() - start < DEADLINE_MS) {
-        await new Promise(r => setTimeout(r, INTERVAL_MS));
-        const { data, error } = await supabase.rpc('external_source_sync_status', { p_league_id: leagueId });
-        if (error) {
-            bgLog('Sync started. Results will appear in Historical Changes shortly.', 'success');
-            return false;
-        }
-        const stage = data && data.stage;
-        if (stage === 'accepted') {
-            bgLog('The site accepted the request — the sync is now running.', 'success');
-            return true;
-        }
-        if (stage === 'rejected') {
-            const e = new Error('rejected');
-            e.rejectedCode = data.status_code;
-            e.rejectedDetail = data.error;
-            throw e;
-        }
-        if (!waitingLogged) { bgLog('Waiting for the site to respond…', 'info'); waitingLogged = true; }
-    }
-    bgLog('Still waiting — the site is slow to respond. You can leave this page; results will show in Historical Changes.', 'info');
-    return false;
-}
-
-/**
- * Live-stream the job's progress events into the log panel until a terminal
- * event ("Sync complete" / an error line) arrives or we hit the deadline. Each
- * event is authored by the sync job (see scripts/sync-source.js) and stored in
- * external_source_sync_events; here we just poll and render new rows in order.
- * `sinceIso` scopes to events from this run. Stops quietly if the events table
- * isn't installed yet (older DB) — the dispatch confirmation already showed.
- */
-async function latestEventId(leagueId) {
-    const { data } = await supabase
-        .from('external_source_sync_events')
-        .select('id')
-        .eq('league_id', leagueId)
-        .order('id', { ascending: false })
-        .limit(1);
-    return (data && data.length) ? data[0].id : 0;
-}
-
-async function streamSyncEvents(leagueId, sinceId) {
-    const DEADLINE_MS = 4 * 60 * 1000;
-    const INTERVAL_MS = 3000;
-    const SILENT_MS = 45000; // a fast run reports its first event within ~20s
-    let lastId = sinceId;
-    let anySeen = false;
-    const start = Date.now();
-    while (Date.now() - start < DEADLINE_MS) {
-        await new Promise(r => setTimeout(r, INTERVAL_MS));
-        const { data, error } = await supabase
-            .from('external_source_sync_events')
-            .select('id, level, message')
-            .eq('league_id', leagueId)
-            .gt('id', lastId)
-            .order('id', { ascending: true })
-            .limit(50);
-        if (error) return; // events table not available — stop quietly
-        for (const ev of (data || [])) {
-            lastId = ev.id;
-            anySeen = true;
-            bgLog(ev.message, ev.level);
-            if (ev.level === 'error' || /sync complete/i.test(ev.message)) return;
-        }
-        // No events at all well past when a run should have reported → be honest
-        // instead of implying everything is fine. Most likely the job can't post
-        // updates (missing Supabase credentials) or it failed before reporting.
-        if (!anySeen && Date.now() - start > SILENT_MS) {
-            bgLog("No progress was reported — the sync likely failed to start, or the server can't post updates. Check the GitHub Actions run.", 'error');
-            return;
-        }
-    }
-    bgLog('Still running — you can leave this page; the log updates on your next visit.', 'info');
-}
-
-/** Load the most recent run's log lines when the sync card opens (persisted history). */
-async function loadRecentSyncEvents(leagueId) {
-    const { data, error } = await supabase
-        .from('external_source_sync_events')
-        .select('id, level, message')
-        .eq('league_id', leagueId)
-        .order('created_at', { ascending: false })
-        .limit(BG_LOG_MAX);
-    if (error || !data || data.length === 0) return;
-    bgLogClear();
-    for (const ev of data.reverse()) bgLog(ev.message, ev.level);
-}
-
 /**
  * Wire up the Match Results sub-tabs (Round Editor / Upload CSV / View Overrides).
  * Round Editor opens by default. Tabs follow the same pattern as the dashboard
@@ -1593,128 +1385,3 @@ function setupMatchResultsTabs(leagueId, params, refreshBadge) {
     });
 }
 
-/**
- * Wire up the "Automatic Sync" card (External Source daily-sync settings).
- * For now this stages the config into league_params.json under `ExternalSourceSync`.
- * Later the Save / Run now actions will upsert to Supabase / trigger the server.
- *
- * @param {string[]} initialTimes - HH:MM strings to seed the run-times list.
- */
-function setupBGSync(leagueId, params, defaultName, refreshBadgeFn) {
-    const list = document.getElementById('bgsync-times-list');
-    if (!list) return; // card not rendered (shouldn't happen)
-
-    const seed = (params.ExternalSourceSync && Array.isArray(params.ExternalSourceSync.times))
-        ? params.ExternalSourceSync.times.slice()
-        : [];
-
-    // Keep "Save External Source Settings" disabled until the config actually changes from
-    // its loaded state — same dormant-until-edited behaviour as the other Edit sections.
-    // Assigned just below (after the seed rows are laid down so they form the baseline);
-    // add/remove time-row are not input events, so they call markDirty() explicitly.
-    let bgTracker = { markDirty() {}, markClean() {} };
-
-    function nowHHMM() {
-        const d = new Date();
-        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    }
-
-    function addTimeRow(value) {
-        const row = document.createElement('div');
-        row.className = 'bgsync-time-row';
-        row.style.cssText = 'display:flex;align-items:center;gap:var(--space-sm);margin-bottom:var(--space-xs)';
-        row.innerHTML = `
-            <input type="time" step="300" class="bgsync-time" value="${esc(value)}">
-            <button type="button" class="btn btn-danger btn-sm bgsync-del-time" title="Remove time">&#128465;</button>`;
-        row.querySelector('.bgsync-del-time').addEventListener('click', () => {
-            const isLast = list.querySelectorAll('.bgsync-time-row').length === 1;
-            if (isLast) {
-                if (!confirm('Disable sync entirely?')) return;
-                const enabled = document.getElementById('bgsync-enabled');
-                if (enabled) enabled.checked = false;
-            }
-            row.remove();
-            bgTracker.markDirty();
-        });
-        list.appendChild(row);
-    }
-
-    seed.forEach(t => addTimeRow(t));
-
-    // Snapshot the seeded state as the baseline, then keep Save disabled until it changes.
-    const bgSaveBtn = document.getElementById('bgsync-save');
-    bgTracker = wireDirtySave(bgSaveBtn && bgSaveBtn.closest('.app-section'), bgSaveBtn);
-
-    document.getElementById('bgsync-add-time').addEventListener('click', () => {
-        addTimeRow(nowHHMM());
-        bgTracker.markDirty();
-    });
-
-    // Save External Source settings — stage into league_params.json (base = staged version if present).
-    document.getElementById('bgsync-save').addEventListener('click', () => {
-        const encoded = encodeURIComponent(leagueId);
-        const path = `leagues/${encoded}/league_params.json`;
-        const stagedJson = getStagedContent(path);
-        const baseParams = stagedJson ? JSON.parse(stagedJson) : params;
-        const newParams = { ...baseParams };
-
-        const times = Array.from(list.querySelectorAll('.bgsync-time'))
-            .map(inp => inp.value.trim())
-            .filter(Boolean);
-        const nameVal = document.getElementById('bgsync-league-name').value.trim() || defaultName;
-        const startDate = document.getElementById('bgsync-start-date').value;
-        const endDate = document.getElementById('bgsync-end-date').value;
-
-        newParams.ExternalSourceSync = {
-            enabled: document.getElementById('bgsync-enabled').checked,
-            sourceLeagueName: nameVal,
-            startDate: startDate || null,
-            endDate: endDate || null,
-            times
-        };
-
-        addChange({
-            type: 'update',
-            path,
-            content: JSON.stringify(newParams, null, 2),
-            description: `Update auto-sync: ${leagueId}`,
-            category: 'bgsync',
-            subject: leagueId
-        });
-
-        if (refreshBadgeFn) refreshBadgeFn();
-        bgTracker.markClean();
-        showMsg('bgsync-msg', 'Sync settings staged. Go to Pending Changes to publish.', 'success');
-    });
-
-    // Run now — dispatches the External Source sync workflow immediately for
-    // this league via Postgres (pg_net), entirely server-side: no GitHub PAT
-    // ever touches this client code (see sql/external_source_scheduler.sql).
-    // After dispatching we poll external_source_sync_status() so the user sees
-    // which stage the request is at (sending → dispatched → accepted/rejected).
-    // The button stays disabled for the whole flow so a second click can't fire
-    // a duplicate sync until the request reaches a terminal state.
-    document.getElementById('bgsync-run-now').addEventListener('click', async (e) => {
-        const btn = e.currentTarget;
-        btn.disabled = true;
-        bgLogClear();
-        // Anchor the live stream on the current newest event id (immune to any
-        // client/server clock skew — filtering by created_at is not reliable).
-        const sinceId = await latestEventId(leagueId);
-        bgLog('Starting sync…', 'info');
-        try {
-            const { error } = await supabase.rpc('trigger_external_source_sync_now', { p_league_id: leagueId });
-            if (error) throw error;
-            bgLog('Request sent to the league site.', 'info');
-            const running = await pollSyncDispatch(leagueId);
-            if (running) await streamSyncEvents(leagueId, sinceId);
-        } catch (err) {
-            bgLog(friendlySyncError(err), 'error');
-        } finally {
-            btn.disabled = false;
-        }
-    });
-
-    // Show the last run's log lines when the card opens (best-effort).
-    loadRecentSyncEvents(leagueId);
-}

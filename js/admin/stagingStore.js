@@ -331,6 +331,7 @@ function parseChangePath(path) {
     if ((m = path.match(/^leagues\/([^/]+)\/manual_overrides\.json$/))) return { kind: 'manual_overrides', leagueId: decodeURIComponent(m[1]) };
     if (path === 'leagues/players_metadata.json') return { kind: 'players_metadata' };
     if (path === 'leagues/landing_settings.json') return { kind: 'landing_settings' };
+    if (path === 'leagues/sync_settings.json') return { kind: 'sync_settings' };
     if ((m = path.match(/^assets\/flags\/([^/]+)\.png$/))) return { kind: 'flag_asset', code: m[1] };
     if ((m = path.match(/^assets\/players\/(.+)$/))) return { kind: 'player_photo', filename: m[1] };
     return { kind: 'unknown' };
@@ -392,6 +393,9 @@ export async function publishAll(onProgress) {
                     break;
                 case 'landing_settings':
                     await supabaseAdmin.updateLandingSettings(JSON.parse(change.content));
+                    break;
+                case 'sync_settings':
+                    await supabaseAdmin.updateSyncSettings(JSON.parse(change.content));
                     break;
                 case 'flag_asset':
                     await supabaseAdmin.uploadFlagAsset(desc.code, change.content);

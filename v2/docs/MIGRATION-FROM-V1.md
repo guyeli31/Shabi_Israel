@@ -6,6 +6,8 @@ Authoritative mapping table. Every v1 source file lands in exactly one v2 destin
 
 **Follow-up (2026-07-07): query-strategy redesign proposed** — `docs/data-architecture/` (repo root) documents a ground-up rework of v1's Supabase read path (single-RPC bundle + versioned localStorage cache, replacing the current per-page granular queries). Proposed, not yet implemented — see `docs/data-architecture/README.md` for phase status. When v2 reaches its own Supabase data-layer phase, adopt the same `store.js`/bundle design (framework-agnostic by construction) rather than designing a second data layer from scratch.
 
+**Follow-up (2026-07-10): dedicated Sync admin page + named-plans model (v1)** — v1 moved all External Source sync control out of *Edit League → Automatic Sync* into a new top-level **Sync** admin view (`js/admin/syncManager.js`, table **F7**), backed by a new staged file `leagues/sync_settings.json` and a plan-driven scheduler (`sql/external_source_scheduler.sql`: `sync_plans` + `sync_plan_members` + `leagues.source_league_name`). A plan = schedule + member leagues; per-league `ExternalSourceSync` in `league_params.json` is deprecated. Edit League now orders **Settings → Round Editor → Players** (no sync section). Sync-log helpers were extracted to `js/admin/syncLog.js`. **v2 admin stays read-only until Phase 8 — do not build this in v2 now.** When v2's admin phase (owns `src/pages/admin/`) arrives, port the Sync page as its own view + reuse the plan tables; membership single-source-of-truth is the Active-Leagues matrix, and Run Now dispatches via the `trigger_external_source_sync_now_leagues` RPC.
+
 > Status legend: ◯ pending — ◐ partial — ● complete
 
 ## CSS files (15 files in v1, all dissolved into layered structure in v2)

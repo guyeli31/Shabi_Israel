@@ -11,8 +11,8 @@ import { installSearchOverlay } from '../../render/searchOverlay.js';
 import { buildAdminSidebarHtml, wireAdminSidebar } from './adminSidebarNav.js';
 import { renderHistoricalChanges } from './historicalChanges.js';
 
-const VIEW_TITLES = { leagues: 'Leagues', players: 'Players', pending: 'Pending Changes', history: 'Historical Changes' };
-const VIEW_KEYS = ['leagues', 'players', 'pending', 'history'];
+const VIEW_TITLES = { leagues: 'Leagues', players: 'Players', pending: 'Pending Changes', history: 'Historical Changes', sync: 'Sync' };
+const VIEW_KEYS = ['leagues', 'players', 'pending', 'history', 'sync'];
 
 let currentView = 'leagues';
 let onNavigate = null; // callback set by admin.html to handle view switching

@@ -434,3 +434,6 @@ scripts/out/
 .env
 supabase-migration/.env
 scripts/.env
+
+# Supabase Studio auto-saved SQL Editor query history — local scratch, not source of truth
+supabase-migration/supabase/snippets/

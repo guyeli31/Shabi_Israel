@@ -582,6 +582,7 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
   for (let attempt = 1; attempt <= MAX_EXPORT_ATTEMPTS; attempt++) {
     if (attempt === 2) {
       console.log(`  → Retry 2/${MAX_EXPORT_ATTEMPTS}: re-navigating to leagues list and re-opening "${sourceLeagueName}"`);
+      await logEvent(folder, 'info', 'Reopening the league to fetch the data again…');
       await navigateToLeaguesList(page);
       await clickLeagueByName(page, sourceLeagueName);
       await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
@@ -590,6 +591,7 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
       if (!retryRoster.ok) throw new Error('DL never repopulated within 15s after retry re-entry');
     } else if (attempt === 3) {
       console.log(`  → Retry 3/${MAX_EXPORT_ATTEMPTS}: full disconnect + reconnect (logout, re-login, re-open "${sourceLeagueName}")`);
+      await logEvent(folder, 'info', 'Signing in again to fetch the data…');
       await relogin(page);
       await navigateToLeaguesList(page);
       await clickLeagueByName(page, sourceLeagueName);
@@ -605,6 +607,7 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
       if (attempt === MAX_EXPORT_ATTEMPTS) {
         throw new Error(`Export results popup never produced CSV data after ${MAX_EXPORT_ATTEMPTS} attempts`);
       }
+      await logEvent(folder, 'info', "The site didn't return the data — retrying…");
       continue;
     }
 
@@ -801,6 +804,21 @@ console.log(`→ Viewport: ${viewport.width}×${viewport.height}`);
 const hasSession = existsSync(SESSION_PATH);
 console.log(`→ Saved session: ${hasSession ? 'found, will try to restore' : 'none, fresh login required'}`);
 
+// Connection-phase events (browser/session/login) are shared across every league
+// in this run, so mirror each into ALL selected leagues' cards — each league then
+// shows its full story. Manual "Run now" sets LEAGUES; scheduled auto-detect
+// resolves later, so this is empty there and the connection events are skipped.
+let connectionLeagueIds = [];
+try {
+  const arr = JSON.parse((process.env.LEAGUES || '').trim() || 'null');
+  if (Array.isArray(arr)) connectionLeagueIds = arr.map((t) => t && t.folder).filter(Boolean);
+} catch {}
+
+async function logConnectionEvent(level, message) {
+  for (const id of connectionLeagueIds) await logEvent(id, level, message);
+}
+
+await logConnectionEvent('info', 'Preparing a clean browser environment…');
 const browser = await chromium.launch();
 const ctx = await browser.newContext({
   viewport,
@@ -809,6 +827,7 @@ const ctx = await browser.newContext({
   storageState: hasSession ? SESSION_PATH : undefined,
 });
 const page = await ctx.newPage();
+if (hasSession) await logConnectionEvent('info', 'Restoring your saved session (cookies)…');
 
 const sessionStartedAt = Date.now();
 const taskResults = [];
@@ -862,6 +881,7 @@ try {
   }
 
   console.log(`→ Opening ${SITE_URL}`);
+  await logConnectionEvent('info', 'Connecting to the source site…');
   await page.goto(SITE_URL);
   await page.waitForLoadState('domcontentloaded');
   await page.addStyleTag({
@@ -890,6 +910,7 @@ try {
 
   if (loginVisible) {
     console.log(hasSession ? '→ Saved session expired — running full login' : '→ No saved session — running full login');
+    await logConnectionEvent('info', hasSession ? 'Saved session expired — signing in again…' : 'Signing in to the source site…');
     await page.locator('button:has-text("Login"):not(.dialogbutton)').click();
 
     console.log('→ Typing credentials (human-like delays, 80-200ms per keystroke)');
@@ -904,6 +925,7 @@ try {
     await page.getByRole('columnheader', { name: 'Live matches' }).waitFor({ timeout: 15000 });
   } else {
     console.log('→ Session restored from cache, skipping login');
+    await logConnectionEvent('info', 'Session restored — no login needed.');
     await page.getByRole('columnheader', { name: 'Live matches' }).waitFor({ timeout: 15000 });
   }
 
