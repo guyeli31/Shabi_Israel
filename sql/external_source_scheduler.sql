@@ -33,6 +33,7 @@ create table if not exists public.external_source_sync_log (
 create index if not exists idx_ess_log_league_time on public.external_source_sync_log (league_id, triggered_at desc);
 
 alter table public.external_source_sync_log enable row level security;
+drop policy if exists ess_log_authenticated_select on public.external_source_sync_log;
 create policy ess_log_authenticated_select on public.external_source_sync_log for select to authenticated using (true);
 grant select on public.external_source_sync_log to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
@@ -54,8 +55,14 @@ create table if not exists public.external_source_sync_events (
 create index if not exists idx_ess_events_league_time on public.external_source_sync_events (league_id, created_at);
 
 alter table public.external_source_sync_events enable row level security;
+drop policy if exists ess_events_authenticated_select on public.external_source_sync_events;
 create policy ess_events_authenticated_select on public.external_source_sync_events for select to authenticated using (true);
 grant select on public.external_source_sync_events to authenticated;
+-- The GitHub sync job writes these rows with the service_role key. New tables do
+-- not always inherit service_role privileges, so grant them explicitly (insert +
+-- delete for the 14-day retention prune). Without this the job's insert is
+-- silently rejected and the live log stays empty.
+grant select, insert, delete on public.external_source_sync_events to service_role;
 
 -- ── Shared dispatch helper ──────────────────────────────────────────────
 -- Fires one workflow_dispatch call for one league and logs the attempt.
@@ -84,7 +91,8 @@ begin
     headers := jsonb_build_object(
       'Authorization', 'Bearer ' || pat,
       'Accept', 'application/vnd.github+json',
-      'Content-Type', 'application/json'
+      'Content-Type', 'application/json',
+      'User-Agent', 'shabi-israel-sync'  -- GitHub REST rejects UA-less requests with 403
     ),
     body := jsonb_build_object(
       -- Which branch's workflow + code actually runs. Dispatch is still only

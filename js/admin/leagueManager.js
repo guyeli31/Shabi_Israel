@@ -1430,7 +1430,7 @@ function bgLog(message, type = 'info') {
     el.classList.add('bgsync-log');
     const line = document.createElement('div');
     line.className = `admin-msg admin-msg-${type}`;
-    const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const t = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
     line.innerHTML = `<span class="bgsync-log-time">${t}</span> ${message}`;
     el.appendChild(line);
     while (el.children.length > BG_LOG_MAX) el.removeChild(el.firstChild);
@@ -1503,10 +1503,22 @@ async function pollSyncDispatch(leagueId) {
  * `sinceIso` scopes to events from this run. Stops quietly if the events table
  * isn't installed yet (older DB) — the dispatch confirmation already showed.
  */
-async function streamSyncEvents(leagueId, sinceIso) {
+async function latestEventId(leagueId) {
+    const { data } = await supabase
+        .from('external_source_sync_events')
+        .select('id')
+        .eq('league_id', leagueId)
+        .order('id', { ascending: false })
+        .limit(1);
+    return (data && data.length) ? data[0].id : 0;
+}
+
+async function streamSyncEvents(leagueId, sinceId) {
     const DEADLINE_MS = 4 * 60 * 1000;
     const INTERVAL_MS = 3000;
-    const seen = new Set();
+    const SILENT_MS = 45000; // a fast run reports its first event within ~20s
+    let lastId = sinceId;
+    let anySeen = false;
     const start = Date.now();
     while (Date.now() - start < DEADLINE_MS) {
         await new Promise(r => setTimeout(r, INTERVAL_MS));
@@ -1514,15 +1526,22 @@ async function streamSyncEvents(leagueId, sinceIso) {
             .from('external_source_sync_events')
             .select('id, level, message')
             .eq('league_id', leagueId)
-            .gt('created_at', sinceIso)
-            .order('created_at', { ascending: true })
+            .gt('id', lastId)
+            .order('id', { ascending: true })
             .limit(50);
         if (error) return; // events table not available — stop quietly
         for (const ev of (data || [])) {
-            if (seen.has(ev.id)) continue;
-            seen.add(ev.id);
+            lastId = ev.id;
+            anySeen = true;
             bgLog(ev.message, ev.level);
             if (ev.level === 'error' || /sync complete/i.test(ev.message)) return;
+        }
+        // No events at all well past when a run should have reported → be honest
+        // instead of implying everything is fine. Most likely the job can't post
+        // updates (missing Supabase credentials) or it failed before reporting.
+        if (!anySeen && Date.now() - start > SILENT_MS) {
+            bgLog("No progress was reported — the sync likely failed to start, or the server can't post updates. Check the GitHub Actions run.", 'error');
+            return;
         }
     }
     bgLog('Still running — you can leave this page; the log updates on your next visit.', 'info');
@@ -1679,15 +1698,16 @@ function setupBGSync(leagueId, params, defaultName, refreshBadgeFn) {
         const btn = e.currentTarget;
         btn.disabled = true;
         bgLogClear();
-        // Backdate slightly so the job's very first event isn't missed to clock skew.
-        const since = new Date(Date.now() - 5000).toISOString();
+        // Anchor the live stream on the current newest event id (immune to any
+        // client/server clock skew — filtering by created_at is not reliable).
+        const sinceId = await latestEventId(leagueId);
         bgLog('Starting sync…', 'info');
         try {
             const { error } = await supabase.rpc('trigger_external_source_sync_now', { p_league_id: leagueId });
             if (error) throw error;
             bgLog('Request sent to the league site.', 'info');
             const running = await pollSyncDispatch(leagueId);
-            if (running) await streamSyncEvents(leagueId, since);
+            if (running) await streamSyncEvents(leagueId, sinceId);
         } catch (err) {
             bgLog(friendlySyncError(err), 'error');
         } finally {

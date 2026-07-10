@@ -47,9 +47,10 @@ async function logEvent(leagueId, level, message) {
         .delete()
         .lt('created_at', new Date(Date.now() - 14 * 864e5).toISOString());
     }
-    await supabase
+    const { error } = await supabase
       .from('external_source_sync_events')
       .insert({ league_id: leagueId, run_id: GITHUB_RUN_ID, level, message });
+    if (error) console.warn(`    (ui event log insert rejected: ${error.message})`);
   } catch (e) {
     console.warn(`    (ui event log failed: ${e.message})`);
   }
