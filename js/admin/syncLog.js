@@ -104,7 +104,7 @@ export async function pollSyncDispatch(leagueId, logger) {
  * ("Sync complete" / an error line) arrives or the deadline hits. `sinceId`
  * scopes to events from this run.
  */
-export async function streamSyncEvents(leagueId, sinceId, logger) {
+export async function streamSyncEvents(leagueId, sinceId, logger, { stopWhen = () => false } = {}) {
     const DEADLINE_MS = 4 * 60 * 1000;
     const INTERVAL_MS = 3000;
     const SILENT_MS = 45000; // a fast run reports its first event within ~20s
@@ -112,6 +112,9 @@ export async function streamSyncEvents(leagueId, sinceId, logger) {
     let anySeen = false;
     const start = Date.now();
     while (Date.now() - start < DEADLINE_MS) {
+        // A site-level failure (e.g. couldn't sign in) means no per-league data
+        // will ever come — stop quietly instead of waiting out the silent timeout.
+        if (stopWhen()) return;
         await new Promise(r => setTimeout(r, INTERVAL_MS));
         const { data, error } = await supabase
             .from('external_source_sync_events')
@@ -127,12 +130,56 @@ export async function streamSyncEvents(leagueId, sinceId, logger) {
             logger.log(ev.message, ev.level);
             if (ev.level === 'error' || /sync complete/i.test(ev.message)) return;
         }
-        if (!anySeen && Date.now() - start > SILENT_MS) {
+        if (!anySeen && !stopWhen() && Date.now() - start > SILENT_MS) {
             logger.log("No progress was reported — the sync likely failed to start, or the server can't post updates. Check the GitHub Actions run.", 'error');
             return;
         }
     }
     logger.log('Still running — you can leave this page; the log updates on your next visit.', 'info');
+}
+
+/** Newest SITE-level event id (league_id IS NULL) — anchor for streamSiteEvents. */
+export async function latestSiteEventId() {
+    const { data } = await supabase
+        .from('external_source_sync_events')
+        .select('id')
+        .is('league_id', null)
+        .order('id', { ascending: false })
+        .limit(1);
+    return (data && data.length) ? data[0].id : 0;
+}
+
+/**
+ * Stream SITE-level events (league_id IS NULL) — the run's shared connection /
+ * login story — into one logger (the global Run Now log). These are authored
+ * once per run by the job, never per league. Stops when `stopWhen()` becomes
+ * true (the per-league streams finished) or on the first error-level line, which
+ * also calls `onError()` so the caller can abort the league streams.
+ */
+export async function streamSiteEvents(sinceId, logger, { stopWhen = () => false, onError = () => {} } = {}) {
+    const DEADLINE_MS = 4 * 60 * 1000;
+    const INTERVAL_MS = 3000;
+    let lastId = sinceId;
+    const start = Date.now();
+    while (Date.now() - start < DEADLINE_MS) {
+        await new Promise(r => setTimeout(r, INTERVAL_MS));
+        const { data, error } = await supabase
+            .from('external_source_sync_events')
+            .select('id, level, message')
+            .is('league_id', null)
+            .gt('id', lastId)
+            .order('id', { ascending: true })
+            .limit(50);
+        if (error) return; // events table not available — stop quietly
+        let sawError = false;
+        for (const ev of (data || [])) {
+            lastId = ev.id;
+            logger.log(ev.message, ev.level);
+            if (ev.level === 'error') sawError = true;
+        }
+        if (sawError) { onError(); return; }
+        if (stopWhen()) return;
+    }
 }
 
 /** Load the most recent run's log lines for a league (persisted history). */

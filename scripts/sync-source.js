@@ -56,6 +56,85 @@ async function logEvent(leagueId, level, message) {
   }
 }
 
+/**
+ * Stream one SITE-LEVEL progress line (league_id = null) — a message that belongs
+ * to the whole run, not a single league (connecting / signing in / a login or
+ * network failure). The Admin Run Now UI shows these once in its global log,
+ * separate from each league's own card. Same best-effort contract as logEvent.
+ */
+async function logSiteEvent(level, message) {
+  console.log(`    [ui:site] ${message}`);
+  if (!supabase) return;
+  try {
+    if (!eventRetentionDone) {
+      eventRetentionDone = true;
+      await supabase
+        .from('external_source_sync_events')
+        .delete()
+        .lt('created_at', new Date(Date.now() - 14 * 864e5).toISOString());
+    }
+    const { error } = await supabase
+      .from('external_source_sync_events')
+      .insert({ league_id: null, run_id: GITHUB_RUN_ID, level, message });
+    if (error) console.warn(`    (ui site event log insert rejected: ${error.message})`);
+  } catch (e) {
+    console.warn(`    (ui site event log failed: ${e.message})`);
+  }
+}
+
+/**
+ * Map a SITE-level startup failure (before any league is opened — reaching the
+ * site, the gateway, or signing in) to one specific, actionable sentence. Login
+ * is a single shared step for the whole run, so this is reported ONCE at site
+ * level, never duplicated per league.
+ */
+function friendlyStartupError(err) {
+  const m = (err && err.message) || '';
+  if (/Live matches/i.test(m)) {
+    return `Couldn't sign in to the source site — the saved login may have expired, or the password or the site's login page changed. This usually needs attention, not just a retry (it could also be an anti-bot block).`;
+  }
+  if (/net::|ERR_|ERR_CONNECTION|ERR_NAME|Timeout.*(goto|navigat)/i.test(m)) {
+    return `Couldn't reach the source site — it may be down or blocking the connection. Try again later.`;
+  }
+  return `The sync couldn't start (before opening any league). Try again; if it keeps happening, the source login or the site may have changed.`;
+}
+
+/**
+ * Map a raw per-league failure (err.message) to ONE specific, actionable
+ * user-facing sentence for the Admin sync log. The point is to tell the site
+ * owner WHAT went wrong and whether retrying can even help — a bare "try again
+ * later" is useless when the real problem is a mistyped Source League Name.
+ * Every branch here corresponds to a concrete `throw` in the export path
+ * (see clickLeagueByName / navigateToLeaguesList / exportLeagueTask /
+ * getBaselinePlayedCount / writeMatchesToSupabase / reconcileMatchHistoryInSupabase).
+ */
+function friendlyLeagueError(err, sourceLeagueName) {
+  const m = (err && err.message) || '';
+
+  if (/League ".*" not found/i.test(m)) {
+    return `Couldn't find a league named "${sourceLeagueName}" on the source site. Fix the Source League Name so it matches the source exactly — spaces and capitalization included. Retrying won't help until it does.`;
+  }
+  if (/Leagues list did not render/i.test(m)) {
+    return `The source site never loaded its leagues list in time (it wasn't ready yet). This is usually temporary — try again in a few minutes.`;
+  }
+  if (/DL never (populated|repopulated)/i.test(m)) {
+    return `The league opened but its players and rounds never finished loading. The source may be slow, or the league may have no data yet — try again in a few minutes.`;
+  }
+  if (/never produced CSV data/i.test(m)) {
+    return `The league opened but the source returned nothing to export. If it has no played matches yet that's expected; otherwise the export timed out — try again.`;
+  }
+  if (/integrity check failed|under-delivering/i.test(m)) {
+    return `The source sent back incomplete results (fewer matches than are already saved), so the sync was stopped to protect your data. This is almost always a temporary source glitch — try again in a few minutes.`;
+  }
+  if (/Supabase baseline/i.test(m)) {
+    return `Couldn't read the league's current data from the database to compare against. This is a server-side issue, not the source — try again; if it persists, check the database connection.`;
+  }
+  if (/matches (fetch|stale-delete|upsert)|match_history (stale-delete|upsert)/i.test(m)) {
+    return `Fetched the results, but saving them to the database failed. The source data was fine — this is a server/database issue. Try again; if it persists, check the database.`;
+  }
+  return `Sync failed while fetching data. This looks temporary — try again in a few minutes. If it keeps failing, double-check the Source League Name and that the league still exists on the source site.`;
+}
+
 const VIEWPORTS = [
   { width: 1920, height: 1080 },
   { width: 1536, height: 864 },
@@ -222,7 +301,30 @@ async function changeStatusTask(page, durationS) {
   }
 }
 
+/**
+ * Dismiss the "Export league" dialog (#d_exportleague) if it is lingering. After a
+ * league's export this dialog stays open; in a multi-league run its overlay then
+ * intercepts the click that opens the NEXT league (Playwright reports
+ * "<div id=d_exportleague> subtree intercepts pointer events"). Prefer a real close
+ * action (the dialog's close control, else Escape); JS-hide only as a last resort
+ * so the run doesn't stall on an unknown close control.
+ */
+async function dismissExportDialog(page) {
+  const dialog = page.locator('#d_exportleague');
+  if (!(await dialog.count()) || !(await dialog.first().isVisible().catch(() => false))) return;
+  console.log('  → Dismissing lingering Export dialog before opening the next league');
+  const closeBtn = dialog.locator('button:has-text("Close"), .dialogclose, [onclick*="close" i]').first();
+  if (await closeBtn.count().catch(() => 0)) await closeBtn.click({ timeout: 3000 }).catch(() => {});
+  if (await dialog.first().isVisible().catch(() => false)) await page.keyboard.press('Escape').catch(() => {});
+  const gone = await dialog.first().waitFor({ state: 'hidden', timeout: 4000 }).then(() => true).catch(() => false);
+  if (!gone) {
+    await page.evaluate(() => { const d = document.getElementById('d_exportleague'); if (d) d.style.display = 'none'; });
+    console.log('    (close control/Escape did not dismiss it — used JS hide fallback)');
+  }
+}
+
 async function navigateToLeaguesList(page) {
+  await dismissExportDialog(page);
   await page.waitForTimeout(randInt(500, 2500));
   console.log('  → Navigating to Leagues list (s(113, "0") shortcut)');
   const deadline = Date.now() + 30000;
@@ -804,18 +906,12 @@ console.log(`→ Viewport: ${viewport.width}×${viewport.height}`);
 const hasSession = existsSync(SESSION_PATH);
 console.log(`→ Saved session: ${hasSession ? 'found, will try to restore' : 'none, fresh login required'}`);
 
-// Connection-phase events (browser/session/login) are shared across every league
-// in this run, so mirror each into ALL selected leagues' cards — each league then
-// shows its full story. Manual "Run now" sets LEAGUES; scheduled auto-detect
-// resolves later, so this is empty there and the connection events are skipped.
-let connectionLeagueIds = [];
-try {
-  const arr = JSON.parse((process.env.LEAGUES || '').trim() || 'null');
-  if (Array.isArray(arr)) connectionLeagueIds = arr.map((t) => t && t.folder).filter(Boolean);
-} catch {}
-
+// Connection-phase events (browser / session / login) belong to the WHOLE run,
+// not to any one league — logging into the site opens the menu of all leagues at
+// once. So they are written ONCE as a site-level event (league_id = null) and
+// shown once in the Admin Run Now global log, never duplicated per league.
 async function logConnectionEvent(level, message) {
-  for (const id of connectionLeagueIds) await logEvent(id, level, message);
+  await logSiteEvent(level, message);
 }
 
 await logConnectionEvent('info', 'Preparing a clean browser environment…');
@@ -882,6 +978,7 @@ try {
 
   console.log(`→ Opening ${SITE_URL}`);
   await logConnectionEvent('info', 'Connecting to the source site…');
+  try {
   await page.goto(SITE_URL);
   await page.waitForLoadState('domcontentloaded');
   await page.addStyleTag({
@@ -927,6 +1024,13 @@ try {
     console.log('→ Session restored from cache, skipping login');
     await logConnectionEvent('info', 'Session restored — no login needed.');
     await page.getByRole('columnheader', { name: 'Live matches' }).waitFor({ timeout: 15000 });
+  }
+  } catch (err) {
+    // Reaching the site / gateway / signing in failed — a single shared failure
+    // for the whole run. Report it ONCE at site level (not per league), then
+    // rethrow so the outer handler still screenshots and fails the job.
+    await logSiteEvent('error', friendlyStartupError(err));
+    throw err;
   }
 
   await mkdir(dirname(SESSION_PATH), { recursive: true });
@@ -974,7 +1078,7 @@ try {
         leagueResults.push({ folder: target.folder, status: 'ok' });
       } catch (err) {
         console.error(`  ✗ League "${target.source_league_name}" failed after all retries: ${err.message}`);
-        await logEvent(target.folder, 'error', 'Sync failed while fetching data — please try again later.');
+        await logEvent(target.folder, 'error', friendlyLeagueError(err, target.source_league_name));
         leagueResults.push({ folder: target.folder, status: 'fail', error: err.message });
       }
     }

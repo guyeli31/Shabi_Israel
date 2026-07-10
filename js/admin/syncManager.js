@@ -28,6 +28,7 @@ import { wireSectionCollapse } from '../render/sectionCollapse.js';
 import { thLabel } from '../utils/helpers.js';
 import {
     createSyncLog, friendlySyncError, latestEventId, pollSyncDispatch, streamSyncEvents,
+    latestSiteEventId, streamSiteEvents,
 } from './syncLog.js';
 
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
@@ -352,6 +353,9 @@ function wireRunNow(container, active) {
             cards[id].log('Queued…', 'info');
             anchors[id] = await latestEventId(id);
         }
+        // Anchor the SITE-level stream (connecting / signing in — shared across the
+        // whole run, shown once here in the global log, not per league).
+        const siteSince = await latestSiteEventId();
 
         try {
             const { error } = await supabase.rpc('trigger_external_source_sync_now_leagues', { p_league_ids: ids });
@@ -359,13 +363,29 @@ function wireRunNow(container, active) {
             runLog.log('Request sent to the league site.', 'info');
             const running = await pollSyncDispatch(ids[0], runLog);
             if (running) {
-                await Promise.all(ids.map((id) => streamSyncEvents(id, anchors[id], cards[id])));
-                runLog.log('All selected syncs finished (or are still running in the background).', 'success');
+                // The site log (login/connection) streams into the GLOBAL log; each
+                // league's export story streams into its own card. A site-level error
+                // (e.g. couldn't sign in) aborts the per-league streams — no data will
+                // come, so they stop quietly instead of hitting the "no progress" timeout.
+                let leaguesDone = false;
+                let aborted = false;
+                const sitePromise = streamSiteEvents(siteSince, runLog, {
+                    stopWhen: () => leaguesDone,
+                    onError: () => { aborted = true; },
+                });
+                await Promise.all(ids.map((id) => streamSyncEvents(id, anchors[id], cards[id], { stopWhen: () => aborted })));
+                leaguesDone = true;
+                await sitePromise;
+                runLog.log(
+                    aborted
+                        ? 'Run stopped — see the connection problem above.'
+                        : 'All selected syncs finished (or are still running in the background).',
+                    aborted ? 'error' : 'success',
+                );
             }
         } catch (err) {
             const msg = friendlySyncError(err);
             runLog.log(msg, 'error');
-            for (const id of ids) cards[id].log(msg, 'error');
         } finally {
             btn.disabled = false;
         }
@@ -384,6 +404,7 @@ function sectionAutoSync(active, plans, settings) {
                 <div id="sync-plans-msg"></div>
                 <p style="color:var(--color-text-muted);margin-bottom:var(--space-md);font-size:0.9em">
                     Scheduled plans run their member leagues automatically. Assign leagues to plans in <b>Active Leagues</b> above.
+                    If two plans cover the same league at the same time, it syncs <b>once</b> — the older plan wins and the newer one is skipped for that league (no double sync).
                 </p>
                 <div id="sync-plans-list">${cards}</div>
                 <button class="btn btn-secondary btn-sm" id="sync-add-plan" type="button" style="margin-top:var(--space-md)">+ Add Plan</button>
@@ -427,6 +448,9 @@ function planCardHTML(pl, active, settings) {
                     <label>End Date</label>
                     <input type="date" class="sync-plan-end themed-date" value="${esc(pl.endDate || '')}">
                 </div>
+            </div>
+            <div style="color:var(--color-text-muted);font-size:0.8em;margin:-2px 0 var(--space-sm)">
+                Optional. Leave blank to run indefinitely — the plan is bounded by its leagues (a league that becomes Completed leaves automatically, and a plan with no active members runs nothing).
             </div>
 
             <div class="form-group">

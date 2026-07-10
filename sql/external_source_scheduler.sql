@@ -121,12 +121,18 @@ grant usage, select on all sequences in schema public to authenticated;
 -- messages, it just stores and serves them.
 create table if not exists public.external_source_sync_events (
   id         bigint generated always as identity primary key,
-  league_id  text not null references public.leagues(id) on delete cascade,
+  league_id  text references public.leagues(id) on delete cascade,
   run_id     text,
   created_at timestamptz not null default now(),
   level      text not null default 'info' check (level in ('info', 'success', 'error')),
   message    text not null
 );
+
+-- league_id is NULLABLE: a null row is a SITE-LEVEL event (connecting / login),
+-- shared across the whole run rather than tied to one league — the Admin Run Now
+-- log shows those once in its global log, while per-league cards show only their
+-- own league_id rows. (drop-not-null also migrates an already-created table.)
+alter table public.external_source_sync_events alter column league_id drop not null;
 
 create index if not exists idx_ess_events_league_time on public.external_source_sync_events (league_id, created_at);
 
@@ -278,7 +284,14 @@ revoke all on function public._dispatch_external_source_sync_multi(text[], text,
 
 -- ── Scheduled check — run by pg_cron every SYNC_TICK_MINUTES ────────────
 -- Iterates enabled, in-window plans; for each, dispatches every member league
--- that is still Running and has a source name, once per (plan, league) per tick.
+-- that is still Running and has a source name.
+--
+-- OVERLAP RULE: a league is dispatched AT MOST ONCE per tick, even if it belongs
+-- to two plans whose times collide. Plans are processed OLDEST-FIRST ('default'
+-- first, then by ascending id = ascending creation time), and the per-league
+-- de-dup below ignores plan_id — so when two plans overlap on a league, the older
+-- plan wins and the newer plan is suppressed for that league (its non-overlapping
+-- leagues still run). This prevents double-syncing the same league.
 create or replace function public.check_and_trigger_external_source_syncs()
 returns void
 language plpgsql
@@ -298,6 +311,7 @@ begin
     where enabled = true
       and (start_date is null or start_date <= current_date)
       and (end_date is null or end_date >= current_date)
+    order by (id <> 'default'), id  -- oldest-first: 'default', then ascending id (= creation time)
   loop
     due := false;
     for hhmm in select jsonb_array_elements_text(coalesce(pl.times, '[]'::jsonb))
@@ -321,9 +335,12 @@ begin
         and l.running = true
         and public._source_league_name(l.id) is not null
     loop
+      -- Per-league (NOT per-plan) de-dup: if ANY scheduled plan already dispatched
+      -- this league in the current tick window, skip it here. Combined with the
+      -- oldest-first ordering above, the older plan wins on any overlap.
       if not exists (
         select 1 from public.external_source_sync_log
-        where league_id = lg.id and plan_id = pl.id and trigger_kind = 'scheduled'
+        where league_id = lg.id and trigger_kind = 'scheduled'
           and triggered_at > now() - (tick_minutes || ' minutes')::interval
       ) then
         perform public._dispatch_external_source_sync(lg.id, 'scheduled', pl.id, pl.mode);
