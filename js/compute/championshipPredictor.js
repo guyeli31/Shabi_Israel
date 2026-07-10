@@ -63,6 +63,14 @@ export function prProbabilityTableHtml() {
 }
 
 /**
+ * The actual table match-length (e.g. 7) for a given column index, the
+ * inverse of nearestMatchLengthIdx.
+ */
+export function matchLengthForIdx(mlIdx) {
+    return PR_PROBABILITY_TABLE.matchLengths[mlIdx];
+}
+
+/**
  * Find the nearest index in matchLengths for a given match length.
  */
 export function nearestMatchLengthIdx(matchLength) {

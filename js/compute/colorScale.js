@@ -55,6 +55,38 @@ export function colorForValueInverted(value, min, max) {
     return interpolateRedGreen(ratio);
 }
 
+// Distinct "confidence" theme (violet -> teal) — deliberately orthogonal to
+// the red-green magnitude scale above (no red, amber, or green in it at
+// all), so a "how surprising is this" value can never be mistaken for a
+// plain "how big is this" value at a glance. Violet = a real outlier, teal =
+// fully expected.
+const LIGHT_CONFIDENCE_ANCHORS = {
+    violet: [91, 33, 182],
+    teal:   [17, 94, 89],
+};
+
+const DARK_CONFIDENCE_ANCHORS = {
+    violet: [196, 165, 255],
+    teal:   [94, 234, 212],
+};
+
+function interpolateVioletTeal(ratio) {
+    const t = Math.max(0, Math.min(1, ratio));
+    const a = isDarkTheme() ? DARK_CONFIDENCE_ANCHORS : LIGHT_CONFIDENCE_ANCHORS;
+    const lerp = (x, y, p) => Math.round(x + (y - x) * p);
+    const r = lerp(a.violet[0], a.teal[0], t);
+    const g = lerp(a.violet[1], a.teal[1], t);
+    const b = lerp(a.violet[2], a.teal[2], t);
+    return `rgb(${r}, ${g}, ${b})`;
+}
+
+// value=min -> violet (most surprising), value=max -> teal (fully expected).
+export function colorForConfidence(value, min, max) {
+    if (min === max) return interpolateVioletTeal(0.5);
+    const ratio = (value - min) / (max - min);
+    return interpolateVioletTeal(ratio);
+}
+
 export function colorForGames(value) {
     return colorForValue(value, 0, 25);
 }

@@ -1,12 +1,14 @@
 # 02 — Query Standards (mandatory for all future pages/features)
 
-Status: rules below become binding once [`01-architecture.md`](01-architecture.md) is approved and Phase 2 lands (see [`README.md`](README.md)). Their purpose is to stop the pattern that caused this whole effort: a point-fix landing, then the next feature re-introducing the same class of bug because there was no standing rule against it.
+Status: **binding (Phase 2/3 landed on local Docker).** Rule 1 is enforced by `scripts/check-query-standards.mjs`, which is built and **passing** (scans 83 files under `js/`, 0 violations as of 2026-07-10). The remaining rules are review-checklist items (see rule 10). Their purpose is to stop the pattern that caused this whole effort: a point-fix landing, then the next feature re-introducing the same class of bug because there was no standing rule against it.
+
+Not yet wired into CI / a pre-commit hook — the gate script exists and runs on demand (`node scripts/check-query-standards.mjs`); automating it is a separate follow-up.
 
 `CLAUDE.md` carries a one-line pointer to this file.
 
 ## The rules
 
-1. **All public-page data reads go through `js/data/store.js`.** `supabase.from()` / `supabase.rpc()` may appear only in: `js/data/store.js` and `js/data/bundleMapper.js` (internals), `js/admin/**`, and `js/analytics.js`. No other file may import `js/data/supabaseLoader.js` or call the Supabase client directly. Enforced by `scripts/check-query-standards.mjs` (a grep-based gate, built in Phase 2/3 — see `01-architecture.md` §A7), run in CI and as a pre-commit check.
+1. **All public-page data reads go through `js/data/store.js`.** `supabase.from()` / `supabase.rpc()` may appear only in: `js/data/store.js`, `js/data/supabaseLoader.js` and `js/data/supabasePlayersMetadata.js` (the admin-only granular read path — see rule 9), `js/admin/**`, `js/analytics.js`, and `js/render/analyticsPage.js` (the analytics dashboard's own dedicated `analytics_summary` RPC — out of scope for this redesign, see `01-architecture.md` §A7 "Untouched forever"). No file outside that list may import `js/data/supabaseLoader.js` or call the Supabase client directly. Enforced by `scripts/check-query-standards.mjs` (a grep-based gate, built in Phase 3 — see `01-architecture.md` §A7), run in CI and as a pre-commit check.
 
 2. **Any direct PostgREST query anywhere (admin included) must have a deterministic total `ORDER BY` ending in a unique column**, and must either (a) use pagination that accumulates all pages (the existing `fetchAllRows` pattern), or (b) carry a code comment proving the result set is bounded under 1000 rows by a DB constraint (e.g. a singleton table, or a `unique(...)` constraint capping cardinality). This is the rule that would have caught the round-only-order bug and the page-boundary row duplication before either shipped.
 

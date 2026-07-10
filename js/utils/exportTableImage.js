@@ -29,6 +29,198 @@ export const PHONE_MAX_WIDTH = 932;
 export const EXPORT_TABLE_FONT_PX = 12.75;
 export const EXPORT_HEADER_FONT_PX = 20.25;
 
+// ── WhatsApp-ready fixed frame ─────────────────────────────────────
+// The dashboard/league table exports (D, B6a, B6b, B6c) render into a
+// fixed 4:5 portrait canvas so the whole image shows in a WhatsApp chat
+// preview without vertical cropping. Rendered at html2canvas scale:1 so
+// CSS px == output px → the PNG is exactly WA_FRAME_WIDTH × WA_FRAME_HEIGHT.
+export const WA_FRAME_WIDTH = 1080;
+export const WA_FRAME_HEIGHT = 1350;
+// Hard row cap: above this the caller must block export (show a notice
+// instead of the button) — a taller table would force the font below the
+// readable floor inside the fixed frame.
+export const MAX_EXPORT_ROWS = 30;
+
+// Frame internals (all in output px). The header band is a constant height
+// across all four export types so every image shares the same identity
+// layout; only its text differs. Kept tight so the table gets most of the
+// canvas.
+const WA_PADDING = 56;
+const WA_HEADER_HEIGHT = 120;
+const WA_HEADER_FONT = 34;
+const WA_SUB_FONT = 22;
+const WA_PILL_FONT = 20;
+// Table font is fit dynamically: few rows → large & readable (capped at
+// MAX), dense tables → shrink toward the floor so they still fit the band.
+// MAX is pinned to the title size so table data never dwarfs the heading
+// and the heading↔data gap stays tight; dense tables grow to fill the body
+// region up to this cap.
+const WA_TABLE_FONT_MAX = 34;
+const WA_TABLE_FONT_MIN = 8;
+const WA_LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
+
+/** Human label for a league type — shared by the header pill and filenames. */
+export function leagueTypeLabel(leagueType) {
+    return WA_LEAGUE_TYPE_LABELS[leagueType] || WA_LEAGUE_TYPE_LABELS.doubling;
+}
+// --fs-093 (font-large) / --fs-085 (font-small) design ratio; we drive
+// both tokens off the same fitted pixel size to stay deterministic.
+const WA_F093_OVER_085 = 0.93 / 0.85;
+
+/**
+ * Export a live table as a fixed 4:5 WhatsApp-ready PNG (1080×1350).
+ *
+ * Unlike exportTableImage() (which shrink-wraps to content), this renders
+ * into a constant-size portrait frame: fixed header band + a body region
+ * that the table is stretched to fill horizontally and font-fit to fill
+ * vertically. Background/foreground inherit the current site theme.
+ *
+ * Callers MUST pre-check the row count against MAX_EXPORT_ROWS and block
+ * the export path when it is exceeded.
+ *
+ * @param {object} args
+ * @param {HTMLTableElement} args.sourceTable  live <table> to clone
+ * @param {string}           args.filename     base filename (no .png)
+ * @param {string}           [args.title]      heading line (bold)
+ * @param {string}           [args.subtitle]   muted line under the title
+ * @param {string}           [args.leagueType] 'doubling'|'regular'|'ubc' —
+ *                                             renders the coloured type pill
+ *                                             to the right of the title
+ */
+export async function exportWhatsAppTableImage({ sourceTable, filename, title, subtitle, leagueType }) {
+    if (typeof html2canvas === 'undefined') {
+        alert('html2canvas library not loaded.');
+        return;
+    }
+    if (!sourceTable) return;
+
+    const bodyStyle = getComputedStyle(document.body);
+
+    // Fixed portrait frame — themed background/foreground.
+    const wrap = document.createElement('div');
+    wrap.style.cssText =
+        `position:fixed;left:-10000px;top:0;`
+        + `width:${WA_FRAME_WIDTH}px;height:${WA_FRAME_HEIGHT}px;`
+        + `padding:${WA_PADDING}px;box-sizing:border-box;`
+        + `background:${bodyStyle.backgroundColor};color:${bodyStyle.color};`
+        + `font-family:${bodyStyle.fontFamily};direction:ltr;`
+        + `display:flex;flex-direction:column;`;
+
+    // Constant-height header band (title + subtitle), centred.
+    const header = document.createElement('div');
+    header.style.cssText =
+        `flex:0 0 ${WA_HEADER_HEIGHT}px;height:${WA_HEADER_HEIGHT}px;`
+        + `display:flex;flex-direction:column;align-items:center;justify-content:center;`
+        + `text-align:center;gap:8px;overflow:hidden;`;
+    if (title) {
+        const titleRow = document.createElement('div');
+        titleRow.style.cssText =
+            `display:flex;align-items:center;justify-content:center;gap:16px;`;
+        const h = document.createElement('div');
+        h.style.cssText = `font-size:${WA_HEADER_FONT}px;font-weight:700;line-height:1.15;`;
+        h.textContent = title;
+        titleRow.appendChild(h);
+        if (leagueType) {
+            const pill = document.createElement('span');
+            pill.className = `league-type-pill type-${leagueType}`;
+            pill.textContent = leagueTypeLabel(leagueType);
+            pill.style.fontSize = WA_PILL_FONT + 'px';
+            titleRow.appendChild(pill);
+        }
+        header.appendChild(titleRow);
+    }
+    if (subtitle) {
+        const s = document.createElement('div');
+        s.style.cssText = `font-size:${WA_SUB_FONT}px;opacity:0.75;line-height:1.2;`;
+        s.textContent = subtitle;
+        header.appendChild(s);
+    }
+    wrap.appendChild(header);
+
+    // Body region fills the remaining height; table is top-aligned inside it.
+    const bodyRegion = document.createElement('div');
+    bodyRegion.style.cssText =
+        `flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;`;
+    wrap.appendChild(bodyRegion);
+
+    // Clone + the standard html2canvas survival kit (mirrors exportTableImage).
+    const tableClone = sourceTable.cloneNode(true);
+    tableClone.querySelectorAll('tr.table-row-hidden').forEach(tr => tr.classList.remove('table-row-hidden'));
+    tableClone.querySelectorAll('tr.avg-row, tr.stat-row').forEach(tr => {
+        tr.style.position = 'static';
+        tr.style.bottom = 'auto';
+    });
+    tableClone.querySelectorAll('thead th, tbody td').forEach(cell => {
+        cell.style.position = 'static';
+        cell.style.left = 'auto';
+        cell.style.boxShadow = 'none';
+    });
+    tableClone.querySelectorAll('.title-abbr:not(.title-abbr-champ)').forEach(pill => {
+        pill.style.boxShadow = 'none';
+        pill.style.border = '1.5px solid currentColor';
+        pill.style.boxSizing = 'border-box';
+    });
+    tableClone.style.maxWidth = 'none';
+
+    const scroll = document.createElement('div');
+    scroll.className = 'mf-wrap';
+    scroll.style.cssText = 'max-height:none;overflow:visible;width:100%;';
+    scroll.appendChild(tableClone);
+    bodyRegion.appendChild(scroll);
+    document.body.appendChild(wrap);
+
+    // Font-fit. The table's cell fonts come from the rem-based --fs-085 /
+    // --fs-093 tokens (not inherited table font-size), so we drive those
+    // tokens directly. Measure at width:auto (intrinsic) then shrink until
+    // the table fits both the frame's inner width and the body band height.
+    const baseSpaceMdPx = parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue('--space-md').trim()
+    ) || 16;
+    const availW = WA_FRAME_WIDTH - WA_PADDING * 2;
+    const availH = WA_FRAME_HEIGHT - WA_PADDING * 2 - WA_HEADER_HEIGHT;
+
+    const applyFont = (f) => {
+        tableClone.style.fontSize = f + 'px';
+        tableClone.style.setProperty('--fs-085', f + 'px');
+        tableClone.style.setProperty('--fs-093', (f * WA_F093_OVER_085) + 'px');
+        tableClone.style.setProperty('--space-md', (baseSpaceMdPx * (f / WA_TABLE_FONT_MAX)) + 'px');
+    };
+
+    tableClone.style.width = 'auto';
+    let font = WA_TABLE_FONT_MAX;
+    applyFont(font);
+    for (let i = 0; i < 16; i++) {
+        const r = Math.max(tableClone.offsetWidth / availW, tableClone.offsetHeight / availH);
+        if (r <= 1 || font <= WA_TABLE_FONT_MIN) break;
+        font = Math.max(WA_TABLE_FONT_MIN, (font / r) * 0.99);
+        applyFont(font);
+    }
+    // Stretch columns to fill the frame width for the final render. Cells
+    // are white-space:nowrap (MF content-sizing) so this only widens
+    // columns — it does not re-wrap or change the fitted height.
+    tableClone.style.width = '100%';
+
+    try {
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        const canvas = await html2canvas(wrap, {
+            scale: 1,
+            backgroundColor: bodyStyle.backgroundColor,
+            useCORS: true,
+            width: WA_FRAME_WIDTH,
+            height: WA_FRAME_HEIGHT,
+        });
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${filename.replace(/\s+/g, '_')}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } finally {
+        wrap.remove();
+    }
+}
+
 /**
  * Export a live table as a PNG download.
  *

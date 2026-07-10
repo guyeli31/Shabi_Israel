@@ -13,7 +13,7 @@ import { buildAllTimeRankings } from '../compute/allTimeRankings.js';
 import { colorForValue } from '../compute/colorScale.js';
 import { prProbabilityTableHtml } from '../compute/championshipPredictor.js';
 import { luckBellCurveSvg } from './luckBellCurve.js';
-import { loadLandingSettings } from '../data/dataSourceLoader.js';
+import { loadLandingSettings } from '../data/store.js';
 import { loadBannerConfig, renderHeroBanner } from './heroBanner.js';
 import { leagueUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueTableUrl, thLabel } from '../utils/helpers.js';
 import { exportTableImage } from '../utils/exportTableImage.js';
@@ -30,7 +30,7 @@ import { isLoggedIn } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
 import { addChange, getChangeCount } from '../admin/stagingStore.js';
 import { mountAdminSidebar, refreshBadge as refreshSidebarBadge } from '../admin/render/adminSidebar.js';
-import { loadPlayersMetadata } from '../data/dataSourceMeta.js';
+import { loadPlayersMetadata } from '../data/store.js';
 import { escapeHtml } from '../utils/sanitize.js';
 import { hasTitles, compareTitlePriority, getFullTitleDescription } from '../data/titleConstants.js';
 import { mountAppTabs } from './appTabs.js';
@@ -196,6 +196,11 @@ export async function renderLandingPage() {
         credit.className = 'platform-credit';
         credit.textContent = 'Built by Guy Eliyahu - 2026';
         container.appendChild(credit);
+
+        const rights = document.createElement('div');
+        rights.className = 'platform-credit';
+        rights.textContent = 'All Rights Reserved to Guy Eliyahu';
+        container.appendChild(rights);
 
         // Auto-enter edit mode if admin and ?edit=1 in URL
         if (adminLoggedIn && new URLSearchParams(location.search).get('edit') === '1') {

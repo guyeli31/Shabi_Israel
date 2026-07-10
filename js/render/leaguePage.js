@@ -7,19 +7,19 @@
  * and player-cell enrichments (link, title abbreviations, retired mark).
  */
 
-import { loadLeague, loadLeagueOrder, loadAllLeagueParams } from '../data/dataSourceLoader.js';
+import { loadLeague, loadLeagueOrder, loadAllLeagueParams } from '../data/store.js';
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { getQueryParam, flagUrl, playerLeagueUrl, leagueUrl, leagueTableUrl } from '../utils/helpers.js';
-import { exportTableImage } from '../utils/exportTableImage.js';
+import { exportWhatsAppTableImage, MAX_EXPORT_ROWS, leagueTypeLabel } from '../utils/exportTableImage.js';
 import { renderBreadcrumbs } from './navigation.js';
-import { loadPlayersMetadata } from '../data/dataSourceMeta.js';
+import { loadPlayersMetadata } from '../data/store.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { startSplash, endSplash } from '../utils/splash.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildLeagueTablePreset } from '../presets/leagueTablePreset.js';
-import { buildLeagueHeaderData, renderV13Header } from './leagueHeader.js';
+import { buildLeagueHeaderData, renderV13Header, formatLastUpdatedDate } from './leagueHeader.js';
 
 export async function renderLeaguePage() {
     const container = document.getElementById('content');
@@ -110,9 +110,21 @@ export async function renderLeaguePage() {
         // colorScale reads isDarkTheme at render time, so re-render on theme change
         window.addEventListener('themechange', renderTable);
 
+        // Gate export on the fixed-frame row cap: a table taller than
+        // MAX_EXPORT_ROWS can't fit the 4:5 WhatsApp frame at a readable
+        // font, so replace the button with an explanatory notice.
         const exportBtn = document.getElementById('leagueExportBtn');
         if (exportBtn) {
-            exportBtn.addEventListener('click', () => exportLeagueTableImage(title, mountPoint));
+            const rowCount = mountPoint.querySelectorAll('table tbody tr').length;
+            if (rowCount > MAX_EXPORT_ROWS) {
+                const note = document.createElement('div');
+                note.className = 'img-export-notice';
+                note.style.cssText = 'color:var(--color-text-muted);font-size:var(--fs-085);';
+                note.textContent = `Image export supports up to ${MAX_EXPORT_ROWS} rows (this table has ${rowCount}).`;
+                exportBtn.replaceWith(note);
+            } else {
+                exportBtn.addEventListener('click', () => exportLeagueTableImage(title, mountPoint, params.LeagueType || 'doubling', lastModified));
+            }
         }
     } catch (err) {
         container.innerHTML = `<div class="error">Failed to load league: ${err.message}</div>`;
@@ -123,18 +135,20 @@ export async function renderLeaguePage() {
 
 // ---- Export Image ----
 //
-// Thin wrapper around the shared exportTableImage() helper. Passes the
-// live V13 league-header card as the heading so the export carries the
-// same identity bar the user sees on the page.
+// Thin wrapper around the shared exportWhatsAppTableImage() helper. Uses
+// the uniform title + subtitle header band (constant across D/B6a/B6b/B6c)
+// rather than the V13 hero card, so every WhatsApp export shares one layout.
 
-function exportLeagueTableImage(title, mountPoint) {
+function exportLeagueTableImage(title, mountPoint, leagueType, lastModified) {
     const sourceTable = mountPoint.querySelector('table');
-    const headerCard = document.getElementById('page-title')?.querySelector('.lh13-card') || null;
-    return exportTableImage({
+    const date = formatLastUpdatedDate(lastModified);
+    const subtitle = `League Table${date ? ` — Last updated ${date}` : ''}`;
+    return exportWhatsAppTableImage({
         sourceTable,
-        filename: `${title}_Table`,
-        headerNode: headerCard,
-        title: headerCard ? undefined : title,
+        filename: `${title}_${leagueTypeLabel(leagueType)}_Table`,
+        title,
+        subtitle,
+        leagueType,
     });
 }
 

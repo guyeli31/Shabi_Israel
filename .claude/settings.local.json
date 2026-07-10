@@ -23,7 +23,32 @@
       "Bash(node --check js/data/supabaseClient.js)",
       "Bash(psql --version)",
       "mcp__playwright__browser_evaluate",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://127.0.0.1:54321/rest/v1/)",
+      "Bash(docker exec *)",
+      "Bash(curl -s 'http://127.0.0.1:54321/rest/v1/leagues?id=eq.Shabi%20Israel%20June%202026&select=*' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU')",
+      "Bash(curl -s http://127.0.0.1:54321/rest/v1/site_meta?select=* -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU')",
+      "Bash(curl -s -X POST http://127.0.0.1:54321/rest/v1/rpc/get_site_bundle -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU' -H 'Content-Type: application/json' -d '{}' -o /tmp/bundle.json -w 'HTTP %{http_code}, size %{size_download} bytes\\\\n')",
+      "Bash(node -e ' *)",
+      "Bash(curl -s -X POST http://127.0.0.1:54321/rest/v1/rpc/get_site_bundle -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU' -H 'Content-Type: application/json' -d '{}')",
+      "Bash(curl -s -X POST http://127.0.0.1:54321/rest/v1/rpc/get_site_bundle -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0' -H 'Content-Type: application/json' -d '{}' -o C:/WORKSPACE/Shabi_Israel/scripts/_bundle_test.json -w 'HTTP %{http_code}, size %{size_download} bytes\\\\n')",
+      "Bash(curl -s http://127.0.0.1:54321/rest/v1/site_meta?select=data_version -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU')",
+      "Bash(curl -s -X PATCH http://127.0.0.1:54321/rest/v1/players_metadata?id=eq.Avshalom -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU' -H 'Content-Type: application/json' -d '{\"inactive\":false}' -o /dev/null -w 'PATCH HTTP %{http_code}\\\\n')",
+      "mcp__playwright__browser_network_requests",
+      "Bash(node scripts/check-query-standards.mjs)",
+      "Bash(curl -s -o /dev/null -w \"http-server: %{http_code}\\\\n\" http://localhost:8090/index.html)",
+      "Bash(curl -s -o /dev/null -w \"supabase local: %{http_code}\\\\n\" http://127.0.0.1:54321/rest/v1/)",
+      "Bash(node scripts/perf/measure-transitions.mjs --runs=5 --base-url=http://localhost:8090 --supabase-host=127.0.0.1:54321 --out=docs/data-architecture/verification/perf-after-local-2026-07-10.json)",
+      "Bash(echo \"exit: $?\")",
+      "mcp__playwright__browser_navigate_back",
+      "Bash(curl -sI http://localhost:8090/index.html)",
+      "Bash(curl -sI https://golan.me.uk/index.html)",
+      "Bash(python - docker-index-tables.json files-index-tables.json)",
+      "Bash(python -c \"import json; d=json.load\\(open\\('docker-index-tables.json',encoding='utf-8'\\)\\); print\\(list\\(d.keys\\(\\)\\)[:3]\\); print\\('type of value:', type\\(json.loads\\(d\\) if isinstance\\(d,str\\) else d\\)\\)\")",
+      "Bash(PYTHONIOENCODING=utf-8 python - docker-index-tables.json files-index-tables.json)",
+      "Bash(PYTHONIOENCODING=utf-8 python -)",
+      "Bash(node scripts/verify-csv-parity.mjs --target=local)",
+      "Bash(node scripts/verify-csv-parity.mjs --target=local --out=docs/data-architecture/verification/params-consensus-proof-2026-07-10.json)"
     ]
   }
 }

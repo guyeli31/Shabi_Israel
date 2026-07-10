@@ -49,6 +49,17 @@ export function formatLastUpdated(headerVal) {
 }
 
 /**
+ * Date-only variant of formatLastUpdated (no time) — used by the WhatsApp
+ * image-export subtitles so they read "Last updated 7 Jul 2026".
+ */
+export function formatLastUpdatedDate(headerVal) {
+    if (!headerVal) return '';
+    const d = new Date(headerVal);
+    if (isNaN(d)) return headerVal;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/**
  * Build a header-data object from a league's params + CSV
  * Last-Modified header.
  *

@@ -7,7 +7,7 @@
  * a player anchor reflects the choice without per-call argument plumbing.
  */
 
-import { getCachedPlayerMeta } from '../data/dataSourceMeta.js';
+import { getCachedPlayerMeta } from '../data/store.js';
 
 const STORAGE_KEY = 'shabi-name-display';
 const VALID = new Set(['username', 'full']);

@@ -5,6 +5,8 @@
   "EntryFee": 180,
   "Prizes": { "Gold": 2200, "Silver": 800, "Bronze": 180 },
 
+  "GoldCount": 1,
+  "SilverCount": 1,
   "BronzeCount": 4,
   "MatchLength": 7,
 

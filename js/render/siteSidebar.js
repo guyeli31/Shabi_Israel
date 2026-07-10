@@ -26,7 +26,7 @@
  *  sidebar as in the tab bar.
  */
 
-import { loadLandingSettings, loadAllLeagueParams } from '../data/dataSourceLoader.js';
+import { loadLandingSettings, loadAllLeagueParams } from '../data/store.js';
 import { leagueUrl, leagueTableUrl, playerUrl, parseLeagueDate } from '../utils/helpers.js';
 import { getNameDisplayMode, setNameDisplayMode } from '../utils/nameDisplay.js';
 import { isLoggedIn, login, logout, getUsername } from '../admin/auth.js';

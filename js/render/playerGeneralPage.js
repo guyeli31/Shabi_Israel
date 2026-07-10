@@ -21,7 +21,7 @@ import {
     flattenAllMatches,
     loadAllLeagues
 } from '../compute/crossLeague.js';
-import { loadPlayersMetadata } from '../data/dataSourceMeta.js';
+import { loadPlayersMetadata } from '../data/store.js';
 import { displayPlayerName } from '../utils/nameDisplay.js';
 import { colorForLevel } from '../compute/colorScale.js';
 import {

@@ -361,7 +361,8 @@
 /* Plain on/off toggles (All League Matches row) — pressed state just tints
    the button, no stepper affordance. */
 .corr-trim-toggle,
-.corr-gaussian-toggle {
+.corr-gaussian-toggle,
+.corr-explanation-toggle {
     display: flex;
     align-items: center;
     padding: 0 14px;
@@ -376,7 +377,8 @@
 }
 
 .corr-trim-toggle:hover:not(:disabled),
-.corr-gaussian-toggle:hover:not(:disabled) {
+.corr-gaussian-toggle:hover:not(:disabled),
+.corr-explanation-toggle:hover:not(:disabled) {
     background: var(--color-hover);
     color: var(--color-text);
 }
@@ -393,8 +395,15 @@
     color: #fff;
 }
 
+.corr-explanation-toggle.is-active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-on-accent);
+}
+
 .corr-trim-toggle:disabled,
-.corr-gaussian-toggle:disabled {
+.corr-gaussian-toggle:disabled,
+.corr-explanation-toggle:disabled {
     opacity: 0.35;
     cursor: not-allowed;
 }
@@ -799,6 +808,26 @@
     background: var(--header-bg);
     color: var(--header-text);
     font-weight: 600;
+}
+
+/* Wraps the wider Explanation table (8 columns) so it scrolls horizontally
+   on narrow viewports instead of overflowing the popup. */
+.corr-band-table-scroll {
+    overflow-x: auto;
+    margin: var(--space-sm) 0;
+}
+.corr-band-table-scroll .corr-band-table {
+    margin: 0;
+    min-width: 680px;
+}
+
+/* Marks a gap's empirical %/error as backed by too few matches to trust
+   (see MIN_GAP_SAMPLE in dashboardPage.js) — greyed rather than removed, so
+   the shape of the trend is still visible, just visibly less certain. */
+.corr-gap-low-n {
+    color: var(--color-text-muted);
+    font-style: italic;
+    cursor: help;
 }
 .pr-prob-table th,
 .pr-prob-table td {
@@ -1502,4 +1531,8 @@
     color: color-mix(in srgb, var(--color-bg) 95%, var(--color-text) 5%);
     user-select: none;
     pointer-events: none;
+}
+.platform-credit + .platform-credit {
+    margin-top: 0;
+    padding-top: 0;
 }

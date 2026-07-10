@@ -7,25 +7,25 @@
  * Plus: prev/next league navigation arrows in the header.
  */
 
-import { loadLeagueParams, loadLeagueOrder, loadOverrides, loadAllLeagueParams, loadLeagueMatchesAll, loadMatchHistory, applyOverrides } from '../data/dataSourceLoader.js';
+import { loadLeagueParams, loadLeagueOrder, loadOverrides, loadAllLeagueParams, loadLeagueMatchesAll, loadMatchHistory, applyOverrides } from '../data/store.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { getMatchesAsOf, getUpdateDates, mergeHistoryIntoMatches, matchKey } from '../compute/matchHistory.js';
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagueUrl, leagueUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
-import { exportTableImage } from '../utils/exportTableImage.js';
-import { colorForValueInverted } from '../compute/colorScale.js';
+import { exportWhatsAppTableImage, MAX_EXPORT_ROWS, leagueTypeLabel } from '../utils/exportTableImage.js';
+import { colorForValue, colorForValueInverted, colorForConfidence } from '../compute/colorScale.js';
 import { drawPlayerBarChart, computeNiceRange } from './playerBarChart.js';
 import { drawCorrelationRow, drawHistogramRow, brierScore, brierAssessment, signedLuckScore, luckAssessment } from './prCorrelationChart.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { predictChampionship, computeTopXPct, prProbabilityTableHtml, getWinProbability, nearestMatchLengthIdx } from '../compute/championshipPredictor.js';
 import { batchLast300PRForSimulator, loadVisibleLeagues } from '../compute/crossLeague.js';
-import { loadPlayersMetadata } from '../data/dataSourceMeta.js';
+import { loadPlayersMetadata } from '../data/store.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { startSplash, endSplash } from '../utils/splash.js';
-import { buildLeagueHeaderData, renderV16Header } from './leagueHeader.js';
+import { buildLeagueHeaderData, renderV16Header, formatLastUpdatedDate } from './leagueHeader.js';
 import { mountAppTabs } from './appTabs.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
@@ -1415,19 +1415,35 @@ function renderRemainingMatches(ctx) {
     });
 }
 
+// Export control shared by B6a/B6b/B6c: a right-aligned row holding either
+// the "Export Image" button or — when the table exceeds MAX_EXPORT_ROWS —
+// a notice explaining why export is unavailable (a taller table can't fit
+// the fixed WhatsApp frame at a readable font).
+function buildExportControl(rowCount, onExport) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:var(--space-sm);';
+    if (rowCount > MAX_EXPORT_ROWS) {
+        const note = document.createElement('div');
+        note.className = 'img-export-notice';
+        note.style.cssText = 'color:var(--color-text-muted);font-size:var(--fs-085);text-align:right;';
+        note.textContent = `Image export supports up to ${MAX_EXPORT_ROWS} rows (this table has ${rowCount}).`;
+        row.appendChild(note);
+    } else {
+        const btn = document.createElement('button');
+        btn.className = 'img-export-btn';
+        btn.textContent = 'Export Image';
+        btn.addEventListener('click', onExport);
+        row.appendChild(btn);
+    }
+    return row;
+}
+
 function buildB6aPanel(panel, remaining, params, playersMeta, lastModified) {
     if (remaining.length > 0) {
-        const exportRow = document.createElement('div');
-        exportRow.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:var(--space-sm);';
-        const exportBtn = document.createElement('button');
-        exportBtn.className = 'img-export-btn';
-        exportBtn.textContent = 'Export Image';
-        exportRow.appendChild(exportBtn);
-        panel.appendChild(exportRow);
-        exportBtn.addEventListener('click', () => {
+        panel.appendChild(buildExportControl(remaining.length, () => {
             const sourceTable = panel.querySelector('.rem-b6a-wrap table');
-            exportRemainingMatchesImage(sourceTable, params.LeagueTitle || '', formatAsOf(lastModified));
-        });
+            exportRemainingMatchesImage(sourceTable, params.LeagueTitle || '', formatAsOf(lastModified), params.LeagueType || 'doubling');
+        }));
     }
     const wrap = document.createElement('div');
     wrap.className = 'rem-b6a-wrap';
@@ -1456,23 +1472,15 @@ function buildB6bPanel(panel, ctx, remaining, lastModified) {
     const minRem = playerRemainingData.length > 0 ? playerRemainingData[playerRemainingData.length - 1].remaining : 0;
     const hasAnyBelowHalf = playerRemainingData.some(p => p.games <= halfThreshold);
 
-    const exportRow = document.createElement('div');
-    exportRow.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:var(--space-sm);';
-    const exportBtn = document.createElement('button');
-    exportBtn.className = 'img-export-btn';
-    exportBtn.textContent = 'Export Image';
-    exportRow.appendChild(exportBtn);
-    panel.appendChild(exportRow);
+    panel.appendChild(buildExportControl(playerRemainingData.length, () => {
+        const sourceTable = panel.querySelector('.rem-b6b-wrap table');
+        exportB6bImage(sourceTable, params.LeagueTitle || ctx.leagueId, formatAsOf(lastModified), params.LeagueType || 'doubling');
+    }));
 
     const wrap = document.createElement('div');
     wrap.className = 'rem-b6b-wrap';
     wrap.innerHTML = buildB6bTableHtml(playerRemainingData, maxRem, minRem, halfThreshold, hasAnyBelowHalf, maxGames);
     panel.appendChild(wrap);
-
-    exportBtn.addEventListener('click', () => {
-        const sourceTable = panel.querySelector('.rem-b6b-wrap table');
-        exportB6bImage(sourceTable, params.LeagueTitle || ctx.leagueId, formatAsOf(lastModified));
-    });
 }
 
 function buildB6bTableHtml(playerRemainingData, maxRem, minRem, halfThreshold, hasAnyBelowHalf, maxGames) {
@@ -1482,7 +1490,7 @@ function buildB6bTableHtml(playerRemainingData, maxRem, minRem, halfThreshold, h
         + '</tr></thead><tbody>';
     let separatorInserted = false;
     for (const p of playerRemainingData) {
-        if (!separatorInserted && hasAnyBelowHalf && p.games > halfThreshold) {
+        if (!separatorInserted && hasAnyBelowHalf && p.games >= halfThreshold) {
             html += '<tr class="player-remaining-divider player-remaining-divider--bold"><td colspan="2">&#8212; played &ge; half &#8212;</td></tr>';
             separatorInserted = true;
         }
@@ -1539,15 +1547,15 @@ function buildB6cPanel(panel, ctx, remaining, lastModified) {
                 <span class="rem-b6c-player-name">${escapeHtml(player)}</span>
                 &mdash; <span class="rem-b6c-rem-count">${opponents.length} remaining match${opponents.length !== 1 ? 'es' : ''}</span>
             </div>
-            <div class="rem-b6c-export-row">
-                <button class="img-export-btn" id="rem-b6c-export-btn">Export Image</button>
-            </div>
+            <div class="rem-b6c-export-row"></div>
             <div class="rem-b6c-wrap">${buildB6cTableHtml(opponents, params.CustomFlags, playersMeta)}</div>`;
 
-        result.querySelector('#rem-b6c-export-btn').addEventListener('click', () => {
-            const sourceTable = result.querySelector('.rem-b6c-wrap table');
-            exportB6cImage(sourceTable, title, player, formatAsOf(lastModified));
-        });
+        result.querySelector('.rem-b6c-export-row').appendChild(
+            buildExportControl(opponents.length, () => {
+                const sourceTable = result.querySelector('.rem-b6c-wrap table');
+                exportB6cImage(sourceTable, title, player, formatAsOf(lastModified), params.LeagueType || 'doubling');
+            })
+        );
     }
 
     input.addEventListener('input', () => showPlayer(input.value));
@@ -1590,37 +1598,37 @@ function buildRemainingListHtml(matches, customFlags, playersMeta) {
     return html;
 }
 
-// "As of <date>" subtitle suffix shared by B6a/B6b/B6c exports.
+// "Last updated <date>" subtitle suffix shared by B6a/B6b/B6c exports —
+// mirrors the league header's "Last updated" line, date only (no time).
 function formatAsOf(lastModified) {
-    if (!lastModified) return '';
-    const d = new Date(lastModified);
-    if (isNaN(d)) return '';
-    return `As of ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    const date = formatLastUpdatedDate(lastModified);
+    return date ? `Last updated ${date}` : '';
 }
 
-// Thin wrappers around the shared exportTableImage() helper. The dashboard
-// exports differ only in their subtitle and filename \u2014 everything else
-// (clone + sanitise + width policy + phone cap) is identical.
+// Thin wrappers around the shared exportWhatsAppTableImage() helper. The
+// dashboard exports differ only in their subtitle and filename \u2014 the
+// fixed 4:5 frame, header band, column-stretch, and font-fit are identical.
+// (Row-count is pre-gated by buildExportControl, so these only fire \u2264 30 rows.)
 
-function exportRemainingMatchesImage(sourceTable, title, asOf) {
+function exportRemainingMatchesImage(sourceTable, title, asOf, leagueType) {
     if (!sourceTable) return;
     const count = sourceTable.querySelectorAll('tbody tr').length;
     const subtitle = `Remaining Matches (${count})${asOf ? ' \u2014 ' + asOf : ''}`;
-    return exportTableImage({ sourceTable, title, subtitle, filename: `${title}_Remaining` });
+    return exportWhatsAppTableImage({ sourceTable, title, subtitle, leagueType, filename: `${title}_${leagueTypeLabel(leagueType)}_Remaining` });
 }
 
-function exportB6bImage(sourceTable, title, asOf) {
+function exportB6bImage(sourceTable, title, asOf, leagueType) {
     if (!sourceTable) return;
     const subtitle = `Remaining Matches Report${asOf ? ' \u2014 ' + asOf : ''}`;
-    return exportTableImage({ sourceTable, title, subtitle, filename: `${title}_Remaining_Report` });
+    return exportWhatsAppTableImage({ sourceTable, title, subtitle, leagueType, filename: `${title}_${leagueTypeLabel(leagueType)}_Remaining_Report` });
 }
 
-function exportB6cImage(sourceTable, title, player, asOf) {
+function exportB6cImage(sourceTable, title, player, asOf, leagueType) {
     if (!sourceTable) return;
     const count = sourceTable.querySelectorAll('tbody tr').length;
     const matchesWord = count === 1 ? 'match' : 'matches';
     const subtitle = `${player} \u2014 ${count} remaining ${matchesWord}${asOf ? ' \u2014 ' + asOf : ''}`;
-    return exportTableImage({ sourceTable, title, subtitle, filename: `${title}_${player}_Remaining` });
+    return exportWhatsAppTableImage({ sourceTable, title, subtitle, leagueType, filename: `${title}_${leagueTypeLabel(leagueType)}_${player}_Remaining` });
 }
 
 // ---------- F4 ----------
@@ -1860,6 +1868,173 @@ function meanStd(values) {
     return { mean, std: Math.sqrt(variance) };
 }
 
+/**
+ * Plain-language explanation of the fitted mean/std shown by the "Gaussian
+ * fit" toggle — just what mu and sigma mean for this row's data, nothing
+ * more (the win-probability comparison lives in the separate "Explanation"
+ * popup, buildExplanationTableHtml, below).
+ */
+function buildGaussianExplainerHtml(values) {
+    const { mean, std } = meanStd(values);
+    const meanDir = mean >= 0 ? 'better (a lower PR)' : 'worse (a higher PR)';
+    const loBand = (mean - std).toFixed(2);
+    const hiBand = (mean + std).toFixed(2);
+
+    return `
+        <button class="predictor-info-close corr-gaussian-popup-close" aria-label="Close">&times;</button>
+        <h4>What do &mu; and &sigma; actually mean?</h4>
+        <p><b>&mu; (mean) = ${mean.toFixed(2)}</b>: on average, across these matches, the player who actually
+        won had a PR about ${Math.abs(mean).toFixed(2)} points ${meanDir} than the player who lost that
+        match.</p>
+        <p><b>&sigma; (standard deviation) = ${std.toFixed(2)}</b>: results vary a lot around that average
+        &mdash; about two-thirds of matches (one standard deviation either side of the mean) had a winner-side
+        PR gap somewhere between <b>${loBand}</b> and <b>${hiBand}</b>.</p>
+    `;
+}
+
+// Lanczos-approximation log-gamma, used to get an exact binomial PMF/CDF at
+// any n without factorial overflow (n here can run into the thousands, for
+// "All League Matches" pooled across every league).
+function logGamma(x) {
+    const g = 7;
+    const c = [
+        0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+        771.32342877765313, -176.61502916214059, 12.507343278686905,
+        -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7
+    ];
+    if (x < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * x)) - logGamma(1 - x);
+    x -= 1;
+    let a = c[0];
+    const t = x + g + 0.5;
+    for (let i = 1; i < g + 2; i++) a += c[i] / (x + i);
+    return 0.5 * Math.log(2 * Math.PI) + (x + 0.5) * Math.log(t) - t + Math.log(a);
+}
+
+function binomPmf(n, k, p) {
+    if (p <= 0) return k === 0 ? 1 : 0;
+    if (p >= 1) return k === n ? 1 : 0;
+    const logCoeff = logGamma(n + 1) - logGamma(k + 1) - logGamma(n - k + 1);
+    return Math.exp(logCoeff + k * Math.log(p) + (n - k) * Math.log(1 - p));
+}
+
+// P(X <= k)
+function binomCdfAtMost(n, k, p) {
+    let sum = 0;
+    for (let i = 0; i <= k; i++) sum += binomPmf(n, i, p);
+    return Math.min(1, sum);
+}
+
+// P(X >= k)
+function binomCdfAtLeast(n, k, p) {
+    let sum = 0;
+    for (let i = k; i <= n; i++) sum += binomPmf(n, i, p);
+    return Math.min(1, sum);
+}
+
+// One-tailed "how likely is a result this far (or further) from what the
+// table predicts, if the table's number were exactly right" — P(X <= k) on
+// the low side, P(X >= k) on the high side. Never exceeds ~0.5 (a result
+// bang on the expected mean has about even odds of landing on either side
+// of itself), so 0.5 is used as the "typical" anchor for coloring.
+function binomTailLikelihood(n, k, p) {
+    const mean = n * p;
+    return k <= mean ? binomCdfAtMost(n, k, p) : binomCdfAtLeast(n, k, p);
+}
+
+// Plain-language read of a Likelihood value, for the table's own "What this
+// means" column — so a reader doesn't need to interpret the raw % themselves.
+const LIKELIHOOD_BANDS = [
+    { max: 0.02, text: 'Hard to explain by luck alone' },
+    { max: 0.05, text: 'Notably unusual' },
+    { max: 0.15, text: 'Mildly unusual' },
+    { max: Infinity, text: 'Normal, expected variation' },
+];
+
+function likelihoodAssessment(likelihood) {
+    return LIKELIHOOD_BANDS.find(b => likelihood <= b.max).text;
+}
+
+/**
+ * "Explanation" popup for the All League Matches row: a gap-by-gap table
+ * comparing the site's real win-probability table against this row's own
+ * data, using the same integer-centred, mirrored-window bins as the
+ * histogram — for a gap of G, every match landing within half a point of +G
+ * (favourite winning by about that much) versus within half a point of -G
+ * (an upset by about that much). G=0 is skipped: it's its own mirror, so
+ * it's trivially 50% either way and says nothing about calibration.
+ */
+function buildExplanationTableHtml(rows, shift, mlIdx) {
+    const gapRows = [];
+    for (let gap = 1; gap <= 10; gap++) {
+        const tablePct = getWinProbability(0, gap, mlIdx) * 100;
+        const posCount = rows.filter(r => r.advantage + shift >= gap - 0.5 && r.advantage + shift < gap + 0.5).length;
+        const negCount = rows.filter(r => r.advantage + shift >= -gap - 0.5 && r.advantage + shift < -gap + 0.5).length;
+        const total = posCount + negCount;
+        if (total === 0) {
+            gapRows.push({ gap, total, tablePct });
+            continue;
+        }
+        const dataPct = (posCount / total) * 100;
+        const error = dataPct - tablePct;
+        const p = tablePct / 100;
+        const likelihood = binomTailLikelihood(total, posCount, p);
+        gapRows.push({ gap, total, posCount, negCount, tablePct, dataPct, error, likelihood });
+    }
+
+    // Win%-column color scale is dynamic, stretched to the actual spread of
+    // values in THIS table (both columns share one scale, per the same "so
+    // they're visually comparable" reasoning as before) — not a fixed
+    // 50-100% band, since a table with a narrow real spread would otherwise
+    // render as one flat color end to end.
+    const pctValues = gapRows.flatMap(r => [r.dataPct, r.tablePct]).filter(v => v != null);
+    const pctMin = pctValues.length ? Math.min(...pctValues) : 50;
+    const pctMax = pctValues.length ? Math.max(...pctValues) : 100;
+
+    let bodyRows = '';
+    for (const r of gapRows) {
+        if (r.dataPct == null) {
+            bodyRows += `<tr><td>${r.gap}</td><td>0</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
+                <td>${r.tablePct.toFixed(1)}%</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>`;
+            continue;
+        }
+        const dataColor = colorForValue(r.dataPct, pctMin, pctMax);
+        const tableColor = colorForValue(r.tablePct, pctMin, pctMax);
+        // Error/Likelihood/"What this means" all use the separate
+        // confidence (blue-amber-red) theme, keyed off this row's own
+        // likelihood, so the three cells read as one consistent verdict on
+        // the row rather than three independently-scaled numbers.
+        const confColor = colorForConfidence(Math.min(r.likelihood, 0.5), 0, 0.5);
+        bodyRows += `<tr>
+            <td>${r.gap}</td>
+            <td>${r.total}</td>
+            <td>${r.posCount}</td>
+            <td>${r.negCount}</td>
+            <td style="color:${dataColor}">${r.dataPct.toFixed(1)}%</td>
+            <td style="color:${tableColor}">${r.tablePct.toFixed(1)}%</td>
+            <td style="color:${confColor}">${r.error >= 0 ? '+' : ''}${r.error.toFixed(1)}</td>
+            <td style="color:${confColor}">${(r.likelihood * 100).toFixed(1)}%</td>
+            <td style="color:${confColor}">${likelihoodAssessment(r.likelihood)}</td>
+        </tr>`;
+    }
+
+    return `
+        <button class="predictor-info-close corr-explanation-popup-close" aria-label="Close">&times;</button>
+        <h4>Model validation: does the data match the table?</h4>
+        <p>This table is built only from matches actually played &mdash; not a theoretical curve. For each PR
+        gap, it checks how often the favourite really won against what the win-probability table predicts.
+        "Likelihood" is a plain read of how surprising that row's result is &mdash; explained in the last
+        column, so you don't need to interpret the number yourself.</p>
+        <div class="corr-band-table-scroll">
+            <table class="corr-band-table">
+                <tr><th>PR gap</th><th>Matches</th><th>Favourite wins</th><th>Favourite loses</th>
+                    <th>Win% of data</th><th>Win% of table</th><th>Error</th><th>Likelihood</th>
+                    <th>What this means</th></tr>
+                ${bodyRows}
+            </table>
+        </div>
+    `;
+}
+
 function corrMatchInfoHtml(m) {
     const dateStr = m.updatedAt
         ? new Date(m.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -1996,6 +2171,7 @@ function renderPrCorrelationSection(ctx) {
             </div>
             <span class="corr-metric-pill"></span>
         </div>
+        <div class="predictor-info-popup corr-gaussian-popup" hidden></div>
         <div class="chart-host corr-host"></div>
     `;
     leagueContainer.appendChild(generalPanel);
@@ -2014,6 +2190,7 @@ function renderPrCorrelationSection(ctx) {
                 <span class="corr-gaussian-stats"></span>
                 <div class="corr-shift-group">
                     <button class="corr-gaussian-toggle" type="button" disabled title="Overlays a fitted normal (Gaussian) curve on this histogram, using this data's own mean and standard deviation &mdash; a visual reference only, not a claim that the data is actually normally distributed.">Gaussian fit</button>
+                    <button class="corr-explanation-toggle" type="button" disabled title="Compares this row's real data against the win-probability table, gap by gap, with a likelihood check on how surprising each row's result is.">Model validation</button>
                     <button class="corr-trim-toggle" type="button" disabled title="Zooms the X-axis in to the middle 99% of all-time matches (symmetric around 0), hiding the outlier bins beyond that. Display only: Model Fit below always uses the full, untrimmed data.">Trim to 99%</button>
                     <div class="corr-shift-control" title="Adds this many PR points to every match's PR gap before recomputing Model Fit below &mdash; use it to test whether the model's calibration point is off by a constant amount. 0 = the model's real, unshifted PR gaps.">
                         <button class="corr-shift-btn" data-dir="-1" aria-label="Decrease PR-gap shift" disabled>&minus;</button>
@@ -2027,6 +2204,8 @@ function renderPrCorrelationSection(ctx) {
             </div>
             <span class="corr-metric-pill"></span>
         </div>
+        <div class="predictor-info-popup corr-gaussian-popup" hidden></div>
+        <div class="predictor-info-popup corr-explanation-popup" hidden></div>
         <div class="chart-host corr-host"></div>
     `;
     leagueContainer.appendChild(allTimePanel);
@@ -2035,6 +2214,7 @@ function renderPrCorrelationSection(ctx) {
     const generalGaussianToggle = generalPanel.querySelector('.corr-gaussian-toggle');
     const generalTrimToggle = generalPanel.querySelector('.corr-trim-toggle');
     const generalGaussianStatsEl = generalPanel.querySelector('.corr-gaussian-stats');
+    const generalGaussianPopup = generalPanel.querySelector('.corr-gaussian-popup');
     const generalShiftAmountEl = generalPanel.querySelector('.corr-shift-amount');
     const [generalMinusBtn, generalPlusBtn] = generalPanel.querySelectorAll('.corr-shift-btn');
     let generalTrimmed = false;
@@ -2075,11 +2255,20 @@ function renderPrCorrelationSection(ctx) {
 
         let gaussian = null;
         if (generalShowGaussian) {
-            const { mean, std } = meanStd(generalSeries.map(m => m.advantage + generalShift));
+            const shiftedValues = generalSeries.map(m => m.advantage + generalShift);
+            const { mean, std } = meanStd(shiftedValues);
             gaussian = { mean, std };
             generalGaussianStatsEl.textContent = `μ = ${mean.toFixed(2)}   σ = ${std.toFixed(2)}`;
+            generalGaussianPopup.innerHTML = buildGaussianExplainerHtml(shiftedValues);
+            generalGaussianPopup.hidden = false;
+            generalGaussianPopup.querySelector('.corr-gaussian-popup-close').addEventListener('click', () => {
+                generalShowGaussian = false;
+                redrawGeneral();
+            });
         } else {
             generalGaussianStatsEl.textContent = '';
+            generalGaussianPopup.hidden = true;
+            generalGaussianPopup.innerHTML = '';
         }
 
         drawHistogramRow(generalPanel.querySelector('.corr-host'), buckets, {
@@ -2214,7 +2403,12 @@ function renderPrCorrelationSection(ctx) {
 
         const gaussianToggle = allTimePanel.querySelector('.corr-gaussian-toggle');
         const gaussianStatsEl = allTimePanel.querySelector('.corr-gaussian-stats');
+        const gaussianPopup = allTimePanel.querySelector('.corr-gaussian-popup');
         let showGaussian = false;
+
+        const explanationToggle = allTimePanel.querySelector('.corr-explanation-toggle');
+        const explanationPopup = allTimePanel.querySelector('.corr-explanation-popup');
+        let showExplanation = false;
 
         function trimmedBound() {
             const vals = rows.map(r => Math.abs(r.advantage + shift)).sort((a, b) => a - b);
@@ -2247,11 +2441,50 @@ function renderPrCorrelationSection(ctx) {
 
             let gaussian = null;
             if (showGaussian) {
-                const { mean, std } = meanStd(rows.map(r => r.advantage + shift));
+                const shiftedValues = rows.map(r => r.advantage + shift);
+                const { mean, std } = meanStd(shiftedValues);
                 gaussian = { mean, std };
                 gaussianStatsEl.textContent = `μ = ${mean.toFixed(2)}   σ = ${std.toFixed(2)}`;
+                // Always compared against THIS league's own match length
+                // (generalMlIdx), same as the plain-language ask: "what a
+                // game at this league's length would predict" — even though
+                // `rows` itself pools matches of every match length across
+                // leagues.
+                gaussianPopup.innerHTML = buildGaussianExplainerHtml(shiftedValues);
+                gaussianPopup.hidden = false;
+                gaussianPopup.querySelector('.corr-gaussian-popup-close').addEventListener('click', () => {
+                    showGaussian = false;
+                    redrawAllTime();
+                });
             } else {
                 gaussianStatsEl.textContent = '';
+                gaussianPopup.hidden = true;
+                gaussianPopup.innerHTML = '';
+            }
+
+            explanationToggle.disabled = !enoughForGaussian;
+            explanationToggle.textContent = enoughForGaussian ? 'Model validation' : 'Model validation (not enough data)';
+            explanationToggle.title = enoughForGaussian
+                ? 'Compares this row\'s real data against the win-probability table, gap by gap, with a likelihood check on how surprising each row\'s result is.'
+                : `Needs at least ${MIN_GAUSSIAN_N} matches before this comparison is meaningful.`;
+            if (!enoughForGaussian) showExplanation = false;
+            explanationToggle.classList.toggle('is-active', showExplanation);
+
+            if (showExplanation) {
+                // Always compared against THIS league's own match length
+                // (generalMlIdx), same as the Gaussian popup: "what a game
+                // at this league's length would predict" — even though
+                // `rows` itself pools matches of every match length across
+                // leagues.
+                explanationPopup.innerHTML = buildExplanationTableHtml(rows, shift, generalMlIdx);
+                explanationPopup.hidden = false;
+                explanationPopup.querySelector('.corr-explanation-popup-close').addEventListener('click', () => {
+                    showExplanation = false;
+                    redrawAllTime();
+                });
+            } else {
+                explanationPopup.hidden = true;
+                explanationPopup.innerHTML = '';
             }
 
             drawHistogramRow(host, buckets, {
@@ -2271,6 +2504,8 @@ function renderPrCorrelationSection(ctx) {
         trimToggle.addEventListener('click', () => { trimmed = !trimmed; redrawAllTime(); });
         gaussianToggle.disabled = false;
         gaussianToggle.addEventListener('click', () => { showGaussian = !showGaussian; redrawAllTime(); });
+        explanationToggle.disabled = false;
+        explanationToggle.addEventListener('click', () => { showExplanation = !showExplanation; redrawAllTime(); });
         redrawAllTime();
 
         if (domainChanged) {

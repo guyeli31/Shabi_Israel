@@ -1,0 +1,92 @@
+{
+  "generatedAt": "2026-07-09T22:14:34.956Z",
+  "baseUrl": "http://localhost:8090",
+  "runs": 5,
+  "scenarios": {
+    "cold:index.html": {
+      "msMedian": 856,
+      "msMax": 3035,
+      "blockingRequestsMedian": 1,
+      "totalRequestsMedian": 2
+    },
+    "cold:league.html": {
+      "msMedian": 1004,
+      "msMax": 1032,
+      "blockingRequestsMedian": 1,
+      "totalRequestsMedian": 2
+    },
+    "cold:league_table.html": {
+      "msMedian": 900,
+      "msMax": 924,
+      "blockingRequestsMedian": 1,
+      "totalRequestsMedian": 2
+    },
+    "cold:player_league.html": {
+      "msMedian": 903,
+      "msMax": 994,
+      "blockingRequestsMedian": 1,
+      "totalRequestsMedian": 2
+    },
+    "cold:player.html": {
+      "msMedian": 983,
+      "msMax": 1033,
+      "blockingRequestsMedian": 1,
+      "totalRequestsMedian": 2
+    },
+    "warm:index.html->league_table.html": {
+      "forward": {
+        "msMedian": 244,
+        "blockingRequestsMedian": 0
+      },
+      "back": {
+        "msMedian": 222,
+        "blockingRequestsMedian": 0,
+        "bfcacheHitRate": 0
+      }
+    },
+    "warm:league_table.html->player_league.html": {
+      "forward": {
+        "msMedian": 167,
+        "blockingRequestsMedian": 0
+      },
+      "back": {
+        "msMedian": 147,
+        "blockingRequestsMedian": 0,
+        "bfcacheHitRate": 0
+      }
+    },
+    "warm:player_league.html->player.html": {
+      "forward": {
+        "msMedian": 500,
+        "blockingRequestsMedian": 0
+      },
+      "back": {
+        "msMedian": 129,
+        "blockingRequestsMedian": 0,
+        "bfcacheHitRate": 0
+      }
+    },
+    "warm:league.html->index.html": {
+      "forward": {
+        "msMedian": 268,
+        "blockingRequestsMedian": 0
+      },
+      "back": {
+        "msMedian": 139,
+        "blockingRequestsMedian": 0,
+        "bfcacheHitRate": 0
+      }
+    },
+    "warm:index.html->league.html": {
+      "forward": {
+        "msMedian": 447,
+        "blockingRequestsMedian": 0
+      },
+      "back": {
+        "msMedian": 230,
+        "blockingRequestsMedian": 0,
+        "bfcacheHitRate": 0
+      }
+    }
+  }
+}

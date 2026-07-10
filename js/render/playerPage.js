@@ -4,12 +4,12 @@
  * "also plays in" links) live here.
  */
 
-import { loadLeague, loadLeagueOrder, loadAllLeagueParams } from '../data/dataSourceLoader.js';
+import { loadLeague, loadLeagueOrder, loadAllLeagueParams } from '../data/store.js';
 import { getPlayerMatches } from '../data/csvParser.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { getQueryParam, flagUrl, getFlagCode, playerLeagueUrl, leagueUrl, leagueTableUrl, playerUrl, getLeagueYear, parseLeagueDate } from '../utils/helpers.js';
 import { renderBreadcrumbs, ensurePlayerIndex } from './navigation.js';
-import { loadPlayersMetadata } from '../data/dataSourceMeta.js';
+import { loadPlayersMetadata } from '../data/store.js';
 import { getTitleBadgesHtml, getHighestTier, getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { renderV7Header, buildHeaderTitles, formatJoinedShort } from './playerHeader.js';
 import { attachPlayerNameInteractions } from './playerNameInteraction.js';

@@ -1,12 +1,13 @@
 /**
- * supabaseLoader.js — Drop-in replacement for leagueLoader.js.
- * Same exported function signatures/shapes; data now comes from Supabase
- * instead of static leagues/**\/*.csv|json files.
+ * supabaseLoader.js — Admin-only granular Supabase read path (see
+ * docs/data-architecture/02-query-standards.md rule 9). Public pages read
+ * through js/data/store.js's cached get_site_bundle() instead — this file's
+ * every query always hits the DB fresh, on purpose: admin needs to see its
+ * own writes immediately, never a stale cached copy.
  */
 
 import { supabase } from './supabaseClient.js';
 import { matchKey, mergeHistoryIntoMatches } from '../compute/matchHistory.js';
-import { getCachedLeague, setCachedLeague } from './leagueCache.js';
 
 // No-op compat shim — supabaseLoader.js has no notion of a "base path".
 export function setLeaguesBase() {}
@@ -175,151 +176,6 @@ export async function loadMatchHistory(leagueId) {
             source: row.source,
         })),
     };
-}
-
-/**
- * Load everything for a single league: params + matches + overrides applied.
- * Checks the short-TTL sessionStorage cache first — see leagueCache.js — so a
- * league already fetched moments ago (e.g. by the landing page's bulk load)
- * doesn't get re-fetched from scratch on a fresh page navigation.
- */
-export async function loadLeague(leagueId) {
-    const cached = getCachedLeague(leagueId);
-    if (cached) return cached;
-
-    const [params, matchData, overrides, history] = await Promise.all([
-        loadLeagueParams(leagueId),
-        loadLeagueMatches(leagueId),
-        loadOverrides(leagueId),
-        loadMatchHistory(leagueId),
-    ]);
-
-    const withOverrides = applyOverrides(matchData.matches, overrides);
-    const mergedMatches = mergeHistoryIntoMatches(withOverrides, history.matches);
-
-    const league = {
-        id: leagueId,
-        params,
-        matches: mergedMatches,
-        lastModified: params.LastUpdated || null,
-        totalPlayers: matchData.totalPlayers,
-        allPlayers: matchData.allPlayers,
-        history,
-    };
-    setCachedLeague(leagueId, league);
-    return league;
-}
-
-/**
- * Load every league in leagueIds with a fixed small number of round trips
- * (4 total, regardless of how many leagues) instead of loadLeague()'s 4-per-
- * league — used by crossLeague.js's loadAllLeagues(), which otherwise fans
- * out to 4×N requests for the landing page's cross-league aggregations.
- * Also populates the per-league sessionStorage cache so a subsequent direct
- * loadLeague(id) call (e.g. after navigating into that league's own page)
- * is served instantly instead of re-querying.
- * Returns Map<leagueId, league> (same per-league shape as loadLeague()).
- * Leagues missing a `leagues` row are silently omitted (matches loadLeague()
- * throwing + Promise.allSettled filtering it out).
- */
-// Supabase/PostgREST caps a single response at 1000 rows by default — with 11
-// leagues × ~100-300 matches each, `matches` alone can hold 3000+ rows, well
-// past that cap. A plain .in() query silently truncates instead of erroring,
-// so this pages through with .range() until a page comes back short.
-const PAGE_SIZE = 1000;
-
-async function fetchAllRows(buildQuery) {
-    const rows = [];
-    let from = 0;
-    for (;;) {
-        const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
-        if (error) throw error;
-        rows.push(...(data || []));
-        if (!data || data.length < PAGE_SIZE) break;
-        from += PAGE_SIZE;
-    }
-    return rows;
-}
-
-export async function loadLeaguesBulk(leagueIds) {
-    // Every paginated query orders by its primary key as a final, unique
-    // tiebreaker. Without one, .range() pagination over a column with many
-    // ties (e.g. `round`, which repeats across every league) is NOT
-    // guaranteed stable between the separate page requests — Postgres can
-    // place a tied row on either side of the page boundary differently each
-    // time, so a row can come back twice (inflating that match into a
-    // player's stats) while a different tied row is silently dropped.
-    const [leagueRows, matchRows, overrideRows, historyRows] = await Promise.all([
-        fetchAllRows(() => supabase.from('leagues').select('*').in('id', leagueIds).order('id', { ascending: true })),
-        fetchAllRows(() => supabase.from('matches').select('*').in('league_id', leagueIds).order('round', { ascending: true }).order('id', { ascending: true })),
-        fetchAllRows(() => supabase.from('manual_overrides').select('*').in('league_id', leagueIds).order('id', { ascending: true })),
-        fetchAllRows(() => supabase.from('match_history').select('*').in('league_id', leagueIds).order('id', { ascending: true })),
-    ]);
-
-    const paramsById = new Map(leagueRows.map((row) => [row.id, mapDbLeagueToParams(row)]));
-
-    const matchesById = new Map();
-    const allPlayersById = new Map();
-    for (const row of matchRows) {
-        if (!matchesById.has(row.league_id)) {
-            matchesById.set(row.league_id, []);
-            allPlayersById.set(row.league_id, new Set());
-        }
-        allPlayersById.get(row.league_id).add(row.player_a);
-        allPlayersById.get(row.league_id).add(row.player_b);
-        if (row.played) matchesById.get(row.league_id).push(mapDbMatch(row));
-    }
-
-    const overridesById = new Map();
-    for (const row of overrideRows) {
-        if (!overridesById.has(row.league_id)) overridesById.set(row.league_id, []);
-        overridesById.get(row.league_id).push(mapDbOverride(row));
-    }
-
-    const historyById = new Map();
-    for (const row of historyRows) {
-        if (!historyById.has(row.league_id)) historyById.set(row.league_id, []);
-        historyById.get(row.league_id).push({
-            playerA: row.player_a,
-            playerB: row.player_b,
-            scoreA: row.score_a,
-            scoreB: row.score_b,
-            prA: row.pr_a,
-            prB: row.pr_b,
-            luckA: row.luck_a,
-            luckB: row.luck_b,
-            round: row.round,
-            updatedAt: row.updated_at,
-            source: row.source,
-        });
-    }
-
-    const results = new Map();
-    for (const leagueId of leagueIds) {
-        const params = paramsById.get(leagueId);
-        if (!params) continue;
-
-        const matches = matchesById.get(leagueId) || [];
-        const allPlayers = allPlayersById.get(leagueId) || new Set();
-        const overrides = overridesById.get(leagueId) || [];
-        const history = { matches: historyById.get(leagueId) || [] };
-
-        const withOverrides = applyOverrides(matches, overrides);
-        const mergedMatches = mergeHistoryIntoMatches(withOverrides, history.matches);
-
-        const league = {
-            id: leagueId,
-            params,
-            matches: mergedMatches,
-            lastModified: params.LastUpdated || null,
-            totalPlayers: allPlayers.size,
-            allPlayers,
-            history,
-        };
-        setCachedLeague(leagueId, league);
-        results.set(leagueId, league);
-    }
-    return results;
 }
 
 /**

@@ -1,0 +1,97 @@
+{
+  "target": "local",
+  "generatedAt": "2026-07-09T20:26:31.909Z",
+  "leagues": [
+    {
+      "league": "Shabi Israel April 2026",
+      "running": false,
+      "pass": true,
+      "diffCount": 0,
+      "infoCount": 0
+    },
+    {
+      "league": "Shabi Israel December 2025",
+      "running": false,
+      "pass": true,
+      "diffCount": 0,
+      "infoCount": 0
+    },
+    {
+      "league": "Shabi Israel February 2026",
+      "running": false,
+      "pass": true,
+      "diffCount": 0,
+      "infoCount": 0
+    },
+    {
+      "league": "Shabi Israel January 2026",
+      "running": false,
+      "pass": true,
+      "diffCount": 0,
+      "infoCount": 0
+    },
+    {
+      "league": "Shabi Israel July 2026",
+      "running": true,
+      "pass": true,
+      "diffCount": 0,
+      "infoCount": 1
+    },
+    {
+      "league": "Shabi Israel June 2026",
+      "running": false,
+      "pass": true,
+      "diffCount": 0,
+      "infoCount": 0
+    },
+    {
+      "league": "Shabi Israel March 2026",
+      "running": false,
+      "pass": true,
+      "diffCount": 0,
+      "infoCount": 0
+    },
+    {
+      "league": "Shabi Israel May 2026",
+      "running": false,
+      "pass": true,
+      "diffCount": 0,
+      "infoCount": 0
+    },
+    {
+      "league": "Shabi Israel November 2025",
+      "running": false,
+      "pass": true,
+      "diffCount": 0,
+      "infoCount": 0
+    },
+    {
+      "league": "Shabi Israel October 2025",
+      "running": false,
+      "pass": true,
+      "diffCount": 0,
+      "infoCount": 0
+    },
+    {
+      "league": "Shabi Israel September 2025",
+      "running": false,
+      "pass": true,
+      "diffCount": 0,
+      "infoCount": 0
+    }
+  ],
+  "playersMetadataDiffs": 0,
+  "landingSettingsDiffs": 0,
+  "overallPass": true,
+  "diffs": [],
+  "informationalDiffs": [
+    {
+      "league": "Shabi Israel July 2026",
+      "level": "L1",
+      "matchKey": "Idan1986|Moriarty",
+      "field": "presence",
+      "csv": "present",
+      "db": "removed via manual_overrides (not_played): \"Marked not played\""
+    }
+  ]
+}

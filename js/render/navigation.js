@@ -3,9 +3,9 @@
  * keyboard shortcuts, and cross-league player index.
  */
 
-import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches } from '../data/dataSourceLoader.js';
+import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches } from '../data/store.js';
 import { leagueUrl, playerLeagueUrl, playerUrl, parseLeagueDate } from '../utils/helpers.js';
-import { loadPlayersMetadata } from '../data/dataSourceMeta.js';
+import { loadPlayersMetadata } from '../data/store.js';
 import { getInitials } from './playerHeader.js';
 import { isLoggedIn, getUsername } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';

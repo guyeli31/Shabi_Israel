@@ -5,7 +5,7 @@
  * aggregate across leagues for the Phase G general player card.
  */
 
-import { loadLeagueOrder, loadLeaguesBulk } from '../data/dataSourceLoader.js';
+import { loadLeagueOrder, loadLeaguesBulk } from '../data/store.js';
 import { computeAllStats } from './stats.js';
 import { buildRankings, getLevel } from './rankings.js';
 import { getLeagueConfig } from './leagueTypes.js';

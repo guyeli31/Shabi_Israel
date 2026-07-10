@@ -226,9 +226,10 @@ as $$
 $$;
 
 revoke all on function public.analytics_summary(timestamptz, timestamptz) from public;
-grant execute on function public.analytics_summary(timestamptz, timestamptz) to anon;
+revoke execute on function public.analytics_summary(timestamptz, timestamptz) from anon;
+grant execute on function public.analytics_summary(timestamptz, timestamptz) to authenticated;
 
--- POC tradeoff (documented): analytics_summary is granted to anon so the
--- dashboard works without auth. Upgrade path: restrict execute to
--- `authenticated` and put analytics.html behind Supabase Auth once the
--- Admin Auth migration (this repo's Phase E) has landed.
+-- analytics_summary (the dashboard read) is authenticated-only — anon can
+-- still INSERT into analytics_events (tracking works for every visitor, see
+-- the analytics_anon_insert policy above), but reading the aggregated
+-- dashboard requires a logged-in Admin session.

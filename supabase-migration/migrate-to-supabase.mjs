@@ -89,9 +89,16 @@ function mapParamsToLeagueRow(folder, p) {
     league_type: p.LeagueType || 'doubling',
     running: p.Running === true,
     hidden: p.Hidden === true,
-    gold_count: p.GoldCount ?? 0,
-    silver_count: p.SilverCount ?? 0,
-    bronze_count: p.BronzeCount ?? 0,
+    // Defaults MUST match the app's read/admin-write path (1/1/4), NOT 0 —
+    // the render code treats a missing count as `?? 1` (gold/silver) / `?? 4`
+    // (admin), so seeding a legacy file that omits GoldCount/SilverCount as 0
+    // would award 0 medals where the app intends 1, silently changing medal
+    // standings. This is the exact bug that hit the Sept 2025–Mar 2026 leagues
+    // (see docs/data-architecture/README.md scope note). `?? 0` here is a
+    // consensus break with js/admin/supabaseAdmin.js mapParamsToLeagueRow.
+    gold_count: p.GoldCount ?? 1,
+    silver_count: p.SilverCount ?? 1,
+    bronze_count: p.BronzeCount ?? 4,
     match_length: p.MatchLength ?? null,
     issue_date: p.IssueDate || null,
     entry_fee: p.EntryFee ?? 0,
