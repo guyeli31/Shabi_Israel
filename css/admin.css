@@ -960,6 +960,75 @@ table.font-large { font-size: var(--fs-093); }
     margin-inline-end: var(--space-xs);
 }
 
+/* Collapsible log block — a tappable "Activity log / Last run" header that
+   hides/shows its body. Styled as a clear, full-width bar (reads as a button,
+   comfortable to tap on mobile). Set off from the controls above it with a top
+   rule + generous spacing. State persists in localStorage. */
+.sync-log-collapsible {
+    margin-top: var(--space-lg);
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--color-border);
+}
+
+.sync-log-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    width: 100%;
+    min-height: 2.75rem;               /* ≥44px — comfortable mobile tap target */
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-inset);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--fs-090);
+    font-weight: 600;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.sync-log-toggle:hover,
+.sync-log-toggle:focus-visible {
+    background: var(--color-hover);
+    border-color: var(--color-accent);
+    outline: none;
+}
+
+.sync-log-caret {
+    font-size: 0.9em;
+    line-height: 1;
+    color: var(--color-text-muted);
+}
+
+.sync-log-title {
+    flex: 1;
+    text-align: left;
+}
+
+/* The Show / Hide affordance — a pill that clearly reads as the action. */
+.sync-log-hint {
+    margin-inline-start: auto;
+    flex: none;
+    font-weight: 600;
+    font-size: var(--fs-085);
+    color: var(--color-accent);
+    padding: 0.15em 0.7em;
+    border: 1px solid var(--color-accent);
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.sync-log-toggle:hover .sync-log-hint,
+.sync-log-toggle:focus-visible .sync-log-hint {
+    background: var(--color-accent);
+    color: #fff;
+}
+
+.sync-log-body {
+    margin-top: var(--space-md);
+}
+
 /* ---- Publish Progress ---- */
 .publish-progress {
     margin-top: var(--space-md);
@@ -1109,6 +1178,35 @@ table.font-large { font-size: var(--fs-093); }
 #upload-flag-code {
     background: var(--color-surface);
     color: var(--color-text);
+}
+
+/* ── F7 — Sync ▸ Active Leagues in-cell controls ───────────────────────────
+   The Source League Name text input and the plan-membership checkboxes live in
+   FF table cells, OUTSIDE .form-group, so they miss the themed form-control
+   styling and would render browser-default (a white box in dark themes). Give
+   the input the same surface/text/border/focus treatment as .form-group input,
+   and pin the checkboxes to the theme accent. */
+.sync-source-name {
+    box-sizing: border-box;
+    min-width: 160px;
+    padding: 2px 6px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: var(--fs-090);
+    color: var(--color-text);
+    background: var(--color-surface);
+    accent-color: var(--color-accent);
+    transition: border-color 0.15s;
+}
+.sync-source-name:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px var(--color-accent-light);
+}
+.sync-plan-member,
+.sync-runnow-pick {
+    accent-color: var(--color-accent);
 }
 
 /* .btn-xs / .btn-tech now live in the unified button ramp above. */

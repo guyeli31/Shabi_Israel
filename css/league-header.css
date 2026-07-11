@@ -68,6 +68,12 @@
     gap: 0.5em; flex-wrap: wrap;
 }
 .lh13-meta .sep { color: var(--color-text-muted); opacity: 0.4; }
+/* Historical-snapshot flag: warns the subtitle reader that the table below
+   is an older state and a newer version exists (set by ?asof= on table D). */
+.lh13-historical-note {
+    color: var(--color-warning, #b8860b);
+    font-weight: 600;
+}
 
 /* ───────────────────────────── V16 — Hero banner ───────────────────
    Wide framed card. Top row holds the type + status pills, then a

@@ -40,6 +40,7 @@ import { mountPillTabs } from './subTabs.js';
 import { registerSearchAdapter } from './searchOverlay.js';
 import { scrollToClearingTopbar } from '../utils/scrollOffset.js';
 import { getInitials } from './playerHeader.js';
+import { langFlagsHtml, wireLangPopup } from '../utils/popupLang.js';
 
 /* ── Helpers ─────────────────────────────────────────── */
 
@@ -1398,17 +1399,11 @@ function renderAchievementsSection(container, presentTypes) {
 }
 
 function wireLuckInfoPopup(panel, leagueType) {
-    const btn   = panel.querySelector(`#luck-info-btn-${leagueType}`);
-    const popup = panel.querySelector(`#luck-info-popup-${leagueType}`);
-    const close = panel.querySelector(`#luck-info-close-${leagueType}`);
-    if (!btn || !popup) return;
-    btn.addEventListener('click', e => {
-        e.stopPropagation();
-        popup.hidden = !popup.hidden;
+    wireLangPopup(panel, {
+        btn: panel.querySelector(`#luck-info-btn-${leagueType}`),
+        popup: panel.querySelector(`#luck-info-popup-${leagueType}`),
+        close: panel.querySelector(`#luck-info-close-${leagueType}`),
     });
-    if (close) {
-        close.addEventListener('click', () => { popup.hidden = true; });
-    }
 }
 
 /* ── Merged MEDALS table (SF format, 2 sticky cols, no sorting) ──────
@@ -1514,9 +1509,11 @@ function renderLuckPercentileCard(data, leagueType) {
             <h3>Luck Percentile <span class="predictor-tooltip" id="luck-info-btn-${leagueType}">?</span></h3>
             <div class="predictor-info-popup luck-info-popup" id="luck-info-popup-${leagueType}" hidden>
                 <button class="predictor-info-close" id="luck-info-close-${leagueType}">&times;</button>
+                <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
+                <div class="popup-lang-en" data-lang="en">
                 <h3>How It Works</h3>
                 <p>For each historical match, the player's <b>PR gap</b> against their opponent and the match length give an expected win chance <i>p<sub>i</sub></i>, shown below:</p>
-                ${prProbabilityTableHtml()}
+                ${prProbabilityTableHtml('en')}
                 <p>We then compare <b>actual wins</b> to <b>expected wins</b> across every match. The result is standardized into a Z-score and mapped to a percentile via the standard normal distribution.</p>
                 <ul>
                     <li><b>EW</b> (expected wins) = Σ p<sub>i</sub></li>
@@ -1526,6 +1523,21 @@ function renderLuckPercentileCard(data, leagueType) {
                 </ul>
                 <p>50 ≈ expected, 100 = extremely lucky, 0 = extremely unlucky. Players with fewer than 15 rated games are shown struck-through — the sample is too small to be reliable.</p>
                 ${luckBellCurveSvg()}
+                </div>
+                <div class="popup-lang-he" data-lang="he">
+                <h3>איך זה עובד</h3>
+                <p>עבור כל משחק היסטורי, <b>פער ה-PR</b> של השחקן מול היריב ואורך המשחק נותנים סיכוי ניצחון צפוי <i>p<sub>i</sub></i>, המוצג למטה:</p>
+                ${prProbabilityTableHtml('he')}
+                <p>לאחר מכן משווים בין <b>ניצחונות בפועל</b> ל<b>ניצחונות צפויים</b> על פני כל המשחקים. התוצאה מתוקננת לציון Z וממופה לאחוזון לפי ההתפלגות הנורמלית הסטנדרטית.</p>
+                <ul>
+                    <li><b>EW</b> (ניצחונות צפויים) = Σ p<sub>i</sub></li>
+                    <li><b>Var</b> = Σ p<sub>i</sub>(1 − p<sub>i</sub>)</li>
+                    <li><b>Z</b> = (AW − EW) / √Var</li>
+                    <li><b>אחוזון</b> = Φ(Z) × 100</li>
+                </ul>
+                <p>50 &asymp; צפוי, 100 = בר מזל בקיצוניות, 0 = ביש מזל בקיצוניות. שחקנים עם פחות מ-15 משחקים מדורגים מוצגים עם קו חוצה — המדגם קטן מדי כדי להיות אמין.</p>
+                ${luckBellCurveSvg()}
+                </div>
             </div>
             <div class="achv-table-wrapper">
                 <table class="achv-table achv-luck-table font-small" data-mf-table-id="A3">

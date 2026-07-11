@@ -89,3 +89,33 @@ export function getUpdateDates(history) {
     }
     return [...days].sort().reverse();
 }
+
+/**
+ * Distinct update POINTS (not just dates), newest first. Records are grouped by
+ * minute — so a single sync's sub-second spread collapses to one point, while
+ * two genuinely separate updates on the same day stay distinct (the day-only
+ * getUpdateDates merged them and lost the time). Each point's `value` is the
+ * exact latest timestamp in its minute, so getMatchesAsOf(history, value)
+ * includes every row written in that minute; `label` shows date + time.
+ * @returns {{value:string,label:string}[]}
+ */
+export function getUpdatePoints(history) {
+    const byMinute = new Map(); // "YYYY-MM-DDTHH:MM" -> latest exact ISO in that minute
+    for (const m of history.matches) {
+        if (!m.updatedAt) continue;
+        const minute = m.updatedAt.slice(0, 16);
+        const existing = byMinute.get(minute);
+        if (!existing || m.updatedAt > existing) byMinute.set(minute, m.updatedAt);
+    }
+    return [...byMinute.values()]
+        .sort()
+        .reverse()
+        .map((ts) => ({ value: ts, label: formatUpdatePoint(ts) }));
+}
+
+/** "9 Jul 2026, 17:39" — date + time for an update-point label. */
+export function formatUpdatePoint(ts) {
+    const d = new Date(ts);
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+        + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}

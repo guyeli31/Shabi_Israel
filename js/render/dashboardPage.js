@@ -9,7 +9,7 @@
 
 import { loadLeagueParams, loadLeagueOrder, loadOverrides, loadAllLeagueParams, loadLeagueMatchesAll, loadMatchHistory, applyOverrides } from '../data/store.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
-import { getMatchesAsOf, getUpdateDates, mergeHistoryIntoMatches, matchKey } from '../compute/matchHistory.js';
+import { getMatchesAsOf, getUpdatePoints, mergeHistoryIntoMatches, matchKey } from '../compute/matchHistory.js';
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
@@ -23,6 +23,7 @@ import { predictChampionship, computeTopXPct, prProbabilityTableHtml, getWinProb
 import { batchLast300PRForSimulator, loadVisibleLeagues } from '../compute/crossLeague.js';
 import { loadPlayersMetadata } from '../data/store.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
+import { langFlagsHtml, wireLangPopup, wireDynamicLangPopup } from '../utils/popupLang.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { startSplash, endSplash } from '../utils/splash.js';
 import { buildLeagueHeaderData, renderV16Header, formatLastUpdatedDate } from './leagueHeader.js';
@@ -268,6 +269,8 @@ function predictorPanel() {
             </h2>
             <div class="predictor-info-popup" id="predictor-info-popup" hidden>
                 <button class="predictor-info-close" id="predictor-info-close">&times;</button>
+                <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
+                <div class="popup-lang-en" data-lang="en">
                 <h3>How It Works</h3>
                 <p>The predictor plays out all the matches still left in the league <b>thousands of times over</b>, each time with slightly different results, and simply counts how often each player ends up on top. A player who wins the title in, say, 6 out of every 10 imagined seasons gets a <b>60%</b> chance. The more matches are still to be played, the more open the race.</p>
 
@@ -275,8 +278,8 @@ function predictorPanel() {
                 <p>A player's strength comes from their recent <b>PR</b> (lower is better). But nobody plays exactly the same every night, so in each imagined match a player performs a little above or below their usual level. That built-in variation is what keeps upsets possible — a favourite can have an off night, and an underdog can shine.</p>
 
                 <h4>Who wins a single match?</h4>
-                <p>Two things decide the winner's odds: <b>how big the PR gap is</b> between the players, and <b>how long the match is</b>. A bigger gap favours the stronger player, and longer matches give the favourite more room to pull ahead (luck evens out over more games). The table below shows the stronger player's win chance (%):</p>
-                ${prProbabilityTableHtml()}
+                <p>Two things decide the winner's odds: <b>how big the PR gap is</b> between the players, and <b>how long the match is</b>. A bigger gap favours the stronger player, and longer matches give the favourite more room to pull ahead (luck evens out over more games). The <i>PR Win-Probability Table</i> below shows the stronger player's win chance (%):</p>
+                ${prProbabilityTableHtml('en')}
                 <p>In-between gaps are read smoothly off the table — a gap of 3.5 sits halfway between the “3” and “4” rows.</p>
 
                 <h4>Breaking a tie</h4>
@@ -288,6 +291,29 @@ function predictorPanel() {
 
                 <h4>Margin of Error</h4>
                 <p>Because the result comes from random simulation, the leader's percentage carries a small uncertainty. The <b>± figure</b> shown is a 95% confidence range — run more simulations and it shrinks. It reflects the randomness of the simulation only.</p>
+                </div>
+                <div class="popup-lang-he" data-lang="he">
+                <h3>איך זה עובד</h3>
+                <p>מנוע החיזוי משחק את כל המשחקים שנותרו בליגה <b>אלפי פעמים</b>, כל פעם עם תוצאות מעט שונות, וסופר כמה פעמים כל שחקן מסיים ראשון. שחקן שזוכה באליפות ב-6 מתוך כל 10 עונות מדומות, למשל, מקבל סיכוי של <b>60%</b>. ככל שנותרו יותר משחקים, כך המרוץ פתוח יותר.</p>
+
+                <h4>כמה חזק כל שחקן?</h4>
+                <p>העוצמה של שחקן נגזרת מה-<b>PR</b> העדכני שלו (נמוך יותר = טוב יותר). אבל אף אחד לא משחק באותה רמה בכל ערב, אז בכל משחק מדומה שחקן מבצע קצת מעל או מתחת לרמתו הרגילה. השונות הזו היא מה שמאפשר הפתעות — למועדף יכול להיות ערב חלש, ולמנוצח יכולה להיות הצגה טובה.</p>
+
+                <h4>מי מנצח במשחק בודד?</h4>
+                <p>שני דברים קובעים את הסיכויים: <b>גודל הפער ב-PR</b> בין השחקנים, ו<b>אורך המשחק</b>. פער גדול יותר מטה את הסיכויים לטובת השחקן החזק, ומשחקים ארוכים יותר נותנים למועדף יותר מקום להתרחק (המזל מתאזן על פני יותר משחקים). <i>טבלת סיכויי הניצחון לפי PR</i> שלמטה מציגה את סיכויי הניצחון (%) של השחקן החזק יותר:</p>
+                ${prProbabilityTableHtml('he')}
+                <p>פערים שבין הערכים בטבלה נקראים באופן חלק — פער של 3.5 יושב בדיוק באמצע שבין השורות "3" ו-"4".</p>
+
+                <h4>שבירת שוויון</h4>
+                <p>כששחקנים מסיימים שווים בניקוד הראשי של הליגה, השוויון נשבר בצורה שונה בהתאם לסוג הליגה:</p>
+                <ul>
+                    <li><b>ליגות דאבלינג ו-UBC:</b> השחקן עם ה-<b>PR הממוצע</b> הטוב יותר (נמוך יותר) לאורך העונה מדורג גבוה יותר.</li>
+                    <li><b>ליגות רגילות:</b> השוויון נשבר קודם לפי התוצאה ה<b>ישירה</b> בין השחקנים המעורבים, אחר כך לפי <b>הפרש הנקודות</b> הכולל, ולבסוף לפי סדר אלפביתי.</li>
+                </ul>
+
+                <h4>טווח טעות</h4>
+                <p>מכיוון שהתוצאה מבוססת על סימולציה אקראית, האחוז המוצג של המוביל נושא אי-ודאות קטנה. ה<b>± המוצג</b> הוא טווח ביטחון של 95% — ריצת סימולציות נוספות מצמצמת אותו. הוא משקף רק את האקראיות של הסימולציה עצמה.</p>
+                </div>
             </div>
             <div class="predictor-moe" id="predictor-moe"></div>
             <div class="predictor-topx-control" id="predictor-topx-wrap" style="display:none">
@@ -304,6 +330,8 @@ function predictorPanel() {
             </h2>
             <div class="predictor-info-popup" id="whatif-info-popup" hidden>
                     <button class="predictor-info-close" id="whatif-info-close">&times;</button>
+                    <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
+                    <div class="popup-lang-en" data-lang="en">
                     <h4>What If</h4>
                     <p>Pick any scheduled match in the league and force its outcome (A wins, B wins, or Not Played). Add as many matches as you like, then <b>Run Simulation</b> to see how the championship odds would change in that alternate scenario.</p>
                     <ul>
@@ -312,6 +340,17 @@ function predictorPanel() {
                         <li>Player B's search narrows to players who share a scheduled match with Player A.</li>
                     </ul>
                     <p>The engine is the same as the real predictor above — only the inputs differ. Results are speculative and depend on your choices.</p>
+                    </div>
+                    <div class="popup-lang-he" data-lang="he">
+                    <h4>מה אם</h4>
+                    <p>בחרו כל משחק מתוזמן בליגה וכפו עליו תוצאה (A מנצח, B מנצח, או לא שוחק). ניתן להוסיף כמה משחקים שרוצים, ואז ללחוץ <b>הרץ סימולציה</b> כדי לראות איך סיכויי האליפות היו משתנים בתרחיש החלופי הזה.</p>
+                    <ul>
+                        <li>משחקים ששוחקו כבר נטענים עם התוצאה האמיתית שלהם וניתן לדרוס אותה.</li>
+                        <li>משחקים שלא שוחקו מתחילים כ<i>לא שוחק</i> — בחרו מנצח כדי לקבוע את התוצאה.</li>
+                        <li>החיפוש של שחקן B מצטמצם לשחקנים שיש להם משחק מתוזמן משותף עם שחקן A.</li>
+                    </ul>
+                    <p>מנוע החישוב זהה למנוע החיזוי האמיתי שלמעלה — רק הקלט שונה. התוצאות ספקולטיביות ותלויות בבחירות שלכם.</p>
+                    </div>
                 </div>
                 <div id="whatif-body">
                     <div class="whatif-picker">
@@ -387,10 +426,13 @@ function insightsPanel() {
             </h2>
             <div class="predictor-info-popup" id="pr-corr-info-popup" hidden>
                 <button class="predictor-info-close" id="pr-corr-info-close">&times;</button>
+                <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
+                <div class="popup-lang-en" data-lang="en">
                 <h4>The win chance behind every match</h4>
                 <p>Every match has an expected win chance for the stronger player, based on the <b>PR gap</b>
-                between the two players and the match length:</p>
-                ${prProbabilityTableHtml()}
+                between the two players and the match length &mdash; read from the <i>PR Win-Probability
+                Table</i>:</p>
+                ${prProbabilityTableHtml('en')}
                 <p>The chart and scores below all come from comparing that expected win chance to what actually
                 happened.</p>
 
@@ -401,13 +443,14 @@ function insightsPanel() {
                 <b>left</b> means they were outplayed. <span style="color:var(--color-win)">Green</span> = win,
                 <span style="color:var(--color-loss)">red</span> = loss.</p>
                 <p>All player rows share one axis, sized to the widest PR gap seen between any two players
-                (plus a little padding), so every player's row can be compared directly against every other.
-                (The <b>League PR &harr; Result Correlation</b> section further down is a separate view with
-                its own scale and its own "?" for details.)</p>
+                (plus a little padding), so every player's row can be compared directly against every other.</p>
 
                 <h4>The Brier score</h4>
                 <p>Each row also has a <b>Brier score</b> &mdash; how well the win chance above matched what
                 actually happened in these specific matches.</p>
+                <p class="corr-formula">Brier = mean of (outcome &minus; p)&sup2;, over all matches &mdash;
+                where <i>p</i> is the win chance from the <i>PR Win-Probability Table</i> and <i>outcome</i> is
+                1 for a win, 0 for a loss.</p>
                 <div class="brier-scale">
                     <div class="brier-scale-bar"></div>
                     <div class="brier-scale-ticks">
@@ -432,6 +475,8 @@ function insightsPanel() {
                 <p>Each player also gets a signed <b>Luck</b> score, from <code>&minus;1</code> to
                 <code>+1</code>: a win always counts in their favour (more, the bigger the underdog they were),
                 a loss always counts against them (more, the bigger the favourite they were).</p>
+                <p class="corr-formula">Luck = mean of r&times;|r|, where r = outcome &minus; p (same p and
+                outcome as Brier above) &mdash; squared like Brier, but keeping the sign instead of losing it.</p>
                 <div class="brier-scale">
                     <div class="brier-scale-bar luck-scale-bar"></div>
                     <div class="brier-scale-ticks">
@@ -453,6 +498,78 @@ function insightsPanel() {
                 <b>0</b> means results matched expectations either way. It isn't shown for the league-wide row,
                 since that row only ever contains winners and a signed score there wouldn't mean anything
                 &mdash; use that row's Brier score instead.</p>
+                </div>
+                <div class="popup-lang-he" data-lang="he">
+                <h4>סיכויי הניצחון שמאחורי כל משחק</h4>
+                <p>לכל משחק יש סיכוי ניצחון צפוי לשחקן החזק יותר, המבוסס על <b>הפרש ה-PR</b>
+                בין שני השחקנים ואורך המשחק &mdash; נקרא מתוך <i>PR Win-Probability
+                Table</i>:</p>
+                ${prProbabilityTableHtml('he')}
+                <p>הגרף והציונים למטה מבוססים כולם על השוואת סיכויי הניצחון הצפויים לתוצאה בפועל.</p>
+
+                <h4>איך קוראים את הגרף</h4>
+                <p>לכל שחקן יש שורת נקודות משלו, אחת לכל משחק, ממוקמת לפי <b>יתרון ה-PR</b>
+                שלו באותו משחק — ה-PR של היריב פחות שלו (PR נמוך יותר = פחות טעויות).
+                נקודה שנמצאת יותר <b>ימינה</b> אומרת שהשחקן שיחק טוב מהיריב באותו משחק; יותר
+                <b>שמאלה</b> אומרת שהיריב שיחק טוב ממנו. <span style="color:var(--color-win)">ירוק</span> = ניצחון,
+                <span style="color:var(--color-loss)">אדום</span> = הפסד.</p>
+                <p>כל שורות השחקנים חולקות ציר אחד, בגודל שמתאים לפער ה-PR הרחב ביותר שנצפה בין כל שני שחקנים
+                (בתוספת ריווח קטן), כך שניתן להשוות ישירות בין השורות של כל השחקנים.</p>
+
+                <h4>ציון ה-Brier</h4>
+                <p>לכל שורה יש גם <b>ציון Brier</b> &mdash; עד כמה סיכויי הניצחון שלמעלה תאמו את
+                מה שקרה בפועל במשחקים הספציפיים האלה.</p>
+                <p class="corr-formula">Brier = ממוצע של (outcome &minus; p)&sup2;, על פני כל המשחקים &mdash;
+                כאשר <i>p</i> הוא סיכוי הניצחון מתוך <i>PR Win-Probability Table</i>, ו-<i>outcome</i> הוא
+                1 עבור ניצחון, 0 עבור הפסד.</p>
+                <div class="brier-scale">
+                    <div class="brier-scale-bar"></div>
+                    <div class="brier-scale-ticks">
+                        <span class="brier-scale-tick" style="left:0%"><b>0</b><small>התאמה מושלמת</small></span>
+                        <span class="brier-scale-tick" style="left:25%"><b>0.25</b><small>כמו הטלת מטבע</small></span>
+                        <span class="brier-scale-tick" style="left:100%"><b>1</b><small>בעיקר הפתעות</small></span>
+                    </div>
+                </div>
+                <table class="corr-band-table">
+                    <tr><th>Brier</th><th>תיאור</th></tr>
+                    <tr><td>0.00 &ndash; 0.05</td><td>התאמה מצוינת</td></tr>
+                    <tr><td>0.05 &ndash; 0.15</td><td>התאמה חזקה</td></tr>
+                    <tr><td>0.15 &ndash; 0.22</td><td>התאמה טובה</td></tr>
+                    <tr><td>0.22 &ndash; 0.28</td><td>כמו הטלת מטבע</td></tr>
+                    <tr><td>0.28 &ndash; 0.45</td><td>התאמה חלשה</td></tr>
+                    <tr><td>0.45 &ndash; 1.00</td><td>בעיקר הפתעות</td></tr>
+                </table>
+                <p>הציון מוצג כבר מהמשחק הראשון של שחקן, גם אם ניצח או הפסיד בכל המשחקים עד כה
+                &mdash; אך כמו כל ממוצע, הוא רועש יותר כשיש רק מעט משחקים.</p>
+
+                <h4>ציון המזל</h4>
+                <p>לכל שחקן יש גם ציון <b>מזל</b> מסומן, בין <code>&minus;1</code> ל-
+                <code>+1</code>: ניצחון תמיד נספר לטובתו (יותר, ככל שהיה נחות יותר), הפסד תמיד
+                נספר לרעתו (יותר, ככל שהיה מועדף יותר).</p>
+                <p class="corr-formula">Luck = ממוצע של r&times;|r|, כאשר r = outcome &minus; p (אותם p ו-
+                outcome כמו ב-Brier) &mdash; בריבוע כמו Brier, אך עם שמירה על הסימן במקום לאבד אותו.</p>
+                <div class="brier-scale">
+                    <div class="brier-scale-bar luck-scale-bar"></div>
+                    <div class="brier-scale-ticks">
+                        <span class="brier-scale-tick" style="left:0%"><b>&minus;1</b><small>ביש מזל בקיצוניות</small></span>
+                        <span class="brier-scale-tick" style="left:50%"><b>0</b><small>מאוזן</small></span>
+                        <span class="brier-scale-tick" style="left:100%"><b>+1</b><small>בר מזל בקיצוניות</small></span>
+                    </div>
+                </div>
+                <table class="corr-band-table">
+                    <tr><th>|מזל|</th><th>תיאור</th></tr>
+                    <tr><td>0.00 &ndash; 0.05</td><td>מאוזן</td></tr>
+                    <tr><td>0.05 &ndash; 0.15</td><td>בר מזל / ביש מזל במעט</td></tr>
+                    <tr><td>0.15 &ndash; 0.30</td><td>בר מזל / ביש מזל</td></tr>
+                    <tr><td>0.30 &ndash; 0.55</td><td>בר מזל / ביש מזל מאוד</td></tr>
+                    <tr><td>0.55 &ndash; 1.00</td><td>בר מזל / ביש מזל בקיצוניות</td></tr>
+                </table>
+                <p>הכיוון (בר מזל מול ביש מזל) נגזר מהסימן של הציון: <b>+1</b> אומר שתמיד היה הנחות
+                ותמיד ניצח; <b>&minus;1</b> אומר שתמיד היה המועדף ובכל זאת הפסיד;
+                <b>0</b> אומר שהתוצאות תאמו את הציפיות. הציון לא מוצג בשורה הכללית של הליגה,
+                מכיוון שבשורה הזו יש רק מנצחים וציון מסומן לא היה אומר שם דבר
+                &mdash; יש להשתמש בציון ה-Brier של אותה שורה במקום.</p>
+                </div>
             </div>
             <div id="corr-container"></div>
             <button id="add-corr-chart" class="add-chart-btn" title="Add another player's correlation row">+ Add player chart</button>
@@ -464,15 +581,20 @@ function insightsPanel() {
             </h2>
             <div class="predictor-info-popup" id="league-corr-info-popup" hidden>
                 <button class="predictor-info-close" id="league-corr-info-close">&times;</button>
+                <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
+                <div class="popup-lang-en" data-lang="en">
                 <h4>Reading the histograms</h4>
                 <p>Instead of one dot per match (as in the Player section above), each row here is a
                 <b>histogram</b>: bars are 1 PR point wide, and a bar's height is the share (%) of matches at
                 that gap, measured as <i>PR of the loser &minus; PR of the winner</i>. A positive value means
                 the favourite won as expected; a negative value means an upset.</p>
                 <p><b>League &mdash; all matches</b> pools every match played in this league; <b>All League
-                Matches</b> pools every match ever played in every league of this same league type. This
-                section has its own axis, sized to the widest PR gap seen in the league (or across all-time
-                history, once that loads) &mdash; independent of the player rows' axis above.</p>
+                Matches</b> pools every match ever played in every league of this same league type <i>and</i>
+                the same match length (a bigger PR gap matters more over a longer match, so mixing match
+                lengths would blur the comparison). Matches with a technical result (no real PR to plot) aren't
+                included in either row. This section has its own axis, sized to the widest PR gap seen in the
+                league (or across all-time history, once that loads) &mdash; independent of the player rows'
+                axis above.</p>
 
                 <h4>The controls</h4>
                 <ul>
@@ -491,6 +613,9 @@ function insightsPanel() {
                 <h4>The Brier score</h4>
                 <p>Each row also has a <b>Brier score</b> (labelled "Model fit") &mdash; how well the win
                 chance predicted by the PR gap matched what actually happened in these specific matches.</p>
+                <p class="corr-formula">Brier = mean of (outcome &minus; p)&sup2;, over all matches &mdash;
+                where <i>p</i> is the win chance from the <i>PR Win-Probability Table</i> and <i>outcome</i> is
+                1 for a win, 0 for a loss.</p>
                 <div class="brier-scale">
                     <div class="brier-scale-bar"></div>
                     <div class="brier-scale-ticks">
@@ -511,6 +636,60 @@ function insightsPanel() {
                 <p>There's no Luck score here: these rows only ever contain winners (from the winner's own
                 side of each match), so a signed score wouldn't mean anything &mdash; Model Fit is the only
                 score shown.</p>
+                </div>
+                <div class="popup-lang-he" data-lang="he">
+                <h4>איך קוראים את ההיסטוגרמות</h4>
+                <p>במקום נקודה אחת לכל משחק (כמו בסקשן השחקנים שלמעלה), כל שורה כאן היא
+                <b>היסטוגרמה</b>: העמודות ברוחב נקודת PR אחת, וגובה עמודה הוא חלקם (%) של המשחקים באותו פער,
+                נמדד כ<i>PR של המפסיד &minus; PR של המנצח</i>. ערך חיובי אומר
+                שהמועדף ניצח כצפוי; ערך שלילי אומר שהייתה הפתעה.</p>
+                <p><b>הליגה &mdash; כל המשחקים</b> מרכזת את כל המשחקים ששוחקו בליגה הזו; <b>כל משחקי הליגות</b>
+                מרכזת את כל המשחקים ששוחקו אי פעם בכל הליגות מאותו סוג ליגה <i>וגם</i> אותו אורך משחק
+                (פער PR משמעותי יותר במשחק ארוך יותר, כך שערבוב אורכי משחק שונים היה מטשטש את ההשוואה).
+                משחקים עם תוצאה טכנית (שאין להם PR אמיתי להצגה) אינם נכללים באף אחת מהשורות. לסקשן הזה
+                יש ציר משלו, בגודל שמתאים לפער ה-PR הרחב ביותר שנצפה בליגה (או בהיסטוריה
+                של כל הליגות, לאחר שהיא נטענת) &mdash; בלתי תלוי בציר של שורות השחקנים שלמעלה.</p>
+
+                <h4>הבקרות</h4>
+                <ul>
+                    <li><b>הזזת פער PR</b> (בשורת "כל הליגות" בלבד) מוסיפה קבוע לפער של כל משחק לפני
+                    שהתאמת המודל מחושבת מחדש, כדי לבדוק האם נקודת הכיול של המודל מוזזת בכמות קבועה.</li>
+                    <li><b>חתוך ל-99%</b> מקרב את התצוגה של השורה לאמצע 99% מהמשחקים שלה, ומסתיר
+                    את העמודות החריגות &mdash; לתצוגה בלבד, לעולם לא משנה את התאמת המודל.</li>
+                    <li><b>התאמת גאוס</b> מציגה עקומה נורמלית שמותאמת לממוצע ולסטיית התקן של אותה שורה
+                    (מוצגים כ-&mu; ו-&sigma;), בתוספת קווים מקווקווים בממוצע ובמרחק &plusmn;1
+                    סטיית תקן. זהו הפניה חזותית בלבד &mdash; לא טענה שפערי ה-PR אכן
+                    מתפלגים נורמלית. הכפתור מנוטרל כשלשורה אין עדיין מספיק משחקים
+                    שממוצע/סטיית תקן יהיו משמעותיים.</li>
+                </ul>
+
+                <h4>ציון ה-Brier</h4>
+                <p>לכל שורה יש גם <b>ציון Brier</b> (מסומן "התאמת מודל") &mdash; עד כמה סיכויי
+                הניצחון שנקבעו לפי פער ה-PR תאמו את מה שקרה בפועל במשחקים הספציפיים האלה.</p>
+                <p class="corr-formula">Brier = ממוצע של (outcome &minus; p)&sup2;, על פני כל המשחקים &mdash;
+                כאשר <i>p</i> הוא סיכוי הניצחון מתוך <i>PR Win-Probability Table</i>, ו-<i>outcome</i> הוא
+                1 עבור ניצחון, 0 עבור הפסד.</p>
+                <div class="brier-scale">
+                    <div class="brier-scale-bar"></div>
+                    <div class="brier-scale-ticks">
+                        <span class="brier-scale-tick" style="left:0%"><b>0</b><small>התאמה מושלמת</small></span>
+                        <span class="brier-scale-tick" style="left:25%"><b>0.25</b><small>כמו הטלת מטבע</small></span>
+                        <span class="brier-scale-tick" style="left:100%"><b>1</b><small>בעיקר הפתעות</small></span>
+                    </div>
+                </div>
+                <table class="corr-band-table">
+                    <tr><th>Brier</th><th>תיאור</th></tr>
+                    <tr><td>0.00 &ndash; 0.05</td><td>התאמה מצוינת</td></tr>
+                    <tr><td>0.05 &ndash; 0.15</td><td>התאמה חזקה</td></tr>
+                    <tr><td>0.15 &ndash; 0.22</td><td>התאמה טובה</td></tr>
+                    <tr><td>0.22 &ndash; 0.28</td><td>כמו הטלת מטבע</td></tr>
+                    <tr><td>0.28 &ndash; 0.45</td><td>התאמה חלשה</td></tr>
+                    <tr><td>0.45 &ndash; 1.00</td><td>בעיקר הפתעות</td></tr>
+                </table>
+                <p>אין כאן ציון מזל: בשורות האלה תמיד יש רק מנצחים (מנקודת המבט של המנצח
+                בכל משחק), כך שציון מסומן לא היה אומר דבר &mdash; התאמת המודל היא הציון
+                היחיד המוצג.</p>
+                </div>
             </div>
             <div id="corr-league-container"></div>
         </section>
@@ -602,22 +781,39 @@ function renderHistorical(ctx) {
     const prevBtn = document.getElementById('hist-prev');
     const nextBtn = document.getElementById('hist-next');
     const fullLink = document.getElementById('hist-to-full');
-    fullLink.href = leagueTableUrl(leagueId);
 
-    const historyDates = getUpdateDates(history); // descending
-    // Build options: "Current" first (always), then history dates
+    const updatePoints = getUpdatePoints(history); // descending, date+time
+    // Build options: "Current" first (always), then each historical update point
     const currentLabel = lastModified
         ? `Current (${formatLastModified(lastModified)})`
         : 'Current';
     const options = [{ value: '__current__', label: currentLabel }];
-    for (const d of historyDates) options.push({ value: d, label: d });
+    for (const p of updatePoints) options.push({ value: p.value, label: p.label });
 
     select.innerHTML = options.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+
+    // The "Open full table" button follows the selected snapshot: for Current it
+    // opens the live league table; for a historical point it carries ?asof= so
+    // table D rebuilds that snapshot, and its label flags the historical state.
+    function syncFullLink() {
+        const value = select.value;
+        const label = options[select.selectedIndex] ? options[select.selectedIndex].label : '';
+        if (value === '__current__') {
+            fullLink.href = leagueTableUrl(leagueId);
+            fullLink.textContent = 'Open full table ›';
+            fullLink.title = 'Open the full league table for the current state';
+        } else {
+            fullLink.href = `${leagueTableUrl(leagueId)}&asof=${encodeURIComponent(value)}`;
+            fullLink.textContent = 'Open full historical table ›';
+            fullLink.title = `Open the full league table as of ${label} (historical version)`;
+        }
+    }
 
     function update() {
         const idx = select.selectedIndex;
         prevBtn.disabled = idx <= 0;
         nextBtn.disabled = idx >= options.length - 1;
+        syncFullLink();
         drawHistTable(ctx, select.value);
     }
 
@@ -645,8 +841,8 @@ function drawHistTable(ctx, dateValue) {
     if (dateValue === '__current__') {
         matchesForView = liveMatches;
     } else {
-        const cutoff = dateValue + 'T23:59:59Z';
-        matchesForView = getMatchesAsOf(history, cutoff);
+        // dateValue is now an exact update-point timestamp (see getUpdatePoints)
+        matchesForView = getMatchesAsOf(history, dateValue);
     }
 
     const statsMap = computeAllStats(matchesForView, allPlayersSet);
@@ -656,7 +852,12 @@ function drawHistTable(ctx, dateValue) {
     const silverCount = params.SilverCount || 1;
     const bronzeCount = params.BronzeCount || 4;
     const medalLimit = goldCount + silverCount + bronzeCount;
-    const top = rankings.filter(r => r.rank <= medalLimit && r.games > 0);
+    // B2 shows only the medal positions. A player who hasn't played yet as of
+    // this snapshot must still appear if the league's ranking criteria place them
+    // within the medals (their primary stat is null → sorted to the bottom, so in
+    // practice this only happens very early on) — so we cap by rank but do NOT
+    // drop games === 0. Only 'Bye' is excluded.
+    const top = rankings.filter(r => r.rank <= medalLimit && r.player !== 'Bye');
 
     function rankClass(rank) {
         if (rank <= goldCount) return 'rank-gold';
@@ -717,10 +918,7 @@ async function renderPredictor(ctx) {
     const infoBtn = document.getElementById('predictor-info-btn');
     const infoPopup = document.getElementById('predictor-info-popup');
     const infoClose = document.getElementById('predictor-info-close');
-    if (infoBtn && infoPopup) {
-        infoBtn.addEventListener('click', () => { infoPopup.hidden = !infoPopup.hidden; });
-        if (infoClose) infoClose.addEventListener('click', () => { infoPopup.hidden = true; });
-    }
+    wireLangPopup(section, { btn: infoBtn, popup: infoPopup, close: infoClose });
     wireSectionCollapse(section, { defaultOpen: true, infoBtn });
 
     // Find remaining (unplayed) matches
@@ -879,13 +1077,7 @@ function renderWhatIfSimulator(ctx) {
     wireSectionCollapse(section, { defaultOpen: true, infoBtn });
 
     // Info popup
-    if (infoBtn && infoPopup) {
-        infoBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            infoPopup.hidden = !infoPopup.hidden;
-        });
-    }
-    if (infoClose) infoClose.addEventListener('click', () => { infoPopup.hidden = true; });
+    wireLangPopup(section, { btn: infoBtn, popup: infoPopup, close: infoClose });
 
     // Build schedule index: canonical key -> match record
     const scheduleByKey = new Map();
@@ -1877,11 +2069,14 @@ function meanStd(values) {
 function buildGaussianExplainerHtml(values) {
     const { mean, std } = meanStd(values);
     const meanDir = mean >= 0 ? 'better (a lower PR)' : 'worse (a higher PR)';
+    const meanDirHe = mean >= 0 ? 'טוב יותר (PR נמוך יותר)' : 'גרוע יותר (PR גבוה יותר)';
     const loBand = (mean - std).toFixed(2);
     const hiBand = (mean + std).toFixed(2);
 
     return `
         <button class="predictor-info-close corr-gaussian-popup-close" aria-label="Close">&times;</button>
+        <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
+        <div class="popup-lang-en" data-lang="en">
         <h4>What do &mu; and &sigma; actually mean?</h4>
         <p><b>&mu; (mean) = ${mean.toFixed(2)}</b>: on average, across these matches, the player who actually
         won had a PR about ${Math.abs(mean).toFixed(2)} points ${meanDir} than the player who lost that
@@ -1889,6 +2084,16 @@ function buildGaussianExplainerHtml(values) {
         <p><b>&sigma; (standard deviation) = ${std.toFixed(2)}</b>: results vary a lot around that average
         &mdash; about two-thirds of matches (one standard deviation either side of the mean) had a winner-side
         PR gap somewhere between <b>${loBand}</b> and <b>${hiBand}</b>.</p>
+        </div>
+        <div class="popup-lang-he" data-lang="he">
+        <h4>מה בעצם &mu; ו-&sigma; אומרים?</h4>
+        <p><b>&mu; (ממוצע) = ${mean.toFixed(2)}</b>: בממוצע, על פני המשחקים האלה, לשחקן שבאמת
+        ניצח היה PR טוב בכ-${Math.abs(mean).toFixed(2)} נקודות ${meanDirHe} מהשחקן שהפסיד באותו
+        משחק.</p>
+        <p><b>&sigma; (סטיית תקן) = ${std.toFixed(2)}</b>: התוצאות משתנות הרבה סביב הממוצע הזה
+        &mdash; בכשני שליש מהמשחקים (סטיית תקן אחת לכל צד של הממוצע) פער ה-PR מצד המנצח היה
+        אי שם בין <b>${loBand}</b> ל-<b>${hiBand}</b>.</p>
+        </div>
     `;
 }
 
@@ -1943,15 +2148,23 @@ function binomTailLikelihood(n, k, p) {
 
 // Plain-language read of a Likelihood value, for the table's own "What this
 // means" column — so a reader doesn't need to interpret the raw % themselves.
-const LIKELIHOOD_BANDS = [
-    { max: 0.02, text: 'Hard to explain by luck alone' },
-    { max: 0.05, text: 'Notably unusual' },
-    { max: 0.15, text: 'Mildly unusual' },
-    { max: Infinity, text: 'Normal, expected variation' },
-];
+const LIKELIHOOD_BANDS = {
+    en: [
+        { max: 0.02, text: 'Hard to explain by luck alone' },
+        { max: 0.05, text: 'Notably unusual' },
+        { max: 0.15, text: 'Mildly unusual' },
+        { max: Infinity, text: 'Normal, expected variation' },
+    ],
+    he: [
+        { max: 0.02, text: 'קשה להסביר במקרה בלבד' },
+        { max: 0.05, text: 'חריג במידה ניכרת' },
+        { max: 0.15, text: 'חריג במידה קלה' },
+        { max: Infinity, text: 'שונות רגילה, צפויה' },
+    ],
+};
 
-function likelihoodAssessment(likelihood) {
-    return LIKELIHOOD_BANDS.find(b => likelihood <= b.max).text;
+function likelihoodAssessment(likelihood, lang = 'en') {
+    return LIKELIHOOD_BANDS[lang].find(b => likelihood <= b.max).text;
 }
 
 /**
@@ -1990,47 +2203,66 @@ function buildExplanationTableHtml(rows, shift, mlIdx) {
     const pctMin = pctValues.length ? Math.min(...pctValues) : 50;
     const pctMax = pctValues.length ? Math.max(...pctValues) : 100;
 
-    let bodyRows = '';
-    for (const r of gapRows) {
-        if (r.dataPct == null) {
-            bodyRows += `<tr><td>${r.gap}</td><td>0</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
-                <td>${r.tablePct.toFixed(1)}%</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>`;
-            continue;
+    function renderTable(lang) {
+        let bodyRows = '';
+        for (const r of gapRows) {
+            if (r.dataPct == null) {
+                bodyRows += `<tr><td>${r.gap}</td><td>0</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
+                    <td>${r.tablePct.toFixed(1)}%</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>`;
+                continue;
+            }
+            const dataColor = colorForValue(r.dataPct, pctMin, pctMax);
+            const tableColor = colorForValue(r.tablePct, pctMin, pctMax);
+            // Error/Likelihood/"What this means" all use the separate
+            // confidence (blue-amber-red) theme, keyed off this row's own
+            // likelihood, so the three cells read as one consistent verdict on
+            // the row rather than three independently-scaled numbers.
+            const confColor = colorForConfidence(Math.min(r.likelihood, 0.5), 0, 0.5);
+            bodyRows += `<tr>
+                <td>${r.gap}</td>
+                <td>${r.total}</td>
+                <td>${r.posCount}</td>
+                <td>${r.negCount}</td>
+                <td style="color:${dataColor}">${r.dataPct.toFixed(1)}%</td>
+                <td style="color:${tableColor}">${r.tablePct.toFixed(1)}%</td>
+                <td style="color:${confColor}">${r.error >= 0 ? '+' : ''}${r.error.toFixed(1)}</td>
+                <td style="color:${confColor}">${(r.likelihood * 100).toFixed(1)}%</td>
+                <td style="color:${confColor}">${likelihoodAssessment(r.likelihood, lang)}</td>
+            </tr>`;
         }
-        const dataColor = colorForValue(r.dataPct, pctMin, pctMax);
-        const tableColor = colorForValue(r.tablePct, pctMin, pctMax);
-        // Error/Likelihood/"What this means" all use the separate
-        // confidence (blue-amber-red) theme, keyed off this row's own
-        // likelihood, so the three cells read as one consistent verdict on
-        // the row rather than three independently-scaled numbers.
-        const confColor = colorForConfidence(Math.min(r.likelihood, 0.5), 0, 0.5);
-        bodyRows += `<tr>
-            <td>${r.gap}</td>
-            <td>${r.total}</td>
-            <td>${r.posCount}</td>
-            <td>${r.negCount}</td>
-            <td style="color:${dataColor}">${r.dataPct.toFixed(1)}%</td>
-            <td style="color:${tableColor}">${r.tablePct.toFixed(1)}%</td>
-            <td style="color:${confColor}">${r.error >= 0 ? '+' : ''}${r.error.toFixed(1)}</td>
-            <td style="color:${confColor}">${(r.likelihood * 100).toFixed(1)}%</td>
-            <td style="color:${confColor}">${likelihoodAssessment(r.likelihood)}</td>
-        </tr>`;
+
+        const headers = lang === 'he'
+            ? ['הפרש PR', 'משחקים', 'ניצחונות המועדף', 'הפסדי המועדף', 'Win% של הנתונים', 'Win% של הטבלה', 'שגיאה', 'Likelihood', 'המשמעות']
+            : ['PR gap', 'Matches', 'Favourite wins', 'Favourite loses', 'Win% of data', 'Win% of table', 'Error', 'Likelihood', 'What this means'];
+
+        return `
+            <div class="corr-band-table-scroll">
+                <table class="corr-band-table">
+                    <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+                    ${bodyRows}
+                </table>
+            </div>
+        `;
     }
 
     return `
         <button class="predictor-info-close corr-explanation-popup-close" aria-label="Close">&times;</button>
+        <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
+        <div class="popup-lang-en" data-lang="en">
         <h4>Model validation: does the data match the table?</h4>
         <p>This table is built only from matches actually played &mdash; not a theoretical curve. For each PR
-        gap, it checks how often the favourite really won against what the win-probability table predicts.
-        "Likelihood" is a plain read of how surprising that row's result is &mdash; explained in the last
-        column, so you don't need to interpret the number yourself.</p>
-        <div class="corr-band-table-scroll">
-            <table class="corr-band-table">
-                <tr><th>PR gap</th><th>Matches</th><th>Favourite wins</th><th>Favourite loses</th>
-                    <th>Win% of data</th><th>Win% of table</th><th>Error</th><th>Likelihood</th>
-                    <th>What this means</th></tr>
-                ${bodyRows}
-            </table>
+        gap, it checks how often the favourite really won against what the <i>PR Win-Probability Table</i>
+        predicts. "Likelihood" is a plain read of how surprising that row's result is &mdash; explained in the
+        last column, so you don't need to interpret the number yourself.</p>
+        ${renderTable('en')}
+        </div>
+        <div class="popup-lang-he" data-lang="he">
+        <h4>אימות מודל: האם הנתונים תואמים את הטבלה?</h4>
+        <p>הטבלה הזו בנויה רק ממשחקים ששוחקו בפועל &mdash; לא מעקומה תיאורטית. עבור כל פער
+        PR, היא בודקת כמה פעמים המועדף באמת ניצח, לעומת מה שה<i>PR Win-Probability Table</i>
+        חוזה. "Likelihood" הוא קריאה פשוטה של עד כמה תוצאת השורה מפתיעה &mdash; מוסברת בעמודה
+        האחרונה, כך שאין צורך לפרש את המספר בעצמכם.</p>
+        ${renderTable('he')}
         </div>
     `;
 }
@@ -2119,13 +2351,19 @@ function applyLuckPill(pillEl, luck) {
     pillEl.title = 'Signed-luck score: same per-match building block as Brier, but keeps the sign. +1 = maximally lucky (always the underdog, always won), -1 = maximally unlucky (always favoured, always lost), 0 = results matched the PR model exactly.';
 }
 
-function wireInfoPopup(btnId, popupId, closeId) {
-    const btn = document.getElementById(btnId);
-    const popup = document.getElementById(popupId);
-    const close = document.getElementById(closeId);
-    if (!btn || !popup) return;
-    btn.addEventListener('click', () => { popup.hidden = !popup.hidden; });
-    if (close) close.addEventListener('click', () => { popup.hidden = true; });
+// Scopes wireLangPopup to a single section, so its flag buttons only ever
+// affect (and read) that section's own popup — needed because multiple
+// sections' flag buttons share the same class, and querySelectorAll from
+// document would otherwise wire every section's flags to whichever popup
+// was passed in.
+function wireSectionLangPopup(sectionId, btnId, popupId, closeId) {
+    const section = document.getElementById(sectionId);
+    if (!section) return;
+    wireLangPopup(section, {
+        btn: document.getElementById(btnId),
+        popup: document.getElementById(popupId),
+        close: document.getElementById(closeId),
+    });
 }
 
 function renderPrCorrelationSection(ctx) {
@@ -2135,8 +2373,8 @@ function renderPrCorrelationSection(ctx) {
     const leagueContainer = document.getElementById('corr-league-container');
     if (!container || !leagueContainer) return;
 
-    wireInfoPopup('pr-corr-info-btn', 'pr-corr-info-popup', 'pr-corr-info-close');
-    wireInfoPopup('league-corr-info-btn', 'league-corr-info-popup', 'league-corr-info-close');
+    wireSectionLangPopup('pr-corr-section', 'pr-corr-info-btn', 'pr-corr-info-popup', 'pr-corr-info-close');
+    wireSectionLangPopup('league-corr-section', 'league-corr-info-btn', 'league-corr-info-popup', 'league-corr-info-close');
 
     const generalSeries = buildGeneralAdvantageSeries(liveMatches);
     const domain = computeCorrelationDomain(generalSeries);
@@ -2261,6 +2499,7 @@ function renderPrCorrelationSection(ctx) {
             generalGaussianStatsEl.textContent = `μ = ${mean.toFixed(2)}   σ = ${std.toFixed(2)}`;
             generalGaussianPopup.innerHTML = buildGaussianExplainerHtml(shiftedValues);
             generalGaussianPopup.hidden = false;
+            wireDynamicLangPopup(generalGaussianPopup);
             generalGaussianPopup.querySelector('.corr-gaussian-popup-close').addEventListener('click', () => {
                 generalShowGaussian = false;
                 redrawGeneral();
@@ -2362,12 +2601,20 @@ function renderPrCorrelationSection(ctx) {
     let shift = 0;
     loadVisibleLeagues().then(leagues => {
         const leagueType = ctx.leagueConfig.type;
-        const typeLeagues = leagues.filter(l => l.leagueType === leagueType);
+        // Same league type AND same match length (column in the PR
+        // Win-Probability Table) — pooling different match lengths together
+        // would mix matches whose win-probability model is genuinely
+        // different (a bigger PR gap matters more over a longer match), so
+        // it wouldn't be one consistent population to compare against a
+        // single table column the way the Model-validation popup does.
+        const typeLeagues = leagues.filter(l =>
+            l.leagueType === leagueType &&
+            nearestMatchLengthIdx(l.params.MatchLength || 7) === generalMlIdx
+        );
         const rows = [];
         for (const league of typeLeagues) {
-            const mlIdx = nearestMatchLengthIdx(league.params.MatchLength || 7);
             for (const m of buildGeneralAdvantageSeries(league.matches)) {
-                rows.push({ ...m, mlIdx });
+                rows.push({ ...m, mlIdx: generalMlIdx });
             }
         }
 
@@ -2452,6 +2699,7 @@ function renderPrCorrelationSection(ctx) {
                 // leagues.
                 gaussianPopup.innerHTML = buildGaussianExplainerHtml(shiftedValues);
                 gaussianPopup.hidden = false;
+                wireDynamicLangPopup(gaussianPopup);
                 gaussianPopup.querySelector('.corr-gaussian-popup-close').addEventListener('click', () => {
                     showGaussian = false;
                     redrawAllTime();
@@ -2478,6 +2726,7 @@ function renderPrCorrelationSection(ctx) {
                 // leagues.
                 explanationPopup.innerHTML = buildExplanationTableHtml(rows, shift, generalMlIdx);
                 explanationPopup.hidden = false;
+                wireDynamicLangPopup(explanationPopup);
                 explanationPopup.querySelector('.corr-explanation-popup-close').addEventListener('click', () => {
                     showExplanation = false;
                     redrawAllTime();

@@ -174,15 +174,26 @@ begin
 end;
 $$;
 
--- Apply both triggers to every data table (audit_log/league_snapshots excluded —
+-- Apply triggers to every data table (audit_log/league_snapshots excluded —
 -- see A.4/H design notes: they're append-only from the app's perspective).
+--
+-- set_updated_at() is applied to every data table EXCEPT match_history:
+-- match_history.updated_at is DOMAIN data — the reconcile (scripts/sync-source.js
+-- + js/admin/supabaseAdmin.js) writes it explicitly to record when a pairing's
+-- RESULT last changed, and the Historical view (B2) reads it as such. A blanket
+-- before-update stamp would overwrite those real change-dates with now() on every
+-- reconcile upsert and collapse the whole history to one timestamp. The audit
+-- trigger still applies to all six tables.
 do $$
 declare
   t text;
 begin
-  foreach t in array array['leagues','matches','manual_overrides','match_history','players_metadata','landing_settings']
+  foreach t in array array['leagues','matches','manual_overrides','players_metadata','landing_settings']
   loop
     execute format('create trigger trg_%I_updated_at before update on public.%I for each row execute function public.set_updated_at();', t, t);
+  end loop;
+  foreach t in array array['leagues','matches','manual_overrides','match_history','players_metadata','landing_settings']
+  loop
     execute format('create trigger trg_%I_audit after insert or update or delete on public.%I for each row execute function public.log_audit_event();', t, t);
   end loop;
 end;

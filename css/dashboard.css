@@ -749,6 +749,78 @@
     color: var(--color-bg);
 }
 
+/* Language flags next to a "?" button — click sets the site-wide popup
+   language (see js/utils/popupLang.js) and opens that popup. */
+.popup-lang-flags {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: var(--space-xs);
+    vertical-align: middle;
+}
+.popup-lang-flag {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    background: none;
+    cursor: pointer;
+    opacity: 0.55;
+    transition: opacity 0.15s, border-color 0.15s;
+}
+.popup-lang-flag:hover {
+    opacity: 0.85;
+}
+/* Flags rendered INSIDE a popup (top of its content, not next to the "?"
+   that opened it) — a plain flow row, left-aligned so it never collides
+   with the absolutely-positioned × close button in the top-right corner. */
+.popup-lang-flags-bar {
+    margin-bottom: var(--space-sm);
+}
+.popup-lang-flags-bar .popup-lang-flags {
+    margin-left: 0;
+}
+.popup-lang-flag img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    pointer-events: none;
+}
+/* Highlights whichever flag matches the current global language — toggled
+   in JS (wireLangPopup, popupLang.js), not CSS, since a flag button and its
+   popup aren't always adjacent siblings in the DOM. */
+.popup-lang-flag.is-active {
+    opacity: 1;
+    border-color: var(--color-accent);
+}
+
+/* Each popup carries both languages inline; data-active-lang (kept in sync
+   by wireLangPopup, see popupLang.js) picks which block CSS shows — no
+   innerHTML swap, no re-render. Hebrew blocks switch to RTL reading order. */
+.predictor-info-popup[data-active-lang="en"] .popup-lang-he,
+.predictor-info-popup[data-active-lang="he"] .popup-lang-en,
+.predictor-info-popup:not([data-active-lang]) .popup-lang-he {
+    display: none;
+}
+.predictor-info-popup[data-active-lang="he"] .popup-lang-he {
+    direction: rtl;
+    text-align: right;
+}
+.predictor-info-popup[data-active-lang="he"] .popup-lang-he ul {
+    padding-left: 0;
+    padding-right: 1.4em;
+}
+.predictor-info-popup[data-active-lang="he"] .popup-lang-he table {
+    direction: rtl;
+}
+.predictor-info-popup[data-active-lang="he"] .popup-lang-he th,
+.predictor-info-popup[data-active-lang="he"] .popup-lang-he td {
+    text-align: right;
+}
+
 .predictor-info-popup {
     position: relative;
     background: var(--popover-bg);
@@ -779,6 +851,16 @@
 }
 .predictor-info-popup p {
     margin: var(--space-xs) 0;
+}
+/* Compact math-notation line under a score's prose explanation (Brier,
+   Luck) — monospace and muted so it reads as a formula, not more prose. */
+.corr-formula {
+    font-family: var(--font-mono, monospace);
+    font-size: var(--fs-085);
+    color: var(--color-text-muted);
+    background: var(--color-inset);
+    border-radius: var(--radius-sm);
+    padding: var(--space-xs) var(--space-sm);
 }
 .pr-prob-table {
     border-collapse: collapse;

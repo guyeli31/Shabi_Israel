@@ -817,10 +817,22 @@ async function writeMatchesToSupabase(folder, csvText) {
 async function reconcileMatchHistoryInSupabase(folder) {
   const now = new Date().toISOString();
 
-  const { data: matchRows } = await supabase
+  const { data: matchRows, error: matchErr } = await supabase
     .from('matches').select('*').eq('league_id', folder).eq('played', true).order('round', { ascending: true });
+  // A read failure must NOT be treated as "0 matches" — that would stale-delete
+  // the whole history below. Abort the reconcile instead of wiping.
+  if (matchErr) throw new Error(`match_history reconcile aborted for ${folder}: could not read matches — ${matchErr.message}`);
   const { data: overrideRows } = await supabase.from('manual_overrides').select('*').eq('league_id', folder);
   const { data: historyRows } = await supabase.from('match_history').select('*').eq('league_id', folder);
+
+  // Refuse to reconcile a non-empty history down to nothing from an empty match
+  // set. A league with existing history but suddenly 0 played matches is almost
+  // certainly a transient/upstream glitch, not a real reset — skip rather than
+  // wipe every pairing's history (the failure mode that collapsed B2 once).
+  if ((matchRows || []).length === 0 && (historyRows || []).length > 0) {
+    console.log(`  → Skipping match_history reconcile for ${folder}: 0 played matches but ${historyRows.length} existing history row(s) — refusing to wipe.`);
+    return;
+  }
 
   const key = (a, b) => [a, b].sort().join('|');
   const csvMatches = (matchRows || []).map((m) => ({

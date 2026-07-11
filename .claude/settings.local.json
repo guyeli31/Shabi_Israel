@@ -53,7 +53,19 @@
       "Bash(node --check js/admin/leagueManager.js)",
       "Bash(git symbolic-ref *)",
       "Bash(git ls-tree *)",
-      "Bash(git rev-list *)"
+      "Bash(git rev-list *)",
+      "Bash(head -50 \"C:/Users/User/.claude/plans/gentle-sparking-kay.md\")",
+      "Bash(python -c \"import PIL; print\\('PIL ok', PIL.__version__\\)\")",
+      "Bash(python scripts/fetch-flag.py GB assets/flags)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://raw.githubusercontent.com/msikma/country-flags/master/flags/png/gb-eng.png)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://raw.githubusercontent.com/msikma/country-flags/master/flags/png/gb-uk.png)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://raw.githubusercontent.com/msikma/country-flags/master/flags/png/uk.png)",
+      "Bash(curl -s \"https://api.github.com/repos/msikma/country-flags/contents/flags/png\")",
+      "Bash(python -)",
+      "Bash(python scripts/make-lang-icon.py GB assets/lang-icons)",
+      "Bash(python scripts/make-lang-icon.py IL assets/lang-icons)",
+      "Bash(node --check js/admin/syncLog.js)",
+      "Bash(node --check js/admin/syncManager.js)"
     ]
   }
 }

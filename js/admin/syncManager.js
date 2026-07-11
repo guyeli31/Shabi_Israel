@@ -28,7 +28,7 @@ import { wireSectionCollapse } from '../render/sectionCollapse.js';
 import { thLabel } from '../utils/helpers.js';
 import {
     createSyncLog, friendlySyncError, latestEventId, pollSyncDispatch, streamSyncEvents,
-    latestSiteEventId, streamSiteEvents,
+    latestSiteEventId, streamSiteEvents, loadLastRun,
 } from './syncLog.js';
 
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
@@ -168,6 +168,21 @@ export function renderSyncPage(container, leagues, settings) {
     wireActiveLeagues(container, leagues);
     wireRunNow(container, active);
     wireAutoSync(container, leagues, settings);
+    wirePlanLastRuns(container);
+    wireLogCollapse(container);
+    wireDirtyTracking(container, active);
+}
+
+/** Populate each plan card's per-league "Last run" panels from stored events. */
+function wirePlanLastRuns(container) {
+    container.querySelectorAll('.sync-lastrun-log').forEach((el) => {
+        const logger = createSyncLog(el, { max: 40 });
+        logger.log('Loading last run…', 'info');
+        loadLastRun(el.dataset.league, logger).catch(() => {
+            logger.clear();
+            logger.log("Couldn't load the last run.", 'error');
+        });
+    });
 }
 
 // ── Section 1: Active Leagues (F7) ─────────────────────────────────────────
@@ -191,8 +206,7 @@ function sectionActiveLeagues(active, plans, settings) {
             <tr data-league="${esc(lg.id)}">
                 <td><span style="font-weight:600">${esc(lg.params.LeagueTitle || lg.id)}</span> ${typePill(type)}</td>
                 <td><input type="text" class="sync-source-name" data-league="${esc(lg.id)}" data-published="${esc(pub)}" value="${esc(cur)}"
-                        placeholder="e.g. Shabi Israel"
-                        style="padding:2px 6px;border:1px solid var(--color-border);border-radius:4px;min-width:160px"></td>
+                        placeholder="e.g. Shabi Israel"></td>
                 <td>
                     ${chips || '<span style="color:var(--color-text-muted)">—</span>'}
                     <div class="sync-gate-hint" style="color:var(--color-text-muted);font-size:0.8em;margin-top:4px;display:${gateMsg ? '' : 'none'}">${esc(gateMsg)}</div>
@@ -229,7 +243,7 @@ function sectionActiveLeagues(active, plans, settings) {
                     </table>
                 </div>
                 <div style="margin-top:var(--space-md)">
-                    <button class="btn btn-primary" id="sync-leagues-save"${active.length ? '' : ' disabled'}>Save Settings</button>
+                    <button class="btn btn-primary" id="sync-leagues-save" disabled>Save Settings</button>
                 </div>
               </div>
             </div>
@@ -310,8 +324,10 @@ function sectionRunNow(active, settings) {
                 </p>
                 <div style="margin-bottom:var(--space-md)">${checks || '<span style="color:var(--color-text-muted)">—</span>'}</div>
                 <button class="btn btn-secondary" id="sync-runnow-btn"${disabled ? ' disabled' : ''}>Run Now</button>
-                <div id="sync-runnow-log" style="margin-top:var(--space-md)"></div>
-                <div id="sync-runnow-reports" style="margin-top:var(--space-md);display:flex;flex-direction:column;gap:var(--space-md)"></div>
+                ${collapsibleLogHTML('runnow', 'Activity log', `
+                    <div id="sync-runnow-log" style="margin-top:var(--space-md)"></div>
+                    <div id="sync-runnow-reports" style="margin-top:var(--space-md);display:flex;flex-direction:column;gap:var(--space-md)"></div>
+                `)}
               </div>
             </div>
           </div>
@@ -342,14 +358,10 @@ function wireRunNow(container, active) {
             const lg = active.find((l) => l.id === id);
             const title = lg ? (lg.params.LeagueTitle || id) : id;
             const type = lg ? (lg.params.LeagueType || 'doubling') : 'doubling';
-            const card = document.createElement('div');
-            card.className = 'admin-card';
-            card.style.cssText = 'background:var(--color-inset)';
-            card.innerHTML = `
-                <div style="margin-bottom:var(--space-sm)"><span style="font-weight:600">${esc(title)}</span> ${typePill(type)}</div>
-                <div class="sync-report-log"></div>`;
-            reportsEl.appendChild(card);
-            cards[id] = createSyncLog(card.querySelector('.sync-report-log'));
+            // Same card markup as a plan's Last Run (syncReportCardHTML), so the
+            // live report and the replay look identical.
+            reportsEl.insertAdjacentHTML('beforeend', syncReportCardHTML(title, type, 'sync-report-log'));
+            cards[id] = createSyncLog(reportsEl.lastElementChild.querySelector('.sync-report-log'));
             cards[id].log('Queued…', 'info');
             anchors[id] = await latestEventId(id);
         }
@@ -393,77 +405,173 @@ function wireRunNow(container, active) {
 }
 
 // ── Section 3: Auto Sync (plans) ───────────────────────────────────────────
+// Each plan is its own top-level collapsible section — the SAME hierarchy as the
+// Run Now card — so a plan reads as a peer control, not a nested well. Plan
+// sections live in #sync-plans-list (kept as a wrapper for click delegation +
+// dirty tracking); the Add Plan button sits just below the list.
 function sectionAutoSync(active, plans, settings) {
-    const cards = plans.map((pl) => planCardHTML(pl, active, settings)).join('');
+    const sections = plans.map((pl) => planCardHTML(pl, active, settings)).join('');
+    return `
+        <div id="sync-plans-msg"></div>
+        <div id="sync-plans-list">${sections}</div>
+        <div class="dash-section" style="margin-top:var(--space-sm)">
+            <button class="btn btn-secondary btn-sm" id="sync-add-plan" type="button">+ Add Plan</button>
+        </div>`;
+}
+
+// A plan renders as a full `.app-section--card` section (peer of Run Now), with
+// the plan name as its collapsible header. Inside, the layout mirrors Run Now:
+// settings → Save button → collapsible activity log ("Last run").
+function planCardHTML(pl, active, settings) {
+    const isDefault = pl.id === DEFAULT_PLAN_ID;
+    const memberCount = (pl.leagues || []).filter((id) => active.some((l) => l.id === id)).length;
+    const times = (pl.times && pl.times.length) ? pl.times : ['03:00'];
+    const timeRows = times.map((t) => timeRowHTML(t)).join('');
+    const headBadge = isDefault
+        ? '<span class="league-type-pill" style="margin-left:var(--space-sm)">Default</span>'
+        : '';
     return `
         <div class="dash-section">
           <div class="app-section app-section--card">
-            <h2 class="app-section-h2">Auto Sync</h2>
+            <h2 class="app-section-h2">${esc(pl.name)}${headBadge}</h2>
             <div class="collapsible-body">
-              <div class="admin-card edit-card-sm">
-                <div id="sync-plans-msg"></div>
-                <p style="color:var(--color-text-muted);margin-bottom:var(--space-md);font-size:0.9em">
-                    Scheduled plans run their member leagues automatically. Assign leagues to plans in <b>Active Leagues</b> above.
-                    If two plans cover the same league at the same time, it syncs <b>once</b> — the older plan wins and the newer one is skipped for that league (no double sync).
-                </p>
-                <div id="sync-plans-list">${cards}</div>
-                <button class="btn btn-secondary btn-sm" id="sync-add-plan" type="button" style="margin-top:var(--space-md)">+ Add Plan</button>
+              <div class="admin-card edit-card-sm sync-plan-card" data-plan-id="${esc(pl.id)}">
+                <div style="display:flex;align-items:center;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-sm)">
+                    <div class="form-group" style="flex:1;min-width:160px;margin:0">
+                        <label>Plan Name</label>
+                        <input type="text" class="sync-plan-name" value="${esc(pl.name)}" ${isDefault ? 'readonly' : ''}
+                            placeholder="Plan name">
+                    </div>
+                    <div class="form-group" style="margin:0">
+                        <label>Enabled</label>
+                        <label class="toggle-switch" style="display:block;margin-top:4px">
+                            <input type="checkbox" class="sync-plan-enabled" ${pl.enabled ? 'checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    ${isDefault ? ''
+                        : '<button class="btn btn-danger btn-sm sync-plan-delete" type="button" style="align-self:flex-end">Delete</button>'}
+                </div>
+
+                <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
+                    <div class="form-group" style="flex:1;min-width:140px">
+                        <label>Start Date</label>
+                        <input type="date" class="sync-plan-start themed-date" value="${esc(pl.startDate || '')}">
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:140px">
+                        <label>End Date</label>
+                        <input type="date" class="sync-plan-end themed-date" value="${esc(pl.endDate || '')}">
+                    </div>
+                </div>
+                <div style="color:var(--color-text-muted);font-size:0.8em;margin:-2px 0 var(--space-sm)">
+                    Optional. Leave blank to run indefinitely — the plan is bounded by its leagues (a league that becomes Completed leaves automatically, and a plan with no active members runs nothing).
+                </div>
+
+                <div class="form-group">
+                    <label>Run Times (every day, with &plusmn;1h randomization)</label>
+                    <div class="sync-plan-times">${timeRows}</div>
+                    <button class="btn btn-secondary btn-sm sync-plan-add-time" type="button">+ Add time</button>
+                </div>
+
+                <div style="color:var(--color-text-muted);font-size:0.85em;margin-bottom:var(--space-md)">
+                    Member leagues: ${memberCount} (edit in Active Leagues)
+                </div>
+
+                <button class="btn btn-primary btn-sm sync-plan-save" type="button" disabled>Save Settings</button>
+
+                ${lastRunHTML(pl, active)}
               </div>
             </div>
           </div>
         </div>`;
 }
 
-function planCardHTML(pl, active, settings) {
-    const isDefault = pl.id === DEFAULT_PLAN_ID;
-    const memberCount = (pl.leagues || []).filter((id) => active.some((l) => l.id === id)).length;
-    const times = (pl.times && pl.times.length) ? pl.times : ['03:00'];
-    const timeRows = times.map((t) => timeRowHTML(t)).join('');
+// ── Log hide/show (persisted) ──────────────────────────────────────────────
+// Any sync log block (a Run Now report or a plan's last-run panel) can be
+// collapsed. The choice sticks per block via localStorage, so a log the admin
+// hid stays hidden across visits.
+const LOG_HIDDEN_KEY = 'bgsync-log-hidden';
+
+function logHiddenSet() {
+    try { return new Set(JSON.parse(localStorage.getItem(LOG_HIDDEN_KEY) || '[]')); }
+    catch { return new Set(); }
+}
+function setLogHidden(key, hidden) {
+    const s = logHiddenSet();
+    if (hidden) s.add(key); else s.delete(key);
+    try { localStorage.setItem(LOG_HIDDEN_KEY, JSON.stringify([...s])); } catch { /* ignore */ }
+}
+
+/**
+ * Wrap a log block in a header toggle that hides/shows the body. `key` persists
+ * the collapsed state; `titleHTML` is the header label (may contain markup).
+ */
+function collapsibleLogHTML(key, titleHTML, bodyHTML) {
     return `
-        <div class="sync-plan-card admin-card" data-plan-id="${esc(pl.id)}"
-             style="background:var(--color-inset);margin-bottom:var(--space-md)">
-            <div style="display:flex;align-items:center;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-sm)">
-                <div class="form-group" style="flex:1;min-width:160px;margin:0">
-                    <label>Plan Name</label>
-                    <input type="text" class="sync-plan-name" value="${esc(pl.name)}" ${isDefault ? 'readonly' : ''}
-                        placeholder="Plan name">
-                </div>
-                <div class="form-group" style="margin:0">
-                    <label>Enabled</label>
-                    <label class="toggle-switch" style="display:block;margin-top:4px">
-                        <input type="checkbox" class="sync-plan-enabled" ${pl.enabled ? 'checked' : ''}>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-                ${isDefault ? '<span class="league-type-pill" style="align-self:flex-end">Default</span>'
-                    : '<button class="btn btn-danger btn-sm sync-plan-delete" type="button" style="align-self:flex-end">Delete</button>'}
-            </div>
+        <div class="sync-log-collapsible" data-log-key="${esc(key)}">
+            <button type="button" class="sync-log-toggle" aria-expanded="true">
+                <span class="sync-log-caret">&#9662;</span>
+                <span class="sync-log-title">${titleHTML}</span>
+                <span class="sync-log-hint">Hide</span>
+            </button>
+            <div class="sync-log-body">${bodyHTML}</div>
+        </div>`;
+}
 
-            <div style="display:flex;gap:var(--space-md);flex-wrap:wrap">
-                <div class="form-group" style="flex:1;min-width:140px">
-                    <label>Start Date</label>
-                    <input type="date" class="sync-plan-start themed-date" value="${esc(pl.startDate || '')}">
-                </div>
-                <div class="form-group" style="flex:1;min-width:140px">
-                    <label>End Date</label>
-                    <input type="date" class="sync-plan-end themed-date" value="${esc(pl.endDate || '')}">
-                </div>
-            </div>
-            <div style="color:var(--color-text-muted);font-size:0.8em;margin:-2px 0 var(--space-sm)">
-                Optional. Leave blank to run indefinitely — the plan is bounded by its leagues (a league that becomes Completed leaves automatically, and a plan with no active members runs nothing).
-            </div>
+/** Apply persisted hide state + wire the toggle for every log block. */
+function wireLogCollapse(container) {
+    const hidden = logHiddenSet();
+    container.querySelectorAll('.sync-log-collapsible').forEach((wrap) => {
+        if (wrap.dataset.logWired) return; // idempotent — safe to re-call after Add Plan
+        wrap.dataset.logWired = '1';
+        const key = wrap.dataset.logKey;
+        const body = wrap.querySelector(':scope > .sync-log-body');
+        const btn = wrap.querySelector(':scope > .sync-log-toggle');
+        if (!body || !btn) return;
+        const caret = btn.querySelector('.sync-log-caret');
+        const hint = btn.querySelector('.sync-log-hint');
+        const apply = (isHidden) => {
+            body.hidden = isHidden;
+            wrap.classList.toggle('is-collapsed', isHidden);
+            if (caret) caret.innerHTML = isHidden ? '&#9656;' : '&#9662;';
+            if (hint) hint.textContent = isHidden ? 'Show' : 'Hide';
+            btn.setAttribute('aria-expanded', String(!isHidden));
+        };
+        apply(hidden.has(key));
+        btn.addEventListener('click', () => {
+            const next = !body.hidden;
+            apply(next);
+            setLogHidden(key, next);
+        });
+    });
+}
 
-            <div class="form-group">
-                <label>Run Times (every day, with &plusmn;1h randomization)</label>
-                <div class="sync-plan-times">${timeRows}</div>
-                <button class="btn btn-secondary btn-sm sync-plan-add-time" type="button">+ Add time</button>
-            </div>
+/**
+ * "Last run" block below a plan card — one report per member league, populated
+ * after render by wirePlanLastRuns() with loadLastRun(). Same log format as Run
+ * Now (colours, wording, real timestamps).
+ */
+function lastRunHTML(pl, active) {
+    const members = (pl.leagues || []).map((id) => active.find((l) => l.id === id)).filter(Boolean);
+    const reports = members.length
+        ? members.map((lg) => syncReportCardHTML(
+            lg.params.LeagueTitle || lg.id, lg.params.LeagueType || 'doubling',
+            'sync-lastrun-log', ` data-league="${esc(lg.id)}"`)).join('')
+        : `<div style="color:var(--color-text-muted);font-size:0.85em">No member leagues to report on.</div>`;
+    return `
+        <div class="sync-plan-lastrun">
+            ${collapsibleLogHTML(`lastrun:${pl.id}`, 'Last run', reports)}
+        </div>`;
+}
 
-            <div style="color:var(--color-text-muted);font-size:0.85em;margin-bottom:var(--space-sm)">
-                Member leagues: ${memberCount} (edit in Active Leagues)
-            </div>
-
-            <button class="btn btn-primary btn-sm sync-plan-save" type="button">Save Settings</button>
+/** One report card (league title + type pill + a log slot) — IDENTICAL markup
+ *  for the Run Now live report and a plan's Last Run replay, so both read the
+ *  same. `logClass` is the inner log container; `attrs` are extra attributes. */
+function syncReportCardHTML(title, type, logClass, attrs = '') {
+    return `
+        <div class="sync-report-card admin-card" style="background:var(--color-inset);margin-bottom:var(--space-sm)">
+            <div style="margin-bottom:var(--space-sm)"><span style="font-weight:600">${esc(title)}</span> ${typePill(type)}</div>
+            <div class="${logClass}"${attrs}></div>
         </div>`;
 }
 
@@ -484,20 +592,31 @@ function wireAutoSync(container, leagues, settings) {
         if (addBtn) {
             const times = addBtn.previousElementSibling; // .sync-plan-times
             times.insertAdjacentHTML('beforeend', timeRowHTML(nowHHMM()));
+            if (container._syncRefreshDirty) container._syncRefreshDirty();
             return;
         }
         const delBtn = e.target.closest('.sync-plan-del-time');
         if (delBtn) {
             const rows = delBtn.closest('.sync-plan-times').querySelectorAll('.sync-plan-time-row');
             if (rows.length > 1) delBtn.closest('.sync-plan-time-row').remove();
+            if (container._syncRefreshDirty) container._syncRefreshDirty();
             return;
         }
         const delPlan = e.target.closest('.sync-plan-delete');
         if (delPlan) {
             const card = delPlan.closest('.sync-plan-card');
+            const section = delPlan.closest('.dash-section'); // remove the whole plan section
+            // A brand-new plan (added this session, never published) — just drop it.
+            // There's nothing on the site to remove, so it must NOT create a Pending
+            // change. Only staged/published plans stage a removal.
+            if (card.hasAttribute('data-new')) {
+                section.remove();
+                if (container._syncRefreshDirty) container._syncRefreshDirty();
+                return;
+            }
             const name = card.querySelector('.sync-plan-name').value.trim() || 'this plan';
-            if (confirm(`Delete plan "${name}"? Save Settings to publish the removal.`)) {
-                card.remove();
+            if (confirm(`Delete plan "${name}"? It will be removed from the site on the next Publish.`)) {
+                section.remove();
                 saveAll(container, leagues, 'sync-plans-msg');
             }
             return;
@@ -506,13 +625,75 @@ function wireAutoSync(container, leagues, settings) {
         if (savePlan) { saveAll(container, leagues, 'sync-plans-msg'); return; }
     });
 
-    // Add plan — append a fresh card, then re-render so Active Leagues gains its column.
+    // Add plan — append a fresh plan SECTION (peer of Run Now) and wire its
+    // collapse + log toggles. No re-render: a brand-new plan has no members yet,
+    // so Active Leagues doesn't need its column until the plan is saved.
     const addPlanBtn = container.querySelector('#sync-add-plan');
     if (addPlanBtn) addPlanBtn.addEventListener('click', () => {
         const active = leagues.filter((l) => l.params && l.params.Running === true);
         const newPlan = { id: String(Date.now()), name: 'New Plan', enabled: true, mode: 'full', times: ['03:00'], jitterMinutes: 60, startDate: null, endDate: null, leagues: [] };
         list.insertAdjacentHTML('beforeend', planCardHTML(newPlan, active, settings));
+        const section = list.lastElementChild;
+        // Tag the card so a later Delete drops it silently (never published → no Pending).
+        const card = section.querySelector('.sync-plan-card');
+        if (card) card.setAttribute('data-new', '1');
+        // Wire the new section's collapse + its (empty) Last-run log toggle.
+        const appSection = section.querySelector('.app-section');
+        if (appSection) wireSectionCollapse(appSection, { defaultOpen: true });
+        wireLogCollapse(container);
+        // A brand-new plan has no baseline → its Save enables immediately.
+        if (container._syncRefreshDirty) container._syncRefreshDirty();
     });
+}
+
+// ── Per-section dirty tracking — a Save Settings button enables ONLY when its
+// own fields actually change (fixes always-on buttons that staged no-op changes).
+//   • Active Leagues Save  ← Source League Name OR Plans membership.
+//   • each Auto Sync plan Save ← that plan's name / enabled / dates / run-times.
+//     Member-league count is shown there but NOT editable there, so it does NOT
+//     arm the plan's Save (membership is owned by the Active Leagues matrix).
+// Whole-file staging is unchanged; this only governs button enablement.
+function activeSig(container) {
+    const src = {};
+    container.querySelectorAll('.sync-source-name').forEach((i) => { src[i.dataset.league] = i.value.trim(); });
+    const mem = [];
+    container.querySelectorAll('.sync-plan-member').forEach((c) => { if (c.checked) mem.push(`${c.dataset.plan}::${c.dataset.league}`); });
+    mem.sort();
+    return JSON.stringify({ src, mem });
+}
+
+function planSig(card) {
+    const times = Array.from(card.querySelectorAll('.sync-plan-time')).map((i) => i.value.trim()).filter(Boolean);
+    return JSON.stringify({
+        name: card.querySelector('.sync-plan-name').value.trim(),
+        enabled: card.querySelector('.sync-plan-enabled').checked,
+        start: card.querySelector('.sync-plan-start').value || '',
+        end: card.querySelector('.sync-plan-end').value || '',
+        times,
+    });
+}
+
+function wireDirtyTracking(container, active) {
+    const baseActive = activeSig(container);
+    const basePlans = {}; // planId → baseline signature ('' baseline = existing/clean; absent = brand-new)
+    container.querySelectorAll('.sync-plan-card').forEach((card) => { basePlans[card.dataset.planId] = planSig(card); });
+
+    function refreshDirty() {
+        const activeBtn = container.querySelector('#sync-leagues-save');
+        if (activeBtn) activeBtn.disabled = active.length === 0 || activeSig(container) === baseActive;
+        container.querySelectorAll('.sync-plan-card').forEach((card) => {
+            const btn = card.querySelector('.sync-plan-save');
+            if (!btn) return;
+            const base = basePlans[card.dataset.planId];
+            // Existing plan: enable only if it changed. Brand-new plan (no baseline): always enabled.
+            btn.disabled = base !== undefined && planSig(card) === base;
+        });
+    }
+
+    container.addEventListener('input', refreshDirty);
+    container.addEventListener('change', refreshDirty);
+    container._syncRefreshDirty = refreshDirty;
+    refreshDirty();
 }
 
 // ── Save: rebuild the whole file from the DOM, stage it ────────────────────

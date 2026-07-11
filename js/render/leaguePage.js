@@ -20,10 +20,18 @@ import { startSplash, endSplash } from '../utils/splash.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildLeagueTablePreset } from '../presets/leagueTablePreset.js';
 import { buildLeagueHeaderData, renderV13Header, formatLastUpdatedDate } from './leagueHeader.js';
+import { getMatchesAsOf } from '../compute/matchHistory.js';
 
 export async function renderLeaguePage() {
     const container = document.getElementById('content');
     const leagueId = getQueryParam('league');
+    // ?asof=<ISO timestamp> — render the table as it stood at that historical
+    // update point (linked from the dashboard B2 "Open full table" button).
+    // A re-encoded/shared URL can decode the "+HH:MM" timezone offset's "+"
+    // into a space; restore it so the timestamp still parses (otherwise the
+    // date reads as raw ISO and the as-of filter matches nothing).
+    let asof = getQueryParam('asof');
+    if (asof) asof = asof.replace(/ (\d{2}:\d{2})$/, '+$1');
 
     if (!leagueId) {
         container.innerHTML = '<div class="error">No league specified.</div>';
@@ -34,7 +42,7 @@ export async function renderLeaguePage() {
 
     startSplash();
     try {
-        const [{ params, matches, lastModified, totalPlayers, allPlayers }, playersMeta, leagueOrder] = await Promise.all([
+        const [{ params, matches, lastModified, totalPlayers, allPlayers, history }, playersMeta, leagueOrder] = await Promise.all([
             loadLeague(leagueId),
             loadPlayersMetadata(),
             loadLeagueOrder().catch(() => [])
@@ -43,16 +51,36 @@ export async function renderLeaguePage() {
         const allParams   = await loadAllLeagueParams(folderNames).catch(() => []);
         const leagueConfig = getLeagueConfig(params);
 
+        // Historical snapshot: rebuild the match set as it stood at `asof`, and
+        // use the snapshot timestamp as the effective "Last updated" so the header
+        // reflects the historical date rather than the live one. The player
+        // universe stays the FULL roster (allPlayers) — same as the CURRENT view —
+        // so players who hadn't played yet as of the cutoff are still ranked (0
+        // games) instead of being dropped from the table.
+        const isHistorical = !!asof && (history && history.matches && history.matches.length > 0);
+        let viewMatches = matches;
+        const viewPlayers = allPlayers;
+        let effectiveLastModified = lastModified;
+        if (isHistorical) {
+            viewMatches = getMatchesAsOf(history, asof);
+            effectiveLastModified = asof;
+        }
+
         const title = params.LeagueTitle || leagueId;
-        document.title = title + ' — Shabi Israel';
+        document.title = (isHistorical ? 'Historical — ' : '') + title + ' — Shabi Israel';
 
         // V13 Lichess title bar (production default for the table-D page).
         // omitStartDate=true — the "Last updated …" line already implies
         // the league has started; showing both dates is duplicate.
         renderV13Header(
             document.getElementById('page-title'),
-            buildLeagueHeaderData(params, lastModified),
-            { omitStartDate: true },
+            buildLeagueHeaderData(params, effectiveLastModified),
+            {
+                omitStartDate: true,
+                historicalNote: isHistorical
+                    ? 'Historical version — a newer version is available'
+                    : undefined,
+            },
         );
 
         renderBreadcrumbs([
@@ -67,8 +95,8 @@ export async function renderLeaguePage() {
             allParams,
         });
 
-        const statsMap  = computeAllStats(matches, allPlayers);
-        const rankings  = buildRankings(statsMap, leagueConfig, matches);
+        const statsMap  = computeAllStats(viewMatches, viewPlayers);
+        const rankings  = buildRankings(statsMap, leagueConfig, viewMatches);
         const averages  = computeAverages(rankings, leagueConfig);
         // matchStats no longer surfaced in the header — V13 already
         // carries the only timestamp the league-table page needs.
@@ -123,7 +151,7 @@ export async function renderLeaguePage() {
                 note.textContent = `Image export supports up to ${MAX_EXPORT_ROWS} rows (this table has ${rowCount}).`;
                 exportBtn.replaceWith(note);
             } else {
-                exportBtn.addEventListener('click', () => exportLeagueTableImage(title, mountPoint, params.LeagueType || 'doubling', lastModified));
+                exportBtn.addEventListener('click', () => exportLeagueTableImage(title, mountPoint, params.LeagueType || 'doubling', effectiveLastModified, isHistorical));
             }
         }
     } catch (err) {
@@ -139,10 +167,11 @@ export async function renderLeaguePage() {
 // the uniform title + subtitle header band (constant across D/B6a/B6b/B6c)
 // rather than the V13 hero card, so every WhatsApp export shares one layout.
 
-function exportLeagueTableImage(title, mountPoint, leagueType, lastModified) {
+function exportLeagueTableImage(title, mountPoint, leagueType, lastModified, isHistorical = false) {
     const sourceTable = mountPoint.querySelector('table');
     const date = formatLastUpdatedDate(lastModified);
-    const subtitle = `League Table${date ? ` — Last updated ${date}` : ''}`;
+    const label = isHistorical ? 'Historical League Table' : 'League Table';
+    const subtitle = `${label}${date ? ` — Last updated ${date}` : ''}`;
     return exportWhatsAppTableImage({
         sourceTable,
         filename: `${title}_${leagueTypeLabel(leagueType)}_Table`,

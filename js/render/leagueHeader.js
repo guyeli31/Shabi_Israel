@@ -96,6 +96,9 @@ function statusPill(l) {
  * @param {Object} data  result of buildLeagueHeaderData()
  * @param {Object} [opts]
  *   {boolean} [opts.omitStartDate=true]  hide the "Started …" item
+ *   {string}  [opts.historicalNote]      when set, appended to the meta
+ *     subtitle after the "Last updated …" date to flag that this is a
+ *     historical snapshot and a newer version exists.
  */
 export function renderV13Header(target, data, opts = {}) {
     if (!target) return;
@@ -103,7 +106,10 @@ export function renderV13Header(target, data, opts = {}) {
     const items = [];
     if (!omit) items.push(`Started ${escapeHtml(data.startDate)}`);
     items.push(`Last updated ${escapeHtml(data.lastUpdated)}`);
-    const meta = items.join(' <span class="sep">·</span> ');
+    let meta = items.join(' <span class="sep">·</span> ');
+    if (opts.historicalNote) {
+        meta += ` <span class="sep">·</span> <span class="lh13-historical-note">${escapeHtml(opts.historicalNote)}</span>`;
+    }
 
     target.innerHTML = `
         <div class="lh13-card">

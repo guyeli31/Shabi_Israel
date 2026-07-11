@@ -22,12 +22,15 @@ const DEFAULT_MAX = 10;
  * @returns {{ log:(msg:string,type?:string)=>void, clear:()=>void, el:HTMLElement }}
  */
 export function createSyncLog(el, { max = DEFAULT_MAX } = {}) {
-    function log(message, type = 'info') {
+    // `when` (ISO string / Date) stamps the line with the event's real time — used
+    // when replaying a past run. Live callers omit it and get the current time.
+    function log(message, type = 'info', when = null) {
         if (!el) return;
         el.classList.add('bgsync-log');
         const line = document.createElement('div');
         line.className = `admin-msg admin-msg-${type}`;
-        const t = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const t = (when ? new Date(when) : new Date())
+            .toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
         line.innerHTML = `<span class="bgsync-log-time">${t}</span> ${message}`;
         el.appendChild(line);
         while (el.children.length > max) el.removeChild(el.firstChild);
@@ -186,11 +189,46 @@ export async function streamSiteEvents(sinceId, logger, { stopWhen = () => false
 export async function loadRecentSyncEvents(leagueId, logger, max = DEFAULT_MAX) {
     const { data, error } = await supabase
         .from('external_source_sync_events')
-        .select('id, level, message')
+        .select('id, level, message, created_at')
         .eq('league_id', leagueId)
         .order('created_at', { ascending: false })
         .limit(max);
     if (error || !data || data.length === 0) return;
     logger.clear();
-    for (const ev of data.reverse()) logger.log(ev.message, ev.level);
+    for (const ev of data.reverse()) logger.log(ev.message, ev.level, ev.created_at);
+}
+
+/**
+ * Replay the LAST run's full log for a league — the league's own events plus that
+ * same run's shared site-level (login/connection) lines — merged in chronological
+ * order and stamped with each line's real time. Identical colours/wording/format
+ * to Run Now, so an admin can see what happened behind the scenes and whether it
+ * succeeded. "Last run" = the most recent run (scheduled or manual) that touched
+ * this league; events aren't tagged by plan, so a league shared by two plans shows
+ * the same last run under both.
+ */
+export async function loadLastRun(leagueId, logger, max = 40) {
+    const { data: last } = await supabase
+        .from('external_source_sync_events')
+        .select('run_id')
+        .eq('league_id', leagueId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+    if (!last || !last.length) { logger.clear(); logger.log('No runs recorded yet.', 'info'); return; }
+
+    const runId = last[0].run_id;
+    if (!runId) return loadRecentSyncEvents(leagueId, logger, max); // legacy rows without a run id
+
+    const [own, site] = await Promise.all([
+        supabase.from('external_source_sync_events')
+            .select('level, message, created_at').eq('run_id', runId).eq('league_id', leagueId),
+        supabase.from('external_source_sync_events')
+            .select('level, message, created_at').eq('run_id', runId).is('league_id', null),
+    ]);
+    const rows = [...(own.data || []), ...(site.data || [])]
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+    logger.clear();
+    if (!rows.length) { logger.log('No activity recorded for the last run.', 'info'); return; }
+    for (const ev of rows.slice(-max)) logger.log(ev.message, ev.level, ev.created_at);
 }

@@ -41,7 +41,7 @@ const PR_PROBABILITY_TABLE = {
  * PR difference (rows) and match length (columns). Generated from
  * PR_PROBABILITY_TABLE so the displayed figures never drift from the engine.
  */
-export function prProbabilityTableHtml() {
+export function prProbabilityTableHtml(lang = 'en') {
     const lens = PR_PROBABILITY_TABLE.matchLengths;
     const rows = PR_PROBABILITY_TABLE.probabilitiesByPrDiff;
     const allValues = Object.values(rows).flat();
@@ -52,10 +52,12 @@ export function prProbabilityTableHtml() {
         const cells = rows[diff].map(v => `<td style="color:${colorForValue(v, minV, maxV)}">${v.toFixed(1)}</td>`).join('');
         return `<tr><th scope="row">${diff}</th>${cells}</tr>`;
     }).join('');
+    const gapLabel = lang === 'he' ? 'הפרש&nbsp;PR' : 'PR&nbsp;gap';
+    const lenLabel = lang === 'he' ? 'אורך המשחק' : 'Match length';
     return `
         <table class="pr-prob-table">
             <thead>
-                <tr><th rowspan="2" scope="col">PR&nbsp;gap</th><th colspan="${lens.length}" scope="colgroup">Match length</th></tr>
+                <tr><th rowspan="2" scope="col">${gapLabel}</th><th colspan="${lens.length}" scope="colgroup">${lenLabel}</th></tr>
                 <tr>${head}</tr>
             </thead>
             <tbody>${body}</tbody>
