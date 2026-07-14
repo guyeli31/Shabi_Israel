@@ -12,8 +12,12 @@
  */
 
 import { getStagedContent } from './stagingStore.js';
-import { parseCSV, parseCSVWithRounds, getAllPlayersFromCSV } from '../data/csvParser.js';
+import { parseCSV, parseCSVWithRounds, parseCSVAllWithRounds, getAllPlayersFromCSV } from '../data/csvParser.js';
 import { loadLeagueMatchesAll, loadOverrides } from '../data/supabaseLoader.js';
+import {
+    validateCsvStructure, describeLeagueShape, collectPlayed,
+    findPlayedRegressions, splitRegressions, formatRegressions,
+} from '../data/csvIntegrity.js';
 
 /** Reconstruct leaguedata.csv-style text from Supabase match rows, grouped by
  *  round with a "Player,..." header line per round (parseCSV*'s round-detection
@@ -91,6 +95,23 @@ function editDistance(a, b) {
 export async function computeCsvImportReport(leagueId, newCsvText) {
     const { csv: curCsv, overrides } = await readCurrentState(leagueId);
 
+    // ── The two integrity layers (shared with scripts/sync-source.js) ────────
+    // LAYER 1 — structure: roster / round count / rows-per-round / 8-column layout
+    //   are fixed at league creation, so a deviation means this CSV isn't this
+    //   league's. LAYER 2 — regression: a pairing that ALREADY has a result (from
+    //   the data or a manual override) coming back unplayed means a stale/partial
+    //   file. Neither blocks the import — the admin confirms explicitly instead.
+    const curAllMatches = parseCSVAllWithRounds(curCsv).matches;
+    const expectedShape = curAllMatches.length > 0 ? describeLeagueShape(curAllMatches) : null;
+    const structure = validateCsvStructure(newCsvText, expectedShape);
+    const previouslyPlayed = collectPlayed(curAllMatches, overrides);
+    // real → results the CSV would genuinely erase (blocking).
+    // overridden → matches whose only result is a manual override; the CSV is
+    //   SUPPOSED to show those unplayed, so it's a warning, never a block.
+    const { real: regressions, overridden: overriddenUnplayed } = splitRegressions(
+        findPlayedRegressions(parseCSVAllWithRounds(newCsvText).matches, previouslyPlayed),
+    );
+
     const curPlayers = getAllPlayersFromCSV(curCsv);
     const newPlayers = getAllPlayersFromCSV(newCsvText);
 
@@ -138,6 +159,10 @@ export async function computeCsvImportReport(leagueId, newCsvText) {
     const playersMatch = added.length === 0 && dropped.length === 0;
     const regression = !isNewLeague && newPlayed < curPlayed;
 
+    // Anything the admin must knowingly accept before this reaches Pending Changes.
+    const structureMismatch = !isNewLeague && !structure.ok;
+    const needsConfirm = structureMismatch || regressions.length > 0;
+
     return {
         isNewLeague,
         curPlayerCount: curPlayers.size,
@@ -152,7 +177,13 @@ export async function computeCsvImportReport(leagueId, newCsvText) {
         overrideCount: overrides.length,
         shadowed,
         newMatches,
-        regression
+        regression,
+        structureMismatch,
+        structureErrors: structure.errors,
+        structureInfo: structure.structure,
+        regressions,
+        overriddenUnplayed,
+        needsConfirm
     };
 }
 
@@ -180,6 +211,33 @@ function row(severity, label, value) {
 export function renderCsvImportReport(report) {
     const r = report;
     let body = '';
+
+    // LAYER 1 — a structural mismatch means the file isn't this league's. Say it
+    // first, and spell out every reason: this is the one an admin must not skim.
+    if (r.structureMismatch) {
+        body += row('err', "This CSV doesn't match the league",
+            'its shape differs from the league as it was created — importing it will replace the league with data that may not belong to it');
+        for (const e of r.structureErrors) body += row('err', 'Mismatch', esc(e));
+        body += `<hr style="border:none;border-top:1px solid var(--color-border);margin:.5em 0">`;
+    }
+
+    // LAYER 2a — REAL regression: played per the data, unplayed in this CSV. The
+    // signature of a stale/partial export; importing as-is would erase those results.
+    if (r.regressions && r.regressions.length) {
+        body += row('err', `${r.regressions.length} already-played match${r.regressions.length > 1 ? 'es' : ''} would lose ${r.regressions.length > 1 ? 'their' : 'its'} result`,
+            `${esc(formatRegressions(r.regressions))} — ${r.regressions.length > 1 ? 'these are' : 'this is'} played in the league now but unplayed in this CSV`);
+        body += `<hr style="border:none;border-top:1px solid var(--color-border);margin:.5em 0">`;
+    }
+
+    // LAYER 2b — manual overrides. These have a result ONLY because an admin set
+    // one; the source has never heard of them, so a CSV showing them unplayed is
+    // correct, not data loss. The override wins on render regardless. Inform, don't
+    // alarm — and never gate the import on it.
+    if (r.overriddenUnplayed && r.overriddenUnplayed.length) {
+        const n = r.overriddenUnplayed.length;
+        body += row('warn', `${n} manually-overridden match${n > 1 ? 'es' : ''} ${n > 1 ? 'are' : 'is'} unplayed in this CSV`,
+            `${esc(formatRegressions(r.overriddenUnplayed))} — expected: ${n > 1 ? 'their results were' : 'its result was'} entered manually, so the source doesn't have ${n > 1 ? 'them' : 'it'}. The manual ${n > 1 ? 'results win and are' : 'result wins and is'} kept.`);
+    }
 
     if (r.isNewLeague) {
         body += row('info', 'New league', `no prior data — importing ${r.newPlayerCount} players, ${r.newPlayed} played matches`);
@@ -222,15 +280,73 @@ export function renderCsvImportReport(report) {
     }
 
     const anyProblem = r.regression || (!r.isNewLeague && !r.playersMatch) || r.typos.length > 0 || (r.shadowed && r.shadowed.length > 0);
-    const headerColor = anyProblem ? 'var(--color-warning, #b8860b)' : 'var(--color-success, #2e7d32)';
-    const headerText = anyProblem ? 'Review before continuing' : 'CSV is compatible';
+    const headerColor = r.needsConfirm ? 'var(--color-danger, #c0392b)'
+        : anyProblem ? 'var(--color-warning, #b8860b)'
+        : 'var(--color-success, #2e7d32)';
+    const headerText = r.needsConfirm ? 'This import can damage the league'
+        : anyProblem ? 'Review before continuing'
+        : 'CSV is compatible';
+
+    // needsConfirm: a deliberate acknowledgement is required before the upload may
+    // reach Pending Changes. The import is never hard-blocked — the admin stays in
+    // control — but it can't be accepted by reflex. The gate is a checkbox only:
+    // it arms the page's EXISTING "Confirm & Stage" button (see wireCsvImportGate)
+    // rather than adding a second, competing action button.
+    const what = [
+        r.structureMismatch ? "doesn't match the league" : null,
+        r.regressions.length
+            ? `will erase ${r.regressions.length} already-played result${r.regressions.length > 1 ? 's' : ''}`
+            : null,
+    ].filter(Boolean).join(' and ');
+
+    const footer = r.needsConfirm
+        ? `<label class="csv-import-gate">
+               <input type="checkbox" id="csv-import-ack">
+               <span>I understand this CSV ${esc(what)}, and I want to import it anyway.</span>
+           </label>`
+        : `<p style="margin:.6em 0 0 0;font-size:.85rem;color:var(--color-text-muted)">
+               This is informational only — you can continue to Pending Changes.
+           </p>`;
 
     return `
         <div style="border:1px solid var(--color-border);border-radius:var(--radius-md);padding:var(--space-md);margin-bottom:var(--space-md);background:var(--color-surface, transparent)">
             <h3 style="margin:0 0 .4em 0;color:${headerColor}">${headerText}</h3>
             ${body}
-            <p style="margin:.6em 0 0 0;font-size:.85rem;color:var(--color-text-muted)">
-                This is informational only — you can continue to Pending Changes in any case.
-            </p>
+            ${footer}
         </div>`;
+}
+
+/**
+ * Arm/disarm the page's existing "Confirm & Stage" button from the report.
+ *
+ * Clean report → the button stays exactly as the page defines it. Risky report →
+ * the button is disabled and restyled as a destructive action ("Import anyway"),
+ * and only the acknowledgement checkbox can unlock it. Deliberately reuses the
+ * page's own button and the project's `btn btn-*` classes (theme-aware) instead of
+ * introducing a second action.
+ *
+ * @param {HTMLElement} reportEl — the element renderCsvImportReport() was put into
+ * @param {object} report
+ * @param {HTMLButtonElement} confirmBtn — the page's "Confirm & Stage" button
+ */
+export function wireCsvImportGate(reportEl, report, confirmBtn) {
+    if (!confirmBtn) return;
+
+    if (!report.needsConfirm) {
+        confirmBtn.disabled = false;
+        confirmBtn.classList.remove('btn-danger');
+        confirmBtn.classList.add('btn-success');
+        confirmBtn.textContent = 'Confirm & Stage';
+        confirmBtn.removeAttribute('title');
+        return;
+    }
+
+    confirmBtn.disabled = true;
+    confirmBtn.classList.remove('btn-success');
+    confirmBtn.classList.add('btn-danger');
+    confirmBtn.textContent = 'Import anyway';
+    confirmBtn.title = 'Tick the acknowledgement above to enable this';
+
+    const ack = reportEl && reportEl.querySelector('#csv-import-ack');
+    if (ack) ack.addEventListener('change', () => { confirmBtn.disabled = !ack.checked; });
 }

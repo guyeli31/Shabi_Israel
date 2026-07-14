@@ -1799,20 +1799,24 @@ function formatAsOf(lastModified) {
 
 // Thin wrappers around the shared exportWhatsAppTableImage() helper. The
 // dashboard exports differ only in their subtitle and filename \u2014 the
-// fixed 4:5 frame, header band, column-stretch, and font-fit are identical.
+// fixed 4:5 frame, header band, and font-fit are identical.
 // (Row-count is pre-gated by buildExportControl, so these only fire \u2264 30 rows.)
+//
+// All three are narrow tables (B6a/B6b: 2 cols, B6c: 1 col), so they pass
+// shrinkToContent \u2014 stretching them across the frame would leave each cell
+// mostly empty. Columns size to their text and the table is centred instead.
 
 function exportRemainingMatchesImage(sourceTable, title, asOf, leagueType) {
     if (!sourceTable) return;
     const count = sourceTable.querySelectorAll('tbody tr').length;
     const subtitle = `Remaining Matches (${count})${asOf ? ' \u2014 ' + asOf : ''}`;
-    return exportWhatsAppTableImage({ sourceTable, title, subtitle, leagueType, filename: `${title}_${leagueTypeLabel(leagueType)}_Remaining` });
+    return exportWhatsAppTableImage({ sourceTable, title, subtitle, leagueType, shrinkToContent: true, filename: `${title}_${leagueTypeLabel(leagueType)}_Remaining` });
 }
 
 function exportB6bImage(sourceTable, title, asOf, leagueType) {
     if (!sourceTable) return;
     const subtitle = `Remaining Matches Report${asOf ? ' \u2014 ' + asOf : ''}`;
-    return exportWhatsAppTableImage({ sourceTable, title, subtitle, leagueType, filename: `${title}_${leagueTypeLabel(leagueType)}_Remaining_Report` });
+    return exportWhatsAppTableImage({ sourceTable, title, subtitle, leagueType, shrinkToContent: true, filename: `${title}_${leagueTypeLabel(leagueType)}_Remaining_Report` });
 }
 
 function exportB6cImage(sourceTable, title, player, asOf, leagueType) {
@@ -1820,7 +1824,7 @@ function exportB6cImage(sourceTable, title, player, asOf, leagueType) {
     const count = sourceTable.querySelectorAll('tbody tr').length;
     const matchesWord = count === 1 ? 'match' : 'matches';
     const subtitle = `${player} \u2014 ${count} remaining ${matchesWord}${asOf ? ' \u2014 ' + asOf : ''}`;
-    return exportWhatsAppTableImage({ sourceTable, title, subtitle, leagueType, filename: `${title}_${leagueTypeLabel(leagueType)}_${player}_Remaining` });
+    return exportWhatsAppTableImage({ sourceTable, title, subtitle, leagueType, shrinkToContent: true, filename: `${title}_${leagueTypeLabel(leagueType)}_${player}_Remaining` });
 }
 
 // ---------- F4 ----------

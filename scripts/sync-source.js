@@ -12,6 +12,10 @@ import { createClient } from '@supabase/supabase-js';
 
 import { parseCSV, parseCSVAllWithRounds } from '../js/data/csvParser.js';
 import { applyOverrides } from '../js/data/leagueLoader.js';
+import {
+  validateCsvStructure, describeLeagueShape, collectPlayed,
+  findPlayedRegressions, splitRegressions, formatRegressions,
+} from '../js/data/csvIntegrity.js';
 
 const DEFAULT_FLAG = 'IL';
 const SITE_URL = process.env.SOURCE_URL;
@@ -106,7 +110,7 @@ function friendlyStartupError(err) {
  * later" is useless when the real problem is a mistyped Source League Name.
  * Every branch here corresponds to a concrete `throw` in the export path
  * (see clickLeagueByName / navigateToLeaguesList / exportLeagueTask /
- * getBaselinePlayedCount / writeMatchesToSupabase / reconcileMatchHistoryInSupabase).
+ * getLeagueBaseline / writeMatchesToSupabase / reconcileMatchHistoryInSupabase).
  */
 function friendlyLeagueError(err, sourceLeagueName) {
   const m = (err && err.message) || '';
@@ -118,10 +122,16 @@ function friendlyLeagueError(err, sourceLeagueName) {
     return `The source site never loaded its leagues list in time (it wasn't ready yet). This is usually temporary — try again in a few minutes.`;
   }
   if (/DL never (populated|repopulated)/i.test(m)) {
-    return `The league opened but its players and rounds never finished loading. The source may be slow, or the league may have no data yet — try again in a few minutes.`;
+    return `The league opened but its players never finished loading. The source may be slow, or the league may have no data yet — try again in a few minutes.`;
   }
-  if (/never produced CSV data/i.test(m)) {
+  if (/never produced CSV data|no usable CSV/i.test(m)) {
     return `The league opened but the source returned nothing to export. If it has no played matches yet that's expected; otherwise the export timed out — try again.`;
+  }
+  if (/CSV\/league mismatch/i.test(m)) {
+    return `The data the source returned doesn't match this league — a different roster, a different number of rounds, or a broken file. Nothing was changed. Check that the Source League Name points at the right league on the source site.`;
+  }
+  if (/CSV regression/i.test(m)) {
+    return `The source returned data that would have erased results already saved for this league, so nothing was changed and your results are safe. This is almost always a temporary source glitch — try again in a few minutes.`;
   }
   if (/integrity check failed|under-delivering/i.test(m)) {
     return `The source sent back incomplete results (fewer matches than are already saved), so the sync was stopped to protect your data. This is almost always a temporary source glitch — try again in a few minutes.`;
@@ -386,21 +396,26 @@ async function relogin(page) {
 }
 
 /**
- * Baseline "effective played count" for the league — the count the dashboard
- * shows in "Games Played X / Y", i.e. parseCSV → applyOverrides → length.
+ * Everything the two integrity layers need about the league's CURRENT state:
+ *
+ *   shape            — roster / round count / total match rows (LAYER 1 target)
+ *   previouslyPlayed — every pairing that already HAS a result, from the data or
+ *                      from a manual override (LAYER 2 target)
+ *   overrides        — re-applied to the fresh CSV for an apples-to-apples count
  *
  * Two source modes, selected by env vars:
+ *   Phase 1 (no Supabase configured): read CSV + manual_overrides.json from the
+ *     repo working tree. Same logic the dashboard renders with.
+ *   Phase 2 (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY set): query the database.
+ *     Repo files are ignored.
  *
- *   Phase 1 (default — no Supabase configured): read CSV + manual_overrides.json
- *     from the repo working tree. Same logic the dashboard renders with.
- *   Phase 2 (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY set): query the database
- *     for the effective played count + overrides. Repo files are ignored.
- *
- * Returns { baseline, overrides } so the caller can re-apply the same overrides
- * to the freshly-downloaded CSV (apples-to-apples comparison). Returns null when
- * no baseline is available (first-ever sync of a new league) — check is skipped.
+ * Returns null for a brand-new league — nothing to compare against, so LAYER 1
+ * only self-checks the CSV and LAYER 2 is a no-op.
  */
-async function getBaselinePlayedCount(folder, repoRoot) {
+async function getLeagueBaseline(folder, repoRoot) {
+  let allMatches = []; // every row incl. unplayed; 'Bye' already excluded
+  let overrides = [];
+
   if (supabase) {
     const { data: overrideRows, error: ovErr } = await supabase
       .from('manual_overrides')
@@ -408,37 +423,44 @@ async function getBaselinePlayedCount(folder, repoRoot) {
       .eq('league_id', folder);
     if (ovErr) throw new Error(`Supabase baseline: manual_overrides query failed: ${ovErr.message}`);
 
+    // NOTE: no .eq('played', true) — LAYER 1 needs the league's FULL shape
+    // (unplayed rows included), not just the played ones.
     const { data: matchRows, error: mErr } = await supabase
       .from('matches')
       .select('*')
-      .eq('league_id', folder)
-      .eq('played', true);
+      .eq('league_id', folder);
     if (mErr) throw new Error(`Supabase baseline: matches query failed: ${mErr.message}`);
 
-    const overrides = (overrideRows || []).map((o) => ({
+    overrides = (overrideRows || []).map((o) => ({
       type: o.type, playerA: o.player_a, playerB: o.player_b, winner: o.winner,
       scoreA: o.score_a, scoreB: o.score_b, prA: o.pr_a, prB: o.pr_b, luckA: o.luck_a, luckB: o.luck_b,
     }));
-    const matches = (matchRows || []).map((m) => ({
+    allMatches = (matchRows || []).map((m) => ({
       playerA: m.player_a, prA: m.pr_a, luckA: m.luck_a, scoreA: m.score_a,
       playerB: m.player_b, prB: m.pr_b, luckB: m.luck_b, scoreB: m.score_b,
+      round: m.round, played: m.played,
     }));
-    if (matches.length === 0 && overrides.length === 0) return null; // first-ever sync
-    const baseline = applyOverrides(matches, overrides).length;
-    return { baseline, overrides };
+  } else {
+    try {
+      const csv = await readFile(join(repoRoot, 'leagues', folder, 'leaguedata.csv'), 'utf8');
+      const overridesRaw = await readFile(
+        join(repoRoot, 'leagues', folder, 'manual_overrides.json'),
+        'utf8',
+      ).catch(() => '{"overrides":[]}');
+      overrides = JSON.parse(overridesRaw).overrides || [];
+      allMatches = parseCSVAllWithRounds(csv).matches;
+    } catch {
+      return null;
+    }
   }
-  try {
-    const csv = await readFile(join(repoRoot, 'leagues', folder, 'leaguedata.csv'), 'utf8');
-    const overridesRaw = await readFile(
-      join(repoRoot, 'leagues', folder, 'manual_overrides.json'),
-      'utf8',
-    ).catch(() => '{"overrides":[]}');
-    const overrides = JSON.parse(overridesRaw).overrides || [];
-    const baseline = applyOverrides(parseCSV(csv), overrides).length;
-    return { baseline, overrides };
-  } catch {
-    return null;
-  }
+
+  if (allMatches.length === 0 && overrides.length === 0) return null; // first-ever sync
+
+  return {
+    shape: describeLeagueShape(allMatches),
+    previouslyPlayed: collectPlayed(allMatches, overrides),
+    overrides,
+  };
 }
 
 async function clickLeagueByName(page, sourceLeagueName) {
@@ -468,24 +490,29 @@ async function clickLeagueByName(page, sourceLeagueName) {
   throw new Error(`League "${sourceLeagueName}" not found within ${MAX_PAGES} pages`);
 }
 
-async function waitForRosterAndRounds(page) {
+/**
+ * Wait for the league's roster (DL) to populate before exporting.
+ *
+ * This used to also gate on FL[RG] — the source's "rounds played" counter — but
+ * that was a leftover from an earlier design and measures the wrong thing: the
+ * exported CSV ALWAYS carries every round of the round-robin, with not-yet-played
+ * matches present as all-zero rows. So the round counter says nothing about export
+ * completeness, and gating on it only produced a spurious "undefined rounds" and a
+ * 5s stall. Export completeness is established by two things that actually test it:
+ * triggerExportAndCollect() waits for the CSV to stop growing, and the two
+ * integrity layers (js/data/csvIntegrity.js) validate what came out.
+ */
+async function waitForRoster(page) {
   return await page.evaluate(async () => {
     const HARD_TIMEOUT = 15000;
-    const POST_DL_WAIT = 5000;
     const T0 = performance.now();
     const trace = [];
-    let dlSince = null;
     while (performance.now() - T0 < HARD_TIMEOUT) {
       const dl = typeof DL !== 'undefined' && Array.isArray(DL) ? DL.length : 0;
-      const rg = typeof FL !== 'undefined' && FL && typeof RG !== 'undefined' ? FL[RG] : null;
       const t = Math.round(performance.now() - T0);
       const last = trace[trace.length - 1];
-      if (!last || last.dl !== dl || last.rg !== rg) trace.push({ t, dl, rg });
-      if (dl > 0 && typeof rg === 'number' && rg > 0) return { ok: true, dl, rg, t, trace };
-      if (dl > 0) {
-        if (dlSince === null) dlSince = performance.now();
-        if (performance.now() - dlSince >= POST_DL_WAIT) return { ok: true, dl, rg, t, trace };
-      }
+      if (!last || last.dl !== dl) trace.push({ t, dl });
+      if (dl > 0) return { ok: true, dl, t, trace };
       await new Promise((r) => setTimeout(r, 200));
     }
     return { ok: false, trace, t: HARD_TIMEOUT };
@@ -542,13 +569,13 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
   await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
 
   console.log('  → Waiting for league roster (DL) and round count (FL[RG]) to populate');
-  const rosterReady = await waitForRosterAndRounds(page);
+  const rosterReady = await waitForRoster(page);
   console.log(`    Trace: ${JSON.stringify(rosterReady.trace)}`);
   if (!rosterReady.ok) {
     throw new Error('DL never populated within 15s after league click');
   }
-  console.log(`    DL = ${rosterReady.dl} players, FL[RG] = ${rosterReady.rg} rounds played — ready after ${rosterReady.t}ms`);
-  await logEvent(folder, 'info', `Opened the league — ${rosterReady.dl} players, ${rosterReady.rg} rounds so far.`);
+  console.log(`    DL = ${rosterReady.dl} players — ready after ${rosterReady.t}ms`);
+  await logEvent(folder, 'info', `Opened the league — ${rosterReady.dl} players.`);
 
   console.log('  → Extracting player roster (DL) for players.json');
   const players = await page.evaluate(() => {
@@ -669,18 +696,28 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
     }
   }
 
-  const baselineCtx = await getBaselinePlayedCount(folder, repoRoot);
-  const baseline = baselineCtx?.baseline ?? null;
+  const baselineCtx = await getLeagueBaseline(folder, repoRoot);
+  const expectedShape = baselineCtx?.shape ?? null;
+  const previouslyPlayed = baselineCtx?.previouslyPlayed ?? [];
   const overridesForCheck = baselineCtx?.overrides ?? [];
   const baselineSource = process.env.SUPABASE_URL ? 'Supabase' : `leagues/${folder}/leaguedata.csv + overrides`;
-  if (baseline === null) {
-    console.log('  → CSV integrity baseline: none (first sync — check skipped)');
+  if (!expectedShape) {
+    console.log('  → Integrity baseline: none (first sync — structure is taken from this CSV)');
   } else {
-    console.log(`  → CSV integrity baseline: ${baseline} played matches (post-overrides; source: ${baselineSource})`);
+    console.log(
+      `  → Integrity baseline (${baselineSource}): ${expectedShape.rounds} rounds, ` +
+        `${expectedShape.players.size} players, ${expectedShape.totalMatches} match rows, ` +
+        `${previouslyPlayed.length} already played`,
+    );
   }
 
   const MAX_EXPORT_ATTEMPTS = 3;
   let csvText = null;
+  // Carried out of the loop so the post-loop code knows WHY the last attempt was
+  // unhappy: a structure failure is terminal (never write), a regression is not
+  // (write, but restore what the source dropped and tell the admin).
+  let lastStructureErrors = null;
+  let lastRegressions = null;
   for (let attempt = 1; attempt <= MAX_EXPORT_ATTEMPTS; attempt++) {
     if (attempt === 2) {
       console.log(`  → Retry 2/${MAX_EXPORT_ATTEMPTS}: re-navigating to leagues list and re-opening "${sourceLeagueName}"`);
@@ -688,7 +725,7 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
       await navigateToLeaguesList(page);
       await clickLeagueByName(page, sourceLeagueName);
       await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
-      const retryRoster = await waitForRosterAndRounds(page);
+      const retryRoster = await waitForRoster(page);
       console.log(`    Trace: ${JSON.stringify(retryRoster.trace)}`);
       if (!retryRoster.ok) throw new Error('DL never repopulated within 15s after retry re-entry');
     } else if (attempt === 3) {
@@ -698,7 +735,7 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
       await navigateToLeaguesList(page);
       await clickLeagueByName(page, sourceLeagueName);
       await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
-      const retryRoster = await waitForRosterAndRounds(page);
+      const retryRoster = await waitForRoster(page);
       console.log(`    Trace: ${JSON.stringify(retryRoster.trace)}`);
       if (!retryRoster.ok) throw new Error('DL never repopulated within 15s after relogin re-entry');
     }
@@ -713,48 +750,113 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
       continue;
     }
 
-    const newPlayed = applyOverrides(parseCSV(data), overridesForCheck).length;
-    if (baseline === null || newPlayed >= baseline) {
-      console.log(
-        `  ✓ Integrity check passed: ${newPlayed} played (post-overrides)` +
-          (baseline === null ? ' — first sync, no baseline' : ` ≥ baseline ${baseline}`),
-      );
-      const added = baseline === null ? null : newPlayed - baseline;
-      await logEvent(folder, 'success',
-        baseline === null
-          ? `Data looks healthy — ${newPlayed} games (first sync).`
-          : `Data looks healthy — ${newPlayed} games, none lost${added > 0 ? ` (+${added} new)` : ' (no new games)'}.`);
-      csvText = data;
-      break;
+    // ── LAYER 1 — does this CSV belong to THIS league? ──────────────────
+    // Roster / rounds / rows-per-round / column layout are fixed at league
+    // creation. A mismatch means we were handed someone else's data (or junk),
+    // and nothing may be written from it.
+    const structural = validateCsvStructure(data, expectedShape);
+    if (!structural.ok) {
+      lastStructureErrors = structural.errors;
+      lastRegressions = null;
+      console.warn(`  ⚠ CSV does not match the league (attempt ${attempt}/${MAX_EXPORT_ATTEMPTS}):`);
+      for (const e of structural.errors) console.warn(`      • ${e}`);
+      if (attempt < MAX_EXPORT_ATTEMPTS) {
+        await logEvent(folder, 'info', "The data doesn't match this league — fetching it again…");
+        continue;
+      }
+      break; // terminal — handled after the loop
     }
 
-    console.warn(
-      `  ⚠ Integrity check FAILED on attempt ${attempt}/${MAX_EXPORT_ATTEMPTS}: ` +
-        `effective played (after overrides) = ${newPlayed}, expected ≥ ${baseline} (matches don't disappear). ` +
-        `Likely incomplete WS round delivery — will retry.`,
-    );
-    if (attempt < MAX_EXPORT_ATTEMPTS) {
-      await logEvent(folder, 'info', 'Data looked incomplete — retrying…');
-    }
-    if (attempt === MAX_EXPORT_ATTEMPTS) {
-      throw new Error(
-        `External Source export integrity check failed after ${MAX_EXPORT_ATTEMPTS} attempts ` +
-          `(attempt 1: in-place, attempt 2: re-nav, attempt 3: full relogin): ` +
-          `last attempt yielded ${newPlayed} effective played, baseline ${baseline}. ` +
-          `External Source is consistently under-delivering rounds — try again later or investigate.`,
+    // ── LAYER 2 — did a match that already has a result come back unplayed? ──
+    // Only a REAL regression counts (played per the data, unplayed in this CSV) —
+    // that's the source serving a stale/partial export. An 'overridden' one is a
+    // manual override, which the source has never heard of: it is EXPECTED to look
+    // unplayed in the CSV, so it warns and never blocks.
+    const { matches: newMatches } = parseCSVAllWithRounds(data);
+    const { real, overridden } = splitRegressions(findPlayedRegressions(newMatches, previouslyPlayed));
+    if (real.length > 0) {
+      lastStructureErrors = null;
+      lastRegressions = real;
+      console.warn(
+        `  ⚠ ${real.length} already-played match(es) came back unplayed ` +
+          `(attempt ${attempt}/${MAX_EXPORT_ATTEMPTS}): ${formatRegressions(real)}`,
       );
+      if (attempt < MAX_EXPORT_ATTEMPTS) {
+        await logEvent(folder, 'info', 'Some already-played games are missing from the data — fetching it again…');
+        continue;
+      }
+      break; // terminal — handled after the loop, nothing is written
     }
+
+    // Both layers clean (bar manual overrides, which are expected — warn only).
+    lastStructureErrors = null;
+    lastRegressions = null;
+    if (overridden.length > 0) {
+      console.warn(
+        `  ⚠ ${overridden.length} manually-overridden match(es) are unplayed at the source (expected): ` +
+          formatRegressions(overridden, 50),
+      );
+      await logEvent(folder, 'warning',
+        `${overridden.length} match${overridden.length > 1 ? 'es' : ''} in this league ${overridden.length > 1 ? 'have' : 'has'} a manual result that the source doesn't have: ` +
+          `${formatRegressions(overridden)}. ${overridden.length > 1 ? 'They were' : 'It was'} kept as-is.`);
+    }
+    const newPlayed = applyOverrides(parseCSV(data), overridesForCheck).length;
+    const added = expectedShape ? newPlayed - previouslyPlayed.length : null;
+    console.log(
+      `  ✓ Integrity checks passed: CSV matches the league; ${newPlayed} played (post-overrides)` +
+        (expectedShape ? `, none lost (was ${previouslyPlayed.length})` : ' — first sync, no baseline'),
+    );
+    await logEvent(folder, 'success',
+      !expectedShape
+        ? `Data looks healthy — ${newPlayed} games (first sync).`
+        : `Data looks healthy — ${newPlayed} games, none lost${added > 0 ? ` (+${added} new)` : ' (no new games)'}.`);
+    csvText = data;
+    break;
+  }
+
+  // Both failures are TERMINAL and mean the same thing for the data: a CSV WAS
+  // produced, but applying it would damage the league — so the league's results are
+  // left exactly as they were, and the log says which of the two it was.
+  if (lastStructureErrors) {
+    await logEvent(folder, 'error',
+      `The data was downloaded but NOT applied — it doesn't match this league, so nothing was updated. ` +
+        `${lastStructureErrors[0]}`);
+    throw new Error(
+      `CSV/league mismatch after ${MAX_EXPORT_ATTEMPTS} attempts ` +
+        `(attempt 1: in-place, attempt 2: re-nav, attempt 3: full relogin): ${lastStructureErrors.join(' ')}`,
+    );
+  }
+  if (lastRegressions) {
+    await logEvent(folder, 'error',
+      `The data was downloaded but NOT applied — it would have erased ${lastRegressions.length} already-played ` +
+        `result${lastRegressions.length > 1 ? 's' : ''}: ${formatRegressions(lastRegressions)}. ` +
+        `Your results are unchanged. This is usually a temporary source glitch — try again shortly.`);
+    throw new Error(
+      `CSV regression after ${MAX_EXPORT_ATTEMPTS} attempts ` +
+        `(attempt 1: in-place, attempt 2: re-nav, attempt 3: full relogin): ` +
+        `${lastRegressions.length} already-played match(es) came back unplayed: ${formatRegressions(lastRegressions, 50)}`,
+    );
+  }
+  if (!csvText) {
+    throw new Error(`Export produced no usable CSV after ${MAX_EXPORT_ATTEMPTS} attempts`);
   }
 
   const lines = csvText.split('\n').filter(Boolean).length;
   console.log(`  ✓ CSV: ${csvText.length} bytes, ${lines} lines`);
   await mkdir(outSubdir, { recursive: true });
+  // The file on disk stays the RAW export — the untouched artifact of what the
+  // source actually served. The merged result below is what we treat as truth.
   await writeFile(csvOutputPath, csvText, 'utf8');
   console.log(`  ✓ Saved to ${csvOutputPath}`);
 
+  // Past both layers: this CSV is this league's, and it loses nothing. Manual
+  // overrides are re-applied downstream (they always win over the CSV), so the
+  // 'overridden' warnings above cost nothing here.
+  const matchesToWrite = parseCSVAllWithRounds(csvText).matches;
+
   if (supabase) {
     console.log('  → Writing matches + match_history to Supabase');
-    await writeMatchesToSupabase(folder, csvText);
+    await writeMatchesToSupabase(folder, matchesToWrite);
     await reconcileMatchHistoryInSupabase(folder);
     console.log('  ✓ Supabase updated');
   }
@@ -763,19 +865,21 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
 }
 
 /**
- * Upsert a league's matches table to match this CSV text (delete-stale + upsert,
+ * Upsert a league's matches table to match this match set (delete-stale + upsert,
  * keyed on league_id+round+player_a+player_b). Never touches admin-controlled
  * fields on the leagues row itself — only bumps last_updated, and only if the
  * row already exists (league creation stays an Admin operation).
+ *
+ * Takes the already-parsed matches rather than raw CSV: by the time we get here the
+ * CSV has cleared both integrity layers (js/data/csvIntegrity.js), and the caller
+ * already holds the parsed set.
  */
-async function writeMatchesToSupabase(folder, csvText) {
+async function writeMatchesToSupabase(folder, matches) {
   const { data: leagueRow } = await supabase.from('leagues').select('id').eq('id', folder).single();
   if (!leagueRow) {
     console.warn(`    ⚠ leagues row "${folder}" not found — skipping Supabase write (create the league via Admin first)`);
     return;
   }
-
-  const { matches } = parseCSVAllWithRounds(csvText);
 
   const { data: existing, error: fetchErr } = await supabase
     .from('matches')

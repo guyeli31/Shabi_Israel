@@ -940,6 +940,15 @@ table.font-large { font-size: var(--fs-093); }
     border: 1px solid var(--color-accent);
 }
 
+/* "It worked, but you need to know something" — e.g. the sync completed but the
+   source had dropped already-played results, which were restored. Distinct from
+   -error, which means nothing was updated. */
+.admin-msg-warning {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+    border: 1px solid var(--color-warning);
+}
+
 /* Sync activity log — running list of the last few status lines (scrolls). */
 .bgsync-log {
     max-height: 240px;
@@ -958,6 +967,28 @@ table.font-large { font-size: var(--fs-093); }
     opacity: 0.6;
     font-variant-numeric: tabular-nums;
     margin-inline-end: var(--space-xs);
+}
+
+/* CSV import gate — the acknowledgement an admin must tick before a CSV that
+   doesn't match the league (or that would erase already-played results) can arm
+   the page's existing "Confirm & Stage" button. Deliberately loud: this is the
+   last thing standing between a bad file and the league's data. */
+.csv-import-gate {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.csv-import-gate input[type="checkbox"] {
+    margin-top: 0.15em;
+    flex-shrink: 0;
+    cursor: pointer;
 }
 
 /* Collapsible log block — a tappable "Activity log / Last run" header that
@@ -1027,6 +1058,145 @@ table.font-large { font-size: var(--fs-093); }
 
 .sync-log-body {
     margin-top: var(--space-md);
+}
+
+/* ---- Run Now: estimate + live stage timers ---- */
+/* The estimate an admin sees BEFORE running ("~2:15 if all goes smoothly"). */
+.sync-eta {
+    margin-bottom: var(--space-sm);
+    color: var(--color-text-muted);
+    font-size: var(--fs-090);
+}
+
+.sync-eta b {
+    color: var(--color-text);
+}
+
+/* Stage list shown DURING a run. Lives outside the collapsible log, so progress
+   stays visible even when the log lines are hidden. */
+.sync-stages-panel {
+    margin-top: var(--space-md);
+    padding: var(--space-md);
+    background: var(--color-inset);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.sync-stages-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+}
+
+.sync-stages-title {
+    font-weight: 600;
+}
+
+.sync-stages-remaining {
+    margin-inline-start: auto;
+    color: var(--color-text-muted);
+    font-size: var(--fs-085);
+    font-variant-numeric: tabular-nums;
+}
+
+.sync-stages {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* Each stage: [icon] name … elapsed/expected, with a progress bar underneath.
+   The bar spans the full row (grid column 1/-1) so it reads as one meter. */
+.sync-stage {
+    display: grid;
+    grid-template-columns: 1.25rem 1fr auto;
+    align-items: center;
+    gap: 0 var(--space-sm);
+    padding: var(--space-xs) 0;
+    color: var(--color-text-muted);
+}
+
+.sync-stage-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sync-stage-time {
+    font-size: var(--fs-085);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.sync-stage-icon::before {
+    content: '○';
+}
+
+.sync-stage-bar {
+    grid-column: 1 / -1;
+    height: 3px;
+    margin-top: 4px;
+    border-radius: 999px;
+    background: var(--color-border);
+    overflow: hidden;
+}
+
+.sync-stage-bar i {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--color-accent);
+    transition: width 0.9s linear;   /* matches the 1s tick — the bar glides */
+}
+
+/* Running: full-strength text + a pulsing dot. */
+.sync-stage.is-active {
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.sync-stage.is-active .sync-stage-icon::before {
+    content: '●';
+    color: var(--color-accent);
+    animation: sync-stage-pulse 1.4s ease-in-out infinite;
+    display: inline-block;
+}
+
+@keyframes sync-stage-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.3; }
+}
+
+/* Done: a tick and a filled bar. */
+.sync-stage.is-done .sync-stage-icon::before {
+    content: '✓';
+    color: var(--color-success, var(--color-accent));
+}
+
+.sync-stage.is-done .sync-stage-bar i {
+    background: var(--color-success, var(--color-accent));
+}
+
+/* Failed: the stage stops where it stopped. */
+.sync-stage.is-failed {
+    color: var(--color-text);
+}
+
+.sync-stage.is-failed .sync-stage-icon::before {
+    content: '✕';
+    color: var(--color-danger, #e05260);
+}
+
+.sync-stage.is-failed .sync-stage-bar i {
+    background: var(--color-danger, #e05260);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sync-stage-bar i { transition: none; }
+    .sync-stage.is-active .sync-stage-icon::before { animation: none; }
 }
 
 /* ---- Publish Progress ---- */

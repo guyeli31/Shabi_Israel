@@ -21,11 +21,18 @@
 -- log_audit_event() and show up in Historical Changes tagged
 -- 'external-source-automation' (Build H). Nothing more is needed there.
 --
--- KNOWN SIMPLIFICATION (documented, not solved): plan `times` (HH:MM strings)
--- are interpreted here in UTC. The admin UI collects them via a plain
--- <input type="time"> with no timezone, and the "±1h randomization" disguise is
--- provided by the sync job's full-mode anti-bot delays, not by a scheduler-side
--- jitter — treat the fire time as an approximation.
+-- TIMES ARE LOCAL (Asia/Jerusalem), not UTC. The admin UI collects them via a
+-- plain <input type="time"> with no timezone, so "11:24" means 11:24 in Israel;
+-- check_and_trigger_external_source_syncs() compares against
+-- `now() at time zone 'Asia/Jerusalem'` (DST-safe). Was UTC until 2026-07-11 —
+-- which fired every plan 3 hours late in local terms.
+--
+-- The fire time is still an APPROXIMATION, by design:
+--   • the cron ticks every 15 min, so a plan time fires at the first tick at or
+--     after it (up to ~15 min late — e.g. 11:24 fires on the 11:30 tick);
+--   • the "±1h randomization" disguise then comes from the sync job's full-mode
+--     anti-bot delays (pre-delay + a randomised action sequence in which the real
+--     export can sit anywhere), not from a scheduler-side jitter.
 --
 -- This file is idempotent: safe to re-run after every schema change.
 
@@ -124,9 +131,21 @@ create table if not exists public.external_source_sync_events (
   league_id  text references public.leagues(id) on delete cascade,
   run_id     text,
   created_at timestamptz not null default now(),
-  level      text not null default 'info' check (level in ('info', 'success', 'error')),
+  level      text not null default 'info' check (level in ('info', 'success', 'error', 'warning')),
   message    text not null
 );
+
+-- 'warning' was added after the table shipped ("it worked, but you should know" —
+-- e.g. a match whose only result is a manual override, which the source correctly
+-- reports as unplayed). Distinct from 'error', which means nothing was written.
+-- Re-point the constraint on an already-created table.
+do $$
+begin
+  alter table public.external_source_sync_events drop constraint if exists external_source_sync_events_level_check;
+  alter table public.external_source_sync_events
+    add constraint external_source_sync_events_level_check
+    check (level in ('info', 'success', 'error', 'warning'));
+end $$;
 
 -- league_id is NULLABLE: a null row is a SITE-LEVEL event (connecting / login),
 -- shared across the whole run rather than tied to one league — the Admin Run Now
@@ -227,10 +246,13 @@ revoke all on function public._dispatch_external_source_sync(text, text, text, t
 -- carrying a LEAGUES array. sync-source.js loops the array in one browser session
 -- (runAllExports), and each league still streams its own progress events. One log
 -- row per league is written so external_source_sync_status() resolves per league.
+drop function if exists public._dispatch_external_source_sync_multi(text[], text, text);
+
 create or replace function public._dispatch_external_source_sync_multi(
   p_league_ids text[],
   p_kind text,
-  p_mode text default 'fast'
+  p_mode text default 'fast',
+  p_plan_id text default null
 )
 returns void
 language plpgsql
@@ -275,16 +297,23 @@ begin
 
   foreach lid in array p_league_ids loop
     insert into public.external_source_sync_log (league_id, trigger_kind, request_id, plan_id)
-    values (lid, p_kind, req_id, null);
+    values (lid, p_kind, req_id, p_plan_id);
   end loop;
 end;
 $$;
 
-revoke all on function public._dispatch_external_source_sync_multi(text[], text, text) from public;
+revoke all on function public._dispatch_external_source_sync_multi(text[], text, text, text) from public;
 
 -- ── Scheduled check — run by pg_cron every SYNC_TICK_MINUTES ────────────
--- Iterates enabled, in-window plans; for each, dispatches every member league
--- that is still Running and has a source name.
+-- Iterates enabled, in-window plans; for each, dispatches ONE workflow run
+-- carrying ALL of its member leagues that are still Running and have a source name.
+--
+-- ONE RUN PER PLAN (not per league): sync-source.js walks the LEAGUES array
+-- sequentially inside a SINGLE browser session. Dispatching one workflow per
+-- league instead starts N concurrent runs that all restore the SAME saved session
+-- cookie and log into the source site with the same account at the same moment —
+-- the site only holds one live session, so every run but the winner desynchronises
+-- and dies with "tab not found" / "Leagues list did not render (state not ready)".
 --
 -- OVERLAP RULE: a league is dispatched AT MOST ONCE per tick, even if it belongs
 -- to two plans whose times collide. Plans are processed OLDEST-FIRST ('default'
@@ -292,6 +321,10 @@ revoke all on function public._dispatch_external_source_sync_multi(text[], text,
 -- de-dup below ignores plan_id — so when two plans overlap on a league, the older
 -- plan wins and the newer plan is suppressed for that league (its non-overlapping
 -- leagues still run). This prevents double-syncing the same league.
+--
+-- REMAINING HAZARD (documented, not solved): two DIFFERENT plans scheduled at
+-- ~the same time, with disjoint leagues, still produce two concurrent runs and
+-- can race on the shared source-site session as above. Stagger plan times.
 create or replace function public.check_and_trigger_external_source_syncs()
 returns void
 language plpgsql
@@ -300,11 +333,17 @@ set search_path = public
 as $$
 declare
   pl record;
-  lg record;
   tick_minutes int := 15; -- must match the cron.schedule interval below
   hhmm text;
   due boolean;
+  local_now timestamp;
+  due_leagues text[];
 begin
+  -- Plan times are WALL-CLOCK IN THE LEAGUE'S LOCAL ZONE, not UTC: the admin types
+  -- "11:24" into a plain <input type="time"> meaning 11:24 in Israel. Comparing in
+  -- the named zone (rather than 'utc') also keeps DST correct automatically.
+  local_now := now() at time zone 'Asia/Jerusalem';
+
   for pl in
     select id, times, start_date, end_date, mode
     from public.sync_plans
@@ -316,8 +355,8 @@ begin
     due := false;
     for hhmm in select jsonb_array_elements_text(coalesce(pl.times, '[]'::jsonb))
     loop
-      if to_timestamp(to_char(now() at time zone 'utc', 'YYYY-MM-DD') || ' ' || hhmm, 'YYYY-MM-DD HH24:MI')
-         between (now() at time zone 'utc') - (tick_minutes || ' minutes')::interval and (now() at time zone 'utc')
+      if to_timestamp(to_char(local_now, 'YYYY-MM-DD') || ' ' || hhmm, 'YYYY-MM-DD HH24:MI')
+         between local_now - (tick_minutes || ' minutes')::interval and local_now
       then
         due := true;
       end if;
@@ -327,25 +366,24 @@ begin
       continue;
     end if;
 
-    for lg in
-      select l.id
-      from public.sync_plan_members m
-      join public.leagues l on l.id = m.league_id
-      where m.plan_id = pl.id
-        and l.running = true
-        and public._source_league_name(l.id) is not null
-    loop
-      -- Per-league (NOT per-plan) de-dup: if ANY scheduled plan already dispatched
-      -- this league in the current tick window, skip it here. Combined with the
-      -- oldest-first ordering above, the older plan wins on any overlap.
-      if not exists (
+    -- Collect every eligible member league not already dispatched by an earlier
+    -- (older) plan in this tick window, then fire ONE run for all of them.
+    select coalesce(array_agg(l.id order by l.id), '{}'::text[])
+      into due_leagues
+    from public.sync_plan_members m
+    join public.leagues l on l.id = m.league_id
+    where m.plan_id = pl.id
+      and l.running = true
+      and public._source_league_name(l.id) is not null
+      and not exists (
         select 1 from public.external_source_sync_log
-        where league_id = lg.id and trigger_kind = 'scheduled'
+        where league_id = l.id and trigger_kind = 'scheduled'
           and triggered_at > now() - (tick_minutes || ' minutes')::interval
-      ) then
-        perform public._dispatch_external_source_sync(lg.id, 'scheduled', pl.id, pl.mode);
-      end if;
-    end loop;
+      );
+
+    if array_length(due_leagues, 1) is not null then
+      perform public._dispatch_external_source_sync_multi(due_leagues, 'scheduled', pl.mode, pl.id);
+    end if;
   end loop;
 end;
 $$;

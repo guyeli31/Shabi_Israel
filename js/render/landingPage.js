@@ -866,7 +866,24 @@ function renderInfoCards(container, activePlayers, totalPlayers, totalLeagues, l
 
 /* ── H1 — Active leagues ─────────────────────────────── */
 
-function renderActiveLeagues(container, running) {
+/** Card order within Active Leagues: Doubling → UBC → Regular.
+ *  Stable, so DisplayOrder still decides the order inside each type group. */
+const ACTIVE_TYPE_ORDER = { doubling: 0, ubc: 1, regular: 2 };
+
+function sortActiveLeagues(running) {
+    return running
+        .map((l, i) => ({ l, i }))
+        .sort((a, b) => {
+            const ta = ACTIVE_TYPE_ORDER[a.l.leagueType] ?? 9;
+            const tb = ACTIVE_TYPE_ORDER[b.l.leagueType] ?? 9;
+            return ta !== tb ? ta - tb : a.i - b.i;
+        })
+        .map(x => x.l);
+}
+
+function renderActiveLeagues(container, runningInput) {
+    const running = sortActiveLeagues(runningInput);
+
     const section = document.createElement('div');
     section.className = 'app-section app-section--card dash-section';
 

@@ -4,7 +4,7 @@
  */
 
 import { addChange } from './stagingStore.js';
-import { computeCsvImportReport, renderCsvImportReport } from './csvValidation.js';
+import { computeCsvImportReport, renderCsvImportReport, wireCsvImportGate } from './csvValidation.js';
 import { parseCSV } from '../data/csvParser.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { formatNumber } from '../utils/helpers.js';
@@ -131,6 +131,10 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone) {
         try {
             const report = await computeCsvImportReport(leagueId, csvText);
             if (el) el.innerHTML = renderCsvImportReport(report);
+            // A CSV that doesn't match the league, or that would erase already-played
+            // results, must be acknowledged before it can be staged — the report's
+            // checkbox arms the Confirm & Stage button below.
+            wireCsvImportGate(el, report, document.getElementById('confirm-import'));
             renderPreview(host, report);
         } catch (err) {
             if (el) el.innerHTML = `<p style="color:var(--color-text-muted);padding:var(--space-sm) 0">Compatibility check unavailable: ${escHtml(err.message)}</p>`;

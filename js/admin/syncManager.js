@@ -30,6 +30,7 @@ import {
     createSyncLog, friendlySyncError, latestEventId, pollSyncDispatch, streamSyncEvents,
     latestSiteEventId, streamSiteEvents, loadLastRun,
 } from './syncLog.js';
+import { createStageTracker, estimateRunSeconds, fmtDuration } from './syncProgress.js';
 
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 const SYNC_SETTINGS_PATH = 'leagues/sync_settings.json';
@@ -280,6 +281,8 @@ function wireActiveLeagues(container, leagues) {
                 if (lbl) lbl.style.opacity = eligible ? '' : '.55';
                 const rnHint = lbl && lbl.querySelector('.sync-runnow-hint');
                 if (rnHint) { rnHint.textContent = msg ? `(${msg})` : ''; rnHint.style.display = msg ? '' : 'none'; }
+                // The pick changed without a `change` event — refresh the estimate.
+                if (container._syncUpdateEta) container._syncUpdateEta();
             }
         });
     });
@@ -323,7 +326,11 @@ function sectionRunNow(active, settings) {
                     own CSV match check and any new flags below.
                 </p>
                 <div style="margin-bottom:var(--space-md)">${checks || '<span style="color:var(--color-text-muted)">—</span>'}</div>
+                <div class="sync-eta" id="sync-runnow-eta"></div>
                 <button class="btn btn-secondary" id="sync-runnow-btn"${disabled ? ' disabled' : ''}>Run Now</button>
+                <!-- Stage timers sit OUTSIDE the collapsible log: progress stays visible
+                     even when an admin hides the log lines. -->
+                <div class="sync-stages-panel" id="sync-runnow-stages" hidden></div>
                 ${collapsibleLogHTML('runnow', 'Activity log', `
                     <div id="sync-runnow-log" style="margin-top:var(--space-md)"></div>
                     <div id="sync-runnow-reports" style="margin-top:var(--space-md);display:flex;flex-direction:column;gap:var(--space-md)"></div>
@@ -337,10 +344,32 @@ function sectionRunNow(active, settings) {
 function wireRunNow(container, active) {
     const btn = container.querySelector('#sync-runnow-btn');
     if (!btn) return;
+
+    const pickedIds = () => Array.from(container.querySelectorAll('.sync-runnow-pick:checked')).map((c) => c.dataset.league);
+
+    // Pre-run estimate — what this run should take if nothing goes wrong. Recomputed
+    // whenever the selection changes (including when the Source-Name gate in Active
+    // Leagues toggles a pick), since every league adds an export pass.
+    function updateEta() {
+        const etaEl = container.querySelector('#sync-runnow-eta');
+        if (!etaEl) return;
+        const ids = pickedIds();
+        if (ids.length === 0) {
+            etaEl.textContent = 'Pick at least one league to see an estimated run time.';
+            return;
+        }
+        etaEl.innerHTML = `Estimated run time <b>~${fmtDuration(estimateRunSeconds(ids))}</b>
+            for ${ids.length} league${ids.length === 1 ? '' : 's'}, if everything runs smoothly.`;
+    }
+    container.querySelectorAll('.sync-runnow-pick').forEach((c) => c.addEventListener('change', updateEta));
+    container._syncUpdateEta = updateEta; // Active Leagues re-checks picks programmatically
+    updateEta();
+
     btn.addEventListener('click', async () => {
-        const ids = Array.from(container.querySelectorAll('.sync-runnow-pick:checked')).map((c) => c.dataset.league);
+        const ids = pickedIds();
         const runLogEl = container.querySelector('#sync-runnow-log');
         const reportsEl = container.querySelector('#sync-runnow-reports');
+        const stagesEl = container.querySelector('#sync-runnow-stages');
         const runLog = createSyncLog(runLogEl);
         runLog.clear();
         reportsEl.innerHTML = '';
@@ -350,17 +379,30 @@ function wireRunNow(container, active) {
         btn.disabled = true;
         runLog.log(`Starting sync for ${ids.length} league${ids.length === 1 ? '' : 's'}…`, 'info');
 
+        const titleOf = (id) => {
+            const lg = active.find((l) => l.id === id);
+            return lg ? (lg.params.LeagueTitle || id) : id;
+        };
+
+        // Live stage timers: each stage shows elapsed vs. how long it usually takes,
+        // so a long silent gap (a runner installing, say) reads as progress and not
+        // as a hang. Stage transitions are driven by the events themselves — the first
+        // site-level line ends "startup", the first league line ends "connect", etc.
+        stagesEl.hidden = false;
+        const tracker = createStageTracker(stagesEl, ids.map((id) => ({ id, title: titleOf(id) })));
+        tracker.begin('dispatch');
+
         // Build one report card + logger per selected league, and anchor each
         // league's live stream on its current newest event id.
         const cards = {};
         const anchors = {};
+        const lastLevel = {};
         for (const id of ids) {
             const lg = active.find((l) => l.id === id);
-            const title = lg ? (lg.params.LeagueTitle || id) : id;
             const type = lg ? (lg.params.LeagueType || 'doubling') : 'doubling';
             // Same card markup as a plan's Last Run (syncReportCardHTML), so the
             // live report and the replay look identical.
-            reportsEl.insertAdjacentHTML('beforeend', syncReportCardHTML(title, type, 'sync-report-log'));
+            reportsEl.insertAdjacentHTML('beforeend', syncReportCardHTML(titleOf(id), type, 'sync-report-log'));
             cards[id] = createSyncLog(reportsEl.lastElementChild.querySelector('.sync-report-log'));
             cards[id].log('Queued…', 'info');
             anchors[id] = await latestEventId(id);
@@ -369,35 +411,65 @@ function wireRunNow(container, active) {
         // whole run, shown once here in the global log, not per league).
         const siteSince = await latestSiteEventId();
 
+        // Loggers that advance the stage clock as lines land, then pass the line on
+        // untouched. begin/complete are idempotent, so firing them per line is safe.
+        const siteLogger = {
+            ...runLog,
+            log: (msg, type = 'info', when = null) => {
+                tracker.complete('startup');
+                tracker.begin('connect');
+                runLog.log(msg, type, when);
+            },
+        };
+        const leagueLogger = (id) => ({
+            ...cards[id],
+            log: (msg, type = 'info', when = null) => {
+                tracker.complete('startup'); // in case no site line ever arrived
+                tracker.complete('connect'); // first league line = the site is in
+                tracker.begin(`league:${id}`);
+                lastLevel[id] = type;
+                cards[id].log(msg, type, when);
+            },
+        });
+
         try {
             const { error } = await supabase.rpc('trigger_external_source_sync_now_leagues', { p_league_ids: ids });
             if (error) throw error;
             runLog.log('Request sent to the league site.', 'info');
             const running = await pollSyncDispatch(ids[0], runLog);
-            if (running) {
-                // The site log (login/connection) streams into the GLOBAL log; each
-                // league's export story streams into its own card. A site-level error
-                // (e.g. couldn't sign in) aborts the per-league streams — no data will
-                // come, so they stop quietly instead of hitting the "no progress" timeout.
-                let leaguesDone = false;
-                let aborted = false;
-                const sitePromise = streamSiteEvents(siteSince, runLog, {
-                    stopWhen: () => leaguesDone,
-                    onError: () => { aborted = true; },
-                });
-                await Promise.all(ids.map((id) => streamSyncEvents(id, anchors[id], cards[id], { stopWhen: () => aborted })));
-                leaguesDone = true;
-                await sitePromise;
-                runLog.log(
-                    aborted
-                        ? 'Run stopped — see the connection problem above.'
-                        : 'All selected syncs finished (or are still running in the background).',
-                    aborted ? 'error' : 'success',
-                );
-            }
+            tracker.complete('dispatch');
+            if (!running) { tracker.done(); return; } // can't observe further — nothing to time
+
+            tracker.begin('startup');
+            // The site log (login/connection) streams into the GLOBAL log; each
+            // league's export story streams into its own card. A site-level error
+            // (e.g. couldn't sign in) aborts the per-league streams — no data will
+            // come, so they stop quietly instead of hitting the "no progress" timeout.
+            let leaguesDone = false;
+            let aborted = false;
+            const sitePromise = streamSiteEvents(siteSince, siteLogger, {
+                stopWhen: () => leaguesDone,
+                onError: () => { aborted = true; },
+            });
+            await Promise.all(ids.map(async (id) => {
+                await streamSyncEvents(id, anchors[id], leagueLogger(id), { stopWhen: () => aborted });
+                // The stream returns on the league's terminal line — its level says
+                // whether that league landed or failed.
+                if (lastLevel[id] === 'error') tracker.fail(`league:${id}`);
+                else tracker.complete(`league:${id}`);
+            }));
+            leaguesDone = true;
+            await sitePromise;
+            runLog.log(
+                aborted
+                    ? 'Run stopped — see the connection problem above.'
+                    : 'All selected syncs finished (or are still running in the background).',
+                aborted ? 'error' : 'success',
+            );
+            if (aborted) tracker.stop(); else tracker.done();
         } catch (err) {
-            const msg = friendlySyncError(err);
-            runLog.log(msg, 'error');
+            runLog.log(friendlySyncError(err), 'error');
+            tracker.stop();
         } finally {
             btn.disabled = false;
         }

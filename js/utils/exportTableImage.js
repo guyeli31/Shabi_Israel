@@ -63,9 +63,23 @@ const WA_LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: '
 export function leagueTypeLabel(leagueType) {
     return WA_LEAGUE_TYPE_LABELS[leagueType] || WA_LEAGUE_TYPE_LABELS.doubling;
 }
-// --fs-093 (font-large) / --fs-085 (font-small) design ratio; we drive
-// both tokens off the same fitted pixel size to stay deterministic.
-const WA_F093_OVER_085 = 0.93 / 0.85;
+// The whole fluid type family, keyed by its design-max in rem. Tables use
+// several of these — not just --fs-085 (data cells): B6b's "played ≥ half"
+// divider is --fs-075, footers are --fs-060, etc. The font-fit below drives
+// EVERY token off the single fitted size, preserving each token's designed
+// ratio to --fs-085. Overriding only --fs-085/--fs-093 would leave the rest
+// at the page's live fluid (viewport-dependent!) value, so they'd render
+// disproportionately tiny next to the scaled-up data cells.
+const WA_FS_TOKENS = {
+    '--fs-060': 0.60, '--fs-075': 0.75, '--fs-085': 0.85, '--fs-093': 0.93,
+    '--fs-100': 1.00, '--fs-105': 1.05, '--fs-110': 1.10, '--fs-112': 1.12,
+    '--fs-115': 1.15, '--fs-120': 1.20, '--fs-125': 1.25, '--fs-135': 1.35,
+    '--fs-140': 1.40, '--fs-150': 1.50, '--fs-160': 1.60, '--fs-180': 1.80,
+    '--fs-190': 1.90,
+};
+// The fitted size we solve for IS --fs-085 (the data-cell token); every
+// other token is scaled relative to it.
+const WA_FS_BASE_REM = 0.85;
 
 /**
  * Export a live table as a fixed 4:5 WhatsApp-ready PNG (1080×1350).
@@ -86,8 +100,15 @@ const WA_F093_OVER_085 = 0.93 / 0.85;
  * @param {string}           [args.leagueType] 'doubling'|'regular'|'ubc' —
  *                                             renders the coloured type pill
  *                                             to the right of the title
+ * @param {boolean}          [args.shrinkToContent] Column-width policy. Wide
+ *   tables (D, ~11 cols) default to false: columns stretch to fill the frame.
+ *   Narrow tables (B6a/B6b 2 cols, B6c 1 col) MUST pass true: stretching them
+ *   across 968px leaves each cell ~80% empty with the text swimming in it.
+ *   With true, cells are pinned nowrap so every column sizes to its widest
+ *   text (nothing is ever clipped or wrapped) and the resulting narrower
+ *   table is centred in the frame.
  */
-export async function exportWhatsAppTableImage({ sourceTable, filename, title, subtitle, leagueType }) {
+export async function exportWhatsAppTableImage({ sourceTable, filename, title, subtitle, leagueType, shrinkToContent = false }) {
     if (typeof html2canvas === 'undefined') {
         alert('html2canvas library not loaded.');
         return;
@@ -138,9 +159,12 @@ export async function exportWhatsAppTableImage({ sourceTable, filename, title, s
     wrap.appendChild(header);
 
     // Body region fills the remaining height; table is top-aligned inside it.
+    // shrinkToContent additionally centres it horizontally, since the table
+    // is then narrower than the frame.
     const bodyRegion = document.createElement('div');
     bodyRegion.style.cssText =
-        `flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;`;
+        `flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;`
+        + (shrinkToContent ? `align-items:center;` : ``);
     wrap.appendChild(bodyRegion);
 
     // Clone + the standard html2canvas survival kit (mirrors exportTableImage).
@@ -162,17 +186,30 @@ export async function exportWhatsAppTableImage({ sourceTable, filename, title, s
     });
     tableClone.style.maxWidth = 'none';
 
+    // Content-width mode: pin every cell nowrap so each column sizes to its
+    // widest text — the table can then only be as wide as its content needs,
+    // and nothing wraps or gets clipped. (B6a's page CSS forces
+    // table-layout:fixed + width:100%; the clone lives outside .rem-b6a-wrap
+    // so that rule can't reach it, but we clear it explicitly to be safe.)
+    if (shrinkToContent) {
+        tableClone.style.tableLayout = 'auto';
+        tableClone.querySelectorAll('thead th, tbody td').forEach(cell => {
+            cell.style.whiteSpace = 'nowrap';
+        });
+    }
+
     const scroll = document.createElement('div');
     scroll.className = 'mf-wrap';
-    scroll.style.cssText = 'max-height:none;overflow:visible;width:100%;';
+    scroll.style.cssText = 'max-height:none;overflow:visible;'
+        + (shrinkToContent ? 'width:max-content;max-width:100%;margin:0 auto;' : 'width:100%;');
     scroll.appendChild(tableClone);
     bodyRegion.appendChild(scroll);
     document.body.appendChild(wrap);
 
-    // Font-fit. The table's cell fonts come from the rem-based --fs-085 /
-    // --fs-093 tokens (not inherited table font-size), so we drive those
-    // tokens directly. Measure at width:auto (intrinsic) then shrink until
-    // the table fits both the frame's inner width and the body band height.
+    // Font-fit. The table's fonts come from the rem-based --fs-* tokens (not
+    // the inherited table font-size), so we drive the whole family directly.
+    // Measure at width:auto (intrinsic) then shrink until the table fits both
+    // the frame's inner width and the body band height.
     const baseSpaceMdPx = parseFloat(
         getComputedStyle(document.documentElement).getPropertyValue('--space-md').trim()
     ) || 16;
@@ -181,8 +218,9 @@ export async function exportWhatsAppTableImage({ sourceTable, filename, title, s
 
     const applyFont = (f) => {
         tableClone.style.fontSize = f + 'px';
-        tableClone.style.setProperty('--fs-085', f + 'px');
-        tableClone.style.setProperty('--fs-093', (f * WA_F093_OVER_085) + 'px');
+        for (const [token, rem] of Object.entries(WA_FS_TOKENS)) {
+            tableClone.style.setProperty(token, (f * (rem / WA_FS_BASE_REM)) + 'px');
+        }
         tableClone.style.setProperty('--space-md', (baseSpaceMdPx * (f / WA_TABLE_FONT_MAX)) + 'px');
     };
 
@@ -195,10 +233,11 @@ export async function exportWhatsAppTableImage({ sourceTable, filename, title, s
         font = Math.max(WA_TABLE_FONT_MIN, (font / r) * 0.99);
         applyFont(font);
     }
-    // Stretch columns to fill the frame width for the final render. Cells
-    // are white-space:nowrap (MF content-sizing) so this only widens
-    // columns — it does not re-wrap or change the fitted height.
-    tableClone.style.width = '100%';
+    // Final width policy. Wide tables stretch to fill the frame (cells are
+    // white-space:nowrap, so this only widens columns — it does not re-wrap
+    // or change the fitted height). Narrow tables keep the intrinsic width
+    // they were just fitted at and stay centred by the wrapper above.
+    if (!shrinkToContent) tableClone.style.width = '100%';
 
     try {
         if (document.fonts && document.fonts.ready) await document.fonts.ready;
