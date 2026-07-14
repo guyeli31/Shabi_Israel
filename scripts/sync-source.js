@@ -493,29 +493,58 @@ async function clickLeagueByName(page, sourceLeagueName) {
 /**
  * Wait for the league's roster (DL) to populate before exporting.
  *
- * This used to also gate on FL[RG] — the source's "rounds played" counter — but
- * that was a leftover from an earlier design and measures the wrong thing: the
- * exported CSV ALWAYS carries every round of the round-robin, with not-yet-played
- * matches present as all-zero rows. So the round counter says nothing about export
- * completeness, and gating on it only produced a spurious "undefined rounds" and a
- * 5s stall. Export completeness is established by two things that actually test it:
- * triggerExportAndCollect() waits for the CSV to stop growing, and the two
- * integrity layers (js/data/csvIntegrity.js) validate what came out.
+ * This no longer gates on FL[RG] — the source's "rounds played" counter — which was
+ * a leftover from an earlier design and measures the wrong thing: the exported CSV
+ * ALWAYS carries every round of the round-robin, with not-yet-played matches present
+ * as all-zero rows. So the round counter says nothing about export completeness; the
+ * two integrity layers (js/data/csvIntegrity.js) establish that instead.
+ *
+ * DL IS STALE ON ENTRY. It is a page global that still holds whatever the PREVIOUS
+ * page/league left in it, so `DL.length > 0` is true the instant we arrive and means
+ * nothing. Returning on that read gives the previous league's roster (or the Live
+ * matches list, whose entries have no `username` at all — which is how this surfaced:
+ * a cryptic "Cannot read properties of undefined (reading 'localeCompare')" while
+ * sorting the roster). So we require all three:
+ *   • SETTLE_MS since DL first looked non-empty — the window in which the page swaps
+ *     in the real roster (this is the check whose removal caused the bug),
+ *   • DL stable (same length) for STABLE_MS,
+ *   • the entries actually LOOK like a roster (they carry `username`).
  */
 async function waitForRoster(page) {
   return await page.evaluate(async () => {
     const HARD_TIMEOUT = 15000;
+    const SETTLE_MS = 5000;
+    const STABLE_MS = 1500;
     const T0 = performance.now();
     const trace = [];
+    let dlSince = null;
+    let stableSince = null;
+    let lastDl = -1;
+
+    const rosterShaped = () =>
+      typeof DL !== 'undefined' && Array.isArray(DL) && DL.length > 0
+      && DL.every((p) => p && typeof p.username === 'string' && p.username.length > 0);
+
     while (performance.now() - T0 < HARD_TIMEOUT) {
-      const dl = typeof DL !== 'undefined' && Array.isArray(DL) ? DL.length : 0;
+      const dl = (typeof DL !== 'undefined' && Array.isArray(DL)) ? DL.length : 0;
+      const shaped = rosterShaped();
       const t = Math.round(performance.now() - T0);
-      const last = trace[trace.length - 1];
-      if (!last || last.dl !== dl) trace.push({ t, dl });
-      if (dl > 0) return { ok: true, dl, t, trace };
+
+      if (dl !== lastDl) {
+        trace.push({ t, dl, shaped });
+        lastDl = dl;
+        stableSince = dl > 0 ? performance.now() : null;
+      }
+      if (dl > 0 && dlSince === null) dlSince = performance.now();
+
+      if (shaped && dlSince !== null
+          && performance.now() - dlSince >= SETTLE_MS
+          && stableSince !== null && performance.now() - stableSince >= STABLE_MS) {
+        return { ok: true, dl, t, trace };
+      }
       await new Promise((r) => setTimeout(r, 200));
     }
-    return { ok: false, trace, t: HARD_TIMEOUT };
+    return { ok: false, dl: lastDl, trace, t: HARD_TIMEOUT };
   });
 }
 
@@ -568,7 +597,7 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
 
   await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
 
-  console.log('  → Waiting for league roster (DL) and round count (FL[RG]) to populate');
+  console.log('  → Waiting for the league roster (DL) to settle');
   const rosterReady = await waitForRoster(page);
   console.log(`    Trace: ${JSON.stringify(rosterReady.trace)}`);
   if (!rosterReady.ok) {
@@ -580,7 +609,12 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
   console.log('  → Extracting player roster (DL) for players.json');
   const players = await page.evaluate(() => {
     if (typeof DL === 'undefined' || !Array.isArray(DL)) return null;
-    return DL.map((p) => ({ username: p.username, fl: p.fl, cname: p.cname }));
+    // Guard the roster shape here too: waitForRoster already requires it, but a
+    // nameless entry slipping through must not become a bare `undefined.localeCompare`
+    // crash further down — it means we're reading the wrong page global.
+    return DL
+      .filter((p) => p && typeof p.username === 'string' && p.username.length > 0)
+      .map((p) => ({ username: p.username, fl: p.fl, cname: p.cname }));
   });
   if (!players || players.length === 0) {
     console.warn('    DL not available or empty — skipping players.json');
