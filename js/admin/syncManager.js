@@ -447,12 +447,21 @@ function wireRunNow(container, active) {
             // come, so they stop quietly instead of hitting the "no progress" timeout.
             let leaguesDone = false;
             let aborted = false;
+            // Last site-level line seen. GitHub Actions can take a minute just to boot
+            // the runner, so the per-league "no progress" timer counts from the run's
+            // last sign of life rather than from dispatch — otherwise it fired exactly
+            // as the job came up, while the site log was streaming progress.
+            let lastAlive = 0;
             const sitePromise = streamSiteEvents(siteSince, siteLogger, {
                 stopWhen: () => leaguesDone,
                 onError: () => { aborted = true; },
+                onAlive: () => { lastAlive = Date.now(); },
             });
             await Promise.all(ids.map(async (id) => {
-                await streamSyncEvents(id, anchors[id], leagueLogger(id), { stopWhen: () => aborted });
+                await streamSyncEvents(id, anchors[id], leagueLogger(id), {
+                    stopWhen: () => aborted,
+                    aliveAt: () => lastAlive,
+                });
                 // The stream returns on the league's terminal line — its level says
                 // whether that league landed or failed.
                 if (lastLevel[id] === 'error') tracker.fail(`league:${id}`);

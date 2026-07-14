@@ -510,8 +510,8 @@ async function clickLeagueByName(page, sourceLeagueName) {
  *   • DL stable (same length) for STABLE_MS,
  *   • the entries actually LOOK like a roster (they carry `username`).
  */
-async function waitForRoster(page) {
-  return await page.evaluate(async () => {
+async function waitForRoster(page, prevFingerprint) {
+  return await page.evaluate(async (prevFp) => {
     const HARD_TIMEOUT = 15000;
     const SETTLE_MS = 5000;
     const STABLE_MS = 1500;
@@ -521,31 +521,61 @@ async function waitForRoster(page) {
     let stableSince = null;
     let lastDl = -1;
 
+    // Identity of what DL currently holds. Used to prove the roster actually
+    // BELONGS to the league we just opened: in a multi-league run the global is
+    // not reset between leagues, so a league whose roster never loads would
+    // silently inherit the previous league's — and we'd write its players.json
+    // and detect its flags against the wrong roster.
+    const fingerprint = () => {
+      if (typeof DL === 'undefined' || !Array.isArray(DL) || DL.length === 0) return '';
+      const first = DL[0] && DL[0].username ? DL[0].username : '?';
+      const last = DL[DL.length - 1] && DL[DL.length - 1].username ? DL[DL.length - 1].username : '?';
+      return `${DL.length}|${first}|${last}`;
+    };
+
+    // ONE malformed entry must not discard an otherwise valid roster — the caller
+    // filters those out. (Requiring EVERY entry to be named is what rejected a real
+    // 21-player roster that had a single nameless row; the previous code instead
+    // sorted it and died on `undefined.localeCompare`.)
     const rosterShaped = () =>
       typeof DL !== 'undefined' && Array.isArray(DL) && DL.length > 0
-      && DL.every((p) => p && typeof p.username === 'string' && p.username.length > 0);
+      && DL.some((p) => p && typeof p.username === 'string' && p.username.length > 0);
+
+    // What DL actually holds, for diagnosis when it isn't the roster we expect.
+    const sampleDl = () => {
+      if (typeof DL === 'undefined' || !Array.isArray(DL) || DL.length === 0) return null;
+      try {
+        return { keys: Object.keys(DL[0] || {}).slice(0, 15), first: JSON.stringify(DL[0]).slice(0, 240) };
+      } catch { return { keys: null, first: String(DL[0]).slice(0, 120) }; }
+    };
 
     while (performance.now() - T0 < HARD_TIMEOUT) {
       const dl = (typeof DL !== 'undefined' && Array.isArray(DL)) ? DL.length : 0;
       const shaped = rosterShaped();
+      const fp = fingerprint();
+      const fresh = !prevFp || fp !== prevFp; // must not be the PREVIOUS league's roster
       const t = Math.round(performance.now() - T0);
 
       if (dl !== lastDl) {
-        trace.push({ t, dl, shaped });
+        trace.push({ t, dl, shaped, fresh });
         lastDl = dl;
         stableSince = dl > 0 ? performance.now() : null;
       }
       if (dl > 0 && dlSince === null) dlSince = performance.now();
 
-      if (shaped && dlSince !== null
+      if (shaped && fresh && dlSince !== null
           && performance.now() - dlSince >= SETTLE_MS
           && stableSince !== null && performance.now() - stableSince >= STABLE_MS) {
-        return { ok: true, dl, t, trace };
+        return { ok: true, dl, t, trace, fingerprint: fp, sample: sampleDl() };
       }
       await new Promise((r) => setTimeout(r, 200));
     }
-    return { ok: false, dl: lastDl, trace, t: HARD_TIMEOUT };
-  });
+    return {
+      ok: false, dl: lastDl, trace, t: HARD_TIMEOUT, fingerprint: fingerprint(),
+      stale: !!prevFp && fingerprint() === prevFp,
+      sample: sampleDl(),
+    };
+  }, prevFingerprint || '');
 }
 
 async function triggerExportAndCollect(page) {
@@ -592,30 +622,67 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
 
   await logEvent(folder, 'info', `Starting sync for "${sourceLeagueName}"…`);
   await page.waitForTimeout(randInt(500, 2500));
+
+  // Fingerprint DL BEFORE opening the league. The source never resets this global
+  // between leagues, so in a multi-league run the next league inherits the previous
+  // one's roster if its own never loads. Comparing against this proves the roster we
+  // read afterwards is really THIS league's.
+  const prevFingerprint = await page.evaluate(() => {
+    if (typeof DL === 'undefined' || !Array.isArray(DL) || DL.length === 0) return '';
+    const f = DL[0] && DL[0].username ? DL[0].username : '?';
+    const l = DL[DL.length - 1] && DL[DL.length - 1].username ? DL[DL.length - 1].username : '?';
+    return `${DL.length}|${f}|${l}`;
+  });
+
   console.log(`  → Opening league "${sourceLeagueName}" (with pagination)`);
   await clickLeagueByName(page, sourceLeagueName);
 
   await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
 
+  // The roster (DL) is NOT load-bearing for the sync. It feeds players.json and
+  // new-flag detection only — the league's actual results come from the CSV export,
+  // which is validated by its own two integrity layers (js/data/csvIntegrity.js).
+  // So an unreadable DL is a WARNING, never a failure: we skip the roster work and
+  // still export the results. (Treating it as fatal is what turned a cosmetic
+  // problem into "all leagues failed" — and before that, into a bare
+  // `undefined.localeCompare` crash that aborted the export before it ever ran.)
   console.log('  → Waiting for the league roster (DL) to settle');
-  const rosterReady = await waitForRoster(page);
+  const rosterReady = await waitForRoster(page, prevFingerprint);
   console.log(`    Trace: ${JSON.stringify(rosterReady.trace)}`);
-  if (!rosterReady.ok) {
-    throw new Error('DL never populated within 15s after league click');
-  }
-  console.log(`    DL = ${rosterReady.dl} players — ready after ${rosterReady.t}ms`);
-  await logEvent(folder, 'info', `Opened the league — ${rosterReady.dl} players.`);
 
-  console.log('  → Extracting player roster (DL) for players.json');
-  const players = await page.evaluate(() => {
-    if (typeof DL === 'undefined' || !Array.isArray(DL)) return null;
-    // Guard the roster shape here too: waitForRoster already requires it, but a
-    // nameless entry slipping through must not become a bare `undefined.localeCompare`
-    // crash further down — it means we're reading the wrong page global.
-    return DL
-      .filter((p) => p && typeof p.username === 'string' && p.username.length > 0)
-      .map((p) => ({ username: p.username, fl: p.fl, cname: p.cname }));
-  });
+  let players = null;
+  if (!rosterReady.ok) {
+    const why = rosterReady.stale
+      ? `still the PREVIOUS league's roster (${rosterReady.fingerprint}) — it never reloaded`
+      : `${rosterReady.dl} entries, none player-shaped`;
+    console.warn(`  ⚠ Roster (DL) unusable — ${why}.`);
+    console.warn(`    DL sample: ${JSON.stringify(rosterReady.sample)}`);
+    console.warn('    Skipping players.json + flag detection; continuing to the CSV export.');
+    await logEvent(folder, 'warning',
+      "Couldn't read the player list from the source, so new players and flags weren't checked this time. The match results are still being synced normally.");
+  } else {
+    console.log(`    DL = ${rosterReady.dl} players — ready after ${rosterReady.t}ms`);
+    await logEvent(folder, 'info', `Opened the league — ${rosterReady.dl} players.`);
+
+    console.log('  → Extracting player roster (DL) for players.json');
+    players = await page.evaluate(() => {
+      if (typeof DL === 'undefined' || !Array.isArray(DL)) return null;
+      return DL
+        .filter((p) => p && typeof p.username === 'string' && p.username.length > 0)
+        .map((p) => ({ username: p.username, fl: p.fl, cname: p.cname }));
+    });
+
+    // A roster entry with no username is a real thing on the source (a player who
+    // joined but has no name set yet). It must not silently vanish: it's skipped
+    // here, but the admin needs to know the roster is one short — and it's exactly
+    // the row that used to crash the sort with `undefined.localeCompare`.
+    const nameless = rosterReady.dl - (players ? players.length : 0);
+    if (nameless > 0) {
+      console.warn(`  ⚠ ${nameless} roster entr${nameless > 1 ? 'ies have' : 'y has'} no username on the source — skipped.`);
+      await logEvent(folder, 'warning',
+        `${nameless} player${nameless > 1 ? 's' : ''} in this league ${nameless > 1 ? 'have' : 'has'} no name set on the source site, so ${nameless > 1 ? 'they were' : 'it was'} left out of the player list. The match results are unaffected.`);
+    }
+  }
   if (!players || players.length === 0) {
     console.warn('    DL not available or empty — skipping players.json');
   } else {
@@ -759,9 +826,11 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
       await navigateToLeaguesList(page);
       await clickLeagueByName(page, sourceLeagueName);
       await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
+      // Same rule as the first entry: the roster is not load-bearing, so a bad DL
+      // must not abort the retry — only the export result matters here.
       const retryRoster = await waitForRoster(page);
       console.log(`    Trace: ${JSON.stringify(retryRoster.trace)}`);
-      if (!retryRoster.ok) throw new Error('DL never repopulated within 15s after retry re-entry');
+      if (!retryRoster.ok) console.warn('    ⚠ Roster (DL) still unusable after re-entry — exporting anyway.');
     } else if (attempt === 3) {
       console.log(`  → Retry 3/${MAX_EXPORT_ATTEMPTS}: full disconnect + reconnect (logout, re-login, re-open "${sourceLeagueName}")`);
       await logEvent(folder, 'info', 'Signing in again to fetch the data…');
@@ -771,7 +840,7 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
       await page.locator('button:has-text("Export results")').waitFor({ timeout: 15000 });
       const retryRoster = await waitForRoster(page);
       console.log(`    Trace: ${JSON.stringify(retryRoster.trace)}`);
-      if (!retryRoster.ok) throw new Error('DL never repopulated within 15s after relogin re-entry');
+      if (!retryRoster.ok) console.warn('    ⚠ Roster (DL) still unusable after relogin — exporting anyway.');
     }
 
     const data = await triggerExportAndCollect(page);

@@ -106,11 +106,18 @@ export async function pollSyncDispatch(leagueId, logger) {
  * Live-stream the job's progress events into the log until a terminal event
  * ("Sync complete" / an error line) arrives or the deadline hits. `sinceId`
  * scopes to events from this run.
+ *
+ * `aliveAt()` returns the timestamp of the last SITE-level event (connecting /
+ * signing in). The silence timer is measured from THAT, not from dispatch: GitHub
+ * Actions routinely takes 40-60s just to boot the runner, so a fixed deadline from
+ * dispatch declared "the sync failed to start" at the very moment the job began —
+ * while the site-level log was visibly streaming progress. Any sign of life from
+ * the run resets the clock; only a run that says nothing at all trips it.
  */
-export async function streamSyncEvents(leagueId, sinceId, logger, { stopWhen = () => false } = {}) {
+export async function streamSyncEvents(leagueId, sinceId, logger, { stopWhen = () => false, aliveAt = () => 0 } = {}) {
     const DEADLINE_MS = 4 * 60 * 1000;
     const INTERVAL_MS = 3000;
-    const SILENT_MS = 45000; // a fast run reports its first event within ~20s
+    const SILENT_MS = 90000; // no per-league news AND no sign of life for this long
     let lastId = sinceId;
     let anySeen = false;
     const start = Date.now();
@@ -133,7 +140,8 @@ export async function streamSyncEvents(leagueId, sinceId, logger, { stopWhen = (
             logger.log(ev.message, ev.level);
             if (ev.level === 'error' || /sync complete/i.test(ev.message)) return;
         }
-        if (!anySeen && !stopWhen() && Date.now() - start > SILENT_MS) {
+        const lastSignOfLife = Math.max(start, aliveAt() || 0);
+        if (!anySeen && !stopWhen() && Date.now() - lastSignOfLife > SILENT_MS) {
             logger.log("No progress was reported — the sync likely failed to start, or the server can't post updates. Check the GitHub Actions run.", 'error');
             return;
         }
@@ -159,7 +167,7 @@ export async function latestSiteEventId() {
  * true (the per-league streams finished) or on the first error-level line, which
  * also calls `onError()` so the caller can abort the league streams.
  */
-export async function streamSiteEvents(sinceId, logger, { stopWhen = () => false, onError = () => {} } = {}) {
+export async function streamSiteEvents(sinceId, logger, { stopWhen = () => false, onError = () => {}, onAlive = () => {} } = {}) {
     const DEADLINE_MS = 4 * 60 * 1000;
     const INTERVAL_MS = 3000;
     let lastId = sinceId;
@@ -178,6 +186,9 @@ export async function streamSiteEvents(sinceId, logger, { stopWhen = () => false
         for (const ev of (data || [])) {
             lastId = ev.id;
             logger.log(ev.message, ev.level);
+            // Any site-level line proves the run is alive — it keeps the per-league
+            // streams from wrongly declaring "the sync failed to start".
+            onAlive();
             if (ev.level === 'error') sawError = true;
         }
         if (sawError) { onError(); return; }
