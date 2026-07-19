@@ -19,28 +19,53 @@ const DEFAULT_MAX = 10;
 /**
  * Bind a running, colour-coded, auto-scrolling log to one element.
  * Reuses the existing `.bgsync-log` / `.admin-msg` chrome in css/admin.css.
- * @returns {{ log:(msg:string,type?:string)=>void, clear:()=>void, el:HTMLElement }}
+ *
+ * `reveal` (default true) scrolls the log into view as lines land. Pass false
+ * where the log is NOT what the user should be watching — on the Sync page the
+ * stage timers own the viewport during a run, and a log that scrolled itself
+ * into view on every line would keep yanking the page away from them.
+ *
+ * @returns {{ log:Function, status:Function, clear:()=>void, el:HTMLElement }}
  */
-export function createSyncLog(el, { max = DEFAULT_MAX } = {}) {
-    // `when` (ISO string / Date) stamps the line with the event's real time — used
-    // when replaying a past run. Live callers omit it and get the current time.
-    function log(message, type = 'info', when = null) {
+export function createSyncLog(el, { max = DEFAULT_MAX, reveal = true } = {}) {
+    function append(html, type) {
         if (!el) return;
         el.classList.add('bgsync-log');
         const line = document.createElement('div');
         line.className = `admin-msg admin-msg-${type}`;
-        const t = (when ? new Date(when) : new Date())
-            .toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        line.innerHTML = `<span class="bgsync-log-time">${t}</span> ${message}`;
+        line.innerHTML = html;
         el.appendChild(line);
         while (el.children.length > max) el.removeChild(el.firstChild);
-        el.scrollTop = el.scrollHeight;
-        revealMsg(el);
+        el.scrollTop = el.scrollHeight; // the log's own box always follows the newest line
+        if (reveal) revealMsg(el);      // …but only scroll the PAGE when this log is the focus
     }
+
+    // `when` (ISO string / Date) stamps the line with the event's real time — used
+    // when replaying a past run. Live callers omit it and get the current time.
+    function log(message, type = 'info', when = null) {
+        const d = when ? new Date(when) : new Date();
+        const t = d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        // A replayed line (Last run) carries the event's real timestamp — prefix
+        // the date so a past run reads as a dated record, not a bare wall clock.
+        // Live lines (when == null) happen now, so the time alone is enough.
+        // Date is built as DD/MM/YYYY explicitly (not toLocaleDateString, whose
+        // field ORDER follows the browser locale — US browsers would show M/D/Y).
+        const date = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+        const stamp = when ? `${date} ${t}` : t;
+        append(`<span class="bgsync-log-time">${stamp}</span> ${message}`, type);
+    }
+
+    // A NON-event line — a placeholder / loading / error notice, not a run event.
+    // No timestamp: "No runs recorded yet." isn't dated, and a live clock there
+    // (with or without today's date) would read as if something just happened.
+    function status(message, type = 'info') {
+        append(`<span class="bgsync-log-status">${message}</span>`, type);
+    }
+
     function clear() {
         if (el) { el.innerHTML = ''; el.classList.remove('bgsync-log'); }
     }
-    return { log, clear, el };
+    return { log, status, clear, el };
 }
 
 /** Turn a raw dispatch failure into one plain sentence the site owner can act on. */
@@ -225,7 +250,7 @@ export async function loadLastRun(leagueId, logger, max = 40) {
         .eq('league_id', leagueId)
         .order('created_at', { ascending: false })
         .limit(1);
-    if (!last || !last.length) { logger.clear(); logger.log('No runs recorded yet.', 'info'); return; }
+    if (!last || !last.length) { logger.clear(); logger.status('No runs recorded yet.', 'info'); return; }
 
     const runId = last[0].run_id;
     if (!runId) return loadRecentSyncEvents(leagueId, logger, max); // legacy rows without a run id
@@ -240,6 +265,6 @@ export async function loadLastRun(leagueId, logger, max = 40) {
         .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
     logger.clear();
-    if (!rows.length) { logger.log('No activity recorded for the last run.', 'info'); return; }
+    if (!rows.length) { logger.status('No activity recorded for the last run.', 'info'); return; }
     for (const ev of rows.slice(-max)) logger.log(ev.message, ev.level, ev.created_at);
 }

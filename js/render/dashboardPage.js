@@ -17,7 +17,7 @@ import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagu
 import { exportWhatsAppTableImage, MAX_EXPORT_ROWS, leagueTypeLabel } from '../utils/exportTableImage.js';
 import { colorForValue, colorForValueInverted, colorForConfidence } from '../compute/colorScale.js';
 import { drawPlayerBarChart, computeNiceRange } from './playerBarChart.js';
-import { drawCorrelationRow, drawHistogramRow, brierScore, brierAssessment, signedLuckScore, luckAssessment } from './prCorrelationChart.js';
+import { drawCorrelationRow, drawHistogramRow, signedLuckScore, luckAssessment } from './prCorrelationChart.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { predictChampionship, computeTopXPct, prProbabilityTableHtml, getWinProbability, nearestMatchLengthIdx } from '../compute/championshipPredictor.js';
 import { batchLast300PRForSimulator, loadVisibleLeagues } from '../compute/crossLeague.js';
@@ -261,6 +261,24 @@ function standingsPanel() {
     `;
 }
 
+// Real typeset math (MathML — native in every current browser, no library/
+// font load) for the Luck formula line in the "?" popup, replacing the old
+// plain-text ".corr-formula" line. The equation itself doesn't change
+// between English/Hebrew — only the surrounding prose does — so it's built
+// once and reused everywhere the formula appears.
+const LUCK_FORMULA_MATHML = `
+    <math xmlns="http://www.w3.org/1998/Math/MathML" display="block" dir="ltr">
+        <mi>Luck</mi><mo>=</mo>
+        <mfrac><mn>1</mn><mi>n</mi></mfrac>
+        <munderover><mo>&#8721;</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover>
+        <msub><mi>r</mi><mi>i</mi></msub>
+        <mo>&#8901;</mo>
+        <mrow><mo>|</mo><msub><mi>r</mi><mi>i</mi></msub><mo>|</mo></mrow>
+        <mo>,</mo><mtext>&#160;where&#160;</mtext>
+        <msub><mi>r</mi><mi>i</mi></msub><mo>=</mo><msub><mi>outcome</mi><mi>i</mi></msub><mo>&#8722;</mo><msub><mi>p</mi><mi>i</mi></msub>
+    </math>
+`;
+
 function predictorPanel() {
     return `
         <section class="app-section app-section--card dash-section" id="predictor-section">
@@ -428,57 +446,42 @@ function insightsPanel() {
                 <button class="predictor-info-close" id="pr-corr-info-close">&times;</button>
                 <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
                 <div class="popup-lang-en" data-lang="en">
-                <h4>The win chance behind every match</h4>
-                <p>Every match has an expected win chance for the stronger player, based on the <b>PR gap</b>
-                between the two players and the match length &mdash; read from the <i>PR Win-Probability
-                Table</i>:</p>
+                <h4>Background</h4>
+                <p>Every match has an expected win chance for the stronger player, determined by two inputs:
+                the <b>PR gap</b> between the two players, and the match length. This is a fixed, published
+                model (not fit to this league's own results) &mdash; the same table is used to grade every
+                match on this page, regardless of who played it or when.</p>
+
+                <h4>The PR Win-Probability Table</h4>
+                <p>Rows are PR gap, columns are match length; each cell is the stronger player's win chance
+                (%) at that combination. In-between gaps are read by linear interpolation &mdash; a gap of 3.5
+                sits exactly halfway between the "3" and "4" rows.</p>
                 ${prProbabilityTableHtml('en')}
-                <p>The chart and scores below all come from comparing that expected win chance to what actually
-                happened.</p>
 
-                <h4>Reading the chart</h4>
+                <h4>Reading the graph</h4>
                 <p>Each player has their own row of dots, one per match, placed by that player's <b>PR
-                advantage</b> in the match — the opponent's PR minus their own (lower PR means fewer mistakes).
-                A dot further <b>right</b> means the player outplayed their opponent that match; further
-                <b>left</b> means they were outplayed. <span style="color:var(--color-win)">Green</span> = win,
-                <span style="color:var(--color-loss)">red</span> = loss.</p>
-                <p>All player rows share one axis, sized to the widest PR gap seen between any two players
-                (plus a little padding), so every player's row can be compared directly against every other.</p>
-
-                <h4>The Brier score</h4>
-                <p>Each row also has a <b>Brier score</b> &mdash; how well the win chance above matched what
-                actually happened in these specific matches.</p>
-                <p class="corr-formula">Brier = mean of (outcome &minus; p)&sup2;, over all matches &mdash;
-                where <i>p</i> is the win chance from the <i>PR Win-Probability Table</i> and <i>outcome</i> is
-                1 for a win, 0 for a loss.</p>
-                <div class="brier-scale">
-                    <div class="brier-scale-bar"></div>
-                    <div class="brier-scale-ticks">
-                        <span class="brier-scale-tick" style="left:0%"><b>0</b><small>Perfect fit</small></span>
-                        <span class="brier-scale-tick" style="left:25%"><b>0.25</b><small>Coin-flip</small></span>
-                        <span class="brier-scale-tick" style="left:100%"><b>1</b><small>Mostly upsets</small></span>
-                    </div>
-                </div>
-                <table class="corr-band-table">
-                    <tr><th>Brier</th><th>Label</th></tr>
-                    <tr><td>0.00 &ndash; 0.05</td><td>Excellent fit</td></tr>
-                    <tr><td>0.05 &ndash; 0.15</td><td>Strong fit</td></tr>
-                    <tr><td>0.15 &ndash; 0.22</td><td>Good fit</td></tr>
-                    <tr><td>0.22 &ndash; 0.28</td><td>Coin-flip</td></tr>
-                    <tr><td>0.28 &ndash; 0.45</td><td>Weak fit</td></tr>
-                    <tr><td>0.45 &ndash; 1.00</td><td>Mostly upsets</td></tr>
-                </table>
-                <p>It's shown from a player's very first match, even for someone who's won or lost every
-                game so far &mdash; though like any average, it's noisier with only a handful of games.</p>
+                advantage</b> in the match &mdash; the opponent's PR minus their own (a lower PR means fewer
+                mistakes, so a positive advantage means the player themselves played the better game). A dot
+                further <b>right</b> means the player outplayed their opponent that match; further <b>left</b>
+                means they were outplayed. <span style="color:var(--color-win)">Green</span> = win,
+                <span style="color:var(--color-loss)">red</span> = loss. All player rows share one axis, sized
+                to the widest PR gap seen between any two players (plus a little padding), so every player's
+                row can be compared directly against every other.</p>
 
                 <h4>The Luck score</h4>
-                <p>Each player also gets a signed <b>Luck</b> score, from <code>&minus;1</code> to
-                <code>+1</code>: a win always counts in their favour (more, the bigger the underdog they were),
-                a loss always counts against them (more, the bigger the favourite they were).</p>
-                <p class="corr-formula">Luck = mean of r&times;|r|, where r = outcome &minus; p (same p and
-                outcome as Brier above) &mdash; squared like Brier, but keeping the sign instead of losing it.</p>
+                <p>Each player is assigned a signed <b>Luck</b> score, bounded in <code>[&minus;1, +1]</code>.
+                A win always contributes a non-negative term (larger the bigger the underdog the player was);
+                a loss always contributes a non-positive term (larger in magnitude the bigger the favourite
+                the player was and still lost). Averaged over all of the player's matches:</p>
+                <div class="corr-formula">${LUCK_FORMULA_MATHML}</div>
+                <p>where <i>n</i> is the number of matches the player has on record, <i>p<sub>i</sub></i> is
+                the win chance from the <i>PR Win-Probability Table</i> for match <i>i</i> (evaluated from
+                this player's own side), and <i>outcome<sub>i</sub></i> is 1 if the player won that match, 0 if
+                they lost. <i>r<sub>i</sub></i> is thus positive on a win and negative on a loss, and
+                <i>r<sub>i</sub>&middot;|r<sub>i</sub>|</i> keeps that sign while still growing with the size of
+                the surprise, the same way squaring would.</p>
                 <div class="brier-scale">
-                    <div class="brier-scale-bar luck-scale-bar"></div>
+                    <div class="brier-scale-bar"></div>
                     <div class="brier-scale-ticks">
                         <span class="brier-scale-tick" style="left:0%"><b>&minus;1</b><small>Extremely unlucky</small></span>
                         <span class="brier-scale-tick" style="left:50%"><b>0</b><small>Balanced</small></span>
@@ -493,63 +496,48 @@ function insightsPanel() {
                     <tr><td>0.30 &ndash; 0.55</td><td>Very lucky / unlucky</td></tr>
                     <tr><td>0.55 &ndash; 1.00</td><td>Extremely lucky / unlucky</td></tr>
                 </table>
-                <p>The direction (lucky vs. unlucky) follows the score's sign: <b>+1</b> means always the
-                underdog and always winning; <b>&minus;1</b> means always the favourite and still losing;
-                <b>0</b> means results matched expectations either way. It isn't shown for the league-wide row,
-                since that row only ever contains winners and a signed score there wouldn't mean anything
-                &mdash; use that row's Brier score instead.</p>
+                <p>The sign gives the direction: <b>+1</b> means the player was always the underdog and always
+                won; <b>&minus;1</b> means they were always the favourite and still lost every time;
+                <b>0</b> means results matched the model's expectations exactly, on average. It's shown from a
+                player's very first match, even for someone who's won or lost every game so far &mdash;
+                though like any average, it's noisier with only a handful of games.</p>
                 </div>
                 <div class="popup-lang-he" data-lang="he">
-                <h4>סיכויי הניצחון שמאחורי כל משחק</h4>
-                <p>לכל משחק יש סיכוי ניצחון צפוי לשחקן החזק יותר, המבוסס על <b>הפרש ה-PR</b>
-                בין שני השחקנים ואורך המשחק &mdash; נקרא מתוך <i>PR Win-Probability
-                Table</i>:</p>
+                <h4>רקע</h4>
+                <p>לכל משחק יש סיכוי ניצחון צפוי לשחקן החזק יותר, הנקבע על ידי שני משתנים:
+                <b>הפרש ה-PR</b> בין שני השחקנים, ואורך המשחק. זהו מודל קבוע ומפורסם (שאינו מותאם
+                לתוצאות הליגה הזו עצמה) &mdash; אותה טבלה משמשת לדירוג כל משחק בעמוד הזה, ללא תלות
+                במי שיחק אותו או מתי.</p>
+
+                <h4>טבלת סיכויי הניצחון לפי PR</h4>
+                <p>השורות הן הפרש ה-PR, העמודות הן אורך המשחק; כל תא הוא סיכוי הניצחון (%) של השחקן
+                החזק יותר בשילוב הזה. פערים שביניים נקראים באמצעות אינטרפולציה לינארית &mdash; פער של
+                3.5 יושב בדיוק באמצע שבין השורות "3" ו-"4".</p>
                 ${prProbabilityTableHtml('he')}
-                <p>הגרף והציונים למטה מבוססים כולם על השוואת סיכויי הניצחון הצפויים לתוצאה בפועל.</p>
 
                 <h4>איך קוראים את הגרף</h4>
                 <p>לכל שחקן יש שורת נקודות משלו, אחת לכל משחק, ממוקמת לפי <b>יתרון ה-PR</b>
-                שלו באותו משחק — ה-PR של היריב פחות שלו (PR נמוך יותר = פחות טעויות).
-                נקודה שנמצאת יותר <b>ימינה</b> אומרת שהשחקן שיחק טוב מהיריב באותו משחק; יותר
-                <b>שמאלה</b> אומרת שהיריב שיחק טוב ממנו. <span style="color:var(--color-win)">ירוק</span> = ניצחון,
-                <span style="color:var(--color-loss)">אדום</span> = הפסד.</p>
-                <p>כל שורות השחקנים חולקות ציר אחד, בגודל שמתאים לפער ה-PR הרחב ביותר שנצפה בין כל שני שחקנים
-                (בתוספת ריווח קטן), כך שניתן להשוות ישירות בין השורות של כל השחקנים.</p>
-
-                <h4>ציון ה-Brier</h4>
-                <p>לכל שורה יש גם <b>ציון Brier</b> &mdash; עד כמה סיכויי הניצחון שלמעלה תאמו את
-                מה שקרה בפועל במשחקים הספציפיים האלה.</p>
-                <p class="corr-formula">Brier = ממוצע של (outcome &minus; p)&sup2;, על פני כל המשחקים &mdash;
-                כאשר <i>p</i> הוא סיכוי הניצחון מתוך <i>PR Win-Probability Table</i>, ו-<i>outcome</i> הוא
-                1 עבור ניצחון, 0 עבור הפסד.</p>
-                <div class="brier-scale">
-                    <div class="brier-scale-bar"></div>
-                    <div class="brier-scale-ticks">
-                        <span class="brier-scale-tick" style="left:0%"><b>0</b><small>התאמה מושלמת</small></span>
-                        <span class="brier-scale-tick" style="left:25%"><b>0.25</b><small>כמו הטלת מטבע</small></span>
-                        <span class="brier-scale-tick" style="left:100%"><b>1</b><small>בעיקר הפתעות</small></span>
-                    </div>
-                </div>
-                <table class="corr-band-table">
-                    <tr><th>Brier</th><th>תיאור</th></tr>
-                    <tr><td>0.00 &ndash; 0.05</td><td>התאמה מצוינת</td></tr>
-                    <tr><td>0.05 &ndash; 0.15</td><td>התאמה חזקה</td></tr>
-                    <tr><td>0.15 &ndash; 0.22</td><td>התאמה טובה</td></tr>
-                    <tr><td>0.22 &ndash; 0.28</td><td>כמו הטלת מטבע</td></tr>
-                    <tr><td>0.28 &ndash; 0.45</td><td>התאמה חלשה</td></tr>
-                    <tr><td>0.45 &ndash; 1.00</td><td>בעיקר הפתעות</td></tr>
-                </table>
-                <p>הציון מוצג כבר מהמשחק הראשון של שחקן, גם אם ניצח או הפסיד בכל המשחקים עד כה
-                &mdash; אך כמו כל ממוצע, הוא רועש יותר כשיש רק מעט משחקים.</p>
+                שלו באותו משחק — ה-PR של היריב פחות שלו (PR נמוך יותר = פחות טעויות, כך שיתרון
+                חיובי אומר שהשחקן עצמו שיחק את המשחק הטוב יותר). נקודה שנמצאת יותר <b>ימינה</b> אומרת
+                שהשחקן שיחק טוב מהיריב באותו משחק; יותר <b>שמאלה</b> אומרת שהיריב שיחק טוב ממנו.
+                <span style="color:var(--color-win)">ירוק</span> = ניצחון,
+                <span style="color:var(--color-loss)">אדום</span> = הפסד. כל שורות השחקנים חולקות ציר
+                אחד, בגודל שמתאים לפער ה-PR הרחב ביותר שנצפה בין כל שני שחקנים (בתוספת ריווח קטן), כך
+                שניתן להשוות ישירות בין השורות של כל השחקנים.</p>
 
                 <h4>ציון המזל</h4>
-                <p>לכל שחקן יש גם ציון <b>מזל</b> מסומן, בין <code>&minus;1</code> ל-
-                <code>+1</code>: ניצחון תמיד נספר לטובתו (יותר, ככל שהיה נחות יותר), הפסד תמיד
-                נספר לרעתו (יותר, ככל שהיה מועדף יותר).</p>
-                <p class="corr-formula">Luck = ממוצע של r&times;|r|, כאשר r = outcome &minus; p (אותם p ו-
-                outcome כמו ב-Brier) &mdash; בריבוע כמו Brier, אך עם שמירה על הסימן במקום לאבד אותו.</p>
+                <p>לכל שחקן מוקצה ציון <b>מזל</b> מסומן, חסום בטווח <code>[&minus;1, +1]</code>.
+                ניצחון תמיד תורם איבר לא-שלילי (גדול יותר ככל שהשחקן היה נחות יותר); הפסד תמיד תורם
+                איבר לא-חיובי (גדול בערכו המוחלט ככל שהשחקן היה מועדף יותר ובכל זאת הפסיד). בממוצע על
+                פני כל משחקי השחקן:</p>
+                <div class="corr-formula">${LUCK_FORMULA_MATHML}</div>
+                <p>כאשר <i>n</i> הוא מספר המשחקים הרשומים לשחקן, <i>p<sub>i</sub></i> הוא סיכוי הניצחון
+                מתוך <i>PR Win-Probability Table</i> עבור משחק <i>i</i> (מחושב מנקודת המבט של השחקן
+                עצמו), ו-<i>outcome<sub>i</sub></i> הוא 1 אם השחקן ניצח באותו משחק, 0 אם הפסיד.
+                לכן <i>r<sub>i</sub></i> חיובי בניצחון ושלילי בהפסד, ו-<i>r<sub>i</sub>&middot;|r<sub>i</sub>|</i>
+                שומר על הסימן הזה תוך שהוא עדיין גדל עם גודל ההפתעה, באותו אופן שריבוע היה גדל.</p>
                 <div class="brier-scale">
-                    <div class="brier-scale-bar luck-scale-bar"></div>
+                    <div class="brier-scale-bar"></div>
                     <div class="brier-scale-ticks">
                         <span class="brier-scale-tick" style="left:0%"><b>&minus;1</b><small>ביש מזל בקיצוניות</small></span>
                         <span class="brier-scale-tick" style="left:50%"><b>0</b><small>מאוזן</small></span>
@@ -564,11 +552,11 @@ function insightsPanel() {
                     <tr><td>0.30 &ndash; 0.55</td><td>בר מזל / ביש מזל מאוד</td></tr>
                     <tr><td>0.55 &ndash; 1.00</td><td>בר מזל / ביש מזל בקיצוניות</td></tr>
                 </table>
-                <p>הכיוון (בר מזל מול ביש מזל) נגזר מהסימן של הציון: <b>+1</b> אומר שתמיד היה הנחות
-                ותמיד ניצח; <b>&minus;1</b> אומר שתמיד היה המועדף ובכל זאת הפסיד;
-                <b>0</b> אומר שהתוצאות תאמו את הציפיות. הציון לא מוצג בשורה הכללית של הליגה,
-                מכיוון שבשורה הזו יש רק מנצחים וציון מסומן לא היה אומר שם דבר
-                &mdash; יש להשתמש בציון ה-Brier של אותה שורה במקום.</p>
+                <p>הסימן נותן את הכיוון: <b>+1</b> אומר שהשחקן היה תמיד הנחות ותמיד ניצח;
+                <b>&minus;1</b> אומר שהשחקן היה תמיד המועדף ובכל זאת הפסיד בכל פעם;
+                <b>0</b> אומר שהתוצאות תאמו בדיוק את ציפיות המודל, בממוצע. הציון מוצג כבר מהמשחק
+                הראשון של שחקן, גם אם ניצח או הפסיד בכל המשחקים עד כה &mdash; אך כמו כל ממוצע, הוא
+                רועש יותר כשיש רק מעט משחקים.</p>
                 </div>
             </div>
             <div id="corr-container"></div>
@@ -583,115 +571,101 @@ function insightsPanel() {
                 <button class="predictor-info-close" id="league-corr-info-close">&times;</button>
                 <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
                 <div class="popup-lang-en" data-lang="en">
-                <h4>Reading the histograms</h4>
-                <p>Instead of one dot per match (as in the Player section above), each row here is a
-                <b>histogram</b>: bars are 1 PR point wide, and a bar's height is the share (%) of matches at
-                that gap, measured as <i>PR of the loser &minus; PR of the winner</i>. A positive value means
-                the favourite won as expected; a negative value means an upset.</p>
-                <p><b>League &mdash; all matches</b> pools every match played in this league; <b>All League
-                Matches</b> pools every match ever played in every league of this same league type <i>and</i>
-                the same match length (a bigger PR gap matters more over a longer match, so mixing match
-                lengths would blur the comparison). Matches with a technical result (no real PR to plot) aren't
-                included in either row. This section has its own axis, sized to the widest PR gap seen in the
-                league (or across all-time history, once that loads) &mdash; independent of the player rows'
-                axis above.</p>
+                <h4>Background</h4>
+                <p>Every match has an expected win chance for the stronger player, determined by the
+                <b>PR gap</b> between the two players and the match length &mdash; a fixed, published model,
+                not fit to this league's own results. This section looks at that model in aggregate, across
+                many matches at once, rather than one player at a time.</p>
+
+                <h4>The PR Win-Probability Table</h4>
+                <p>Rows are PR gap, columns are match length; each cell is the stronger player's win chance
+                (%) at that combination.</p>
+                ${prProbabilityTableHtml('en')}
+
+                <h4>The calculation</h4>
+                <p>For every match, an <b>advantage</b> value is computed:</p>
+                <p style="text-align:center"><i>advantage</i> = <i>PR</i><sub>loser</sub> &minus;
+                <i>PR</i><sub>winner</sub></p>
+                <p>A positive advantage means the winner also had the better (lower) PR that match &mdash; the
+                favourite won, as the table would predict. A negative advantage means an upset: the winner had
+                the worse PR. Matches are then grouped into 1-PR-point-wide bins by their advantage value, and
+                each bin's height is the share (%) of all matches falling in it.</p>
+                <p><b>League &mdash; all matches</b> pools every match played in this league. <b>All League
+                Matches</b> pools every match ever played in every league of the <i>same league type and the
+                same match length</i> (a given PR gap matters more over a longer match, so mixing match
+                lengths would blur the comparison). Matches with a technical result carry no real PR and are
+                excluded from both rows.</p>
+
+                <h4>Reading the graph</h4>
+                <p>Both rows share one axis, sized to the widest advantage seen in the league (or across
+                all-time history, once that loads) &mdash; independent of the player rows' axis further up the
+                page.</p>
 
                 <h4>The controls</h4>
                 <ul>
-                    <li><b>PR-gap shift</b> (all-time row only) adds a constant to every match's gap before
-                    Model Fit is recomputed, to test whether the model's calibration point is off by a fixed
-                    amount.</li>
+                    <li><b>PR-gap shift</b> (all-time row only) adds a constant to every match's advantage
+                    before the histogram, Gaussian fit, and Model validation table below are recomputed &mdash;
+                    a way to test whether the model's calibration point is off by a fixed amount.</li>
                     <li><b>Trim to 99%</b> zooms a row's own view in to the middle 99% of its matches, hiding
-                    the outlier bins &mdash; display only, it never changes Model Fit.</li>
+                    the outlier bins &mdash; display only, the underlying data is unaffected.</li>
                     <li><b>Gaussian fit</b> overlays a normal curve fitted to that row's own mean and standard
                     deviation (shown as &mu; and &sigma;), plus dashed lines at the mean and at &plusmn;1
-                    standard deviation. It's a visual reference only &mdash; not a claim that PR gaps are
-                    actually normally distributed. It's disabled when a row doesn't have enough matches yet
-                    for a mean/standard deviation to mean anything.</li>
+                    standard deviation &mdash; a visual reference only, not a claim that advantage values are
+                    actually normally distributed. Disabled when a row doesn't have enough matches yet for a
+                    mean/standard deviation to be meaningful.</li>
+                    <li><b>Model validation</b> (all-time row only) checks, gap by gap, how often the
+                    favourite actually won against what the <i>PR Win-Probability Table</i> predicts, with a
+                    likelihood read on how surprising each gap's result is.</li>
                 </ul>
-
-                <h4>The Brier score</h4>
-                <p>Each row also has a <b>Brier score</b> (labelled "Model fit") &mdash; how well the win
-                chance predicted by the PR gap matched what actually happened in these specific matches.</p>
-                <p class="corr-formula">Brier = mean of (outcome &minus; p)&sup2;, over all matches &mdash;
-                where <i>p</i> is the win chance from the <i>PR Win-Probability Table</i> and <i>outcome</i> is
-                1 for a win, 0 for a loss.</p>
-                <div class="brier-scale">
-                    <div class="brier-scale-bar"></div>
-                    <div class="brier-scale-ticks">
-                        <span class="brier-scale-tick" style="left:0%"><b>0</b><small>Perfect fit</small></span>
-                        <span class="brier-scale-tick" style="left:25%"><b>0.25</b><small>Coin-flip</small></span>
-                        <span class="brier-scale-tick" style="left:100%"><b>1</b><small>Mostly upsets</small></span>
-                    </div>
-                </div>
-                <table class="corr-band-table">
-                    <tr><th>Brier</th><th>Label</th></tr>
-                    <tr><td>0.00 &ndash; 0.05</td><td>Excellent fit</td></tr>
-                    <tr><td>0.05 &ndash; 0.15</td><td>Strong fit</td></tr>
-                    <tr><td>0.15 &ndash; 0.22</td><td>Good fit</td></tr>
-                    <tr><td>0.22 &ndash; 0.28</td><td>Coin-flip</td></tr>
-                    <tr><td>0.28 &ndash; 0.45</td><td>Weak fit</td></tr>
-                    <tr><td>0.45 &ndash; 1.00</td><td>Mostly upsets</td></tr>
-                </table>
-                <p>There's no Luck score here: these rows only ever contain winners (from the winner's own
-                side of each match), so a signed score wouldn't mean anything &mdash; Model Fit is the only
-                score shown.</p>
                 </div>
                 <div class="popup-lang-he" data-lang="he">
-                <h4>איך קוראים את ההיסטוגרמות</h4>
-                <p>במקום נקודה אחת לכל משחק (כמו בסקשן השחקנים שלמעלה), כל שורה כאן היא
-                <b>היסטוגרמה</b>: העמודות ברוחב נקודת PR אחת, וגובה עמודה הוא חלקם (%) של המשחקים באותו פער,
-                נמדד כ<i>PR של המפסיד &minus; PR של המנצח</i>. ערך חיובי אומר
-                שהמועדף ניצח כצפוי; ערך שלילי אומר שהייתה הפתעה.</p>
-                <p><b>הליגה &mdash; כל המשחקים</b> מרכזת את כל המשחקים ששוחקו בליגה הזו; <b>כל משחקי הליגות</b>
-                מרכזת את כל המשחקים ששוחקו אי פעם בכל הליגות מאותו סוג ליגה <i>וגם</i> אותו אורך משחק
-                (פער PR משמעותי יותר במשחק ארוך יותר, כך שערבוב אורכי משחק שונים היה מטשטש את ההשוואה).
-                משחקים עם תוצאה טכנית (שאין להם PR אמיתי להצגה) אינם נכללים באף אחת מהשורות. לסקשן הזה
-                יש ציר משלו, בגודל שמתאים לפער ה-PR הרחב ביותר שנצפה בליגה (או בהיסטוריה
-                של כל הליגות, לאחר שהיא נטענת) &mdash; בלתי תלוי בציר של שורות השחקנים שלמעלה.</p>
+                <h4>רקע</h4>
+                <p>לכל משחק יש סיכוי ניצחון צפוי לשחקן החזק יותר, הנקבע לפי <b>הפרש ה-PR</b> בין שני
+                השחקנים ואורך המשחק &mdash; מודל קבוע ומפורסם, שאינו מותאם לתוצאות הליגה הזו עצמה.
+                הסקשן הזה בוחן את המודל הזה באופן מצרפי, על פני הרבה משחקים בבת אחת, ולא שחקן אחד
+                בכל פעם.</p>
+
+                <h4>טבלת סיכויי הניצחון לפי PR</h4>
+                <p>השורות הן הפרש ה-PR, העמודות הן אורך המשחק; כל תא הוא סיכוי הניצחון (%) של השחקן
+                החזק יותר בשילוב הזה.</p>
+                ${prProbabilityTableHtml('he')}
+
+                <h4>החישוב</h4>
+                <p>עבור כל משחק, מחושב ערך <b>יתרון</b>:</p>
+                <p style="text-align:center"><i>יתרון</i> = <i>PR</i><sub>מפסיד</sub> &minus;
+                <i>PR</i><sub>מנצח</sub></p>
+                <p>יתרון חיובי אומר שלמנצח היה גם ה-PR הטוב יותר (הנמוך יותר) באותו משחק &mdash; המועדף
+                ניצח, כפי שהטבלה הייתה חוזה. יתרון שלילי אומר שהייתה הפתעה: למנצח היה ה-PR הגרוע יותר.
+                המשחקים מקובצים לאחר מכן ל-bins ברוחב נקודת PR אחת לפי ערך היתרון שלהם, וגובה כל bin
+                הוא חלקם (%) של כלל המשחקים שנופלים בו.</p>
+                <p><b>הליגה &mdash; כל המשחקים</b> מרכזת את כל המשחקים ששוחקו בליגה הזו. <b>כל משחקי
+                הליגות</b> מרכזת את כל המשחקים ששוחקו אי פעם בכל הליגות מ<i>אותו סוג ליגה ואותו אורך
+                משחק</i> (פער PR נתון משמעותי יותר במשחק ארוך יותר, כך שערבוב אורכי משחק שונים היה
+                מטשטש את ההשוואה). למשחקים עם תוצאה טכנית אין PR אמיתי, והם אינם נכללים באף אחת
+                מהשורות.</p>
+
+                <h4>איך קוראים את הגרף</h4>
+                <p>שתי השורות חולקות ציר אחד, בגודל שמתאים ליתרון הרחב ביותר שנצפה בליגה (או בהיסטוריה
+                של כל הליגות, לאחר שהיא נטענת) &mdash; בלתי תלוי בציר של שורות השחקנים שלמעלה בעמוד.</p>
 
                 <h4>הבקרות</h4>
                 <ul>
-                    <li><b>הזזת פער PR</b> (בשורת "כל הליגות" בלבד) מוסיפה קבוע לפער של כל משחק לפני
-                    שהתאמת המודל מחושבת מחדש, כדי לבדוק האם נקודת הכיול של המודל מוזזת בכמות קבועה.</li>
+                    <li><b>הזזת פער PR</b> (בשורת "כל הליגות" בלבד) מוסיפה קבוע ליתרון של כל משחק לפני
+                    שההיסטוגרמה, התאמת הגאוס וטבלת אימות המודל למטה מחושבות מחדש &mdash; דרך לבדוק האם
+                    נקודת הכיול של המודל מוזזת בכמות קבועה.</li>
                     <li><b>חתוך ל-99%</b> מקרב את התצוגה של השורה לאמצע 99% מהמשחקים שלה, ומסתיר
-                    את העמודות החריגות &mdash; לתצוגה בלבד, לעולם לא משנה את התאמת המודל.</li>
+                    את העמודות החריגות &mdash; לתצוגה בלבד, הנתונים עצמם אינם מושפעים.</li>
                     <li><b>התאמת גאוס</b> מציגה עקומה נורמלית שמותאמת לממוצע ולסטיית התקן של אותה שורה
                     (מוצגים כ-&mu; ו-&sigma;), בתוספת קווים מקווקווים בממוצע ובמרחק &plusmn;1
-                    סטיית תקן. זהו הפניה חזותית בלבד &mdash; לא טענה שפערי ה-PR אכן
-                    מתפלגים נורמלית. הכפתור מנוטרל כשלשורה אין עדיין מספיק משחקים
-                    שממוצע/סטיית תקן יהיו משמעותיים.</li>
+                    סטיית תקן &mdash; הפניה חזותית בלבד, לא טענה שערכי היתרון אכן מתפלגים נורמלית.
+                    מנוטרל כשלשורה אין עדיין מספיק משחקים שממוצע/סטיית תקן יהיו משמעותיים.</li>
+                    <li><b>אימות מודל</b> (בשורת "כל הליגות" בלבד) בודק, פער אחר פער, כמה פעמים המועדף
+                    ניצח בפועל לעומת מה ש<i>PR Win-Probability Table</i> חוזה, עם קריאת סבירות לכך עד
+                    כמה תוצאת כל פער מפתיעה.</li>
                 </ul>
-
-                <h4>ציון ה-Brier</h4>
-                <p>לכל שורה יש גם <b>ציון Brier</b> (מסומן "התאמת מודל") &mdash; עד כמה סיכויי
-                הניצחון שנקבעו לפי פער ה-PR תאמו את מה שקרה בפועל במשחקים הספציפיים האלה.</p>
-                <p class="corr-formula">Brier = ממוצע של (outcome &minus; p)&sup2;, על פני כל המשחקים &mdash;
-                כאשר <i>p</i> הוא סיכוי הניצחון מתוך <i>PR Win-Probability Table</i>, ו-<i>outcome</i> הוא
-                1 עבור ניצחון, 0 עבור הפסד.</p>
-                <div class="brier-scale">
-                    <div class="brier-scale-bar"></div>
-                    <div class="brier-scale-ticks">
-                        <span class="brier-scale-tick" style="left:0%"><b>0</b><small>התאמה מושלמת</small></span>
-                        <span class="brier-scale-tick" style="left:25%"><b>0.25</b><small>כמו הטלת מטבע</small></span>
-                        <span class="brier-scale-tick" style="left:100%"><b>1</b><small>בעיקר הפתעות</small></span>
-                    </div>
-                </div>
-                <table class="corr-band-table">
-                    <tr><th>Brier</th><th>תיאור</th></tr>
-                    <tr><td>0.00 &ndash; 0.05</td><td>התאמה מצוינת</td></tr>
-                    <tr><td>0.05 &ndash; 0.15</td><td>התאמה חזקה</td></tr>
-                    <tr><td>0.15 &ndash; 0.22</td><td>התאמה טובה</td></tr>
-                    <tr><td>0.22 &ndash; 0.28</td><td>כמו הטלת מטבע</td></tr>
-                    <tr><td>0.28 &ndash; 0.45</td><td>התאמה חלשה</td></tr>
-                    <tr><td>0.45 &ndash; 1.00</td><td>בעיקר הפתעות</td></tr>
-                </table>
-                <p>אין כאן ציון מזל: בשורות האלה תמיד יש רק מנצחים (מנקודת המבט של המנצח
-                בכל משחק), כך שציון מסומן לא היה אומר דבר &mdash; התאמת המודל היא הציון
-                היחיד המוצג.</p>
                 </div>
             </div>
-            <div id="corr-league-container"></div>
+            <div id="corr-league-container">
         </section>
     `;
 }
@@ -2023,7 +1997,7 @@ function computePlayerDomain(generalSeries) {
 /**
  * Fixed-width (1 PR point) density buckets for the "All League Matches"
  * heatmap. `shift` (whole PR points) is added to every match's advantage
- * before binning — the same shifted value also feeds the Model Fit
+ * before binning — the same shifted value also feeds the Model validation
  * recompute in renderPrCorrelationSection, so nudging the shift control
  * visibly slides the heatmap left/right along the fixed axis.
  *
@@ -2300,36 +2274,11 @@ function corrMatchInfoHtml(m) {
     `;
 }
 
-// Unlike a correlation or Z-score/percentile, Brier is just an average of
-// bounded [0,1] terms — well-defined and readable at any n (even n=1), with
-// no reliance on a normal approximation. So no minimum-games gate is needed;
-// it's just noisier (like any average) with fewer matches.
 // Keeps a marker's/value's horizontal position a few points shy of the bar's
 // own edges, so the value text (centred on that position) never overflows
 // past the bar into the caption or label column at the extremes (0 or 1).
 function clampPct(pct) {
     return Math.max(8, Math.min(92, pct));
-}
-
-function applyMetricPill(pillEl, brier) {
-    if (brier == null) {
-        pillEl.innerHTML = `<span class="brier-caption">Model fit</span><span class="brier-mini-scale"><span class="brier-mini-track"></span></span><span class="brier-label">&mdash;</span>`;
-        pillEl.title = 'No rated matches yet.';
-        return;
-    }
-    const { text, color } = brierAssessment(brier, pillEl);
-    const markerPct = Math.max(0, Math.min(100, brier * 100));
-    const valuePct = clampPct(markerPct);
-    pillEl.innerHTML = `
-        <span class="brier-caption">Model fit</span>
-        <span class="brier-mini-scale">
-            <span class="brier-mini-track"></span>
-            <span class="brier-mini-marker" style="left:${markerPct}%"></span>
-            <b class="brier-mini-value" style="left:${valuePct}%">${brier.toFixed(3)}</b>
-        </span>
-        <span class="brier-label" style="color:${color}">${text}</span>
-    `;
-    pillEl.title = 'Brier score: mean squared error between the PR model\'s predicted win probability and the actual result. 0 = the model was fully confident in every actual winner, 0.25 = no better than a coin flip, 1 = confidently wrong every time.';
 }
 
 // Signed-luck: only meaningful for a player row (real win/loss variation) —
@@ -2352,7 +2301,7 @@ function applyLuckPill(pillEl, luck) {
         </span>
         <span class="brier-label" style="color:${color}">${text}</span>
     `;
-    pillEl.title = 'Signed-luck score: same per-match building block as Brier, but keeps the sign. +1 = maximally lucky (always the underdog, always won), -1 = maximally unlucky (always favoured, always lost), 0 = results matched the PR model exactly.';
+    pillEl.title = 'Signed-luck score: +1 = maximally lucky (always the underdog, always won), -1 = maximally unlucky (always favoured, always lost), 0 = results matched the PR model exactly.';
 }
 
 // Scopes wireLangPopup to a single section, so its flag buttons only ever
@@ -2400,8 +2349,8 @@ function renderPrCorrelationSection(ctx) {
                 <span class="corr-gaussian-stats"></span>
                 <div class="corr-shift-group">
                     <button class="corr-gaussian-toggle" type="button" disabled title="Overlays a fitted normal (Gaussian) curve on this histogram, using this data's own mean and standard deviation &mdash; a visual reference only, not a claim that the data is actually normally distributed.">Gaussian fit</button>
-                    <button class="corr-trim-toggle" type="button" disabled title="Zooms the X-axis in to the middle 99% of this league's matches (symmetric around 0), hiding the outlier bins beyond that. Display only: Model Fit below always uses the full, untrimmed data.">Trim to 99%</button>
-                    <div class="corr-shift-control" title="Adds this many PR points to every match's PR gap before recomputing Model Fit below &mdash; use it to test whether the model's calibration point is off by a constant amount. 0 = the model's real, unshifted PR gaps.">
+                    <button class="corr-trim-toggle" type="button" disabled title="Zooms the X-axis in to the middle 99% of this league's matches (symmetric around 0), hiding the outlier bins beyond that. Display only &mdash; the Gaussian fit below always uses the full, untrimmed data.">Trim to 99%</button>
+                    <div class="corr-shift-control" title="Adds this many PR points to every match's PR gap before recomputing the Gaussian fit below &mdash; use it to test whether the distribution's centre is off by a constant amount. 0 = the model's real, unshifted PR gaps.">
                         <button class="corr-shift-btn" data-dir="-1" aria-label="Decrease PR-gap shift" disabled>&minus;</button>
                         <span class="corr-shift-value">
                             <span class="corr-shift-caption">PR-gap shift</span>
@@ -2411,7 +2360,6 @@ function renderPrCorrelationSection(ctx) {
                     </div>
                 </div>
             </div>
-            <span class="corr-metric-pill"></span>
         </div>
         <div class="predictor-info-popup corr-gaussian-popup" hidden></div>
         <div class="chart-host corr-host"></div>
@@ -2433,8 +2381,8 @@ function renderPrCorrelationSection(ctx) {
                 <div class="corr-shift-group">
                     <button class="corr-gaussian-toggle" type="button" disabled title="Overlays a fitted normal (Gaussian) curve on this histogram, using this data's own mean and standard deviation &mdash; a visual reference only, not a claim that the data is actually normally distributed.">Gaussian fit</button>
                     <button class="corr-explanation-toggle" type="button" disabled title="Compares this row's real data against the win-probability table, gap by gap, with a likelihood check on how surprising each row's result is.">Model validation</button>
-                    <button class="corr-trim-toggle" type="button" disabled title="Zooms the X-axis in to the middle 99% of all-time matches (symmetric around 0), hiding the outlier bins beyond that. Display only: Model Fit below always uses the full, untrimmed data.">Trim to 99%</button>
-                    <div class="corr-shift-control" title="Adds this many PR points to every match's PR gap before recomputing Model Fit below &mdash; use it to test whether the model's calibration point is off by a constant amount. 0 = the model's real, unshifted PR gaps.">
+                    <button class="corr-trim-toggle" type="button" disabled title="Zooms the X-axis in to the middle 99% of all-time matches (symmetric around 0), hiding the outlier bins beyond that. Display only &mdash; the Gaussian fit and Model validation below always use the full, untrimmed data.">Trim to 99%</button>
+                    <div class="corr-shift-control" title="Adds this many PR points to every match's PR gap before recomputing the Gaussian fit and Model validation table below &mdash; use it to test whether the model's calibration point is off by a constant amount. 0 = the model's real, unshifted PR gaps.">
                         <button class="corr-shift-btn" data-dir="-1" aria-label="Decrease PR-gap shift" disabled>&minus;</button>
                         <span class="corr-shift-value">
                             <span class="corr-shift-caption">PR-gap shift</span>
@@ -2444,14 +2392,12 @@ function renderPrCorrelationSection(ctx) {
                     </div>
                 </div>
             </div>
-            <span class="corr-metric-pill"></span>
         </div>
         <div class="predictor-info-popup corr-gaussian-popup" hidden></div>
         <div class="predictor-info-popup corr-explanation-popup" hidden></div>
         <div class="chart-host corr-host"></div>
     `;
     leagueContainer.appendChild(allTimePanel);
-    applyMetricPill(allTimePanel.querySelector('.corr-metric-pill'), null);
 
     const generalGaussianToggle = generalPanel.querySelector('.corr-gaussian-toggle');
     const generalTrimToggle = generalPanel.querySelector('.corr-trim-toggle');
@@ -2471,11 +2417,6 @@ function renderPrCorrelationSection(ctx) {
     }
 
     function redrawGeneral() {
-        const generalItems = generalSeries.map(m => ({
-            pWin: getWinProbability(0, m.advantage + generalShift, generalMlIdx),
-            outcome: 1 // pWin was computed for the side that actually won
-        }));
-        applyMetricPill(generalPanel.querySelector('.corr-metric-pill'), brierScore(generalItems));
         generalShiftAmountEl.textContent = `${generalShift > 0 ? '+' : ''}${generalShift}`;
 
         const enoughForGaussian = generalSeries.length >= MIN_GAUSSIAN_N;
@@ -2542,7 +2483,6 @@ function renderPrCorrelationSection(ctx) {
                     <span class="corr-games-count"></span>
                     <button class="remove-chart" title="Remove this chart">&times;</button>
                 </div>
-                <span class="corr-metric-pill"></span>
                 <span class="corr-metric-pill corr-luck-pill"></span>
             </div>
             <div class="chart-host corr-host"></div>
@@ -2551,7 +2491,6 @@ function renderPrCorrelationSection(ctx) {
 
         const playerSel = panel.querySelector('.player-pick');
         const gamesCount = panel.querySelector('.corr-games-count');
-        const metricPill = panel.querySelector('.corr-metric-pill:not(.corr-luck-pill)');
         const luckPill = panel.querySelector('.corr-luck-pill');
         const host = panel.querySelector('.corr-host');
         const removeBtn = panel.querySelector('.remove-chart');
@@ -2565,8 +2504,6 @@ function renderPrCorrelationSection(ctx) {
                 pWin: getWinProbability(m.prSelf, m.prOpp, mlIdx),
                 outcome: m.win ? 1 : 0
             }));
-            const brier = brierScore(items);
-            applyMetricPill(metricPill, brier);
             applyLuckPill(luckPill, signedLuckScore(items));
             drawCorrelationRow(host, series.map(m => ({ x: m.advantage, win: m.win, match: m })), {
                 xMin: playerDomain.xMin,
@@ -2640,15 +2577,14 @@ function renderPrCorrelationSection(ctx) {
         labelEl.textContent = `All League Matches (${rows.length} matches, ${typeLeagues.length} league${typeLeagues.length === 1 ? '' : 's'})`;
         const shiftAmountEl = allTimePanel.querySelector('.corr-shift-amount');
         const trimToggle = allTimePanel.querySelector('.corr-trim-toggle');
-        const metricPill = allTimePanel.querySelector('.corr-metric-pill');
         const host = allTimePanel.querySelector('.corr-host');
         const [minusBtn, plusBtn] = allTimePanel.querySelectorAll('.corr-shift-btn');
 
         // Trim view is independent of the shared `domain` — toggling it only
         // narrows the X-axis (dropping outlier bins entirely, not folding
-        // them into the edge) for THIS row's own display. Model Fit always
-        // recomputes over the full, untrimmed `rows` data below, so trimming
-        // never changes the score.
+        // them into the edge) for THIS row's own display. The Gaussian fit
+        // and Model validation table always recompute over the full,
+        // untrimmed `rows` data below, so trimming never changes them.
         const fullBound = domain.xMax;
         let trimmed = false;
 
@@ -2672,11 +2608,6 @@ function renderPrCorrelationSection(ctx) {
             const bound = trimmed ? trimmedBound() : fullBound;
             const localXMin = -bound, localXMax = bound;
             const buckets = buildDensityBuckets(rows, shift, localXMin, localXMax, trimmed);
-            const items = rows.map(r => ({
-                pWin: getWinProbability(0, r.advantage + shift, r.mlIdx),
-                outcome: 1
-            }));
-            applyMetricPill(metricPill, brierScore(items));
             shiftAmountEl.textContent = `${shift > 0 ? '+' : ''}${shift}`;
             trimToggle.textContent = trimmed ? 'Show full range' : 'Trim to 99%';
             trimToggle.classList.toggle('is-active', trimmed);

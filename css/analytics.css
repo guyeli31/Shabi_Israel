@@ -1,10 +1,20 @@
 /* analytics.css — Traffic heatmap grid (calendar day/month x hour-of-day)
    and its colour-scale legend. Everything else on analytics.html reuses
-   existing themed/production components (app-section, dash-card, mf-wrap). */
+   existing themed/production components (app-section, dash-card, mf-wrap).
+
+   Font sizes here use only slots docs/TYPOGRAPHY.md sanctions. This file used to
+   write `var(--fs-xs, 11px)` in six places, but --fs-xs has never existed in
+   either token set, so all six silently resolved to a FIXED 11px that never
+   scaled — the one thing the fluid scale exists to guarantee.
+   They are now --fs-085 (the doc's "small" = body/table/chrome), which measures
+   identically to the production league table on the same viewport. Note the root
+   itself is fluid (css/layout.css: html ~13px mobile -> ~15px desktop), so the
+   rem the tokens are built on already moves; --fs-065 ("micro") lands at ~7px on
+   a phone, well under the site's own table baseline, so nothing here uses it. */
 
 .analytics-heatmap {
     border-collapse: collapse;
-    font-size: var(--fs-xs, 11px);
+    font-size: var(--fs-085);
     white-space: nowrap;
 }
 
@@ -33,14 +43,17 @@
     border: none;
 }
 
-/* Safety net: a bar-chart canvas's bitmap width is set once in JS from a
-   layout measurement; if that measurement is ever stale (e.g. read mid-loop
-   before a flex row settles), an unconstrained canvas would silently overflow
-   past its own card. This caps the display size to the card regardless. */
-#dwell-buckets canvas,
-#chart-timeseries canvas,
-#chart-device canvas,
-#chart-referrer canvas {
+/* Safety net: a bar-chart canvas's bitmap width is set once in JS from a layout
+   measurement, and drawBarChart falls back to a flat 600px whenever that
+   measurement reads 0 — which is exactly what happens for a chart sitting in a
+   tab panel that is still hidden at draw time. Opening that tab on a phone then
+   drops a 600px canvas into a ~345px viewport and the whole page scrolls
+   sideways. This caps every chart to its own container regardless.
+   Scoped to the tab shell that holds every chart on this page, rather than to an
+   id list: the previous version enumerated the four ids that existed when it was
+   written, so every chart added later silently opted out of the net — #chart-mix
+   did exactly that and reintroduced the overflow it was written to prevent. */
+.analytics-tabs-shell canvas {
     max-width: 100%;
     display: block;
 }
@@ -50,7 +63,7 @@
     align-items: center;
     gap: var(--space-xs, 6px);
     margin-top: var(--space-sm, 8px);
-    font-size: var(--fs-xs, 11px);
+    font-size: var(--fs-085);
     color: var(--color-text-muted, #777);
 }
 
@@ -64,20 +77,28 @@
 /* Range control — same pill shape/focus treatment as the desktop player
    search (css/navigation.css .nav-search input), adapted from that dark
    navbar's translucent-white styling to sit on a normal light card here. */
+/* gap/wrap/align are load-bearing, not decoration: this bar held a single
+   control until the exclude-admin toggle joined it, so flex had nothing to space
+   and the select sat flush against the checkbox label. Wrapping matters on a
+   phone — a 180px select plus the label does not fit 345px on one line. */
 .analytics-range-bar {
     margin: 0 0 var(--space-md);
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-xs) var(--space-md);
 }
 
 .analytics-range-select {
-    width: 180px;
+    /* Caps at 180px but yields on a narrow screen instead of forcing a scroll. */
+    width: min(180px, 100%);
     padding: 5px 10px;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     background: var(--color-surface);
     color: var(--color-text);
-    font-size: var(--fs-093, 0.93em);
+    font-size: var(--fs-093);
     font-family: inherit;
     outline: none;
     transition: border-color 0.15s, box-shadow 0.15s;
@@ -93,7 +114,7 @@
     gap: var(--space-md, 12px);
     flex-wrap: wrap;
     margin-bottom: var(--space-sm, 8px);
-    font-size: var(--fs-093, 0.93em);
+    font-size: var(--fs-093);
     color: var(--color-text-muted, #777);
 }
 
@@ -107,20 +128,161 @@
     margin-left: var(--space-xs, 4px);
 }
 
-/* Device-tinted rows on the "All page-to-page transitions" log — reuses the
-   site's existing per-theme medal-tint tokens (already themed across all 8
-   themes in css/themes.css) instead of inventing new device-specific tokens.
-   #transitions-log-table (an id) is needed to outrank .mf-wrap's own
-   `tbody td { background: var(--color-inset) }` default. */
-#transitions-log-table tr.device-desktop td,
-#clicks-log-table tr.device-desktop td { background: var(--color-gold-bg); }
-#transitions-log-table tr.device-mobile  td,
-#clicks-log-table tr.device-mobile  td { background: var(--color-silver-bg); }
-#transitions-log-table tr.device-tablet  td,
-#clicks-log-table tr.device-tablet  td { background: var(--color-bronze-bg); }
-#transitions-log-table tr.device-desktop:hover td,
-#clicks-log-table tr.device-desktop:hover td { background: var(--color-gold-bg-hover); }
-#transitions-log-table tr.device-mobile:hover  td,
-#clicks-log-table tr.device-mobile:hover  td { background: var(--color-silver-bg-hover); }
-#transitions-log-table tr.device-tablet:hover  td,
-#clicks-log-table tr.device-tablet:hover  td { background: var(--color-bronze-bg-hover); }
+/* "Exclude my own traffic" — sits beside the month select in the range bar, and
+   is repeated inside the History tab for its own derived equivalent. */
+.analytics-admin-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs, 4px);
+    font-size: var(--fs-093);
+    color: var(--color-text);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.analytics-admin-toggle input { cursor: pointer; }
+
+/* Muted caption under a panel whose numbers would be misread without it — the
+   traffic-composition note, the "global route only" region caveat, and the
+   History archive warning. */
+.analytics-mix-note {
+    margin: var(--space-sm, 8px) 0 0;
+    font-size: var(--fs-085);
+    line-height: 1.5;
+    color: var(--color-text-muted);
+}
+
+/* Device-tinted rows, shared by every log table on this page (transitions, all
+   clicks, and each expanded session's own trace — all rendered by
+   renderLogTable). Reuses the site's existing per-theme medal-tint tokens
+   (already themed across all 8 themes in css/themes.css) instead of inventing
+   new device-specific tokens.
+   These were ids (#transitions-log-table, #clicks-log-table) purely to outrank
+   .mf-wrap's own `tbody td { background: var(--color-inset) }` default. A class
+   wins that anyway — `.log-table tr.device-desktop td` is (0,2,2) against
+   .mf-wrap's (0,1,2), and the :hover pair is (0,3,2) against (0,2,3), classes
+   being compared before elements — and unlike an id it can apply to the N
+   per-session tables at once. device-unknown has no rule on purpose. */
+.log-table tr.device-desktop td { background: var(--color-gold-bg); }
+.log-table tr.device-mobile  td { background: var(--color-silver-bg); }
+.log-table tr.device-tablet  td { background: var(--color-bronze-bg); }
+.log-table tr.device-desktop:hover td { background: var(--color-gold-bg-hover); }
+.log-table tr.device-mobile:hover  td { background: var(--color-silver-bg-hover); }
+.log-table tr.device-tablet:hover  td { background: var(--color-bronze-bg-hover); }
+
+/* ── Session-id chip ──────────────────────────────────────────────────────
+   The base chip IS the admin/operator chip: one shared pleasant red for EVERY
+   admin (identity is spelled out in the label — user_########), so the colour
+   only ever answers "operator or ordinary visitor?", not "which admin?". A
+   fixed hsl red rather than a token keeps the tint and border legible across all
+   8 themes (several of them dark) while the label stays var(--color-text). The
+   --visitor and --external modifiers below override this fill for the other two
+   states. */
+.analytics-sid {
+    display: inline-block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--fs-085);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm, 3px);
+    white-space: nowrap;
+    color: var(--color-text);
+    background: hsl(0 72% 50% / 0.18);
+    border: 1px solid hsl(0 72% 50% / 0.50);
+}
+
+/* An ordinary visitor (admin_user null): one shared neutral, no hue. Colour on
+   this page means "operator traffic" and nothing else, so the uniformity here
+   is itself the signal. */
+.analytics-sid--visitor {
+    background: var(--color-inset);
+    border-color: var(--color-border);
+    color: var(--color-text-muted);
+}
+
+/* Global route: no session id exists at all. Dashed = absent by design. */
+.analytics-sid--external {
+    background: transparent;
+    border: 1px dashed var(--color-border);
+    color: var(--color-text-muted);
+    font-family: inherit;
+}
+
+/* ── Device pill (session cards) ──────────────────────────────────────────
+   Cards have no row to tint, so they state the device outright. Reuses the same
+   device-<type> class, and therefore the same medal tokens, as the row tints
+   above — so "gold = desktop" means one thing across the whole page. */
+.analytics-device-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    font-size: var(--fs-085);
+    white-space: nowrap;
+    color: var(--color-text);
+    background: var(--color-inset);
+}
+.analytics-device-pill.device-desktop { background: var(--color-gold-bg); }
+.analytics-device-pill.device-mobile  { background: var(--color-silver-bg); }
+.analytics-device-pill.device-tablet  { background: var(--color-bronze-bg); }
+
+/* ── Entry-referrer pill (session cards) ──────────────────────────────────
+   Same shape as the device pill but no medal tint: referrer buckets have no
+   device-style token set, and a coloured fill here would fight the operator-red
+   session chip for attention. Muted text keeps it a secondary fact. */
+.analytics-referrer-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: var(--color-inset);
+    font-size: var(--fs-085);
+    white-space: nowrap;
+    color: var(--color-text-muted);
+}
+
+/* ── Entry → exit route (session cards) ───────────────────────────────────
+   The visit's arc, on its own line under the stats row: flex-basis:100% forces
+   a wrap in the flex head so it never crowds the pills, and the whole line stays
+   muted (a path, not a stat) while the arrow takes the accent to read as motion.
+   A single-page visit renders one node with no arrow (see sessionRoute). */
+.analytics-session-route {
+    flex-basis: 100%;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: var(--fs-085);
+    color: var(--color-text-muted);
+}
+.analytics-session-route .rt-node { color: var(--color-text); }
+.analytics-session-route .rt-arrow { color: var(--color-accent); font-weight: 600; }
+
+/* ── Session card — a native <details>, so expanding needs no JS ─────────── */
+.analytics-session {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-inset);
+    margin-bottom: var(--space-sm, 8px);
+    overflow: hidden;
+}
+.analytics-session-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm, 8px);
+    flex-wrap: wrap;
+    padding: var(--space-sm, 8px);
+    cursor: pointer;
+    list-style: none; /* hide the default disclosure triangle … */
+}
+.analytics-session-head::-webkit-details-marker { display: none; } /* … and Safari's */
+/* Same caret glyphs as .app-section-h2.is-collapsible (css/sections.css), so a
+   session card discloses exactly like every other collapsible surface here. */
+.analytics-session-head::before { content: '\25B8'; opacity: 0.7; font-size: 0.85em; }
+.analytics-session[open] .analytics-session-head::before { content: '\25BE'; }
+.analytics-session-head:hover { background: var(--color-hover); }
+.analytics-session-time { font-size: var(--fs-093); }
+.analytics-session-meta { font-size: var(--fs-085); color: var(--color-text-muted); }
+.analytics-session-body { padding: 0 var(--space-sm, 8px) var(--space-sm, 8px); }

@@ -63,6 +63,7 @@
         if (isPreviewMode()) installPreviewInterceptor();
 
         import { renderLeaguePage } from './js/render/leaguePage.js';
+        import { onVisibleRevalidate } from './js/data/store.js';
         import { applyThemeBootstrap } from './js/render/themePicker.js';
         import { initNavBar, initKeyboardShortcuts } from './js/render/navigation.js';
         import { mountSiteSidebar } from './js/render/siteSidebar.js';
@@ -72,6 +73,7 @@
         const leagueId = new URLSearchParams(location.search).get('league') || '';
         mountSiteSidebar({ activeView: 'leagueTable', leagueId, topbarTitle: 'League Table' });
         await renderLeaguePage();
+        onVisibleRevalidate(renderLeaguePage); // self-heal / passive refresh on tab-return
         initKeyboardShortcuts();
     </script>
     <script type="module" src="js/analytics.js"></script>

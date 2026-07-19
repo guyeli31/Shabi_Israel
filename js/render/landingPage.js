@@ -15,6 +15,7 @@ import { prProbabilityTableHtml } from '../compute/championshipPredictor.js';
 import { luckBellCurveSvg } from './luckBellCurve.js';
 import { loadLandingSettings } from '../data/store.js';
 import { loadBannerConfig, renderHeroBanner } from './heroBanner.js';
+import './privacyNotice.js'; // passive Privacy modal — wires the delegated [data-action="privacy"] trigger + styles
 import { leagueUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueTableUrl, thLabel } from '../utils/helpers.js';
 import { exportTableImage } from '../utils/exportTableImage.js';
 import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatches } from '../compute/matchRecords.js';
@@ -69,25 +70,31 @@ export async function renderLandingPage() {
     const headerEl = document.getElementById('page-header');
     let heroBanner = null;
 
-    try {
-        // Kick off the banner fetch alongside landing settings instead of behind
-        // it — the two requests are independent, and the banner is what mobile
-        // users see first, so it shouldn't wait on an unrelated fetch.
-        const [landingSettings, heroBannerEl] = await Promise.all([
-            loadLandingSettings(),
-            applyHeroBanner(),
-        ]);
-        _landingSettings = landingSettings;
-
-        // The hero banner IS the landing header — always. #page-header starts
-        // hidden and is revealed only once the banner is rendered, so nothing
-        // flashes before it.
+    // The hero banner IS the landing header, but it fetches its OWN config over
+    // the network and is purely decorative — it must never gate the league list.
+    // It used to share a Promise.all with landingSettings, so a slow or stuck
+    // banner-config fetch (no-store) froze the ENTIRE page on "Loading leagues…".
+    // Now it runs independently: the league list renders from the (instant,
+    // cached) landing settings while the banner fills in whenever it resolves.
+    // Its loading shimmer plays until the league data is ready (dataReady),
+    // regardless of which of the two finishes first — #page-header stays hidden
+    // until either the banner resolves or the finally reveals it.
+    let resolveDataReady;
+    const dataReady = new Promise((r) => { resolveDataReady = r; });
+    applyHeroBanner().then((heroBannerEl) => {
         heroBanner = heroBannerEl;
-        if (heroBanner) {
-            const anim = heroBanner.dataset.loadanim;
-            if (anim && anim !== 'none') heroBanner.classList.add('is-loading', 'load-' + anim);
-        }
         if (headerEl) headerEl.style.visibility = 'visible';
+        if (!heroBanner) return;
+        const anim = heroBanner.dataset.loadanim;
+        if (anim && anim !== 'none') heroBanner.classList.add('is-loading', 'load-' + anim);
+        dataReady.then(() => heroBanner.classList.remove('is-loading'));
+    }).catch(() => {
+        if (headerEl) headerEl.style.visibility = 'visible';
+    });
+
+    try {
+        const landingSettings = await loadLandingSettings();
+        _landingSettings = landingSettings;
 
         const [allLeagues, playersMeta] = await Promise.all([
             loadAllLeagues(),
@@ -193,15 +200,19 @@ export async function renderLandingPage() {
         // top, then alphabetical — "notable" is just a sort key, not a section.
         renderPlayersTab(shell.panels.players, _playersMeta, leagues);
 
-        const credit = document.createElement('div');
-        credit.className = 'platform-credit';
-        credit.textContent = 'Built by Guy Eliyahu - 2026';
-        container.appendChild(credit);
-
-        const rights = document.createElement('div');
-        rights.className = 'platform-credit';
-        rights.textContent = 'All Rights Reserved to Guy Eliyahu';
-        container.appendChild(rights);
+        // Themed footer bar (chess.com-style link row): a clickable
+        // "Privacy & Analytics" transparency link (opens the modal only on
+        // click — see js/render/privacyNotice.js) and a non-interactive
+        // "© Built by Guy Eliyahu" credit (© is the all-rights-reserved mark;
+        // the separate "All Rights Reserved" text line was removed).
+        const footer = document.createElement('footer');
+        footer.className = 'site-platform-footer';
+        footer.innerHTML = `
+            <button type="button" class="site-footer-link" data-action="privacy">Privacy &amp; Analytics</button>
+            <span class="site-footer-sep" aria-hidden="true">·</span>
+            <span class="site-footer-credit">© Built by Guy Eliyahu - 2026</span>
+        `;
+        container.appendChild(footer);
 
         // Auto-enter edit mode if admin and ?edit=1 in URL
         if (adminLoggedIn && new URLSearchParams(location.search).get('edit') === '1') {
@@ -210,7 +221,11 @@ export async function renderLandingPage() {
     } catch (err) {
         container.innerHTML = `<div class="error">Failed to load leagues: ${err.message}</div>`;
     } finally {
-        if (heroBanner) heroBanner.classList.remove('is-loading');
+        // Signal the banner's loading shimmer to stop (its .then above waits on
+        // dataReady, so this works whether the banner resolved before or after
+        // the league data), and guarantee the header is visible even if the
+        // banner fetch failed or returned null.
+        resolveDataReady();
         if (headerEl) headerEl.style.visibility = 'visible';
     }
 }
@@ -1506,6 +1521,38 @@ function renderAchievementTables(data, leagueType) {
     return `<div class="achv-tables-grid type-${leagueType}">${coreCards}${luckCard}</div>`;
 }
 
+// Real typeset math (MathML, same approach as LUCK_FORMULA_MATHML in
+// dashboardPage.js), one equation per line — NOT a single packed multi-row
+// block. Academic-paper style: each formula gets its own display line,
+// immediately followed by prose defining every
+// symbol in it, rather than a dense equation array with the definitions
+// left implicit.
+function mathLine(inner) {
+    return `<math xmlns="http://www.w3.org/1998/Math/MathML" display="block" dir="ltr">${inner}</math>`;
+}
+
+const EW_FORMULA_MATHML = mathLine(`
+    <mi>EW</mi><mo>=</mo>
+    <msubsup><mo>&#8721;</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup>
+    <msub><mi>p</mi><mi>i</mi></msub>
+`);
+const VAR_FORMULA_MATHML = mathLine(`
+    <mi>Var</mi><mo>=</mo>
+    <msubsup><mo>&#8721;</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup>
+    <msub><mi>p</mi><mi>i</mi></msub><mo>(</mo><mn>1</mn><mo>&#8722;</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>
+`);
+const Z_FORMULA_MATHML = mathLine(`
+    <mi>Z</mi><mo>=</mo>
+    <mfrac><mrow><mi>AW</mi><mo>&#8722;</mo><mi>EW</mi></mrow><msqrt><mi>Var</mi></msqrt></mfrac>
+`);
+function percentileFormulaMathML(lang) {
+    const percentileLabel = lang === 'he' ? '&#1488;&#1495;&#1493;&#1494;&#1493;&#1503;' : 'Percentile';
+    return mathLine(`
+        <mtext>${percentileLabel}</mtext><mo>=</mo>
+        <mi>&#934;</mi><mo>(</mo><mi>Z</mi><mo>)</mo><mo>&#215;</mo><mn>100</mn>
+    `);
+}
+
 function renderLuckPercentileCard(data, leagueType) {
     const rows = (data.rankings.luckPercentile || []).filter(r => !_playersMeta[r.name]?.hidden);
     const rowsHtml = rows.map(r => {
@@ -1531,28 +1578,57 @@ function renderLuckPercentileCard(data, leagueType) {
                 <h3>How It Works</h3>
                 <p>For each historical match, the player's <b>PR gap</b> against their opponent and the match length give an expected win chance <i>p<sub>i</sub></i>, shown below:</p>
                 ${prProbabilityTableHtml('en')}
-                <p>We then compare <b>actual wins</b> to <b>expected wins</b> across every match. The result is standardized into a Z-score and mapped to a percentile via the standard normal distribution.</p>
-                <ul>
-                    <li><b>EW</b> (expected wins) = Σ p<sub>i</sub></li>
-                    <li><b>Var</b> = Σ p<sub>i</sub>(1 − p<sub>i</sub>)</li>
-                    <li><b>Z</b> = (AW − EW) / √Var</li>
-                    <li><b>Percentile</b> = Φ(Z) × 100</li>
-                </ul>
-                <p>50 ≈ expected, 100 = extremely lucky, 0 = extremely unlucky. Players with fewer than 15 rated games are shown struck-through — the sample is too small to be reliable.</p>
+                <p>Summed across all <i>n</i> of the player's rated matches, the win probabilities give the
+                total number of wins the model <b>expected</b>:</p>
+                <div class="corr-formula">${EW_FORMULA_MATHML}</div>
+                <p>where <i>n</i> is the number of rated matches, and <i>p<sub>i</sub></i> is the win
+                probability for match <i>i</i> shown in the table above.</p>
+
+                <p>Treating each match as an independent win/loss trial with success probability
+                <i>p<sub>i</sub></i>, the same sum has a variance:</p>
+                <div class="corr-formula">${VAR_FORMULA_MATHML}</div>
+
+                <p>The player's <b>actual win count</b>, AW, is then standardized against that expectation
+                into a Z-score:</p>
+                <div class="corr-formula">${Z_FORMULA_MATHML}</div>
+                <p>where <i>AW</i> is how many of those <i>n</i> matches the player actually won.
+                <i>Z</i> = 0 means the player won exactly as many matches as expected; positive means more
+                wins than expected (lucky), negative means fewer (unlucky).</p>
+
+                <p>Finally, the Z-score is converted to a percentile via the standard normal cumulative
+                distribution function:</p>
+                <div class="corr-formula">${percentileFormulaMathML('en')}</div>
+                <p>where <i>&Phi;</i> is the standard normal CDF. 50 &asymp; expected, 100 = extremely lucky,
+                0 = extremely unlucky. Players with fewer than 15 rated games are shown struck-through — the
+                sample is too small to be reliable.</p>
                 ${luckBellCurveSvg()}
                 </div>
                 <div class="popup-lang-he" data-lang="he">
                 <h3>איך זה עובד</h3>
                 <p>עבור כל משחק היסטורי, <b>פער ה-PR</b> של השחקן מול היריב ואורך המשחק נותנים סיכוי ניצחון צפוי <i>p<sub>i</sub></i>, המוצג למטה:</p>
                 ${prProbabilityTableHtml('he')}
-                <p>לאחר מכן משווים בין <b>ניצחונות בפועל</b> ל<b>ניצחונות צפויים</b> על פני כל המשחקים. התוצאה מתוקננת לציון Z וממופה לאחוזון לפי ההתפלגות הנורמלית הסטנדרטית.</p>
-                <ul>
-                    <li><b>EW</b> (ניצחונות צפויים) = Σ p<sub>i</sub></li>
-                    <li><b>Var</b> = Σ p<sub>i</sub>(1 − p<sub>i</sub>)</li>
-                    <li><b>Z</b> = (AW − EW) / √Var</li>
-                    <li><b>אחוזון</b> = Φ(Z) × 100</li>
-                </ul>
-                <p>50 &asymp; צפוי, 100 = בר מזל בקיצוניות, 0 = ביש מזל בקיצוניות. שחקנים עם פחות מ-15 משחקים מדורגים מוצגים עם קו חוצה — המדגם קטן מדי כדי להיות אמין.</p>
+                <p>בסכימה על פני כל <i>n</i> המשחקים המדורגים של השחקן, סיכויי הניצחון נותנים את
+                מספר הניצחונות ה<b>צפוי</b> הכולל:</p>
+                <div class="corr-formula">${EW_FORMULA_MATHML}</div>
+                <p>כאשר <i>n</i> הוא מספר המשחקים המדורגים, ו-<i>p<sub>i</sub></i> הוא סיכוי הניצחון
+                עבור משחק <i>i</i>, מתוך הטבלה שלמעלה.</p>
+
+                <p>בהתייחסות לכל משחק כניסוי בלתי תלוי של ניצחון/הפסד עם סיכוי הצלחה <i>p<sub>i</sub></i>,
+                לאותו סכום יש שונות:</p>
+                <div class="corr-formula">${VAR_FORMULA_MATHML}</div>
+
+                <p><b>מספר הניצחונות בפועל</b> של השחקן, AW, מתוקנן לאחר מכן ביחס לציפייה הזו לציון Z:</p>
+                <div class="corr-formula">${Z_FORMULA_MATHML}</div>
+                <p>כאשר <i>AW</i> הוא כמה מתוך אותם <i>n</i> משחקים השחקן ניצח בפועל.
+                <i>Z</i> = 0 אומר שהשחקן ניצח בדיוק כמספר המשחקים הצפוי; חיובי אומר יותר ניצחונות
+                מהצפוי (בר מזל), שלילי אומר פחות (ביש מזל).</p>
+
+                <p>לבסוף, ציון ה-Z מומר לאחוזון באמצעות פונקציית ההתפלגות המצטברת של ההתפלגות הנורמלית
+                הסטנדרטית:</p>
+                <div class="corr-formula">${percentileFormulaMathML('he')}</div>
+                <p>כאשר <i>&Phi;</i> היא פונקציית ההתפלגות המצטברת הנורמלית הסטנדרטית. 50 &asymp; צפוי,
+                100 = בר מזל בקיצוניות, 0 = ביש מזל בקיצוניות. שחקנים עם פחות מ-15 משחקים מדורגים מוצגים
+                עם קו חוצה — המדגם קטן מדי כדי להיות אמין.</p>
                 ${luckBellCurveSvg()}
                 </div>
             </div>

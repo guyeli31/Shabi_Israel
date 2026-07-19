@@ -64,6 +64,7 @@
         if (isPreviewMode()) installPreviewInterceptor();
 
         import { renderPlayerPage } from './js/render/playerPage.js';
+        import { onVisibleRevalidate } from './js/data/store.js';
         import { applyThemeBootstrap } from './js/render/themePicker.js';
         import { initNavBar, initKeyboardShortcuts } from './js/render/navigation.js';
         import { mountSiteSidebar } from './js/render/siteSidebar.js';
@@ -73,6 +74,7 @@
         const playerName = new URLSearchParams(location.search).get('player') || '';
         mountSiteSidebar({ activeView: 'playerLeague', playerName, topbarTitle: 'Player' });
         await renderPlayerPage();
+        onVisibleRevalidate(renderPlayerPage); // self-heal / passive refresh on tab-return
         initKeyboardShortcuts();
     </script>
     <script type="module" src="js/analytics.js"></script>

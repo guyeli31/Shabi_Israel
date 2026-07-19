@@ -63,6 +63,7 @@
     </div>
     <script type="module">
         import { renderPlayerGeneralPage } from './js/render/playerGeneralPage.js';
+        import { onVisibleRevalidate } from './js/data/store.js';
         import { applyThemeBootstrap } from './js/render/themePicker.js';
         import { initNavBar, initKeyboardShortcuts } from './js/render/navigation.js';
         import { mountSiteSidebar } from './js/render/siteSidebar.js';
@@ -95,6 +96,7 @@
             mountSiteSidebar({ activeView: 'player', playerName, topbarTitle: 'Player' });
         }
         await renderPlayerGeneralPage();
+        onVisibleRevalidate(renderPlayerGeneralPage); // self-heal / passive refresh on tab-return
 
         if (!isEmbedded) {
             initKeyboardShortcuts();

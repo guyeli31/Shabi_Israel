@@ -5,13 +5,17 @@
  * aggregate across leagues for the Phase G general player card.
  */
 
-import { loadLeagueOrder, loadLeaguesBulk } from '../data/store.js';
+import { loadLeagueOrder, loadLeaguesBulk, registerMemoInvalidator } from '../data/store.js';
 import { computeAllStats } from './stats.js';
 import { buildRankings, getLevel } from './rankings.js';
 import { getLeagueConfig } from './leagueTypes.js';
 
-// Memoized load of every league.
+// Memoized load of every league (per-league stats/rankings computed ON TOP of
+// the store bundle). Reset it when the bundle refreshes so a data change (or a
+// heal after failure) isn't masked by this stale computed layer.
 let allLeaguesPromise = null;
+export function resetLeaguesCache() { allLeaguesPromise = null; }
+registerMemoInvalidator(resetLeaguesCache);
 
 /**
  * Load every league once, return enriched entries.
@@ -54,6 +58,11 @@ export function loadAllLeagues() {
                 };
             });
     })();
+    // Poison-reset: a rejected memo (store timeout/offline) must not stick for
+    // the page's lifetime — clear it so the next call (a retry, or a
+    // visibility-triggered re-render) re-attempts instead of replaying the dead
+    // rejection. Mirrors store.js's own _bundlePromise reset.
+    allLeaguesPromise.catch(() => { allLeaguesPromise = null; });
     return allLeaguesPromise;
 }
 

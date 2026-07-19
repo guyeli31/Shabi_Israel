@@ -69,7 +69,8 @@ export function aggregateOpponents(allRows) {
 /**
  * @param {object} input
  *   opponents — aggregateOpponents() output
- *   enrich    — { flagFor(name) => html }  (flag <img> placed left of the name)
+ *   enrich    — { flagFor(name) => html,          (flag <img> placed left of the name)
+ *                 opponentSuffix(name) => html }  (title badges placed right of the name)
  */
 export function buildAllOpponentsPreset({ opponents, enrich = {} }) {
     const cols = [
@@ -77,7 +78,9 @@ export function buildAllOpponentsPreset({ opponents, enrich = {} }) {
           tdClass: 'c4-opp-cell',
           format: v => {
               const flag = enrich.flagFor ? enrich.flagFor(v) : '';
-              return `<button type="button" class="c4-opp-link" data-name="${esc(v)}">${flag}<span class="c4-opp-name">${esc(displayPlayerName(v))}</span></button>`;
+              // Suffix sits outside the button — the badge is decoration, not a click target.
+              const suffix = enrich.opponentSuffix ? enrich.opponentSuffix(v) : '';
+              return `<button type="button" class="c4-opp-link" data-name="${esc(v)}">${flag}<span class="c4-opp-name">${esc(displayPlayerName(v))}</span></button>${suffix}`;
           } },
         { key: 'winRate',  label: 'Win%',     type: 'number', sortable: true,
           tdClass: 'c4-winrate',

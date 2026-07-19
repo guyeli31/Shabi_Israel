@@ -15,6 +15,7 @@
 
 import { isLoggedIn, getUsername } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
+import { installSectionLinkScroll } from '../utils/scrollOffset.js';
 
 function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -27,6 +28,15 @@ function escapeHtml(s) {
  *        surfaces are logged-in by definition; skips the preview-mode check).
  */
 export function mountTopbar(opts = {}) {
+    // This bar is the fixed chrome that a browser's native anchor jump doesn't
+    // know about, so mounting it is exactly where the compensation belongs:
+    // every same-page section link on this surface now scrolls through
+    // scrollToClearingTopbar instead. Idempotent, and deliberately BEFORE the
+    // early return below — a second mountTopbar() call is a no-op either way,
+    // but the handler must be installed even if some other surface got here
+    // first. See js/utils/scrollOffset.js for the full contract.
+    installSectionLinkScroll();
+
     if (document.querySelector('.site-topbar')) return;
 
     const loggedIn = opts.forceAdmin || (isLoggedIn() && !isPreviewMode());

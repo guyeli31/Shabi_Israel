@@ -62,6 +62,10 @@ function mapDbOverride(row) {
         luckA: row.luck_a ?? undefined,
         luckB: row.luck_b ?? undefined,
         reason: row.reason || undefined,
+        // Surface the stored edit date under the key the round editor reads
+        // (`timestamp`), so F3 shows the authored date even after publish — not
+        // just from the staged JSON before it.
+        timestamp: row.edited_at || undefined,
     };
 }
 

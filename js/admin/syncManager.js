@@ -23,7 +23,7 @@ import { loadLeagueOrder, loadLeagueParams } from '../data/supabaseLoader.js';
 import { supabase } from '../data/supabaseClient.js';
 import { addChange, getStagedContent } from './stagingStore.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
-import { revealMsg } from './msgScroll.js';
+import { revealMsg, revealAtTop } from './msgScroll.js';
 import { wireSectionCollapse } from '../render/sectionCollapse.js';
 import { thLabel } from '../utils/helpers.js';
 import {
@@ -177,11 +177,13 @@ export function renderSyncPage(container, leagues, settings) {
 /** Populate each plan card's per-league "Last run" panels from stored events. */
 function wirePlanLastRuns(container) {
     container.querySelectorAll('.sync-lastrun-log').forEach((el) => {
-        const logger = createSyncLog(el, { max: 40 });
-        logger.log('Loading last run…', 'info');
+        // reveal:false — these fill in on page load; a replayed line must never
+        // scroll the page down to a plan the user hasn't looked at yet.
+        const logger = createSyncLog(el, { max: 40, reveal: false });
+        logger.status('Loading last run…', 'info');
         loadLastRun(el.dataset.league, logger).catch(() => {
             logger.clear();
-            logger.log("Couldn't load the last run.", 'error');
+            logger.status("Couldn't load the last run.", 'error');
         });
     });
 }
@@ -370,7 +372,8 @@ function wireRunNow(container, active) {
         const runLogEl = container.querySelector('#sync-runnow-log');
         const reportsEl = container.querySelector('#sync-runnow-reports');
         const stagesEl = container.querySelector('#sync-runnow-stages');
-        const runLog = createSyncLog(runLogEl);
+        // reveal:false — during a run the stage timers own the viewport (see below).
+        const runLog = createSyncLog(runLogEl, { reveal: false });
         runLog.clear();
         reportsEl.innerHTML = '';
 
@@ -390,6 +393,10 @@ function wireRunNow(container, active) {
         // site-level line ends "startup", the first league line ends "connect", etc.
         stagesEl.hidden = false;
         const tracker = createStageTracker(stagesEl, ids.map((id) => ({ id, title: titleOf(id) })));
+        // The progress panel is what matters the moment a run starts — put it at the
+        // top of the viewport. The logs sit below it; scrolling to them is the
+        // user's choice, which is also why none of this run's logs self-reveal.
+        revealAtTop(stagesEl);
         tracker.begin('dispatch');
 
         // Build one report card + logger per selected league, and anchor each
@@ -403,7 +410,7 @@ function wireRunNow(container, active) {
             // Same card markup as a plan's Last Run (syncReportCardHTML), so the
             // live report and the replay look identical.
             reportsEl.insertAdjacentHTML('beforeend', syncReportCardHTML(titleOf(id), type, 'sync-report-log'));
-            cards[id] = createSyncLog(reportsEl.lastElementChild.querySelector('.sync-report-log'));
+            cards[id] = createSyncLog(reportsEl.lastElementChild.querySelector('.sync-report-log'), { reveal: false });
             cards[id].log('Queued…', 'info');
             anchors[id] = await latestEventId(id);
         }
@@ -656,12 +663,47 @@ function syncReportCardHTML(title, type, logClass, attrs = '') {
         </div>`;
 }
 
+// Run times as two selects (hour 00–23, minute in 5-min steps) rather than a
+// native <input type="time">: the native picker renders in the browser's locale,
+// which shows 12-hour AM/PM in many locales. Selects display a fixed 24-hour
+// clock everywhere, so "13:00" reads as 13:00, never "1 PM".
 function timeRowHTML(value) {
+    const [hh, mm] = splitHHMM(value);
+    const hourOpts = Array.from({ length: 24 }, (_, h) => pad2(h))
+        .map((h) => `<option value="${h}"${h === hh ? ' selected' : ''}>${h}</option>`).join('');
+    const minOpts = Array.from({ length: 12 }, (_, i) => pad2(i * 5))
+        .map((m) => `<option value="${m}"${m === mm ? ' selected' : ''}>${m}</option>`).join('');
     return `
         <div class="sync-plan-time-row" style="display:flex;align-items:center;gap:var(--space-sm);margin-bottom:var(--space-xs)">
-            <input type="time" step="300" class="sync-plan-time" value="${esc(value)}">
+            <select class="sync-plan-hour" aria-label="Hour (00–23)">${hourOpts}</select>
+            <span class="sync-plan-time-colon" aria-hidden="true">:</span>
+            <select class="sync-plan-min" aria-label="Minute">${minOpts}</select>
             <button type="button" class="btn btn-danger btn-sm sync-plan-del-time" title="Remove time">&#128465;</button>
         </div>`;
+}
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+/** "HH:MM" → ["HH","MM"], clamped to 24h and snapped to the 5-min grid. Bad or
+ *  empty input defaults to 03:00. */
+function splitHHMM(value) {
+    const m = /^(\d{1,2}):(\d{1,2})$/.exec((value || '').trim());
+    let h = m ? parseInt(m[1], 10) : 3;
+    let min = m ? parseInt(m[2], 10) : 0;
+    if (!(h >= 0 && h <= 23)) h = 3;
+    if (!(min >= 0 && min <= 59)) min = 0;
+    min = Math.round(min / 5) * 5;
+    if (min === 60) min = 55;
+    return [pad2(h), pad2(min)];
+}
+
+/** Read a plan card's run times as "HH:MM" strings (from the hour/min selects). */
+function planTimes(card) {
+    return Array.from(card.querySelectorAll('.sync-plan-time-row')).map((row) => {
+        const h = row.querySelector('.sync-plan-hour');
+        const min = row.querySelector('.sync-plan-min');
+        return (h && min) ? `${h.value}:${min.value}` : '';
+    }).filter(Boolean);
 }
 
 function wireAutoSync(container, leagues, settings) {
@@ -744,7 +786,7 @@ function activeSig(container) {
 }
 
 function planSig(card) {
-    const times = Array.from(card.querySelectorAll('.sync-plan-time')).map((i) => i.value.trim()).filter(Boolean);
+    const times = planTimes(card);
     return JSON.stringify({
         name: card.querySelector('.sync-plan-name').value.trim(),
         enabled: card.querySelector('.sync-plan-enabled').checked,
@@ -790,7 +832,7 @@ function rebuildFromDOM(container) {
         const id = card.dataset.planId;
         const name = card.querySelector('.sync-plan-name').value.trim() || id;
         const enabled = card.querySelector('.sync-plan-enabled').checked;
-        const times = Array.from(card.querySelectorAll('.sync-plan-time')).map((i) => i.value.trim()).filter(Boolean);
+        const times = planTimes(card);
         const startDate = card.querySelector('.sync-plan-start').value || null;
         const endDate = card.querySelector('.sync-plan-end').value || null;
         // Membership single source of truth = the Section-1 matrix.

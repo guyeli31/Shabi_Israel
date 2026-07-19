@@ -540,36 +540,18 @@
     white-space: nowrap;
 }
 
-/* Mini 0-1 Brier scale shown inline next to the number, same gradient as the
-   full .brier-scale legend in the "?" popup. Fills its grid column exactly
-   (a grid item stretches to its track's width by default), so it's always
-   the same fraction of the pill at every viewport, never wider than its
-   column, and never pushes a neighbouring column past the pill's edge. Its
-   height sets the whole row's height, so the caption/label (vertically
-   centred by .corr-metric-pill's align-items:center) end up centred on this
-   box too — the track inside is positioned to share that same centre line
-   (see .brier-mini-track), with .brier-mini-value's fixed room reserved
-   below it. */
-.brier-mini-scale,
+/* Mini -1..+1 Luck scale shown inline next to the number. Fills its grid
+   column exactly (a grid item stretches to its track's width by default),
+   so it's always the same fraction of the pill at every viewport, never
+   wider than its column, and never pushes a neighbouring column past the
+   pill's edge. Its height sets the whole row's height, so the caption/label
+   (vertically centred by .corr-metric-pill's align-items:center) end up
+   centred on this box too — the track inside is positioned to share that
+   same centre line (see .luck-mini-track), with .brier-mini-value's fixed
+   room reserved below it. */
 .luck-mini-scale {
     position: relative;
     height: 46px;
-}
-
-/* The visible coloured strip — a fixed-height child of .brier-mini-scale /
-   .luck-mini-scale now, rather than the scale element itself, so the taller
-   wrapper above can reserve room for the value text below without stretching
-   the bar's own visible height. Vertically centred within the wrapper (top:
-   18px = (46 - 10) / 2) so it lines up with the caption/label text beside
-   it, instead of sitting pinned to the wrapper's top edge. */
-.brier-mini-track {
-    position: absolute;
-    top: 18px;
-    left: 0;
-    right: 0;
-    height: 10px;
-    border-radius: 5px;
-    background: linear-gradient(to right, var(--brier-good) 0%, var(--brier-mid) 25%, var(--brier-bad) 100%);
 }
 
 .luck-mini-track {
@@ -584,7 +566,7 @@
 
 .brier-mini-marker {
     position: absolute;
-    top: 16px; /* tracks .brier-mini-track's new top (18px), minus the same
+    top: 16px; /* tracks .luck-mini-track's top (18px), minus the same
         2px overhang it always had */
     width: 3px;
     height: 14px;
@@ -616,12 +598,8 @@
     white-space: nowrap;
 }
 
-/* Same gradient as .luck-mini-track, for the "?" popup's full-size legend. */
-.luck-scale-bar {
-    background: linear-gradient(to right, var(--brier-bad) 0%, var(--brier-mid) 50%, var(--brier-good) 100%);
-}
-
-/* Brier 0-1 visual scale, shown in the "?" explanation popup. */
+/* -1..+1 Luck visual scale, shown in the "?" explanation popup. Same
+   gradient as .luck-mini-track. */
 .brier-scale {
     position: relative;
     margin: var(--space-md) 4px var(--space-lg);
@@ -630,7 +608,7 @@
 .brier-scale-bar {
     height: 12px;
     border-radius: 6px;
-    background: linear-gradient(to right, var(--brier-good) 0%, var(--brier-mid) 25%, var(--brier-bad) 100%);
+    background: linear-gradient(to right, var(--brier-bad) 0%, var(--brier-mid) 50%, var(--brier-good) 100%);
 }
 
 .brier-scale-ticks {
@@ -852,15 +830,21 @@
 .predictor-info-popup p {
     margin: var(--space-xs) 0;
 }
-/* Compact math-notation line under a score's prose explanation (Brier,
-   Luck) — monospace and muted so it reads as a formula, not more prose. */
+/* Real typeset equation (MathML, see BRIER_FORMULA_MATHML/LUCK_FORMULA_MATHML
+   in dashboardPage.js) under a score's prose explanation — a muted chip like
+   before, but no forced monospace font: MathML resolves its own math font
+   regardless of font-family, and centering it reads like a proper displayed
+   equation rather than an inline text fragment. Always LTR (math notation
+   direction doesn't flip in RTL popups — see the math element's own dir="ltr"). */
 .corr-formula {
-    font-family: var(--font-mono, monospace);
-    font-size: var(--fs-085);
+    display: flex;
+    justify-content: center;
+    font-size: var(--fs-100);
     color: var(--color-text-muted);
     background: var(--color-inset);
     border-radius: var(--radius-sm);
-    padding: var(--space-xs) var(--space-sm);
+    padding: var(--space-sm);
+    overflow-x: auto;
 }
 .pr-prob-table {
     border-collapse: collapse;
@@ -1618,3 +1602,41 @@
     margin-top: 0;
     padding-top: 0;
 }
+
+/* ── Platform footer bar (chess.com-style link row, themed) ──────────── */
+.site-platform-footer {
+    margin-top: 56px;
+    padding: 14px 16px 18px;
+    border-top: 1px solid color-mix(in srgb, var(--color-bg) 88%, var(--color-text) 12%);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px 12px;
+    font-size: var(--fs-060);
+    font-weight: 300;
+    letter-spacing: 0.08em;
+    color: color-mix(in srgb, var(--color-bg) 70%, var(--color-text) 30%);
+    user-select: none;
+}
+/* Clickable transparency link — the ONE interactive item in the footer. */
+.site-footer-link {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+    letter-spacing: inherit;
+    color: color-mix(in srgb, var(--color-bg) 55%, var(--color-text) 45%);
+    text-decoration: none;
+    transition: color 0.15s ease;
+}
+.site-footer-link:hover,
+.site-footer-link:focus-visible {
+    color: var(--color-text);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.site-footer-sep { opacity: 0.5; }
+/* Non-interactive credit (© is the all-rights-reserved mark). */
+.site-footer-credit { user-select: none; }

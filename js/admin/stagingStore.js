@@ -6,6 +6,8 @@
  */
 
 import * as supabaseAdmin from './supabaseAdmin.js';
+import { supabase } from '../data/supabaseClient.js';
+import { CATEGORY_TAXONOMY, CATEGORY_RANK } from './render/changeVocabulary.js';
 
 const STORAGE_KEY = 'shabi-admin-staging';
 
@@ -354,76 +356,112 @@ export async function publishAll(onProgress) {
 
     const errors = [];
     let published = 0;
-    const leagueDataChanges = new Set(); // track which leagues had data changes
 
-    for (let i = 0; i < changes.length; i++) {
-        const change = changes[i];
-        if (onProgress) onProgress(i, changes.length, change.description);
+    // Batch granularity = one logical UNIT per Historical row, matching Pending:
+    // a shared `group` (e.g. create-league + its players) is ONE unit; every
+    // ungrouped change is its own unit. So editing settings of X different
+    // leagues in one publish becomes X separate units → X separate Historical
+    // rows (each with its own valid related rows), never one lump.
+    const units = [];
+    const unitByKey = new Map();
+    changes.forEach((change, i) => {
+        const key = change.group || `single:${i}`;
+        let u = unitByKey.get(key);
+        if (!u) { u = { changes: [] }; unitByKey.set(key, u); units.push(u); }
+        u.changes.push(change);
+    });
 
-        const desc = parseChangePath(change.path);
+    let progressIdx = 0;
+    for (const unit of units) {
+        // Audit high-water mark before this unit: everything it logs (its write
+        // + snapshot/reconcile fan-out) gets tagged into ONE batch, headlined by
+        // the unit's primary staged change (same wording as its Pending row).
+        // Best-effort — a failure here must never block publishing.
+        let watermark = null;
         try {
-            switch (desc.kind) {
-                case 'league_params':
-                    // Settings only (type/title/prizes/etc.) — no match/override
-                    // data changed, so this deliberately does NOT add to
-                    // leagueDataChanges: no snapshot, no match_history reconcile,
-                    // no last_updated bump. That field is a public-facing "when
-                    // were results last updated" stat (see leagueHeader.js) — a
-                    // pure settings edit touching it would be misleading. It also
-                    // sidesteps a delete case bug: createSnapshot() afterward
-                    // would violate the league_snapshots FK once the league row
-                    // is gone.
-                    if (change.type === 'delete') await supabaseAdmin.deleteLeague(desc.leagueId);
-                    else await supabaseAdmin.upsertLeague(desc.leagueId, JSON.parse(change.content));
-                    break;
-                case 'leaguedata_csv':
-                    if (change.type !== 'delete') {
-                        // A standalone delete is redundant — deleteLeague() already
-                        // cascades matches when the league itself is removed.
-                        await supabaseAdmin.bulkImportCSV(desc.leagueId, change.content);
-                        leagueDataChanges.add(desc.leagueId);
-                    }
-                    break;
-                case 'manual_overrides':
-                    await supabaseAdmin.syncOverrides(desc.leagueId, JSON.parse(change.content).overrides || []);
-                    leagueDataChanges.add(desc.leagueId);
-                    break;
-                case 'players_metadata':
-                    await supabaseAdmin.syncPlayersMetadata(JSON.parse(change.content));
-                    break;
-                case 'landing_settings':
-                    await supabaseAdmin.updateLandingSettings(JSON.parse(change.content));
-                    break;
-                case 'sync_settings':
-                    await supabaseAdmin.updateSyncSettings(JSON.parse(change.content));
-                    break;
-                case 'flag_asset':
-                    await supabaseAdmin.uploadFlagAsset(desc.code, change.content);
-                    break;
-                case 'player_photo':
-                    if (change.type === 'delete') await supabaseAdmin.deletePlayerPhoto(desc.filename);
-                    else await supabaseAdmin.uploadPlayerPhoto(desc.filename, change.content);
-                    break;
-                default:
-                    throw new Error(`Unrecognized staged path: ${change.path}`);
+            const { data } = await supabase.rpc('current_max_audit_id');
+            if (data != null) watermark = data;
+        } catch { /* batching unavailable (migration not run) → publish anyway */ }
+
+        const unitLeagues = new Set(); // leagues in THIS unit needing snapshot/reconcile
+
+        for (const change of unit.changes) {
+            if (onProgress) onProgress(progressIdx++, changes.length, change.description);
+            const desc = parseChangePath(change.path);
+            try {
+                switch (desc.kind) {
+                    case 'league_params':
+                        // Settings only (type/title/prizes/etc.) — no match/override
+                        // data changed, so this deliberately does NOT add to
+                        // unitLeagues: no snapshot, no match_history reconcile, no
+                        // last_updated bump. That field is a public-facing "when were
+                        // results last updated" stat (see leagueHeader.js) — a pure
+                        // settings edit touching it would be misleading. It also
+                        // sidesteps a delete case bug: createSnapshot() afterward
+                        // would violate the league_snapshots FK once the league row
+                        // is gone.
+                        if (change.type === 'delete') await supabaseAdmin.deleteLeague(desc.leagueId);
+                        else await supabaseAdmin.upsertLeague(desc.leagueId, JSON.parse(change.content));
+                        break;
+                    case 'leaguedata_csv':
+                        if (change.type !== 'delete') {
+                            // A standalone delete is redundant — deleteLeague() already
+                            // cascades matches when the league itself is removed.
+                            await supabaseAdmin.bulkImportCSV(desc.leagueId, change.content);
+                            unitLeagues.add(desc.leagueId);
+                        }
+                        break;
+                    case 'manual_overrides':
+                        await supabaseAdmin.syncOverrides(desc.leagueId, JSON.parse(change.content).overrides || []);
+                        unitLeagues.add(desc.leagueId);
+                        break;
+                    case 'players_metadata':
+                        await supabaseAdmin.syncPlayersMetadata(JSON.parse(change.content));
+                        break;
+                    case 'landing_settings':
+                        await supabaseAdmin.updateLandingSettings(JSON.parse(change.content));
+                        break;
+                    case 'sync_settings':
+                        await supabaseAdmin.updateSyncSettings(JSON.parse(change.content));
+                        break;
+                    case 'flag_asset':
+                        await supabaseAdmin.uploadFlagAsset(desc.code, change.content);
+                        break;
+                    case 'player_photo':
+                        if (change.type === 'delete') await supabaseAdmin.deletePlayerPhoto(desc.filename);
+                        else await supabaseAdmin.uploadPlayerPhoto(desc.filename, change.content);
+                        break;
+                    default:
+                        throw new Error(`Unrecognized staged path: ${change.path}`);
+                }
+                published++;
+            } catch (err) {
+                errors.push(`${change.path}: ${err.message}`);
             }
-            published++;
-        } catch (err) {
-            errors.push(`${change.path}: ${err.message}`);
         }
-    }
 
-    // Save history snapshots + per-match history for affected leagues
-    for (const leagueId of leagueDataChanges) {
-        try {
-            await supabaseAdmin.createSnapshot(leagueId);
-        } catch (err) {
-            errors.push(`Snapshot for "${leagueId}": ${err.message}`);
+        // Snapshot + per-match history for this unit's leagues (part of its batch).
+        for (const leagueId of unitLeagues) {
+            try {
+                await supabaseAdmin.createSnapshot(leagueId);
+            } catch (err) {
+                errors.push(`Snapshot for "${leagueId}": ${err.message}`);
+            }
+            try {
+                await supabaseAdmin.reconcileMatchHistory(leagueId);
+            } catch (err) {
+                errors.push(`Match history for "${leagueId}": ${err.message}`);
+            }
         }
-        try {
-            await supabaseAdmin.reconcileMatchHistory(leagueId);
-        } catch (err) {
-            errors.push(`Match history for "${leagueId}": ${err.message}`);
+
+        // Tag this unit's rows into their own batch.
+        if (watermark != null) {
+            try {
+                await supabase.rpc('finalize_publish_batch', {
+                    p_intent: deriveGroupIntent(unit.changes),
+                    p_after_id: watermark,
+                });
+            } catch { /* leave rows un-batched rather than fail the publish */ }
         }
     }
 
@@ -433,4 +471,26 @@ export async function publishAll(onProgress) {
     }
 
     return { success: errors.length === 0, published, errors };
+}
+
+/**
+ * Pick a unit's batch headline from its staged changes: the highest-rank change
+ * with a known category (ties → first). Mirrors the retroactive backfill's
+ * "highest-rank primary row headlines the batch" rule. Falls back to a generic
+ * "{n} changes" intent when nothing has a mapped category.
+ */
+function deriveGroupIntent(changes) {
+    let best = null;
+    for (const c of changes) {
+        const meta = CATEGORY_TAXONOMY[c.category];
+        if (!meta) continue;
+        const rank = CATEGORY_RANK[c.category] || 0;
+        if (!best || rank > best.rank) {
+            best = { rank, topic: meta.topic, icon: meta.icon, specific: meta.text, subject: c.subject || null, detail: c.detail || null };
+        }
+    }
+    if (!best) {
+        return { topic: 'settings', subject: null, specific: `${changes.length} change${changes.length === 1 ? '' : 's'}`, icon: '📝', detail: null };
+    }
+    return { topic: best.topic, subject: best.subject, specific: best.specific, icon: best.icon, detail: best.detail };
 }

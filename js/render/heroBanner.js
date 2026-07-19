@@ -21,6 +21,9 @@
 export const DESIGN_W = 1100;
 export const BANNER_STORAGE_KEY = 'shabi-banner-config';
 export const BANNER_CONFIG_PATH = 'assets/banner/banner-config.json';
+// The banner is decorative; its config fetch must fail fast rather than hang
+// the (now-decoupled) banner render on a stuck mobile connection.
+const BANNER_FETCH_TIMEOUT_MS = 6000;
 
 /* Base banner aspect = the source board crop (1983×560). Any extra height comes
    from config.heightAdd (design px at DESIGN_W, added to the banner top+bottom).
@@ -155,7 +158,12 @@ export function renderHeroBanner(bannerEl, config) {
  */
 export async function loadBannerConfig() {
     try {
-        const res = await fetch(BANNER_CONFIG_PATH, { cache: 'no-store' });
+        const res = await fetch(BANNER_CONFIG_PATH, {
+            cache: 'no-store',
+            signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout
+                ? AbortSignal.timeout(BANNER_FETCH_TIMEOUT_MS)
+                : undefined,
+        });
         if (res.ok) return await res.json();
     } catch { /* file missing / offline — try the local draft below */ }
     try {

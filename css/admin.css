@@ -421,6 +421,19 @@ body.site-sidebar-closed .admin-main {
     flex: 1;
 }
 
+/* Primary topic icon in a change label (changeVocabulary.js renderChangeLabel).
+   League's icon is the site's inline league glyph (SVG) — size it to the text
+   line so it sits inline like the emoji topic icons for Player/Settings. */
+.change-topic-icon {
+    display: inline-flex;
+    align-items: center;
+}
+.change-topic-icon svg {
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.12em;
+}
+
 .pending-item-time {
     color: var(--color-text-muted);
     font-size: var(--fs-080);
@@ -444,6 +457,38 @@ body.site-sidebar-closed .admin-main {
 
 .history-diff {
     flex-basis: 100%;
+}
+
+/* Small pills on a batch row: how many rows it touched / how many were ghosts. */
+.history-count-pill {
+    display: inline-block;
+    font-size: var(--fs-080);
+    color: var(--color-text-secondary);
+    background: var(--color-bg-muted);
+    border-radius: var(--radius-sm);
+    padding: 0.05em 0.5em;
+    margin-left: var(--space-xs);
+}
+.history-ghost-note {
+    font-size: var(--fs-080);
+    color: var(--color-text-muted);
+    margin-left: var(--space-xs);
+}
+
+/* Attachment sub-rows inside an expanded batch's Details. */
+.history-attach {
+    padding: var(--space-sm) 0;
+    border-top: 1px solid var(--color-border);
+}
+.history-attach:first-child { border-top: none; }
+.history-attach-head { font-size: var(--fs-090); margin-bottom: var(--space-xs); }
+/* One continuous numbered line per changed field (replaces the 3-col table). */
+.history-field-line {
+    font-size: var(--fs-085);
+    color: var(--color-text-secondary);
+    padding-left: var(--space-md);
+    line-height: 1.5;
+    word-break: break-word;
 }
 
 .history-bulk-bar {
@@ -969,6 +1014,13 @@ table.font-large { font-size: var(--fs-093); }
     margin-inline-end: var(--space-xs);
 }
 
+/* A placeholder / status line (no timestamp) — slightly muted + italic so it
+   reads as a notice, not a logged event. */
+.bgsync-log-status {
+    opacity: 0.75;
+    font-style: italic;
+}
+
 /* CSV import gate — the acknowledgement an admin must tick before a CSV that
    doesn't match the league (or that would erase already-played results) can arm
    the page's existing "Confirm & Stage" button. Deliberately loud: this is the
@@ -1080,6 +1132,11 @@ table.font-large { font-size: var(--fs-093); }
     background: var(--color-inset);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
+    /* Run Now scrolls this panel to the top of the viewport (revealAtTop). No
+       scroll-margin-top here on purpose: that only feeds scrollIntoView, and a
+       CSS constant cannot know the fixed topbar's real height (nor that the bar
+       is only present while the sidebar is CLOSED). revealAtTop measures the bar
+       live and adds the gap itself — see js/utils/scrollOffset.js. */
 }
 
 .sync-stages-head {
@@ -1377,6 +1434,19 @@ table.font-large { font-size: var(--fs-093); }
 .sync-plan-member,
 .sync-runnow-pick {
     accent-color: var(--color-accent);
+}
+
+/* Run-time hour/minute selects — inline (auto width), overriding the
+   full-width .form-group select default so they read as one "HH : MM" clock. */
+.sync-plan-time-row select {
+    width: auto;
+    min-width: 4.5em;
+    padding: var(--space-xs) var(--space-sm);
+}
+
+.sync-plan-time-colon {
+    font-weight: 600;
+    color: var(--color-text-muted);
 }
 
 /* .btn-xs / .btn-tech now live in the unified button ramp above. */

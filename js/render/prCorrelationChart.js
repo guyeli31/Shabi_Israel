@@ -502,43 +502,19 @@ export function drawHistogramRow(host, buckets, opts) {
 }
 
 /**
- * Brier score: mean squared error between the site's own PR-based win
- * probability model and the actual outcome, evaluated from the actual
- * winner's side of each match (outcome is always 1, pWin is the model's
- * probability that this winner would win). Unlike a Z-score/percentile
- * against expected wins, this needs no variance in outcome — a player row
- * (real win/loss variation) and the general row (every entry trivially a
- * "win") are equally well-defined, so it never breaks down the way a
- * correlation or Z-score does when one side of the data is degenerate.
- *   0    = the model was 100% sure the actual winner would win every time
- *          (results perfectly match PR-gap theory)
- *   0.25 = the model was on average no more sure than a coin flip
- *   1    = the model was confidently wrong every time (constant upsets)
- * items: [{ pWin, outcome }] — outcome is 1/0 for the side pWin was computed for.
- */
-export function brierScore(items) {
-    if (!items.length) return null;
-    const sum = items.reduce((s, it) => s + (it.outcome - it.pWin) ** 2, 0);
-    return sum / items.length;
-}
-
-/**
- * Signed-luck score: same per-match building block as Brier (r = outcome -
- * pWin), but kept SIGNED instead of squared away — r*|r| rather than r².
- * A win always yields r >= 0 (win contributes >= 0: (1-pWin)², small if
- * expected, large if the player was an underdog); a loss always yields r <= 0
- * (loss contributes <= 0: -(pWin)², small if the player was expected to lose,
- * large-negative if they were heavily favoured and still lost). Averaged over
- * matches this gives a value in [-1, +1]: +1 = maximally lucky (always an
- * underdog, always won), -1 = maximally unlucky (always favoured, always
- * lost), 0 = results tracked the PR model exactly.
+ * Signed-luck score: a win always yields r >= 0 (win contributes >= 0:
+ * (1-pWin)², small if expected, large if the player was an underdog); a loss
+ * always yields r <= 0 (loss contributes <= 0: -(pWin)², small if the player
+ * was expected to lose, large-negative if they were heavily favoured and
+ * still lost), where r = outcome - pWin, kept SIGNED (r*|r|) rather than
+ * squared away. Averaged over matches this gives a value in [-1, +1]: +1 =
+ * maximally lucky (always an underdog, always won), -1 = maximally unlucky
+ * (always favoured, always lost), 0 = results tracked the PR model exactly.
  *
- * |signedLuckScore per-match term| === brierScore per-match term — the two
- * are the same magnitude, this one just keeps the sign. Only meaningful for
- * a genuine win/loss row (a player); the league-wide general row is, by
- * construction, ALWAYS "the winner's own perspective" (outcome=1 for every
- * entry), which would make this score tautologically non-negative there —
- * do not call this for the general row, use brierScore only.
+ * Only meaningful for a genuine win/loss row (a player); the league-wide
+ * general row is, by construction, ALWAYS "the winner's own perspective"
+ * (outcome=1 for every entry), which would make this score tautologically
+ * non-negative there — do not call this for the general row.
  * items: [{ pWin, outcome }] — outcome is 1/0 for the side pWin was computed for.
  */
 export function signedLuckScore(items) {
@@ -570,43 +546,6 @@ function parseRgb(str, fallback) {
         return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
     }
     return fallback;
-}
-
-// Brier is bounded [0, 1]; colour interpolated --brier-good -> --brier-mid ->
-// --brier-bad across that range, pivoting at the 0.25 coin-flip baseline
-// (matches the visual scale shown in the "?" popup). These three tokens are
-// theme-aware (see variables.css), so no colours are hardcoded here.
-function brierColor(brier, el) {
-    const cs = getComputedStyle(el || document.documentElement);
-    const good = parseRgb(cs.getPropertyValue('--brier-good'), [58, 143, 58]);
-    const mid  = parseRgb(cs.getPropertyValue('--brier-mid'),  [217, 119, 6]);
-    const bad  = parseRgb(cs.getPropertyValue('--brier-bad'),  [204, 68, 68]);
-
-    const b = Math.max(0, Math.min(1, brier));
-    const [lo, hi, span] = b <= 0.25 ? [good, mid, 0.25] : [mid, bad, 0.75];
-    const t = b <= 0.25 ? b / span : (b - 0.25) / span;
-    const rgb = lo.map((c, i) => Math.round(lerp(c, hi[i], t)));
-    return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
-}
-
-const BRIER_LABELS = [
-    { max: 0.05, text: 'Excellent fit' },
-    { max: 0.15, text: 'Strong fit' },
-    { max: 0.22, text: 'Good fit' },
-    { max: 0.28, text: 'Coin-flip' },
-    { max: 0.45, text: 'Weak fit' },
-    { max: Infinity, text: 'Mostly upsets' },
-];
-
-/**
- * Short word label + colour for a Brier value, for display next to the
- * number. `el` should be an element inside the themed subtree (its computed
- * style is used to resolve --brier-good/mid/bad for the active theme).
- */
-export function brierAssessment(brier, el) {
-    if (brier == null) return { text: '', color: null };
-    const band = BRIER_LABELS.find(b => brier <= b.max);
-    return { text: band.text, color: brierColor(brier, el) };
 }
 
 // Signed-luck is bounded [-1, +1]; reuses the same --brier-good/mid/bad

@@ -1,45 +1,44 @@
 /**
  * historicalChanges.js — Admin "Historical Changes" tab.
  *
- * Read-only chronological view of audit_log (RLS: SELECT granted to
- * `authenticated`), styled consistently with the existing Pending Changes
- * list. Each row already carries everything needed for the "workflow vs
- * manual" badge for free (see sql/supabase_schema.sql's log_audit_event()
- * trigger: changed_by = coalesce(auth.email(), 'external-source-automation')).
+ * ONE row per logical change (a Publish, or an automation sync), read from the
+ * `audit_batch_summary` view (see sql/audit_batching.sql). Each publish fans out
+ * across the DB into a primary edit + valid derived rows (match_history
+ * reconcile) + no-op "ghost" UPDATEs; here it collapses to a single row whose
+ * label uses the SAME renderChangeLabel() as Pending Changes (changeVocabulary.js),
+ * so the two views can never drift. Valid derived rows appear under a "Details"
+ * toggle (lazy-loaded); ghosts are hidden entirely.
  *
- * "Undo" calls the restore_audit_row(log_id) Postgres RPC (SECURITY DEFINER,
- * granted to authenticated) — reverting a single row is done server-side in
- * one transaction rather than reassembled from JSON client-side. The "✕"
- * button both undoes a row AND purges it from history via
- * restore_and_delete_audit_row(log_id). Rows can be multi-selected for
- * either action in bulk — "Undo selected" loops restore_audit_row per row,
- * "Undo + remove selected" loops restore_and_delete_audit_row per row.
+ * "Undo" reverts the whole batch via restore_batch(batch_id) and logs the revert
+ * as one tidy "Reverted…" row. "✕" reverts AND purges the batch from history via
+ * restore_and_delete_batch(batch_id). Both are single server-side transactions,
+ * so the DB returns to exactly its pre-publish state. Batches can be
+ * multi-selected for either action in bulk.
  */
 
 import { supabase } from '../../data/supabaseClient.js';
+import { renderChangeLabel } from './changeVocabulary.js';
 
-const TABLE_META = {
-    leagues:           { icon: '🏆', label: 'League' },
-    matches:           { icon: '📊', label: 'Match' },
-    manual_overrides:  { icon: '⚖️', label: 'Override' },
-    match_history:     { icon: '🕘', label: 'Match history' },
-    players_metadata:  { icon: '👤', label: 'Player' },
-    landing_settings:  { icon: '🏠', label: 'Landing settings' },
+// Per-table icon + label for the attachment sub-rows shown under "Details".
+const ATTACHMENT_META = {
+    leagues:          { icon: '⚙️', label: 'League' },
+    matches:          { icon: '📊', label: 'Match' },
+    manual_overrides: { icon: '⚖️', label: 'Override' },
+    match_history:    { icon: '🕘', label: 'Match history' },
+    players_metadata: { icon: '👤', label: 'Player' },
+    landing_settings: { icon: '🏠', label: 'Landing settings' },
 };
 
 const ACTION_LABEL = { INSERT: 'created', UPDATE: 'updated', DELETE: 'deleted' };
 
 const LIMIT_KEY = 'shabi-history-limit';
-const DEFAULT_LIMIT = 200;
+const DEFAULT_LIMIT = 100;
 
 function getHistoryLimit() {
     const v = parseInt(localStorage.getItem(LIMIT_KEY), 10);
     return Number.isFinite(v) && v > 0 ? v : DEFAULT_LIMIT;
 }
-
-function setHistoryLimit(v) {
-    localStorage.setItem(LIMIT_KEY, String(v));
-}
+function setHistoryLimit(v) { localStorage.setItem(LIMIT_KEY, String(v)); }
 
 function esc(str) {
     const d = document.createElement('div');
@@ -47,14 +46,25 @@ function esc(str) {
     return d.innerHTML;
 }
 
-function summarize(row) {
-    const value = row.new_value || row.old_value || {};
-    const meta = TABLE_META[row.table_name] || { icon: '📄', label: row.table_name };
-    let subject = value.id || row.row_pk;
-    if (row.table_name === 'matches' || row.table_name === 'manual_overrides' || row.table_name === 'match_history') {
-        subject = `${value.player_a ?? ''} vs ${value.player_b ?? ''}`.trim();
+// A ghost: an UPDATE that changed nothing real (updated_at / last_updated aside).
+// Mirrors public.audit_is_noop() so the client hides exactly what the DB counts.
+function isGhost(row) {
+    if (row.action !== 'UPDATE' || !row.old_value || !row.new_value) return false;
+    const strip = (o) => {
+        const c = { ...o };
+        delete c.updated_at;
+        if (row.table_name === 'leagues') delete c.last_updated;
+        return JSON.stringify(c);
+    };
+    return strip(row.old_value) === strip(row.new_value);
+}
+
+function attachmentSubject(row) {
+    const v = row.new_value || row.old_value || {};
+    if (['matches', 'manual_overrides', 'match_history'].includes(row.table_name)) {
+        return `${v.player_a ?? ''} vs ${v.player_b ?? ''}`.trim();
     }
-    return { icon: meta.icon, label: meta.label, subject, action: ACTION_LABEL[row.action] || row.action };
+    return v.id || row.row_pk || '';
 }
 
 function diffRows(oldVal, newVal) {
@@ -79,9 +89,7 @@ function bindLimitInput(container) {
         setHistoryLimit(v);
         renderHistoricalChanges(container);
     };
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') apply();
-    });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') apply(); });
     input.addEventListener('blur', apply);
 }
 
@@ -92,9 +100,12 @@ export async function renderHistoricalChanges(container) {
 
     const limit = getHistoryLimit();
 
+    // Only batches with a real change (primary or derived); fully-ghost
+    // "housekeeping" batches (e.g. a lone last_updated bump) are hidden.
     const { data, error } = await supabase
-        .from('audit_log')
+        .from('audit_batch_summary')
         .select('*')
+        .or('primary_rows.gt.0,derived_rows.gt.0')
         .order('changed_at', { ascending: false })
         .limit(limit);
 
@@ -123,34 +134,42 @@ export async function renderHistoricalChanges(container) {
         return;
     }
 
-    const itemsHtml = data.map((row) => {
-        const s = summarize(row);
-        const time = new Date(row.changed_at).toLocaleString('en-GB', {
+    const itemsHtml = data.map((b) => {
+        const time = new Date(b.changed_at).toLocaleString('en-GB', {
             day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
         });
-        const isAutomation = row.changed_by === 'external-source-automation';
+        const isAutomation = (b.changed_by || '').includes('automation');
         const badge = isAutomation
             ? `<span class="status-pill" style="background:var(--color-bg-muted)">🤖 Automation</span>`
-            : `<span class="status-pill status-completed">👤 ${esc(row.changed_by || 'unknown')}</span>`;
-        // Same summary shown on screen, carried into data-track so an Undo/✕
-        // click's analytics row records exactly which change it acted on —
-        // not just "a click happened", same idea as Run Simulation's staged
-        // summary in dashboardPage.js.
-        const rowSummary = `${s.label} ${s.subject} ${s.action}`.replace(/\s+/g, ' ').trim();
+            : `<span class="status-pill status-completed">👤 ${esc(b.changed_by || 'unknown')}</span>`;
+
+        const label = renderChangeLabel({
+            topic: b.topic, subject: b.subject, icon: b.icon, text: b.specific, detail: b.detail,
+        });
+
+        // "Related changes" = the valid rows this publish created/updated BEYOND
+        // the single headline change (e.g. new players created alongside a new
+        // league, or the match_history reconcile). Ghosts (no-op rows) are not
+        // counted here — they're irrelevant and only footnoted inside Details.
+        const related = Math.max(0, (b.primary_rows || 0) + (b.derived_rows || 0) - 1);
+        const countPill = related > 0
+            ? `<span class="history-count-pill">+${related} related change${related === 1 ? '' : 's'}</span>` : '';
+
+        const rowSummary = `${b.specific} ${b.subject || ''}`.replace(/\s+/g, ' ').trim();
 
         return `
-            <li class="pending-item history-item" data-log-id="${row.id}">
-                <input type="checkbox" class="history-row-select" data-select-row="${row.id}" aria-label="Select this change">
+            <li class="pending-item history-item" data-batch-id="${b.id}">
+                <input type="checkbox" class="history-row-select" data-select-row="${b.id}" aria-label="Select this change">
                 <span class="pending-item-desc">
-                    <span aria-hidden="true">${s.icon}</span>
-                    ${esc(s.label)} <b>${esc(s.subject)}</b> ${esc(s.action)}
+                    ${label}
+                    ${countPill}
                     ${badge}
                 </span>
                 <span class="pending-item-time">${time}</span>
-                <button class="btn btn-secondary btn-sm" data-toggle-diff="${row.id}">Details</button>
-                <button class="btn btn-danger btn-sm" data-undo="${row.id}" data-track="Action: Undo — ${esc(rowSummary)} (Admin Mode)">Undo</button>
-                <button class="btn btn-danger btn-sm" data-undo-delete="${row.id}" title="Undo and remove from history" data-track="Action: Remove from history — ${esc(rowSummary)} (Admin Mode)">✕</button>
-                <div class="history-diff" id="diff-${row.id}" hidden></div>
+                <button class="btn btn-secondary btn-sm" data-toggle-diff="${b.id}">Details</button>
+                <button class="btn btn-danger btn-sm" data-undo="${b.id}" data-track="Action: Undo — ${esc(rowSummary)} (Admin Mode)">Undo</button>
+                <button class="btn btn-danger btn-sm" data-undo-delete="${b.id}" title="Undo and remove from history" data-track="Action: Remove from history — ${esc(rowSummary)} (Admin Mode)">✕</button>
+                <div class="history-diff" id="diff-${b.id}" hidden></div>
             </li>`;
     }).join('');
 
@@ -172,10 +191,116 @@ export async function renderHistoricalChanges(container) {
         </div>`;
 
     bindLimitInput(container);
+    wireBulk(container, data);
+    wireDiffToggles(container);
+    wireRowActions(container);
+}
 
-    const byId = new Map(data.map((row) => [String(row.id), row]));
+// ---- Details (lazy-load one batch's non-ghost rows on expand) ----
+function wireDiffToggles(container) {
+    container.querySelectorAll('[data-toggle-diff]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const id = btn.dataset.toggleDiff;
+            const el = document.getElementById(`diff-${id}`);
+            if (!el) return;
+            if (!el.hidden) { el.hidden = true; return; }
+
+            if (!el.dataset.loaded) {
+                el.innerHTML = `<p style="color:var(--color-text-muted)">Loading…</p>`;
+                el.hidden = false;
+                const { data: rows, error } = await supabase
+                    .from('audit_log')
+                    .select('id, table_name, action, old_value, new_value, row_pk')
+                    .eq('batch_id', id)
+                    .order('id', { ascending: true });
+                if (error) { el.innerHTML = `<p class="admin-msg admin-msg-error">${esc(error.message)}</p>`; return; }
+
+                const visible = (rows || []).filter((r) => !isGhost(r));
+                const ghostCount = (rows || []).length - visible.length;
+                el.innerHTML = renderDetails(visible, ghostCount);
+                el.dataset.loaded = '1';
+            }
+            el.hidden = false;
+        });
+    });
+}
+
+// Compact value for a before/after: missing/created/deleted → "-", objects →
+// JSON, everything else its plain value (no quotes on strings).
+function fmtVal(v) {
+    if (v === null || v === undefined) return '-';
+    if (typeof v === 'object') return JSON.stringify(v);
+    return String(v);
+}
+
+function renderDetails(rows, ghostCount) {
+    if (rows.length === 0) {
+        return `<p style="color:var(--color-text-muted)">No field-level changes to show.</p>`;
+    }
+    const blocks = rows.map((r) => {
+        const meta = ATTACHMENT_META[r.table_name] || { icon: '📄', label: r.table_name };
+        const subj = attachmentSubject(r);
+        const diff = diffRows(r.old_value, r.new_value);
+        const lines = diff.length === 0
+            ? `<div class="history-field-line">(no field-level changes)</div>`
+            : diff.map((d, i) =>
+                `<div class="history-field-line">${i + 1}. field: ${esc(d.key)}, before: ${esc(fmtVal(d.before))}, after: ${esc(fmtVal(d.after))}</div>`
+              ).join('');
+        return `
+            <div class="history-attach">
+                <div class="history-attach-head">
+                    <span aria-hidden="true">${meta.icon}</span>
+                    ${esc(meta.label)} <b>${esc(subj)}</b> ${esc(ACTION_LABEL[r.action] || r.action)}
+                </div>
+                ${lines}
+            </div>`;
+    }).join('');
+    const footnote = ghostCount > 0
+        ? `<p class="history-ghost-note" style="margin-top:var(--space-sm)">+${ghostCount} unchanged row${ghostCount === 1 ? '' : 's'} were re-written by this publish and are hidden.</p>`
+        : '';
+    return blocks + footnote;
+}
+
+// ---- Per-row Undo / Undo+Remove (whole batch) ----
+function wireRowActions(container) {
+    container.querySelectorAll('[data-undo]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const id = btn.dataset.undo;
+            if (!confirm('Undo this change? This reverts the whole change (and its related rows) to the previous state.')) return;
+            btn.disabled = true; btn.textContent = 'Undoing...';
+            const { error } = await supabase.rpc('restore_batch', { p_batch_id: id });
+            const msgEl = document.getElementById('history-msg');
+            if (error) {
+                msgEl.innerHTML = `<div class="admin-msg admin-msg-error">Undo failed: ${esc(error.message)}</div>`;
+                btn.disabled = false; btn.textContent = 'Undo';
+            } else {
+                msgEl.innerHTML = `<div class="admin-msg admin-msg-success">Change undone.</div>`;
+                setTimeout(() => renderHistoricalChanges(container), 800);
+            }
+        });
+    });
+
+    container.querySelectorAll('[data-undo-delete]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const id = btn.dataset.undoDelete;
+            if (!confirm('Undo this change and remove it from history? This reverts everything it did and cannot be shown here again.')) return;
+            btn.disabled = true; btn.textContent = '...';
+            const { error } = await supabase.rpc('restore_and_delete_batch', { p_batch_id: id });
+            const msgEl = document.getElementById('history-msg');
+            if (error) {
+                msgEl.innerHTML = `<div class="admin-msg admin-msg-error">Undo failed: ${esc(error.message)}</div>`;
+                btn.disabled = false; btn.textContent = '✕';
+            } else {
+                msgEl.innerHTML = `<div class="admin-msg admin-msg-success">Change undone and removed from history.</div>`;
+                setTimeout(() => renderHistoricalChanges(container), 800);
+            }
+        });
+    });
+}
+
+// ---- Multi-select + bulk actions (batch-scoped) ----
+function wireBulk(container, data) {
     const selected = new Set();
-
     const selectAllEl = document.getElementById('history-select-all');
     const bulkUndoBtn = document.getElementById('history-bulk-undo');
     const bulkUndoDeleteBtn = document.getElementById('history-bulk-undo-delete');
@@ -192,11 +317,7 @@ export async function renderHistoricalChanges(container) {
         selectAllEl.indeterminate = n > 0 && n < rowCheckboxes.length;
     }
 
-    // Shift-click extends the selection as a contiguous range from the last
-    // row clicked (Gmail/file-manager convention) — lets an admin sweep many
-    // rows in two clicks instead of one at a time.
     let lastClickedIndex = null;
-
     rowCheckboxes.forEach((cb, idx) => {
         cb.addEventListener('click', (e) => {
             if (e.shiftKey && lastClickedIndex !== null) {
@@ -227,109 +348,28 @@ export async function renderHistoricalChanges(container) {
         refreshBulkBar();
     });
 
-    bulkUndoBtn.addEventListener('click', async () => {
+    async function runBulk(rpc, btn, verb, doneLabel) {
         const ids = Array.from(selected);
         if (ids.length === 0) return;
-        if (!confirm(`Undo ${ids.length} selected change${ids.length === 1 ? '' : 's'}? This reverts each row to its previous state.`)) return;
-        bulkUndoBtn.disabled = true;
-        bulkUndoBtn.textContent = 'Undoing...';
+        if (!confirm(`${verb} ${ids.length} selected change${ids.length === 1 ? '' : 's'}? Each reverts to its previous state.`)) return;
+        btn.disabled = true;
+        const original = btn.textContent;
+        btn.textContent = 'Working...';
         const msgEl = document.getElementById('history-msg');
         let failed = 0;
         for (const id of ids) {
-            const { error: rpcErr } = await supabase.rpc('restore_audit_row', { log_id: Number(id) });
-            if (rpcErr) failed++;
+            const { error } = await supabase.rpc(rpc, { p_batch_id: id });
+            if (error) failed++;
         }
         if (failed > 0) {
-            msgEl.innerHTML = `<div class="admin-msg admin-msg-error">${failed} of ${ids.length} undo${ids.length === 1 ? '' : 's'} failed.</div>`;
-            bulkUndoBtn.disabled = false;
-            bulkUndoBtn.textContent = 'Undo selected';
+            msgEl.innerHTML = `<div class="admin-msg admin-msg-error">${failed} of ${ids.length} failed.</div>`;
+            btn.disabled = false; btn.textContent = original;
         } else {
-            msgEl.innerHTML = `<div class="admin-msg admin-msg-success">${ids.length} change${ids.length === 1 ? '' : 's'} undone.</div>`;
+            msgEl.innerHTML = `<div class="admin-msg admin-msg-success">${ids.length} change${ids.length === 1 ? '' : 's'} ${doneLabel}.</div>`;
             setTimeout(() => renderHistoricalChanges(container), 800);
         }
-    });
+    }
 
-    bulkUndoDeleteBtn.addEventListener('click', async () => {
-        const ids = Array.from(selected);
-        if (ids.length === 0) return;
-        if (!confirm(`Undo ${ids.length} selected change${ids.length === 1 ? '' : 's'} and remove ${ids.length === 1 ? 'it' : 'them'} from history? This reverts each row and cannot be shown here again.`)) return;
-        bulkUndoDeleteBtn.disabled = true;
-        bulkUndoDeleteBtn.textContent = 'Removing...';
-        const msgEl = document.getElementById('history-msg');
-        let failed = 0;
-        for (const id of ids) {
-            const { error: rpcErr } = await supabase.rpc('restore_and_delete_audit_row', { log_id: Number(id) });
-            if (rpcErr) failed++;
-        }
-        if (failed > 0) {
-            msgEl.innerHTML = `<div class="admin-msg admin-msg-error">${failed} of ${ids.length} undo${ids.length === 1 ? '' : 's'} failed.</div>`;
-            bulkUndoDeleteBtn.disabled = false;
-            bulkUndoDeleteBtn.textContent = 'Undo + remove selected';
-        } else {
-            msgEl.innerHTML = `<div class="admin-msg admin-msg-success">${ids.length} change${ids.length === 1 ? '' : 's'} undone and removed from history.</div>`;
-            setTimeout(() => renderHistoricalChanges(container), 800);
-        }
-    });
-
-    container.querySelectorAll('[data-toggle-diff]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            const id = btn.dataset.toggleDiff;
-            const el = document.getElementById(`diff-${id}`);
-            if (!el) return;
-            if (el.hidden) {
-                const row = byId.get(id);
-                const rows = diffRows(row.old_value, row.new_value);
-                el.innerHTML = rows.length === 0
-                    ? '<p style="color:var(--color-text-muted)">No field-level changes to show.</p>'
-                    : `<table class="admin-table">
-                        <thead><tr><th scope="col">Field</th><th scope="col">Before</th><th scope="col">After</th></tr></thead>
-                        <tbody>${rows.map((r) => `
-                            <tr>
-                                <td>${esc(r.key)}</td>
-                                <td>${esc(JSON.stringify(r.before))}</td>
-                                <td>${esc(JSON.stringify(r.after))}</td>
-                            </tr>`).join('')}</tbody>
-                       </table>`;
-            }
-            el.hidden = !el.hidden;
-        });
-    });
-
-    container.querySelectorAll('[data-undo]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-            const id = Number(btn.dataset.undo);
-            if (!confirm('Undo this change? This reverts the row to its previous state.')) return;
-            btn.disabled = true;
-            btn.textContent = 'Undoing...';
-            const { error: rpcErr } = await supabase.rpc('restore_audit_row', { log_id: id });
-            const msgEl = document.getElementById('history-msg');
-            if (rpcErr) {
-                msgEl.innerHTML = `<div class="admin-msg admin-msg-error">Undo failed: ${esc(rpcErr.message)}</div>`;
-                btn.disabled = false;
-                btn.textContent = 'Undo';
-            } else {
-                msgEl.innerHTML = `<div class="admin-msg admin-msg-success">Change undone.</div>`;
-                setTimeout(() => renderHistoricalChanges(container), 800);
-            }
-        });
-    });
-
-    container.querySelectorAll('[data-undo-delete]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-            const id = Number(btn.dataset.undoDelete);
-            if (!confirm('Undo this change and remove it from history? This reverts the row and cannot be shown here again.')) return;
-            btn.disabled = true;
-            btn.textContent = '...';
-            const { error: rpcErr } = await supabase.rpc('restore_and_delete_audit_row', { log_id: id });
-            const msgEl = document.getElementById('history-msg');
-            if (rpcErr) {
-                msgEl.innerHTML = `<div class="admin-msg admin-msg-error">Undo failed: ${esc(rpcErr.message)}</div>`;
-                btn.disabled = false;
-                btn.textContent = '✕';
-            } else {
-                msgEl.innerHTML = `<div class="admin-msg admin-msg-success">Change undone and removed from history.</div>`;
-                setTimeout(() => renderHistoricalChanges(container), 800);
-            }
-        });
-    });
+    bulkUndoBtn.addEventListener('click', () => runBulk('restore_batch', bulkUndoBtn, 'Undo', 'undone'));
+    bulkUndoDeleteBtn.addEventListener('click', () => runBulk('restore_and_delete_batch', bulkUndoDeleteBtn, 'Undo and remove', 'undone and removed from history'));
 }

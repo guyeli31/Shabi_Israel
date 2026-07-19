@@ -1,15 +1,29 @@
 /**
- * analytics.js — first-party, fully anonymous analytics beacon.
+ * analytics.js — first-party, IP-free analytics beacon with a
+ * privacy-differentiated, timezone-routed identity model.
  *
- * No IP, no cookies, no sessionStorage, no identifier of any kind — every
- * event stands completely alone and cannot be linked to any other event from
- * the same visit. This is deliberate: it rules out per-visit session
- * reconstruction, in exchange for being the legal equivalent of a standard
- * anonymous server access log rather than a behavioural tracker. Only
- * bucketed/categorical fields are collected (coarse device type, referrer
- * category, dwell-time bucket) — never raw referrer URLs or exact
- * screen/viewport pixel dimensions, which could otherwise act as an
- * incidental fingerprint.
+ * No IP is ever read, sent, or stored — region routing is derived purely
+ * client-side from the browser's own timezone. Two routes:
+ *
+ *   • Israel (timezone === 'Asia/Jerusalem') — a per-visit random session id
+ *     is kept in sessionStorage so a visit's click sequence can be
+ *     reconstructed. sessionStorage survives page-to-page navigation within
+ *     the tab but is wiped the moment the tab closes, so there is no
+ *     cross-visit linkage and no returning-visitor identity.
+ *   • Everyone else — fully zero-correlation: independent events, NO id,
+ *     nothing written to the device for analytics (the legal equivalent of
+ *     an anonymous server access log). Carries only a COARSE continent tag
+ *     (e.g. "Europe") for regional traffic measurement — never the full
+ *     city-level IANA string, which with device_type could act as an
+ *     incidental fingerprint for a small audience.
+ *
+ * Beyond identity, only bucketed/categorical fields are collected (coarse
+ * device type, referrer category, dwell-time bucket) — never raw referrer
+ * URLs or exact screen/viewport pixel dimensions.
+ *
+ * admin_user is the one named field, and it names the site OPERATOR, never a
+ * visitor — see currentAdminUser() below. It rides both routes and is null for
+ * every ordinary visitor.
  *
  * Transport: fetch(..., {keepalive:true}) only — works across the whole
  * lifecycle including unload, and can set the headers Supabase needs.
@@ -27,6 +41,15 @@
 // so local/dev testing writes to the local Docker project, matching every
 // other data path in the app — never polluting production analytics.
 import { resolvedUrl as SUPABASE_URL, resolvedAnonKey as SUPABASE_ANON_KEY } from './data/supabaseClient.js';
+// Statically imported despite auth.js's top-level await (it resolves
+// getSession() before any importer's body runs): this module ALREADY blocks on
+// supabaseClient.js, which fetches supabase-js from esm.sh over the network and
+// runs createClient(). getSession() on top of that is a localStorage read with
+// no network at all for anyone who isn't a logged-in admin — nothing measurable
+// against a chain the beacon already pays for. The lazy alternative (a dynamic
+// import populating a module-level var) would leave admin_user null on the
+// FIRST pageview of every load, which is the event most worth attributing.
+import { isLoggedIn, getUsername } from './admin/auth.js';
 
 const PAGE_BY_FILENAME = {
     'index.html': 'landing',
@@ -38,6 +61,67 @@ const PAGE_BY_FILENAME = {
 };
 
 const ENDPOINT = SUPABASE_URL ? `${SUPABASE_URL}/rest/v1/analytics_events` : null;
+
+// ── Privacy-differentiated identity (see sql/analytics_poc.sql header) ─────
+// Timezone is the ONLY signal used to route — never IP (no IP is read, sent,
+// or stored anywhere in this file).
+const TIMEZONE = (() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; }
+    catch { return ''; }
+})();
+const IS_LOCAL = TIMEZONE === 'Asia/Jerusalem';
+
+// Coarse continent only ("Europe", "America", "Asia", …). "UTC"/"GMT"/"Etc/*"
+// or any string without a recognised region prefix collapses to "Other", so
+// no city-level granularity ever leaves the browser.
+const KNOWN_REGIONS = ['Africa', 'America', 'Antarctica', 'Arctic', 'Asia', 'Atlantic', 'Australia', 'Europe', 'Indian', 'Pacific'];
+function coarseRegion(tz) {
+    if (!tz) return 'Other';
+    const region = tz.split('/')[0];
+    return KNOWN_REGIONS.includes(region) ? region : 'Other';
+}
+
+// crypto.randomUUID on https/localhost (GitHub Pages is https); Math.random
+// fallback keeps id generation from ever throwing on an odd runtime.
+function newId() {
+    try { if (crypto?.randomUUID) return crypto.randomUUID(); } catch { /* fall through */ }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+}
+
+// Israel route only. Private-mode fallback (sessionStorage throws) keeps a
+// per-page id in memory — tracking never breaks, it just can't span pages.
+const SESSION_ID = (() => {
+    if (!IS_LOCAL) return null;
+    try {
+        let sid = sessionStorage.getItem('shabi_sid');
+        if (!sid) { sid = newId(); sessionStorage.setItem('shabi_sid', sid); }
+        return sid;
+    } catch {
+        return newId();
+    }
+})();
+
+// The site OPERATOR's own username, or null for every ordinary visitor. This is
+// deliberately outside the timezone routing above: it identifies whoever is
+// logged into Admin, not the audience, so it rides both routes (an admin
+// browsing from abroad is on the global route and should still be labelled).
+//
+// Read fresh per event rather than captured once: an admin can log in or out
+// mid-visit, and auth.js keeps its cache current via onAuthStateChange.
+//
+// Only the local part of the address is kept — it separates admins from each
+// other and from visitors just as well as a full address, while keeping an
+// addressable identifier out of a table whose whole premise (see header) is
+// bucketed/categorical data. getUsername() returns '' (NOT null) when logged
+// out, and an empty-string admin_user would read as "some admin" in the
+// dashboard and hash to a real colour, so it must normalise to null.
+function currentAdminUser() {
+    if (!isLoggedIn()) return null;
+    return getUsername().split('@')[0] || null;
+}
 
 function pageFromPathname(pathname) {
     const filename = pathname.split('/').pop() || 'index.html';
@@ -110,7 +194,15 @@ function baseFields() {
 function send(event) {
     if (!ENDPOINT) return; // no-config = silent no-op
 
-    const body = JSON.stringify(event);
+    // Israel → session-linked; everyone else → zero-correlation + coarse region.
+    const routed = IS_LOCAL
+        ? { ...event, session_id: SESSION_ID }
+        : { ...event, region: coarseRegion(TIMEZONE) };
+
+    // Applied to BOTH routes: this labels the operator, not the audience.
+    const enriched = { ...routed, admin_user: currentAdminUser() };
+
+    const body = JSON.stringify(enriched);
 
     fetch(ENDPOINT, {
         method: 'POST',
@@ -208,8 +300,12 @@ document.addEventListener('click', (e) => {
     // renderBreadcrumbs, up to 3 levels) — its own category distinct from a
     // plain content link, checked before the generic link branch.
     const breadcrumbEl = e.target.closest('nav.breadcrumbs a');
+    // The passive "Privacy" transparency link (js/render/privacyNotice.js) is a
+    // plain <button> in the footer — matched by its stable data-action so any
+    // privacy trigger is tracked, not just the current footer link.
+    const privacyEl = e.target.closest('[data-action="privacy"]');
     const linkEl = e.target.closest('a');
-    if (!trackEl && !exportBtn && !tabEl && !menuEl && !actionBtn && !navArrowEl && !breadcrumbEl && !linkEl) return;
+    if (!trackEl && !exportBtn && !tabEl && !menuEl && !actionBtn && !navArrowEl && !breadcrumbEl && !privacyEl && !linkEl) return;
 
     // The "Leagues" nav is a 2-level flyout (Leagues > Dashboard/Table >
     // <league name>). Only the final league selection is a real navigation —
@@ -257,6 +353,8 @@ document.addEventListener('click', (e) => {
         clickTarget = `Nav: ${navArrowEl.textContent.trim() === '‹' ? 'previous' : 'next'}`;
     } else if (breadcrumbEl) {
         clickTarget = `Breadcrumb: ${labelOf(breadcrumbEl)}`;
+    } else if (privacyEl) {
+        clickTarget = 'Privacy: opened notice';
     } else {
         let params;
         try { params = new URL(linkEl.getAttribute('href') || '', location.href).searchParams; } catch { params = new URLSearchParams(); }

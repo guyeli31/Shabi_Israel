@@ -53,6 +53,10 @@ create table public.manual_overrides (
   winner      text,
   score_a numeric, score_b numeric, pr_a numeric, pr_b numeric, luck_a numeric, luck_b numeric,
   reason      text,
+  -- The admin-authored edit date (round editor's date picker). DOMAIN data:
+  -- feeds match_history.updated_at so history reflects WHEN a result changed,
+  -- not when a sync last ran. Distinct from updated_at (this row's mtime).
+  edited_at   timestamptz,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   unique (league_id, player_a, player_b)

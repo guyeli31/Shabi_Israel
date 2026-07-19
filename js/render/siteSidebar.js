@@ -364,6 +364,13 @@ function wireInteractions(sidebar, opts) {
     // implementation shared with every admin sidebar surface (navFlyout.js).
     wireNavFlyouts(sidebar);
 
+    // NOTE: the Records ▸ / Leaders / Players section links (`index.html?tab=…
+    // #section`) need NO wiring here. Clicking one while already on that page is
+    // a same-document fragment navigation, which the browser would resolve with
+    // an anchor jump that ignores the fixed topbar — but that is handled once,
+    // for every surface, by installSectionLinkScroll() (js/utils/scrollOffset.js,
+    // installed from mountTopbar). Do not add a local click handler for it.
+
     // Settings → Theme Customize: mount the picker as a nested flyout's
     // content so it opens like any other sidebar sub-menu (cascade right,
     // hover-or-click-to-pin) instead of as a centered modal. Sibling pinned

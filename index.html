@@ -65,6 +65,7 @@
         if (isPreviewMode()) installPreviewInterceptor();
 
         import { renderLandingPage } from './js/render/landingPage.js';
+        import { onVisibleRevalidate } from './js/data/store.js';
         import { applyThemeBootstrap } from './js/render/themePicker.js';
         import { initNavBar, initKeyboardShortcuts } from './js/render/navigation.js';
         import { mountSiteSidebar } from './js/render/siteSidebar.js';
@@ -79,6 +80,9 @@
         if (!isAdminEdit) mountSiteSidebar({ activeView: 'home', topbarTitle: 'Home' });
 
         renderLandingPage();
+        // Self-heal / passive refresh: on return-to-visible or bfcache restore,
+        // re-render only if the data changed or a failed load can now succeed.
+        onVisibleRevalidate(renderLandingPage);
         initKeyboardShortcuts();
     </script>
     <script type="module" src="js/analytics.js"></script>

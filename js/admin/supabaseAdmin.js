@@ -17,10 +17,57 @@
 
 import { supabase } from '../data/supabaseClient.js';
 import { parseCSVAllWithRounds } from '../data/csvParser.js';
-import { matchKey } from '../compute/matchHistory.js';
+import { computeMatchHistoryReconcile } from '../data/matchHistoryReconcile.js';
 
 function b64ToUint8Array(base64) {
     return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+}
+
+// Postgres `numeric` round-trips through PostgREST as a string; the parsed CSV
+// / staged JSON carry JS numbers. A strict === would read "0" !== 0 as a change.
+function numEq(x, y) {
+    if (x === null || x === undefined) return y === null || y === undefined;
+    if (y === null || y === undefined) return false;
+    return Number(x) === Number(y);
+}
+
+// Row-equality checks so the *sync functions below only UPSERT rows that
+// actually changed. Upserting an unchanged row still runs ON CONFLICT DO UPDATE,
+// which fires the updated_at + audit triggers on every row of the league — the
+// root cause of the "one edit → hundreds of ghost history rows" fan-out.
+function sameMatchRow(row, m) {
+    return numEq(row.pr_a, m.prA) && numEq(row.luck_a, m.luckA) && numEq(row.score_a, m.scoreA)
+        && numEq(row.pr_b, m.prB) && numEq(row.luck_b, m.luckB) && numEq(row.score_b, m.scoreB)
+        && row.played === m.played;
+}
+
+// Compare two timestamps as instants, not strings — a timestamptz round-trips
+// from Postgres in a different textual shape than the ISO string the client
+// staged, so a string === would report every unchanged override as "changed".
+function sameInstant(a, b) {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    return new Date(a).getTime() === new Date(b).getTime();
+}
+
+function sameOverrideRow(row, o) {
+    return row.type === o.type
+        && (row.winner || null) === (o.winner || null)
+        && numEq(row.score_a, o.scoreA) && numEq(row.score_b, o.scoreB)
+        && numEq(row.pr_a, o.prA) && numEq(row.pr_b, o.prB)
+        && numEq(row.luck_a, o.luckA) && numEq(row.luck_b, o.luckB)
+        && (row.reason || null) === (o.reason || null)
+        && sameInstant(row.edited_at, o.timestamp);
+}
+
+function samePlayerRow(row, m) {
+    return (row.full_name || null) === (m.fullName || null)
+        && (row.bmab_title || null) === (m.bmabTitle || null)
+        && JSON.stringify(row.championship_titles || []) === JSON.stringify(m.championshipTitles || [])
+        && row.hidden === (m.hidden === true)
+        && (row.photo_path || null) === (m.photoPath || null)
+        && row.inactive === (m.inactive === true)
+        && (row.joined || null) === (m.joined || null);
 }
 
 function mapParamsToLeagueRow(leagueId, p) {
@@ -56,27 +103,35 @@ export async function deleteLeague(leagueId) {
     if (error) throw new Error(`deleteLeague failed for ${leagueId}: ${error.message}`);
 }
 
-/** Sync a league's full matches table to match this CSV text (delete-stale + upsert). */
+/** Sync a league's full matches table to match this CSV text (delete-stale + upsert ONLY changed rows). */
 export async function bulkImportCSV(leagueId, csvText) {
     const { matches } = parseCSVAllWithRounds(csvText);
 
     const { data: existing, error: fetchErr } = await supabase
         .from('matches')
-        .select('id, round, player_a, player_b')
+        .select('id, round, player_a, player_b, pr_a, luck_a, score_a, pr_b, luck_b, score_b, played')
         .eq('league_id', leagueId);
     if (fetchErr) throw new Error(`bulkImportCSV fetch failed for ${leagueId}: ${fetchErr.message}`);
 
-    const freshKeys = new Set(matches.map((m) => `${m.round}|${m.playerA}|${m.playerB}`));
+    const keyOf = (round, a, b) => `${round}|${a}|${b}`;
+    const existingByKey = new Map((existing || []).map((row) => [keyOf(row.round, row.player_a, row.player_b), row]));
+    const freshKeys = new Set(matches.map((m) => keyOf(m.round, m.playerA, m.playerB)));
+
     const staleIds = (existing || [])
-        .filter((row) => !freshKeys.has(`${row.round}|${row.player_a}|${row.player_b}`))
+        .filter((row) => !freshKeys.has(keyOf(row.round, row.player_a, row.player_b)))
         .map((row) => row.id);
     if (staleIds.length > 0) {
         const { error } = await supabase.from('matches').delete().in('id', staleIds);
         if (error) throw new Error(`bulkImportCSV stale-delete failed for ${leagueId}: ${error.message}`);
     }
 
-    if (matches.length === 0) return;
-    const rows = matches.map((m) => ({
+    // Only new or genuinely-changed matches — never re-write the untouched ones.
+    const changed = matches.filter((m) => {
+        const cur = existingByKey.get(keyOf(m.round, m.playerA, m.playerB));
+        return !cur || !sameMatchRow(cur, m);
+    });
+    if (changed.length === 0) return;
+    const rows = changed.map((m) => ({
         league_id: leagueId,
         round: m.round,
         player_a: m.playerA,
@@ -97,21 +152,28 @@ export async function bulkImportCSV(leagueId, csvText) {
 export async function syncOverrides(leagueId, overrides) {
     const { data: existing, error: fetchErr } = await supabase
         .from('manual_overrides')
-        .select('id, player_a, player_b')
+        .select('id, player_a, player_b, type, winner, score_a, score_b, pr_a, pr_b, luck_a, luck_b, reason, edited_at')
         .eq('league_id', leagueId);
     if (fetchErr) throw new Error(`syncOverrides fetch failed for ${leagueId}: ${fetchErr.message}`);
 
-    const freshKeys = new Set(overrides.map((o) => `${o.playerA}|${o.playerB}`));
+    const keyOf = (a, b) => `${a}|${b}`;
+    const existingByKey = new Map((existing || []).map((row) => [keyOf(row.player_a, row.player_b), row]));
+    const freshKeys = new Set(overrides.map((o) => keyOf(o.playerA, o.playerB)));
     const staleIds = (existing || [])
-        .filter((row) => !freshKeys.has(`${row.player_a}|${row.player_b}`))
+        .filter((row) => !freshKeys.has(keyOf(row.player_a, row.player_b)))
         .map((row) => row.id);
     if (staleIds.length > 0) {
         const { error } = await supabase.from('manual_overrides').delete().in('id', staleIds);
         if (error) throw new Error(`syncOverrides stale-delete failed for ${leagueId}: ${error.message}`);
     }
 
-    if (overrides.length === 0) return;
-    const rows = overrides.map((o) => ({
+    // Only new or genuinely-changed overrides — leave untouched ones alone.
+    const changed = overrides.filter((o) => {
+        const cur = existingByKey.get(keyOf(o.playerA, o.playerB));
+        return !cur || !sameOverrideRow(cur, o);
+    });
+    if (changed.length === 0) return;
+    const rows = changed.map((o) => ({
         league_id: leagueId,
         player_a: o.playerA,
         player_b: o.playerB,
@@ -124,6 +186,10 @@ export async function syncOverrides(leagueId, overrides) {
         luck_a: o.luckA ?? null,
         luck_b: o.luckB ?? null,
         reason: o.reason || null,
+        // The admin-authored edit date (round editor's date picker → staged JSON
+        // `timestamp`). Persisted so match_history's updated_at can reflect WHEN
+        // the result actually changed, not when a sync last ran over it.
+        edited_at: o.timestamp || null,
     }));
     const { error } = await supabase.from('manual_overrides').upsert(rows, { onConflict: 'league_id,player_a,player_b' });
     if (error) throw new Error(`syncOverrides upsert failed for ${leagueId}: ${error.message}`);
@@ -131,9 +197,12 @@ export async function syncOverrides(leagueId, overrides) {
 
 /** Sync the whole players_metadata table to match this {[nickname]: {...}} object. */
 export async function syncPlayersMetadata(metadataObj) {
-    const { data: existing, error: fetchErr } = await supabase.from('players_metadata').select('id');
+    const { data: existing, error: fetchErr } = await supabase
+        .from('players_metadata')
+        .select('id, full_name, bmab_title, championship_titles, hidden, photo_path, inactive, joined');
     if (fetchErr) throw new Error(`syncPlayersMetadata fetch failed: ${fetchErr.message}`);
 
+    const existingById = new Map((existing || []).map((row) => [row.id, row]));
     const freshIds = new Set(Object.keys(metadataObj));
     const staleIds = (existing || []).map((row) => row.id).filter((id) => !freshIds.has(id));
     if (staleIds.length > 0) {
@@ -141,16 +210,23 @@ export async function syncPlayersMetadata(metadataObj) {
         if (error) throw new Error(`syncPlayersMetadata stale-delete failed: ${error.message}`);
     }
 
-    const rows = Object.entries(metadataObj).map(([id, m]) => ({
-        id,
-        full_name: m.fullName || null,
-        bmab_title: m.bmabTitle || null,
-        championship_titles: m.championshipTitles || [],
-        hidden: m.hidden === true,
-        photo_path: m.photoPath || null,
-        inactive: m.inactive === true,
-        joined: m.joined || null,
-    }));
+    // Only new or genuinely-changed players — don't re-write the whole registry
+    // when a single player is edited.
+    const rows = Object.entries(metadataObj)
+        .filter(([id, m]) => {
+            const cur = existingById.get(id);
+            return !cur || !samePlayerRow(cur, m);
+        })
+        .map(([id, m]) => ({
+            id,
+            full_name: m.fullName || null,
+            bmab_title: m.bmabTitle || null,
+            championship_titles: m.championshipTitles || [],
+            hidden: m.hidden === true,
+            photo_path: m.photoPath || null,
+            inactive: m.inactive === true,
+            joined: m.joined || null,
+        }));
     if (rows.length === 0) return;
     const { error } = await supabase.from('players_metadata').upsert(rows);
     if (error) throw new Error(`syncPlayersMetadata upsert failed: ${error.message}`);
@@ -217,7 +293,7 @@ async function _updateSyncSettings({ plans = [], sourceNames = {} }) {
         const del = supabase.from('sync_plans').delete();
         const { error } = keepIds.length
             ? await del.not('id', 'in', `(${keepIds.map((id) => `"${id.replace(/"/g, '')}"`).join(',')})`)
-            : await del.neq('id', ' '); // no plans kept → delete all
+            : await del.neq('id', '__no_rows__'); // no plans kept → delete all
         if (error) throw new Error(`updateSyncSettings: stale sync_plans delete failed: ${error.message}`);
     }
 
@@ -233,13 +309,18 @@ async function _updateSyncSettings({ plans = [], sourceNames = {} }) {
         }
     }
 
-    // 3. Per-league source name — faithful mirror across ALL leagues.
-    const { data: leagueRows, error: lErr } = await supabase.from('leagues').select('id');
+    // 3. Per-league source name — faithful mirror across ALL leagues, but only
+    // WRITE the ones whose value actually changed. A blanket update of every
+    // league fires the audit/updated_at triggers on each row, so a single-league
+    // sync-name edit used to leave a flock of no-op "ghost" rows across all the
+    // others (see sql/audit_batching.sql).
+    const { data: leagueRows, error: lErr } = await supabase.from('leagues').select('id, source_league_name');
     if (lErr) throw new Error(`updateSyncSettings: leagues fetch failed: ${lErr.message}`);
-    for (const { id } of leagueRows || []) {
-        const name = sourceNames[id] || null;
-        const { error } = await supabase.from('leagues').update({ source_league_name: name }).eq('id', id);
-        if (error) throw new Error(`updateSyncSettings: source name update failed for ${id}: ${error.message}`);
+    for (const row of leagueRows || []) {
+        const name = sourceNames[row.id] || null;
+        if ((row.source_league_name || null) === name) continue; // unchanged → don't touch
+        const { error } = await supabase.from('leagues').update({ source_league_name: name }).eq('id', row.id);
+        if (error) throw new Error(`updateSyncSettings: source name update failed for ${row.id}: ${error.message}`);
     }
 }
 
@@ -308,8 +389,6 @@ export async function createSnapshot(leagueId) {
  * reading matches + overrides from Supabase instead of GitHub files.
  */
 export async function reconcileMatchHistory(leagueId) {
-    const now = new Date().toISOString();
-
     const { data: matchRows } = await supabase
         .from('matches')
         .select('*')
@@ -319,117 +398,17 @@ export async function reconcileMatchHistory(leagueId) {
     const { data: overrideRows } = await supabase.from('manual_overrides').select('*').eq('league_id', leagueId);
     const { data: historyRows } = await supabase.from('match_history').select('*').eq('league_id', leagueId);
 
-    const csvMatches = (matchRows || []).map((m) => ({
-        playerA: m.player_a, playerB: m.player_b,
-        scoreA: m.score_a, scoreB: m.score_b, prA: m.pr_a, prB: m.pr_b, luckA: m.luck_a, luckB: m.luck_b,
-        round: m.round,
-    }));
-    const overrides = (overrideRows || []).map((o) => ({
-        type: o.type, playerA: o.player_a, playerB: o.player_b, winner: o.winner,
-        scoreA: o.score_a, scoreB: o.score_b, prA: o.pr_a, prB: o.pr_b, luckA: o.luck_a, luckB: o.luck_b,
-    }));
-    const previous = (historyRows || []).map((h) => ({
-        playerA: h.player_a, playerB: h.player_b,
-        scoreA: h.score_a, scoreB: h.score_b, prA: h.pr_a, prB: h.pr_b, luckA: h.luck_a, luckB: h.luck_b,
-        round: h.round, updatedAt: h.updated_at, source: h.source,
-    }));
-    const prevByKey = new Map(previous.map((m) => [matchKey(m.playerA, m.playerB), m]));
+    const { skipped, staleIds, upsertRows } = computeMatchHistoryReconcile({
+        matchRows, overrideRows, historyRows, leagueId, now: new Date().toISOString(),
+    });
+    if (skipped) return;
 
-    // Postgres `numeric` columns round-trip through PostgREST as strings
-    // (precision preservation), while override `record`s below are built
-    // from JS number literals — a strict === would read "0" !== 0 as a real
-    // change and mark the row dirty on every single comparison.
-    function numEq(x, y) {
-        if (x === null || x === undefined) return y === null || y === undefined;
-        if (y === null || y === undefined) return false;
-        return Number(x) === Number(y);
-    }
-
-    function sameNumericFields(a, b) {
-        return numEq(a.scoreA, b.scoreA) && numEq(a.scoreB, b.scoreB)
-            && numEq(a.prA, b.prA) && numEq(a.prB, b.prB)
-            && numEq(a.luckA, b.luckA) && numEq(a.luckB, b.luckB);
-    }
-
-    const next = [];
-    const changedKeys = new Set();
-    for (const m of csvMatches) {
-        const key = matchKey(m.playerA, m.playerB);
-        const prev = prevByKey.get(key);
-        if (prev && sameNumericFields(prev, m) && prev.source !== 'manual') {
-            next.push({ ...prev, round: m.round });
-            if (prev.round !== m.round) changedKeys.add(key);
-        } else if (prev && prev.source === 'manual') {
-            next.push({ ...prev, round: m.round });
-            if (prev.round !== m.round) changedKeys.add(key);
-        } else {
-            next.push({
-                playerA: m.playerA, playerB: m.playerB,
-                scoreA: m.scoreA, scoreB: m.scoreB, prA: m.prA, prB: m.prB, luckA: m.luckA, luckB: m.luckB,
-                round: m.round, updatedAt: now, source: 'csv',
-            });
-            changedKeys.add(key);
-        }
-    }
-
-    for (const o of overrides) {
-        const key = matchKey(o.playerA, o.playerB);
-        let record;
-        if (o.type === 'result') {
-            record = { playerA: o.playerA, playerB: o.playerB, scoreA: o.scoreA, scoreB: o.scoreB, prA: o.prA, prB: o.prB, luckA: o.luckA, luckB: o.luckB };
-        } else if (o.type === 'technical_win') {
-            const aWins = o.winner === o.playerA;
-            record = { playerA: o.playerA, playerB: o.playerB, scoreA: aWins ? 1 : 0, scoreB: aWins ? 0 : 1, prA: null, prB: null, luckA: null, luckB: null };
-        } else if (o.type === 'technical_draw') {
-            record = { playerA: o.playerA, playerB: o.playerB, scoreA: 0, scoreB: 0, prA: null, prB: null, luckA: null, luckB: null };
-        } else continue; // 'not_played' (and any other type): no match_history row should exist for this pairing
-
-        const idx = next.findIndex((x) => matchKey(x.playerA, x.playerB) === key);
-        // A match with no played=true row in `matches` (e.g. a 'not_played'
-        // override, or an override on a round nobody's played yet) never gets
-        // an entry in `next` from the loop above, so idx is always -1 here.
-        // Fall back to the existing match_history row (prevByKey) for the
-        // unchanged-comparison — otherwise "not found in `next`" reads as
-        // "must be new", and this row gets rewritten (and audit-logged) on
-        // every single publish, forever, regardless of what was published.
-        const prevForKey = prevByKey.get(key);
-        const round = idx >= 0 ? next[idx].round : (prevForKey ? prevForKey.round : null);
-        const stamped = { ...record, round, updatedAt: now, source: 'manual' };
-        if (idx >= 0) {
-            const old = next[idx];
-            const unchanged = old.source === 'manual' && old.round === round && sameNumericFields(old, record);
-            if (unchanged) continue;
-            next[idx] = stamped;
-            changedKeys.add(key);
-        } else {
-            const unchanged = prevForKey && prevForKey.source === 'manual' && prevForKey.round === round && sameNumericFields(prevForKey, record);
-            // Still push *something* so this key stays out of the stale-delete
-            // set below even when unchanged — only skip re-upserting it.
-            next.push(unchanged ? prevForKey : stamped);
-            if (!unchanged) changedKeys.add(key);
-        }
-    }
-
-    // Sync (delete-stale + upsert only rows that actually changed). Upserting
-    // unchanged rows would still fire an UPDATE in Postgres, which trips the
-    // updated_at/audit_log triggers on every row of the league for a no-op change.
-    const freshKeys = new Set(next.map((m) => matchKey(m.playerA, m.playerB)));
-    const staleIds = (historyRows || [])
-        .filter((row) => !freshKeys.has(matchKey(row.player_a, row.player_b)))
-        .map((row) => row.id);
     if (staleIds.length > 0) {
         const { error } = await supabase.from('match_history').delete().in('id', staleIds);
         if (error) throw new Error(`reconcileMatchHistory stale-delete failed for ${leagueId}: ${error.message}`);
     }
-    const toUpsert = next.filter((m) => changedKeys.has(matchKey(m.playerA, m.playerB)));
-    if (toUpsert.length > 0) {
-        const rows = toUpsert.map((m) => ({
-            league_id: leagueId,
-            player_a: m.playerA, player_b: m.playerB,
-            score_a: m.scoreA, score_b: m.scoreB, pr_a: m.prA, pr_b: m.prB, luck_a: m.luckA, luck_b: m.luckB,
-            round: m.round, source: m.source, updated_at: m.updatedAt,
-        }));
-        const { error } = await supabase.from('match_history').upsert(rows, { onConflict: 'league_id,player_a,player_b' });
+    if (upsertRows.length > 0) {
+        const { error } = await supabase.from('match_history').upsert(upsertRows, { onConflict: 'league_id,player_a,player_b' });
         if (error) throw new Error(`reconcileMatchHistory upsert failed for ${leagueId}: ${error.message}`);
     }
 }

@@ -65,7 +65,14 @@
       "Bash(python scripts/make-lang-icon.py GB assets/lang-icons)",
       "Bash(python scripts/make-lang-icon.py IL assets/lang-icons)",
       "Bash(node --check js/admin/syncLog.js)",
-      "Bash(node --check js/admin/syncManager.js)"
+      "Bash(node --check js/admin/syncManager.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8090/index.html)",
+      "Bash(npx supabase *)",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_press_key",
+      "Bash(echo \"rows before: $\\(docker exec -i supabase_db_supabase-migration psql -U postgres -d postgres -t -A -c 'select count\\(*\\) from public.analytics_events;'\\)\")",
+      "Bash(echo \"rows after: $\\(docker exec -i supabase_db_supabase-migration psql -U postgres -d postgres -t -A -c 'select count\\(*\\) from public.analytics_events;'\\)\")",
+      "mcp__playwright__browser_resize"
     ]
   }
 }

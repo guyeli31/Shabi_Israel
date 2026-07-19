@@ -3,7 +3,7 @@
  * keyboard shortcuts, and cross-league player index.
  */
 
-import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches } from '../data/store.js';
+import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches, registerMemoInvalidator } from '../data/store.js';
 import { leagueUrl, playerLeagueUrl, playerUrl, parseLeagueDate } from '../utils/helpers.js';
 import { loadPlayersMetadata } from '../data/store.js';
 import { getInitials } from './playerHeader.js';
@@ -83,10 +83,22 @@ export function renderBreadcrumbs(crumbs) {
 let leagueIndexReady = null;
 let leagueIndex = []; // [{id, title, running, hidden, leagueType}]
 
+/** Clear both cross-league search indexes so they rebuild from a refreshed
+ *  bundle. Registered with the store: a data change or a post-failure heal
+ *  invalidates these computed layers, not just the raw bundle. */
+export function resetSearchIndexes() {
+    leagueIndexReady = null;
+    leagueIndex = [];
+    playerIndexPromise = null;
+    playerIndex = null;
+}
+registerMemoInvalidator(resetSearchIndexes);
+
 export function ensureLeagueIndex() {
     if (leagueIndexReady) return leagueIndexReady;
     leagueIndexReady = (async () => {
         initTooltips(); // global themed hover tooltip (replaces native [title])
+        let failed = false;
         try {
             const displayOrder = await loadLeagueOrder();
             const folderNames = displayOrder.map(t => t.replace(' - ', ' '));
@@ -100,6 +112,7 @@ export function ensureLeagueIndex() {
             }));
         } catch {
             leagueIndex = [];
+            failed = true;
         }
 
         // Keep the skip-to-content a11y affordance even though the old top
@@ -111,6 +124,11 @@ export function ensureLeagueIndex() {
             skip.textContent = 'Skip to content';
             document.body.insertBefore(skip, document.body.firstChild);
         }
+        // Don't memoize a failure as a resolved-but-empty index: null the memo
+        // so the next call (retry / visibility re-render) rebuilds instead of
+        // permanently serving an empty search index. Current awaiters still get
+        // the empty [] for this attempt.
+        if (failed) leagueIndexReady = null;
         return leagueIndex;
     })();
     return leagueIndexReady;
@@ -137,6 +155,10 @@ let playerIndex = null; // Map<playerName, [{leagueId, title}]>
 export function ensurePlayerIndex() {
     if (!playerIndexPromise) {
         playerIndexPromise = buildPlayerIndex();
+        // Poison-reset (mirrors store.js / crossLeague.js): a rejected build
+        // must not stick for the page's lifetime — clear it so a later call
+        // rebuilds instead of replaying the dead rejection.
+        playerIndexPromise.catch(() => { playerIndexPromise = null; });
     }
     return playerIndexPromise;
 }

@@ -10,6 +10,7 @@ import { mountTopbar } from '../../render/topbar.js';
 import { installSearchOverlay } from '../../render/searchOverlay.js';
 import { buildAdminSidebarHtml, wireAdminSidebar } from './adminSidebarNav.js';
 import { renderHistoricalChanges } from './historicalChanges.js';
+import { renderCategoryLabel } from './changeVocabulary.js';
 
 const VIEW_TITLES = { leagues: 'Leagues', players: 'Players', pending: 'Pending Changes', history: 'Historical Changes', sync: 'Sync' };
 const VIEW_KEYS = ['leagues', 'players', 'pending', 'history', 'sync'];
@@ -294,45 +295,9 @@ function escHtml(str) {
 }
 
 /**
- * Single source of truth for the icon + default action label per change category.
- * Adding a new change type = one entry here; the label format never drifts.
- */
-const CATEGORY_META = {
-    'create-league':   { icon: '🆕', action: 'Create league' },
-    'delete-league':   { icon: '🗑️', action: 'Delete league' },
-    'league-settings': { icon: '⚙️', action: 'Settings updated' },
-    'league-players':  { icon: '🚩', action: 'Players updated' },
-    'league-data':     { icon: '📊', action: 'League data updated' },
-    'match-override':  { icon: '⚖️', action: 'Match override' },
-    'edit-override':   { icon: '✏️', action: 'Override edited' },
-    'remove-override': { icon: '➖', action: 'Override removed' },
-    'bgsync':          { icon: '🔄', action: 'Auto-sync updated' },
-    'player-meta':     { icon: '👤', action: 'Player updated' },
-    'player-photo':    { icon: '📷', action: 'Photo updated' },
-    'player-rename':   { icon: '✏️', action: 'Renamed across leagues' },
-    'create-player':   { icon: '🆕', action: 'Player created' },
-    'flag-upload':     { icon: '🏳️', action: 'Flag uploaded' },
-    'landing':         { icon: '🏠', action: 'Landing updated' }
-};
-
-/**
- * Canonical pending-row label: `{icon}  <b>{subject}</b> · {action}{ — {detail}}`.
- * Only the subject (league / player / flag code) is bold. Returns null when the
- * category is unknown, so callers can fall back to the legacy formatter.
- */
-function renderLabel(category, subject, detail, action) {
-    const meta = CATEGORY_META[category];
-    if (!meta) return null;
-    let s = `${meta.icon}&nbsp; `;
-    if (subject) s += `<b>${escHtml(subject)}</b> · `;
-    s += escHtml(action || meta.action);
-    if (detail) s += ` — ${escHtml(detail)}`;
-    return s;
-}
-
-/**
  * Build display items from raw changes. Groups changes with the same `group` field.
- * Labels come from `renderLabel` (category-based) when a `category` is present,
+ * Labels come from `renderCategoryLabel` (category-based, shared with the
+ * Historical view via changeVocabulary.js) when a `category` is present,
  * otherwise from the legacy path-sniffing `formatChangeDesc`.
  */
 function buildDisplayItems(changes) {
@@ -388,7 +353,7 @@ function buildDisplayItems(changes) {
                         overridePath: c.path,
                         overrideIndex: index,
                         timestamp: o.timestamp || c.timestamp,
-                        displayText: renderLabel('match-override', league, `${o.playerA} vs ${o.playerB} (${o.type})`)
+                        displayText: renderCategoryLabel('match-override', league, `${o.playerA} vs ${o.playerB} (${o.type})`)
                     });
                 }
                 // Changed — an existing published override was edited. Cancel reverts
@@ -400,7 +365,7 @@ function buildDisplayItems(changes) {
                         restorePath: c.path,
                         restoreKey: overrideKey(o),
                         timestamp: o.timestamp || c.timestamp,
-                        displayText: renderLabel('edit-override', league, `${o.playerA} vs ${o.playerB} (${o.type})`)
+                        displayText: renderCategoryLabel('edit-override', league, `${o.playerA} vs ${o.playerB} (${o.type})`)
                     });
                 }
                 // Removed — Cancel restores the published value.
@@ -411,14 +376,14 @@ function buildDisplayItems(changes) {
                         restorePath: c.path,
                         restoreKey: overrideKey(o),
                         timestamp: c.timestamp,
-                        displayText: renderLabel('remove-override', league, `${o.playerA} vs ${o.playerB}`)
+                        displayText: renderCategoryLabel('remove-override', league, `${o.playerA} vs ${o.playerB}`)
                     });
                 }
             } catch {
                 items.push({
                     group: null, indices: [i],
                     timestamp: c.timestamp,
-                    displayText: renderLabel(c.category, c.subject, c.detail, c.action) || formatChangeDesc(c)
+                    displayText: renderCategoryLabel(c.category, c.subject, c.detail, c.action) || formatChangeDesc(c)
                 });
             }
         } else {
@@ -426,7 +391,7 @@ function buildDisplayItems(changes) {
                 group: null,
                 indices: [i],
                 timestamp: c.timestamp,
-                displayText: renderLabel(c.category, c.subject, c.detail, c.action) || formatChangeDesc(c)
+                displayText: renderCategoryLabel(c.category, c.subject, c.detail, c.action) || formatChangeDesc(c)
             });
         }
     }
@@ -440,7 +405,7 @@ function buildDisplayItems(changes) {
                     indices: g.indices,
                     removePlayer: player,
                     timestamp: g.timestamp,
-                    displayText: renderLabel('player-meta', player)
+                    displayText: renderCategoryLabel('player-meta', player)
                 });
             }
         } else {
@@ -448,7 +413,7 @@ function buildDisplayItems(changes) {
                 group: g.group,
                 indices: g.indices,
                 timestamp: g.timestamp,
-                displayText: renderLabel(g.category, g.subject, g.detail, g.action)
+                displayText: renderCategoryLabel(g.category, g.subject, g.detail, g.action)
                     || g.descriptionHtml || escHtml(g.description)
             });
         }

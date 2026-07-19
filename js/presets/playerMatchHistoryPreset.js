@@ -104,7 +104,7 @@ export function buildPlayerMatchHistoryPreset({ playerMatches, leagueConfig, par
             score:       isTechnical ? '—' : `${m.scoreSelf}-${m.scoreOpp}`,
             pr:          isTechnical ? null : m.prSelf,
             oppPR:       isTechnical ? null : m.prOpp,
-            luck:        isTechnical ? null : (m.luckSelf - m.luckOpp),
+            luck:        (isTechnical || m.luckSelf == null || m.luckOpp == null) ? null : (m.luckSelf - m.luckOpp),
             result,
             matchPoints: matchWin + prWin,
             _technical:  isTechnical,

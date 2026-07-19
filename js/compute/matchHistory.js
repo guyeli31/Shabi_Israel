@@ -46,6 +46,7 @@ export function mergeHistoryIntoMatches(csvMatches, historyMatches) {
 
     for (const h of historyMatches) {
         const key = matchKey(h.playerA, h.playerB);
+        const prior = indexByKey.has(key) ? result[indexByKey.get(key)] : null;
         const merged = {
             playerA: h.playerA, playerB: h.playerB,
             scoreA: h.scoreA, scoreB: h.scoreB,
@@ -55,6 +56,17 @@ export function mergeHistoryIntoMatches(csvMatches, historyMatches) {
             updatedAt: h.updatedAt,
             source: h.source
         };
+        // History carries the VALUES, but it can't say how they were derived —
+        // `source: 'manual'` covers a plain result override as much as a technical
+        // one. applyOverrides() runs before this and already marked the match, so
+        // carry its markers across. Dropping them silently un-technicals the match:
+        // every `if (m._technical) continue` guard stops firing, and the presets'
+        // `luckSelf - luckOpp` turns null - null into a real-looking 0.00.
+        if (prior) {
+            if (prior._overridden) merged._overridden = true;
+            if (prior._technical) merged._technical = true;
+            if (prior._draw) merged._draw = true;
+        }
         if (indexByKey.has(key)) {
             result[indexByKey.get(key)] = merged;
         } else {

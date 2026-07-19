@@ -699,7 +699,10 @@ function renderMatchup(panel, playerName, allRows) {
     const flagFor = (name) => _allMeta[name]?.hidden
         ? ''
         : `<img class="flag" src="${flagUrl(getFlagCode(name, _mergedCustomFlags))}" alt="flag">`;
-    mountMFTable(c4Mount, buildAllOpponentsPreset({ opponents, enrich: { flagFor } }));
+    const opponentSuffix = (name) => _allMeta[name]?.hidden
+        ? ''
+        : getTitleAbbreviationsHtml(_allMeta[name]);
+    mountMFTable(c4Mount, buildAllOpponentsPreset({ opponents, enrich: { flagFor, opponentSuffix } }));
 
     // Clicking an opponent in C4 opens the C3 detail above it and jumps
     // straight to that lookup section — NOT the page top (window.scrollTo

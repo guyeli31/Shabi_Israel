@@ -11,7 +11,13 @@
  * Environment" section for the full rationale.
  */
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+// Vendored locally (js/vendor/) instead of imported from esm.sh: a static
+// import from a third-party CDN sits on the critical path of every page with
+// no possible timeout, so a single flaky hop to esm.sh could hang the whole
+// site — and it leaked every visitor's IP to that host. See js/vendor/README.md
+// for the full rationale and the reproducible build command. Pinned to the
+// exact version @2 resolved to at vendoring time (2.110.7).
+import { createClient } from '../vendor/supabase-js@2.110.7.mjs';
 import {
     SUPABASE_URL,
     SUPABASE_ANON_KEY,
