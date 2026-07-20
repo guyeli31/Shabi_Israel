@@ -659,7 +659,12 @@ const clickColumns = ({ withSession = false } = {}) => [
     { key: 'date', label: 'Date', render: (r) => escapeHtml(formatEventTime(r.date)) },
     ...(withSession ? [{ key: 'session', label: 'Session ID', render: (r) => sessionCell(r) }] : []),
     { key: 'page', label: 'Page', render: (r) => escapeHtml(r.page) },
-    { key: 'target', label: 'Click target', render: (r) => `${r.icon ? r.icon + ' ' : ''}${escapeHtml(r.target)}` },
+    // &nbsp; (not a plain space) after the icon so it never orphans from its
+    // label onto the line above — the icon can be a block-ish inline SVG glyph
+    // (TAB_ICONS, e.g. "Tab: leagues"), and a normal space there is a break point
+    // that drops the text below the icon in a narrow cell. Only the icon↔label
+    // seam is glued; a long label (e.g. a "What if:" summary) still wraps normally.
+    { key: 'target', label: 'Click target', render: (r) => `${r.icon ? r.icon + '&nbsp;' : ''}${escapeHtml(r.target)}` },
     { key: 'device', label: 'Device', render: (r) => escapeHtml(r.device) },
 ];
 
