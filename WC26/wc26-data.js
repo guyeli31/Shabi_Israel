@@ -14,29 +14,27 @@
  */
 
 /* ── Section 1: overall ranking ──────────────────────────────────────
-   pre       = משחק מקדים  (pre-match bets)
-   regular   = תוצאות רגילות (per-match result bets)
-   challenge = אתגרים       (NET side-challenge points — the pre-match total
-               is already subtracted out, so this column does NOT include it)
-   total     = the authoritative final score (source of truth). By design the
-               three displayed columns do NOT sum to `total`, because `challenge`
-               shows the net-of-pre figure while `total` still counts pre once.  */
+   pre       = משחק מקדים  (pre-match bets — its points are ALSO folded into
+               `regular` below, per the pool's scoring)
+   regular   = תוצאות רגילות (per-match results, WITH the pre-match points added in)
+   challenge = אתגרים       (side challenges, NET of the pre-match)
+   total     = pre + regular + challenge (the three columns sum to it)         */
 export const MAIN = [
-  { name: 'לירון לברן',  pre: 50.00, regular: 79.00,  challenge: 119.31, total: 298.31 },
-  { name: 'אורן כהן',    pre: 40.00, regular: 82.00,  challenge: 133.30, total: 295.30 },
-  { name: 'עופר דהן',    pre: 30.00, regular: 91.00,  challenge: 129.69, total: 280.69 },
-  { name: 'תומר מור',    pre: 49.00, regular: 66.00,  challenge: 104.70, total: 268.70 },
-  { name: 'אור קסלר',    pre: 14.00, regular: 103.00, challenge: 128.33, total: 259.33 },
-  { name: 'איתי בכר',    pre: 26.00, regular: 91.00,  challenge: 94.00,  total: 237.00 },
-  { name: 'גיא אליהו',   pre: 20.00, regular: 111.00, challenge: 80.00,  total: 231.00 },
-  { name: 'אביעד צארום', pre: 49.00, regular: 45.00,  challenge: 87.73,  total: 230.73 },
-  { name: 'שחר גלר',     pre: 26.00, regular: 71.00,  challenge: 94.78,  total: 217.78 },
-  { name: 'דור סימוני',  pre: 25.00, regular: 82.00,  challenge: 72.55,  total: 204.55 },
-  { name: 'אלעד ירמיהו', pre: 20.00, regular: 79.01,  challenge: 76.42,  total: 195.43 },
-  { name: 'דן בן שימול', pre: 10.00, regular: 105.00, challenge: 65.44,  total: 190.44 },
-  { name: 'ירדן אבישי',  pre: 26.00, regular: 62.00,  challenge: 69.52,  total: 183.52 },
-  { name: 'עומר גלזר',   pre: 24.00, regular: 52.00,  challenge: 82.03,  total: 182.03 },
-  { name: 'דור יאירי',   pre: 20.00, regular: 61.00,  challenge: 49.18,  total: 150.18 },
+  { name: 'לירון לברן',  pre: 50.00, regular: 129.00, challenge: 119.31, total: 298.31 },
+  { name: 'אורן כהן',    pre: 40.00, regular: 122.00, challenge: 133.30, total: 295.30 },
+  { name: 'עופר דהן',    pre: 30.00, regular: 121.00, challenge: 129.69, total: 280.69 },
+  { name: 'תומר מור',    pre: 49.00, regular: 115.00, challenge: 104.70, total: 268.70 },
+  { name: 'אור קסלר',    pre: 14.00, regular: 117.00, challenge: 128.33, total: 259.33 },
+  { name: 'איתי בכר',    pre: 26.00, regular: 117.00, challenge: 94.00,  total: 237.00 },
+  { name: 'גיא אליהו',   pre: 20.00, regular: 131.00, challenge: 80.00,  total: 231.00 },
+  { name: 'אביעד צארום', pre: 49.00, regular: 94.00,  challenge: 87.73,  total: 230.73 },
+  { name: 'שחר גלר',     pre: 26.00, regular: 97.00,  challenge: 94.78,  total: 217.78 },
+  { name: 'דור סימוני',  pre: 25.00, regular: 107.00, challenge: 72.55,  total: 204.55 },
+  { name: 'אלעד ירמיהו', pre: 20.00, regular: 99.01,  challenge: 76.42,  total: 195.43 },
+  { name: 'דן בן שימול', pre: 10.00, regular: 115.00, challenge: 65.44,  total: 190.44 },
+  { name: 'ירדן אבישי',  pre: 26.00, regular: 88.00,  challenge: 69.52,  total: 183.52 },
+  { name: 'עומר גלזר',   pre: 24.00, regular: 76.00,  challenge: 82.03,  total: 182.03 },
+  { name: 'דור יאירי',   pre: 20.00, regular: 81.00,  challenge: 49.18,  total: 150.18 },
 ];
 
 /* ── Section 2: result-guess accuracy ────────────────────────────────
