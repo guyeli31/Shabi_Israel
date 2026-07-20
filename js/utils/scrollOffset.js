@@ -74,6 +74,64 @@ export function prefersReducedMotion() {
     return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 }
 
+/**
+ * Like scrollToClearingTopbar, but for a target whose position is still SETTLING
+ * — anything above it may grow after the first paint (async tables filling in,
+ * images/fonts loading, a section rendering its DOM in a later microtask). A
+ * one-shot scroll loses that race: it lands correct, then content above pushes
+ * the target down and nothing re-corrects. So instead of trying to PREDICT when
+ * layout is done (a gate on "the data promise resolved" doesn't cover the DOM
+ * build that follows it), we OBSERVE: scroll now, then re-assert on every
+ * document-height change until things stay quiet for `settleMs`, or `maxMs`
+ * elapses, or the user scrolls themselves — whichever comes first.
+ *
+ * Always instant (behavior:'auto'): each re-assert is a correction, not an
+ * animation to watch, and a fresh deep-link starts at the top so a smooth ride
+ * down would be a long distraction anyway.
+ *
+ * Returns a cancel function (rarely needed; it self-stops).
+ */
+export function scrollToClearingTopbarSettled(target, { breathingRoom, settleMs = 400, maxMs = 3000 } = {}) {
+    if (!target) return () => {};
+    let done = false;
+    let quietTimer = 0;
+    const hardStop = setTimeout(stop, maxMs);
+
+    const reassert = () => {
+        if (done) return;
+        scrollToClearingTopbar(target, { breathingRoom, behavior: 'auto' });
+        clearTimeout(quietTimer);
+        quietTimer = setTimeout(stop, settleMs);
+    };
+    // The user grabbing the page mid-settle wins immediately — never yank the
+    // viewport back from under them. Our own scrollTo is instant and emits no
+    // wheel/touch/key events, so only a real gesture trips this.
+    const onUser = () => stop();
+    const ro = new ResizeObserver(reassert);
+
+    function stop() {
+        if (done) return;
+        done = true;
+        clearTimeout(quietTimer);
+        clearTimeout(hardStop);
+        ro.disconnect();
+        window.removeEventListener('wheel', onUser);
+        window.removeEventListener('touchmove', onUser);
+        window.removeEventListener('keydown', onUserKey);
+    }
+    const onUserKey = e => {
+        // Only navigation keys count as "taking over"; a stray modifier doesn't.
+        if (['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' ','Spacebar'].includes(e.key)) onUser();
+    };
+
+    reassert();                       // initial landing
+    ro.observe(document.documentElement);
+    window.addEventListener('wheel', onUser, { passive: true });
+    window.addEventListener('touchmove', onUser, { passive: true });
+    window.addEventListener('keydown', onUserKey);
+    return stop;
+}
+
 let sectionLinkScrollInstalled = false;
 
 /**

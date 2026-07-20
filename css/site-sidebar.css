@@ -901,6 +901,7 @@ body.site-sidebar-closed .site-main {
     .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-sidebar-brand .site-sidebar-brand-text,
     .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .sidebar-admin-banner .sidebar-admin-body,
     .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-sidebar-search .site-sidebar-search-wrap,
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-nav-item--footer .site-nav-label,
     .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-sidebar-logout span {
         display: none;
     }
@@ -908,6 +909,7 @@ body.site-sidebar-closed .site-main {
        open flyouts keep their natural left-aligned layout. */
     .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-nav-tree > .site-nav-flyout-host > .site-nav-item,
     .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-nav-tree > .site-nav-item,
+    .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-nav-item--footer,
     .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-sidebar-brand,
     .site-sidebar:has(.site-nav-tree .site-nav-flyout-host.pinned) > .site-sidebar-logout {
         justify-content: center;

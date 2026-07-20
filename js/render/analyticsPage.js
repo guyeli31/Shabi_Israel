@@ -554,10 +554,13 @@ function renderTransitionsLog(section, transitionsLog) {
 // never stored. "League link: " is a plain content link like any other, so
 // it shares the generic Link icon rather than a distinct one.
 const CLICK_TYPE_ICONS = [
+    { prefix: 'What if baseline: ', icon: '🕘' }, // before 'What if: ' is irrelevant (distinct prefix), listed together for readability
     { prefix: 'What if: ', icon: '🧪' },
     { prefix: 'Export: ', icon: '🖼️' },
     { prefix: 'Search: ', icon: '🔍' },
     { prefix: 'Action: ', icon: '💾' },
+    { prefix: 'Info: ', icon: 'ℹ️' },
+    { prefix: 'History view: ', icon: '🕘' },
     { prefix: 'Privacy: ', icon: '🛡️' },
     { prefix: 'Nav: previous', icon: '⬅️' },
     { prefix: 'Nav: next', icon: '➡️' },
@@ -776,9 +779,13 @@ function renderSessions(section, sessions) {
             const s = sessions[i];
             const timeline = s.timeline || [];
             const body = el.querySelector('.analytics-session-body');
+            // `duration` (Dwell) events are a per-page timer, not an interaction —
+            // the visit's total dwell is already the card head's own span, so a
+            // Dwell row here is redundant noise. Drop them; keep pageviews/clicks.
+            const events = timeline.filter((e) => e.event_type !== 'duration');
             // Same columns as the all-clicks table, minus Session ID (constant
             // here); ascending, because a trace is read forwards.
-            renderLogTable(body, timeline.map((e) => timelineRow(e, s.device_type)),
+            renderLogTable(body, events.map((e) => timelineRow(e, s.device_type)),
                 clickColumns(), { emptyText: 'No events.', sort: { key: 'date', dir: 'asc' } });
             // event_count is counted over the whole visit server-side, so it
             // still reports the true size when the timeline itself was capped.
@@ -1090,7 +1097,24 @@ function renderLoginGate(content, monthKeyArg, excludeAdmin) {
     passInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
 }
 
-export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = true) {
+// The two view controls (which month, and whether to exclude the operator's own
+// traffic) persist across a refresh. localStorage, not the URL: it matches the
+// site's other persisted UI (css bootstrap reads shabi-theme the same way), and
+// unlike the ?tab= deep-link these two are a personal default, not something you
+// share. Reads are defensive — a corrupt/absent value just falls back.
+const VIEW_STORE_KEY = 'shabi-analytics-view';
+function loadView() {
+    try { return JSON.parse(localStorage.getItem(VIEW_STORE_KEY)) || {}; } catch { return {}; }
+}
+function saveView(monthKeyValue, excludeAdmin) {
+    try { localStorage.setItem(VIEW_STORE_KEY, JSON.stringify({ month: monthKeyValue, excludeAdmin })); } catch { /* private mode / quota — persistence is best-effort */ }
+}
+
+// Default param evaluates ONLY when the arg is undefined — i.e. a fresh page
+// load, never a control-driven re-render (those always pass an explicit boolean).
+// `?? true` keeps a stored `false` intact (nullish, not falsy) and only defaults
+// when nothing was ever saved.
+export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loadView().excludeAdmin ?? true) {
     const content = document.getElementById('content');
 
     // The RPCs are authenticated-only (see header). A Supabase session lives in
@@ -1122,7 +1146,16 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = tru
     const withNew = monthRows.filter((m) => m.new_events > 0);
     const defaultKey = withNew.length ? monthKey(withNew[0].month)
         : monthRows.length ? monthKey(monthRows[0].month) : ALL_TIME;
-    const activeKey = monthKeyArg || defaultKey;
+    // On a fresh load (no explicit month arg) restore the last-viewed month, but
+    // only if it is still a real option — a stored month that has since aged out
+    // of the list would otherwise select nothing. Explicit args (a control
+    // change) always win over the stored value.
+    const validKeys = new Set([...monthRows.map((m) => monthKey(m.month)), ALL_TIME]);
+    const stored = loadView();
+    const restoredMonth = (!monthKeyArg && validKeys.has(stored.month)) ? stored.month : null;
+    const activeKey = monthKeyArg || restoredMonth || defaultKey;
+    // Persist whatever is now in effect, so the next refresh comes back here.
+    saveView(activeKey, excludeAdmin);
     const { from, to } = israelMonthRange(activeKey);
 
     // Live tabs are new-format only. Legacy rows predate the route model and

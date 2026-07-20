@@ -1056,6 +1056,15 @@
     border-radius: var(--radius-md);
 }
 
+/* "Run from" baseline picker — reuses .dash-controls chrome (see B2). Sits
+   above the Player A/B picker inside #whatif-body. */
+.whatif-baseline[hidden] { display: none; }
+.whatif-baseline select {
+    max-width: 100%;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .whatif-picker {
     display: flex;
     align-items: center;

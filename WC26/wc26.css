@@ -1,0 +1,112 @@
+/* wc26.css — WC26 (מונדיאל 2026) dashboard.
+   RTL Hebrew page that reuses the shared design system (variables/themes/MF).
+   This file holds ONLY: (1) RTL overrides for the MF left-align default,
+   (2) content styling for the three tables. Theme colors come from the shared
+   tokens, so every theme in the picker applies here unchanged.
+   Loaded AFTER mf.css so the alignment overrides win on equal specificity. */
+
+/* ── Page shell ─────────────────────────────────────────────────── */
+.page-header .subtitle { max-width: 40ch; margin-inline: auto; }
+
+.wc26-section-note {
+  margin: calc(-1 * var(--space-xs)) 0 var(--space-md);
+  font-size: var(--fs-085);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+/* ── RTL alignment — flip MF's Iron-Rule-7 left-align to start (right) ── */
+.wc26-table thead th,
+.wc26-table tbody td { text-align: right; }
+
+/* Numeric columns read best centered in a matrix; names stay at the start. */
+.wc26-table th.wc26-num,
+.wc26-table td.wc26-num,
+.wc26-table thead th:not(.wc26-name-col) { text-align: center; }
+
+.wc26-table .wc26-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wc26-name-cell { text-align: right; font-weight: 600; }
+
+.wc26-name { display: inline-flex; align-items: center; gap: 0.35em; }
+.wc26-medal { font-size: 1.05em; line-height: 1; }
+
+/* Sort affordance */
+.wc26-table thead th { cursor: pointer; }
+.wc26-arrow { font-size: 0.75em; opacity: 0.9; margin-inline-start: 0.15em; }
+.wc26-table thead th.sorted { background: var(--header-bg-hover); }
+
+/* ── Section 3: pre-match matrix ────────────────────────────────── */
+/* Two-row header: category label on top, actual result underneath. */
+.wc26-prematch thead th.wc26-cat { white-space: nowrap; }
+.wc26-prematch thead th.wc26-result-sub {
+  font-weight: 500;
+  font-size: var(--fs-075);
+  font-style: italic;
+  opacity: 0.85;
+  padding-top: 0;
+  white-space: nowrap;
+}
+
+.wc26-empty { color: var(--color-text-muted); }
+
+/* ── Sticky "#" position column (every table) ───────────────────────
+   Pinned to the RTL start (right) edge; shows 1→15 in display order for
+   any sort. `width:1%` shrinks it to its content. */
+.wc26-table thead th.wc26-pos-col,
+.wc26-table tbody td.wc26-pos-cell {
+  position: sticky;
+  inset-inline-start: 0;
+  width: 1%;
+  text-align: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.wc26-table thead th.wc26-pos-col {
+  z-index: 5;
+  background: var(--header-bg);
+  cursor: default;
+}
+.wc26-table thead th.wc26-pos-col:hover { background: var(--header-bg); }
+.wc26-table tbody td.wc26-pos-cell {
+  z-index: 3;
+  background: var(--color-inset);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+/* Section 3 matrix: pin the name column just inside the # column so both
+   stay visible while the wide matrix scrolls. --wc26-pos-w is the measured
+   width of the # column (set in wc26.js). */
+.wc26-prematch thead th.wc26-name-col,
+.wc26-prematch tbody td.wc26-name-cell {
+  position: sticky;
+  inset-inline-start: var(--wc26-pos-w, 3em);
+}
+.wc26-prematch thead th.wc26-name-col { z-index: 4; background: var(--header-bg); }
+.wc26-prematch tbody td.wc26-name-cell { z-index: 2; background: var(--color-inset); }
+
+/* Re-assert medal / hover tints on the pinned cells (higher specificity than
+   the generic medal rule so a pinned column matches its row). */
+.wc26-table tbody tr.rank-gold   td.wc26-pos-cell,
+.wc26-prematch tbody tr.rank-gold   td.wc26-name-cell { background: var(--color-gold-bg); }
+.wc26-table tbody tr.rank-silver td.wc26-pos-cell,
+.wc26-prematch tbody tr.rank-silver td.wc26-name-cell { background: var(--color-silver-bg); }
+.wc26-table tbody tr.rank-bronze td.wc26-pos-cell,
+.wc26-prematch tbody tr.rank-bronze td.wc26-name-cell { background: var(--color-bronze-bg); }
+.wc26-table tbody tr:hover td.wc26-pos-cell,
+.wc26-prematch tbody tr:hover td.wc26-name-cell { background: var(--color-hover); }
+.wc26-table tbody tr.rank-gold:hover   td.wc26-pos-cell,
+.wc26-prematch tbody tr.rank-gold:hover   td.wc26-name-cell { background: var(--color-gold-bg-hover); }
+.wc26-table tbody tr.rank-silver:hover td.wc26-pos-cell,
+.wc26-prematch tbody tr.rank-silver:hover td.wc26-name-cell { background: var(--color-silver-bg-hover); }
+.wc26-table tbody tr.rank-bronze:hover td.wc26-pos-cell,
+.wc26-prematch tbody tr.rank-bronze:hover td.wc26-name-cell { background: var(--color-bronze-bg-hover); }
+
+/* Drop-shadow on the innermost sticky column during horizontal scroll. */
+.wc26-wrap.is-scrolled-x .wc26-sticky-edge {
+  box-shadow: -6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}

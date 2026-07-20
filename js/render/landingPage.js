@@ -39,7 +39,7 @@ import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountPillTabs } from './subTabs.js';
 import { registerSearchAdapter } from './searchOverlay.js';
-import { scrollToClearingTopbar } from '../utils/scrollOffset.js';
+import { scrollToClearingTopbarSettled } from '../utils/scrollOffset.js';
 import { getInitials } from './playerHeader.js';
 import { langFlagsHtml, wireLangPopup } from '../utils/popupLang.js';
 
@@ -169,19 +169,17 @@ export async function renderLandingPage() {
             // corrected scroll already ran, silently overriding it. With no
             // hash left to chase, only our own scrollTo below ever runs.
             if (hashId) history.replaceState(history.state, '', location.pathname + location.search);
-            // Achievements / PR Leaders load their tables asynchronously and
-            // grow after first paint (see renderAchievementsSection /
-            // renderPRLeadersSection below) — scrolling before they resolve
-            // leaves the target drifting below the viewport top once they
-            // fill in. Wait for whichever of those sit above the target.
-            const needsAsyncWait = hashId === 'records-pr' || hashId === 'records-match' || hashId === 'records-league';
-            const ready = needsAsyncWait
-                ? Promise.allSettled(sortPresentTypes(presentTypes).map(t => buildAllTimeRankings(t)))
-                : Promise.resolve();
-            ready.then(() => requestAnimationFrame(() => {
+            // Achievements / PR Leaders / Match / League records build their
+            // tables in a later microtask than the data promise they await
+            // (renderAchievementsSection etc. below), so ANY section above the
+            // target can still grow taller after we first scroll — a one-shot
+            // scroll would land right and then get pushed down. scrollTo…Settled
+            // re-asserts until the document height stops changing, so we don't
+            // have to predict exactly when every section above finished growing.
+            requestAnimationFrame(() => {
                 const target = (hashId && document.getElementById(hashId)) || shell.root;
-                scrollToClearingTopbar(target);
-            }));
+                scrollToClearingTopbarSettled(target);
+            });
         }
 
         // Route renderers to their tab panel — each renderer keeps its existing signature.

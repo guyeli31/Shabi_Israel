@@ -30,17 +30,36 @@ export function initAdminPage(viewCallback) {
         return;
     } else {
         renderAdminShell();
-        const hash = (location.hash || '').replace('#', '');
-        const initial = VIEW_KEYS.includes(hash) ? hash : 'leagues';
-        navigateTo(initial);
+        // The hash may carry a sub-route after the view, e.g.
+        // #leagues/edit/<id>/rounds. The first segment picks the top-level view;
+        // the rest is handed to that view (only Leagues consumes it today) so a
+        // browser refresh restores deep state, not just the section.
+        const segments = (location.hash || '').replace(/^#/, '').split('/').filter(Boolean);
+        const initial = VIEW_KEYS.includes(segments[0]) ? segments[0] : 'leagues';
+        navigateTo(initial, { restore: true, subroute: segments.slice(1) });
     }
 }
 
 /**
  * Navigate to a view.
  */
-export function navigateTo(view) {
+export function navigateTo(view, opts = {}) {
     currentView = view;
+
+    // Mirror the active view into the URL hash so a browser Refresh restores the
+    // same section instead of snapping back to the default. initAdminPage() reads
+    // location.hash on load — this is the write half. replaceState (not pushState)
+    // keeps refresh-persistence without stacking a back-button entry per nav; same
+    // "reflect current view in the URL" pattern as appTabs' syncUrl().
+    //
+    // Two guards: on `restore` (page load) leave the hash exactly as-is so a view's
+    // own deep sub-route (e.g. #leagues/edit/<id>/rounds, written by the league
+    // manager) survives the reload. Otherwise compare the FULL hash so clicking a
+    // nav item from inside a deep sub-route collapses it back to just `#view`.
+    if (!opts.restore && (location.hash || '') !== `#${view}`) {
+        history.replaceState(null, '', `#${view}`);
+    }
+
     setTopbarSection(VIEW_TITLES[view] || view);
 
     // Update active nav item
@@ -56,7 +75,7 @@ export function navigateTo(view) {
     } else if (view === 'history') {
         renderHistoricalChanges(main);
     } else if (onNavigate) {
-        onNavigate(view, main);
+        onNavigate(view, main, opts.subroute || []);
     }
 }
 

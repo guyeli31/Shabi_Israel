@@ -356,6 +356,7 @@ function predictorPanel() {
                         <li>Already-played matches load with their real result and can be overridden.</li>
                         <li>Unplayed matches start as <i>Not Played</i> — pick a winner to lock the outcome.</li>
                         <li>Player B's search narrows to players who share a scheduled match with Player A.</li>
+                        <li><b>Run from</b> lets you start the scenario from an earlier saved version of the league instead of the latest state.</li>
                     </ul>
                     <p>The engine is the same as the real predictor above — only the inputs differ. Results are speculative and depend on your choices.</p>
                     </div>
@@ -366,11 +367,18 @@ function predictorPanel() {
                         <li>משחקים ששוחקו כבר נטענים עם התוצאה האמיתית שלהם וניתן לדרוס אותה.</li>
                         <li>משחקים שלא שוחקו מתחילים כ<i>לא שוחק</i> — בחרו מנצח כדי לקבוע את התוצאה.</li>
                         <li>החיפוש של שחקן B מצטמצם לשחקנים שיש להם משחק מתוזמן משותף עם שחקן A.</li>
+                        <li><b>הרצה מ־</b> מאפשרת להתחיל את התרחיש מגרסה שמורה קודמת של הליגה במקום מהמצב האחרון.</li>
                     </ul>
                     <p>מנוע החישוב זהה למנוע החיזוי האמיתי שלמעלה — רק הקלט שונה. התוצאות ספקולטיביות ותלויות בבחירות שלכם.</p>
                     </div>
                 </div>
                 <div id="whatif-body">
+                    <div class="whatif-baseline dash-controls" id="whatif-baseline-row" hidden>
+                        <label for="whatif-baseline-select">Run from</label>
+                        <button id="whatif-baseline-prev" type="button" title="Newer snapshot">&lsaquo;</button>
+                        <select id="whatif-baseline-select" title="Historical version to run the simulation from"></select>
+                        <button id="whatif-baseline-next" type="button" title="Older snapshot">&rsaquo;</button>
+                    </div>
                     <div class="whatif-picker">
                         <div class="whatif-combo">
                             <input type="text" id="whatif-input-a" class="whatif-input app-search-input" placeholder="Player A" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="whatif-opts-a">
@@ -756,13 +764,7 @@ function renderHistorical(ctx) {
     const nextBtn = document.getElementById('hist-next');
     const fullLink = document.getElementById('hist-to-full');
 
-    const updatePoints = getUpdatePoints(history); // descending, date+time
-    // Build options: "Current" first (always), then each historical update point
-    const currentLabel = lastModified
-        ? `Current (${formatLastModified(lastModified)})`
-        : 'Current';
-    const options = [{ value: '__current__', label: currentLabel }];
-    for (const p of updatePoints) options.push({ value: p.value, label: p.label });
+    const options = buildSnapshotOptions(history, lastModified);
 
     select.innerHTML = options.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
 
@@ -791,12 +793,18 @@ function renderHistorical(ctx) {
         drawHistTable(ctx, select.value);
     }
 
-    select.addEventListener('change', update);
+    // Log only USER-driven snapshot changes (not the initial update() below).
+    const trackSnapshot = () => {
+        const label = options[select.selectedIndex] ? options[select.selectedIndex].label : '';
+        window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `History view: ${label}` } }));
+    };
+
+    select.addEventListener('change', () => { update(); trackSnapshot(); });
     prevBtn.addEventListener('click', () => {
-        if (select.selectedIndex > 0) { select.selectedIndex--; update(); }
+        if (select.selectedIndex > 0) { select.selectedIndex--; update(); trackSnapshot(); }
     });
     nextBtn.addEventListener('click', () => {
-        if (select.selectedIndex < options.length - 1) { select.selectedIndex++; update(); }
+        if (select.selectedIndex < options.length - 1) { select.selectedIndex++; update(); trackSnapshot(); }
     });
 
     update();
@@ -806,6 +814,18 @@ function formatLastModified(s) {
     const d = new Date(s);
     return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
         + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+// Snapshot dropdown options shared by the Historical view (B2) and the What-If
+// baseline picker (B4): "Current (…)" first, then every historical update point
+// newest → oldest. `__current__` is the sentinel for the live/latest state.
+function buildSnapshotOptions(history, lastModified) {
+    const currentLabel = lastModified
+        ? `Current (${formatLastModified(lastModified)})`
+        : 'Current';
+    const options = [{ value: '__current__', label: currentLabel }];
+    for (const p of getUpdatePoints(history)) options.push({ value: p.value, label: p.label });
+    return options;
 }
 
 function drawHistTable(ctx, dateValue) {
@@ -1046,6 +1066,10 @@ function renderWhatIfSimulator(ctx) {
     const moeHost = document.getElementById('whatif-moe');
     const tableHost = document.getElementById('whatif-table');
     const expandBtn = document.getElementById('whatif-expand');
+    const baselineRow = document.getElementById('whatif-baseline-row');
+    const baselineSelect = document.getElementById('whatif-baseline-select');
+    const baselinePrev = document.getElementById('whatif-baseline-prev');
+    const baselineNext = document.getElementById('whatif-baseline-next');
 
     // Collapse toggle (shared section header)
     wireSectionCollapse(section, { defaultOpen: true, infoBtn });
@@ -1066,7 +1090,12 @@ function renderWhatIfSimulator(ctx) {
         opponentsOf.get(m.playerB).add(m.playerA);
     }
 
-    const allPlayersSorted = [...opponentsOf.keys()].filter(p => p !== 'Bye').sort();
+    // Sort by the DISPLAYED name, not the raw username key: in "full name"
+    // display mode displayPlayerName(p) differs from p, so a plain .sort() on
+    // the key left the dropdown looking unsorted. localeCompare orders Hebrew
+    // and Latin names correctly alphabetically.
+    const byDisplayName = (a, b) => displayPlayerName(a).localeCompare(displayPlayerName(b));
+    const allPlayersSorted = [...opponentsOf.keys()].filter(p => p !== 'Bye').sort(byDisplayName);
 
     // Custom combobox: clicking shows all options; typing narrows the list.
     // Replaces native <datalist>, which behaves poorly/inconsistently on mobile.
@@ -1157,7 +1186,7 @@ function renderWhatIfSimulator(ctx) {
     attachCombo(inputB, optsB, () => {
         const a = inputA.value.trim();
         if (a && opponentsOf.has(a)) {
-            return [...opponentsOf.get(a)].filter(p => p !== 'Bye' && p !== a).sort();
+            return [...opponentsOf.get(a)].filter(p => p !== 'Bye' && p !== a).sort(byDisplayName);
         }
         return allPlayersSorted;
     });
@@ -1167,6 +1196,91 @@ function renderWhatIfSimulator(ctx) {
 
     // Persist the "Show" (Top X) selection across re-runs of the simulation
     let lastTopX = 1;
+
+    // ── Historical baseline ────────────────────────────────────────────
+    // The simulation normally starts from the live/latest league state. The
+    // "Run from" picker lets the user rewind that starting point to any saved
+    // update-point (same snapshots as the Historical view / B2). computeBaseline
+    // returns the played matches AND the still-unplayed fixtures as of the chosen
+    // point; the staged what-if overrides are then applied on top when running.
+    function computeBaseline(value) {
+        if (!value || value === '__current__') {
+            const played = [...ctx.liveMatches];
+            const remaining = ctx.allMatchesIncUnplayed.filter(m => !m.played).slice();
+            return { value: '__current__', played, remaining, playedByKey: indexByKey(played) };
+        }
+        const played = getMatchesAsOf(ctx.history, value); // played as of this point
+        const playedKeys = new Set(played.map(m => canonKey(m.playerA, m.playerB)));
+        // Every scheduled fixture not yet played at this point becomes a remaining
+        // (unplayed) match, regardless of whether it has since been played.
+        const remaining = ctx.allMatchesIncUnplayed
+            .filter(m => !playedKeys.has(canonKey(m.playerA, m.playerB)))
+            .map(m => ({ ...m, played: false, scoreA: null, scoreB: null, prA: null, prB: null, luckA: null, luckB: null }));
+        return { value, played, remaining, playedByKey: indexByKey(played) };
+    }
+
+    function indexByKey(matches) {
+        const map = new Map();
+        for (const m of matches) map.set(canonKey(m.playerA, m.playerB), m);
+        return map;
+    }
+
+    // Played-state + real winner of a fixture AT THE CURRENT BASELINE, resolved
+    // relative to the user-entered A/B order. Used for the PLAYED/UNPLAYED badge
+    // and the initial forced result of a newly staged match.
+    function deriveBaselineState(a, b) {
+        const bm = baseline.playedByKey.get(canonKey(a, b));
+        const wasPlayed = !!bm && bm.scoreA != null && bm.scoreB != null;
+        let realWinner = null;
+        if (wasPlayed && !bm._draw && bm.scoreA !== bm.scoreB) {
+            const aWon = bm.scoreA > bm.scoreB;
+            realWinner = (aWon === (bm.playerA === a)) ? 'A' : 'B';
+        }
+        return { wasPlayed, realWinner };
+    }
+
+    let baseline = computeBaseline('__current__');
+
+    // Populate the picker with the same snapshots as the Historical view; hide
+    // the whole row when there's nothing to rewind to (no history yet).
+    const baselineOptions = buildSnapshotOptions(ctx.history, ctx.lastModified);
+    if (baselineOptions.length > 1) {
+        baselineSelect.innerHTML = baselineOptions
+            .map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
+        baselineRow.hidden = false;
+
+        const syncBaselineNav = () => {
+            const idx = baselineSelect.selectedIndex;
+            baselinePrev.disabled = idx <= 0;
+            baselineNext.disabled = idx >= baselineOptions.length - 1;
+        };
+
+        const onBaselineChange = () => {
+            baseline = computeBaseline(baselineSelect.value);
+            // Keep the user's chosen results, but refresh each staged row's
+            // played-state against the new baseline (badges + rollback warning).
+            for (const s of staged) {
+                const st = deriveBaselineState(s.a, s.b);
+                s.wasPlayed = st.wasPlayed;
+                s.realWinner = st.realWinner;
+            }
+            renderStaged();
+            output.hidden = true; // the shown result no longer matches the baseline
+            syncBaselineNav();
+            const label = baselineOptions[baselineSelect.selectedIndex]
+                ? baselineOptions[baselineSelect.selectedIndex].label : '';
+            window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `What if baseline: ${label}` } }));
+        };
+
+        baselineSelect.addEventListener('change', onBaselineChange);
+        baselinePrev.addEventListener('click', () => {
+            if (baselineSelect.selectedIndex > 0) { baselineSelect.selectedIndex--; onBaselineChange(); }
+        });
+        baselineNext.addEventListener('click', () => {
+            if (baselineSelect.selectedIndex < baselineOptions.length - 1) { baselineSelect.selectedIndex++; onBaselineChange(); }
+        });
+        syncBaselineNav();
+    }
 
     function findSchedule(a, b) {
         return scheduleByKey.get(canonKey(a, b)) || null;
@@ -1192,19 +1306,15 @@ function renderWhatIfSimulator(ctx) {
         const key = canonKey(a, b);
         if (staged.some(s => s.key === key)) { addErr.textContent = 'Match already added'; return; }
 
-        // Determine real result relative to the staged A/B (user-entered order)
-        let realWinner = null;
-        if (sched.played && !sched._draw) {
-            const aWonInSchedule = sched.scoreA > sched.scoreB;
-            const schedAIsUserA = sched.playerA === a;
-            realWinner = (aWonInSchedule === schedAIsUserA) ? 'A' : 'B';
-        }
+        // Played-state + real result are read from the selected baseline (which
+        // may be an earlier snapshot), not the always-current schedule.
+        const { wasPlayed, realWinner } = deriveBaselineState(a, b);
 
         staged.push({
             a, b, key,
             result: realWinner || 'NP',
             realWinner,
-            wasPlayed: !!sched.played
+            wasPlayed
         });
 
         inputA.value = '';
@@ -1288,9 +1398,9 @@ function renderWhatIfSimulator(ctx) {
         try {
             const matchLength = ctx.params.MatchLength || 7;
 
-            // Start from the real state
-            const simMatches = [...ctx.liveMatches];
-            const simRemaining = ctx.allMatchesIncUnplayed.filter(m => !m.played).slice();
+            // Start from the selected baseline (live state, or an earlier snapshot)
+            const simMatches = [...baseline.played];
+            const simRemaining = baseline.remaining.slice();
 
             const matchPredicate = (a, b) => (m) =>
                 (m.playerA === a && m.playerB === b) ||

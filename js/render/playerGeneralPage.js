@@ -719,7 +719,12 @@ function renderMatchup(panel, playerName, allRows) {
     });
 
     // Smart-search opponent list spans every league (lets you search anyone).
-    let allOpponents = opponents.map(o => o.opponent).sort((a, b) => a.localeCompare(b));
+    // Sort by the DISPLAYED name (displayPlayerName), not the raw username key:
+    // in "full name" mode the dropdown shows full names, so a key-order sort read
+    // as unsorted. Same fix as the What-If picker (dashboardPage.js).
+    const byOpponentDisplay = (a, b) =>
+        displayPlayerName(a, _allMeta[a]).localeCompare(displayPlayerName(b, _allMeta[b]));
+    let allOpponents = opponents.map(o => o.opponent).sort(byOpponentDisplay);
     loadAllLeagues().then(leagues => {
         const playerSet = new Set();
         for (const l of leagues) {
@@ -727,7 +732,7 @@ function renderMatchup(panel, playerName, allRows) {
                 if (p !== playerName) playerSet.add(p);
             }
         }
-        allOpponents = [...playerSet].sort((a, b) => a.localeCompare(b));
+        allOpponents = [...playerSet].sort(byOpponentDisplay);
     }).catch(() => { /* keep the faced-opponents fallback */ });
 
     function filterDropdown(query) {

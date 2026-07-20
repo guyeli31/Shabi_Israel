@@ -162,6 +162,12 @@
    .mf-wrap's (0,1,2), and the :hover pair is (0,3,2) against (0,2,3), classes
    being compared before elements — and unlike an id it can apply to the N
    per-session tables at once. device-unknown has no rule on purpose. */
+/* The "Leagues" tab glyph (tabIcons.js LEAGUE_GLYPH) is `display:block` for the
+   tab bar, where it lives inside an inline-flex `.app-tab-icon` wrapper. In the
+   click-log cell it's dropped straight next to the target text with no wrapper,
+   so `display:block` pushed the text onto its own line. Inline it here. */
+.log-table .app-tab-glyph { display: inline-block; vertical-align: -0.15em; }
+
 .log-table tr.device-desktop td { background: var(--color-gold-bg); }
 .log-table tr.device-mobile  td { background: var(--color-silver-bg); }
 .log-table tr.device-tablet  td { background: var(--color-bronze-bg); }

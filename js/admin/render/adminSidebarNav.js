@@ -89,11 +89,11 @@ export function buildAdminSidebarHtml(opts = {}) {
                     </div>
                 </div>
             </div>
-            <a href="index.html" class="site-nav-item" title="View Site">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12L12 3l9 9"/><path d="M5 10v10h14V10"/></svg>
-                <span class="site-nav-label">Home</span>
-            </a>
         </nav>
+        <a href="index.html" class="site-nav-item site-nav-item--footer" title="View Site">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12L12 3l9 9"/><path d="M5 10v10h14V10"/></svg>
+            <span class="site-nav-label">Home</span>
+        </a>
         <button class="site-sidebar-logout" id="admin-sidebar-logout" type="button">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
             <span>Logout</span>

@@ -272,10 +272,13 @@ export async function searchEntities(query, { leagueLimit = 5, playerLimit = 6 }
         const fullName = pLeagues[0]?.fullName || '';
         if (name.toLowerCase().includes(q) || fullName.toLowerCase().includes(q)) {
             players.push({ name, leagues: pLeagues, fullName });
-            if (players.length >= playerLimit) break;
         }
     }
-    return { leagues, players };
+    // Alphabetical A→Z by the displayed name (username), case-insensitive. The
+    // cap MUST come after the sort: breaking the loop at playerLimit returned
+    // the first N in index (discovery) order, not the first N alphabetically.
+    players.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    return { leagues, players: players.slice(0, playerLimit) };
 }
 
 /**

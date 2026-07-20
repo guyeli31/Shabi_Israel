@@ -304,8 +304,14 @@ document.addEventListener('click', (e) => {
     // plain <button> in the footer — matched by its stable data-action so any
     // privacy trigger is tracked, not just the current footer link.
     const privacyEl = e.target.closest('[data-action="privacy"]');
+    // Every "?" info trigger (`.predictor-tooltip`) across the site — the
+    // dashboard section explainers (Predictor, What If, PR-correlation …) and
+    // the landing luck popup. It's a <span>, so it matches none of the branches
+    // above; caught here generically and named by its own section heading, so
+    // any future "?" section is tracked with no extra wiring.
+    const infoEl = e.target.closest('.predictor-tooltip');
     const linkEl = e.target.closest('a');
-    if (!trackEl && !exportBtn && !tabEl && !menuEl && !actionBtn && !navArrowEl && !breadcrumbEl && !privacyEl && !linkEl) return;
+    if (!trackEl && !exportBtn && !tabEl && !menuEl && !actionBtn && !navArrowEl && !breadcrumbEl && !privacyEl && !infoEl && !linkEl) return;
 
     // The "Leagues" nav is a 2-level flyout (Leagues > Dashboard/Table >
     // <league name>). Only the final league selection is a real navigation —
@@ -355,6 +361,11 @@ document.addEventListener('click', (e) => {
         clickTarget = `Breadcrumb: ${labelOf(breadcrumbEl)}`;
     } else if (privacyEl) {
         clickTarget = 'Privacy: opened notice';
+    } else if (infoEl) {
+        // Name the "?" by its section heading (the "?" glyph lives inside it).
+        const heading = infoEl.closest('.app-section-h2, h2, h3, h4');
+        const name = heading ? labelOf(heading).replace(/[?\s]+$/, '').trim() : '';
+        clickTarget = `Info: ${name || 'section'}`;
     } else {
         let params;
         try { params = new URL(linkEl.getAttribute('href') || '', location.href).searchParams; } catch { params = new URLSearchParams(); }
@@ -386,4 +397,19 @@ document.addEventListener('click', (e) => {
 window.addEventListener('shabi:search-performed', (e) => {
     const { from_page, from_league_id, from_player, ...fields } = baseFields();
     send({ ...fields, event_type: 'click', click_target: e.detail.foundResults ? 'Search: results found' : 'Search: no results' });
+});
+
+/**
+ * Non-click interactions that still deserve a click-log entry — a dropdown /
+ * stepper change is not a DOM click the delegated listener above can catch. Used
+ * by the dashboard's Historical snapshot picker (B2) and the What-If baseline
+ * picker (B4). Same custom-event pattern as the search event above; the
+ * dispatcher owns the human-readable, non-identifying target string (a public
+ * snapshot label — same category of data as league/player names already stored).
+ */
+window.addEventListener('shabi:interaction', (e) => {
+    const target = String((e.detail && e.detail.target) || '').slice(0, 120);
+    if (!target) return;
+    const { from_page, from_league_id, from_player, ...fields } = baseFields();
+    send({ ...fields, event_type: 'click', click_target: target });
 });

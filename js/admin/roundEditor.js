@@ -34,6 +34,7 @@ export function renderRoundEditor(container, leagueId, refreshBadge) {
             <input type="text" id="round-filter-input" class="app-search-input" placeholder="Type player name…" autocomplete="off">
             <button type="button" class="btn btn-secondary btn-xs" id="round-filter-clear" style="margin-left:var(--space-xs)">Clear</button>
         </div>
+        <div id="round-bulk-bar" class="round-bulk-bar" hidden></div>
         <div id="round-pills-bar" class="round-pills-bar"></div>
         <div id="round-content"><div class="loading">Loading matches...</div></div>`;
 
@@ -168,6 +169,7 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
         container.querySelectorAll('.ff-wrap').forEach(w => attachStickyShadow(w));
         attachListeners(container, leagueId, refreshBadge, matchLength);
         if (root) attachRoundNav(root, container, roundStats);
+        if (root) attachBulkTechLoss(root, container, leagueId, matches, matchLength, refreshBadge);
     } catch (err) {
         container.innerHTML = `<div class="admin-msg admin-msg-error">${err.message}</div>`;
     }
@@ -234,6 +236,118 @@ function attachRoundNav(root, content, roundStats) {
     if (clearBtn) clearBtn.addEventListener('click', () => { input.value = ''; applyFilter(); input.focus(); });
 
     applyFilter();
+}
+
+/**
+ * Bulk "technical loss" bar. Appears only once the filter input EXACTLY names a
+ * player (the combobox pick sets input.value to the name), sitting between the
+ * filter and the round pills. One Save forfeits ALL of that player's matches —
+ * every match becomes a technical win for the opponent — staged in a single
+ * manual_overrides.json change for review before publishing. Matches involving
+ * 'Bye' are skipped (a forfeit against nobody is meaningless).
+ */
+function attachBulkTechLoss(root, content, leagueId, matches, matchLength, refreshBadge) {
+    const input = root.querySelector('#round-filter-input');
+    const bar = root.querySelector('#round-bulk-bar');
+    if (!input || !bar) return;
+
+    // Case-insensitive exact-name lookup (lowercased → canonical spelling).
+    const canonical = new Map();
+    for (const m of matches) {
+        canonical.set(m.playerA.toLowerCase(), m.playerA);
+        canonical.set(m.playerB.toLowerCase(), m.playerB);
+    }
+
+    function playerMatchesFor(player) {
+        return matches.filter(m =>
+            (m.playerA === player || m.playerB === player) &&
+            m.playerA !== 'Bye' && m.playerB !== 'Bye');
+    }
+
+    function sync() {
+        const player = canonical.get(input.value.trim().toLowerCase());
+        const pMatches = player ? playerMatchesFor(player) : [];
+        if (!player || pMatches.length === 0) { bar.hidden = true; bar.innerHTML = ''; return; }
+        const n = pMatches.length;
+        bar.hidden = false;
+        bar.innerHTML = `
+            <span class="round-bulk-text">
+                Technical loss — forfeit <strong>${esc(player)}</strong>'s
+                ${n} match${n === 1 ? '' : 'es'} to the opponent.
+            </span>
+            <button type="button" class="btn btn-primary btn-xs round-bulk-save">Save all ${n}</button>`;
+
+        bar.querySelector('.round-bulk-save').addEventListener('click', async () => {
+            if (!confirm(`Forfeit all ${n} of ${player}'s match${n === 1 ? '' : 'es'} as a technical loss (opponent wins each)?\n\nThis stages ${n} override${n === 1 ? '' : 's'} for review before publishing.`)) return;
+            const btn = bar.querySelector('.round-bulk-save');
+            btn.disabled = true;
+            try {
+                await stageBulkTechLoss(leagueId, player, pMatches, refreshBadge);
+                applyTechLossToDom(content, player, matchLength);
+                showMsg(`Staged technical loss for all ${n} of ${player}'s match${n === 1 ? '' : 'es'}.`, 'success');
+            } catch (err) {
+                btn.disabled = false;
+                showMsg(`Bulk technical loss failed: ${err.message}`, 'error');
+            }
+        });
+    }
+
+    input.addEventListener('input', sync);
+    sync();
+}
+
+/**
+ * Stage a technical_win (winner = opponent) for every one of a player's matches,
+ * merged into the league's existing staged/published overrides and written as a
+ * single staged manual_overrides.json change.
+ */
+async function stageBulkTechLoss(leagueId, player, playerMatches, refreshBadge) {
+    const encoded = encodeURIComponent(leagueId);
+    const path = `leagues/${encoded}/manual_overrides.json`;
+    let overrides = [];
+    const staged = getStagedContent(path);
+    if (staged) {
+        try { overrides = JSON.parse(staged).overrides || []; } catch { }
+    } else {
+        try { overrides = await loadOverrides(leagueId); } catch { }
+    }
+    const ts = new Date().toISOString();
+    for (const m of playerMatches) {
+        const winner = m.playerA === player ? m.playerB : m.playerA;
+        const override = { type: 'technical_win', playerA: m.playerA, playerB: m.playerB, winner, reason: `Technical win: ${winner}`, timestamp: ts };
+        const key = pairKey(m.playerA, m.playerB);
+        const idx = overrides.findIndex(o => pairKey(o.playerA, o.playerB) === key);
+        if (idx !== -1) overrides[idx] = override; else overrides.push(override);
+    }
+    await stageManualOverrides(leagueId, overrides);
+    if (refreshBadge) refreshBadge();
+}
+
+/**
+ * Reflect a just-staged bulk technical loss in the already-rendered DOM (across
+ * all rounds), mirroring a per-match technical-win Save: opponent gets the full
+ * match length, the player 0, PR/Luck cleared, block marked overridden + saved.
+ */
+function applyTechLossToDom(content, player, matchLength) {
+    const today = new Date().toISOString().slice(0, 10);
+    content.querySelectorAll('tbody.match-block').forEach(block => {
+        const pa = block.dataset.pa, pb = block.dataset.pb;
+        if (pa !== player && pb !== player) return;
+        const winner = pa === player ? pb : pa;
+        const set = (sel, v) => { const el = block.querySelector(sel); if (el) el.value = v; };
+        set('[data-field="prA"]', ''); set('[data-field="luckA"]', ''); set('[data-field="scoreA"]', winner === pa ? matchLength : 0);
+        set('[data-field="prB"]', ''); set('[data-field="luckB"]', ''); set('[data-field="scoreB"]', winner === pb ? matchLength : 0);
+        const dateEl = block.querySelector('.match-edited-date');
+        if (dateEl) dateEl.value = today;
+        block.className = 'match-block match-block-overridden';
+        delete block.dataset.pendingType;
+        delete block.dataset.pendingWinner;
+        block._orig = snapshotBlock(block);
+        const saveBtn = block.querySelector('[data-save]');
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.classList.remove('btn-save-ready'); }
+        const revertBtn = block.querySelector('[data-revert]');
+        if (revertBtn) revertBtn.disabled = true;
+    });
 }
 
 function attachListeners(container, leagueId, refreshBadge, matchLength) {

@@ -78,13 +78,44 @@ async function fileToPngBase64(file) {
 /**
  * Main entry: render the leagues admin view.
  */
-export async function renderLeagueAdmin(container, refreshBadge) {
+/**
+ * Reflect the Leagues sub-navigation in the URL hash so a browser refresh
+ * restores it (adminPage.js parses this back into a subroute on load):
+ *   setLeaguesHash()                      → #leagues                   (list)
+ *   setLeaguesHash('new')                 → #leagues/new               (add form)
+ *   setLeaguesHash('edit', id [, subtab]) → #leagues/edit/<id>[/<subtab>]
+ * The league id is URL-encoded (folder names contain spaces). replaceState so we
+ * don't stack a back-button entry per drill-in.
+ */
+function setLeaguesHash(kind, leagueId, subtab) {
+    const segs = ['leagues'];
+    if (kind === 'new') segs.push('new');
+    else if (kind === 'edit' && leagueId) {
+        segs.push('edit', encodeURIComponent(leagueId));
+        if (subtab) segs.push(subtab);
+    }
+    const h = '#' + segs.join('/');
+    if (location.hash !== h) history.replaceState(null, '', h);
+}
+
+export async function renderLeagueAdmin(container, refreshBadge, subroute = []) {
     refreshBadgeFn = refreshBadge;
     container.innerHTML = '<h1>Leagues</h1><div class="loading">Loading leagues...</div>';
 
     try {
         const displayOrder = await loadLeagueOrder();
         const folderNames = displayOrder.map(title => title.replace(' - ', ' '));
+
+        // Restore a deep sub-route from the URL (see setLeaguesHash): the
+        // Add-League form, or editing a specific league (optionally with a
+        // Match-Results sub-tab open). Falls through to the list if the id is
+        // unknown. The hash is already correct here (it's where subroute came
+        // from), so these restore paths don't rewrite it.
+        if (subroute[0] === 'new') { renderAddLeagueForm(container, displayOrder); return; }
+        if (subroute[0] === 'edit' && subroute[1]) {
+            const id = decodeURIComponent(subroute[1]);
+            if (folderNames.includes(id)) { renderEditLeague(container, id, displayOrder, subroute[2]); return; }
+        }
 
         const leagues = await Promise.all(
             folderNames.map(async (id, i) => {
@@ -151,12 +182,16 @@ function renderLeagueList(container, leagues, displayOrder) {
 
     // Add league
     document.getElementById('add-league-btn').addEventListener('click', () => {
+        setLeaguesHash('new');
         renderAddLeagueForm(container, displayOrder);
     });
 
     // Edit buttons
     container.querySelectorAll('[data-edit]').forEach(btn => {
-        btn.addEventListener('click', () => renderEditLeague(container, btn.dataset.edit, displayOrder));
+        btn.addEventListener('click', () => {
+            setLeaguesHash('edit', btn.dataset.edit);
+            renderEditLeague(container, btn.dataset.edit, displayOrder);
+        });
     });
 
     // Delete buttons
@@ -166,6 +201,7 @@ function renderLeagueList(container, leagues, displayOrder) {
             const title = btn.dataset.title;
             if (confirm(`Delete league "${id}"? This will remove all league files.`)) {
                 stageDeleteLeague(id, title, displayOrder);
+                setLeaguesHash();
                 renderLeagueAdmin(container, refreshBadgeFn);
             }
         });
@@ -359,7 +395,7 @@ async function renderAddLeagueForm(container, displayOrder) {
     });
 
     // Cancel
-    const cancel = () => renderLeagueAdmin(container, refreshBadgeFn);
+    const cancel = () => { setLeaguesHash(); renderLeagueAdmin(container, refreshBadgeFn); };
     document.getElementById('cancel-new-league').addEventListener('click', cancel);
     document.getElementById('cancel-new-league-2').addEventListener('click', cancel);
 
@@ -533,7 +569,7 @@ async function renderAddLeagueForm(container, displayOrder) {
 
         await stageAddLeague(name, type, displayOrder, options);
         showMsg('add-msg', `League "${name}" staged. Go to Pending Changes to publish.`, 'success');
-        setTimeout(() => renderLeagueAdmin(container, refreshBadgeFn), 1200);
+        setTimeout(() => { setLeaguesHash(); renderLeagueAdmin(container, refreshBadgeFn); }, 1200);
     });
 }
 
@@ -759,7 +795,7 @@ async function stageDeleteLeague(leagueId, title, displayOrder) {
 
 // ---- Edit League ----
 
-async function renderEditLeague(container, leagueId, displayOrder) {
+async function renderEditLeague(container, leagueId, displayOrder, openSubtab) {
     container.innerHTML = '<h1>Edit League</h1><div class="loading">Loading...</div>';
 
     try {
@@ -776,7 +812,7 @@ async function renderEditLeague(container, leagueId, displayOrder) {
             players = [...allPlayers].sort();
         } catch { /* no CSV yet */ }
 
-        renderEditLeagueForm(container, leagueId, params, players, displayOrder);
+        renderEditLeagueForm(container, leagueId, params, players, displayOrder, openSubtab);
     } catch (err) {
         container.innerHTML = `<h1>Edit League</h1><div class="admin-msg admin-msg-error">${err.message}</div>`;
     }
@@ -812,7 +848,7 @@ function wireDirtySave(scope, saveBtn) {
     };
 }
 
-function renderEditLeagueForm(container, leagueId, params, players, displayOrder) {
+function renderEditLeagueForm(container, leagueId, params, players, displayOrder, openSubtab) {
     const p = params;
     const running = p.Running === true;
     const hidden = p.Hidden === true;
@@ -942,7 +978,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
 
     // Match Results sub-tabs — same pattern as dashboard "Remaining Matches" tabs.
     // Round Editor renders Table F2 for ALL leagues; manual overrides win over CSV.
-    setupMatchResultsTabs(leagueId, params, refreshBadgeFn);
+    setupMatchResultsTabs(leagueId, params, refreshBadgeFn, openSubtab);
 
     // Collapsible section headers (League Settings / Match Results / Players).
     // Shared mechanism (css/sections.css + sectionCollapse.js), identical to the
@@ -974,6 +1010,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
 
     // Back
     document.getElementById('back-to-leagues').addEventListener('click', () => {
+        setLeaguesHash();
         renderLeagueAdmin(container, refreshBadgeFn);
     });
 
@@ -1357,7 +1394,7 @@ function showMsg(elementId, message, type) {
  * Round Editor opens by default. Tabs follow the same pattern as the dashboard
  * "Remaining Matches" sub-tabs (one panel open at a time; click again to close).
  */
-function setupMatchResultsTabs(leagueId, params, refreshBadge) {
+function setupMatchResultsTabs(leagueId, params, refreshBadge, openSubtab) {
     const bar = document.getElementById('match-tab-bar');
     if (!bar) return;
 
@@ -1367,11 +1404,22 @@ function setupMatchResultsTabs(leagueId, params, refreshBadge) {
         tabs.push({ id: 'match-panel-overrides', label: 'View Overrides' });
     }
 
+    // URL sub-tab slug ⇄ panel id, so the open sub-tab round-trips through the hash.
+    const SLUG_TO_PANEL = { rounds: 'match-panel-rounds', upload: 'match-panel-upload', overrides: 'match-panel-overrides' };
+    const PANEL_TO_SLUG = { 'match-panel-rounds': 'rounds', 'match-panel-upload': 'upload', 'match-panel-overrides': 'overrides' };
+    // Honour a restored sub-tab from the URL, but only if it's actually available
+    // (e.g. a manual-entry league has no Upload/Overrides tabs) — else default to
+    // the Round Editor.
+    const requested = SLUG_TO_PANEL[openSubtab];
+    const defaultOpenId = tabs.some(t => t.id === requested) ? requested : 'match-panel-rounds';
+
     // Shared accordion sub-tabs (one open at a time; Round Editor open by default).
     mountAccordionTabs(bar, {
         tabs,
-        defaultOpenId: 'match-panel-rounds',
+        defaultOpenId,
         onOpen: (panelId, panel) => {
+            // Keep the URL's sub-tab segment in sync so a refresh reopens this one.
+            setLeaguesHash('edit', leagueId, PANEL_TO_SLUG[panelId]);
             if (panelId === 'match-panel-rounds') {
                 if (!panel._built) { panel._built = true; renderRoundEditor(panel, leagueId, refreshBadge); }
             } else if (panelId === 'match-panel-upload') {

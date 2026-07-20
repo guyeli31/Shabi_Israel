@@ -1330,6 +1330,37 @@ table.font-large { font-size: var(--fs-093); }
     gap: var(--space-xs);
     margin-bottom: var(--space-md);
 }
+
+/* ---- Bulk technical-loss bar (F3 Round Editor) ----
+   Appears only when the filter names a single player; forfeits all their
+   matches in one staged action. A warning-tinted notice so a destructive
+   bulk action reads distinctly from the neutral filter/pills chrome above
+   and below it. Reuses existing tokens — no new colour token needed. */
+.round-bulk-bar {
+    display: flex;
+    flex-wrap: wrap;
+    /* NB: an explicit display wins over the `hidden` attribute's display:none,
+       so hidden must be re-asserted or the bar shows with no player selected. */
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--color-warning);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface));
+}
+.round-bulk-bar[hidden] {
+    display: none;
+}
+.round-bulk-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--fs-085);
+    color: var(--color-text-secondary);
+}
+.round-bulk-text strong {
+    color: var(--color-text);
+}
 .round-pill {
     padding: 4px 14px;
     border: 1px solid var(--color-border);
