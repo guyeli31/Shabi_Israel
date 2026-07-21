@@ -89,6 +89,22 @@ button, input, select, textarea {
     color: var(--color-bg);
 }
 
+/* Flag + name on one row (player-name pickers). Flag styling comes from the
+   shared .search-flag rule in navigation.css. */
+.app-combo-option--flag {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    white-space: normal;
+}
+.app-combo-option-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .page-container {
     max-width: 1100px;
     margin: 0 auto;

@@ -30,10 +30,11 @@
 | B2 | Historical view | `.dash-table` |
 | B3 | Championship Predictor | `.dash-table` |
 | B4 | What If Simulator | `.dash-table.whatif-table` |
-| B5 | Rounds | `.dash-table` |
-| B6a | All Remaining | `.dash-table` |
-| B6b | Remaining Report | `.dash-table player-remaining-table` |
-| B6c | Remaining Per Player | `.rem-b6c-table` |
+| B5 | Played Matches | `.dash-table` (in `.rounds-scroll-wrap`) |
+| B6 | Rounds | `.dash-table` |
+| B7a | All Remaining | `.dash-table` |
+| B7b | Remaining Report | `.dash-table player-remaining-table` |
+| B7c | Remaining Per Player | `.rem-b6c-table` (legacy class stem) |
 
 קובץ רינדור: [js/render/dashboardPage.js](../js/render/dashboardPage.js)
 

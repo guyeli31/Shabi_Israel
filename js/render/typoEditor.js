@@ -85,7 +85,7 @@ const GROUPS = [
     { id: 'a5-table', pages: ['index'], tier: 't6', bold: false, label: 'A5 — Match Records',      sel: '[data-mf-table-id="A5"] th, [data-mf-table-id="A5"] td', isTable: true, tableSel: '[data-mf-table-id="A5"]' },
     { id: 'a6-table', pages: ['index'], tier: 't6', bold: false, label: 'A6 — League Records',     sel: '[data-mf-table-id="A6"] th, [data-mf-table-id="A6"] td', isTable: true, tableSel: '[data-mf-table-id="A6"]' },
 
-    // B1-B6 — dashboard
+    // B1-B7 — dashboard
     // NOTE: dash-card-value/-label/-section-h2 were removed — they duplicated
     // stat-numbers / stat-labels / section-heading and produced cascade conflicts.
     { id: 'dash-controls',     pages: ['league'], tier: 't7', bold: false, label: 'Dashboard controls',      sel: '.dash-controls label, .dash-controls select, .dash-controls button' },
@@ -93,10 +93,11 @@ const GROUPS = [
     { id: 'b2-table',          pages: ['league'], tier: 't5', bold: false, label: 'B2 — Historical view',   sel: '[data-mf-table-id="B2"] th, [data-mf-table-id="B2"] td', isTable: true, tableSel: '[data-mf-table-id="B2"]' },
     { id: 'b3-table',          pages: ['league'], tier: 't5', bold: false, label: 'B3 — Championship Predictor', sel: '[data-mf-table-id="B3"] th, [data-mf-table-id="B3"] td', isTable: true, tableSel: '[data-mf-table-id="B3"]' },
     { id: 'b4-table',          pages: ['league'], tier: 't5', bold: false, label: 'B4 — What If Simulator', sel: '[data-mf-table-id="B4"] th, [data-mf-table-id="B4"] td', isTable: true, tableSel: '[data-mf-table-id="B4"]' },
-    { id: 'b5-table',          pages: ['league'], tier: 't5', bold: false, label: 'B5 — Rounds',            sel: '[data-mf-table-id="B5"] th, [data-mf-table-id="B5"] td', isTable: true, tableSel: '[data-mf-table-id="B5"]' },
-    { id: 'b6a-table',         pages: ['league'], tier: 't5', bold: false, label: 'B6a — All Remaining',    sel: '[data-mf-table-id="B6a"] th, [data-mf-table-id="B6a"] td', isTable: true, tableSel: '[data-mf-table-id="B6a"]' },
-    { id: 'b6b-table',         pages: ['league'], tier: 't5', bold: false, label: 'B6b — Remaining Per Player', sel: '[data-mf-table-id="B6b"] th, [data-mf-table-id="B6b"] td', isTable: true, tableSel: '[data-mf-table-id="B6b"]' },
-    { id: 'b6c-table',         pages: ['league'], tier: 't5', bold: false, label: 'B6c — Unplayed Opponents', sel: '[data-mf-table-id="B6c"] th, [data-mf-table-id="B6c"] td', isTable: true, tableSel: '[data-mf-table-id="B6c"]' },
+    { id: 'b5-table',          pages: ['league'], tier: 't5', bold: false, label: 'B5 — Played Matches',    sel: '[data-mf-table-id="B5"] th, [data-mf-table-id="B5"] td', isTable: true, tableSel: '[data-mf-table-id="B5"]' },
+    { id: 'b6-table',          pages: ['league'], tier: 't5', bold: false, label: 'B6 — Rounds',            sel: '[data-mf-table-id="B6"] th, [data-mf-table-id="B6"] td', isTable: true, tableSel: '[data-mf-table-id="B6"]' },
+    { id: 'b7a-table',         pages: ['league'], tier: 't5', bold: false, label: 'B7a — All Remaining',    sel: '[data-mf-table-id="B7a"] th, [data-mf-table-id="B7a"] td', isTable: true, tableSel: '[data-mf-table-id="B7a"]' },
+    { id: 'b7b-table',         pages: ['league'], tier: 't5', bold: false, label: 'B7b — Remaining Per Player', sel: '[data-mf-table-id="B7b"] th, [data-mf-table-id="B7b"] td', isTable: true, tableSel: '[data-mf-table-id="B7b"]' },
+    { id: 'b7c-table',         pages: ['league'], tier: 't5', bold: false, label: 'B7c — Unplayed Opponents', sel: '[data-mf-table-id="B7c"] th, [data-mf-table-id="B7c"] td', isTable: true, tableSel: '[data-mf-table-id="B7c"]' },
     { id: 'forward-link',      pages: ['league', 'league_table'], tier: 't7', bold: false, label: 'Forward link',  sel: '.forward-link' },
     { id: 'league-nav-arrow',  pages: ['league', 'league_table'], tier: 't4', bold: false, label: 'League nav arrow', sel: '.league-nav .nav-arrow' },
 

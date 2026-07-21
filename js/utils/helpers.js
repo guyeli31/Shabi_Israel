@@ -19,6 +19,16 @@ export function flagUrl(countryCode) {
     return `assets/flags/${countryCode}.png`;
 }
 
+/**
+ * Flag <img> for the smart-search player lists (flyout + mobile sheet + landing).
+ * Decorative (aria-hidden — the name carries the meaning); sized in `em` by the
+ * shared `.search-flag` rule so it tracks the surrounding font size.
+ */
+export function searchFlagHtml(flagCode) {
+    if (!flagCode) return '';
+    return `<img class="search-flag" src="${flagUrl(flagCode)}" alt="" aria-hidden="true">`;
+}
+
 // URL helpers for the 4 entity pages. Names match the page filenames.
 // Rename history (2026-06-20): dashboardUrl→leagueUrl, leagueUrl→leagueTableUrl,
 // playerUrl→playerLeagueUrl, playerGeneralUrl→playerUrl.

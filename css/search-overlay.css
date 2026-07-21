@@ -140,8 +140,55 @@
     color: var(--color-text-secondary);
 }
 
-/* Stop the page behind the sheet from scrolling while it's open. */
-html.search-sheet-open,
+/* Country flag shown just left of a player name in every player list — the
+   smart-search flyout/sheet, the What-If pickers, the admin comboboxes and the
+   admin player search. Lives here (not navigation.css) because BOTH the public
+   site and admin.html load search-overlay.css, whereas admin never loads
+   navigation.css. em-based so it tracks the surrounding font size; horizontal
+   spacing comes from each row's own flex `gap` (no ad-hoc margin). */
+:is(.nav-search-results, .search-sheet-results, .whatif-options,
+    .app-combo-dropdown, .player-search-results, .player-autocomplete) .search-flag {
+    flex-shrink: 0;
+    height: 1.05em;
+    width: auto;
+    border-radius: 0.15em;
+    object-fit: contain;
+    image-rendering: auto;
+    align-self: center;
+}
+
+/* Trailing pill (What-If Player B: WON / LOST / DREW / NOT-PLAYED). */
+.search-sheet-badge {
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-068);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+.search-sheet-badge--won {
+    background: color-mix(in srgb, var(--color-win) 15%, transparent);
+    color: var(--color-win);
+}
+.search-sheet-badge--lost {
+    background: color-mix(in srgb, var(--color-loss) 15%, transparent);
+    color: var(--color-loss);
+}
+.search-sheet-badge--unplayed,
+.search-sheet-badge--drew {
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--color-text-secondary);
+}
+
+/* Lock the page behind the sheet while keeping its scroll position. We pin
+   <body> (NOT overflow:hidden on <html>, which collapses the page to the top on
+   some mobile browsers); JS sets `body.style.top` to the negated scrollY and
+   restores it on close. */
 html.search-sheet-open body {
+    position: fixed;
+    left: 0;
+    right: 0;
+    width: 100%;
     overflow: hidden;
 }

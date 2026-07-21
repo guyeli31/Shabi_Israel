@@ -659,12 +659,13 @@ const clickColumns = ({ withSession = false } = {}) => [
     { key: 'date', label: 'Date', render: (r) => escapeHtml(formatEventTime(r.date)) },
     ...(withSession ? [{ key: 'session', label: 'Session ID', render: (r) => sessionCell(r) }] : []),
     { key: 'page', label: 'Page', render: (r) => escapeHtml(r.page) },
-    // &nbsp; (not a plain space) after the icon so it never orphans from its
-    // label onto the line above — the icon can be a block-ish inline SVG glyph
-    // (TAB_ICONS, e.g. "Tab: leagues"), and a normal space there is a break point
-    // that drops the text below the icon in a narrow cell. Only the icon↔label
-    // seam is glued; a long label (e.g. a "What if:" summary) still wraps normally.
-    { key: 'target', label: 'Click target', render: (r) => `${r.icon ? r.icon + '&nbsp;' : ''}${escapeHtml(r.target)}` },
+    // Wrap icon+label in a nowrap span so the icon never orphans onto its own
+    // line. A plain &nbsp; is NOT enough here (it was tried and verified to fail):
+    // the icon can be an inline-block SVG glyph (TAB_ICONS, e.g. "Tab: leagues"),
+    // and a no-break space only glues text-to-text — it does not suppress the
+    // break between an ATOMIC INLINE (the SVG) and the text after it. nowrap keeps
+    // the whole cell on one line; long labels ride the .mf-wrap horizontal scroll.
+    { key: 'target', label: 'Click target', render: (r) => `<span class="ana-click-target">${r.icon ? r.icon + ' ' : ''}${escapeHtml(r.target)}</span>` },
     { key: 'device', label: 'Device', render: (r) => escapeHtml(r.device) },
 ];
 
@@ -718,23 +719,17 @@ function renderClicksLog(section, clicksLog, sessions) {
     });
 }
 
-// Synthetic icons for the two non-click event types, which only ever appear in
-// a session's timeline. Kept out of CLICK_TYPE_ICONS, which must go on meaning
-// exactly "js/analytics.js's real click_target vocabulary" and nothing else.
-const EVENT_TYPE_ICONS = { pageview: '👁️', duration: '⏱️' };
-
-/** One timeline event in the all-clicks table's own row shape, so both feed the
- *  same columns. `device` comes from the SESSION: device_type is constant within
- *  a visit (one browser, one tab), which is why timeline rows don't carry it. */
+/** One CLICK in the all-clicks table's own row shape, so both feed the same
+ *  columns. The session timeline is clicks-only (see renderSessions), so this
+ *  only ever formats a click — no pageview/duration branch. `device` comes from
+ *  the SESSION: device_type is constant within a visit (one browser, one tab),
+ *  which is why timeline rows don't carry it. */
 function timelineRow(e, sessionDevice) {
-    const isClick = e.event_type === 'click';
     return {
         date: new Date(e.created_at),
         page: contextLabel(e.page, e.league_id, e.player),
-        target: isClick ? (e.click_target || '')
-            : e.event_type === 'duration' ? `Dwell: ${formatSpan(e.duration_ms || 0)}`
-                : 'Pageview',
-        icon: isClick ? clickIcon(e.click_target || '') : (EVENT_TYPE_ICONS[e.event_type] || ''),
+        target: e.click_target || '',
+        icon: clickIcon(e.click_target || ''),
         device: sessionDevice || 'unknown',
     };
 }
@@ -784,19 +779,23 @@ function renderSessions(section, sessions) {
             const s = sessions[i];
             const timeline = s.timeline || [];
             const body = el.querySelector('.analytics-session-body');
-            // `duration` (Dwell) events are a per-page timer, not an interaction —
-            // the visit's total dwell is already the card head's own span, so a
-            // Dwell row here is redundant noise. Drop them; keep pageviews/clicks.
-            const events = timeline.filter((e) => e.event_type !== 'duration');
+            // Clicks ONLY. Pageview and Dwell rows are both non-interactions: the
+            // visit's navigation is already told by the card head's entry→exit
+            // route and its view count, and its total dwell by the head's span, so
+            // listing every page-view/timer here is redundant noise. What's left
+            // that a header can't summarise is the actual interactions — the
+            // clicks — so the trace is exactly those. A pure-browse visit (no
+            // clicks) shows the empty note below, which is itself the signal.
+            const events = timeline.filter((e) => e.event_type === 'click');
             // Same columns as the all-clicks table, minus Session ID (constant
             // here); ascending, because a trace is read forwards.
             renderLogTable(body, events.map((e) => timelineRow(e, s.device_type)),
-                clickColumns(), { emptyText: 'No events.', sort: { key: 'date', dir: 'asc' } });
-            // event_count is counted over the whole visit server-side, so it
-            // still reports the true size when the timeline itself was capped.
-            if (timeline.length < s.event_count) {
+                clickColumns(), { emptyText: 'No clicks in this visit.', sort: { key: 'date', dir: 'asc' } });
+            // click_count is counted over the WHOLE visit server-side, so if the
+            // 500-event timeline cap dropped some clicks, this still flags it.
+            if (events.length < s.click_count) {
                 body.insertAdjacentHTML('beforeend',
-                    `<p class="muted">Showing the first ${timeline.length} of ${s.event_count} events.</p>`);
+                    `<p class="muted">Showing the first ${events.length} of ${s.click_count} clicks.</p>`);
             }
         });
     });

@@ -163,6 +163,13 @@ function renderList(items) {
             li.appendChild(icon);
         }
 
+        // Optional country flag, immediately left of the name (player lists).
+        if (item.flagHtml) {
+            const tmp = document.createElement('template');
+            tmp.innerHTML = item.flagHtml.trim();
+            if (tmp.content.firstChild) li.appendChild(tmp.content.firstChild);
+        }
+
         const text = document.createElement('span');
         text.className = 'search-sheet-option-text';
         const name = document.createElement('span');
@@ -176,6 +183,16 @@ function renderList(items) {
             text.appendChild(sub);
         }
         li.appendChild(text);
+
+        // Optional trailing pill (What-If Player B: WON / LOST / DREW / NOT-PLAYED).
+        // `kind` names the modifier class directly (css/search-overlay.css).
+        if (item.badge) {
+            const kind = /^[a-z]+$/.test(item.badge.kind || '') ? item.badge.kind : 'unplayed';
+            const badge = document.createElement('span');
+            badge.className = `search-sheet-badge search-sheet-badge--${kind}`;
+            badge.textContent = item.badge.text;
+            li.appendChild(badge);
+        }
 
         // Selection is handled by the ONE delegated `pointerup` on the sheet
         // (see buildSheet) — it reads `li._item`. No per-row listener needed.
@@ -209,20 +226,33 @@ function openOverlay(srcInput) {
     window.visualViewport?.addEventListener('resize', pinToViewport);
     window.visualViewport?.addEventListener('scroll', pinToViewport);
 
+    // Lock the page WITHOUT losing its scroll position. Setting `overflow:hidden`
+    // on the scrolling root (<html>) collapses the page to the top on some mobile
+    // browsers — the "field jumped the page" bug. Instead we pin <body> with a
+    // negative top equal to the current scroll, then restore it on close, so the
+    // view stays exactly where it was.
+    savedScrollY = window.scrollY || window.pageYOffset || 0;
+    document.body.style.top = `-${savedScrollY}px`;
+
     sheet.hidden = false;
     document.documentElement.classList.add('search-sheet-open');
     // Focus the 16px input — large enough that mobile browsers won't zoom.
     sheetInput.focus();
-    if (sheetInput.value) refreshResults();
+    // Show the full option list immediately on open (empty query → all items),
+    // so tapping a picker behaves like the desktop combo's click-to-browse.
+    refreshResults();
 }
 
 let lastCloseTs = 0;
+let savedScrollY = 0;
 function closeOverlay() {
     if (!sheet || sheet.hidden) return;
     sheetInput.blur();                 // dismiss the keyboard → viewport restores
     sheet.hidden = true;
     lastCloseTs = Date.now();          // guard against a ghost-click reopen (below)
     document.documentElement.classList.remove('search-sheet-open');
+    document.body.style.top = '';
+    window.scrollTo(0, savedScrollY);  // restore the exact pre-open scroll position
     window.visualViewport?.removeEventListener('resize', pinToViewport);
     window.visualViewport?.removeEventListener('scroll', pinToViewport);
     currentAdapter = null;

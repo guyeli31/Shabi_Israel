@@ -13,6 +13,7 @@ import { addChange, getStagedContent, getChanges } from './stagingStore.js';
 import { BMAB_TITLES, bmabSelectOptionsHtml, COUNTRIES, getChampionshipTooltip } from '../data/titleConstants.js';
 import { filePickerHTML } from './render/formControls.js';
 import { mountCombobox } from '../utils/combobox.js';
+import { getFlagCode, searchFlagHtml } from '../utils/helpers.js';
 
 const KNOWN_FLAGS = ['BE', 'IL', 'RU', 'TZ', 'UN'];
 
@@ -107,6 +108,11 @@ function renderShell(container) {
     const input = container.querySelector('#player-search');
     const results = container.querySelector('#player-search-results');
 
+    // Country flag per player — merged CustomFlags across every league (any
+    // custom flag wins; default IL), matching the site's global convention.
+    const mergedFlags = {};
+    for (const lg of _state.leagues || []) Object.assign(mergedFlags, lg.params?.CustomFlags || {});
+
     function refreshResults() {
         const q = input.value.trim().toLowerCase();
         const list = q
@@ -121,7 +127,8 @@ function renderShell(container) {
             if (isInactive) tags += ' <span class="player-meta-tag player-meta-inactive">inactive</span>';
             if (isHidden)   tags += ' <span class="player-meta-tag player-meta-hidden">hidden</span>';
             if (hasEdits && !isHidden) tags += ' <span class="player-meta-tag">edited</span>';
-            return `<li data-name="${esc(name)}">${esc(name)}${tags}</li>`;
+            const flag = searchFlagHtml(getFlagCode(name, mergedFlags));
+            return `<li data-name="${esc(name)}">${flag}${esc(name)}${tags}</li>`;
         }).join('') || '<li class="muted">No matches.</li>';
     }
     input.addEventListener('input', refreshResults);

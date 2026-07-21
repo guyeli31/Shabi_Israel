@@ -19,7 +19,7 @@ function escapeHtml(s) {
     }[c]));
 }
 
-export function mountCombobox(input, { getOptions, onSelect } = {}) {
+export function mountCombobox(input, { getOptions, onSelect, flagFor } = {}) {
     const wrap = document.createElement('div');
     wrap.className = 'app-combo-wrap';
     input.replaceWith(wrap);
@@ -51,7 +51,13 @@ export function mountCombobox(input, { getOptions, onSelect } = {}) {
         activeIdx = -1;
         if (filtered.length === 0) { close(); return; }
         dropdown.innerHTML = filtered
-            .map((v, i) => `<li class="app-combo-option" role="option" data-idx="${i}">${escapeHtml(v)}</li>`)
+            .map((v, i) => {
+                const name = escapeHtml(v);
+                // Optional country flag left of the name (player-name pickers).
+                return flagFor
+                    ? `<li class="app-combo-option app-combo-option--flag" role="option" data-idx="${i}">${flagFor(v)}<span class="app-combo-option-name">${name}</span></li>`
+                    : `<li class="app-combo-option" role="option" data-idx="${i}">${name}</li>`;
+            })
             .join('');
         dropdown.hidden = false;
         input.setAttribute('aria-expanded', 'true');
@@ -76,7 +82,11 @@ export function mountCombobox(input, { getOptions, onSelect } = {}) {
             const q = query.trim().toLowerCase();
             const all = getOptions ? getOptions() : [];
             const pool = q ? all.filter(v => String(v).toLowerCase().includes(q)) : all;
-            return pool.slice(0, 50).map(v => ({ label: v, key: v, value: v }));
+            return pool.slice(0, 50).map(v => {
+                const item = { label: v, key: v, value: v };
+                if (flagFor) item.flagHtml = flagFor(v);
+                return item;
+            });
         },
         pick(item) { choose(item.value); },
     });

@@ -80,7 +80,7 @@
 .mf-wrap tbody tr.unplayed td { background: var(--color-unplayed-bg, var(--color-surface)); }
 .mf-wrap tbody tr.unplayed:hover td { background: var(--color-hover); }
 
-/* B6b divider row "— played ≥ half —" (mirrors dashboard.css) */
+/* B7b divider row "— played ≥ half —" (mirrors dashboard.css) */
 .mf-wrap tbody tr.player-remaining-divider td {
     padding: 0.3em 0.8em !important;
     border-top: 2px dashed var(--color-border) !important;
@@ -98,7 +98,7 @@
 }
 .mf-wrap tbody tr.player-remaining-divider:hover td { background: transparent !important; }
 
-/* B6b — bold rows for players who have NOT played half yet */
+/* B7b — bold rows for players who have NOT played half yet (.b6b-bold class stem kept) */
 .mf-wrap tbody tr.b6b-bold td { font-weight: 700; }
 
 /* ── Sort UI (currently MF-only — promote to base if SF/exp gain sort) ── */

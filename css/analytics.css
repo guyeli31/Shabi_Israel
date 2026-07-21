@@ -168,6 +168,13 @@
    so `display:block` pushed the text onto its own line. Inline it here. */
 .log-table .app-tab-glyph { display: inline-block; vertical-align: -0.15em; }
 
+/* Keep a click-target's icon glued to its label on one line. Needed because the
+   icon can be an inline-block SVG glyph (app-tab-glyph), and a no-break space
+   does NOT suppress the line break between that atomic inline and the following
+   text — only nowrap does. The log tables live in .mf-wrap, so a long label
+   (e.g. a "What if:" summary) scrolls horizontally rather than wrapping. */
+.ana-click-target { white-space: nowrap; }
+
 .log-table tr.device-desktop td { background: var(--color-gold-bg); }
 .log-table tr.device-mobile  td { background: var(--color-silver-bg); }
 .log-table tr.device-tablet  td { background: var(--color-bronze-bg); }

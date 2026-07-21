@@ -286,7 +286,27 @@ export const PRESETS = {
     },
 
     B5: {
-        label: 'B5 — Rounds',
+        label: 'B5 — Played Matches',
+        args: {
+            data: [], cols: [],
+            fontClass:  'font-small',
+            stickyCols: 2,
+            medalRows:  false,
+            showTopN:   10,
+            mfWidth:    null,
+            mfMb:       null,
+            mfBg:       null,
+        },
+        argDocs: {
+            stickyCols:  'Both Player A and Player B pinned — keeps the matchup visible while scrolling through PR/Luck/Date. Same sticky settings as B6 Rounds.',
+            medalRows:   'false — matches are not ranked.',
+            getRowClass: 'All rows are played; the winner name is tinted green (result-win) and the loser red (result-loss).',
+            showTopN:    '10 — every played match, most-recent-first; Show-all reveals the rest.',
+        },
+    },
+
+    B6: {
+        label: 'B6 — Rounds',
         args: {
             data: [], cols: [],
             fontClass:  'font-small',
@@ -300,7 +320,7 @@ export const PRESETS = {
         argDocs: {
             stickyCols:  'Both Player A and Player B pinned — keeps the matchup visible while scrolling through PR/Luck/Date.',
             medalRows:   'false — rounds are not ranked.',
-            getRowClass: 'Marks unplayed matches with the "unplayed" class → muted italic styling.',
+            getRowClass: 'Marks unplayed matches with the "unplayed" class → muted italic styling. Played rows tint the winner name green / loser red.',
             showTopN:    'null — show all matches in the round.',
         },
     },
@@ -325,8 +345,8 @@ export const PRESETS = {
         },
     },
 
-    B6a: {
-        label: 'B6a — All Remaining',
+    B7a: {
+        label: 'B7a — All Remaining',
         args: {
             data: [], cols: [],
             fontClass:  'font-small',
@@ -338,14 +358,14 @@ export const PRESETS = {
             mfBg:       null,
         },
         argDocs: {
-            stickyCols:  '0 — B6a is explicitly non-sticky (only two columns: Player A / Player B).',
+            stickyCols:  '0 — B7a is explicitly non-sticky (only two columns: Player A / Player B).',
             mfWidth:     'Full display width. Production (hand-built) overrides the MF max-width:1100px cap to go edge-to-edge with columns stretched; the lab approximates with width:100% inside the MF cap.',
             getRowClass: 'All rows are unplayed by definition — all rows tagged "unplayed".',
         },
     },
 
-    B6b: {
-        label: 'B6b — Remaining Report',
+    B7b: {
+        label: 'B7b — Remaining Report',
         args: {
             data: [], cols: [],
             fontClass:  'font-small',
@@ -362,8 +382,8 @@ export const PRESETS = {
         },
     },
 
-    B6c: {
-        label: 'B6c — Remaining Per Player',
+    B7c: {
+        label: 'B7c — Remaining Per Player',
         args: {
             data: [], cols: [],
             fontClass:  'font-small',
@@ -628,7 +648,7 @@ mountPoint.innerHTML = '<p style="color:var(--color-text-muted);font-size:0.85re
 
 loadAllPresetData().then(loaded => {
     const allKeys = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6',
-                     'B1', 'B2', 'B3', 'B4', 'B5', 'B6a', 'B6b', 'B6c',
+                     'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7a', 'B7b', 'B7c',
                      'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'D', 'E', 'F5'];
     for (const key of allKeys) {
         if (!loaded[key] || !PRESETS[key]) continue;
@@ -655,10 +675,11 @@ loadAllPresetData().then(loaded => {
     if (loaded.B2?.leagueTitle)  setTab('B2',  `B2 — Historical (${loaded.B2.leagueTitle})`);
     if (loaded.B3?.leagueTitle)  setTab('B3',  `B3 — Predictor (${loaded.B3.leagueTitle})`);
     if (loaded.B4?.leagueTitle)  setTab('B4',  `B4 — What If (${loaded.B4.leagueTitle})`);
-    if (loaded.B5?.leagueTitle)  setTab('B5',  `B5 — Round 1 (${loaded.B5.leagueTitle})`);
-    if (loaded.B6a?.leagueTitle) setTab('B6a', `B6a — Remaining (${loaded.B6a.leagueTitle})`);
-    if (loaded.B6b?.leagueTitle) setTab('B6b', `B6b — Per Player (${loaded.B6b.leagueTitle})`);
-    if (loaded.B6c?.playerName)  setTab('B6c', `B6c — ${loaded.B6c.playerName}`);
+    if (loaded.B5?.leagueTitle)  setTab('B5',  `B5 — Played (${loaded.B5.leagueTitle})`);
+    if (loaded.B6?.leagueTitle)  setTab('B6',  `B6 — Round 1 (${loaded.B6.leagueTitle})`);
+    if (loaded.B7a?.leagueTitle) setTab('B7a', `B7a — Remaining (${loaded.B7a.leagueTitle})`);
+    if (loaded.B7b?.leagueTitle) setTab('B7b', `B7b — Per Player (${loaded.B7b.leagueTitle})`);
+    if (loaded.B7c?.playerName)  setTab('B7c', `B7c — ${loaded.B7c.playerName}`);
     if (loaded.C0?.playerName)   setTab('C0',  `C0 — Total PR · ${loaded.C0.playerName}`);
     if (loaded.C1?.playerName)   setTab('C1',  `C1 — ${loaded.C1.playerName}`);
     if (loaded.C2?.playerName)   setTab('C2',  `C2 — ${loaded.C2.playerName}`);

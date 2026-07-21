@@ -5,10 +5,10 @@
  * quick technical result buttons, and override management.
  */
 
-import { loadLeagueMatchesAll, loadOverrides } from '../data/supabaseLoader.js';
+import { loadLeagueMatchesAll, loadOverrides, loadLeagueParams } from '../data/supabaseLoader.js';
 import { addChange, getStagedContent, stageManualOverrides } from './stagingStore.js';
 import { renderExcelImporter } from './excelImporter.js';
-import { thLabel } from '../utils/helpers.js';
+import { thLabel, getFlagCode, searchFlagHtml } from '../utils/helpers.js';
 import { revealMsg } from './msgScroll.js';
 import { mountCombobox } from '../utils/combobox.js';
 
@@ -51,6 +51,7 @@ async function renderMatchEditor(container, leagueId, refreshBadge) {
     try {
         const { matches: csvMatches, allPlayers } = await loadLeagueMatchesAll(leagueId);
         const overrides = await loadOverrides(leagueId);
+        const customFlags = (await loadLeagueParams(leagueId).catch(() => ({})))?.CustomFlags || {};
 
         // Build override map for timestamps and data
         const overrideMap = new Map();
@@ -265,7 +266,10 @@ async function renderMatchEditor(container, leagueId, refreshBadge) {
             </p>`;
 
         attachListeners();
-        mountCombobox(document.getElementById('match-filter-input'), { getOptions: () => sortedPlayers });
+        mountCombobox(document.getElementById('match-filter-input'), {
+            getOptions: () => sortedPlayers,
+            flagFor: (p) => searchFlagHtml(getFlagCode(p, customFlags)),
+        });
 
         // Live filter
         document.getElementById('match-filter-input').addEventListener('input', (e) => {

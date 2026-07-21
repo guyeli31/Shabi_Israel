@@ -16,7 +16,7 @@ import { luckBellCurveSvg } from './luckBellCurve.js';
 import { loadLandingSettings } from '../data/store.js';
 import { loadBannerConfig, renderHeroBanner } from './heroBanner.js';
 import './privacyNotice.js'; // passive Privacy modal — wires the delegated [data-action="privacy"] trigger + styles
-import { leagueUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueTableUrl, thLabel } from '../utils/helpers.js';
+import { leagueUrl, flagUrl, getFlagCode, searchFlagHtml, formatPercent, formatNumber, parseLeagueDate, leagueTableUrl, thLabel } from '../utils/helpers.js';
 import { exportTableImage } from '../utils/exportTableImage.js';
 import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatches } from '../compute/matchRecords.js';
 import { luckPercentileStats } from '../compute/luckPercentile.js';
@@ -329,7 +329,7 @@ function renderPlayersTab(container, allMeta, leagues) {
                         ? `<img class="search-avatar-img" src="${escapeHtml(photoPath)}" alt="">`
                         : escapeHtml(getInitials(r.name, r.fullName) || (r.name.trim()[0] || '?').toUpperCase());
                     const iconHtml = `<span class="search-icon search-icon--player${photoPath ? ' has-photo' : ''}" aria-hidden="true">${inner}<span class="search-status-dot ${PLAYER_STATUS_DOT[r.status] || 'gray'}"></span></span>`;
-                    return { label: r.name, sublabel: r.fullName || undefined, key: r.name, iconHtml };
+                    return { label: r.name, sublabel: r.fullName || undefined, key: r.name, iconHtml, flagHtml: searchFlagHtml(r.flag) };
                 });
         },
         pick(item) {

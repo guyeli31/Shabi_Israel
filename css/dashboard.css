@@ -1134,6 +1134,27 @@
     color: var(--color-bg);
 }
 
+/* Flag + name (+ optional trailing PLAYED / NOT-PLAYED pill) on one row.
+   `--flag` lays out every option; `--pill` only adds the Player-B badge. */
+.whatif-option--flag,
+.whatif-option--pill {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    white-space: normal;
+}
+.whatif-option-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.whatif-option--pill .whatif-played-badge,
+.whatif-option--pill .whatif-unplayed-badge {
+    flex-shrink: 0;
+}
+
 .whatif-vs {
     font-weight: 600;
     color: var(--color-text-muted);
@@ -1209,7 +1230,10 @@
 }
 
 .whatif-played-badge,
-.whatif-unplayed-badge {
+.whatif-unplayed-badge,
+.whatif-won-badge,
+.whatif-lost-badge,
+.whatif-drew-badge {
     display: inline-block;
     padding: 1px 6px;
     border-radius: var(--radius-sm);
@@ -1221,7 +1245,18 @@
     background: rgba(34,197,94,0.15);
     color: var(--color-success, #22c55e);
 }
-.whatif-unplayed-badge {
+/* Result pills (Player B, played fixtures) — themed win/loss tokens so they
+   track every theme; bg derived from the same token via color-mix. */
+.whatif-won-badge {
+    background: color-mix(in srgb, var(--color-win) 15%, transparent);
+    color: var(--color-win);
+}
+.whatif-lost-badge {
+    background: color-mix(in srgb, var(--color-loss) 15%, transparent);
+    color: var(--color-loss);
+}
+.whatif-unplayed-badge,
+.whatif-drew-badge {
     background: rgba(148,163,184,0.15);
     color: var(--color-text-muted);
 }
@@ -1423,7 +1458,10 @@
     background: var(--color-hover);
 }
 
-/* --- B5: Rounds table — Player A (sticky) | Player B (sticky) | Score | PR A | PR B | Luck A | Luck B | Date --- */
+/* --- B5 Played Matches + B6 Rounds — Player A (sticky) | Player B (sticky) | Score | PR A | PR B | Luck A | Luck B | Date ---
+   Both tables share the .rounds-scroll-wrap chrome (identical columns + sticky settings).
+   B5 = every played match, most-recent-first, capped at 10 with Show-all.
+   B6 = round-by-round with prev/next/all nav. */
 /* --col1-w and --col2-w are written by JS after render (iron rule 12) */
 .rounds-scroll-wrap {
     overflow-x: auto;
@@ -1461,7 +1499,15 @@
     box-shadow: inset 0 -1px 0 var(--color-border);
 }
 
-/* B5 sticky col-2 boundary drop-shadow — Google-style, appears only on scroll */
+/* B5/B6 winner name green / loser name red — played rows only.
+   Specificity (0,4,2) beats .player-name-link (0,1,0); the 600 link weight
+   (from td.player-cell) and hover-underline are preserved. */
+.rounds-scroll-wrap td.player-cell.result-win,
+.rounds-scroll-wrap td.player-cell.result-win .player-name-link { color: var(--color-win); }
+.rounds-scroll-wrap td.player-cell.result-loss,
+.rounds-scroll-wrap td.player-cell.result-loss .player-name-link { color: var(--color-loss); }
+
+/* B5/B6 sticky col-2 boundary drop-shadow — Google-style, appears only on scroll */
 .rounds-scroll-wrap.is-scrolled-x thead th:nth-child(2) {
     box-shadow: inset 0 -1px 0 var(--color-border), 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
@@ -1472,22 +1518,22 @@
     box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
 }
 
-/* B5 sticky cell hover override (sticky bg has higher specificity than .dash-table tr:hover td) */
+/* B5/B6 sticky cell hover override (sticky bg has higher specificity than .dash-table tr:hover td) */
 .rounds-scroll-wrap tbody tr:hover td:nth-child(1),
 .rounds-scroll-wrap tbody tr:hover td:nth-child(2) {
     background: var(--color-hover);
 }
 
-/* B5 unplayed row — sticky cells must match the row tint (iron rule 11) */
+/* B5/B6 unplayed row — sticky cells must match the row tint (iron rule 11) */
 .rounds-scroll-wrap tbody tr.unplayed-row td:nth-child(1),
 .rounds-scroll-wrap tbody tr.unplayed-row td:nth-child(2) {
     background: var(--color-unplayed-bg);
 }
 
-/* B6 Remaining Matches sub-tabs use the shared accordion sub-tabs
+/* B7 Remaining Matches sub-tabs use the shared accordion sub-tabs
    (.subtab--accordion / .subtab-panel in css/subtabs.css, via mountAccordionTabs). */
 
-/* B6a — All Remaining.
+/* B7a — All Remaining. (Class stems keep the legacy .rem-b6* naming — see TABLE-DESIGN.md.)
    Deliberate per-table override of the MF shared "width:100%; max-width:1100px"
    wrapper cap: this table is full display width (no max-width) with columns
    stretched to fill, and is NOT sticky (Round column removed; only Player A / B). */
@@ -1503,12 +1549,12 @@
     width: 100%;
     table-layout: fixed;
 }
-/* Override MF/dash sticky on the player cell — B6a is explicitly non-sticky. */
+/* Override MF/dash sticky on the player cell — B7a is explicitly non-sticky. */
 .rem-b6a-wrap .dash-table td.player-cell {
     position: static;
 }
 
-/* B6b — Remaining Report */
+/* B7b — Remaining Report */
 .rem-b6b-wrap {
     width: 60%;
     margin: 0 auto;
@@ -1520,7 +1566,7 @@
     margin-top: 0;
 }
 
-/* B6c — Per Player */
+/* B7c — Per Player */
 .rem-b6c-outer {
     display: flex;
     justify-content: center;

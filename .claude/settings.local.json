@@ -72,7 +72,24 @@
       "mcp__playwright__browser_press_key",
       "Bash(echo \"rows before: $\\(docker exec -i supabase_db_supabase-migration psql -U postgres -d postgres -t -A -c 'select count\\(*\\) from public.analytics_events;'\\)\")",
       "Bash(echo \"rows after: $\\(docker exec -i supabase_db_supabase-migration psql -U postgres -d postgres -t -A -c 'select count\\(*\\) from public.analytics_events;'\\)\")",
-      "mcp__playwright__browser_resize"
+      "mcp__playwright__browser_resize",
+      "Bash(git push *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__playwright__browser_navigate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cmd",
+            "args": ["/c", "C:\\WORKSPACE\\Shabi_Israel\\tools\\ensure-docker-supabase.bat"],
+            "timeout": 300,
+            "statusMessage": "Ensuring Docker + local Supabase are up..."
+          }
+        ]
+      }
     ]
   }
 }

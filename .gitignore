@@ -417,6 +417,9 @@ FodyWeavers.xsd
 .superpowers/
 docs/superpowers/
 
+# v1 content-hash build output (scripts/build-v1.cjs) — regenerated, never committed
+/dist/
+
 # v2 rebuild — build artifacts and per-developer files
 v2/node_modules/
 v2/dist/

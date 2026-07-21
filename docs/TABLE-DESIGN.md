@@ -29,10 +29,13 @@ Table code mapping for the app. All future references to a table use the code be
 | B2 | Historical view |
 | B3 | Championship Predictor |
 | B4 | What If Simulator |
-| B5 | Rounds |
-| B6a | All Remaining |
-| B6b | Remaining Report |
-| B6c | Remaining Per Player |
+| B5 | Played Matches |
+| B6 | Rounds |
+| B7a | All Remaining |
+| B7b | Remaining Report |
+| B7c | Remaining Per Player |
+
+> **CSS class stems keep the legacy `b6` naming.** The renumber (B5 Played Matches inserted; old B5→B6, B6a/b/c→B7a/b/c) changes the public **table codes** (`data-mf-table-id`, typo-editor entries, lab presets, docs). It deliberately does **not** rename internal CSS class stems / JS helper names — `.rem-b6a-wrap`, `.rem-b6c-table`, `.player-remaining-table`, `.b6b-bold`, and `buildB6aPanel/buildB6bPanel/buildB6cPanel` — which are private implementation identifiers, not the table code. Renaming them across JS+CSS would be high-churn / high-regression for no user benefit.
 
 ### C — Player General (player-general.html)
 
@@ -176,7 +179,7 @@ To convert a table to MF in a future session, say:
 | Scroll shadow | `attachStickyShadow()` toggles `.is-scrolled-x` → drop-shadow on sticky col boundary, only during horizontal scroll |
 | Frame shadow | `box-shadow: var(--shadow-sm)` on wrapper — no `border-radius` |
 | Wrapper overflow | `overflow-x: auto; overflow-y: clip` — `clip` keeps `.mf-wrap` a horizontal-only scroll container; vertical scroll is the page's job |
-| Max width | `width: 100%; max-width: 1100px` on wrapper — **exception: B6a** overrides this to full display width (`max-width: none`), see B6a note below |
+| Max width | `width: 100%; max-width: 1100px` on wrapper — **exception: B7a** overrides this to full display width (`max-width: none`), see B7a note below |
 
 ---
 
@@ -262,9 +265,20 @@ For C1/C2 specifically: tag a new clickable column's `<td>` with `league-cell` (
 
 ---
 
-#### B6a — All Remaining (deliberate MF deviations)
+#### B5 — Played Matches
 
-The "All Remaining" panel on the dashboard. Currently hand-built (`buildRemainingListHtml` in `js/render/dashboardPage.js`, `data-mf-table-id="B6a"`), not yet routed through `mountMFTable`. Two columns only: **Player A | Player B** (the former Round column was removed). It carries three **intentional, user-approved deviations** from the MF canon, scoped to `.rem-b6a-wrap` in `css/dashboard.css`:
+The **Played Matches** panel at the top of the dashboard's **Matches** tab. Hand-built (shared `drawMatchTable` in `js/render/dashboardPage.js`, `data-mf-table-id="B5"`), sharing the exact `.rounds-scroll-wrap` chrome and 2-sticky-column layout of B6 Rounds — same columns (**Player A | Player B | Score | [PR A | PR B] | Luck A | Luck B | Date**). Differences from B6:
+
+- **Scope:** every *played* match in the league (from `ctx.liveMatches`), not one round.
+- **Order:** most-recent-first, sorted by the `history.matches[].updatedAt` map (matches with no recorded date sort last).
+- **Cap:** `showTopN: 10` — only the 10 newest show initially; a shared `.show-more-btn` toggles `Show all (N)` ⇄ `Show top 10`.
+- **Winner/loser tint:** in each played row the winner's name is green (`result-win`) and the loser's red (`result-loss`) — a per-cell class on the `td.player-cell`, scoped in `css/dashboard.css` so it also applies to B6. Names stay clickable player links (the 600 link weight + hover-underline are preserved).
+
+The same winner-green / loser-red tint was added to **B6 Rounds** in the same change.
+
+#### B7a — All Remaining (deliberate MF deviations)
+
+The "All Remaining" panel on the dashboard. Currently hand-built (`buildRemainingListHtml` in `js/render/dashboardPage.js`, `data-mf-table-id="B7a"`), not yet routed through `mountMFTable`. Two columns only: **Player A | Player B** (the former Round column was removed). It carries three **intentional, user-approved deviations** from the MF canon, scoped to `.rem-b6a-wrap` (legacy class stem — see the class-stem note in Part 1) in `css/dashboard.css`:
 
 - **Full display width** — wrapper is `width: 100%; max-width: none`, overriding MF's shared `max-width: 1100px` cap.
 - **Columns stretched to fill** — `table { width: 100%; table-layout: fixed }`, overriding MF's content-sizing (`white-space: nowrap`, columns size to content).

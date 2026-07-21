@@ -22,7 +22,7 @@ async function loadOverridesWithStaged(leagueId) {
     }
     return loadOverrides(leagueId);
 }
-import { thLabel, flagUrl, getFlagCode } from '../utils/helpers.js';
+import { thLabel, flagUrl, getFlagCode, searchFlagHtml } from '../utils/helpers.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { mountCombobox } from '../utils/combobox.js';
 
@@ -65,7 +65,7 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
             playerSet.add(m.playerA);
             playerSet.add(m.playerB);
         }
-        if (root) populatePlayerDatalist(root, playerSet);
+        if (root) populatePlayerDatalist(root, playerSet, customFlags);
 
         const roundStats = [];
         let html = '';
@@ -175,11 +175,14 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
     }
 }
 
-function populatePlayerDatalist(root, playerSet) {
+function populatePlayerDatalist(root, playerSet, customFlags = {}) {
     const input = root.querySelector('#round-filter-input');
     if (!input) return;
     const sorted = [...playerSet].sort((a, b) => a.localeCompare(b));
-    mountCombobox(input, { getOptions: () => sorted });
+    mountCombobox(input, {
+        getOptions: () => sorted,
+        flagFor: (p) => searchFlagHtml(getFlagCode(p, customFlags)),
+    });
 }
 
 /**

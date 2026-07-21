@@ -4,7 +4,7 @@
  */
 
 import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches, registerMemoInvalidator } from '../data/store.js';
-import { leagueUrl, playerLeagueUrl, playerUrl, parseLeagueDate } from '../utils/helpers.js';
+import { leagueUrl, playerLeagueUrl, playerUrl, parseLeagueDate, getFlagCode, searchFlagHtml } from '../utils/helpers.js';
 import { loadPlayersMetadata } from '../data/store.js';
 import { getInitials } from './playerHeader.js';
 import { isLoggedIn, getUsername } from '../admin/auth.js';
@@ -147,6 +147,7 @@ export async function initNavBar() {
 
 let playerIndexPromise = null;
 let playerIndex = null; // Map<playerName, [{leagueId, title}]>
+let _playerFlags = {};  // merged CustomFlags across all leagues → search flags
 
 /**
  * Build and return the cross-league player index (memoized).
@@ -236,6 +237,16 @@ async function buildPlayerIndex() {
         }
     }
 
+    // Merge every league's CustomFlags so the smart search can flag each player.
+    // Cheap — loadAllLeagueParams filters the one already-fetched bundle. Players
+    // with no custom flag fall back to IL via getFlagCode at render time.
+    try {
+        const params = await loadAllLeagueParams(leagues.map(l => l.id));
+        const merged = {};
+        for (const e of params) Object.assign(merged, e.params?.CustomFlags || {});
+        _playerFlags = merged;
+    } catch { _playerFlags = {}; }
+
     playerIndex = map;
     return map;
 }
@@ -245,6 +256,16 @@ async function buildPlayerIndex() {
  */
 export function getPlayerLeagues(playerName) {
     return playerIndex?.get(playerName) || [];
+}
+
+/**
+ * A player's flag code from the merged cross-league CustomFlags (default IL).
+ * Valid once `ensurePlayerIndex()` has resolved (that populates `_playerFlags`).
+ * Shared so global player pickers (admin "Add a player") flag names the same
+ * way the smart search does.
+ */
+export function getPlayerFlagCode(playerName) {
+    return getFlagCode(playerName, _playerFlags);
 }
 
 /**
@@ -271,7 +292,7 @@ export async function searchEntities(query, { leagueLimit = 5, playerLimit = 6 }
     for (const [name, pLeagues] of index) {
         const fullName = pLeagues[0]?.fullName || '';
         if (name.toLowerCase().includes(q) || fullName.toLowerCase().includes(q)) {
-            players.push({ name, leagues: pLeagues, fullName });
+            players.push({ name, leagues: pLeagues, fullName, flagCode: getFlagCode(name, _playerFlags) });
         }
     }
     // Alphabetical A→Z by the displayed name (username), case-insensitive. The
@@ -395,6 +416,7 @@ export function mountSearchInto(searchRoot) {
                         ${avatarInner}
                         <span class="search-status-dot ${status}" title="${escapeHtml(STATUS_TITLE[status])}"></span>
                     </span>
+                    ${searchFlagHtml(m.flagCode)}
                     <span class="search-player-info">${nameHtml}</span>
                     <span class="search-league-hint">${escapeHtml(hint)}</span>
                 </a></li>`;

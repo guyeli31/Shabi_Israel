@@ -2,6 +2,11 @@
 setlocal enabledelayedexpansion
 cd /d "%~dp0.."
 
+rem Make sure Docker + local Supabase are up before serving, so the site
+rem talks to a live DB instead of hanging on "Loading dashboard..." for the
+rem 10s fetch timeout. Idempotent + fast when the stack is already running.
+call "%~dp0ensure-docker-supabase.bat"
+
 set "PORT="
 for /l %%P in (8090,1,8094) do (
     if not defined PORT (

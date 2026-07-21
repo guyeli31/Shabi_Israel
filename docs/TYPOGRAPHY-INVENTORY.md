@@ -86,8 +86,9 @@ Each section is one page. Each row is one textual element identified by:
 | B2 Historical view | Data | | | |
 | B3 Championship Predictor | _to be filled_ | | | |
 | B4 What If Simulator | _to be filled_ | | | |
-| B5 Rounds | _to be filled_ | | | |
-| B6a–c Remaining tables | _to be filled_ | | | |
+| B5 Played Matches | _to be filled_ | | | |
+| B6 Rounds | _to be filled_ | | | |
+| B7a–c Remaining tables | _to be filled_ | | | |
 
 ### Matchup card
 

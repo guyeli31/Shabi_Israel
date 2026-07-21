@@ -1,0 +1,60 @@
+# Build the content-hash fingerprinted site (scripts/build-v1.cjs) and deploy
+# dist/ to GitHub Pages.
+#
+# ── ACTIVATION (one-time, manual) ────────────────────────────────────────────
+# This workflow is intentionally DORMANT: it only runs on manual dispatch, so it
+# cannot fail on ordinary pushes before Pages is reconfigured.
+#
+# The site currently deploys via Pages' classic "deploy from a branch" mode,
+# which serves the branch root (un-hashed source). To switch to the fingerprinted
+# build:
+#   1. Repo Settings → Pages → Build and deployment → Source: "GitHub Actions".
+#   2. Run this workflow once (Actions tab → Deploy Pages → Run workflow) and
+#      confirm golan.me.uk serves /assets/build/*-<hash>.js.
+#   3. Then uncomment the `push:` trigger below so every push to `development`
+#      auto-builds and deploys.
+#
+# The build copies CNAME + writes .nojekyll into dist/, so the custom domain and
+# non-Jekyll serving are preserved.
+
+name: Deploy Pages
+
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [development]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install build tooling (esbuild)
+        run: npm install --no-audit --no-fund
+      - name: Build fingerprinted site
+        run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

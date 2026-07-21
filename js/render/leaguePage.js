@@ -164,7 +164,7 @@ export async function renderLeaguePage() {
 // ---- Export Image ----
 //
 // Thin wrapper around the shared exportWhatsAppTableImage() helper. Uses
-// the uniform title + subtitle header band (constant across D/B6a/B6b/B6c)
+// the uniform title + subtitle header band (constant across D/B7a/B7b/B7c)
 // rather than the V13 hero card, so every WhatsApp export shares one layout.
 
 function exportLeagueTableImage(title, mountPoint, leagueType, lastModified, isHistorical = false) {

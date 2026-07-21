@@ -8,8 +8,8 @@ import { getAllPlayersFromCSV } from '../data/csvParser.js';
 import { renderRoundEditor } from './roundEditor.js';
 import { renderExcelImporter } from './excelImporter.js';
 import { renderOverridesList } from './overridesList.js';
-import { ensurePlayerIndex } from '../render/navigation.js';
-import { thLabel } from '../utils/helpers.js';
+import { ensurePlayerIndex, getPlayerFlagCode } from '../render/navigation.js';
+import { thLabel, searchFlagHtml } from '../utils/helpers.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { revealMsg } from './msgScroll.js';
 import { wireSectionCollapse } from '../render/sectionCollapse.js';
@@ -487,8 +487,9 @@ async function renderAddLeagueForm(container, displayOrder) {
 
         acList.innerHTML = matches.map(n => {
             const fn = _acPlayerMeta?.[n];
+            const flag = searchFlagHtml(getPlayerFlagCode(n));
             const label = fn ? `${esc(n)} <span class="ac-hint">(${esc(fn)})</span>` : esc(n);
-            return `<li data-name="${esc(n)}">${label}</li>`;
+            return `<li data-name="${esc(n)}">${flag}${label}</li>`;
         }).join('');
         acList.hidden = false;
     });

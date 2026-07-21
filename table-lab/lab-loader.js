@@ -565,10 +565,77 @@ function buildB3orB4(runningResult, barClass, fixedX) {
 function buildB3(runningResult) { return buildB3orB4(runningResult, 'predictor-pct-bar', 1); }
 function buildB4(runningResult) { return buildB3orB4(runningResult, 'whatif-pct-bar',    3); }
 
-// ─── B5: Rounds — show round 1 of the running league ──
+// ─── B5: Played Matches — every played match, most-recent-first ──
+// Same columns + sticky as B6 Rounds; capped at 10 (showTopN) with Show-all.
+// Winner name tinted green, loser red.
+
+function buildB5Played(runningResult, allMatchesIncUnplayed) {
+    if (!runningResult || !allMatchesIncUnplayed) return { data: [], cols: [] };
+    const { league, config } = runningResult;
+    const cf = league.params.CustomFlags || {};
+
+    const histMatches = league.history?.matches || [];
+    const playedAt = new Map();
+    for (const h of histMatches) {
+        if (h.updatedAt) playedAt.set([h.playerA, h.playerB].sort().join('|'), h.updatedAt);
+    }
+    const keyOf  = m => [m.playerA, m.playerB].sort().join('|');
+    const fmtDate = iso => iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }) : null;
+
+    // Winner name green / loser red — wrap the flag+name cell in a color span.
+    const resWrap = (html, res) =>
+        res === 'win'  ? `<span style="color:var(--color-win)">${html}</span>`
+      : res === 'loss' ? `<span style="color:var(--color-loss)">${html}</span>`
+      : html;
+
+    const cols = [
+        { key: 'playerA', label: 'Player A', type: 'string', sortable: true, colorFn: null,
+          tdClass: 'player-cell', format: (v, row) => resWrap(playerCell(v, cf), row._resA) },
+        { key: 'playerB', label: 'Player B', type: 'string', sortable: true, colorFn: null,
+          tdClass: 'player-cell', format: (v, row) => resWrap(playerCell(v, cf), row._resB) },
+        { key: 'score', label: 'Score', type: 'string', sortable: false, colorFn: null },
+        ...(config.showPR ? [
+            { key: 'prA', label: 'PR A', type: 'number', sortable: true, colorFn: null,
+              format: v => typeof v === 'number' ? v.toFixed(2) : '—' },
+            { key: 'prB', label: 'PR B', type: 'number', sortable: true, colorFn: null,
+              format: v => typeof v === 'number' ? v.toFixed(2) : '—' },
+        ] : []),
+        { key: 'luckA', label: 'Luck A', type: 'number', sortable: true, colorFn: null,
+          format: v => typeof v === 'number' ? v.toFixed(2) : '—' },
+        { key: 'luckB', label: 'Luck B', type: 'number', sortable: true, colorFn: null,
+          format: v => typeof v === 'number' ? v.toFixed(2) : '—' },
+        { key: 'date', label: 'Date', type: 'string', sortable: true, colorFn: null,
+          format: v => v || '—' },
+    ];
+
+    const played = allMatchesIncUnplayed.filter(m => m.played).slice().sort((a, b) => {
+        const ta = playedAt.get(keyOf(a));
+        const tb = playedAt.get(keyOf(b));
+        if (ta && tb) return new Date(tb) - new Date(ta);
+        if (ta) return -1;
+        if (tb) return 1;
+        return 0;
+    });
+
+    const data = played.map(m => ({
+        playerA: m.playerA, playerB: m.playerB,
+        score: `${m.scoreA} - ${m.scoreB}`,
+        prA:   m.prA != null ? m.prA : null,
+        prB:   m.prB != null ? m.prB : null,
+        luckA: m.luckA != null ? m.luckA : null,
+        luckB: m.luckB != null ? m.luckB : null,
+        date:  fmtDate(playedAt.get(keyOf(m))),
+        _resA: m.scoreA > m.scoreB ? 'win' : (m.scoreA < m.scoreB ? 'loss' : null),
+        _resB: m.scoreB > m.scoreA ? 'win' : (m.scoreB < m.scoreA ? 'loss' : null),
+    }));
+
+    return { data, cols, leagueTitle: league.params.LeagueTitle };
+}
+
+// ─── B6: Rounds — show round 1 of the running league ──
 // Matches real: Player A | Player B | Score | [PR A | PR B] | Luck A | Luck B | Date
 
-function buildB5(runningResult, allMatchesIncUnplayed) {
+function buildB6(runningResult, allMatchesIncUnplayed) {
     if (!runningResult || !allMatchesIncUnplayed) return { data: [], cols: [] };
     const { league, config } = runningResult;
     const cf = league.params.CustomFlags || {};
@@ -654,10 +721,10 @@ function buildF5(runningResult, allMatchesIncUnplayed) {
     return { data, cols, leagueTitle: league.params.LeagueTitle };
 }
 
-// ─── B6a: All Remaining Matches ───────────────────
+// ─── B7a: All Remaining Matches ───────────────────
 // Matches real: Player A | Player B (full width, non-sticky)
 
-function buildB6a(runningResult, allMatchesIncUnplayed) {
+function buildB7a(runningResult, allMatchesIncUnplayed) {
     if (!runningResult || !allMatchesIncUnplayed) return { data: [], cols: [] };
     const { league } = runningResult;
     const cf = league.params.CustomFlags || {};
@@ -679,10 +746,10 @@ function buildB6a(runningResult, allMatchesIncUnplayed) {
     return { data, cols, getRowClass, leagueTitle: league.params.LeagueTitle };
 }
 
-// ─── B6b: Remaining Per Player ────────────────────
+// ─── B7b: Remaining Per Player ────────────────────
 // Matches real: Player | Remaining (count / total)
 
-function buildB6b(runningResult) {
+function buildB7b(runningResult) {
     if (!runningResult) return { data: [], cols: [] };
     const { league, rankings } = runningResult;
     const cf = league.params.CustomFlags || {};
@@ -728,10 +795,10 @@ function buildB6b(runningResult) {
     return { data: rows, cols, getRowClass, leagueTitle: league.params.LeagueTitle };
 }
 
-// ─── B6c: Unplayed Opponents (for the top player) ──
+// ─── B7c: Unplayed Opponents (for the top player) ──
 // Matches real: Unplayed Opponent
 
-function buildB6c(runningResult, allMatchesIncUnplayed) {
+function buildB7c(runningResult, allMatchesIncUnplayed) {
     if (!runningResult || !allMatchesIncUnplayed) return { data: [], cols: [] };
     const { league, rankings } = runningResult;
     const cf        = league.params.CustomFlags || {};
@@ -1205,7 +1272,7 @@ export async function loadAllPresetData() {
     const completedResults = allResults.filter(r => !r.league.params.Running);
     const runningResult    = allResults.find(r => r.league.params.Running) || allResults[0] || null;
 
-    // Load allMatchesIncUnplayed for the running league (needed for B5/B6a/B6c)
+    // Load allMatchesIncUnplayed for the running league (needed for B5/B6/B7a/B7c)
     const allMatchesIncUnplayed = runningResult
         ? await loadAllMatchesForLeague(runningResult.league.id)
         : null;
@@ -1238,10 +1305,11 @@ export async function loadAllPresetData() {
         B2:  buildB2(runningResult),
         B3:  buildB3(runningResult),
         B4:  buildB4(runningResult),
-        B5:  buildB5(runningResult, allMatchesIncUnplayed),
-        B6a: buildB6a(runningResult, allMatchesIncUnplayed),
-        B6b: buildB6b(runningResult),
-        B6c: buildB6c(runningResult, allMatchesIncUnplayed),
+        B5:  buildB5Played(runningResult, allMatchesIncUnplayed),
+        B6:  buildB6(runningResult, allMatchesIncUnplayed),
+        B7a: buildB7a(runningResult, allMatchesIncUnplayed),
+        B7b: buildB7b(runningResult),
+        B7c: buildB7c(runningResult, allMatchesIncUnplayed),
         F5:  buildF5(runningResult, allMatchesIncUnplayed),
         C0:  sfExp.C0,
         C1:  buildC1(playerAcrossLeagues, topPlayer),

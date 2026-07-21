@@ -7,7 +7,7 @@
  * Callers (v1):
  *   • js/render/leaguePage.js     — D (League Table)         — uses headerNode (V13 hero)
  *   • js/render/landingPage.js    — A2 (Annual Leaderboard)  — uses title + maxRows
- *   • js/render/dashboardPage.js  — B6a / B6b / B6c          — uses title + subtitle
+ *   • js/render/dashboardPage.js  — B7a / B7b / B7c          — uses title + subtitle
  *
  * v2 destination: src/components/ExportTableImage/exportTableImage.js
  * (Phase 3 scaffold exists with a thinner API; Phase 6 will absorb all
@@ -30,7 +30,7 @@ export const EXPORT_TABLE_FONT_PX = 12.75;
 export const EXPORT_HEADER_FONT_PX = 20.25;
 
 // ── WhatsApp-ready fixed frame ─────────────────────────────────────
-// The dashboard/league table exports (D, B6a, B6b, B6c) render into a
+// The dashboard/league table exports (D, B7a, B7b, B7c) render into a
 // fixed 4:5 portrait canvas so the whole image shows in a WhatsApp chat
 // preview without vertical cropping. Rendered at html2canvas scale:1 so
 // CSS px == output px → the PNG is exactly WA_FRAME_WIDTH × WA_FRAME_HEIGHT.
@@ -64,7 +64,7 @@ export function leagueTypeLabel(leagueType) {
     return WA_LEAGUE_TYPE_LABELS[leagueType] || WA_LEAGUE_TYPE_LABELS.doubling;
 }
 // The whole fluid type family, keyed by its design-max in rem. Tables use
-// several of these — not just --fs-085 (data cells): B6b's "played ≥ half"
+// several of these — not just --fs-085 (data cells): B7b's "played ≥ half"
 // divider is --fs-075, footers are --fs-060, etc. The font-fit below drives
 // EVERY token off the single fitted size, preserving each token's designed
 // ratio to --fs-085. Overriding only --fs-085/--fs-093 would leave the rest
@@ -102,7 +102,7 @@ const WA_FS_BASE_REM = 0.85;
  *                                             to the right of the title
  * @param {boolean}          [args.shrinkToContent] Column-width policy. Wide
  *   tables (D, ~11 cols) default to false: columns stretch to fill the frame.
- *   Narrow tables (B6a/B6b 2 cols, B6c 1 col) MUST pass true: stretching them
+ *   Narrow tables (B7a/B7b 2 cols, B7c 1 col) MUST pass true: stretching them
  *   across 968px leaves each cell ~80% empty with the text swimming in it.
  *   With true, cells are pinned nowrap so every column sizes to its widest
  *   text (nothing is ever clipped or wrapped) and the resulting narrower
@@ -188,7 +188,7 @@ export async function exportWhatsAppTableImage({ sourceTable, filename, title, s
 
     // Content-width mode: pin every cell nowrap so each column sizes to its
     // widest text — the table can then only be as wide as its content needs,
-    // and nothing wraps or gets clipped. (B6a's page CSS forces
+    // and nothing wraps or gets clipped. (B7a's page CSS forces
     // table-layout:fixed + width:100%; the clone lives outside .rem-b6a-wrap
     // so that rule can't reach it, but we clear it explicitly to be safe.)
     if (shrinkToContent) {

@@ -27,7 +27,7 @@
  */
 
 import { loadLandingSettings, loadAllLeagueParams } from '../data/store.js';
-import { leagueUrl, leagueTableUrl, playerUrl, parseLeagueDate } from '../utils/helpers.js';
+import { leagueUrl, leagueTableUrl, playerUrl, parseLeagueDate, searchFlagHtml } from '../utils/helpers.js';
 import { getNameDisplayMode, setNameDisplayMode } from '../utils/nameDisplay.js';
 import { isLoggedIn, login, logout, getUsername } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
@@ -500,6 +500,7 @@ function wireInteractions(sidebar, opts) {
                         sublabel: sub,
                         key: 'P:' + p.name,
                         iconHtml: playerIconHtml(p, status),
+                        flagHtml: searchFlagHtml(p.flagCode),
                         href: preview ? `${playerUrl(p.name)}&preview=true` : playerUrl(p.name),
                     });
                 }

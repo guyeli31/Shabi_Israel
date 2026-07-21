@@ -1,6 +1,6 @@
 # Plan — Table-Lab as the canonical source for all tables
 
-**Status:** in progress — Phase 1 ✅ Phase 2 ✅ Phase 3 ✅ Phase 4.1 ✅ (shim deleted 2026-06-03) Phase 4.2 ⏳ (B1–B6c + C1–C3 still hand-built) Phase 5 ✅ Phase 6 ✅ Phase 7 ◐ (7.1 wiring landed 2026-06-04 alongside Path-X canonization sweep; 7.2 JS rewiring + 7.3 grep gate + 7.4 destructive deletion still ⏳) Phase 8 ◐ (FF chrome restored in `admin.css` + production wears FF classes via JS; lab tabs / presets / `mountFFTable` wiring not yet done) Phase 9 ⏳
+**Status:** in progress — Phase 1 ✅ Phase 2 ✅ Phase 3 ✅ Phase 4.1 ✅ (shim deleted 2026-06-03) Phase 4.2 ⏳ (B1–B7c + C1–C3 still hand-built) Phase 5 ✅ Phase 6 ✅ Phase 7 ◐ (7.1 wiring landed 2026-06-04 alongside Path-X canonization sweep; 7.2 JS rewiring + 7.3 grep gate + 7.4 destructive deletion still ⏳) Phase 8 ◐ (FF chrome restored in `admin.css` + production wears FF classes via JS; lab tabs / presets / `mountFFTable` wiring not yet done) Phase 9 ⏳
 **Owner:** ravivb7
 **Created:** 2026-05-11
 **Last updated:** 2026-06-23 — **Surface elevation tiers** added to the CSS canon: nested data tables/wells now paint their body with the new `--color-inset` token (derived in `css/variables.css`, themed automatically) instead of `--color-surface`, so they separate from the `--color-surface` section card that frames them. Applied to **MF** (`mf.css` `.mf-wrap tbody td`), **SF** (`sf.css` card + thead + sticky cols; plus the per-table A4/A5/A6 sticky rules in `index-dashboard.css` that had to move with it — the lone regression caught was pinned columns left on `--color-surface` reading as a "hover-coloured" island), and **exp** (`exp.css` wrap + sticky cols) — canon + every production mirror (`components.css`/`mf.css`, `index-dashboard.css`, `player-general.css`, `dashboard.css`). **FF too** (2026-06-24): `ff.css` + `admin.css` `tbody td` + pinned first col → `--color-inset` (header stays `--color-bg` tint); verified on admin F1 Leagues. So **all four formats now share the inset tier.** Nested mini-cards followed the same rule (`.pg-pr-card`, index `.league-card` + info cards, `.bar-chart-canvas`, `.chart-info-panel`). B1 prize rows now use the themed medal-bg tokens. Full spec: **Surface elevation tiers** in `docs/TABLE-DESIGN.md`. — _(prior, 2026-06-04)_ Path-X canonization sweep: Units policy doc-block + universal `.flag` + `.show-more-btn` added to `base.css`; 5 px→em violations eliminated across canon (`base/mf/sf/exp/ff`) and production mirrors; Phase 7.1 `<link>` wiring (`sf.css` + `exp.css`) landed. Phase 7.2-7.4 (JS rewiring + Group A destructive sweep) still ⏳ — deferred until v2 cutover decision.
@@ -105,7 +105,7 @@ Rules exclusive to the MF format (`.mf-wrap` wrapper and its specific layouts).
 - `.mf-wrap tbody tr.rank-gold/silver/bronze td` (medal-row backgrounds — they need wrapper scope so they don't bleed to SF/exp)
 - `.mf-wrap tbody tr.avg-row td`, `.mf-wrap tbody tr.unplayed td` (MF-wrapper-scoped variants if any)
 - `.mf-wrap.is-scrolled-x` sticky-shadow rules
-- `.mf-wrap tbody tr.player-remaining-divider`, `.mf-wrap tbody tr.b6b-bold` (B6b/B6c MF-only row variants)
+- `.mf-wrap tbody tr.player-remaining-divider`, `.mf-wrap tbody tr.b6b-bold` (B7b/B7c MF-only row variants; `.b6b-bold` class stem kept)
 - `thead th .sort-icon`, `thead th.sorted .sort-icon` (sort-arrow UI — currently MF-only; if SF ends up sortable too, promote to A-base later)
 - `tr.avg-row`, `tr.avg-row td`, `tr.stat-row`, `tr.stat-row td` (summary rows — MF-specific currently). The `position: sticky; bottom: 0` on `tr.avg-row` was removed on 2026-06-30 along with the matching `thead` top-pin — the averages row now sits at the bottom of the table body in normal flow.
 - `#leagueTable` sticky-col rules (D table — MF-exclusive)
@@ -152,7 +152,7 @@ Used **both** inside tables and on standalone landing/player/admin pages. Tables
 Walk through `table-lab/lab-loader.js` and list `buildA1`, `buildA2`, ..., `buildE`. For each, verify it produces a preset that matches the production look exactly.
 
 ### 1.2 Identify gaps
-For each MF table (A1, A2, B1–B6c, C1, C2, C3, D, E):
+For each MF table (A1, A2, B1–B7c, C1, C2, C3, D, E):
 - Is there a lab `build<X>` function?
 - Does it render with the right columns, sticky cols, font class, medal rows, show-top-N, sort behavior, image-export hook?
 - **Clickable link cells** carry the right `tdClass` so they match the canonical link look: player names → `player-cell`, the C1/C2 League column → `league-cell` (both share one rule group; see docs/TABLE-DESIGN.md §"Link-cell weight contract (ALL formats)"). The lab `build<X>` must set the same `tdClass` as the production preset.
@@ -227,7 +227,7 @@ MF touch points:
 - `js/render/leaguePage.js` — D
 - `js/render/playerPage.js` — E
 - `js/render/playerGeneralPage.js` — C1, C2, C3
-- `js/render/dashboardPage.js` — B1–B6c
+- `js/render/dashboardPage.js` — B1–B7c
 
 **Out of scope here:** A3–A6 (SF — Phase 5), C0 (exp — Phase 6), C4 (SF — Phase 5). These keep their current render path; the duplicate `components.css` rules keep them styled.
 

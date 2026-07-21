@@ -13,7 +13,7 @@ import { getMatchesAsOf, getUpdatePoints, mergeHistoryIntoMatches, matchKey } fr
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagueUrl, leagueUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
+import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagueUrl, leagueUrl, flagUrl, getFlagCode, searchFlagHtml, thLabel } from '../utils/helpers.js';
 import { exportWhatsAppTableImage, MAX_EXPORT_ROWS, leagueTypeLabel } from '../utils/exportTableImage.js';
 import { colorForValue, colorForValueInverted, colorForConfidence } from '../compute/colorScale.js';
 import { drawPlayerBarChart, computeNiceRange } from './playerBarChart.js';
@@ -138,6 +138,7 @@ export async function renderDashboardPage() {
         renderHistorical(ctx);
         renderPredictor(ctx); // async — fills in after data loads
         renderWhatIfSimulator(ctx);
+        renderPlayedMatches(ctx);
         renderRounds(ctx);
         renderRemainingMatches(ctx);
         renderPlayerSection(ctx);
@@ -414,6 +415,11 @@ function predictorPanel() {
 
 function matchesPanel() {
     return `
+        <section class="app-section app-section--card dash-section">
+            <h2 class="app-section-h2">Played Matches</h2>
+            <div id="played-matches-table"></div>
+        </section>
+
         <section class="app-section app-section--card dash-section">
             <h2 class="app-section-h2">Rounds</h2>
             <div class="dash-controls">
@@ -1097,11 +1103,43 @@ function renderWhatIfSimulator(ctx) {
     const byDisplayName = (a, b) => displayPlayerName(a).localeCompare(displayPlayerName(b));
     const allPlayersSorted = [...opponentsOf.keys()].filter(p => p !== 'Bye').sort(byDisplayName);
 
+    // Country flag left of each name in the pickers — same treatment/markup as
+    // the site smart-search (shared .search-flag rule), resolved from this
+    // league's CustomFlags (→ IL fallback via getFlagCode).
+    const whatifCustomFlags = ctx.params?.CustomFlags || {};
+    const flagFor = (p) => searchFlagHtml(getFlagCode(p, whatifCustomFlags));
+
     // Custom combobox: clicking shows all options; typing narrows the list.
     // Replaces native <datalist>, which behaves poorly/inconsistently on mobile.
-    function attachCombo(input, dropdown, getOptions, onSelect) {
+    function attachCombo(input, dropdown, getOptions, onSelect, opts = {}) {
+        // `decorate(playerKey)` — when supplied (Player B list), returns
+        // { played: bool, result: 'win'|'loss'|'draw'|null } for the result pill
+        // (from Player A's perspective); null → no pill.
+        const decorate = opts.decorate || null;
         let filtered = [];
         let activeIdx = -1;
+
+        // Trailing pill markup for an option, when decorate is active. A played
+        // fixture shows the real result (WON green / LOST red / DREW neutral);
+        // an unplayed one stays NOT PLAYED.
+        const pillFor = (p) => {
+            if (!decorate) return '';
+            const d = decorate(p);
+            if (!d) return '';
+            if (!d.played) return '<span class="whatif-unplayed-badge">NOT PLAYED</span>';
+            if (d.result === 'win') return '<span class="whatif-won-badge">WON</span>';
+            if (d.result === 'loss') return '<span class="whatif-lost-badge">LOST</span>';
+            return '<span class="whatif-drew-badge">DREW</span>';
+        };
+
+        // Decorate-driven ordering: opponents NOT yet played come first, then A→Z.
+        const orderPool = (pool) => {
+            if (!decorate) return pool;
+            return pool
+                .map(p => ({ p, played: !!(decorate(p) || {}).played }))
+                .sort((x, y) => (x.played - y.played) || byDisplayName(x.p, y.p))
+                .map(e => e.p);
+        };
 
         function highlight() {
             const items = dropdown.querySelectorAll('.whatif-option');
@@ -1112,11 +1150,15 @@ function renderWhatIfSimulator(ctx) {
         function open() {
             const q = input.value.trim().toLowerCase();
             const all = getOptions();
-            filtered = q ? all.filter(p => p.toLowerCase().includes(q)) : all.slice();
+            filtered = orderPool(q ? all.filter(p => p.toLowerCase().includes(q)) : all.slice());
             activeIdx = -1;
             if (filtered.length === 0) { close(); return; }
             dropdown.innerHTML = filtered
-                .map((p, i) => `<li class="whatif-option" role="option" data-idx="${i}">${escapeHtml(displayPlayerName(p))}</li>`)
+                .map((p, i) => {
+                    const name = escapeHtml(displayPlayerName(p));
+                    const cls = 'whatif-option whatif-option--flag' + (decorate ? ' whatif-option--pill' : '');
+                    return `<li class="${cls}" role="option" data-idx="${i}">${flagFor(p)}<span class="whatif-option-name">${name}</span>${pillFor(p)}</li>`;
+                })
                 .join('');
             dropdown.hidden = false;
             input.setAttribute('aria-expanded', 'true');
@@ -1140,8 +1182,20 @@ function renderWhatIfSimulator(ctx) {
             suggest(query) {
                 const q = query.trim().toLowerCase();
                 const all = getOptions();
-                const pool = q ? all.filter(p => p.toLowerCase().includes(q)) : all;
-                return pool.slice(0, 50).map(p => ({ label: displayPlayerName(p), key: p, value: p }));
+                const pool = orderPool(q ? all.filter(p => p.toLowerCase().includes(q)) : all.slice());
+                return pool.slice(0, 200).map(p => {
+                    const item = { label: displayPlayerName(p), key: p, value: p, flagHtml: flagFor(p) };
+                    if (decorate) {
+                        const d = decorate(p);
+                        if (d) {
+                            if (!d.played) item.badge = { text: 'NOT PLAYED', kind: 'unplayed' };
+                            else if (d.result === 'win') item.badge = { text: 'WON', kind: 'won' };
+                            else if (d.result === 'loss') item.badge = { text: 'LOST', kind: 'lost' };
+                            else item.badge = { text: 'DREW', kind: 'drew' };
+                        }
+                    }
+                    return item;
+                });
             },
             pick(item) { choose(item.value); },
         });
@@ -1186,9 +1240,26 @@ function renderWhatIfSimulator(ctx) {
     attachCombo(inputB, optsB, () => {
         const a = inputA.value.trim();
         if (a && opponentsOf.has(a)) {
-            return [...opponentsOf.get(a)].filter(p => p !== 'Bye' && p !== a).sort(byDisplayName);
+            // Ordering (unplayed-first, then A→Z) is applied by the combo's
+            // decorate hook below; return the raw opponent set here.
+            return [...opponentsOf.get(a)].filter(p => p !== 'Bye' && p !== a);
         }
         return allPlayersSorted;
+    }, null, {
+        // Once Player A is chosen, tag each candidate opponent with whether that
+        // fixture was already played at the current baseline (float unplayed to
+        // the top) and, if played, its real result from Player A's perspective
+        // (WON / LOST / DREW).
+        decorate: (p) => {
+            const a = inputA.value.trim();
+            if (!a) return null;
+            const st = deriveBaselineState(a, p);
+            const result = !st.wasPlayed ? null
+                : st.realWinner === 'A' ? 'win'
+                : st.realWinner === 'B' ? 'loss'
+                : 'draw';
+            return { played: st.wasPlayed, result };
+        },
     });
 
     // State: staged matches
@@ -1591,7 +1662,10 @@ function renderRounds(ctx) {
             label.textContent = `Round ${current} / ${roundCount}`;
             list = allMatchesIncUnplayed.filter(m => m.round === current);
         }
-        drawRoundTable(list, playedAt, leagueId, playersMeta, params.CustomFlags, leagueConfig);
+        drawMatchTable(document.getElementById('round-table'), list, {
+            playedAt, leagueId, playersMeta, customFlags: params.CustomFlags, leagueConfig,
+            tableId: 'B6',
+        });
         prev.disabled = showAll || current <= 1;
         next.disabled = showAll || current >= roundCount;
     }
@@ -1603,10 +1677,77 @@ function renderRounds(ctx) {
     paint();
 }
 
-function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFlags = {}, leagueConfig = null) {
+// ---------- Played Matches (B5) ----------
+// Every played match in the league, most-recent-first, capped at 10 with a Show-all toggle.
+// Same MF columns + sticky settings as Rounds (B6); winner name green / loser red.
+function renderPlayedMatches(ctx) {
+    const { liveMatches, allMatchesIncUnplayed, history, leagueId, playersMeta, params, leagueConfig } = ctx;
+    const host = document.getElementById('played-matches-table');
+    if (!host) return;
+
+    // matchKey -> updatedAt, so we can both stamp the Date column and sort chronologically.
+    const playedAt = new Map();
+    for (const h of history.matches) {
+        if (h.updatedAt) playedAt.set(matchKey(h.playerA, h.playerB), h.updatedAt);
+    }
+
+    // A match the authoritative set (overrides applied) marks NOT played must never
+    // show here — even if a stale history row still carries a date for it. Guard
+    // explicitly rather than trusting liveMatches to already be played-only.
+    const unplayedKeys = new Set(
+        allMatchesIncUnplayed.filter(m => !m.played).map(m => matchKey(m.playerA, m.playerB))
+    );
+
+    // Every remaining liveMatches entry is a played match, but neither the build
+    // path nor the history merge keeps a `played` flag, so stamp one on so
+    // drawMatchTable renders scores/date/tint rather than treating each row as unplayed.
+    const played = liveMatches
+        .filter(m => !unplayedKeys.has(matchKey(m.playerA, m.playerB)))
+        .map(m => ({ ...m, played: true }));
+
+    // Most-recent-first; matches without a recorded date sort to the bottom.
+    const sorted = played.slice().sort((a, b) => {
+        const ta = playedAt.get(matchKey(a.playerA, a.playerB));
+        const tb = playedAt.get(matchKey(b.playerA, b.playerB));
+        if (ta && tb) return new Date(tb) - new Date(ta);
+        if (ta) return -1;
+        if (tb) return 1;
+        return 0;
+    });
+
+    const TOP_N = 10;
+    let showAll = false;
+
+    // Show-all button (only meaningful when there are more than TOP_N played matches).
+    let btn = null;
+    if (sorted.length > TOP_N) {
+        btn = document.createElement('button');
+        btn.className = 'show-more-btn';
+        btn.textContent = `Show all (${sorted.length})`;
+        btn.addEventListener('click', () => {
+            showAll = !showAll;
+            paint();
+            btn.textContent = showAll ? `Show top ${TOP_N}` : `Show all (${sorted.length})`;
+        });
+    }
+
+    function paint() {
+        const list = showAll ? sorted : sorted.slice(0, TOP_N);
+        drawMatchTable(host, list, {
+            playedAt, leagueId, playersMeta, customFlags: params.CustomFlags, leagueConfig,
+            tableId: 'B5',
+        });
+        if (btn) host.appendChild(btn);
+    }
+
+    paint();
+}
+
+function drawMatchTable(host, matches, opts = {}) {
+    const { playedAt, leagueId, playersMeta = {}, customFlags = {}, leagueConfig = null, tableId = 'B6' } = opts;
     const showPR = leagueConfig ? leagueConfig.showPR : true;
     const colCount = showPR ? 8 : 6;
-    let html = `<div class="rounds-scroll-wrap"><table class="dash-table font-small" data-mf-table-id="B5"><thead><tr>`
+    let html = `<div class="rounds-scroll-wrap"><table class="dash-table font-small" data-mf-table-id="${tableId}"><thead><tr>`
         + `<th scope="col" class="player-col">Player A</th>`
         + `<th scope="col" class="player-col">Player B</th>`
         + `<th scope="col">Score</th>`
@@ -1622,13 +1763,16 @@ function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFla
             ? new Date(updated).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })
             : (isPlayed ? '—' : '<span style="color:var(--color-text-muted)">unplayed</span>');
         const rowClass = isPlayed ? '' : 'unplayed-row';
+        // Winner name green / loser red — played rows only (no class on ties or unplayed).
+        const resA = isPlayed && m.scoreA > m.scoreB ? ' result-win' : (isPlayed && m.scoreA < m.scoreB ? ' result-loss' : '');
+        const resB = isPlayed && m.scoreB > m.scoreA ? ' result-win' : (isPlayed && m.scoreB < m.scoreA ? ' result-loss' : '');
         const flagA = getFlagCode(m.playerA, customFlags);
         const flagB = getFlagCode(m.playerB, customFlags);
         const hiddenA = !!(playersMeta[m.playerA] && playersMeta[m.playerA].hidden);
         const hiddenB = !!(playersMeta[m.playerB] && playersMeta[m.playerB].hidden);
         html += `<tr class="${rowClass}">`
-            + `<td class="player-cell">${hiddenA ? '' : `<img class="flag" src="${flagUrl(flagA)}" alt="${flagA}">`} ${playerNameLink(m.playerA, playersMeta[m.playerA])}</td>`
-            + `<td class="player-cell">${hiddenB ? '' : `<img class="flag" src="${flagUrl(flagB)}" alt="${flagB}">`} ${playerNameLink(m.playerB, playersMeta[m.playerB])}</td>`
+            + `<td class="player-cell${resA}">${hiddenA ? '' : `<img class="flag" src="${flagUrl(flagA)}" alt="${flagA}">`} ${playerNameLink(m.playerA, playersMeta[m.playerA])}</td>`
+            + `<td class="player-cell${resB}">${hiddenB ? '' : `<img class="flag" src="${flagUrl(flagB)}" alt="${flagB}">`} ${playerNameLink(m.playerB, playersMeta[m.playerB])}</td>`
             + `<td>${isPlayed ? m.scoreA + ' - ' + m.scoreB : '—'}</td>`
             + (showPR ? `<td>${isPlayed && m.prA != null ? formatNumber(m.prA) : '—'}</td><td>${isPlayed && m.prB != null ? formatNumber(m.prB) : '—'}</td>` : '')
             + `<td>${isPlayed && m.luckA != null ? formatNumber(m.luckA) : '—'}</td>`
@@ -1637,7 +1781,6 @@ function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFla
     }
     if (matches.length === 0) html += `<tr><td colspan="${colCount}">No matches</td></tr>`;
     html += '</tbody></table></div>';
-    const host = document.getElementById('round-table');
     host.innerHTML = html;
     attachPlayerNameInteractions(host, leagueId);
     const wrap = host.querySelector('.rounds-scroll-wrap');
@@ -1656,7 +1799,7 @@ function drawRoundTable(matches, playedAt, leagueId, playersMeta = {}, customFla
     }
 }
 
-// ---------- Remaining Matches (B6a / B6b / B6c) ----------
+// ---------- Remaining Matches (B7a / B7b / B7c) ----------
 function renderRemainingMatches(ctx) {
     const { allMatchesIncUnplayed, params, playersMeta, lastModified } = ctx;
     const remaining = allMatchesIncUnplayed
@@ -1691,7 +1834,7 @@ function renderRemainingMatches(ctx) {
     });
 }
 
-// Export control shared by B6a/B6b/B6c: a right-aligned row holding either
+// Export control shared by B7a/B7b/B7c: a right-aligned row holding either
 // the "Export Image" button or — when the table exceeds MAX_EXPORT_ROWS —
 // a notice explaining why export is unavailable (a taller table can't fit
 // the fixed WhatsApp frame at a readable font).
@@ -1760,7 +1903,7 @@ function buildB6bPanel(panel, ctx, remaining, lastModified) {
 }
 
 function buildB6bTableHtml(playerRemainingData, maxRem, minRem, halfThreshold, hasAnyBelowHalf, maxGames) {
-    let html = '<table class="dash-table font-small player-remaining-table" data-mf-table-id="B6b"><thead><tr>'
+    let html = '<table class="dash-table font-small player-remaining-table" data-mf-table-id="B7b"><thead><tr>'
         + '<th scope="col" class="player-col">Player</th>'
         + '<th scope="col">Remaining</th>'
         + '</tr></thead><tbody>';
@@ -1843,7 +1986,7 @@ function buildB6cTableHtml(opponents, customFlags, playersMeta) {
     if (opponents.length === 0) {
         return `<div style="color:var(--color-text-muted);padding:var(--space-sm);text-align:center">All matches played!</div>`;
     }
-    let html = '<table class="dash-table font-small rem-b6c-table" data-mf-table-id="B6c"><thead><tr>'
+    let html = '<table class="dash-table font-small rem-b6c-table" data-mf-table-id="B7c"><thead><tr>'
         + '<th scope="col" class="player-col">Unplayed Opponent</th>'
         + '</tr></thead><tbody>';
     for (const opp of opponents) {
@@ -1856,7 +1999,7 @@ function buildB6cTableHtml(opponents, customFlags, playersMeta) {
 }
 
 function buildRemainingListHtml(matches, customFlags, playersMeta) {
-    let html = `<table class="dash-table font-small" data-mf-table-id="B6a"><thead><tr>`
+    let html = `<table class="dash-table font-small" data-mf-table-id="B7a"><thead><tr>`
              + `<th scope="col" class="player-col">Player A</th>`
              + `<th scope="col" class="player-col">Player B</th>`
              + `</tr></thead><tbody>`;
@@ -1874,7 +2017,7 @@ function buildRemainingListHtml(matches, customFlags, playersMeta) {
     return html;
 }
 
-// "Last updated <date>" subtitle suffix shared by B6a/B6b/B6c exports —
+// "Last updated <date>" subtitle suffix shared by B7a/B7b/B7c exports —
 // mirrors the league header's "Last updated" line, date only (no time).
 function formatAsOf(lastModified) {
     const date = formatLastUpdatedDate(lastModified);
@@ -1886,7 +2029,7 @@ function formatAsOf(lastModified) {
 // fixed 4:5 frame, header band, and font-fit are identical.
 // (Row-count is pre-gated by buildExportControl, so these only fire \u2264 30 rows.)
 //
-// All three are narrow tables (B6a/B6b: 2 cols, B6c: 1 col), so they pass
+// All three are narrow tables (B7a/B7b: 2 cols, B7c: 1 col), so they pass
 // shrinkToContent \u2014 stretching them across the frame would leave each cell
 // mostly empty. Columns size to their text and the table is centred instead.
 

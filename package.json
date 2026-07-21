@@ -1,0 +1,11 @@
+{
+  "name": "shabi-israel-v1-build",
+  "private": true,
+  "description": "Content-hash fingerprinting build for the v1 (no-framework) site. See scripts/build-v1.cjs.",
+  "scripts": {
+    "build": "node scripts/build-v1.cjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.21.5"
+  }
+}
