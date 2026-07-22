@@ -28,7 +28,7 @@ import { isMobile, closeSidebar } from './sidebarToggle.js';
    `?searchoverlay=force` / `=off` query param overrides detection — used by the
    typo-editor device preview and by Playwright, where there's no real touch
    input to detect. */
-function isTouchDevice() {
+export function isTouchDevice() {
     const params = new URLSearchParams(location.search);
     const override = params.get('searchoverlay');
     if (override === 'force') return true;
@@ -83,6 +83,7 @@ function buildSheet() {
                 </svg>
                 <input class="search-sheet-input" type="text" inputmode="search"
                        autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                <button class="search-sheet-clear" type="button" aria-label="Clear search" data-clear>Clear</button>
                 <button class="search-sheet-close" type="button" aria-label="Close search" data-close>✕</button>
             </div>
             <ul class="search-sheet-results" role="listbox"></ul>
@@ -103,6 +104,15 @@ function buildSheet() {
     //   • SELECT — a result row — acts on `pointerup`, so a scroll-drag over a
     //     long results list emits pointercancel and does NOT select.
     sheet.addEventListener('pointerdown', (e) => {
+        // Permanent Clear — empties the query and shows the full list again
+        // (browse-all), WITHOUT closing the sheet. Distinct from ✕ (close).
+        if (e.target.closest('[data-clear]')) {
+            e.preventDefault();
+            sheetInput.value = '';
+            refreshResults();
+            sheetInput.focus();
+            return;
+        }
         if (e.target.closest('[data-close]')) { e.preventDefault(); closeOverlay(); }
     });
     sheet.addEventListener('pointerup', (e) => {
@@ -175,6 +185,9 @@ function renderList(items) {
         const name = document.createElement('span');
         name.className = 'search-sheet-option-label';
         name.textContent = item.label;
+        // Optional title badges (BMAB rank / championship: G0 / WC / NC …),
+        // trusted pre-escaped markup from titleConstants.js, inline after the name.
+        if (item.titleHtml) name.insertAdjacentHTML('beforeend', item.titleHtml);
         text.appendChild(name);
         if (item.sublabel) {
             const sub = document.createElement('span');

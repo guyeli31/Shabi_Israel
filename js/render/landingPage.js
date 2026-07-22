@@ -16,7 +16,7 @@ import { luckBellCurveSvg } from './luckBellCurve.js';
 import { loadLandingSettings } from '../data/store.js';
 import { loadBannerConfig, renderHeroBanner } from './heroBanner.js';
 import './privacyNotice.js'; // passive Privacy modal — wires the delegated [data-action="privacy"] trigger + styles
-import { leagueUrl, flagUrl, getFlagCode, searchFlagHtml, formatPercent, formatNumber, parseLeagueDate, leagueTableUrl, thLabel } from '../utils/helpers.js';
+import { leagueUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueTableUrl, thLabel } from '../utils/helpers.js';
 import { exportTableImage } from '../utils/exportTableImage.js';
 import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatches } from '../compute/matchRecords.js';
 import { luckPercentileStats } from '../compute/luckPercentile.js';
@@ -33,12 +33,12 @@ import { addChange, getChangeCount } from '../admin/stagingStore.js';
 import { mountAdminSidebar, refreshBadge as refreshSidebarBadge } from '../admin/render/adminSidebar.js';
 import { loadPlayersMetadata } from '../data/store.js';
 import { escapeHtml } from '../utils/sanitize.js';
-import { hasTitles, compareTitlePriority, getFullTitleDescription } from '../data/titleConstants.js';
+import { hasTitles, compareTitlePriority, getFullTitleDescription, getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { mountAppTabs } from './appTabs.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountPillTabs } from './subTabs.js';
-import { registerSearchAdapter } from './searchOverlay.js';
+import { mountSearchField } from '../utils/combobox.js';
 import { scrollToClearingTopbarSettled } from '../utils/scrollOffset.js';
 import { getInitials } from './playerHeader.js';
 import { langFlagsHtml, wireLangPopup } from '../utils/popupLang.js';
@@ -305,37 +305,35 @@ function renderPlayersTab(container, allMeta, leagues) {
         attachPlayerNameInteractions(mount, null);
     }
 
-    searchInput.addEventListener('input', () => renderTable(searchInput.value));
-
-    // Mobile search-sheet adapter: same look as the general sidebar search
-    // (avatar/monogram + status dot), scoped to players only. The sheet has
-    // its own 16px input (mobile anti-zoom), so `suggest` mirrors every
-    // keystroke back into the real field + re-filters the table live —
-    // matching the desktop "type to filter" behaviour rather than requiring
-    // a pick step. Tapping a suggestion still works as a shortcut that jumps
-    // straight to one name and closes the sheet.
-    registerSearchAdapter(searchInput, {
-        suggest(query) {
-            searchInput.value = query;
-            renderTable(query);
+    // A7 runs on the canonical search field in 'inplace' mode: on desktop there
+    // is no popup — every keystroke filters the A7 table live (onChange). On
+    // touch the shared search sheet lists players (avatar + flag + full name);
+    // picking one filters the table to that name. Same avatar/monogram + status
+    // dot as the sidebar search.
+    const rowByName = new Map(rows.map(r => [r.name, r]));
+    const avatarHtml = (r) => {
+        const photoPath = r.meta?.photoPath;
+        const inner = photoPath
+            ? `<img class="search-avatar-img" src="${escapeHtml(photoPath)}" alt="">`
+            : escapeHtml(getInitials(r.name, r.fullName) || (r.name.trim()[0] || '?').toUpperCase());
+        return `<span class="search-icon search-icon--player${photoPath ? ' has-photo' : ''}" aria-hidden="true">${inner}<span class="search-status-dot ${PLAYER_STATUS_DOT[r.status] || 'gray'}"></span></span>`;
+    };
+    mountSearchField(searchInput, {
+        resultTarget: 'inplace',
+        suggest: (query) => {
             const q = query.trim().toLowerCase();
             if (!q) return [];
             return rows
-                .filter(r => r.name.toLowerCase().includes(q) || r.fullName.toLowerCase().includes(q))
+                .filter(r => r.name.toLowerCase().includes(q) || (r.fullName || '').toLowerCase().includes(q))
                 .slice(0, 50)
-                .map(r => {
-                    const photoPath = r.meta.photoPath;
-                    const inner = photoPath
-                        ? `<img class="search-avatar-img" src="${escapeHtml(photoPath)}" alt="">`
-                        : escapeHtml(getInitials(r.name, r.fullName) || (r.name.trim()[0] || '?').toUpperCase());
-                    const iconHtml = `<span class="search-icon search-icon--player${photoPath ? ' has-photo' : ''}" aria-hidden="true">${inner}<span class="search-status-dot ${PLAYER_STATUS_DOT[r.status] || 'gray'}"></span></span>`;
-                    return { label: r.name, sublabel: r.fullName || undefined, key: r.name, iconHtml, flagHtml: searchFlagHtml(r.flag) };
-                });
+                .map(r => r.name);
         },
-        pick(item) {
-            searchInput.value = item.key;
-            renderTable(item.key);
+        decorate: (name) => {
+            const r = rowByName.get(name);
+            if (!r) return {};
+            return { iconHtml: avatarHtml(r), flagCode: r.flag, titleHtml: getTitleAbbreviationsHtml(r.meta), sublabel: r.fullName || undefined };
         },
+        onChange: (value) => renderTable(value),
     });
 
     renderTable('');

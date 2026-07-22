@@ -7,6 +7,7 @@ import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches, registerMemoIn
 import { leagueUrl, playerLeagueUrl, playerUrl, parseLeagueDate, getFlagCode, searchFlagHtml } from '../utils/helpers.js';
 import { loadPlayersMetadata } from '../data/store.js';
 import { getInitials } from './playerHeader.js';
+import { primeTitleMeta, titleHtmlFor } from '../utils/playerTitleBadge.js';
 import { isLoggedIn, getUsername } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
 import { initTooltips } from './tooltip.js';
@@ -247,6 +248,10 @@ async function buildPlayerIndex() {
         _playerFlags = merged;
     } catch { _playerFlags = {}; }
 
+    // Warm the title-badge metadata cache so search results can flag titles
+    // (G0/WC/NC …) synchronously — same source, canonical for every search.
+    primeTitleMeta();
+
     playerIndex = map;
     return map;
 }
@@ -292,7 +297,7 @@ export async function searchEntities(query, { leagueLimit = 5, playerLimit = 6 }
     for (const [name, pLeagues] of index) {
         const fullName = pLeagues[0]?.fullName || '';
         if (name.toLowerCase().includes(q) || fullName.toLowerCase().includes(q)) {
-            players.push({ name, leagues: pLeagues, fullName, flagCode: getFlagCode(name, _playerFlags) });
+            players.push({ name, leagues: pLeagues, fullName, flagCode: getFlagCode(name, _playerFlags), titleHtml: titleHtmlFor(name) });
         }
     }
     // Alphabetical A→Z by the displayed name (username), case-insensitive. The
@@ -394,9 +399,10 @@ export function mountSearchInto(searchRoot) {
                 const firstLeague = m.leagues[0];
                 const leagueCount = m.leagues.filter(l => l.leagueId).length;
                 const hint = leagueCount === 0 ? 'inactive' : leagueCount === 1 ? firstLeague.title : `${leagueCount} leagues`;
+                const titleHtml = m.titleHtml || '';
                 const nameHtml = m.fullName
-                    ? `<span class="search-player-name">${escapeHtml(m.name)}</span><span class="search-player-realname">${escapeHtml(m.fullName)}</span>`
-                    : `<span class="search-player-name">${escapeHtml(m.name)}</span>`;
+                    ? `<span class="search-player-name">${escapeHtml(m.name)}${titleHtml}</span><span class="search-player-realname">${escapeHtml(m.fullName)}</span>`
+                    : `<span class="search-player-name">${escapeHtml(m.name)}${titleHtml}</span>`;
                 const href = preview ? `${playerUrl(m.name)}&preview=true` : playerUrl(m.name);
 
                 // Status dot — same logic as the player-card header

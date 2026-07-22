@@ -9,7 +9,9 @@ import { renderRoundEditor } from './roundEditor.js';
 import { renderExcelImporter } from './excelImporter.js';
 import { renderOverridesList } from './overridesList.js';
 import { ensurePlayerIndex, getPlayerFlagCode } from '../render/navigation.js';
-import { thLabel, searchFlagHtml } from '../utils/helpers.js';
+import { thLabel } from '../utils/helpers.js';
+import { mountCombobox } from '../utils/combobox.js';
+import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { revealMsg } from './msgScroll.js';
 import { wireSectionCollapse } from '../render/sectionCollapse.js';
@@ -278,8 +280,7 @@ async function renderAddLeagueForm(container, displayOrder) {
                     <label for="manual-player-name">Add a player</label>
                     <div class="input-action-row">
                         <div class="ac-field">
-                            <input type="text" id="manual-player-name" placeholder="Pick an existing player or type a new name…" autocomplete="off">
-                            <ul class="player-autocomplete" id="manual-player-autocomplete" hidden></ul>
+                            <input type="text" id="manual-player-name" class="app-search-input" placeholder="Pick an existing player or type a new name…" autocomplete="off">
                         </div>
                         <button class="btn btn-primary btn-sm" id="add-manual-player-btn">Add</button>
                     </div>
@@ -426,8 +427,7 @@ async function renderAddLeagueForm(container, displayOrder) {
             } catch { /* fallback to IL */ }
         }
         state.players.push({ name, flag, retired: false, isNew: !inRegistry });
-        document.getElementById('manual-player-name').value = '';
-        document.getElementById('manual-player-autocomplete').hidden = true;
+        acField.clear();
         showMsg('add-msg', inRegistry ? '' : `New player "${name}" added — it will be registered when you create the league.`,
             inRegistry ? '' : 'success');
         rerenderPlayers();
@@ -436,8 +436,8 @@ async function renderAddLeagueForm(container, displayOrder) {
     // Smart autocomplete for manual player input
     let _acPlayerNames = null;
     let _acPlayerMeta = null; // nickname → fullName (for full-name search)
+    let _acTitleHtml = {};    // nickname → title-badge HTML (BMAB / championship)
     const acInput = document.getElementById('manual-player-name');
-    const acList = document.getElementById('manual-player-autocomplete');
 
     async function ensureAcData() {
         if (_acPlayerNames) return;
@@ -449,9 +449,12 @@ async function renderAddLeagueForm(container, displayOrder) {
             const meta = await loadPlayersMetadata();
             const names = new Set([...index.keys()]);
             const fullNames = {};
+            const titleHtml = {};
             for (const [n, m] of Object.entries(meta)) {
                 if (m && m.inactive) names.add(n);
                 if (m?.fullName) fullNames[n] = m.fullName;
+                const t = getTitleAbbreviationsHtml(m);
+                if (t) titleHtml[n] = t;
             }
             const stagedRaw = getStagedContent('leagues/players_metadata.json');
             if (stagedRaw) {
@@ -460,52 +463,35 @@ async function renderAddLeagueForm(container, displayOrder) {
                     for (const [n, m] of Object.entries(stagedMeta)) {
                         if (m && m.inactive) names.add(n);
                         if (m?.fullName) fullNames[n] = m.fullName;
+                        const t = getTitleAbbreviationsHtml(m);
+                        titleHtml[n] = t;  // staged wins (may clear a removed title)
                     }
                 } catch { /* ignore parse errors */ }
             }
             _acPlayerNames = [...names].sort();
             _acPlayerMeta = fullNames;
-        } catch { _acPlayerNames = []; _acPlayerMeta = {}; }
+            _acTitleHtml = titleHtml;
+        } catch { _acPlayerNames = []; _acPlayerMeta = {}; _acTitleHtml = {}; }
     }
 
-    acInput.addEventListener('input', async () => {
-        const q = acInput.value.trim().toLowerCase();
-        if (q.length < 1) { acList.hidden = true; return; }
-
-        await ensureAcData();
-
-        const existing = new Set(state.players.map(p => p.name));
-        const matches = _acPlayerNames
-            .filter(n => {
+    // Canonical search field — suggests registry players (excluding ones already
+    // added) with flag + full-name sublabel; a brand-new name is allowed and gets
+    // registered when the league is created (see the Add handler above).
+    const acField = mountCombobox(acInput, {
+        suggest: async (query) => {
+            const q = query.trim().toLowerCase();
+            if (!q) return [];              // type-to-search (no browse-all dump here)
+            await ensureAcData();
+            const existing = new Set(state.players.map(p => p.name));
+            return _acPlayerNames.filter(n => {
                 if (existing.has(n)) return false;
                 const fl = (_acPlayerMeta?.[n] || '').toLowerCase();
                 return n.toLowerCase().includes(q) || fl.includes(q);
-            })
-            .slice(0, 10);
-
-        if (matches.length === 0) { acList.hidden = true; return; }
-
-        acList.innerHTML = matches.map(n => {
-            const fn = _acPlayerMeta?.[n];
-            const flag = searchFlagHtml(getPlayerFlagCode(n));
-            const label = fn ? `${esc(n)} <span class="ac-hint">(${esc(fn)})</span>` : esc(n);
-            return `<li data-name="${esc(n)}">${flag}${label}</li>`;
-        }).join('');
-        acList.hidden = false;
-    });
-
-    acList.addEventListener('click', (e) => {
-        const li = e.target.closest('li[data-name]');
-        if (!li) return;
-        acInput.value = li.dataset.name;
-        acList.hidden = true;
-        acInput.focus();
-    });
-
-    document.addEventListener('click', (e) => {
-        if (!acInput.contains(e.target) && !acList.contains(e.target)) {
-            acList.hidden = true;
-        }
+            }).slice(0, 10);
+        },
+        decorate: (n) => ({ flagCode: getPlayerFlagCode(n), titleHtml: _acTitleHtml?.[n] || '', sublabel: _acPlayerMeta?.[n] || undefined }),
+        allowFreeText: true,
+        onSelect: () => {},                 // just fills the field; the Add button reads it
     });
 
     // Upload CSV / Excel

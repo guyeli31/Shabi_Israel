@@ -22,9 +22,10 @@ async function loadOverridesWithStaged(leagueId) {
     }
     return loadOverrides(leagueId);
 }
-import { thLabel, flagUrl, getFlagCode, searchFlagHtml } from '../utils/helpers.js';
+import { thLabel, flagUrl, getFlagCode } from '../utils/helpers.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { mountCombobox } from '../utils/combobox.js';
+import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 
 export function renderRoundEditor(container, leagueId, refreshBadge) {
     container.innerHTML = `
@@ -179,9 +180,16 @@ function populatePlayerDatalist(root, playerSet, customFlags = {}) {
     const input = root.querySelector('#round-filter-input');
     if (!input) return;
     const sorted = [...playerSet].sort((a, b) => a.localeCompare(b));
+    // Title badges (BMAB / championship) for each player — loaded from the same
+    // metadata source admin uses elsewhere; async, lands before the user types.
+    const titleMap = {};
+    import('../data/supabasePlayersMetadata.js')
+        .then(({ loadPlayersMetadata }) => loadPlayersMetadata())
+        .then(meta => { for (const [n, m] of Object.entries(meta || {})) { const t = getTitleAbbreviationsHtml(m); if (t) titleMap[n] = t; } })
+        .catch(() => {});
     mountCombobox(input, {
         getOptions: () => sorted,
-        flagFor: (p) => searchFlagHtml(getFlagCode(p, customFlags)),
+        decorate: (p) => ({ flagCode: getFlagCode(p, customFlags), titleHtml: titleMap[p] || '' }),
     });
 }
 
@@ -236,7 +244,19 @@ function attachRoundNav(root, content, roundStats) {
     });
 
     input.addEventListener('input', applyFilter);
-    if (clearBtn) clearBtn.addEventListener('click', () => { input.value = ''; applyFilter(); input.focus(); });
+    if (clearBtn) clearBtn.addEventListener('click', () => {
+        input.value = '';
+        applyFilter();
+        // Reset to the clean initial state WITHOUT re-opening the suggestion
+        // list: close it and hide the bulk-tech-loss bar, and deliberately do
+        // NOT re-focus the field — focusing fires the combobox's focus→open and
+        // a full suggestion list pops back over the rounds (the reported "Clear
+        // reopens a dropdown" bug). No `input` event is dispatched for the same
+        // reason; the dependent bulk bar is reset directly here.
+        root.querySelector('.app-combo-dropdown')?.setAttribute('hidden', '');
+        const bulk = root.querySelector('#round-bulk-bar');
+        if (bulk) { bulk.hidden = true; bulk.innerHTML = ''; }
+    });
 
     applyFilter();
 }

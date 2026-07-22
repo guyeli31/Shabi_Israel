@@ -104,6 +104,12 @@ button, input, select, textarea {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+/* Secondary dim label (e.g. full name) inline after the name. */
+.app-combo-option-sub {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+    font-size: var(--fs-080);
+}
 
 .page-container {
     max-width: 1100px;

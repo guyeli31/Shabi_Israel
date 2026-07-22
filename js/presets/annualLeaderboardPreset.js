@@ -5,6 +5,10 @@
  * Live landing page enriches the Player cell with playerNameLink() so the
  * post-mount attach can wire context menus. UBC vs non-UBC variants share the
  * shape; the metric label and the optional Win% / Avg PTS column differ.
+ *
+ * The PR column is gated on league type: REGULAR leagues have no PR data
+ * (leagueTypes.js → REGULAR_CONFIG.showPR === false), so the column is omitted
+ * entirely rather than rendered as an empty "N/A" column.
  */
 
 import { playerNameLink } from '../render/playerNameInteraction.js';
@@ -16,9 +20,11 @@ import { formatPercent, formatNumber } from '../utils/helpers.js';
  *                  { rank, player, flagCode, meta, monthly{abbr: number}, total, winRate, meanPR, avgPoints }
  *   months       — array of month abbreviations (e.g. ['Jan','Feb',...]) in display order
  *   isUBC        — boolean (controls Win% vs Avg PTS column)
+ *   leagueType   — 'doubling' | 'regular' | 'ubc' (REGULAR omits the PR column)
  *   flagUrl      — (code) => url
  */
-export function buildAnnualLeaderboardPreset({ rows, months, isUBC, flagUrl }) {
+export function buildAnnualLeaderboardPreset({ rows, months, isUBC, leagueType, flagUrl }) {
+    const showPR = leagueType !== 'regular';
     const monthCols = months.map(abbr => ({
         key:      abbr.toLowerCase(),
         label:    abbr,
@@ -40,8 +46,10 @@ export function buildAnnualLeaderboardPreset({ rows, months, isUBC, flagUrl }) {
                  format: v => v != null ? formatNumber(v) : '—' }]
             : [{ key: 'winRate',   label: 'Win%',    type: 'number', sortable: true, colorFn: null,
                  format: v => v != null ? formatPercent(v) : '—' }]),
-        { key: 'meanPR', label: 'PR', type: 'number', sortable: true, colorFn: null,
-          format: v => v != null ? formatNumber(v) : 'N/A' },
+        ...(showPR
+            ? [{ key: 'meanPR', label: 'PR', type: 'number', sortable: true, colorFn: null,
+                 format: v => v != null ? formatNumber(v) : 'N/A' }]
+            : []),
         ...monthCols,
     ];
 

@@ -106,7 +106,8 @@ function buildA1(completedResults, globalFlags) {
 }
 
 // ─── A2: Annual Leaderboard ───────────────────────
-// Matches real: # | Player | Tot | Win% | PR | [month cols...]
+// Matches real: # | Player | Tot | Win% | [PR] | [month cols...]
+// PR column is omitted for REGULAR groups (no PR data — see leagueTypes.js).
 
 function buildA2(allResults, globalFlags) {
     // Group by (year, leagueType) — same logic as real buildAnnualLeaderboard
@@ -190,9 +191,11 @@ function buildA2(allResults, globalFlags) {
         { key: 'winRate', label: 'Win%',  type: 'number', sortable: true,
           colorFn: null,
           format: v => formatPercent2(v) },
-        { key: 'meanPR',  label: 'PR',    type: 'number', sortable: true,
-          colorFn: null,
-          format: v => v.toFixed(2) },
+        ...(group.type !== 'regular' ? [
+            { key: 'meanPR',  label: 'PR',    type: 'number', sortable: true,
+              colorFn: null,
+              format: v => v != null ? v.toFixed(2) : 'N/A' },
+        ] : []),
         ...monthEntries.map(({ abbr }) => ({
             key: abbr.toLowerCase(), label: abbr, type: 'number', sortable: true,
             colorFn: null,

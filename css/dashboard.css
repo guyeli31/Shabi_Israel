@@ -1098,6 +1098,12 @@
     width: 100%;
     min-width: 0;
 }
+/* The canonical search field wraps the input in .app-combo-wrap — make that
+   wrapper fill the combo so the input keeps its full width. */
+.whatif-combo .app-combo-wrap {
+    flex: 1;
+    min-width: 0;
+}
 .whatif-options {
     position: absolute;
     top: calc(100% + 2px);

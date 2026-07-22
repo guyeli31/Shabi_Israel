@@ -88,6 +88,22 @@
 }
 .search-sheet-close:active { background: var(--color-border); }
 
+/* Permanent Clear — empties the query (browse-all again); does NOT close. */
+.search-sheet-clear {
+    flex-shrink: 0;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-080);
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+}
+.search-sheet-clear:active { background: var(--color-border); }
+
 /* Results — scroll inside the panel, never push the page. */
 .search-sheet-results {
     list-style: none;
@@ -157,6 +173,81 @@
     align-self: center;
 }
 
+/* ---- Title abbreviation badges (BMAB rank + championship: G0 / WC / NC …) ----
+   The canonical `.title-abbr` markup comes from getTitleAbbreviationsHtml()
+   (titleConstants.js) and is shared by the league/dashboard/player TABLES *and*
+   now every player search (flyout, sheet, combobox, admin comboboxes). These
+   rules were moved here from components.css — like the flag rule above — because
+   admin.html loads search-overlay.css but never components.css, so the badges
+   would otherwise be unstyled in admin searches. All sizing is em-relative, so
+   a badge tracks the surrounding font size in both a table cell and a search row.
+
+   "Mix G" style (Player Page Lab):
+     • BMAB (non-champ) → outlined pill, transparent body, tier-coloured border + text
+     • Championship    → gradient pill with diagonal shine, tier-coloured background
+   BOTH variants share the SAME padding (0.12em 0.5em). BMAB's "border" is an
+   inset box-shadow (not a real border) so it takes no layout space — a fixed-px
+   border would oversize BMAB pills next to champion pills at small font-sizes. */
+.title-abbr {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1em;
+    font-weight: 900;
+    padding: 0.12em 0.5em;
+    border-radius: 0.25em;
+    border: none;
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px currentColor;  /* fake border, zero layout impact */
+    margin-left: 0.5em;
+    vertical-align: text-bottom;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    min-width: 1.4em;
+}
+.title-abbr + .title-abbr { margin-left: 0.25em; }
+
+.title-abbr-gold   { color: #d4a942; }
+.title-abbr-silver { color: #94a3b8; }
+.title-abbr-bronze { color: #b45309; }
+.title-abbr-white  { color: #94a3b8; }
+
+/* Championship badges — gradient pill with diagonal shine. Same padding as
+   BMAB; the box-shadow "border" is removed since the gradient defines the shape.
+   Its own stacking context keeps the caption crisply above the ::before shine. */
+.title-abbr-champ {
+    box-shadow: none;
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.18);
+}
+.title-abbr-champ::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.45), transparent 55%);
+    pointer-events: none;
+    z-index: -1;
+}
+.title-abbr-champ.title-abbr-gold {
+    background: linear-gradient(135deg, #fbbf24, #b45309);
+    color: #1a1305;
+}
+.title-abbr-champ.title-abbr-silver {
+    background: linear-gradient(135deg, #cbd5e1, #64748b);
+    color: #1e293b;
+}
+.title-abbr-champ.title-abbr-bronze {
+    background: linear-gradient(135deg, #f59e0b, #92400e);
+    color: #fff;
+}
+.title-abbr-champ.title-abbr-white {
+    background: linear-gradient(135deg, #f8fafc, #cbd5e1);
+    color: #475569;
+}
+
 /* Trailing pill (What-If Player B: WON / LOST / DREW / NOT-PLAYED). */
 .search-sheet-badge {
     flex-shrink: 0;
@@ -179,6 +270,33 @@
 .search-sheet-badge--drew {
     background: rgba(148, 163, 184, 0.15);
     color: var(--color-text-secondary);
+}
+
+/* Canonical desktop-dropdown badge (mirror of .search-sheet-badge for the
+   inline list). Shared by every mountSearchField picker; themed win/loss
+   tokens so it tracks every theme. Lives here so admin (no navigation.css)
+   gets it too. */
+.sf-badge {
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-068);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+.sf-badge--won {
+    background: color-mix(in srgb, var(--color-win) 15%, transparent);
+    color: var(--color-win);
+}
+.sf-badge--lost {
+    background: color-mix(in srgb, var(--color-loss) 15%, transparent);
+    color: var(--color-loss);
+}
+.sf-badge--unplayed,
+.sf-badge--drew {
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--color-text-muted);
 }
 
 /* Lock the page behind the sheet while keeping its scroll position. We pin

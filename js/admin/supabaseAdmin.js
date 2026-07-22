@@ -1,7 +1,7 @@
 /**
  * supabaseAdmin.js — Admin write path. Replaces githubApi.js as the
  * destination for everything staged by leagueManager.js/playerManager.js/
- * roundEditor.js/csvEditor.js/excelImporter.js/overridesList.js.
+ * roundEditor.js/excelImporter.js/overridesList.js.
  *
  * These callers still stage plain {type, path, content, binary, description}
  * objects into stagingStore.js exactly as before (the staging/review UX is

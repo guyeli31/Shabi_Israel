@@ -501,6 +501,7 @@ function wireInteractions(sidebar, opts) {
                         key: 'P:' + p.name,
                         iconHtml: playerIconHtml(p, status),
                         flagHtml: searchFlagHtml(p.flagCode),
+                        titleHtml: p.titleHtml || '',
                         href: preview ? `${playerUrl(p.name)}&preview=true` : playerUrl(p.name),
                     });
                 }

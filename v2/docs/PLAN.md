@@ -139,7 +139,19 @@ v2/
 │   │   ├── ThemePicker/
 │   │   ├── AdminButton/
 │   │   ├── ExportButton/
-│   │   ├── SearchBox/
+│   │   ├── SearchBox/                    # THE canonical search field — one base for every player/entity
+│   │   │                                #   picker (ports v1's mountSearchField, see MIGRATION 2026-07-22).
+│   │   │                                #   Base owns: touch↔desktop split (touch = top sheet ONLY, never an
+│   │   │                                #   inline under-field list; desktop = inline dropdown + keyboard nav);
+│   │   │                                #   the sheet's 16px input + scroll-lock + browse-all + PERMANENT Clear;
+│   │   │                                #   selection notifies via a DIRECT onChange callback (never a
+│   │   │                                #   self-reopening DOM input event). Hooks: getOptions/suggest, labelFor,
+│   │   │                                #   decorate(value)→{iconHtml,flagCode,badge,sublabel}, onPick, onChange,
+│   │   │                                #   allowFreeText, resultTarget (popup | inplace-filter). Two axes stay
+│   │   │                                #   explicit config: RESULT TARGET (popup / inplace / persistent-list /
+│   │   │                                #   navigate) and FLAG SOURCE (single-league CustomFlags / merged). The
+│   │   │                                #   grouped entity-navigator (smart search: Leagues+Players, navigate)
+│   │   │                                #   is a SIBLING that shares the sheet + flag primitives, not a config here.
 │   │   ├── FilterPill/
 │   │   ├── LeagueHero/                  # V13 + V16 variants
 │   │   ├── PlayerHero/                  # V7 + V12 variants

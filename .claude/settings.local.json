@@ -73,7 +73,9 @@
       "Bash(echo \"rows before: $\\(docker exec -i supabase_db_supabase-migration psql -U postgres -d postgres -t -A -c 'select count\\(*\\) from public.analytics_events;'\\)\")",
       "Bash(echo \"rows after: $\\(docker exec -i supabase_db_supabase-migration psql -U postgres -d postgres -t -A -c 'select count\\(*\\) from public.analytics_events;'\\)\")",
       "mcp__playwright__browser_resize",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(git rm *)",
+      "Bash(node --check js/utils/combobox.js)"
     ]
   },
   "hooks": {
@@ -84,7 +86,10 @@
           {
             "type": "command",
             "command": "cmd",
-            "args": ["/c", "C:\\WORKSPACE\\Shabi_Israel\\tools\\ensure-docker-supabase.bat"],
+            "args": [
+              "/c",
+              "C:\\WORKSPACE\\Shabi_Israel\\tools\\ensure-docker-supabase.bat"
+            ],
             "timeout": 300,
             "statusMessage": "Ensuring Docker + local Supabase are up..."
           }

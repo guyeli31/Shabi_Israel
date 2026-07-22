@@ -13,7 +13,7 @@ import { getMatchesAsOf, getUpdatePoints, mergeHistoryIntoMatches, matchKey } fr
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagueUrl, leagueUrl, flagUrl, getFlagCode, searchFlagHtml, thLabel } from '../utils/helpers.js';
+import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagueUrl, leagueUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
 import { exportWhatsAppTableImage, MAX_EXPORT_ROWS, leagueTypeLabel } from '../utils/exportTableImage.js';
 import { colorForValue, colorForValueInverted, colorForConfidence } from '../compute/colorScale.js';
 import { drawPlayerBarChart, computeNiceRange } from './playerBarChart.js';
@@ -32,8 +32,9 @@ import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountAccordionTabs } from './subTabs.js';
 import { displayPlayerName } from '../utils/nameDisplay.js';
-import { registerSearchAdapter } from './searchOverlay.js';
+import { mountSearchField } from '../utils/combobox.js';
 import { mountCombobox } from '../utils/combobox.js';
+import { primeTitleMeta, titleHtmlFor } from '../utils/playerTitleBadge.js';
 
 export async function renderDashboardPage() {
     const container = document.getElementById('content');
@@ -131,7 +132,7 @@ export async function renderDashboardPage() {
         shell.panels.standings.innerHTML = standingsPanel();
         shell.panels.matches.innerHTML   = matchesPanel();
         shell.panels.predictor.innerHTML = predictorPanel();
-        shell.panels.insights.innerHTML  = insightsPanel();
+        shell.panels.insights.innerHTML  = insightsPanel(leagueConfig.showPR);
 
         renderSummaryCards(ctx);
         renderPrizes(ctx);
@@ -382,13 +383,11 @@ function predictorPanel() {
                     </div>
                     <div class="whatif-picker">
                         <div class="whatif-combo">
-                            <input type="text" id="whatif-input-a" class="whatif-input app-search-input" placeholder="Player A" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="whatif-opts-a">
-                            <ul id="whatif-opts-a" class="whatif-options" role="listbox" hidden></ul>
+                            <input type="text" id="whatif-input-a" class="whatif-input app-search-input" placeholder="Player A" autocomplete="off">
                         </div>
                         <span class="whatif-vs">vs</span>
                         <div class="whatif-combo">
-                            <input type="text" id="whatif-input-b" class="whatif-input app-search-input" placeholder="Player B" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="whatif-opts-b">
-                            <ul id="whatif-opts-b" class="whatif-options" role="listbox" hidden></ul>
+                            <input type="text" id="whatif-input-b" class="whatif-input app-search-input" placeholder="Player B" autocomplete="off">
                         </div>
                         <button id="whatif-add" class="whatif-add-btn" type="button">+ Add match</button>
                         <span id="whatif-add-err" class="whatif-err"></span>
@@ -444,14 +443,16 @@ function matchesPanel() {
     `;
 }
 
-function insightsPanel() {
+// showPR gates the two PR-based correlation sections: REGULAR leagues record no
+// PR, so only the Player-match-history charts (Luck metric) are shown for them.
+function insightsPanel(showPR) {
     return `
         <section class="app-section app-section--card dash-section">
             <h2 class="app-section-h2">Player match history</h2>
             <div id="charts-container"></div>
             <button id="add-chart" class="add-chart-btn" title="Add another chart for comparison">+ Add chart</button>
         </section>
-
+        ${showPR ? `
         <section class="app-section app-section--card dash-section" id="pr-corr-section">
             <h2 class="app-section-h2">Player PR &harr; Result Correlation
                 <span class="predictor-tooltip" id="pr-corr-info-btn">?</span>
@@ -681,6 +682,7 @@ function insightsPanel() {
             </div>
             <div id="corr-league-container">
         </section>
+        ` : ''}
     `;
 }
 
@@ -1061,8 +1063,6 @@ function renderWhatIfSimulator(ctx) {
     const infoClose = document.getElementById('whatif-info-close');
     const inputA = document.getElementById('whatif-input-a');
     const inputB = document.getElementById('whatif-input-b');
-    const optsA = document.getElementById('whatif-opts-a');
-    const optsB = document.getElementById('whatif-opts-b');
     const addBtn = document.getElementById('whatif-add');
     const addErr = document.getElementById('whatif-add-err');
     const stagedHost = document.getElementById('whatif-staged');
@@ -1103,163 +1103,57 @@ function renderWhatIfSimulator(ctx) {
     const byDisplayName = (a, b) => displayPlayerName(a).localeCompare(displayPlayerName(b));
     const allPlayersSorted = [...opponentsOf.keys()].filter(p => p !== 'Bye').sort(byDisplayName);
 
-    // Country flag left of each name in the pickers — same treatment/markup as
-    // the site smart-search (shared .search-flag rule), resolved from this
-    // league's CustomFlags (→ IL fallback via getFlagCode).
+    // Both pickers run on the ONE canonical search field (mountSearchField):
+    // touch/desktop separation, the mobile sheet + permanent Clear, flags and
+    // result pills all come from the base. Flags resolve from THIS league's
+    // CustomFlags (→ IL fallback via getFlagCode).
     const whatifCustomFlags = ctx.params?.CustomFlags || {};
-    const flagFor = (p) => searchFlagHtml(getFlagCode(p, whatifCustomFlags));
+    // Title badges (G0/WC/NC …) for the pickers — one canonical source, cached.
+    primeTitleMeta();
 
-    // Custom combobox: clicking shows all options; typing narrows the list.
-    // Replaces native <datalist>, which behaves poorly/inconsistently on mobile.
-    function attachCombo(input, dropdown, getOptions, onSelect, opts = {}) {
-        // `decorate(playerKey)` — when supplied (Player B list), returns
-        // { played: bool, result: 'win'|'loss'|'draw'|null } for the result pill
-        // (from Player A's perspective); null → no pill.
-        const decorate = opts.decorate || null;
-        let filtered = [];
-        let activeIdx = -1;
+    // Player A — every league player, flag + title. Selection just fills the field;
+    // the "Add match" button reads inputA/inputB (no external notify needed).
+    mountSearchField(inputA, {
+        getOptions: () => allPlayersSorted,
+        labelFor: displayPlayerName,
+        decorate: (p) => ({ flagCode: getFlagCode(p, whatifCustomFlags), titleHtml: titleHtmlFor(p) }),
+        onSelect: () => {},
+    });
 
-        // Trailing pill markup for an option, when decorate is active. A played
-        // fixture shows the real result (WON green / LOST red / DREW neutral);
-        // an unplayed one stays NOT PLAYED.
-        const pillFor = (p) => {
-            if (!decorate) return '';
-            const d = decorate(p);
-            if (!d) return '';
-            if (!d.played) return '<span class="whatif-unplayed-badge">NOT PLAYED</span>';
-            if (d.result === 'win') return '<span class="whatif-won-badge">WON</span>';
-            if (d.result === 'loss') return '<span class="whatif-lost-badge">LOST</span>';
-            return '<span class="whatif-drew-badge">DREW</span>';
-        };
-
-        // Decorate-driven ordering: opponents NOT yet played come first, then A→Z.
-        const orderPool = (pool) => {
-            if (!decorate) return pool;
+    // Player B — opponents of the chosen A, sorted not-yet-played first then A→Z,
+    // each tagged with the real result vs A (WON/LOST/DREW) or NOT PLAYED.
+    const bPlayed = (p) => {
+        const a = inputA.value.trim();
+        return a ? deriveBaselineState(a, p).wasPlayed : false;
+    };
+    mountSearchField(inputB, {
+        labelFor: displayPlayerName,
+        suggest: (query) => {
+            const a = inputA.value.trim();
+            const base = (a && opponentsOf.has(a))
+                ? [...opponentsOf.get(a)].filter(p => p !== 'Bye' && p !== a)
+                : allPlayersSorted.slice();
+            const q = query.trim().toLowerCase();
+            const pool = q
+                ? base.filter(p => p.toLowerCase().includes(q) || displayPlayerName(p).toLowerCase().includes(q))
+                : base;
             return pool
-                .map(p => ({ p, played: !!(decorate(p) || {}).played }))
+                .map(p => ({ p, played: bPlayed(p) }))
                 .sort((x, y) => (x.played - y.played) || byDisplayName(x.p, y.p))
                 .map(e => e.p);
-        };
-
-        function highlight() {
-            const items = dropdown.querySelectorAll('.whatif-option');
-            items.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
-            if (activeIdx >= 0 && items[activeIdx]) items[activeIdx].scrollIntoView({ block: 'nearest' });
-        }
-
-        function open() {
-            const q = input.value.trim().toLowerCase();
-            const all = getOptions();
-            filtered = orderPool(q ? all.filter(p => p.toLowerCase().includes(q)) : all.slice());
-            activeIdx = -1;
-            if (filtered.length === 0) { close(); return; }
-            dropdown.innerHTML = filtered
-                .map((p, i) => {
-                    const name = escapeHtml(displayPlayerName(p));
-                    const cls = 'whatif-option whatif-option--flag' + (decorate ? ' whatif-option--pill' : '');
-                    return `<li class="${cls}" role="option" data-idx="${i}">${flagFor(p)}<span class="whatif-option-name">${name}</span>${pillFor(p)}</li>`;
-                })
-                .join('');
-            dropdown.hidden = false;
-            input.setAttribute('aria-expanded', 'true');
-        }
-
-        function close() {
-            dropdown.hidden = true;
-            input.setAttribute('aria-expanded', 'false');
-            activeIdx = -1;
-        }
-
-        function choose(val) {
-            input.value = val;
-            close();
-            if (onSelect) onSelect();
-        }
-
-        // Mobile search-sheet adapter: same option source as this combo, feeding
-        // the 16px overlay. Picking runs the combo's own choose().
-        registerSearchAdapter(input, {
-            suggest(query) {
-                const q = query.trim().toLowerCase();
-                const all = getOptions();
-                const pool = orderPool(q ? all.filter(p => p.toLowerCase().includes(q)) : all.slice());
-                return pool.slice(0, 200).map(p => {
-                    const item = { label: displayPlayerName(p), key: p, value: p, flagHtml: flagFor(p) };
-                    if (decorate) {
-                        const d = decorate(p);
-                        if (d) {
-                            if (!d.played) item.badge = { text: 'NOT PLAYED', kind: 'unplayed' };
-                            else if (d.result === 'win') item.badge = { text: 'WON', kind: 'won' };
-                            else if (d.result === 'loss') item.badge = { text: 'LOST', kind: 'lost' };
-                            else item.badge = { text: 'DREW', kind: 'drew' };
-                        }
-                    }
-                    return item;
-                });
-            },
-            pick(item) { choose(item.value); },
-        });
-
-        input.addEventListener('focus', open);
-        input.addEventListener('click', open);
-        input.addEventListener('input', open);
-
-        input.addEventListener('keydown', (e) => {
-            if (dropdown.hidden) return;
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                activeIdx = Math.min(activeIdx + 1, filtered.length - 1);
-                highlight();
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                activeIdx = Math.max(activeIdx - 1, 0);
-                highlight();
-            } else if (e.key === 'Enter' && activeIdx >= 0 && filtered[activeIdx]) {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                choose(filtered[activeIdx]);
-            } else if (e.key === 'Escape') {
-                close();
-            }
-        });
-
-        // mousedown (not click) so selection fires before the input's blur closes the list
-        dropdown.addEventListener('mousedown', (e) => {
-            const li = e.target.closest('.whatif-option');
-            if (!li) return;
-            e.preventDefault();
-            choose(filtered[Number(li.dataset.idx)]);
-        });
-
-        input.addEventListener('blur', () => setTimeout(close, 150));
-
-        return { close };
-    }
-
-    attachCombo(inputA, optsA, () => allPlayersSorted);
-    attachCombo(inputB, optsB, () => {
-        const a = inputA.value.trim();
-        if (a && opponentsOf.has(a)) {
-            // Ordering (unplayed-first, then A→Z) is applied by the combo's
-            // decorate hook below; return the raw opponent set here.
-            return [...opponentsOf.get(a)].filter(p => p !== 'Bye' && p !== a);
-        }
-        return allPlayersSorted;
-    }, null, {
-        // Once Player A is chosen, tag each candidate opponent with whether that
-        // fixture was already played at the current baseline (float unplayed to
-        // the top) and, if played, its real result from Player A's perspective
-        // (WON / LOST / DREW).
-        decorate: (p) => {
-            const a = inputA.value.trim();
-            if (!a) return null;
-            const st = deriveBaselineState(a, p);
-            const result = !st.wasPlayed ? null
-                : st.realWinner === 'A' ? 'win'
-                : st.realWinner === 'B' ? 'loss'
-                : 'draw';
-            return { played: st.wasPlayed, result };
         },
+        decorate: (p) => {
+            const flagCode = getFlagCode(p, whatifCustomFlags);
+            const titleHtml = titleHtmlFor(p);
+            const a = inputA.value.trim();
+            if (!a) return { flagCode, titleHtml };
+            const st = deriveBaselineState(a, p);
+            if (!st.wasPlayed) return { flagCode, titleHtml, badge: { text: 'NOT PLAYED', kind: 'unplayed' } };
+            const kind = st.realWinner === 'A' ? 'won' : st.realWinner === 'B' ? 'lost' : 'drew';
+            const text = kind === 'won' ? 'WON' : kind === 'lost' ? 'LOST' : 'DREW';
+            return { flagCode, titleHtml, badge: { text, kind } };
+        },
+        onSelect: () => {},
     });
 
     // State: staged matches
@@ -2059,6 +1953,8 @@ function renderPlayerSection(ctx) {
     const { allPlayersSet, liveMatches, leagueId } = ctx;
     const players = [...allPlayersSet].sort();
     const totalMatchesPerPlayer = players.length - 1;
+    // REGULAR leagues record no PR — offer only the Luck metric.
+    const showPR = ctx.leagueConfig.showPR;
 
     const container = document.getElementById('charts-container');
 
@@ -2098,8 +1994,8 @@ function renderPlayerSection(ctx) {
                 <select class="player-pick">${players.map(p => `<option value="${p}" ${p === initialPlayer ? 'selected' : ''}>${displayPlayerName(p)}</option>`).join('')}</select>
                 <label>Metric:</label>
                 <select class="metric-pick">
-                    <option value="pr">PR</option>
-                    <option value="luck">Luck</option>
+                    ${showPR ? '<option value="pr">PR</option>' : ''}
+                    <option value="luck"${showPR ? '' : ' selected'}>Luck</option>
                 </select>
                 <a class="open-full-btn player-card-link" href="#" title="Open full player card">Open player card &rsaquo;</a>
                 <button class="remove-chart" title="Remove this chart">&times;</button>
@@ -2573,6 +2469,9 @@ function wireSectionLangPopup(sectionId, btnId, popupId, closeId) {
 }
 
 function renderPrCorrelationSection(ctx) {
+    // REGULAR leagues record no PR — the two correlation sections aren't in the
+    // DOM for them (see insightsPanel), so there's nothing to render.
+    if (!ctx.leagueConfig.showPR) return;
     const { liveMatches } = ctx;
     const players = [...ctx.allPlayersSet].sort();
     const container = document.getElementById('corr-container');
