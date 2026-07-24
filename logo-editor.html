@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Logo Editor — Shabi Israel</title>
+  <link rel="icon" type="image/png" href="assets/logo/logo.png">
+
+  <!-- Same ring fonts the logo.svg embeds — loaded here only so the LIVE inline
+       preview is instant; the exported PNG uses the SVG's own embedded fonts. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&family=Heebo:wght@800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/typography-tokens.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/hero-banner.css">
+  <style>
+    body { background: var(--color-bg); color: var(--color-text);
+           font-family: system-ui, sans-serif; margin: 0; padding: 24px; }
+    .shell { max-width: 1080px; margin: 0 auto; }
+    h2.h { font-size: 13px; text-transform: uppercase; letter-spacing:.1em;
+           color: var(--color-text-muted); margin: 26px 0 10px; }
+
+    .savebar { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+      padding:12px 14px; margin-bottom:16px; border:1px solid var(--color-border);
+      border-radius:10px; background:var(--color-surface); }
+    .savebar .btn-save { padding:8px 20px; border:none; border-radius:7px; cursor:pointer;
+      font-size:14px; font-weight:700; background:var(--color-accent); color:var(--color-on-accent, #fff); }
+    .savebar .btn-ghost { padding:8px 14px; border:1px solid var(--color-border); border-radius:7px;
+      cursor:pointer; font-size:13px; background:transparent; color:var(--color-text); }
+    .savebar .status { font-size:13px; color:var(--color-text-muted); }
+    .savebar .status.ok { color: var(--color-running, #2e9e5b); font-weight:600; }
+    .savebar .status.err { color: var(--color-loss, #e05); font-weight:600; }
+
+    .grid { display:grid; grid-template-columns: 360px 1fr; gap:20px; align-items:start; }
+    @media (max-width:820px){ .grid{ grid-template-columns:1fr; } }
+
+    .card { border:1px solid var(--color-border); border-radius:12px; padding:16px 18px; background:var(--color-surface); }
+    .logo-stage { display:flex; align-items:center; justify-content:center; background:
+      repeating-conic-gradient(#0000 0 25%, color-mix(in srgb, var(--color-text) 6%, transparent) 0 50%) 50%/22px 22px; border-radius:12px; padding:14px; }
+    .logo-stage svg, .logo-stage img { width: 320px; height: 320px; display:block; }
+
+    .fieldset { margin:0 0 18px; }
+    .fieldset > legend { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.08em;
+      color:var(--color-text-secondary); padding:0 0 8px; }
+    .row { display:flex; align-items:center; gap:10px; margin:9px 0; font-size:13px; }
+    .row label { flex:0 0 78px; color:var(--color-text-muted); }
+    .row input[type=text]{ flex:1; min-width:0; padding:6px 8px; border:1px solid var(--color-border);
+      border-radius:6px; background:var(--color-bg); color:var(--color-text); font-size:14px; }
+    .row input[type=range]{ flex:1; }
+    .row .val{ flex:0 0 46px; text-align:left; color:var(--color-text-secondary); font-variant-numeric:tabular-nums; }
+    .hint { font-size:12px; color:var(--color-text-muted); margin:4px 0 0; }
+
+    .cap { font-size:12px; color:var(--color-text-muted); margin:0 0 8px; }
+    #bannerPreview { border:0; border-radius:0; box-shadow:none; }
+    .note{ margin-top:18px; font-size:13px; color:var(--color-text-muted); line-height:1.6; }
+    .note code{ background:var(--color-surface); padding:1px 5px; border-radius:4px; }
+    .themebar { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:14px; }
+    .themebar button { padding:5px 11px; border:1px solid var(--color-border); background:var(--color-surface);
+      color:var(--color-text); border-radius:6px; cursor:pointer; font-size:12px; }
+    .themebar button.active { outline:2px solid var(--color-accent); }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="themebar" id="themeBar"><strong style="margin-inline-end:8px">רקע לבדיקה:</strong></div>
+
+    <div class="savebar">
+      <button class="btn-save" id="saveBtn">💾 שמור לאתר</button>
+      <button class="btn-ghost" id="revertBtn">שחזר לברירת מחדל</button>
+      <span class="status" id="status"></span>
+    </div>
+
+    <div class="grid">
+      <div>
+        <h2 class="h">תצוגת לוגו חיה</h2>
+        <div class="card logo-stage" id="logoStage"></div>
+      </div>
+
+      <div>
+        <h2 class="h">עריכת טקסטים בטבעת</h2>
+        <div class="card">
+          <fieldset class="fieldset" style="border:0;padding:0;margin-bottom:20px">
+            <legend>טבעת עליונה (עברית)</legend>
+            <div class="row"><label for="topText">טקסט</label><input type="text" id="topText" dir="rtl"></div>
+            <div class="row"><label for="topSize">גודל גופן</label><input type="range" id="topSize" min="28" max="74" step="1"><span class="val" id="topSize_v"></span></div>
+          </fieldset>
+          <fieldset class="fieldset" style="border:0;padding:0;margin:0">
+            <legend>טבעת תחתונה (אנגלית)</legend>
+            <div class="row"><label for="botText">טקסט</label><input type="text" id="botText" dir="ltr"></div>
+            <div class="row"><label for="botSize">גודל גופן</label><input type="range" id="botSize" min="28" max="74" step="1"><span class="val" id="botSize_v"></span></div>
+          </fieldset>
+          <p class="hint">גודל הלוגו קבוע — הכלי עורך רק את הטקסטים וגודל הגופן שלהם. אם טקסט ארוך מדי הוא ייחתך על הקשת; הקטן את הגופן עד שייכנס.</p>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="h">כך זה ייראה בבאנר (מתעדכן אוטומטית מאותה תמונת לוגו)</h2>
+    <p class="cap">תצוגה מקדימה של כותרת הבאנר — הלוגו כאן הוא הגרסה החיה שאתה עורך.</p>
+    <header class="hero-banner" id="bannerPreview"></header>
+
+    <p class="note">
+      <b>שמור לאתר</b> מרנדר את הלוגו לתמונת <code>assets/logo/logo.png</code> (640×640) ומעדכן את המאסטר
+      <code>assets/logo/logo.svg</code> — בפעם הראשונה תתבקש לאשר גישה לתיקייה <code>assets/logo</code> (אישור אחד).
+      כל דף שטוען את הלוגו (כולל הבאנר) יציג את הגרסה החדשה בטעינה מחדש. הערכים שנשמרו הופכים לברירת המחדל בעריכה הבאה.
+    </p>
+  </div>
+
+  <script type="module">
+  import { renderHeroBanner, loadBannerConfig } from './js/render/heroBanner.js';
+
+  const LOGO_SVG_PATH = 'assets/logo/logo.png'.replace('logo.png','logo.svg');
+  const DRAFT_KEY = 'shabi-logo-ring';
+
+  // Baseline defaults = exactly what ships in logo.svg right now (path-1 build).
+  const DEFAULTS = { topText:'ליגת השש בש', topSize:52, botText:'ISRAELI BACKGAMMON LEAGUE', botSize:50 };
+
+  const el = id => document.getElementById(id);
+  const status = el('status');
+  const flash = (msg, cls='') => { status.textContent = msg; status.className = 'status ' + cls; };
+
+  let templateDoc = null;   // parsed logo.svg (the render template)
+  const params = { ...DEFAULTS };
+
+  /* ---------- theme buttons (only affect the banner preview background) ---------- */
+  ['(בהיר)','dark','beige','nature','vegas','casino','rainbow','x22'].forEach((t,i)=>{
+    const b=document.createElement('button'); b.textContent=t;
+    b.onclick=()=>{ if(t==='(בהיר)') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme=t;
+      [...el('themeBar').querySelectorAll('button')].forEach(x=>x.classList.remove('active')); b.classList.add('active'); renderBanner(); };
+    if(i===0) b.classList.add('active'); el('themeBar').appendChild(b);
+  });
+
+  /* ---------- build a standalone SVG string for the current params ---------- */
+  function buildSvgString(){
+    const doc = templateDoc.cloneNode(true);
+    const top = doc.querySelector('textPath[href="#topArc"]');
+    const bot = doc.querySelector('textPath[href="#bottomArc"]');
+    if (top){ top.textContent = params.topText; top.parentNode.setAttribute('font-size', params.topSize); }
+    if (bot){ bot.textContent = params.botText; bot.parentNode.setAttribute('font-size', params.botSize); }
+    return new XMLSerializer().serializeToString(doc.documentElement);
+  }
+
+  /* ---------- live previews ---------- */
+  const banner = el('bannerPreview');
+  let bannerCfg = null;
+  let bannerTimer = null;
+
+  function svgToDataUri(svg){ return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); }
+
+  function renderLogo(){
+    el('logoStage').innerHTML = buildSvgString();
+  }
+  function renderBanner(){
+    if (!bannerCfg) return;
+    const cfg = JSON.parse(JSON.stringify(bannerCfg));
+    cfg.logo = cfg.logo || {};
+    cfg.logo.src = svgToDataUri(buildSvgString());   // live logo, not the file
+    cfg.logo.show = true;
+    renderHeroBanner(banner, cfg);
+  }
+  function renderAll(){
+    renderLogo();
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(renderBanner, 120);   // debounce the heavier banner path
+  }
+  window.addEventListener('resize', renderBanner);
+
+  /* ---------- render SVG string -> 640x640 PNG blob ---------- */
+  function svgToPngBlob(svg){
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(new Blob([svg], {type:'image/svg+xml'}));
+      const img = new Image();
+      img.onload = () => {
+        // draw twice with a micro-delay so embedded fonts are surely applied
+        const cv = document.createElement('canvas'); cv.width = 640; cv.height = 640;
+        const ctx = cv.getContext('2d');
+        const draw = () => { ctx.clearRect(0,0,640,640); ctx.drawImage(img,0,0,640,640); };
+        draw();
+        requestAnimationFrame(() => { draw(); cv.toBlob(b => { URL.revokeObjectURL(url); b ? resolve(b) : reject(new Error('toBlob failed')); }, 'image/png'); });
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('SVG image load failed')); };
+      img.src = url;
+    });
+  }
+
+  /* ---------- tiny IndexedDB kv (remember the granted directory handle) ---------- */
+  const idb = () => new Promise((res,rej)=>{ const r=indexedDB.open('shabi-logo',1);
+    r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); });
+  const idbSet = async (k,v)=>{ const db=await idb(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readwrite'); t.objectStore('kv').put(v,k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); };
+  const idbGet = async (k)=>{ const db=await idb(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readonly'); const rq=t.objectStore('kv').get(k); rq.onsuccess=()=>res(rq.result); rq.onerror=()=>rej(rq.error); }); };
+
+  async function getLogoDir(){
+    let h = await idbGet('logoDir').catch(()=>null);
+    const opts = { mode:'readwrite' };
+    if (h) {
+      if (await h.queryPermission(opts) === 'granted') return h;
+      if (await h.requestPermission(opts) === 'granted') return h;
+    }
+    h = await window.showDirectoryPicker({ id:'shabi-logo-dir', mode:'readwrite', startIn:'documents' });
+    await idbSet('logoDir', h).catch(()=>{});
+    return h;
+  }
+  async function writeFile(dir, name, data){
+    const fh = await dir.getFileHandle(name, { create:true });
+    const w = await fh.createWritable(); await w.write(data); await w.close();
+  }
+
+  /* ---------- save ---------- */
+  async function save(){
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(params)); } catch {}
+    const svg = buildSvgString();
+    if (!window.showDirectoryPicker){
+      flash('הדפדפן לא תומך בכתיבת קבצים ישירה — פתח ב-Chrome/Edge.', 'err'); return;
+    }
+    try {
+      flash('מרנדר PNG…');
+      const png = await svgToPngBlob(svg);
+      const dir = await getLogoDir();
+      await writeFile(dir, 'logo.png', png);
+      await writeFile(dir, 'logo.svg', new Blob([svg], {type:'image/svg+xml'}));
+      flash('נשמר ✓ — logo.png + logo.svg עודכנו. טען מחדש דפים כדי לראות (הבאנר כאן כבר מציג).', 'ok');
+    } catch (e) {
+      if (e.name === 'AbortError'){ flash('השמירה בוטלה.', 'err'); return; }
+      flash('שגיאה בשמירה: ' + e.message, 'err');
+    }
+  }
+  el('saveBtn').onclick = save;
+  el('revertBtn').onclick = () => { Object.assign(params, DEFAULTS); syncControls(); renderAll(); flash('הוחזר לברירת המחדל (לא נשמר עדיין).'); };
+
+  /* ---------- controls ---------- */
+  function syncControls(){
+    el('topText').value = params.topText;
+    el('botText').value = params.botText;
+    el('topSize').value = params.topSize; el('topSize_v').textContent = params.topSize;
+    el('botSize').value = params.botSize; el('botSize_v').textContent = params.botSize;
+  }
+  el('topText').oninput = e => { params.topText = e.target.value; renderAll(); };
+  el('botText').oninput = e => { params.botText = e.target.value; renderAll(); };
+  el('topSize').oninput = e => { params.topSize = +e.target.value; el('topSize_v').textContent = e.target.value; renderAll(); };
+  el('botSize').oninput = e => { params.botSize = +e.target.value; el('botSize_v').textContent = e.target.value; renderAll(); };
+
+  /* ---------- read defaults from the committed logo.svg (= last saved) ---------- */
+  function readParamsFromDoc(doc){
+    const out = { ...DEFAULTS };
+    const top = doc.querySelector('textPath[href="#topArc"]');
+    const bot = doc.querySelector('textPath[href="#bottomArc"]');
+    if (top){ out.topText = top.textContent; const fs=+top.parentNode.getAttribute('font-size'); if(fs) out.topSize=fs; }
+    if (bot){ out.botText = bot.textContent; const fs=+bot.parentNode.getAttribute('font-size'); if(fs) out.botSize=fs; }
+    return out;
+  }
+
+  /* ---------- init ---------- */
+  (async () => {
+    // template + on-disk (last-saved) values
+    const svgText = await (await fetch(LOGO_SVG_PATH, { cache:'no-store' })).text();
+    templateDoc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
+    Object.assign(params, readParamsFromDoc(templateDoc));
+    // a same-browser draft (may be newer than the file) wins for instant continuity
+    try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY)||'null'); if (d) Object.assign(params, d); } catch {}
+
+    bannerCfg = await loadBannerConfig() || { photo:'assets/logo/board-clean.jpg', logo:{ size:150, x:7, y:48, show:true }, heightAdd:62, els:[] };
+
+    syncControls();
+    renderAll();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(renderAll);
+  })();
+  </script>
+</body>
+</html>

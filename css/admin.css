@@ -482,7 +482,7 @@ body.site-sidebar-closed .admin-main {
 }
 .history-attach:first-child { border-top: none; }
 .history-attach-head { font-size: var(--fs-090); margin-bottom: var(--space-xs); }
-/* One continuous numbered line per changed field (replaces the 3-col table). */
+/* One plain-English bullet line per changed field (see changeDetails.js). */
 .history-field-line {
     font-size: var(--fs-085);
     color: var(--color-text-secondary);

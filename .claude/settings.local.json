@@ -75,7 +75,12 @@
       "mcp__playwright__browser_resize",
       "Bash(git push *)",
       "Bash(git rm *)",
-      "Bash(node --check js/utils/combobox.js)"
+      "Bash(node --check js/utils/combobox.js)",
+      "Bash(awk '/^-- 6a-bis/{f=1} f{print} /grant execute on function public.finalize_player_batches/{if\\(f\\)exit}' sql/audit_batching.sql)",
+      "Bash(node -e \"const fs=require\\('fs'\\);const svg=JSON.parse\\(fs.readFileSync\\('logo-final2.svg','utf8'\\)\\);fs.writeFileSync\\('assets/logo/logo.svg',svg\\);console.log\\('bytes:',Buffer.byteLength\\(svg\\)\\);console.log\\('fontfaces:',\\(svg.match\\(/@font-face/g\\)||[]\\).length,'base64blobs:',\\(svg.match\\(/base64,/g\\)||[]\\).length\\);\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const u=JSON.parse\\(fs.readFileSync\\('zoom-bottom.png','utf8'\\)\\);const b=u.split\\(','\\)[1];fs.writeFileSync\\('zoom-bottom-real.png',Buffer.from\\(b,'base64'\\)\\);console.log\\('ok',u.slice\\(0,30\\)\\);\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const u=JSON.parse\\(fs.readFileSync\\('zoom-bottom2.png','utf8'\\)\\);fs.writeFileSync\\('zoom-bottom2-real.png',Buffer.from\\(u.split\\(','\\)[1],'base64'\\)\\);console.log\\('ok'\\);\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const svg=JSON.parse\\(fs.readFileSync\\('logo-final3.svg','utf8'\\)\\);fs.writeFileSync\\('assets/logo/logo.svg',svg\\);console.log\\('bytes:',Buffer.byteLength\\(svg\\),'fontfaces:',\\(svg.match\\(/@font-face/g\\)||[]\\).length,'base64:',\\(svg.match\\(/base64,/g\\)||[]\\).length\\);\")"
     ]
   },
   "hooks": {

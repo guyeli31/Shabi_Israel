@@ -174,13 +174,14 @@
 }
 
 /* ---- Title abbreviation badges (BMAB rank + championship: G0 / WC / NC …) ----
-   The canonical `.title-abbr` markup comes from getTitleAbbreviationsHtml()
-   (titleConstants.js) and is shared by the league/dashboard/player TABLES *and*
-   now every player search (flyout, sheet, combobox, admin comboboxes). These
-   rules were moved here from components.css — like the flag rule above — because
-   admin.html loads search-overlay.css but never components.css, so the badges
-   would otherwise be unstyled in admin searches. All sizing is em-relative, so
-   a badge tracks the surrounding font size in both a table cell and a search row.
+   SYNCED COPY of the `.title-abbr*` shared atom whose canonical home is
+   components.css. Duplicated here (kept identical — update both) because
+   admin.html loads search-overlay.css but NEVER components.css, so admin
+   comboboxes would otherwise show unstyled title badges. Same reasoning as the
+   flag rule above. The markup comes from getTitleAbbreviationsHtml()
+   (titleConstants.js) and is shared by the TABLES *and* every player search
+   (flyout, sheet, combobox). All sizing is em-relative, so a badge tracks the
+   surrounding font size in both a table cell and a search row.
 
    "Mix G" style (Player Page Lab):
      • BMAB (non-champ) → outlined pill, transparent body, tier-coloured border + text

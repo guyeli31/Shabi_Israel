@@ -358,6 +358,62 @@ $$;
 revoke all on function public.finalize_publish_batch(jsonb, bigint) from public;
 grant execute on function public.finalize_publish_batch(jsonb, bigint) to authenticated;
 
+-- 6a-bis. Per-PLAYER batching for a players_metadata publish. Editing several
+-- players in one Publish stages as a single players_metadata.json write, but the
+-- Pending list already shows ONE row per player — so Historical must too. Rather
+-- than fold every touched player into one batch (finalize_publish_batch would),
+-- this splits the rows this publish created into ONE batch per player (row_pk),
+-- each headlined with that player's own name, mirroring the Pending rows. Only
+-- players_metadata rows are considered; ghosts are skipped so an unchanged player
+-- re-written by the same publish gets no phantom batch. Returns the batch count.
+create or replace function public.finalize_player_batches(p_after_id bigint)
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  who text := coalesce(auth.email(), 'external-source-automation');
+  r record;
+  new_id uuid;
+  n int := 0;
+begin
+  for r in
+    select row_pk,
+           bool_or(action = 'INSERT') as any_insert,
+           bool_or(action = 'DELETE') as any_delete
+      from public.audit_log
+     where id > p_after_id
+       and batch_id is null
+       and changed_by = who
+       and table_name = 'players_metadata'
+       and not public.audit_is_noop(action, table_name, old_value, new_value)
+     group by row_pk
+  loop
+    insert into public.audit_batches (changed_by, topic, subject, specific, icon, detail)
+    values (who, 'player', r.row_pk,
+            case when r.any_insert then 'Created'
+                 when r.any_delete then 'Removed'
+                 else 'Details updated' end,
+            case when r.any_insert then '🆕'
+                 when r.any_delete then '🗑️'
+                 else '📝' end,
+            null)
+    returning id into new_id;
+
+    update public.audit_log
+       set batch_id = new_id
+     where id > p_after_id and batch_id is null and changed_by = who
+       and table_name = 'players_metadata' and row_pk = r.row_pk;
+
+    n := n + 1;
+  end loop;
+  return n;
+end;
+$$;
+revoke all on function public.finalize_player_batches(bigint) from public;
+grant execute on function public.finalize_player_batches(bigint) to authenticated;
+
 -- ----------------------------------------------------------------------------
 -- 6b. Cheap per-batch summary for the Historical list (counts without hauling
 --     every row to the client). Details rows are fetched lazily on expand.

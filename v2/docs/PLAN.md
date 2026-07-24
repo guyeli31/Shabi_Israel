@@ -146,7 +146,10 @@ v2/
 │   │   │                                #   the sheet's 16px input + scroll-lock + browse-all + PERMANENT Clear;
 │   │   │                                #   selection notifies via a DIRECT onChange callback (never a
 │   │   │                                #   self-reopening DOM input event). Hooks: getOptions/suggest, labelFor,
-│   │   │                                #   decorate(value)→{iconHtml,flagCode,badge,sublabel}, onPick, onChange,
+│   │   │                                #   decorate(value)→{iconHtml,flagCode,titleHtml,badge,sublabel}, onPick, onChange,
+│   │   │                                #   (titleHtml = BMAB/championship badge from the shared TitleBadge helper,
+│   │   │                                #    inline after the name — one source for tables AND searches, em-based;
+│   │   │                                #    see MIGRATION 2026-07-23),
 │   │   │                                #   allowFreeText, resultTarget (popup | inplace-filter). Two axes stay
 │   │   │                                #   explicit config: RESULT TARGET (popup / inplace / persistent-list /
 │   │   │                                #   navigate) and FLAG SOURCE (single-league CustomFlags / merged). The

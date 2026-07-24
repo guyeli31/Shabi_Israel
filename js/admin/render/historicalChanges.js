@@ -18,6 +18,7 @@
 
 import { supabase } from '../../data/supabaseClient.js';
 import { renderChangeLabel } from './changeVocabulary.js';
+import { describeFieldChange, describeEntitySummary } from './changeDetails.js';
 
 // Per-table icon + label for the attachment sub-rows shown under "Details".
 const ATTACHMENT_META = {
@@ -29,7 +30,7 @@ const ATTACHMENT_META = {
     landing_settings: { icon: '🏠', label: 'Landing settings' },
 };
 
-const ACTION_LABEL = { INSERT: 'created', UPDATE: 'updated', DELETE: 'deleted' };
+const ACTION_LABEL = { INSERT: 'created', UPDATE: 'updated', DELETE: 'removed' };
 
 const LIMIT_KEY = 'shabi-history-limit';
 const DEFAULT_LIMIT = 100;
@@ -225,14 +226,6 @@ function wireDiffToggles(container) {
     });
 }
 
-// Compact value for a before/after: missing/created/deleted → "-", objects →
-// JSON, everything else its plain value (no quotes on strings).
-function fmtVal(v) {
-    if (v === null || v === undefined) return '-';
-    if (typeof v === 'object') return JSON.stringify(v);
-    return String(v);
-}
-
 function renderDetails(rows, ghostCount) {
     if (rows.length === 0) {
         return `<p style="color:var(--color-text-muted)">No field-level changes to show.</p>`;
@@ -240,17 +233,25 @@ function renderDetails(rows, ghostCount) {
     const blocks = rows.map((r) => {
         const meta = ATTACHMENT_META[r.table_name] || { icon: '📄', label: r.table_name };
         const subj = attachmentSubject(r);
-        const diff = diffRows(r.old_value, r.new_value);
-        const lines = diff.length === 0
-            ? `<div class="history-field-line">(no field-level changes)</div>`
-            : diff.map((d, i) =>
-                `<div class="history-field-line">${i + 1}. field: ${esc(d.key)}, before: ${esc(fmtVal(d.before))}, after: ${esc(fmtVal(d.after))}</div>`
-              ).join('');
+
+        // Creates and deletes summarise the whole row in one line; updates list
+        // one plain-English bullet per changed field.
+        let lines;
+        if (r.action === 'INSERT' || r.action === 'DELETE') {
+            lines = `<div class="history-field-line">${esc(describeEntitySummary(r.table_name, r.action, r.old_value, r.new_value))}</div>`;
+        } else {
+            const diff = diffRows(r.old_value, r.new_value);
+            lines = diff.length === 0
+                ? `<div class="history-field-line">(no field-level changes)</div>`
+                : diff.map((d) =>
+                    `<div class="history-field-line">• ${esc(describeFieldChange(r.table_name, d.key, d.before, d.after))}</div>`
+                  ).join('');
+        }
         return `
             <div class="history-attach">
                 <div class="history-attach-head">
                     <span aria-hidden="true">${meta.icon}</span>
-                    ${esc(meta.label)} <b>${esc(subj)}</b> ${esc(ACTION_LABEL[r.action] || r.action)}
+                    ${esc(meta.label)} <b>${esc(subj)}</b> — ${esc(ACTION_LABEL[r.action] || r.action)}
                 </div>
                 ${lines}
             </div>`;

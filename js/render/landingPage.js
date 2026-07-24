@@ -1247,9 +1247,10 @@ function renderLeaderboards(container, leaderboards) {
                 .map(row => ({ ...row, meta: _playersMeta[row.player] }));
 
             const preset = buildAnnualLeaderboardPreset({
-                rows:    visibleRows,
-                months:  lb.months,
-                isUBC:   lb.isUBC,
+                rows:       visibleRows,
+                months:     lb.months,
+                isUBC:      lb.isUBC,
+                leagueType: lb.leagueType,
                 flagUrl,
             });
             const { table } = mountMFTable(mountPoint, preset);

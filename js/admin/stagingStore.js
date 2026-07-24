@@ -454,13 +454,23 @@ export async function publishAll(onProgress) {
             }
         }
 
-        // Tag this unit's rows into their own batch.
+        // Tag this unit's rows into their batch(es). A players_metadata unit
+        // splits into ONE batch PER edited player (so Historical mirrors the
+        // per-player rows Pending already shows); every other unit becomes a
+        // single batch headlined by its primary staged change.
         if (watermark != null) {
             try {
-                await supabase.rpc('finalize_publish_batch', {
-                    p_intent: deriveGroupIntent(unit.changes),
-                    p_after_id: watermark,
-                });
+                const isPlayerMetaUnit = unit.changes.some(
+                    (c) => parseChangePath(c.path).kind === 'players_metadata'
+                );
+                if (isPlayerMetaUnit) {
+                    await supabase.rpc('finalize_player_batches', { p_after_id: watermark });
+                } else {
+                    await supabase.rpc('finalize_publish_batch', {
+                        p_intent: deriveGroupIntent(unit.changes),
+                        p_after_id: watermark,
+                    });
+                }
             } catch { /* leave rows un-batched rather than fail the publish */ }
         }
     }
