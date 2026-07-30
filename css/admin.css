@@ -2308,6 +2308,10 @@ table.font-large { font-size: var(--fs-093); }
     background: var(--lt-ubc-bg);
     color: var(--lt-ubc-text);
 }
+.league-type-pill.type-all {
+    background: var(--lt-all-bg);
+    color: var(--lt-all-text);
+}
 
 /* ---- Status pill (mirrors components.css for admin page) ---- */
 .status-pill {
@@ -2341,7 +2345,10 @@ table.font-large { font-size: var(--fs-093); }
     font-size: var(--fs-085);
     padding: 0.4em 0.7em;
     line-height: 1.4;
-    white-space: nowrap;
+    /* Kept in sync with the copy in components.css. */
+    max-width: min(88vw, 30em);
+    white-space: normal;
+    overflow-wrap: anywhere;
     pointer-events: none;
     opacity: 0;
     transform: translateY(-2px);

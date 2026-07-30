@@ -280,7 +280,11 @@ revoke all on function public.restore_batch(uuid) from public;
 grant execute on function public.restore_batch(uuid) to authenticated;
 
 -- Undo + Remove: revert silently (no new audit rows) and purge the batch and
--- all its rows from history — the whole change vanishes as if never made.
+-- all its rows from history — the change vanishes from the admin UI as if never
+-- made. NOTE: sql/audit_soft_purge.sql redefines this to archive the rows into
+-- audit_log_purged/audit_batches_purged first, so a mistaken ✕ stays recoverable
+-- via unpurge_batch(). Run that migration too; without it the delete below is
+-- final and only a PITR/backup restore can bring the rows back.
 create or replace function public.restore_and_delete_batch(p_batch_id uuid)
 returns void
 language plpgsql

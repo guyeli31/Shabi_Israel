@@ -47,6 +47,7 @@ Table code mapping for the app. All future references to a table use the code be
 | C3 | Matchup (sub-section of Match History) |
 | C4 | All Opponents (H2H aggregate, player-general) |
 | C5 | Match Records |
+| C6 | Total Luck (Records tab) |
 
 ### D — League Table (league_table.html)
 
@@ -76,14 +77,15 @@ Table code mapping for the app. All future references to a table use the code be
 
 ## Part 2 — Formats
 
-The project has **four** table formats. Each format is owned by `table-lab/` and exposes a dedicated `mount*` function. Production pages do not render tables directly — they call the appropriate format's mount function with a preset.
+The project has **five** table formats. Each format is owned by `table-lab/` and exposes a dedicated `mount*` function. Production pages do not render tables directly — they call the appropriate format's mount function with a preset.
 
 | Format | Code | Used by |
 |---|---|---|
-| Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3, C4, **F5** |
+| Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3, C4, C6, **F5** |
 | Secondary Format | **SF** | A3, A4, A5, A6, C5 |
 | Expandable Format | **exp** | C0 |
 | Form Format | **FF** | F1 (League Manager), F2 (Players), F3 (Round Editor), F4 (View Overrides), F6 (Medals & Prizes), F7 (Sync ▸ Active Leagues) |
+| PR Matrix Format | **PM** | PR Win-Probability Table (every "?" popup that shows it), Table Validation popup |
 
 > **F5 is the lone admin table on MF** (every other admin table is FF). It is a read-only CSV-import preview, so MF — not the editable FF — is the right format. It renders through `mountMFTable` with `fontClass:'font-small'` (matching B3) and `stickyCols:1` (left column pinned). The MF sticky **header** is a no-op here because `.mf-wrap` is `overflow-y:clip` (never a vertical scroll context) — satisfying the "no floating header" requirement without any change to the shared MF format. `admin.html` loads `table-lab/formats/mf/mf.css` for this one table. The preview shows **only the "N updates"**: matches played in the upload that were not already played and are not override-covered (computed in `js/admin/csvValidation.js`).
 
@@ -151,7 +153,7 @@ Per-context overrides (`.dash-table .flag`, `.achv-table .flag`, etc.) carry the
 
 ### MF (Main Format)
 
-The standard table variant used by: **A1, A2, D, E, all B, C1, C2, C3, C4.**
+The standard table variant used by: **A1, A2, D, E, all B, C1, C2, C3, C4, C6.**
 
 Rendered entirely by `mountMFTable(mountPoint, args)` (`table-lab/mount-mf-table.js`). The function owns all DOM creation — caller provides a plain empty `<div>` and a configuration object. No post-call wiring needed.
 
@@ -254,12 +256,13 @@ Master list — every documented link cell and where its 600 comes from:
 | C3 Matchup | League | `matchup-league-cell` → `.matchup-table a` | link | `css/components.css` |
 | C4 All Opponents | Opponent | `.c4-opp-link` | button/link | `css/components.css` |
 | C5 Match Records | Player | `.achv-table .player-name-link` | link | SF canon |
+| C6 Total Luck | League | `league-cell` | `<td>` | `css/components.css` |
 | D League Table | Player | `player-cell` | `<td>` | `css/components.css` |
 | E Player Match History | Opponent / League | `player-cell` / `league-cell` | `<td>` | `css/components.css` |
 
 > **History:** until 2026-06-18 three cells drifted to body weight (C0 player link, C3 League link, A1 League title) — they inherited ≈400 while every sibling link was 600. The fix added explicit `font-weight: 600` to those three rules so the whole app is now uniform. **Do not regress:** any new link cell must land at 600.
 
-For C1/C2 specifically: tag a new clickable column's `<td>` with `league-cell` (or `player-cell` for a player name) so it matches automatically. The hover-underline comes from the page's `.pg-section .mf-wrap a:hover` rule, which both classes inherit. The lab's `buildC1`/`buildC2` carry the same `tdClass` so the design catalog stays faithful.
+For C1/C2/C6 specifically: tag a new clickable column's `<td>` with `league-cell` (or `player-cell` for a player name) so it matches automatically. The hover-underline comes from the page's `.pg-section .mf-wrap a:hover` rule, which both classes inherit. The lab's `buildC1`/`buildC2` carry the same `tdClass` so the design catalog stays faithful; the lab's `buildC6TotalLuck` goes one better and calls the production preset directly (like `buildC4AllOpponents`), so it cannot drift at all.
 
 **v2 destination:** the same contract is enforced by the Link primitive — `.link--quiet` and `.link--strong` both pin `font-weight: var(--fw-subheading)` (= 600), and `.player-cell` pins it on the cell. v2 table link cells use one of these; none inherit body weight. See `v2/src/primitives/Link/link.css` and `v2/docs/MIGRATION-FROM-V1.md`.
 
@@ -306,6 +309,27 @@ Columns (left → right):
 | 6 | `luck` | **differential** — mean(player luck) − mean(opponent luck) |
 
 Selecting an opponent via the smart search **or** clicking an opponent row both render C3 above; the row-click additionally scrolls the page up to reveal it. Both H2H sections are always open (no collapse).
+
+---
+
+#### C6 — Total Luck (Records tab, player-general)
+
+The middle section of the **Records** tab on `player.html`, between *Match Records* (C5) and *Total PR ↔ Result*. One MF table (`tableId: 'C6'`, `fontClass: 'font-large'`, `stickyCols: 1`, `showTopN: null`) deliberately built from the **same cell vocabulary as C1 Leagues** — league link, league-type pill, medal-tinted `rank / total` — narrowed to the four columns the section is about. Built by `js/presets/playerTotalLuckPreset.js` (`buildPlayerTotalLuckPreset` + `collectPlayerLeagueLuck`); the shared `typePillHtml` / `rankCellHtml` helpers are exported from `js/presets/playerLeaguesPreset.js` so C1 and C6 can never drift.
+
+Columns (left → right):
+
+| # | Key | Cell |
+|---|---|---|
+| 1 | `leagueTitle` | **Sticky.** Clickable league title (`tdClass: 'league-cell'`) |
+| 2 | `type` | league-type pill (`.league-type-pill.type-*`) |
+| 3 | `rank` | `rank / total`, medal-tinted from the league's own Gold/Silver/BronzeCount |
+| 4 | `luck` | Luck Confidence percentile **D** (0–100), tinted by `colorForValue(D, 0, 100)` at weight 600 |
+
+**Row scope (load-bearing):** only leagues that are **completed** (`params.Running !== true`) **and** track PR (`config.showPR`). A mid-season luck reading would otherwise sit beside finished seasons as if it were settled, and REGULAR leagues record no PR at all, so there is no model to be lucky against.
+
+A pill bar above the table filters by league type — **ALL** (default, leftmost) plus one pill per PR-tracking type the player actually played, using the shared `mountPillTabs` + `ALL_TYPES_TAB` primitive (`js/render/subTabs.js`). The section is collapsible and **open by default**, like the two sections around it.
+
+The luck figure is the same metric as the landing page's *Luck Percentile* card (`js/compute/luckConfidence.js`) — not the per-match luck **gap** shown in C2/C5. Its full derivation is in the shared `luck-percentile` popup.
 
 ---
 
@@ -773,3 +797,90 @@ document.getElementById('save-btn').addEventListener('click', async () => {
     await save(diff);
 });
 ```
+
+---
+
+### PM (PR Matrix Format)
+
+The read-only **numeric reference grid** used by the two statistics tables that
+explain the site's win-probability model: the **PR Win-Probability Table** (shown
+inside several "?" popups — Championship Predictor, Player/League PR-difference,
+Luck Percentile) and the **Table Validation** popup on the dashboard.
+
+Canon lives in `table-lab/formats/pm/` (`pm.css` auto-imports `base/base.css`).
+Mirrored to `css/dashboard.css` (production popups on `index.html` + the league
+dashboard) and to `luck-lab.html` (the standalone **Explanation and Maths** tool)
+until table-lab unification Phase 7 lets production import the format CSS.
+
+> **Why PM is string-first, not mount-first.** Unlike MF/SF/exp/FF — which build
+> DOM inside a live mount point — every PM consumer assembles an **HTML string**
+> that gets injected into a "?" popup (the popups themselves are built as strings
+> in `js/data/popupContent.js` / `js/render/dashboardPage.js`). So PM's core is
+> **`pmTableHtml(config) → string`**, and `mountPMTable(mountPoint, config)` is a
+> thin `innerHTML` wrapper for the rare caller that owns an element. The module
+> touches no DOM at import, so it is safe to import from the DOM-free compute
+> layer (`championshipPredictor.js` imports `pmTableHtml`).
+
+**Single canonical base, two shapes.** One look (`.pm-table`), selected by
+`variant`:
+
+| Variant | Class | Shape | Used by |
+|---|---|---|---|
+| `'matrix'` | `.pm-matrix` | PR-gap **rows** × match-length **columns**, centred, coloured win-% cells, a grouped super-header + a sticky-toned row-header column | PR Win-Probability Table |
+| `'list'` | `.pm-list` | one row per PR gap, left-aligned, arbitrary stat columns, first (gap) column bold tabular | Table Validation |
+
+Both are wrapped in `<figure class="pm-figure">` with a bold `<figcaption
+class="pm-caption">` title and an optional muted `.pm-note` (e.g. *"— Doubling-cube
+matches only."* — the **doubling-only** caveat both tables now carry). A wide list
+sets `scroll: true` to ship inside a `.pm-scroll` horizontal shell; the matrix is
+scroll-wrapped by the consumer/tool as needed and drops its longest columns under
+`max-width: 640px`.
+
+#### `pmTableHtml(config)` — config
+
+| Key | Type | Notes |
+|---|---|---|
+| `variant` | `'matrix' \| 'list'` | Default `'list'` |
+| `caption` | `string` | Bold figcaption title |
+| `note` | `string` | Muted note after an em-dash; omit for none |
+| `colGroup` | `{ label }` | Matrix only — super-header spanning all columns |
+| `rowHeader` | `{ label }` | Matrix only — top-left corner cell; rows then carry a `header` rendered as `<th scope="row">` |
+| `cols` | `{ label }[]` | Leaf column headers |
+| `rows` | `{ header?, cells, className? }[]` | `cells` = `{ html, color?, className? }[]`; a `color` sets inline `color:` (the win-% / confidence gradients); `className: 'pm-thin'` greys a low-sample row |
+| `scroll` | `boolean` | Wrap the figure in `.pm-scroll` |
+
+#### Cell colouring
+
+PM does not compute colours — the caller passes a resolved CSS colour per cell
+(`colorForValue` for the win-% gradient, `colorForConfidence` for the Table
+Validation error/likelihood columns), exactly as the hand-built versions did, so
+the visual output is unchanged from before the format existed.
+
+#### Usage
+
+```js
+// Matrix — PR Win-Probability Table (championshipPredictor.js)
+pmTableHtml({
+    variant:  'matrix',
+    caption:  'PR Win-Probability Table',
+    note:     'Doubling-cube matches only.',
+    rowHeader:{ label: 'PR gap' },
+    colGroup: { label: 'Match length' },
+    cols:     lens.map(l => ({ label: String(l) })),
+    rows:     gaps.map(g => ({ header: g, cells: probs[g].map(v => ({ html: v.toFixed(1), color: colorForValue(v, min, max) })) })),
+});
+
+// List — Table Validation (dashboardPage.js)
+pmTableHtml({
+    variant: 'list', scroll: true,
+    caption: 'Table Validation — gap by gap',
+    note:    'Doubling-cube matches only.',
+    cols:    headers.map(h => ({ label: h })),
+    rows:    gapRows.map(r => ({ cells: [ { html: String(r.gap) }, /* … */ ] })),
+});
+```
+
+> **v2 destination.** PM has no v2 component yet — v2 is read-only until the
+> rebuild's admin phase and does not surface these explanation popups. When v2
+> grows a stats-explanation surface, port PM as a `PRMatrix` primitive over the
+> v2 table tokens. Tracked in `v2/docs/MIGRATION-FROM-V1.md`; **not built ahead.**

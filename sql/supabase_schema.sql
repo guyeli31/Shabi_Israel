@@ -336,7 +336,8 @@ grant execute on function public.restore_audit_row(bigint) to authenticated;
 -- the undone change no longer shows up in the history list. The undo write
 -- still goes through log_audit_event() like any other mutation, so a fresh
 -- audit_log row for the restore itself is created — only the row being
--- undone is purged.
+-- undone is purged. (sql/audit_soft_purge.sql redefines this to archive the
+-- purged row into audit_log_purged before deleting it, so it stays recoverable.)
 create or replace function public.restore_and_delete_audit_row(log_id bigint)
 returns void
 language plpgsql

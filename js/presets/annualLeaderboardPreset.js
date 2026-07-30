@@ -34,6 +34,9 @@ export function buildAnnualLeaderboardPreset({ rows, months, isUBC, leagueType, 
         format:   v => v != null ? v : '–',
     }));
 
+    // Column order: # | Player | Tot | [month cols…] | Win%/Avg PTS | [PR].
+    // The monthly breakdown sits between the total and the aggregate metrics;
+    // PR (when present) is always the rightmost column.
     const cols = [
         { key: 'rank',   label: '#',           type: 'number', sortable: false, colorFn: null },
         { key: 'player', label: 'Player',      type: 'string', sortable: true,  colorFn: null,
@@ -41,6 +44,7 @@ export function buildAnnualLeaderboardPreset({ rows, months, isUBC, leagueType, 
           format: (v, row) => `<img class="flag" src="${flagUrl(row._flagCode)}" alt="${row._flagCode}"> ${playerNameLink(v, row._meta)}` },
         { key: 'total',  label: '<b>Tot</b>',  type: 'number', sortable: true, colorFn: null,
           tdClass: 'total-col' },
+        ...monthCols,
         ...(isUBC
             ? [{ key: 'avgPoints', label: 'Avg PTS', type: 'number', sortable: true, colorFn: null,
                  format: v => v != null ? formatNumber(v) : '—' }]
@@ -50,7 +54,6 @@ export function buildAnnualLeaderboardPreset({ rows, months, isUBC, leagueType, 
             ? [{ key: 'meanPR', label: 'PR', type: 'number', sortable: true, colorFn: null,
                  format: v => v != null ? formatNumber(v) : 'N/A' }]
             : []),
-        ...monthCols,
     ];
 
     const data = rows.map(r => ({

@@ -15,6 +15,7 @@
  */
 
 import { colorForValue } from './colorScale.js';
+import { pmTableHtml } from '../../table-lab/formats/pm/mount.js';
 
 // ── Probability lookup table ────────────────────────────────────────
 // Win probability (%) for the better (lower PR) player, indexed by
@@ -47,21 +48,24 @@ export function prProbabilityTableHtml(lang = 'en') {
     const allValues = Object.values(rows).flat();
     const minV = Math.min(...allValues);
     const maxV = Math.max(...allValues);
-    const head = lens.map(l => `<th scope="col">${l}</th>`).join('');
-    const body = Object.keys(rows).map(diff => {
-        const cells = rows[diff].map(v => `<td style="color:${colorForValue(v, minV, maxV)}">${v.toFixed(1)}</td>`).join('');
-        return `<tr><th scope="row">${diff}</th>${cells}</tr>`;
-    }).join('');
     const gapLabel = lang === 'he' ? 'הפרש&nbsp;PR' : 'PR&nbsp;gap';
     const lenLabel = lang === 'he' ? 'אורך המשחק' : 'Match length';
-    return `
-        <table class="pr-prob-table">
-            <thead>
-                <tr><th rowspan="2" scope="col">${gapLabel}</th><th colspan="${lens.length}" scope="colgroup">${lenLabel}</th></tr>
-                <tr>${head}</tr>
-            </thead>
-            <tbody>${body}</tbody>
-        </table>`;
+    const title = lang === 'he' ? 'טבלת סיכויי הניצחון לפי PR' : 'PR Win-Probability Table';
+    const note = lang === 'he'
+        ? 'רק משחקים עם קוביית הכפלה (Doubling).'
+        : 'Doubling-cube matches only.';
+    return pmTableHtml({
+        variant: 'matrix',
+        caption: title,
+        note,
+        rowHeader: { label: gapLabel },
+        colGroup: { label: lenLabel },
+        cols: lens.map(l => ({ label: String(l) })),
+        rows: Object.keys(rows).map(diff => ({
+            header: diff,
+            cells: rows[diff].map(v => ({ html: v.toFixed(1), color: colorForValue(v, minV, maxV) })),
+        })),
+    });
 }
 
 /**

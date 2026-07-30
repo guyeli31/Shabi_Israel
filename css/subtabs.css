@@ -40,6 +40,9 @@
     opacity: 0.55;
 }
 .subtabs--pill .subtab--pill:not(.active):hover { opacity: 0.85; }
+/* Locked bar (e.g. landing edit mode, where the filter must stay on ALL). */
+.subtabs--pill .subtab--pill:disabled { cursor: default; opacity: 0.35; }
+.subtabs--pill .subtab--pill:disabled:hover { opacity: 0.35; }
 
 /* ---- ACCORDION variant ---- */
 .subtabs--accordion {

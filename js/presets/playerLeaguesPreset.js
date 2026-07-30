@@ -5,11 +5,32 @@
  * via callbacks.
  */
 
-const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
+export const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-function formatLeagueDate(league, parseLeagueDate) {
+/** The league-type pill cell, shared by C1 and C6 so both read identically. */
+export function typePillHtml(type) {
+    return `<span class="league-type-pill type-${type}">${TYPE_LABELS[type] || type}</span>`;
+}
+
+/**
+ * The "rank / total" cell, medal-tinted from the league's own Gold/Silver/
+ * BronzeCount. Shared by C1 and C6.
+ */
+export function rankCellHtml(league, playerRank, totalPlayers) {
+    if (playerRank == null) return '&mdash;';
+    const goldCount   = league.params?.GoldCount   ?? 1;
+    const silverCount = league.params?.SilverCount ?? 1;
+    const bronzeCount = league.params?.BronzeCount ?? 1;
+    const rankClass = playerRank <= goldCount                             ? 'rank-cell-gold'
+                    : playerRank <= goldCount + silverCount               ? 'rank-cell-silver'
+                    : playerRank <= goldCount + silverCount + bronzeCount ? 'rank-cell-bronze'
+                    : '';
+    return `<span class="${rankClass}">${playerRank} / ${totalPlayers}</span>`;
+}
+
+export function formatLeagueDate(league, parseLeagueDate) {
     const iso = league.params?.IssueDate || league.params?.StartDate;
     if (iso) {
         const d = new Date(iso);
@@ -68,25 +89,13 @@ export function buildPlayerLeaguesPreset({ perLeague, parseLeagueDate, enrich = 
         const primaryLabel = isUbc ? 'Avg Points' : 'Win Rate';
         const meanPR    = (s.meanPR != null && cfg.showPR) ? s.meanPR.toFixed(2) : '—';
         const running   = e.league.params?.Running === true;
-        const typeLabel = TYPE_LABELS[cfg.type] || cfg.type;
-
-        const goldCount   = e.league.params?.GoldCount   ?? 1;
-        const silverCount = e.league.params?.SilverCount ?? 1;
-        const bronzeCount = e.league.params?.BronzeCount ?? 1;
-        const rankClass = e.playerRank == null ? ''
-            : e.playerRank <= goldCount                              ? 'rank-cell-gold'
-            : e.playerRank <= goldCount + silverCount                ? 'rank-cell-silver'
-            : e.playerRank <= goldCount + silverCount + bronzeCount  ? 'rank-cell-bronze'
-            : '';
-        const rankCell = e.playerRank != null
-            ? `<span class="${rankClass}">${e.playerRank} / ${e.totalPlayers}</span>`
-            : '—';
+        const rankCell = rankCellHtml(e.league, e.playerRank, e.totalPlayers);
 
         return {
             _leagueId:     e.league.id,
             leagueTitle:   e.league.title,
             date:          formatLeagueDate(e.league, parseLeagueDate),
-            type:          `<span class="league-type-pill type-${cfg.type}">${typeLabel}</span>`,
+            type:          typePillHtml(cfg.type),
             _type:         cfg.type,
             status:        running ? 'Running' : 'Completed',
             rank:          rankCell,

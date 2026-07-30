@@ -12,9 +12,17 @@
  * Accessibility: when a native `title` is consumed it is moved to `data-tooltip`
  * (so the OS tooltip stops firing) and, for icon-only controls with no visible
  * text, copied to `aria-label` so screen readers keep the hint.
+ *
+ * Touch devices: hover doesn't exist, so a hint that only opens on `mouseover`
+ * is unreachable on a phone. Any element that also carries `data-tooltip-tap`
+ * opens its tooltip on TAP/click as well — the rest of the page keeps the old
+ * behaviour where a click just dismisses whatever is open. Opt in per element
+ * (see the player-header title chips); don't make it global, or every click
+ * anywhere would pop a hint on desktop.
  */
 
 const SHOW_DELAY = 120; // ms — matches a gentle hover intent
+const TAP_SELECTOR = '[data-tooltip-tap]';
 let tipEl = null;
 let activeTarget = null;
 let showTimer = null;
@@ -95,6 +103,26 @@ function onOut(e) {
     if (t) hide();
 }
 
+/**
+ * One capture-phase click handler for the whole document. A click on a
+ * tap-enabled element OPENS its tooltip (never toggles it shut — on desktop the
+ * thing is already open from hover, and a toggle would make a click feel like it
+ * broke the hint); any other click dismisses.
+ */
+function onClick(e) {
+    const t = e.target.closest && e.target.closest(TAP_SELECTOR);
+    if (t) {
+        const text = tooltipTextFor(t);
+        if (text) {
+            clearTimeout(showTimer);
+            if (t !== activeTarget) show(t, text);
+            else positionTip(t);   // already open — just keep it anchored
+            return;
+        }
+    }
+    hide();
+}
+
 function onFocusIn(e) {
     const t = e.target.closest && e.target.closest('[title], [data-tooltip]');
     if (t) { const text = tooltipTextFor(t); if (text) show(t, text); }
@@ -111,7 +139,7 @@ export function initTooltips() {
     document.addEventListener('mouseout', onOut, true);
     document.addEventListener('focusin', onFocusIn, true);
     document.addEventListener('focusout', hide, true);
-    document.addEventListener('click', hide, true);
+    document.addEventListener('click', onClick, true);
     window.addEventListener('scroll', hide, true);
     window.addEventListener('resize', hide);
     // Hide if the key Escape is pressed (e.g. keyboard users dismissing it).

@@ -565,6 +565,18 @@ const CLICK_TYPE_ICONS = [
     { prefix: 'Nav: previous', icon: '⬅️' },
     { prefix: 'Nav: next', icon: '➡️' },
     { prefix: 'Breadcrumb: ', icon: '🧭' }, // proposed — pending approval
+    // Statistical chart controls share ONE math glyph (∑): the Gaussian-fit /
+    // Trim / Table-Validation toggles and every legend series-toggle, on both
+    // the dashboard PR-correlation panels and the player "Total PR ↔ Result"
+    // section. The chart-comparison controls get their own distinct icons:
+    // adding a comparison chart (➕), removing one (🗑️), and re-pointing a row's
+    // player picker (👤, fired via shabi:interaction since a <select> change is
+    // not a DOM click). Listed before the generic Link entries so these specific
+    // prefixes win the startsWith match.
+    { prefix: 'Chart tool: ', icon: '∑' },
+    { prefix: 'Compare: add', icon: '➕' },
+    { prefix: 'Compare: remove', icon: '🗑️' },
+    { prefix: 'Compare: change', icon: '👤' },
     { prefix: 'Player link: ', icon: '🔗' },
     { prefix: 'League link: ', icon: '🔗' },
     { prefix: 'Link: ', icon: '🔗' },
@@ -646,6 +658,37 @@ function clickIcon(target) {
     return /^\p{Extended_Pictographic}/u.test(target) ? '' : '🔗';
 }
 
+// Display label per tab id, matching EXACTLY what each tab button shows across
+// the site (mountAppTabs definitions in landingPage/dashboardPage/
+// playerGeneralPage.js). A "Tab: <id>" click stores the stable dataset.tab SLUG
+// — translation-proof, unlike the visible label — so the button's own casing is
+// reapplied here at render time, not at capture. Several ids aren't a plain
+// capitalisation (h2h→H2H, leaderboard→Leaders, insights→Charts,
+// statistics→Stats), so this is an explicit map, not an auto-title-case.
+const TAB_LABELS = {
+    leagues: 'Leagues',
+    leaderboard: 'Leaders',
+    records: 'Records',
+    players: 'Players',
+    standings: 'Standings',
+    matches: 'Matches',
+    predictor: 'Predictor',
+    insights: 'Charts',
+    statistics: 'Stats',
+    h2h: 'H2H',
+};
+
+/** Prettify a click_target for display only (the stored string stays the stable
+ *  slug). Currently just "Tab: <id>" → "Tab: <ButtonLabel>"; any unknown id
+ *  falls back to capitalising its first letter so nothing renders lower-case. */
+function displayTarget(target) {
+    if (target.startsWith('Tab: ')) {
+        const id = target.slice(5).trim();
+        return `Tab: ${TAB_LABELS[id] || (id.charAt(0).toUpperCase() + id.slice(1))}`;
+    }
+    return target;
+}
+
 /** The column set for the all-clicks table AND for each session's own trace —
  *  the same array, so "the session view is the clicks table" holds by
  *  construction rather than by agreement.
@@ -665,7 +708,7 @@ const clickColumns = ({ withSession = false } = {}) => [
     // and a no-break space only glues text-to-text — it does not suppress the
     // break between an ATOMIC INLINE (the SVG) and the text after it. nowrap keeps
     // the whole cell on one line; long labels ride the .mf-wrap horizontal scroll.
-    { key: 'target', label: 'Click target', render: (r) => `<span class="ana-click-target">${r.icon ? r.icon + ' ' : ''}${escapeHtml(r.target)}</span>` },
+    { key: 'target', label: 'Click target', render: (r) => `<span class="ana-click-target">${r.icon ? r.icon + ' ' : ''}${escapeHtml(displayTarget(r.target))}</span>` },
     { key: 'device', label: 'Device', render: (r) => escapeHtml(r.device) },
 ];
 

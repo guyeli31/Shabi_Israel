@@ -128,15 +128,57 @@ begin
   end loop;
 end $$;
 
+-- ----------------------------------------------------------------------------
+-- 2b. Name the SINGLE-player batches the old live path wrote with a null
+--     subject — their headline showed "Player · Details updated" with no name,
+--     the name only appearing once Details was expanded. Set subject (and
+--     normalise topic/specific/icon from the row's action) so the player is
+--     identifiable BEFORE expanding, exactly like a league batch. Idempotent:
+--     once a subject is set the row no longer matches.
+-- ----------------------------------------------------------------------------
+update public.audit_batches b
+   set topic = 'player',
+       subject = sub.pk,
+       specific = case
+                    when b.specific is null or b.specific in ('Housekeeping', '')
+                      then case when sub.any_insert then 'Created'
+                                when sub.any_delete then 'Removed'
+                                else 'Details updated' end
+                    else b.specific end,
+       icon = coalesce(nullif(b.icon, ''),
+                       case when sub.any_insert then '🆕'
+                            when sub.any_delete then '🗑️'
+                            else '📝' end)
+  from (
+    select a.batch_id,
+           min(a.row_pk)                    as pk,
+           count(distinct a.row_pk)         as np,
+           bool_or(a.action = 'INSERT')     as any_insert,
+           bool_or(a.action = 'DELETE')     as any_delete
+      from public.audit_log a
+     group by a.batch_id
+  ) sub
+ where b.id = sub.batch_id
+   and sub.np = 1
+   and (b.subject is null or b.subject = '')
+   and exists     (select 1 from public.audit_log a3 where a3.batch_id = b.id and a3.table_name =  'players_metadata')
+   and not exists (select 1 from public.audit_log a2 where a2.batch_id = b.id and a2.table_name <> 'players_metadata');
+
 commit;
 
 -- ----------------------------------------------------------------------------
--- 3. Report: no pure players_metadata batch should span >1 player after this.
+-- 3. Report: after this, no pure players_metadata batch spans >1 player, and
+--    none is left without a subject (a nameless headline).
 -- ----------------------------------------------------------------------------
-select count(*) as remaining_multi_player_batches
-  from public.audit_batches bt
- where exists (select 1 from public.audit_log a where a.batch_id = bt.id)
-   and not exists (select 1 from public.audit_log a
-                    where a.batch_id = bt.id and a.table_name <> 'players_metadata')
-   and (select count(distinct a.row_pk) from public.audit_log a where a.batch_id = bt.id) >= 2
-   and coalesce(bt.specific, '') not like 'Reverted%';
+select
+  (select count(*) from public.audit_batches bt
+    where exists (select 1 from public.audit_log a where a.batch_id = bt.id)
+      and not exists (select 1 from public.audit_log a
+                       where a.batch_id = bt.id and a.table_name <> 'players_metadata')
+      and (select count(distinct a.row_pk) from public.audit_log a where a.batch_id = bt.id) >= 2
+      and coalesce(bt.specific, '') not like 'Reverted%')          as remaining_multi_player_batches,
+  (select count(*) from public.audit_batches bt
+    where (bt.subject is null or bt.subject = '')
+      and exists (select 1 from public.audit_log a where a.batch_id = bt.id)
+      and not exists (select 1 from public.audit_log a
+                       where a.batch_id = bt.id and a.table_name <> 'players_metadata')) as nameless_player_batches;

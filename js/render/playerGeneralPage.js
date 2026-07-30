@@ -36,16 +36,20 @@ import {
     collectPlayerBestOpponentPR
 } from '../compute/matchRecords.js';
 import { drawPlayerBarChart } from './playerBarChart.js';
+import { drawMultiHistogramRow } from './prCorrelationChart.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { mountAppTabs } from './appTabs.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
-import { mountPillTabs } from './subTabs.js';
+import { mountPillTabs, ALL_TYPES_TAB, ALL_TYPES_ID } from './subTabs.js';
+import { langFlagsHtml, wireLangPopup, wireDynamicLangPopup } from '../utils/popupLang.js';
+import { getPopup, playerGaussianSeriesHtml } from '../data/popupContent.js';
 import { getTitleBadgesHtml, getTitleAbbreviationsHtml, getHighestTier } from '../data/titleConstants.js';
 import { renderV12Header, buildHeaderTitles, formatJoinedShort } from './playerHeader.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildPlayerLeaguesPreset } from '../presets/playerLeaguesPreset.js';
+import { buildPlayerTotalLuckPreset, collectPlayerLeagueLuck } from '../presets/playerTotalLuckPreset.js';
 import { buildPlayerAllMatchesPreset } from '../presets/playerAllMatchesPreset.js';
 import { buildMatchupPreset } from '../presets/matchupPreset.js';
 import { buildAllOpponentsPreset, aggregateOpponents } from '../presets/allOpponentsPreset.js';
@@ -121,8 +125,8 @@ export async function renderPlayerGeneralPage() {
         shell.panels.statistics.appendChild(achSection);
         await renderAchievements(achSection, playerName, perLeague);
 
-        // Tab 2 — Leagues (G4): single section, no heading, always open.
-        const leaguesSection = makePgSection('pg-leagues', null);
+        // Tab 2 — Leagues (G4): single section with a league-type filter, always open.
+        const leaguesSection = makePgSection('pg-leagues', 'Leagues');
         shell.panels.leagues.appendChild(leaguesSection);
         renderLeaguesTable(leaguesSection, perLeague);
 
@@ -143,8 +147,12 @@ export async function renderPlayerGeneralPage() {
             renderMatchup(shell.panels.h2h, playerName, allRows);
         }
 
-        // Tab 5 — Records: Match Records (all tables), always open — builds its own section.
+        // Tab 5 — Records: three stacked sections, all collapsible and open by
+        // default — Match Records, Total Luck (per completed league), and
+        // Total PR ↔ Result (cross-league PR-gap histogram).
         renderPlayerMatchRecords(shell.panels.records, perLeague);
+        renderTotalLuckSection(shell.panels.records, playerName, perLeague);
+        renderTotalPrResultSection(shell.panels.records, playerName, perLeague);
 
     } catch (err) {
         console.error(err);
@@ -156,8 +164,11 @@ export async function renderPlayerGeneralPage() {
  * Build a `.pg-section` for a tab panel. `title` → an <h2> heading (omit for
  * a heading-less section). `collapsible` makes the heading toggle the section
  * open/closed (open by default); hiding is driven by the `.pg-collapsed` class.
+ * `headerHtml` is appended inside the heading BEFORE collapse is wired, so a
+ * "?" info button in it is picked up by sectionCollapse's info-button rule
+ * (click opens the section, never collapses it) instead of toggling it.
  */
-function makePgSection(extraClass, title, { collapsible = false, defaultOpen = true } = {}) {
+function makePgSection(extraClass, title, { collapsible = false, defaultOpen = true, headerHtml = '' } = {}) {
     const section = document.createElement('section');
     // .app-section(+--card) = shared section chrome (css/sections.css);
     // .pg-section + extraClass = page/content-specific styling only.
@@ -166,6 +177,7 @@ function makePgSection(extraClass, title, { collapsible = false, defaultOpen = t
         const h2 = document.createElement('h2');
         h2.className = 'app-section-h2';
         h2.textContent = title;
+        if (headerHtml) h2.insertAdjacentHTML('beforeend', headerHtml);
         section.appendChild(h2);
         if (collapsible) wireSectionCollapse(section, { defaultOpen });
     }
@@ -509,16 +521,35 @@ function renderLeaguesTable(section, perLeague) {
     }
     const mountPoint = document.createElement('div');
     mountPoint.className = 'pg-leagues-table-wrapper';
+
+    function renderTable(typeId) {
+        const shown = typeId === ALL_TYPES_ID
+            ? perLeague
+            : perLeague.filter(e => e.league.leagueType === typeId);
+        mountMFTable(mountPoint, buildPlayerLeaguesPreset({
+            perLeague: shown,
+            parseLeagueDate,
+            enrich: {
+                leagueLink: (id, title) => `<a href="${leagueUrl(id)}">${escapeHtml(title)}</a>`,
+            },
+        }));
+    }
+
+    // League-type filter (shared pill sub-tabs) — ALL is leftmost and the
+    // default; only the types the player actually played get a pill. Under ALL
+    // the PR column shows "—" for REGULAR rows, which record no PR at all.
+    const presentTypes = [...new Set(perLeague.map(e => e.league.leagueType))];
+    const filterHost = document.createElement('div');
+    filterHost.className = 'pg-leagues-filter';
+    section.appendChild(filterHost);
     section.appendChild(mountPoint);
 
-    const preset = buildPlayerLeaguesPreset({
-        perLeague,
-        parseLeagueDate,
-        enrich: {
-            leagueLink: (id, title) => `<a href="${leagueUrl(id)}">${escapeHtml(title)}</a>`,
-        },
+    mountPillTabs(filterHost, {
+        tabs: [ALL_TYPES_TAB, ...presentTypes.map(t => ({ id: t, label: LEAGUE_TYPE_LABELS[t] || t.toUpperCase() }))],
+        defaultId: ALL_TYPES_ID,
+        pillClassFor: (t) => 'league-type-pill type-' + t,
+        onSelect: renderTable,
     });
-    mountMFTable(mountPoint, preset);
 }
 
 // ---- G5: Match history ----
@@ -891,9 +922,7 @@ function renderPlayerMatchRecords(container, perLeague) {
     const types = Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a]);
     if (types.length === 0) return;
 
-    const section = document.createElement('section');
-    section.className = 'app-section app-section--card pg-section pg-match-records';
-    section.innerHTML = '<h2 class="app-section-h2">Match Records</h2>';
+    const section = makePgSection('pg-match-records', 'Match Records', { collapsible: true });
     container.appendChild(section);
 
     const body = document.createElement('div');
@@ -1017,6 +1046,513 @@ function playerMatchRecordRow(rank, r) {
             <td><a class="league-link" href="${leagueUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
             <td>${formatShortDate(r.date)}</td>
         </tr>`;
+}
+
+// ---- Total Luck (C6) — one row per completed league, cross-league ----
+
+/**
+ * "Total Luck": the player's Luck Confidence percentile in every COMPLETED
+ * league they finished, in the same MF shape as C1 (Leagues). Pills narrow to
+ * one PR-tracking league type; ALL pools them. Regular leagues never appear —
+ * they record no PR, so there is no model to be lucky against.
+ */
+function renderTotalLuckSection(container, playerName, perLeague) {
+    const rows = collectPlayerLeagueLuck(perLeague, playerName);
+    if (rows.length === 0) return;
+
+    const section = makePgSection('pg-total-luck', 'Total Luck', { collapsible: true });
+    container.appendChild(section);
+
+    const body = document.createElement('div');
+    body.className = 'pg-tabs-body';
+    section.appendChild(body);
+
+    const mountPoint = document.createElement('div');
+    mountPoint.className = 'pg-leagues-table-wrapper';
+    body.appendChild(mountPoint);
+
+    function showType(typeId) {
+        const shown = typeId === ALL_TYPES_ID ? rows : rows.filter(r => r._type === typeId);
+        if (shown.length === 0) {
+            mountPoint.innerHTML = '<div class="pg-note">No completed leagues of this type.</div>';
+            return;
+        }
+        mountMFTable(mountPoint, buildPlayerTotalLuckPreset({
+            rows: shown,
+            enrich: {
+                leagueLink: (id, title) => `<a href="${leagueUrl(id)}">${escapeHtml(title)}</a>`,
+            },
+        }));
+    }
+
+    const presentTypes = [...new Set(rows.map(r => r._type))];
+    const { bar } = mountPillTabs(section, {
+        tabs: [ALL_TYPES_TAB, ...presentTypes.map(t => ({ id: t, label: LEAGUE_TYPE_LABELS[t] || t.toUpperCase() }))],
+        defaultId: ALL_TYPES_ID,
+        pillClassFor: (t) => 'league-type-pill type-' + t,
+        onSelect: showType,
+    });
+    section.insertBefore(bar, body);
+}
+
+// ---- Total PR ↔ Result — cross-league PR-gap histogram, split by result ----
+
+// Below this many matches a sample mean/std isn't a meaningful summary — the
+// Gaussian-fit toggle is disabled and says so instead of fitting a curve to
+// one or two points. Same threshold as the dashboard's correlation rows.
+const PG_MIN_GAUSSIAN_N = 5;
+
+const PR_RESULT_SERIES = [
+    { key: 'wins',   label: 'Wins',   color: '--color-win',   pick: r => r.win === true },
+    { key: 'losses', label: 'Losses', color: '--color-loss',  pick: r => r.win === false },
+    { key: 'all',    label: 'All',    color: '--color-series-all', pick: () => true },
+];
+
+function pgMeanStd(values) {
+    const n = values.length;
+    const mean = n ? values.reduce((s, v) => s + v, 0) / n : 0;
+    const variance = n ? values.reduce((s, v) => s + (v - mean) ** 2, 0) / n : 0;
+    return { mean, std: Math.sqrt(variance) };
+}
+
+/**
+ * Fixed-width (1 PR point) bins over [lo, hi), sharing one grid across every
+ * series so the multi-series row can draw bin i of each series side by side.
+ * `pct` is the bin's share of THIS series' own matches — see the section's "?"
+ * popup for why each series carries its own denominator.
+ */
+function pgBuildBuckets(values, lo, hi, dropOutOfRange = false) {
+    const counts = new Map();
+    for (const v of values) {
+        if (dropOutOfRange && (v < lo || v >= hi)) continue;
+        const bx = Math.max(lo, Math.min(hi - 1, Math.floor(v)));
+        counts.set(bx, (counts.get(bx) || 0) + 1);
+    }
+    const total = values.length;
+    const buckets = [];
+    for (let x = lo; x < hi; x++) {
+        const count = counts.get(x) || 0;
+        buckets.push({ x0: x, x1: x + 1, count, pct: total > 0 ? (count / total * 100) : 0 });
+    }
+    return buckets;
+}
+
+/**
+ * Every rated, non-technical match of the given league types, as the PR gap
+ * from THIS player's point of view (opponent's PR minus their own, so positive
+ * = the player played the better match) plus whether they won it. Draws are
+ * dropped: a PR gap "vs result" split needs a result to sort the match into.
+ */
+function collectPlayerPrGaps(perLeague, typeId) {
+    const out = [];
+    for (const e of perLeague) {
+        if (!e.league.config?.showPR) continue;
+        if (typeId !== ALL_TYPES_ID && e.league.leagueType !== typeId) continue;
+        for (const m of e.playerMatches) {
+            if (m._technical || m._draw) continue;
+            if (m.prSelf == null || m.prOpp == null) continue;
+            if (!(m.prSelf > 0) || !(m.prOpp > 0)) continue;
+            if (m.scoreSelf === m.scoreOpp) continue;
+            out.push({ gap: m.prOpp - m.prSelf, win: m.scoreSelf > m.scoreOpp });
+        }
+    }
+    return out;
+}
+
+/**
+ * One series' μ/σ explainer block, both languages inline (the popup's flag bar
+ * flips which is visible). The wording itself lives in popupContent.js — the
+ * single source the Explanation-and-Maths lab also renders — so this only wraps
+ * it in the two `.popup-lang-*` blocks the live popup chrome expects.
+ */
+function buildPgGaussianExplainerHtml(displayName, seriesLabel, values) {
+    const { mean, std } = pgMeanStd(values);
+    const args = { displayName, seriesLabel, mean, std };
+    return `
+        <div class="pg-gauss-block">
+        <div class="popup-lang-en" data-lang="en">${playerGaussianSeriesHtml('en', args)}</div>
+        <div class="popup-lang-he" data-lang="he">${playerGaussianSeriesHtml('he', args)}</div>
+        </div>
+    `;
+}
+
+function renderTotalPrResultSection(container, playerName, perLeague) {
+    // Only PR-tracking league types the player actually appears in.
+    const presentTypes = [...new Set(
+        perLeague.filter(e => e.league.config?.showPR).map(e => e.league.leagueType)
+    )];
+    if (presentTypes.length === 0) return;
+    if (collectPlayerPrGaps(perLeague, ALL_TYPES_ID).length === 0) return;
+
+    const section = makePgSection('pg-pr-result', 'Total PR ↔ Result', {
+        collapsible: true,
+        headerHtml: ' <span class="predictor-tooltip" id="pg-prres-info-btn">?</span>',
+    });
+    // The "?" popup carries its own flag bar (same shape as the landing page's
+    // Luck Percentile card), so both language blocks ship inline and the flags
+    // only ever flip which one is visible.
+    section.insertAdjacentHTML('beforeend', `
+        <div class="predictor-info-popup" id="pg-prres-info-popup" hidden>
+            <button class="predictor-info-close" id="pg-prres-info-close">&times;</button>
+            <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
+            <div class="popup-lang-en" data-lang="en">${getPopup('player-pr-result').render('en')}</div>
+            <div class="popup-lang-he" data-lang="he">${getPopup('player-pr-result').render('he')}</div>
+        </div>`);
+    container.appendChild(section);
+
+    const infoPopup = section.querySelector('#pg-prres-info-popup');
+    wireLangPopup(infoPopup, {
+        btn: section.querySelector('#pg-prres-info-btn'),
+        popup: infoPopup,
+        close: section.querySelector('#pg-prres-info-close'),
+    });
+
+    const body = document.createElement('div');
+    body.className = 'pg-tabs-body';
+    section.appendChild(body);
+
+    // The legend / Gaussian / Trim controls sit ONCE above the rows, not on
+    // each row: they are what makes the rows comparable. Per-row copies would
+    // let two players end up on different series, different fits and different
+    // X domains, at which point stacking them says nothing.
+    const controls = document.createElement('div');
+    controls.className = 'chart-panel corr-panel pg-prres-controls';
+    controls.innerHTML = `
+        <div class="dash-controls corr-controls">
+            <div class="corr-controls-top">
+                <label class="pg-prres-count"></label>
+                <div class="corr-shift-group">
+                    <button class="corr-gaussian-toggle" type="button" data-track="Chart tool: Gaussian fit">Gaussian fit</button>
+                    <button class="corr-trim-toggle" type="button" data-track="Chart tool: Trim to 99%">Trim to 99%</button>
+                </div>
+            </div>
+            <div class="pg-prres-legend" role="group" aria-label="Series"></div>
+        </div>
+        <div class="predictor-info-popup pg-prres-gauss-popup" hidden></div>
+    `;
+    body.appendChild(controls);
+
+    const panelsHost = document.createElement('div');
+    panelsHost.className = 'pg-prres-panels';
+    body.appendChild(panelsHost);
+
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'add-chart-btn pg-prres-add';
+    addBtn.dataset.track = 'Compare: add player chart';
+    addBtn.textContent = '+ Add player chart';
+    addBtn.title = 'Add another player\'s PR-gap distribution below, on the same axis, to compare against';
+    body.appendChild(addBtn);
+
+    const legendEl   = controls.querySelector('.pg-prres-legend');
+    const countEl    = controls.querySelector('.pg-prres-count');
+    const gaussBtn   = controls.querySelector('.corr-gaussian-toggle');
+    const trimBtn    = controls.querySelector('.corr-trim-toggle');
+    const gaussPopup = controls.querySelector('.pg-prres-gauss-popup');
+
+    // Wins + Losses on by default: the split is the point of the section, and
+    // "All" is exactly their sum, so showing all three at once would just add a
+    // third line that carries no new information until you ask for it.
+    const visible = new Set(['wins', 'losses']);
+    let showGaussian = false;
+    // Starts on the full range, same as the dashboard's correlation rows — a
+    // chart should open showing all of its data, and trimming is the reader's
+    // choice. Trim to 99% helps here (one blow-out match can stretch the axis
+    // to ±70 and squeeze the real distribution toward the centre), but it is
+    // display-only: the fit and the μ/σ readout always use the FULL data.
+    let trimmed = false;
+    let typeId = ALL_TYPES_ID;
+
+    // One entry per row. entries[0] is ALWAYS this page's player and can be
+    // neither re-pointed nor removed — the whole section is their profile, and
+    // the added rows exist to be compared against them.
+    const entries = [{ name: playerName, perLeague, loadedFor: playerName, rows: [], counts: { rated: 0, total: 0 }, el: null }];
+    let allPlayers = [playerName];
+
+    for (const s of PR_RESULT_SERIES) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pg-prres-legend-item';
+        btn.dataset.key = s.key;
+        // Analytics: a legend toggle is a statistical chart control (∑ icon).
+        // The stable series key, never the visible label (translation-proof).
+        btn.dataset.track = `Chart tool: Series ${s.key}`;
+        btn.innerHTML = `<span class="pg-prres-swatch" style="background:var(${s.color})"></span>${s.label}<span class="pg-prres-legend-n"></span>`;
+        btn.addEventListener('click', () => {
+            if (visible.has(s.key)) {
+                // Never let the legend empty the chart entirely.
+                if (visible.size > 1) visible.delete(s.key);
+            } else {
+                visible.add(s.key);
+            }
+            redrawAll();
+        });
+        legendEl.appendChild(btn);
+    }
+
+    /** Build (once) the row chrome for an entry: player identity + count + chart. */
+    function buildEntryEl(entry, index) {
+        const panel = document.createElement('div');
+        panel.className = 'chart-panel corr-panel pg-prres-panel';
+        const isMain = index === 0;
+        panel.innerHTML = `
+            <div class="dash-controls corr-controls">
+                <div class="corr-controls-top">
+                    <label>Player:</label>
+                    ${isMain
+                        ? `<b class="pg-prres-self">${escapeHtml(displayPlayerName(entry.name, _allMeta[entry.name]))}</b>`
+                        : `<select class="player-pick"></select>`}
+                    <span class="corr-games-count"></span>
+                    ${isMain ? '' : '<button class="remove-chart" type="button" title="Remove this chart" data-track="Compare: remove player chart">&times;</button>'}
+                </div>
+            </div>
+            <div class="chart-host corr-host"></div>
+        `;
+        entry.el = panel;
+        entry.host = panel.querySelector('.corr-host');
+        entry.countEl = panel.querySelector('.corr-games-count');
+
+        const sel = panel.querySelector('.player-pick');
+        if (sel) {
+            fillPlayerSelect(sel, entry.name);
+            sel.addEventListener('change', async () => {
+                entry.name = sel.value;
+                // Analytics: a <select> change is not a DOM click the delegated
+                // listener can catch, so announce it as an interaction (👤 icon).
+                window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: 'Compare: change player' } }));
+                await loadEntry(entry);
+                redrawAll();
+            });
+        }
+        const removeBtn = panel.querySelector('.remove-chart');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', () => {
+                panel.remove();
+                entries.splice(entries.indexOf(entry), 1);
+                redrawAll();
+            });
+        }
+        panelsHost.appendChild(panel);
+    }
+
+    function fillPlayerSelect(sel, selected) {
+        sel.innerHTML = allPlayers
+            .map(p => `<option value="${escapeHtml(p)}"${p === selected ? ' selected' : ''}>${escapeHtml(displayPlayerName(p, _allMeta[p]))}</option>`)
+            .join('');
+    }
+
+    /**
+     * Load one entry's cross-league data (the underlying league bundle is
+     * memoized, so this is a re-filter, not a re-fetch) and derive its rows.
+     * Keyed on `loadedFor`, NOT on "is perLeague set" — re-pointing a row at
+     * another player leaves the previous player's data in place, and a
+     * truthiness check would silently keep showing it.
+     */
+    async function loadEntry(entry) {
+        if (entry.loadedFor !== entry.name) {
+            entry.perLeague = await loadPlayerAcrossLeagues(entry.name);
+            entry.loadedFor = entry.name;
+        }
+        recomputeEntry(entry);
+    }
+
+    function recomputeEntry(entry) {
+        entry.rows = collectPlayerPrGaps(entry.perLeague || [], typeId);
+        entry.counts = countPlayerRatedMatches(entry.perLeague || [], typeId, entry.rows.length);
+    }
+
+    function redrawAll() {
+        const active = PR_RESULT_SERIES.filter(s => visible.has(s.key));
+
+        // The legend counts describe the page's own player (row 0) — the row
+        // every other one is being compared against.
+        const mainSeries = PR_RESULT_SERIES.map(s => ({ s, values: entries[0].rows.filter(s.pick).map(r => r.gap) }));
+        legendEl.querySelectorAll('.pg-prres-legend-item').forEach(btn => {
+            const found = mainSeries.find(p => p.s.key === btn.dataset.key);
+            btn.classList.toggle('is-active', visible.has(btn.dataset.key));
+            btn.querySelector('.pg-prres-legend-n').textContent = ` (${found.values.length})`;
+            btn.disabled = found.values.length === 0;
+        });
+
+        const totalRows = entries.reduce((n, e) => n + e.rows.length, 0);
+        countEl.textContent = entries.length === 1
+            ? `PR gap by result (${entries[0].rows.length} match${entries[0].rows.length === 1 ? '' : 'es'})`
+            : `PR gap by result — ${entries.length} players (${totalRows} matches)`;
+
+        // ONE symmetric domain across every row, so a position means the same
+        // thing in all of them — that is the whole point of stacking them.
+        // Trimmed = the middle 99% of the pooled gaps; out-of-range matches are
+        // dropped from the marks (not folded into the edge), display-only.
+        const allGaps = entries.flatMap(e => e.rows.map(r => Math.abs(r.gap)));
+        const fullBound = Math.max(1, Math.ceil(Math.max(0, ...allGaps)));
+        let bound = fullBound;
+        if (trimmed && allGaps.length) {
+            const sorted = [...allGaps].sort((a, b) => a - b);
+            const idx = Math.min(sorted.length - 1, Math.floor(0.99 * sorted.length));
+            bound = Math.min(fullBound, Math.max(1, Math.ceil(sorted[idx])));
+        }
+        const lo = -bound, hi = bound;
+
+        trimBtn.textContent = trimmed ? 'Show full range' : 'Trim to 99%';
+        trimBtn.classList.toggle('is-active', trimmed);
+        trimBtn.title = 'Zooms the X-axis in to the middle 99% of the displayed matches (symmetric around 0), hiding the outlier bins. Display only — the Gaussian fit always uses the full, untrimmed data.';
+
+        // A fit needs enough matches in EVERY displayed series of EVERY row,
+        // since each one gets its own μ/σ.
+        const enough = entries.length > 0 && active.length > 0 && entries.every(e =>
+            active.every(s => e.rows.filter(s.pick).length >= PG_MIN_GAUSSIAN_N));
+        gaussBtn.disabled = !enough;
+        gaussBtn.textContent = enough ? 'Gaussian fit' : 'Gaussian fit (not enough data)';
+        gaussBtn.title = enough
+            ? 'Fits a normal (Gaussian) curve to each displayed series, using that series\' own mean and standard deviation — a visual reference only, not a claim that the data is actually normally distributed.'
+            : `Needs at least ${PG_MIN_GAUSSIAN_N} matches in every displayed series of every chart before a mean/standard deviation is meaningful.`;
+        if (!enough) showGaussian = false;
+        gaussBtn.classList.toggle('is-active', showGaussian);
+
+        // Build every row's series first, so the Y scale can be pinned to the
+        // tallest mark ACROSS rows. Left to self-scale, a flat distribution and
+        // a sharply peaked one would draw the same height and the comparison
+        // would be worse than useless.
+        const built = entries.map(entry => active.map(s => {
+            const values = entry.rows.filter(s.pick).map(r => r.gap);
+            return {
+                key: s.key,
+                label: s.label,
+                color: s.color,
+                total: values.length,
+                buckets: pgBuildBuckets(values, lo, hi, trimmed),
+                gaussian: showGaussian ? pgMeanStd(values) : null,
+            };
+        }));
+        let yMax = 0;
+        for (const series of built) {
+            for (const s of series) {
+                for (const b of s.buckets) yMax = Math.max(yMax, b.pct);
+                if (s.gaussian && s.gaussian.std > 0) {
+                    yMax = Math.max(yMax, 100 / (s.gaussian.std * Math.sqrt(2 * Math.PI)));
+                }
+            }
+        }
+
+        entries.forEach((entry, i) => {
+            entry.countEl.textContent = `(${entry.counts.rated}/${entry.counts.total} matches)`;
+            const series = built[i];
+            if (!series.length || !entry.rows.length) {
+                entry.host.innerHTML = '<div class="pg-note">No rated matches for this filter.</div>';
+                return;
+            }
+            // Double the shared 76px row: this section is read for the SHAPE of
+            // the distributions (and for the fitted bells once Gaussian fit is
+            // on), and at the default height a normal curve flattens to an arc.
+            // Every row draws its own axis — the rows are separate cards with a
+            // hover panel between them, so a single shared ruler at the bottom
+            // would be too far from the rows above to read against.
+            drawMultiHistogramRow(entry.host, series, {
+                xMin: lo, xMax: hi, showAxis: true, rowHeight: 152, yMax,
+            });
+        });
+
+        // One μ/σ summary per charted player, in row order — the same sequence
+        // as the stack above it, so the popup reads as a walk down the charts
+        // rather than a pile of numbers. The player name only heads each group
+        // when there is more than one; with a single chart it would just repeat
+        // the sentence beneath it.
+        if (showGaussian) {
+            const groups = entries.map(entry => {
+                const name = displayPlayerName(entry.name, _allMeta[entry.name]);
+                const valuesFor = (s) => entry.rows.filter(s.pick).map(r => r.gap);
+                const stats = active.map(s => {
+                    const { mean, std } = pgMeanStd(valuesFor(s));
+                    return `<span class="pg-prres-stat" style="color:var(${s.color})">${s.label}: μ = ${mean.toFixed(2)}   σ = ${std.toFixed(2)}</span>`;
+                }).join('');
+                return `<div class="pg-gauss-player">` +
+                    (entries.length > 1 ? `<div class="pg-gauss-player-name">${escapeHtml(name)}</div>` : '') +
+                    `<div class="pg-prres-stats">${stats}</div>` +
+                    active.map(s => buildPgGaussianExplainerHtml(name, s.label, valuesFor(s))).join('') +
+                    `</div>`;
+            }).join('');
+            gaussPopup.innerHTML =
+                `<button class="predictor-info-close pg-prres-gauss-close" aria-label="Close">&times;</button>` +
+                `<div class="popup-lang-flags-bar">${langFlagsHtml()}</div>` +
+                groups;
+            gaussPopup.hidden = false;
+            wireDynamicLangPopup(gaussPopup);
+            gaussPopup.querySelector('.pg-prres-gauss-close').addEventListener('click', () => {
+                showGaussian = false;
+                redrawAll();
+            });
+        } else {
+            gaussPopup.hidden = true;
+            gaussPopup.innerHTML = '';
+        }
+    }
+
+    gaussBtn.addEventListener('click', () => { showGaussian = !showGaussian; redrawAll(); });
+    trimBtn.addEventListener('click', () => { trimmed = !trimmed; redrawAll(); });
+
+    addBtn.addEventListener('click', async () => {
+        const taken = new Set(entries.map(e => e.name));
+        const next = allPlayers.find(p => !taken.has(p)) || allPlayers[0];
+        if (!next) return;
+        const entry = { name: next, perLeague: null, loadedFor: null, rows: [], counts: { rated: 0, total: 0 } };
+        entries.push(entry);
+        buildEntryEl(entry, entries.length - 1);
+        await loadEntry(entry);
+        redrawAll();
+    });
+
+    function showType(id) {
+        typeId = id;
+        for (const e of entries) recomputeEntry(e);
+        redrawAll();
+    }
+
+    // Row 0's chrome must exist before the pill bar mounts: mountPillTabs fires
+    // its initial onSelect synchronously, and that already runs a full redraw.
+    buildEntryEl(entries[0], 0);
+
+    const { bar } = mountPillTabs(section, {
+        tabs: [ALL_TYPES_TAB, ...presentTypes.map(t => ({ id: t, label: LEAGUE_TYPE_LABELS[t] || t.toUpperCase() }))],
+        defaultId: ALL_TYPES_ID,
+        pillClassFor: (t) => 'league-type-pill type-' + t,
+        onSelect: showType,
+    });
+    section.insertBefore(bar, body);
+
+    // Comparison roster — every player in any visible league, sorted by the
+    // DISPLAYED name (the dropdown shows those, so a raw-key sort reads as
+    // unsorted). Async: until it lands, the add button just has this player.
+    loadAllLeagues().then(leagues => {
+        const set = new Set();
+        for (const l of leagues) {
+            if (l.params?.Hidden) continue;
+            for (const p of l.allPlayers) {
+                if (!_allMeta[p]?.hidden) set.add(p);
+            }
+        }
+        allPlayers = [...set].sort((a, b) =>
+            displayPlayerName(a, _allMeta[a]).localeCompare(displayPlayerName(b, _allMeta[b])));
+        for (const e of entries) {
+            const sel = e.el?.querySelector('.player-pick');
+            if (sel) fillPlayerSelect(sel, e.name);
+        }
+    }).catch(() => { /* add button stays limited to the current player */ });
+}
+
+/**
+ * How many of a player's matches in the given league scope actually carry a
+ * rated PR gap, against how many they played there at all — the "21/24
+ * matches" sample-size readout above each chart. `rated` is passed in rather
+ * than recomputed so it can never disagree with the marks being drawn.
+ */
+function countPlayerRatedMatches(perLeague, typeId, rated) {
+    let total = 0;
+    for (const e of perLeague) {
+        if (!e.league.config?.showPR) continue;
+        if (typeId !== ALL_TYPES_ID && e.league.leagueType !== typeId) continue;
+        total += e.playerMatches.length;
+    }
+    return { rated, total };
 }
 
 function formatShortDate(iso) {

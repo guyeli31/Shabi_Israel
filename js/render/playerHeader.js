@@ -11,7 +11,7 @@
  */
 
 import { flagUrl } from '../utils/helpers.js';
-import { getBmabInfo, getChampionshipInfo, getChampionshipTooltip } from '../data/titleConstants.js';
+import { getBmabInfo, getPrimaryChampionshipInfo } from '../data/titleConstants.js';
 import { getNameDisplayMode } from '../utils/nameDisplay.js';
 
 /* Resolve which string sits in the "big name" slot vs the secondary
@@ -64,14 +64,16 @@ export function formatJoinedShort(year, monthIndex) {
    in the tooltip. */
 export function buildHeaderTitles(meta) {
     const out = [];
-    for (const t of (meta?.championshipTitles || [])) {
-        const info = getChampionshipInfo(t);
+    // At most one championship chip — World outranks National (see
+    // getPrimaryChampionshipInfo); every title still shows in the tooltip.
+    const champ = getPrimaryChampionshipInfo(meta);
+    if (champ) {
         out.push({
-            label: t.type === 'world' ? 'World Champion' : 'National Champion',
+            label: champ.label,
             icon: CHAMP_ICON,
-            tier: info.tier,
+            tier: champ.tier,
             kind: 'champ',
-            tooltip: getChampionshipTooltip(t),
+            tooltip: champ.tooltip,
         });
     }
     if (meta?.bmabTitle) {
@@ -154,8 +156,11 @@ export function renderV7Header(target, data) {
         ? `<img class="pg-v7-flag" src="${flagUrl(data.flagCode)}" alt="${escapeHtml(data.flagCode)}" title="${escapeHtml(data.flagCode)}">`
         : '';
 
+    // `data-tooltip-tap` + `tabindex` make the title chip reveal its full
+    // tooltip on TAP (phones have no hover) and on keyboard focus. See
+    // js/render/tooltip.js.
     const chipsHtml = (data.titles || []).map(t =>
-        `<span class="pg-v7-chip pg-v7-tier-${t.tier}" title="${escapeHtml(t.tooltip)}">` +
+        `<span class="pg-v7-chip pg-v7-tier-${t.tier}" data-tooltip-tap tabindex="0" title="${escapeHtml(t.tooltip)}">` +
             `<span class="pg-v7-chip-icon">${t.icon}</span>${escapeHtml(t.label)}` +
         `</span>`
     ).join('');
@@ -216,8 +221,9 @@ export function renderV12Header(target, data) {
         ? `<img class="pg-v12-photo-img" src="${escapeHtml(data.photoPath)}" alt="${escapeHtml(data.name)}">`
         : `<div class="pg-v12-photo">${escapeHtml(initials)}</div>`;
 
+    // Tap/focus-reveal on the ribbon, same as V7's chips (see renderV7Header).
     const ribbons = (data.titles || []).map(t =>
-        `<span class="pg-v12-titleribbon pg-tier-${t.tier}" title="${escapeHtml(t.tooltip)}">` +
+        `<span class="pg-v12-titleribbon pg-tier-${t.tier}" data-tooltip-tap tabindex="0" title="${escapeHtml(t.tooltip)}">` +
             `<span class="pg-v12-titleicon">${t.icon}</span> ${escapeHtml((t.label || '').toUpperCase())}` +
         `</span>`
     ).join('');

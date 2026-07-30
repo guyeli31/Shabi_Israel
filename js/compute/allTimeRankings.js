@@ -10,7 +10,7 @@
  */
 
 import { loadAllLeagues } from './crossLeague.js';
-import { luckPercentileStats } from './luckPercentile.js';
+import { luckConfidenceStats } from './luckConfidence.js';
 
 const PR_TYPES = new Set(['doubling', 'ubc']); // league types that have PR
 
@@ -159,7 +159,7 @@ export async function buildAllTimeRankings(leagueType) {
 
             let luckPercentile = null, luckGames = 0, luckUnstable = true;
             if (hasPR && t.luckMatches.length > 0) {
-                const lp = luckPercentileStats({ matchRefs: t.luckMatches, playerName: name });
+                const lp = luckConfidenceStats({ matchRefs: t.luckMatches, playerName: name });
                 luckPercentile = lp.percentile;
                 luckGames = lp.games;
                 luckUnstable = lp.unstableSample;

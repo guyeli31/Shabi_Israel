@@ -6,6 +6,13 @@ rem Make sure Docker + local Supabase are up before serving, so the site
 rem talks to a live DB instead of hanging on "Loading dashboard..." for the
 rem 10s fetch timeout. Idempotent + fast when the stack is already running.
 call "%~dp0ensure-docker-supabase.bat"
+if errorlevel 1 (
+    echo.
+    echo *** WARNING: local Supabase is unreachable - the site will show
+    echo *** "Failed to load leagues". Append ?datasource=files to the URL
+    echo *** to browse the static CSV/JSON copies instead.
+    echo.
+)
 
 set "PORT="
 for /l %%P in (8090,1,8094) do (

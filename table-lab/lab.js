@@ -163,6 +163,26 @@ export const PRESETS = {
         },
     },
 
+    C6: {
+        label: 'C6 — Total Luck',
+        args: {
+            tableId:    'C6',
+            data: [], cols: [],
+            fontClass:  'font-large',
+            stickyCols: 1,
+            medalRows:  false,
+            showTopN:   null,
+            mfWidth:    null,
+            mfMb:       null,
+            mfBg:       null,
+        },
+        argDocs: {
+            fontClass:  'font-large — same tier as C1, whose cell vocabulary C6 reuses (league link, type pill, medal-tinted rank).',
+            stickyCols: '1 — League column pinned, as in C1.',
+            showTopN:   'null — a player finishes few enough leagues that every row is worth showing.',
+        },
+    },
+
     A1: {
         label: 'A1 — Completed Leagues',
         args: {
@@ -649,7 +669,7 @@ mountPoint.innerHTML = '<p style="color:var(--color-text-muted);font-size:0.85re
 loadAllPresetData().then(loaded => {
     const allKeys = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6',
                      'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7a', 'B7b', 'B7c',
-                     'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'D', 'E', 'F5'];
+                     'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'D', 'E', 'F5'];
     for (const key of allKeys) {
         if (!loaded[key] || !PRESETS[key]) continue;
         const { data, cols, buildSummaryRow, getRowClass, medalCounts,
@@ -686,6 +706,7 @@ loadAllPresetData().then(loaded => {
     if (loaded.C3?.playerName && loaded.C3?.opponent) setTab('C3', `C3 — ${loaded.C3.playerName} vs ${loaded.C3.opponent}`);
     if (loaded.C4?.playerName)   setTab('C4',  `C4 — ${loaded.C4.playerName} · All Opponents`);
     if (loaded.C5?.playerName)   setTab('C5',  `C5 — ${loaded.C5.playerName}`);
+    if (loaded.C6?.playerName)   setTab('C6',  `C6 — ${loaded.C6.playerName} · Total Luck`);
     if (loaded.D.leagueTitle)    setTab('D',   `D — ${loaded.D.leagueTitle}`);
     if (loaded.E.playerName)     setTab('E',   `E — ${loaded.E.playerName}`);
     if (loaded.F5?.leagueTitle)  setTab('F5',  `F5 — Import Preview (${loaded.F5.leagueTitle})`);

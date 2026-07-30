@@ -12,14 +12,14 @@ import { loadAllLeagues } from '../compute/crossLeague.js';
 import { buildAllTimeRankings } from '../compute/allTimeRankings.js';
 import { colorForValue } from '../compute/colorScale.js';
 import { prProbabilityTableHtml } from '../compute/championshipPredictor.js';
-import { luckBellCurveSvg } from './luckBellCurve.js';
 import { loadLandingSettings } from '../data/store.js';
 import { loadBannerConfig, renderHeroBanner } from './heroBanner.js';
 import './privacyNotice.js'; // passive Privacy modal — wires the delegated [data-action="privacy"] trigger + styles
 import { leagueUrl, flagUrl, getFlagCode, formatPercent, formatNumber, parseLeagueDate, leagueTableUrl, thLabel } from '../utils/helpers.js';
 import { exportTableImage } from '../utils/exportTableImage.js';
 import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatches } from '../compute/matchRecords.js';
-import { luckPercentileStats } from '../compute/luckPercentile.js';
+import { luckConfidenceStats } from '../compute/luckConfidence.js';
+import { getPopup } from '../data/popupContent.js';
 import { getLevel } from '../compute/rankings.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
@@ -37,7 +37,7 @@ import { hasTitles, compareTitlePriority, getFullTitleDescription, getTitleAbbre
 import { mountAppTabs } from './appTabs.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
-import { mountPillTabs } from './subTabs.js';
+import { mountPillTabs, ALL_TYPES_ID, ALL_TYPES_TAB } from './subTabs.js';
 import { mountSearchField } from '../utils/combobox.js';
 import { scrollToClearingTopbarSettled } from '../utils/scrollOffset.js';
 import { getInitials } from './playerHeader.js';
@@ -62,6 +62,10 @@ const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 let _landingSettings = null;
 /** Players metadata loaded once, shared across renderers. */
 let _playersMeta = {};
+/** Completed-leagues league-type filter (mountPillTabs handle), or null when
+ *  only one type exists. Edit mode forces it back to ALL — drag-reorder saves
+ *  the order of the VISIBLE rows, so a filtered table would drop leagues. */
+let _completedFilter = null;
 
 export async function renderLandingPage() {
     const container = document.getElementById('content');
@@ -587,6 +591,13 @@ function markDirty() {
 let _dragSrcRow = null;
 
 function addDragHandles() {
+    // Reordering saves the order of the rows on screen — show every league and
+    // lock the filter for the duration of edit mode.
+    if (_completedFilter) {
+        _completedFilter.select(ALL_TYPES_ID);
+        _completedFilter.bar.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    }
+
     const table = document.querySelector('.completed-leagues-table');
     if (!table) return;
     const rows = table.querySelectorAll('tbody tr');
@@ -630,6 +641,9 @@ function addDragHandles() {
 }
 
 function removeDragHandles() {
+    if (_completedFilter) {
+        _completedFilter.bar.querySelectorAll('button').forEach(b => { b.disabled = false; });
+    }
     document.querySelectorAll('.drag-handle').forEach(el => el.remove());
     document.querySelectorAll('[draggable="true"]').forEach(el => {
         el.draggable = false;
@@ -1008,6 +1022,7 @@ function renderCompletedLeagues(container, completed) {
         <div class="app-section app-section--card">
             <h2 class="app-section-h2">Completed Leagues</h2>
             <div class="collapsible-body">
+                <div class="completed-leagues-filter"></div>
                 <div class="completed-leagues-mount"></div>
             </div>
         </div>`;
@@ -1023,20 +1038,36 @@ function renderCompletedLeagues(container, completed) {
         leaderFlagCode:  l.leader ? getFlagCode(l.leader.player, l.params.CustomFlags) : null,
         leaderMeta:      l.leader ? _playersMeta[l.leader.player] : null,
     }));
-    const preset = buildCompletedLeaguesPreset({ rows, flagUrl, leagueUrl });
-    const { table } = mountMFTable(mountPoint, preset);
-    // Preserve legacy class so existing CSS (.completed-leagues-table) continues to apply.
-    table.classList.add('completed-leagues-table');
+
+    // Render (or re-render) the table for one league-type filter. ALL = no filter.
+    function renderTable(typeId) {
+        const shown = typeId === ALL_TYPES_ID ? rows : rows.filter(r => r.leagueType === typeId);
+        mountPoint.innerHTML = '';
+        const preset = buildCompletedLeaguesPreset({ rows: shown, flagUrl, leagueUrl });
+        const { table } = mountMFTable(mountPoint, preset);
+        // Preserve legacy class so existing CSS (.completed-leagues-table) continues to apply.
+        table.classList.add('completed-leagues-table');
+
+        // Wire context menu on each winner link, mapping row index → leagueId.
+        const dataRows = mountPoint.querySelectorAll('tbody tr:not(.avg-row)');
+        dataRows.forEach((tr, i) => {
+            const leagueId = shown[i]?.leagueId;
+            if (leagueId) attachPlayerNameInteractions(tr, leagueId);
+        });
+    }
+
+    // League-type filter (shared pill sub-tabs) — ALL is leftmost and the
+    // default; only the types actually present get a pill.
+    const presentTypes = [...new Set(rows.map(r => r.leagueType))];
+    _completedFilter = mountPillTabs(section.querySelector('.completed-leagues-filter'), {
+        tabs: [ALL_TYPES_TAB, ...presentTypes.map(t => ({ id: t, label: TYPE_LABELS[t] || t }))],
+        defaultId: ALL_TYPES_ID,
+        pillClassFor: (t) => 'league-type-pill type-' + t,
+        onSelect: renderTable,
+    });
 
     // Collapsible toggle (shared) — open when a current-year league exists.
     wireSectionCollapse(section.querySelector('.app-section'), { defaultOpen: hasCurrentYear });
-
-    // Wire context menu on each winner link, mapping row index → leagueId.
-    const dataRows = mountPoint.querySelectorAll('tbody tr:not(.avg-row)');
-    dataRows.forEach((tr, i) => {
-        const leagueId = rows[i]?.leagueId;
-        if (leagueId) attachPlayerNameInteractions(tr, leagueId);
-    });
 
     container.appendChild(section);
 }
@@ -1435,6 +1466,17 @@ function wireLuckInfoPopup(panel, leagueType) {
     });
 }
 
+/* Generic wiring for a "?" info popup addressed by a shared id root
+   (`<id>-btn` / `<id>-popup` / `<id>-close`). Used by the League Records
+   Best/Worst Luck cards. */
+function wireLuckInfoPopupById(root, id) {
+    wireLangPopup(root, {
+        btn: root.querySelector(`#${id}-btn`),
+        popup: root.querySelector(`#${id}-popup`),
+        close: root.querySelector(`#${id}-close`),
+    });
+}
+
 /* ── Merged MEDALS table (SF format, 2 sticky cols, no sorting) ──────
    Replaces the three standalone Gold/Silver/Bronze cards. Fixed semantic
    order: gold DESC → silver DESC → bronze DESC (Olympic medal-table order).
@@ -1518,38 +1560,6 @@ function renderAchievementTables(data, leagueType) {
     return `<div class="achv-tables-grid type-${leagueType}">${coreCards}${luckCard}</div>`;
 }
 
-// Real typeset math (MathML, same approach as LUCK_FORMULA_MATHML in
-// dashboardPage.js), one equation per line — NOT a single packed multi-row
-// block. Academic-paper style: each formula gets its own display line,
-// immediately followed by prose defining every
-// symbol in it, rather than a dense equation array with the definitions
-// left implicit.
-function mathLine(inner) {
-    return `<math xmlns="http://www.w3.org/1998/Math/MathML" display="block" dir="ltr">${inner}</math>`;
-}
-
-const EW_FORMULA_MATHML = mathLine(`
-    <mi>EW</mi><mo>=</mo>
-    <msubsup><mo>&#8721;</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup>
-    <msub><mi>p</mi><mi>i</mi></msub>
-`);
-const VAR_FORMULA_MATHML = mathLine(`
-    <mi>Var</mi><mo>=</mo>
-    <msubsup><mo>&#8721;</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup>
-    <msub><mi>p</mi><mi>i</mi></msub><mo>(</mo><mn>1</mn><mo>&#8722;</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>
-`);
-const Z_FORMULA_MATHML = mathLine(`
-    <mi>Z</mi><mo>=</mo>
-    <mfrac><mrow><mi>AW</mi><mo>&#8722;</mo><mi>EW</mi></mrow><msqrt><mi>Var</mi></msqrt></mfrac>
-`);
-function percentileFormulaMathML(lang) {
-    const percentileLabel = lang === 'he' ? '&#1488;&#1495;&#1493;&#1494;&#1493;&#1503;' : 'Percentile';
-    return mathLine(`
-        <mtext>${percentileLabel}</mtext><mo>=</mo>
-        <mi>&#934;</mi><mo>(</mo><mi>Z</mi><mo>)</mo><mo>&#215;</mo><mn>100</mn>
-    `);
-}
-
 function renderLuckPercentileCard(data, leagueType) {
     const rows = (data.rankings.luckPercentile || []).filter(r => !_playersMeta[r.name]?.hidden);
     const rowsHtml = rows.map(r => {
@@ -1571,63 +1581,8 @@ function renderLuckPercentileCard(data, leagueType) {
             <div class="predictor-info-popup luck-info-popup" id="luck-info-popup-${leagueType}" hidden>
                 <button class="predictor-info-close" id="luck-info-close-${leagueType}">&times;</button>
                 <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
-                <div class="popup-lang-en" data-lang="en">
-                <h3>How It Works</h3>
-                <p>For each historical match, the player's <b>PR gap</b> against their opponent and the match length give an expected win chance <i>p<sub>i</sub></i>, shown below:</p>
-                ${prProbabilityTableHtml('en')}
-                <p>Summed across all <i>n</i> of the player's rated matches, the win probabilities give the
-                total number of wins the model <b>expected</b>:</p>
-                <div class="corr-formula">${EW_FORMULA_MATHML}</div>
-                <p>where <i>n</i> is the number of rated matches, and <i>p<sub>i</sub></i> is the win
-                probability for match <i>i</i> shown in the table above.</p>
-
-                <p>Treating each match as an independent win/loss trial with success probability
-                <i>p<sub>i</sub></i>, the same sum has a variance:</p>
-                <div class="corr-formula">${VAR_FORMULA_MATHML}</div>
-
-                <p>The player's <b>actual win count</b>, AW, is then standardized against that expectation
-                into a Z-score:</p>
-                <div class="corr-formula">${Z_FORMULA_MATHML}</div>
-                <p>where <i>AW</i> is how many of those <i>n</i> matches the player actually won.
-                <i>Z</i> = 0 means the player won exactly as many matches as expected; positive means more
-                wins than expected (lucky), negative means fewer (unlucky).</p>
-
-                <p>Finally, the Z-score is converted to a percentile via the standard normal cumulative
-                distribution function:</p>
-                <div class="corr-formula">${percentileFormulaMathML('en')}</div>
-                <p>where <i>&Phi;</i> is the standard normal CDF. 50 &asymp; expected, 100 = extremely lucky,
-                0 = extremely unlucky. Players with fewer than 15 rated games are shown struck-through — the
-                sample is too small to be reliable.</p>
-                ${luckBellCurveSvg()}
-                </div>
-                <div class="popup-lang-he" data-lang="he">
-                <h3>איך זה עובד</h3>
-                <p>עבור כל משחק היסטורי, <b>פער ה-PR</b> של השחקן מול היריב ואורך המשחק נותנים סיכוי ניצחון צפוי <i>p<sub>i</sub></i>, המוצג למטה:</p>
-                ${prProbabilityTableHtml('he')}
-                <p>בסכימה על פני כל <i>n</i> המשחקים המדורגים של השחקן, סיכויי הניצחון נותנים את
-                מספר הניצחונות ה<b>צפוי</b> הכולל:</p>
-                <div class="corr-formula">${EW_FORMULA_MATHML}</div>
-                <p>כאשר <i>n</i> הוא מספר המשחקים המדורגים, ו-<i>p<sub>i</sub></i> הוא סיכוי הניצחון
-                עבור משחק <i>i</i>, מתוך הטבלה שלמעלה.</p>
-
-                <p>בהתייחסות לכל משחק כניסוי בלתי תלוי של ניצחון/הפסד עם סיכוי הצלחה <i>p<sub>i</sub></i>,
-                לאותו סכום יש שונות:</p>
-                <div class="corr-formula">${VAR_FORMULA_MATHML}</div>
-
-                <p><b>מספר הניצחונות בפועל</b> של השחקן, AW, מתוקנן לאחר מכן ביחס לציפייה הזו לציון Z:</p>
-                <div class="corr-formula">${Z_FORMULA_MATHML}</div>
-                <p>כאשר <i>AW</i> הוא כמה מתוך אותם <i>n</i> משחקים השחקן ניצח בפועל.
-                <i>Z</i> = 0 אומר שהשחקן ניצח בדיוק כמספר המשחקים הצפוי; חיובי אומר יותר ניצחונות
-                מהצפוי (בר מזל), שלילי אומר פחות (ביש מזל).</p>
-
-                <p>לבסוף, ציון ה-Z מומר לאחוזון באמצעות פונקציית ההתפלגות המצטברת של ההתפלגות הנורמלית
-                הסטנדרטית:</p>
-                <div class="corr-formula">${percentileFormulaMathML('he')}</div>
-                <p>כאשר <i>&Phi;</i> היא פונקציית ההתפלגות המצטברת הנורמלית הסטנדרטית. 50 &asymp; צפוי,
-                100 = בר מזל בקיצוניות, 0 = ביש מזל בקיצוניות. שחקנים עם פחות מ-15 משחקים מדורגים מוצגים
-                עם קו חוצה — המדגם קטן מדי כדי להיות אמין.</p>
-                ${luckBellCurveSvg()}
-                </div>
+                <div class="popup-lang-en" data-lang="en">${getPopup('luck-percentile').render('en')}</div>
+                <div class="popup-lang-he" data-lang="he">${getPopup('luck-percentile').render('he')}</div>
             </div>
             <div class="achv-table-wrapper">
                 <table class="achv-table achv-luck-table font-small" data-mf-table-id="A3">
@@ -1961,7 +1916,7 @@ function renderLeagueRecordsSection(container, allLeagues, presentTypes) {
         const worstRows    = collectLeagueWorstLuckRecords(leaguesByType[t]);
         return `
             <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${t}">
-                ${renderLeagueRecordsPanel(winRateRows, prRows, luckRows, worstRows)}
+                ${renderLeagueRecordsPanel(winRateRows, prRows, luckRows, worstRows, t)}
             </div>`;
     }).join('');
 
@@ -1986,6 +1941,13 @@ function renderLeagueRecordsSection(container, allLeagues, presentTypes) {
     });
 
     container.appendChild(section);
+
+    // Wire the "?" info popups on the Best/Worst Luck cards (one per league type).
+    types.forEach(t => {
+        [`lr-luck-best-${t}`, `lr-luck-worst-${t}`].forEach(id => {
+            wireLuckInfoPopupById(section, id);
+        });
+    });
 
     section.querySelectorAll('.achv-table').forEach(t => applyShowTopN(t));
     section.querySelectorAll('.league-records-table').forEach(tbl => {
@@ -2032,7 +1994,7 @@ function collectLeagueLuckRecords(typeLeagues) {
             const matchRefs = league.matches
                 .filter(m => m.playerA === r.player || m.playerB === r.player)
                 .map(m => ({ m, matchLength }));
-            const lp = luckPercentileStats({ matchRefs, playerName: r.player });
+            const lp = luckConfidenceStats({ matchRefs, playerName: r.player });
             if (lp.percentile == null) return;
             rows.push({
                 player: r.player,
@@ -2072,7 +2034,7 @@ function collectLeagueWorstLuckRecords(typeLeagues) {
             const matchRefs = league.matches
                 .filter(m => m.playerA === r.player || m.playerB === r.player)
                 .map(m => ({ m, matchLength }));
-            const lp = luckPercentileStats({ matchRefs, playerName: r.player });
+            const lp = luckConfidenceStats({ matchRefs, playerName: r.player });
             if (lp.percentile == null) return;
             rows.push({
                 player: r.player,
@@ -2094,7 +2056,19 @@ function collectLeagueWorstLuckRecords(typeLeagues) {
     return rows.slice(0, 100);
 }
 
-function renderLeagueRecordsPanel(winRateRows, prRows, luckRows, worstRows) {
+/* Shared "?" info popup for the Best/Worst Luck record cards — reuses the exact
+   same content as the Luck Percentile card ('luck-percentile' popup). */
+function luckRecordInfoHtml(id) {
+    return `
+        <div class="predictor-info-popup luck-info-popup" id="${id}-popup" hidden>
+            <button class="predictor-info-close" id="${id}-close">&times;</button>
+            <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
+            <div class="popup-lang-en" data-lang="en">${getPopup('luck-percentile').render('en')}</div>
+            <div class="popup-lang-he" data-lang="he">${getPopup('luck-percentile').render('he')}</div>
+        </div>`;
+}
+
+function renderLeagueRecordsPanel(winRateRows, prRows, luckRows, worstRows, type) {
     const winRateHtml = winRateRows.map((r, i) => leagueWinRateRecordRow(i + 1, r)).join('');
     const prHtml    = prRows.map((r, i)    => leaguePRRecordRow(i + 1, r)).join('');
     const luckHtml  = luckRows.map((r, i)  => leagueLuckRecordRow(i + 1, r)).join('');
@@ -2135,7 +2109,8 @@ function renderLeagueRecordsPanel(winRateRows, prRows, luckRows, worstRows) {
                 </div>
             </div>
             <div class="achv-table-card">
-                <h3>Best Luck</h3>
+                <h3>Best Luck <span class="predictor-tooltip" id="lr-luck-best-${type}-btn">?</span></h3>
+                ${luckRecordInfoHtml(`lr-luck-best-${type}`)}
                 <div class="achv-table-wrapper">
                     <table class="achv-table league-records-table font-small" data-mf-table-id="A6">
                         <thead><tr>
@@ -2151,7 +2126,8 @@ function renderLeagueRecordsPanel(winRateRows, prRows, luckRows, worstRows) {
                 </div>
             </div>
             <div class="achv-table-card">
-                <h3>Worst Luck</h3>
+                <h3>Worst Luck <span class="predictor-tooltip" id="lr-luck-worst-${type}-btn">?</span></h3>
+                ${luckRecordInfoHtml(`lr-luck-worst-${type}`)}
                 <div class="achv-table-wrapper">
                     <table class="achv-table league-records-table font-small" data-mf-table-id="A6">
                         <thead><tr>

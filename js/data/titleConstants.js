@@ -96,6 +96,41 @@ export function getChampionshipInfo(title) {
     };
 }
 
+/**
+ * Collapse a player's championship titles down to the ONE badge that should be
+ * displayed next to their name. A player never shows more than a single
+ * championship icon, no matter how many titles they hold:
+ *   - any World title present  → a single WC badge (world outranks national)
+ *   - otherwise national only  → a single NC badge
+ *   - no titles                → null
+ *
+ * The badge's tooltip still lists every championship the player holds (World
+ * ones first), so nothing is lost — only the visual repetition.
+ *
+ * @param {object} meta — player metadata
+ * @returns {{ abbreviation, tier, colors, tooltip }|null}
+ */
+export function getPrimaryChampionshipInfo(meta) {
+    const titles = (meta && meta.championshipTitles) || [];
+    if (titles.length === 0) return null;
+
+    const world = titles.filter(t => t.type === 'world');
+    const national = titles.filter(t => t.type !== 'world');
+    const isWorld = world.length > 0;
+
+    // Tooltip lists every title, World first, so the collapsed badge still
+    // tells the full story on hover.
+    const tooltip = [...world, ...national].map(getChampionshipTooltip).join(' · ');
+
+    return {
+        abbreviation: isWorld ? 'WC' : 'NC',
+        tier: isWorld ? 'gold' : 'silver',
+        colors: TIER_COLORS[isWorld ? 'gold' : 'silver'],
+        label: isWorld ? 'World Champion' : 'National Champion',
+        tooltip,
+    };
+}
+
 /* ── Combined HTML Generators ───────────────────────── */
 
 function esc(s) {
@@ -119,12 +154,10 @@ export function getTitleBadgesHtml(meta) {
         }
     }
 
-    // Championship badges
-    const titles = meta.championshipTitles || [];
-    for (const t of titles) {
-        const info = getChampionshipInfo(t);
-        const fullLabel = t.type === 'world' ? 'World Champion' : 'National Champion';
-        html += `<span class="pg-champ-badge pg-champ-${info.tier}" title="${esc(info.tooltip)}">${esc(fullLabel)}</span>`;
+    // Championship badge — at most one (see getPrimaryChampionshipInfo)
+    const champ = getPrimaryChampionshipInfo(meta);
+    if (champ) {
+        html += `<span class="pg-champ-badge pg-champ-${champ.tier}" title="${esc(champ.tooltip)}">${esc(champ.label)}</span>`;
     }
 
     return html;
@@ -138,11 +171,10 @@ export function getTitleAbbreviationsHtml(meta) {
     if (!meta) return '';
     let html = '';
 
-    // Championship abbreviations first (higher prestige)
-    const titles = meta.championshipTitles || [];
-    for (const t of titles) {
-        const info = getChampionshipInfo(t);
-        html += `<span class="title-abbr title-abbr-champ title-abbr-${info.tier}" title="${esc(info.tooltip)}">${esc(info.abbreviation)}</span>`;
+    // Championship abbreviation first (higher prestige) — at most one badge
+    const champ = getPrimaryChampionshipInfo(meta);
+    if (champ) {
+        html += `<span class="title-abbr title-abbr-champ title-abbr-${champ.tier}" title="${esc(champ.tooltip)}">${esc(champ.abbreviation)}</span>`;
     }
 
     // BMAB abbreviation

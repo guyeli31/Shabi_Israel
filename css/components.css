@@ -360,6 +360,11 @@ tr.rank-bronze:hover { background: var(--color-bronze-bg-hover); }
     background: var(--lt-ubc-bg);
     color: var(--lt-ubc-text);
 }
+/* "All" — not a league type; the type-agnostic pill used by filter bars. */
+.league-type-pill.type-all {
+    background: var(--lt-all-bg);
+    color: var(--lt-all-text);
+}
 
 /* ---- Average / Stats rows ---- */
 :root {
@@ -1076,7 +1081,12 @@ table.matchup-table a:hover {
     font-size: var(--fs-085);
     padding: 0.4em 0.7em;
     line-height: 1.4;
-    white-space: nowrap;
+    /* Shrink-to-fit, so a short hint still renders on one line — but bounded,
+       so a long one (e.g. a player holding five championships) wraps instead of
+       running off a phone screen. */
+    max-width: min(88vw, 30em);
+    white-space: normal;
+    overflow-wrap: anywhere;
     pointer-events: none;
     opacity: 0;
     transform: translateY(-2px);

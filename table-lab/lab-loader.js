@@ -19,6 +19,7 @@ import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatc
 import { luckPercentileStats } from '../js/compute/luckPercentile.js';
 import { playerNameLink } from '../js/render/playerNameInteraction.js';
 import { buildAllOpponentsPreset, aggregateOpponents } from '../js/presets/allOpponentsPreset.js';
+import { buildPlayerTotalLuckPreset, collectPlayerLeagueLuck } from '../js/presets/playerTotalLuckPreset.js';
 
 // Lab pages sit one level deep — redirect fetches to the correct root
 setLeaguesBase('../leagues');
@@ -106,7 +107,7 @@ function buildA1(completedResults, globalFlags) {
 }
 
 // ─── A2: Annual Leaderboard ───────────────────────
-// Matches real: # | Player | Tot | Win% | [PR] | [month cols...]
+// Matches real: # | Player | Tot | [month cols...] | Win% | [PR]
 // PR column is omitted for REGULAR groups (no PR data — see leagueTypes.js).
 
 function buildA2(allResults, globalFlags) {
@@ -188,6 +189,10 @@ function buildA2(allResults, globalFlags) {
         { key: 'total',   label: '<b>Tot</b>', type: 'number', sortable: true,
           colorFn: null,
           tdClass: 'total-col' },
+        ...monthEntries.map(({ abbr }) => ({
+            key: abbr.toLowerCase(), label: abbr, type: 'number', sortable: true,
+            colorFn: null,
+        })),
         { key: 'winRate', label: 'Win%',  type: 'number', sortable: true,
           colorFn: null,
           format: v => formatPercent2(v) },
@@ -196,10 +201,6 @@ function buildA2(allResults, globalFlags) {
               colorFn: null,
               format: v => v != null ? v.toFixed(2) : 'N/A' },
         ] : []),
-        ...monthEntries.map(({ abbr }) => ({
-            key: abbr.toLowerCase(), label: abbr, type: 'number', sortable: true,
-            colorFn: null,
-        })),
     ];
 
     return { data: rows, cols, medalCounts: { gold: 1, silver: 1, bronze: 1 } };
@@ -1044,6 +1045,22 @@ function buildC4AllOpponents(playerData, playerName, globalFlags) {
     return { ...preset, playerName };
 }
 
+// ─── C6: Total Luck (Records tab) ─────────────────
+// Built straight from the production preset (like C4) so the catalog can never
+// drift from the live table. Rows are the player's COMPLETED, PR-tracking
+// leagues only — see collectPlayerLeagueLuck.
+
+function buildC6TotalLuck(playerData, playerName) {
+    if (!playerData || !playerData.length) return null;
+    const rows = collectPlayerLeagueLuck(playerData, playerName);
+    if (!rows.length) return null;
+    const preset = buildPlayerTotalLuckPreset({
+        rows,
+        enrich: { leagueLink: (id, title) => `<a href="${leagueTableUrl(id)}">${title}</a>` },
+    });
+    return { ...preset, playerName };
+}
+
 // ─── SF/exp player-cell helper (matches production: flag + linked name) ────
 
 function sfPlayerCell(name, customFlags) {
@@ -1320,6 +1337,7 @@ export async function loadAllPresetData() {
         C3:  buildC3(playerAcrossLeagues, topPlayer, globalFlags),
         C4:  buildC4AllOpponents(playerAcrossLeagues, topPlayer, globalFlags),
         C5:  sfExp.C5,
+        C6:  buildC6TotalLuck(playerAcrossLeagues, topPlayer),
         D:   buildD(allResults),
         E:   buildE(allResults),
     };

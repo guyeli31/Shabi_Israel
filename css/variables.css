@@ -83,6 +83,16 @@
        near-white tint that reads the same across every theme. */
     --density-hot: var(--color-accent);
 
+    /* The "All / both outcomes pooled" series colour, for charts that plot a
+       win series and a loss series alongside their union (the player page's
+       Total PR ↔ Result histogram). It must be a THIRD hue that reads as
+       neither win nor loss and doesn't collide with --color-accent (which is
+       already spoken for by links, buttons and the density ramp) — hence
+       violet. Intentionally CONSTANT across themes, same reasoning as
+       --color-warning below: it encodes a fixed meaning, not a palette mood.
+       This value clears 3:1 against every theme's surface, light and dark. */
+    --color-series-all: #8b5cf6;
+
     /* Warning — intentionally CONSTANT across all themes. A caution signal
        (like a traffic light) shouldn't shift with the palette. Foreground use:
        the .whatif-warn icon and CSV-validation messages. */
@@ -216,6 +226,9 @@
     --lt-ubc-text: #5b21b6;
     --lt-regular-bg: #ccfbf1;
     --lt-regular-text: #115e59;
+    /* "All" — the type-agnostic filter pill (no league type of its own) */
+    --lt-all-bg: #e2e8f0;
+    --lt-all-text: #334155;
 }
 
 /* Dark-theme league-type pill overrides */
@@ -227,6 +240,8 @@
     --lt-ubc-text: #c4b5fd;
     --lt-regular-bg: rgba(45, 212, 191, 0.22);
     --lt-regular-text: #5eead4;
+    --lt-all-bg: rgba(148, 163, 184, 0.22);
+    --lt-all-text: #cbd5e1;
 }
 [data-theme="vegas"] {
     --tier-mid: color-mix(in srgb, #f5d76e 40%, transparent);
@@ -236,6 +251,8 @@
     --lt-ubc-text: #c4b5fd;
     --lt-regular-bg: rgba(45, 212, 191, 0.22);
     --lt-regular-text: #5eead4;
+    --lt-all-bg: rgba(148, 163, 184, 0.22);
+    --lt-all-text: #cbd5e1;
 }
 [data-theme="casino"] {
     --tier-mid: color-mix(in srgb, #ffd700 40%, transparent);
@@ -245,6 +262,8 @@
     --lt-ubc-text: #f9a8d4;
     --lt-regular-bg: rgba(45, 212, 191, 0.22);
     --lt-regular-text: #5eead4;
+    --lt-all-bg: rgba(148, 163, 184, 0.22);
+    --lt-all-text: #cbd5e1;
 }
 [data-theme="x22"] {
     --tier-mid: color-mix(in srgb, #f5d76e 40%, transparent);
@@ -254,4 +273,6 @@
     --lt-ubc-text: #f9a8d4;
     --lt-regular-bg: rgba(94, 234, 212, 0.22);
     --lt-regular-text: #5eead4;
+    --lt-all-bg: rgba(148, 163, 184, 0.22);
+    --lt-all-text: #cbd5e1;
 }

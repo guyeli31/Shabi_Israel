@@ -6,30 +6,18 @@ echo ===============================================
 echo  Shabi Israel - Local site + Local Supabase (Docker)
 echo ===============================================
 
-rem --- 1. Make sure Docker Desktop is running ---
-docker info >nul 2>&1
+rem --- 1+2. Docker Desktop + the local Supabase stack ---
+rem Single source of truth, shared with START_SITE.bat and the Playwright MCP
+rem hook. It also repairs a half-dead stack (published-but-dead port proxy),
+rem which a bare `supabase start` reports as "already running".
+call "%~dp0ensure-docker-supabase.bat"
 if errorlevel 1 (
-    echo Docker is not running yet. Starting Docker Desktop...
-    start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"
-
-    echo Waiting for Docker to become ready, this can take a minute...
-    :WAIT_DOCKER
-    timeout /t 3 >nul
-    docker info >nul 2>&1
-    if errorlevel 1 (
-        echo   still waiting for Docker...
-        goto WAIT_DOCKER
-    )
-    echo Docker is up.
-) else (
-    echo Docker is already running.
+    echo.
+    echo *** WARNING: local Supabase is unreachable - the site will show
+    echo *** "Failed to load leagues". Append ?datasource=files to the URL
+    echo *** to browse the static CSV/JSON copies instead.
+    echo.
 )
-
-rem --- 2. Make sure the local Supabase stack is running ---
-echo Starting local Supabase stack ^(if not already up^)...
-pushd supabase-migration
-call npx supabase start
-popd
 
 rem --- 3. Find a free port and start the local web server ---
 set "PORT="

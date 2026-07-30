@@ -144,6 +144,16 @@
 .pg-v12-titleribbon.pg-tier-bronze { background: linear-gradient(90deg, #d97706, #f59e0b); color: #451a03; }
 .pg-v12-titleribbon.pg-tier-white  { background: linear-gradient(90deg, #cbd5e1, #f8fafc); color: #475569; }
 .pg-v12-titleicon { font-size: 1em; }
+/* Tap/focus target — the ribbon opens its full title tooltip on touch, where
+   there is no hover to open it with. */
+.pg-v12-titleribbon[data-tooltip-tap] {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.pg-v12-titleribbon[data-tooltip-tap]:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
 
 /* Status chip — mirrors V16's status pill so Running / This year /
    Inactive read at the same scale on all hero surfaces. */
@@ -340,6 +350,15 @@
     white-space: nowrap;
 }
 .pg-v7-chip-icon { font-size: 1.1em; line-height: 1; }
+/* Tap/focus target — see .pg-v12-titleribbon[data-tooltip-tap]. */
+.pg-v7-chip[data-tooltip-tap] {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.pg-v7-chip[data-tooltip-tap]:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
 .pg-v7-tier-gold   { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #4a2700; box-shadow: 0 1px 4px rgba(245,158,11,0.25); }
 .pg-v7-tier-silver { background: linear-gradient(135deg, #94a3b8, #cbd5e1); color: #1e293b; }
 .pg-v7-tier-bronze { background: linear-gradient(135deg, #d97706, #f59e0b); color: #451a03; }
@@ -1127,6 +1146,118 @@
     transition: background 0.15s;
 }
 .show-more-btn:hover { background: var(--color-hover); }
+
+/* ============================================================
+ * RECORDS TAB — Total Luck (C6) + Total PR ↔ Result
+ * ============================================================ */
+
+/* The league-type filter above C1 (Leagues tab). The pill bar itself is
+   styled by subtabs.css; this only gives it breathing room from the table. */
+.pg-leagues-filter {
+    margin-bottom: var(--space-sm);
+}
+
+/* Total PR ↔ Result — the chart panels reuse the dashboard's .corr-* chrome
+   (dashboard.css); only the legend and the per-series μ/σ readout are new. */
+.pg-prres-panel .corr-controls-top,
+.pg-prres-controls .corr-controls-top {
+    width: 100%;
+}
+/* The shared legend/fit/trim block above the rows carries no chart of its own,
+   so it must not reserve the chart-panel's bottom padding. */
+.pg-prres-controls {
+    padding-bottom: 0;
+    margin-bottom: var(--space-sm);
+}
+.pg-prres-self {
+    color: var(--color-text);
+}
+.pg-prres-add {
+    display: block;
+    width: 100%;
+    margin-top: var(--space-sm);
+}
+.pg-prres-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin-top: var(--space-xs);
+}
+.pg-prres-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.25em 0.7em;
+    font-family: var(--font-main);
+    font-size: var(--fs-085);
+    color: var(--color-text-secondary);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+}
+.pg-prres-legend-item:hover:not(:disabled) {
+    background: var(--color-hover);
+}
+/* Off = the swatch drains to a hollow outline, so "which series am I looking
+   at" is readable without relying on the text weight alone. */
+.pg-prres-legend-item:not(.is-active) .pg-prres-swatch {
+    background: transparent !important;
+    box-shadow: inset 0 0 0 2px var(--color-border);
+}
+.pg-prres-legend-item.is-active {
+    color: var(--color-text);
+    border-color: var(--color-text-muted);
+    font-weight: 600;
+}
+.pg-prres-legend-item:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+/* em throughout (Units policy): the swatch tracks the chip's font size, so it
+   stays proportional at every viewport. The 2px inset ring is a hairline. */
+.pg-prres-swatch {
+    width: 0.75em;
+    height: 0.75em;
+    border-radius: 0.2em;
+    flex: none;
+}
+.pg-prres-legend-n {
+    color: var(--color-text-muted);
+    font-weight: 400;
+}
+.pg-prres-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+    font-weight: 600;
+}
+.pg-prres-stat {
+    white-space: nowrap;
+}
+/* One explainer block per displayed series, separated by a hairline so the
+   Wins / Losses / All readings never run together. */
+.pg-gauss-block + .pg-gauss-block {
+    border-top: 1px solid var(--color-border);
+    margin-top: var(--space-sm);
+    padding-top: var(--space-sm);
+}
+/* …and one group per charted player, in the same order as the charts. The
+   between-player rule is heavier than the between-series one above, so the
+   two levels of grouping stay legible at a glance. */
+.pg-gauss-player + .pg-gauss-player {
+    border-top: 2px solid var(--color-text-muted);
+    margin-top: var(--space-md);
+    padding-top: var(--space-md);
+}
+.pg-gauss-player-name {
+    font-weight: 700;
+    font-size: var(--fs-110);
+    color: var(--color-text);
+    margin-bottom: var(--space-xs);
+}
 
 /* ============================================================
  * MOBILE (≤640px) — Step 6.6 compression for player-general

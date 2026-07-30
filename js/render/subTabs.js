@@ -19,13 +19,23 @@
  */
 
 /**
+ * ALL — the type-agnostic pill token. Not a league type: filter bars use it for
+ * the "no filter" tab, so it lives here next to the real types rather than being
+ * re-invented as a magic 'all' string at each call site. Styling comes from
+ * `.league-type-pill.type-all` (components.css → --lt-all-* tokens).
+ */
+export const ALL_TYPES_ID = 'all';
+export const ALL_TYPES_LABEL = 'All';
+export const ALL_TYPES_TAB = { id: ALL_TYPES_ID, label: ALL_TYPES_LABEL };
+
+/**
  * Canonical left-to-right order for league-type pills. Every pill bar in the
  * app switches league types, so the order is enforced here (once) rather than
  * at each call site — callers may hand us tabs in data order, count order, etc.
- * Tabs whose id isn't a known league type keep their given order, after the
- * known ones (Array.sort is stable).
+ * ALL always sits leftmost. Tabs whose id isn't a known league type keep their
+ * given order, after the known ones (Array.sort is stable).
  */
-const PILL_TYPE_ORDER = ['doubling', 'regular', 'ubc'];
+const PILL_TYPE_ORDER = [ALL_TYPES_ID, 'doubling', 'regular', 'ubc'];
 function orderPillTabs(tabs) {
     const rank = (id) => {
         const i = PILL_TYPE_ORDER.indexOf(id);

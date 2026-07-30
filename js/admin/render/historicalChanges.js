@@ -11,9 +11,11 @@
  *
  * "Undo" reverts the whole batch via restore_batch(batch_id) and logs the revert
  * as one tidy "Reverted…" row. "✕" reverts AND purges the batch from history via
- * restore_and_delete_batch(batch_id). Both are single server-side transactions,
- * so the DB returns to exactly its pre-publish state. Batches can be
- * multi-selected for either action in bulk.
+ * restore_and_delete_batch(batch_id) — purged means archived out of reach of this
+ * view, not destroyed (sql/audit_soft_purge.sql), so a mistaken ✕ is recoverable
+ * with unpurge_batch() from the SQL editor. Both are single server-side
+ * transactions, so the DB returns to exactly its pre-publish state. Batches can
+ * be multi-selected for either action in bulk.
  */
 
 import { supabase } from '../../data/supabaseClient.js';

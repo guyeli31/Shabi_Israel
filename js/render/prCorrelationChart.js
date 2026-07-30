@@ -88,6 +88,7 @@ function drawGaussianOverlay(ctx, { mean, std }, { xMin, xMax, padL, plotW, plot
 
     ctx.setLineDash([4, 3]);
     ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.8;
     for (const x of [mean, mean - std, mean + std]) {
         if (x < xMin || x > xMax) continue;
         const px = xToPxAt(x, xMin, xMax, plotW, padL);
@@ -493,6 +494,294 @@ export function drawHistogramRow(host, buckets, opts) {
         drawRow();
     });
 
+    canvas.addEventListener('click', (e) => {
+        const hit = hitTest(e.clientX);
+        pinnedIndex = pinnedIndex === hit ? -1 : hit;
+        updateInfoPanel();
+        drawRow();
+    });
+}
+
+/**
+ * Multi-series histogram row — same axis geometry and bin width as
+ * drawHistogramRow, but draws SEVERAL distributions over one shared X domain
+ * (used by the player page's "Total PR ↔ Result" section: wins / losses / all
+ * matches, each toggled independently from a legend).
+ *
+ * Each series keeps its OWN percentage denominator (its own match count), so
+ * two series of very different sizes are still shape-comparable — and so each
+ * series' fitted normal curve, which is a probability density, lands in the
+ * same "% per 1-PR bin" units as its own bars.
+ *
+ * Three marks, picked by series count and whether a fit was asked for:
+ *
+ *   1 series            → bars.
+ *   1 series + gaussian → bars, with the fitted curve OVER them in the shared
+ *                         warning orange (`C.gaussian`), same as the dashboard's
+ *                         single-series rows — the orange reads as "this is the
+ *                         model, not the data".
+ *   N series            → continuous frequency-polygon LINES, one per series in
+ *                         the series' own colour, through each bin's value at
+ *                         the bin centre. Overlapping bars (side-by-side,
+ *                         stacked or nested) all fail here: a split bin reads as
+ *                         two different PR gaps, and overlaid bars read as a
+ *                         stacked total. Lines share the exact same X slots, so
+ *                         nothing occludes anything.
+ *   N series + gaussian → the fitted curves REPLACE those lines, each keeping
+ *                         its series' colour. Drawing both would be six
+ *                         near-parallel strokes in three colours; the fit is
+ *                         what you asked to look at, so it takes the slot.
+ *
+ * series: [{ key, label, color, buckets, total, gaussian }] — every series'
+ *   `buckets` must span the same [xMin, xMax) bins, in the same order
+ *   (buildDensityBuckets-style: [{ x0, x1, count, pct }]).
+ * opts.rowHeight overrides the plot's height in CSS px (default 76). A taller
+ *   row is what makes a fitted normal actually read as a bell rather than a
+ *   flat arc, so callers that lean on the fit should raise it.
+ * opts.yMax pins the Y scale (in % per bin) instead of self-scaling to this
+ *   row's own tallest mark — pass the same value to every row of a stack so
+ *   heights are comparable across rows.
+ */
+export function drawMultiHistogramRow(host, series, opts) {
+    host.innerHTML = '';
+    host.style.position = 'relative';
+
+    const {
+        xMin, xMax, showAxis = false, rowHeight = 76, yMax = null,
+        // Default follows the mark: bars are hoverable objects, a line is not —
+        // what you actually hover in line mode is the bin column under it.
+        placeholderText = series.length === 1
+            ? 'Hover a bar to see details'
+            : 'Hover a PR-gap bin to see details',
+    } = opts;
+
+    const canvas = document.createElement('canvas');
+    canvas.className = 'corr-row-canvas';
+    canvas.style.display = 'block';
+    canvas.style.touchAction = 'manipulation';
+    host.appendChild(canvas);
+
+    const infoPanel = document.createElement('div');
+    infoPanel.className = 'chart-info-panel';
+    host.appendChild(infoPanel);
+
+    const ctx = canvas.getContext('2d');
+    const ROW_H = rowHeight;
+    const AXIS_H = 52;
+    const H = showAxis ? ROW_H + AXIS_H : ROW_H;
+    const padL = 16, padR = 16;
+    const plotTop = 16, plotBottom = ROW_H - 6;
+
+    let W = 900;
+    let hoverIndex = -1;
+    let pinnedIndex = -1;
+    let lastRects = [];
+
+    // The bin grid is shared, so any series' bucket list defines the axis slots.
+    const binCount = series.length ? series[0].buckets.length : 0;
+    // With several series, a requested fit REPLACES the data lines — so the
+    // Y scale must be driven by whichever of the two is actually on screen.
+    const fitOnly = series.length > 1 && series.every(s => s.gaussian);
+
+    let maxPct = 0;
+    for (const s of series) {
+        if (!fitOnly) for (const b of s.buckets) maxPct = Math.max(maxPct, b.pct);
+        if (s.gaussian) maxPct = Math.max(maxPct, normalPdf(s.gaussian.mean, s.gaussian.mean, s.gaussian.std) * 100);
+    }
+    // `yMax` lets a caller stacking several of these rows pin them all to ONE
+    // Y scale — without it each row self-scales and two distributions of very
+    // different heights would look equally tall, which is exactly the
+    // comparison the stack exists to make.
+    const scaleMax = yMax != null ? yMax : maxPct;
+    // Gridline spacing follows the range rather than being pinned at 5%: a
+    // taller row has room for more lines, and a fit-only view can top out well
+    // under 5%, where a single gridline would leave the curve unreadable.
+    const gridStep = scaleMax <= 4 ? 1 : scaleMax <= 10 ? 2 : 5;
+    const niceMax = Math.max(gridStep, Math.ceil(scaleMax / gridStep) * gridStep);
+
+    function themeColors() {
+        const cs = getComputedStyle(canvas);
+        const v = (name, fallback) => cs.getPropertyValue(name).trim() || fallback;
+        return {
+            grid:         v('--chart-grid',  'rgba(0,0,0,0.18)'),
+            axis:         v('--chart-axis',  'rgba(0,0,0,0.35)'),
+            label:        v('--chart-label', 'rgba(0,0,0,0.6)'),
+            hoverOutline: v('--chart-hover-outline', '#000'),
+            gaussian:     v('--color-warning', '#d97706'),
+            fontFamily:   v('--font-main', 'sans-serif'),
+        };
+    }
+
+    // Series colours arrive as CSS custom-property names (theme-aware); resolve
+    // them against the live canvas so a theme switch repaints correctly.
+    function seriesColor(s) {
+        if (!s.color || !s.color.startsWith('--')) return s.color || '#2563eb';
+        return getComputedStyle(canvas).getPropertyValue(s.color).trim() || '#2563eb';
+    }
+
+    function drawRow() {
+        const C = themeColors();
+        const dpr = window.devicePixelRatio || 1;
+        const cssW = Math.max(host.clientWidth || W, 280);
+        W = cssW;
+
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = H + 'px';
+        canvas.width = Math.round(cssW * dpr);
+        canvas.height = Math.round(H * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, W, H);
+
+        const plotW = W - padL - padR;
+        const step = tickStep(xMin, xMax);
+
+        ctx.font = `10px ${C.fontFamily}`;
+        ctx.textAlign = 'left';
+        for (let p = 0; p <= niceMax; p += gridStep) {
+            const y = plotBottom - (p / niceMax) * (plotBottom - plotTop);
+            ctx.strokeStyle = C.grid;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(padL, y);
+            ctx.lineTo(W - padR, y);
+            ctx.stroke();
+            if (p > 0) {
+                ctx.fillStyle = C.label;
+                ctx.fillText(`${p}%`, padL + 3, y - 2);
+            }
+        }
+
+        lastRects = [];
+        for (let i = 0; i < binCount; i++) {
+            const ref = series[0].buckets[i];
+            lastRects.push({
+                x0: xToPxAt(ref.x0, xMin, xMax, plotW, padL),
+                x1: xToPxAt(ref.x1, xMin, xMax, plotW, padL),
+            });
+        }
+
+        const activeIdx = pinnedIndex >= 0 ? pinnedIndex : hoverIndex;
+        const colors = series.map(seriesColor);
+        const pctToY = (pct) => plotBottom - (pct / niceMax) * (plotBottom - plotTop);
+
+        if (series.length === 1) {
+            const s = series[0];
+            for (let i = 0; i < binCount; i++) {
+                const r = lastRects[i];
+                const barH = plotBottom - pctToY(s.buckets[i].pct);
+                ctx.fillStyle = colors[0];
+                ctx.fillRect(r.x0 + 0.5, plotBottom - barH, Math.max(0, r.x1 - r.x0 - 1), barH);
+            }
+        } else if (!fitOnly) {
+            // Frequency polygon per series, through the bin CENTRES. The path is
+            // anchored to 0% half a bin outside each end so a distribution reads
+            // as closed rather than dangling off the plot edge.
+            series.forEach((s, si) => {
+                ctx.save();
+                ctx.strokeStyle = colors[si];
+                ctx.lineWidth = 2;
+                ctx.lineJoin = 'round';
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                for (let i = 0; i < binCount; i++) {
+                    const r = lastRects[i];
+                    const cx = (r.x0 + r.x1) / 2;
+                    const y = pctToY(s.buckets[i].pct);
+                    if (i === 0) {
+                        ctx.moveTo(r.x0, plotBottom);
+                        ctx.lineTo(cx, y);
+                    } else {
+                        ctx.lineTo(cx, y);
+                    }
+                    if (i === binCount - 1) ctx.lineTo(r.x1, plotBottom);
+                }
+                ctx.stroke();
+                ctx.restore();
+            });
+        }
+
+        if (activeIdx >= 0 && activeIdx < binCount) {
+            const r = lastRects[activeIdx];
+            ctx.strokeStyle = C.hoverOutline;
+            ctx.lineWidth = activeIdx === pinnedIndex ? 2.5 : 2;
+            ctx.strokeRect(r.x0 + 1, plotTop, Math.max(1, r.x1 - r.x0 - 2), plotBottom - plotTop);
+        }
+
+        const zeroPx = xToPxAt(0, xMin, xMax, plotW, padL);
+        ctx.strokeStyle = C.axis;
+        ctx.beginPath();
+        ctx.moveTo(zeroPx, plotTop - 2);
+        ctx.lineTo(zeroPx, plotBottom + 2);
+        ctx.stroke();
+
+        // A single series keeps its data as bars, so the fit is drawn in the
+        // shared warning orange to separate model from data. With several
+        // series the fit has REPLACED the data lines, so each curve keeps its
+        // own series colour — that is now the only thing identifying it.
+        series.forEach((s, si) => {
+            if (!s.gaussian) return;
+            drawGaussianOverlay(ctx, s.gaussian, {
+                xMin, xMax, padL, plotW, plotTop, plotBottom, niceMax,
+                C: { ...C, gaussian: fitOnly ? colors[si] : C.gaussian },
+            });
+        });
+
+        if (showAxis) drawAxisTicks(ctx, { xMin, xMax, W, padL, padR, axisTop: ROW_H, AXIS_H, plotW, step, C });
+    }
+
+    function binInfoHtml(i) {
+        const ref = series[0].buckets[i];
+        const items = series.map(s => {
+            const b = s.buckets[i];
+            const share = s.total > 0 ? (b.count / s.total * 100) : 0;
+            return `<span class="cip-item"><span class="cip-k">${s.label}</span><span class="cip-v">${b.count} (${share.toFixed(1)}%)</span></span>`;
+        }).join('');
+        return `<div class="cip-row"><div class="cip-title">PR gap ${ref.x0} to ${ref.x1}</div>${items}</div>`;
+    }
+
+    function updateInfoPanel() {
+        const idx = pinnedIndex >= 0 ? pinnedIndex : hoverIndex;
+        infoPanel.innerHTML = (idx >= 0 && idx < binCount)
+            ? binInfoHtml(idx)
+            : `<span class="chart-info-placeholder">${placeholderText}</span>`;
+    }
+
+    function hitTest(clientX) {
+        const rect = canvas.getBoundingClientRect();
+        const mx = clientX - rect.left;
+        return lastRects.findIndex(r => mx >= r.x0 && mx < r.x1);
+    }
+
+    updateInfoPanel();
+    drawRow();
+
+    const onThemeChange = () => drawRow();
+    window.addEventListener('themechange', onThemeChange);
+
+    const ro = new ResizeObserver(() => drawRow());
+    ro.observe(host);
+
+    const mo = new MutationObserver(() => {
+        if (!document.body.contains(canvas)) {
+            window.removeEventListener('themechange', onThemeChange);
+            ro.disconnect();
+            mo.disconnect();
+        }
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+
+    canvas.addEventListener('mousemove', (e) => {
+        hoverIndex = hitTest(e.clientX);
+        canvas.style.cursor = hoverIndex >= 0 ? 'pointer' : 'default';
+        updateInfoPanel();
+        drawRow();
+    });
+    canvas.addEventListener('mouseleave', () => {
+        hoverIndex = -1;
+        canvas.style.cursor = 'default';
+        updateInfoPanel();
+        drawRow();
+    });
     canvas.addEventListener('click', (e) => {
         const hit = hitTest(e.clientX);
         pinnedIndex = pinnedIndex === hit ? -1 : hit;

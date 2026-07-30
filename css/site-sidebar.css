@@ -195,7 +195,14 @@
    flyout. Without this, moving the cursor across the gap drops `:hover`
    on the host for a tick and the flyout flickered shut mid-transit. The
    pseudo is transparent (no fill, no border) — it just catches the
-   pointer so `:hover` on the host stays alive during the transit. */
+   pointer so `:hover` on the host stays alive during the transit.
+
+   `pointer-events: inherit` is load-bearing: a CLOSED flyout still occupies
+   its full layout box out in the content area (it's only transparent), so a
+   hard-coded `auto` here left a live 10px strip hanging in the page — and
+   because the strip is a descendant of the host, brushing it opened the
+   whole flyout chain without ever touching the sidebar. Inheriting ties the
+   bridge to the panel: `none` while closed, `auto` once the panel opens. */
 .site-nav-flyout::before {
     content: '';
     position: absolute;
@@ -204,7 +211,7 @@
     left: -10px;
     width: 10px;
     background: transparent;
-    pointer-events: auto;
+    pointer-events: inherit;
 }
 
 /* Long lists get internal scrolling. Targets the leaf flyouts that fill
