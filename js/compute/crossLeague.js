@@ -569,18 +569,28 @@ export async function listMedalRanking(leagueType, metric) {
 
 /**
  * Flatten all played matches across leagues into one array for the history table
- * and bar chart. Sorted by updatedAt DESC (unknown dates sorted to end by
- * league order, newest league first).
+ * and bar chart. Sorted by matchDate DESC.
+ *
+ * `matchDate` is the per-match date used for display, the year filter and the
+ * chronological chart order. It prefers the pairing's own `updatedAt` (from
+ * match_history), and falls back to the league's IssueDate for leagues that ran
+ * before per-match dates were recorded — those leagues carry no match_history
+ * rows at all, so every one of their matches would otherwise be dateless ("—")
+ * and sink to the bottom of the table regardless of when it was actually
+ * played. `_dateApprox` marks such rows so the UI can label them as league-level
+ * dates rather than exact ones.
  *
  * Each row: { leagueId, leagueTitle, leagueType, year, opponent, scoreSelf,
  *             scoreOpp, prSelf, prOpp, luckSelf, luckOpp, _technical, _draw,
- *             updatedAt, result }
+ *             updatedAt, matchDate, _dateApprox, result }
  */
 export function flattenAllMatches(perLeagueData) {
     const rows = [];
     perLeagueData.forEach((entry, li) => {
+        const leagueDate = entry.league.params?.IssueDate || null;
         for (const m of entry.playerMatches) {
-            const year = m.updatedAt ? new Date(m.updatedAt).getFullYear() : null;
+            const matchDate = m.updatedAt || leagueDate;
+            const year = matchDate ? new Date(matchDate).getFullYear() : null;
             let result;
             if (m._draw) result = 'DRAW';
             else if (m.scoreSelf > m.scoreOpp) result = 'WIN';
@@ -595,17 +605,19 @@ export function flattenAllMatches(perLeagueData) {
                 year,
                 leagueOrderIdx: li,
                 ...m,
+                matchDate,
+                _dateApprox: !m.updatedAt && !!leagueDate,
                 result
             });
         }
     });
 
     rows.sort((a, b) => {
-        const at = a.updatedAt ? new Date(a.updatedAt).getTime() : null;
-        const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : null;
-        if (at != null && bt != null) return bt - at;
-        if (at != null) return -1;
-        if (bt != null) return 1;
+        const at = a.matchDate ? new Date(a.matchDate).getTime() : null;
+        const bt = b.matchDate ? new Date(b.matchDate).getTime() : null;
+        if (at != null && bt != null && at !== bt) return bt - at;
+        if (at != null && bt == null) return -1;
+        if (at == null && bt != null) return 1;
         return a.leagueOrderIdx - b.leagueOrderIdx;
     });
 

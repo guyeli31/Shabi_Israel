@@ -35,6 +35,8 @@ import { escapeHtml } from '../utils/sanitize.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountAppTabs } from './appTabs.js';
 import { TAB_ICONS } from './tabIcons.js';
+import { mountSearchField } from '../utils/combobox.js';
+import { installSearchOverlay } from './searchOverlay.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DWELL_BUCKET_ORDER = ['<10s', '10-30', '30-60', '1-5m', '5m+'];
@@ -480,7 +482,7 @@ function renderLogTable(host, rows, columns, { emptyText = 'No data yet.', sort 
  *  BROWSER's timezone while the Date column renders Asia/Jerusalem, so filter
  *  boundaries only line up with displayed times for an admin sitting in Israel.
  *  `section` must contain the three selectors passed in. */
-function mountFilteredLog(section, { hostSel, fromSel, toSel, rows, columns, emptyWindowText }) {
+function mountFilteredLog(section, { hostSel, fromSel, toSel, rows, columns, emptyWindowText, search }) {
     const host = section.querySelector(hostSel);
     const fromInput = section.querySelector(fromSel);
     const toInput = section.querySelector(toSel);
@@ -488,6 +490,7 @@ function mountFilteredLog(section, { hostSel, fromSel, toSel, rows, columns, emp
     if (rows.length === 0) {
         fromInput.disabled = true;
         toInput.disabled = true;
+        if (search) { const si = section.querySelector(search.inputSel); if (si) si.disabled = true; }
         host.innerHTML = '<p class="muted">No data yet.</p>';
         return;
     }
@@ -504,18 +507,72 @@ function mountFilteredLog(section, { hostSel, fromSel, toSel, rows, columns, emp
     fromInput.value = toLocalInputValue(new Date(0));
     toInput.value = toLocalInputValue(new Date());
 
+    // Optional smart-search filter (the all-clicks log). `query` is the active
+    // filter text — set by the search field on every keystroke AND on a pick, so
+    // it doubles as a live substring filter and an exact "pick this click" one.
+    // `windowCounts` holds the per-value occurrence count over the CURRENT date
+    // window (query-independent, so the browse-all list always shows every click
+    // with its true count regardless of what is typed) — the search's own
+    // getOptions/decorate read it, so it is recomputed inside draw().
+    let query = '';
+    let windowCounts = new Map();
+
     // Created once and handed to every renderLogTable call below, so re-drawing
     // on a filter change preserves whatever column the admin sorted by.
     const sort = { key: 'date', dir: 'desc' }; // newest first by default
     const draw = () => {
         const fromTime = fromInput.value ? new Date(fromInput.value).getTime() : -Infinity;
         const toTime = toInput.value ? new Date(toInput.value).getTime() : Infinity;
-        const shown = rows.filter((r) => r.date.getTime() >= fromTime && r.date.getTime() <= toTime);
-        renderLogTable(host, shown, columns, { emptyText: emptyWindowText, sort });
+        const inWindow = rows.filter((r) => r.date.getTime() >= fromTime && r.date.getTime() <= toTime);
+        if (search) {
+            windowCounts = new Map();
+            for (const r of inWindow) {
+                const v = r[search.field];
+                if (v) windowCounts.set(v, (windowCounts.get(v) || 0) + 1);
+            }
+        }
+        const q = query.trim().toLowerCase();
+        const shown = q
+            ? inWindow.filter((r) => {
+                const raw = String(r[search.field] || '').toLowerCase();
+                const disp = search.labelFor ? String(search.labelFor(r[search.field]) || '').toLowerCase() : raw;
+                return raw.includes(q) || disp.includes(q);
+            })
+            : inWindow;
+        renderLogTable(host, shown, columns,
+            { emptyText: q ? 'No clicks match this search.' : emptyWindowText, sort });
     };
 
     fromInput.addEventListener('change', draw);
     toInput.addEventListener('change', draw);
+
+    if (search) {
+        const searchInput = section.querySelector(search.inputSel);
+        if (searchInput) {
+            // The mobile search sheet is installed by the site sidebar / admin
+            // shell, neither of which analytics.html loads — so install it here
+            // too (idempotent, touch-only) or the .app-search-input tap would have
+            // no sheet to open on a phone.
+            installSearchOverlay();
+            mountSearchField(searchInput, {
+                // Distinct field values in the current window, most-clicked first.
+                getOptions: () => [...windowCounts.entries()]
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([value]) => ({ value, label: search.labelFor ? search.labelFor(value) : value })),
+                // Each option carries its own icon + a count badge — this IS the
+                // "always show the count per click" the browse-all list provides.
+                decorate: (value) => ({
+                    iconHtml: search.iconFor ? (search.iconFor(value) || '') : '',
+                    badge: { text: String(windowCounts.get(value) || 0), kind: 'count' },
+                }),
+                // Fires on every keystroke (live substring filter) and on a pick
+                // (the full click_target), and with '' when cleared — one hook.
+                onChange: (value) => { query = value || ''; draw(); },
+                allowFreeText: true,
+            });
+        }
+    }
+
     draw();
 }
 
@@ -577,6 +634,8 @@ const CLICK_TYPE_ICONS = [
     { prefix: 'Compare: add', icon: '➕' },
     { prefix: 'Compare: remove', icon: '🗑️' },
     { prefix: 'Compare: change', icon: '👤' },
+    { prefix: 'H2H: ', icon: '🆚' }, // player page H2H opponent picker
+
     { prefix: 'Player link: ', icon: '🔗' },
     { prefix: 'League link: ', icon: '🔗' },
     { prefix: 'Link: ', icon: '🔗' },
@@ -643,7 +702,10 @@ function clickIcon(target) {
         if (label.startsWith('Dashboard: ')) return MENU_LABEL_ICONS.Dashboard;
         if (label.startsWith('Table: ')) return TAB_ICONS.leagues;
         if (label === 'Logout') return LOGOUT_ICON;
-        return MENU_LABEL_ICONS[label] || '';
+        // Specific icon where the item has one (Players 👥, Records 📜, …);
+        // otherwise the hamburger-menu glyph ☰, so any nav-menu click still
+        // reads as "came from the navigation menu" rather than showing nothing.
+        return MENU_LABEL_ICONS[label] || '☰';
     }
     const match = CLICK_TYPE_ICONS.find((c) => target.startsWith(c.prefix));
     if (match) return match.icon;
@@ -759,6 +821,16 @@ function renderClicksLog(section, clicksLog, sessions) {
             adminUser: sessionAdminUser(c),
         })),
         columns: clickColumns({ withSession: true }),
+        // Smart-search the log by click target: browse-all lists every distinct
+        // click with its count badge, picking one filters the table to it, and
+        // it works on mobile via the shared sheet (mountSearchField). Label +
+        // icon match exactly what the "Click target" column shows.
+        search: {
+            inputSel: '#clicks-log-search',
+            field: 'target',
+            labelFor: displayTarget,
+            iconFor: clickIcon,
+        },
     });
 }
 
@@ -1280,16 +1352,41 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
     shell.panels.overview.appendChild(mixSection);
     renderTrafficMix(mixSection, data.traffic_mix, excludeAdmin);
 
-    const tsSection = makeSection('Pageviews over time');
-    const tsChart = document.createElement('div');
-    tsChart.id = 'chart-timeseries';
-    tsSection.appendChild(tsChart);
+    // "Traffic over time" — a Pageviews ↔ Sessions toggle over the same daily
+    // buckets. Both come from data.timeseries (views + sessions per day); the
+    // note under the toggle explains what the active metric counts, since
+    // "traffic" is ambiguous between "pages served" and "visits".
+    const tsSection = makeSection('Traffic over time');
+    tsSection.insertAdjacentHTML('beforeend', `
+        <div class="analytics-metric-toggle" role="group" aria-label="Traffic metric">
+            <button type="button" class="analytics-metric-btn is-active" data-metric="views">Pageviews</button>
+            <button type="button" class="analytics-metric-btn" data-metric="sessions">Sessions</button>
+        </div>
+        <p class="analytics-mix-note" id="ts-metric-note"></p>
+        <div id="chart-timeseries"></div>`);
     shell.panels.overview.appendChild(tsSection);
+    const tsChart = tsSection.querySelector('#chart-timeseries');
+    const tsNote = tsSection.querySelector('#ts-metric-note');
     const timeseries = (data.timeseries || []).map((t) => ({
         day: new Date(`${t.day}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
         views: t.views,
+        sessions: t.sessions ?? 0,
     }));
-    drawBarChart(tsChart, timeseries, { labelKey: 'day', valueKey: 'views' });
+    const TS_METRIC_NOTES = {
+        views: 'Pageviews — every page load is counted, so one visitor who opens several pages adds several. This is the current default: the raw volume of pages served.',
+        sessions: 'Sessions — one per visit, however many pages it viewed, so it reads closer to "how many people came". Israel-route visits only (global visitors stay anonymous and are not grouped into sessions), so this line sits at or below Pageviews.',
+    };
+    const drawTs = (metric) => {
+        drawBarChart(tsChart, timeseries, { labelKey: 'day', valueKey: metric });
+        tsNote.textContent = TS_METRIC_NOTES[metric];
+    };
+    tsSection.querySelectorAll('.analytics-metric-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            tsSection.querySelectorAll('.analytics-metric-btn').forEach((b) => b.classList.toggle('is-active', b === btn));
+            drawTs(btn.dataset.metric);
+        });
+    });
+    drawTs('views');
 
     // A single month is at most 31 days, so the daily grid is always readable;
     // only All time needs the monthly grid.
@@ -1377,6 +1474,11 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
     // ── Activity: the raw event log (event resolution) ──
     const clicksLogSection = makeSection('All clicks & interactions');
     clicksLogSection.innerHTML += `
+        <div class="analytics-clicks-search">
+            <input type="text" id="clicks-log-search" class="analytics-clicks-search-input app-search-input"
+                   placeholder="Search a click… (browse all to see counts)" autocomplete="off"
+                   aria-label="Search clicks by target">
+        </div>
         <div class="analytics-time-filter">
             <label>From <input type="datetime-local" id="clicks-log-from"></label>
             <label>To <input type="datetime-local" id="clicks-log-to"></label>

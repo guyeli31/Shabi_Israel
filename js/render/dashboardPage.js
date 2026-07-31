@@ -346,7 +346,7 @@ function predictorPanel() {
                         <button id="whatif-clear" class="whatif-clear-btn" type="button">Clear all</button>
                     </div>
                     <div id="whatif-output" class="whatif-output" hidden>
-                        <div class="whatif-ribbon">SIMULATION &mdash; based on your what-if scenario</div>
+                        <div class="whatif-ribbon" id="whatif-ribbon">SIMULATION &mdash; based on your what-if scenario</div>
                         <div class="whatif-moe" id="whatif-moe"></div>
                         <div class="predictor-topx-control" id="whatif-topx-wrap" style="display:none">
                             <label for="whatif-topx-input">Show</label>
@@ -973,7 +973,7 @@ function renderWhatIfSimulator(ctx) {
                 s.realWinner = st.realWinner;
             }
             renderStaged();
-            output.hidden = true; // the shown result no longer matches the baseline
+            runSimulation(); // the shown result is stale — recompute from the new baseline
             syncBaselineNav();
             const label = baselineOptions[baselineSelect.selectedIndex]
                 ? baselineOptions[baselineSelect.selectedIndex].label : '';
@@ -1081,23 +1081,26 @@ function renderWhatIfSimulator(ctx) {
     clearBtn.addEventListener('click', () => {
         staged.length = 0;
         renderStaged();
-        output.hidden = true;
+        // Back to the default state rather than an empty panel.
+        runSimulation();
     });
 
-    runBtn.addEventListener('click', async () => {
-        // Per-click summary of the staged scenario (which matches were
-        // forced, not just "the button was clicked") — read via the existing
-        // `[data-track]` path in js/analytics.js's click listener, which
-        // fires on this same click event after this synchronous line runs.
-        const stagedSummary = staged.map((s) =>
-            s.result === 'NP' ? `${s.a} vs ${s.b} not played` : `${s.result === 'A' ? s.a : s.b} beats ${s.result === 'A' ? s.b : s.a}`
-        ).join('; ');
-        runBtn.dataset.track = `What if: ${staged.length} staged${stagedSummary ? ' — ' + stagedSummary : ''}`.slice(0, 300);
-
+    // Runs the projection over the current baseline + whatever is staged. With
+    // nothing staged this is simply the default state (identical to the
+    // Championship Predictor), which is what the table shows on first load —
+    // the user sees a live table before touching anything.
+    async function runSimulation() {
         addErr.textContent = '';
-        if (staged.length === 0) {
-            addErr.textContent = 'Add at least one match before running the simulation';
-            return;
+        const ribbon = document.getElementById('whatif-ribbon');
+        if (ribbon) {
+            ribbon.classList.toggle('is-baseline', staged.length === 0);
+            ribbon.innerHTML = staged.length === 0
+                ? 'CURRENT STATE &mdash; no changes applied yet'
+                : 'SIMULATION &mdash; based on your what-if scenario';
+        }
+        if (output.hidden) {
+            tableHost.innerHTML = '<div class="loading">Computing projection...</div>';
+            output.hidden = false;
         }
 
         runBtn.disabled = true;
@@ -1262,7 +1265,23 @@ function renderWhatIfSimulator(ctx) {
             runBtn.disabled = false;
             runBtn.textContent = 'Run Simulation';
         }
+    }
+
+    runBtn.addEventListener('click', () => {
+        // Per-click summary of the staged scenario (which matches were
+        // forced, not just "the button was clicked") — read via the existing
+        // `[data-track]` path in js/analytics.js's click listener, which
+        // fires on this same click event after this synchronous line runs.
+        const stagedSummary = staged.map((s) =>
+            s.result === 'NP' ? `${s.a} vs ${s.b} not played` : `${s.result === 'A' ? s.a : s.b} beats ${s.result === 'A' ? s.b : s.a}`
+        ).join('; ');
+        runBtn.dataset.track = `What if: ${staged.length} staged${stagedSummary ? ' — ' + stagedSummary : ''}`.slice(0, 300);
+        runSimulation();
     });
+
+    // First paint: show the default (unmodified) projection straight away, so
+    // the section is never an empty shell waiting for input.
+    runSimulation();
 }
 
 function canonKey(a, b) {
@@ -1765,8 +1784,9 @@ function renderPlayerSection(ctx) {
         panels.push(entry);
 
         playerSel.addEventListener('change', () => {
-            // Analytics: a <select> change is not a DOM click, so announce it.
-            window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: 'Compare: change player' } }));
+            // Analytics: a <select> change is not a DOM click, so announce it,
+            // naming the chosen player (public league data, as "Player link:").
+            window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `Compare: change player: ${playerSel.value}` } }));
             redrawAll();
         });
         metricSel.addEventListener('change', redrawAll);
@@ -1942,34 +1962,28 @@ function meanStd(values) {
  */
 function buildGaussianExplainerHtml(values) {
     const { mean, std } = meanStd(values);
-    const meanDir = mean >= 0 ? 'better (a lower PR)' : 'worse (a higher PR)';
-    const meanDirHe = mean >= 0 ? 'טוב יותר (PR נמוך יותר)' : 'גרוע יותר (PR גבוה יותר)';
+    const games = values.length;
+    const meanDir = mean >= 0 ? 'better' : 'worse';
+    const meanDirHe = mean >= 0 ? 'טוב יותר' : 'גרוע יותר';
     // toFixed() yields an ASCII hyphen-minus (U+002D) — thin next to bold digits.
     // Use a real MINUS SIGN (U+2212) so a negative's sign matches the number.
     const mfix = s => String(s).replace('-', '−');
     const loBand = mfix((mean - std).toFixed(2));
     const hiBand = mfix((mean + std).toFixed(2));
+    const abs = Math.abs(mean).toFixed(2);
 
     return `
         <button class="predictor-info-close corr-gaussian-popup-close" aria-label="Close">&times;</button>
         <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
         <div class="popup-lang-en" data-lang="en">
         <h4>What do &mu; and &sigma; actually mean?</h4>
-        <p><b>&mu; (mean) = ${mfix(mean.toFixed(2))}</b>: on average, across these matches, the player who actually
-        won had a PR about ${Math.abs(mean).toFixed(2)} points ${meanDir} than the player who lost that
-        match.</p>
-        <p><b>&sigma; (standard deviation) = ${std.toFixed(2)}</b>: results vary a lot around that average
-        &mdash; about two-thirds of matches (one standard deviation either side of the mean) had a winner-side
-        PR gap somewhere between <b>${loBand}</b> and <b>${hiBand}</b>.</p>
+        <p><b>&mu; (mean) = ${mfix(mean.toFixed(2))}</b>: on average, across the ${games} matches, the winner's PR was about ${abs} points ${meanDir} than the loser's.</p>
+        <p><b>&sigma; (standard deviation) = ${std.toFixed(2)}</b>: in about 66.7% of those ${games} matches the winner-side PR gap was between <b>${loBand}</b> and <b>${hiBand}</b>.</p>
         </div>
         <div class="popup-lang-he" data-lang="he">
         <h4>מה בעצם &mu; ו-&sigma; אומרים?</h4>
-        <p><b>&mu; (ממוצע) = <span dir="ltr">${mfix(mean.toFixed(2))}</span></b>: בממוצע, על פני המשחקים האלה, לשחקן שבאמת
-        ניצח היה PR טוב בכ-${Math.abs(mean).toFixed(2)} נקודות ${meanDirHe} מהשחקן שהפסיד באותו
-        משחק.</p>
-        <p><b>&sigma; (סטיית תקן) = ${std.toFixed(2)}</b>: התוצאות משתנות הרבה סביב הממוצע הזה
-        &mdash; בכשני שליש מהמשחקים (סטיית תקן אחת לכל צד של הממוצע) פער ה-PR מצד המנצח היה
-        אי שם בין <b><span dir="ltr">${loBand}</span></b> ל-<b><span dir="ltr">${hiBand}</span></b>.</p>
+        <p><b>&mu; (ממוצע) = <span dir="ltr">${mfix(mean.toFixed(2))}</span></b>: בממוצע, על פני ${games} המשחקים, למנצח היה PR ${meanDirHe} בכ-${abs} נקודות מהמפסיד.</p>
+        <p><b>&sigma; (סטיית תקן) = ${std.toFixed(2)}</b>: בכ-66.7% מ-${games} המשחקים פער ה-PR מצד המנצח היה בין <b><span dir="ltr">${loBand}</span></b> ל-<b><span dir="ltr">${hiBand}</span></b>.</p>
         </div>
     `;
 }
@@ -2433,8 +2447,9 @@ function renderPrCorrelationSection(ctx) {
         panels.push(entry);
 
         playerSel.addEventListener('change', () => {
-            // Analytics: a <select> change is not a DOM click, so announce it.
-            window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: 'Compare: change player' } }));
+            // Analytics: a <select> change is not a DOM click, so announce it,
+            // naming the chosen player (public league data, as "Player link:").
+            window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `Compare: change player: ${playerSel.value}` } }));
             redraw();
         });
         removeBtn.addEventListener('click', () => {

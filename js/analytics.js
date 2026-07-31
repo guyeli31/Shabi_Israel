@@ -337,7 +337,15 @@ document.addEventListener('click', (e) => {
         // analyticsPage.js maps this clean label back to that same icon for
         // display, rather than guessing from embedded text.
         const labelEl = menuEl.querySelector('.site-nav-label, .site-nav-flyout-label');
-        const rawLabel = labelEl ? labelOf(labelEl) : labelOf(menuEl);
+        // Text-less sidebar controls (a theme colour swatch is a <button> with
+        // only a background colour) have no readable text, so labelOf() returns
+        // '' and this used to log a nameless "Menu: " with no icon. Fall back to
+        // the control's own aria-label/title (the swatch carries "<Theme> theme")
+        // so the click is named; if it is STILL nameless, skip it rather than
+        // record an empty entry.
+        const rawLabel = labelEl ? labelOf(labelEl)
+            : (labelOf(menuEl) || (menuEl.getAttribute('aria-label') || menuEl.getAttribute('title') || '').trim());
+        if (!rawLabel) return;
         // A league entry under Leagues > Dashboard or Leagues > Table needs
         // its parent section named too ("Dashboard: July 2026"), since the
         // league name alone is ambiguous between the two destinations.

@@ -75,6 +75,10 @@
     width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex:none}
   .pop-head h2{font-size:16px;margin:0;font-weight:800}
   .pop-head .loc{margin-left:auto;font-size:11px;color:var(--ink-faint);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  .pop-sharedby{padding:10px 18px;border-bottom:1px solid var(--rule);background:var(--panel);font-size:12.5px}
+  .pop-sharedby ul{margin:6px 0 0;padding-inline-start:1.3em}
+  .pop-sharedby li{margin:2px 0}
+  .pop-sharedby .loc{color:var(--ink-faint);font-weight:600;text-transform:uppercase;letter-spacing:.04em;font-size:10.5px;margin-inline-start:6px}
   .pop-body{padding:16px 18px}
   .pop-body[dir="rtl"]{text-align:right}
   .pop-body h3{font-size:17px;margin:18px 0 6px;font-weight:800}
@@ -101,8 +105,9 @@
   .pm-note{font-weight:400;opacity:.72;font-size:.92em}
   .pm-scroll{overflow-x:auto;margin:10px 0;max-width:100%;border-radius:8px}
   .pm-scroll .pm-figure{margin:0}
-  .pm-table{border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:11.5px;width:100%}
-  .pm-table th,.pm-table td{padding:4px 6px;border:1px solid var(--rule);white-space:nowrap}
+  /* single-edge ownership (see pm.css): one crisp gridline each, no doubling at fractional DPR */
+  .pm-table{border-collapse:separate;border-spacing:0;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);font-variant-numeric:tabular-nums;font-size:11.5px;width:100%}
+  .pm-table th,.pm-table td{padding:4px 6px;border-top:1px solid var(--rule);border-left:1px solid var(--rule);white-space:nowrap}
   .pm-table thead th,.pm-table th[scope=row]{background:var(--panel);color:var(--ink-soft);font-weight:700}
   .pm-table.pm-matrix,.pm-table.pm-matrix th,.pm-table.pm-matrix td{text-align:center}
   .pm-table.pm-matrix{min-width:520px}
@@ -791,18 +796,37 @@ import { POPUPS } from './js/data/popupContent.js';
 const PAGE_LABEL = { dashboard:'Dashboard', landing:'Landing page', player:'Player page' };
 let lang = 'en';
 
+// Sections that reuse one shared "?" explanation verbatim. Keyed by popup id;
+// listed here (tool-only) so this page documents every place the text appears.
+const SHARED_BY = {
+  'luck-percentile': [
+    ['Luck Percentile', 'Landing page'],
+    ['Best Luck',       'Records ▸ League Records'],
+    ['Worst Luck',      'Records ▸ League Records'],
+    ['Total Luck',      'Player page ▸ Records'],
+  ],
+};
+
 function renderPopups(){
   const box = document.getElementById('popups-container');
-  box.innerHTML = POPUPS.map((p,i)=>`
+  box.innerHTML = POPUPS.map((p,i)=>{
+    const shared = SHARED_BY[p.id];
+    const sharedHtml = shared ? `
+      <div class="pop-sharedby"><b>Shared by</b> — the same explanation appears in:
+        <ul>${shared.map(([name,loc])=>`<li><b>${name}</b> <span class="loc">${loc}</span></li>`).join('')}</ul>
+      </div>` : '';
+    return `
     <div class="pop-card">
       <div class="pop-head">
         <span class="n">${i+1}</span>
         <h2>${p.title[lang]}</h2>
         <span class="loc">${PAGE_LABEL[p.page]||p.page}${p.dynamic?' · dynamic':''}</span>
       </div>
+      ${sharedHtml}
       <div class="pop-body" dir="${lang==='he'?'rtl':'ltr'}">${p.render(lang)}</div>
     </div>
-  `).join('');
+  `;
+  }).join('');
   // wrap wide matrix tables so they scroll instead of stretching the card
   // (PM list tables already ship wrapped in .pm-scroll from pmTableHtml).
   box.querySelectorAll('.pm-table.pm-matrix').forEach(t=>{

@@ -93,7 +93,8 @@
       "Bash(awk 'NR>=139 && NR<=152' v2/docs/MIGRATION-FROM-V1.md)",
       "Bash(awk 'NR==150' v2/docs/MIGRATION-FROM-V1.md)",
       "Bash(git restore *)",
-      "Bash(node --check js/render/playerGeneralPage.js)"
+      "Bash(node --check js/render/playerGeneralPage.js)",
+      "Bash(docker exec -i supabase_db_supabase-migration psql -U postgres -d postgres -t -c ' *)"
     ]
   },
   "hooks": {

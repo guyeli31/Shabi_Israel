@@ -109,6 +109,30 @@
     box-shadow: 0 0 0 2px var(--color-accent-light);
 }
 
+/* Smart-search box above the all-clicks log (mountSearchField wraps the input
+   in .app-combo-wrap and owns the dropdown/sheet). Same pill/focus treatment as
+   the month range select so it reads as one control family. */
+.analytics-clicks-search {
+    margin: 0 0 var(--space-sm, 8px);
+}
+.analytics-clicks-search .app-combo-wrap { max-width: min(420px, 100%); }
+.analytics-clicks-search-input {
+    width: 100%;
+    padding: 6px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: var(--fs-093);
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.analytics-clicks-search-input:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px var(--color-accent-light);
+}
+
 .analytics-time-filter {
     display: flex;
     gap: var(--space-md, 12px);
@@ -140,6 +164,34 @@
     white-space: nowrap;
 }
 .analytics-admin-toggle input { cursor: pointer; }
+
+/* Segmented Pageviews ↔ Sessions toggle above the "Traffic over time" chart.
+   Two buttons sharing one pill outline; the active one takes the accent fill.
+   Reuses the page's own tokens, no new ones — same treatment family as the
+   range select's focus ring. */
+.analytics-metric-toggle {
+    display: inline-flex;
+    margin: 0 0 var(--space-sm, 8px);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm, 4px);
+    overflow: hidden;
+}
+.analytics-metric-btn {
+    padding: 4px 14px;
+    border: none;
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    font: inherit;
+    font-size: var(--fs-093);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.analytics-metric-btn + .analytics-metric-btn { border-left: 1px solid var(--color-border); }
+.analytics-metric-btn:hover { background: var(--color-hover); color: var(--color-text); }
+.analytics-metric-btn.is-active {
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+}
 
 /* Muted caption under a panel whose numbers would be misread without it — the
    traffic-composition note, the "global route only" region caveat, and the

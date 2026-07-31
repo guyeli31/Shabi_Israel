@@ -314,7 +314,12 @@ as $$
     -- Pageviews per calendar day, in Israel time (see header note re: UTC).
     'timeseries',      (select coalesce(jsonb_agg(t), '[]'::jsonb) from
                           (select (date_trunc('day', created_at at time zone 'Asia/Jerusalem'))::date as day,
-                                  count(*) as views
+                                  count(*) as views,
+                                  -- Distinct Israel visits active that day (session_id is
+                                  -- null for global/legacy, and count(distinct) ignores
+                                  -- nulls) — same basis as the "Sessions (Israel)" KPI, so
+                                  -- the Overview chart can toggle Pageviews ↔ Sessions.
+                                  count(distinct session_id) as sessions
                            from ev where event_type='pageview' group by 1 order by 1) t),
 
     -- Traffic heatmap, DAILY grid: actual calendar date x hour-of-day, Israel time.

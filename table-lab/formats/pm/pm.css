@@ -45,15 +45,25 @@
 }
 .pm-scroll .pm-figure { margin: 0; }
 
+/* Grid lines via single-edge ownership: every cell paints only its TOP + LEFT
+   border and the table paints its own RIGHT + BOTTOM edge, so each gridline is
+   drawn exactly once. The obvious `border-collapse: collapse` with a full
+   border on every cell makes Chrome paint some internal lines twice at
+   fractional display scaling (Windows 125% / 150% etc.), so they look doubled
+   and uneven — single-edge ownership renders one crisp line at any DPR. */
 .pm-table {
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-right: 1px solid var(--popover-border-color);
+    border-bottom: 1px solid var(--popover-border-color);
     margin: var(--space-sm) 0;
     width: 100%;
     font-size: var(--fs-085);
 }
 .pm-table th,
 .pm-table td {
-    border: 1px solid var(--popover-border-color);
+    border-top: 1px solid var(--popover-border-color);
+    border-left: 1px solid var(--popover-border-color);
     padding: 0.15em 0.4em;
     white-space: nowrap;
 }

@@ -11,6 +11,15 @@ html {
        at browser default 16px. Uses em (not px) so it respects user font-size preference. */
     font-size: clamp(0.8125em, calc(0.75em + 0.3vw), 0.9375em);
     scroll-behavior: smooth;
+    /* Stop mobile browsers (iOS Safari / Android Chrome) from auto-"boosting"
+       text in wide or nowrap containers to a size they pick themselves. Without
+       this, the analytics click-log's Click-target column (nowrap cells) jumped
+       to a much larger font on phones once the table grew wide — e.g. after
+       un-checking "Exclude my own traffic" added more rows. Set globally on the
+       root so every table/page is covered, not just that one column. 100% = keep
+       the size the CSS actually specifies. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
 }
 
 body {

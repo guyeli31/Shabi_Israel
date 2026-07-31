@@ -634,19 +634,27 @@ function renderMatchHistory(section, playerName, perLeague) {
         const rows = applyFilters();
         renderTable(tableWrap, rows);
 
-        // Bar chart — include only non-technical played matches, chronological asc
+        // Bar chart — every non-technical played match gets a slot, chronological
+        // asc. REGULAR matches are kept (the player did play them, and dropping
+        // them would silently renumber the X axis), but they carry no PR/Luck, so
+        // their slot stays empty and they're excluded from the moving average —
+        // drawPlayerBarChart handles both from the null values.
         const chartMatches = rows
-            .filter(r => !r._technical && r.prSelf != null)
+            .filter(r => !r._technical)
             .sort((a, b) => {
-                const at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-                const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+                const at = a.matchDate ? new Date(a.matchDate).getTime() : 0;
+                const bt = b.matchDate ? new Date(b.matchDate).getTime() : 0;
                 if (at !== bt) return at - bt;
                 return b.leagueOrderIdx - a.leagueOrderIdx;
             });
-        if (chartMatches.length > 0) {
+        // With nothing rated in view every slot would be blank, so fall back to a
+        // note rather than an empty grid (e.g. filtering down to REGULAR only).
+        const metricKey = metricSel.value === 'luck' ? 'luckSelf' : 'prSelf';
+        const ratedCount = chartMatches.filter(r => r[metricKey] != null).length;
+        if (chartMatches.length > 0 && ratedCount > 0) {
             drawPlayerBarChart(chartHost, chartMatches, metricSel.value, Math.max(chartMatches.length, 1));
         } else {
-            chartHost.innerHTML = '<div class="pg-note">No PR data for current filters.</div>';
+            chartHost.innerHTML = `<div class="pg-note">No ${metricSel.value === 'luck' ? 'Luck' : 'PR'} data for current filters.</div>`;
         }
     }
 
@@ -803,6 +811,11 @@ function renderMatchup(panel, playerName, allRows) {
     function selectOpponent(name) {
         input.value = name;
         dropdown.hidden = true;
+        // Analytics: the H2H opponent picker is an in-place update (not a link
+        // navigation), and this is the single chokepoint for desktop dropdown,
+        // mobile sheet and Enter-key selection alike — so track the chosen
+        // opponent here (🆚 icon). Public league data, same as "Player link:".
+        window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `H2H: vs ${name}` } }));
         renderResults(name);
     }
 
@@ -1060,8 +1073,29 @@ function renderTotalLuckSection(container, playerName, perLeague) {
     const rows = collectPlayerLeagueLuck(perLeague, playerName);
     if (rows.length === 0) return;
 
-    const section = makePgSection('pg-total-luck', 'Total Luck', { collapsible: true });
+    const section = makePgSection('pg-total-luck', 'Total Luck', {
+        collapsible: true,
+        headerHtml: ' <span class="predictor-tooltip" id="pg-luck-info-btn">?</span>',
+    });
+    // Same luck-metric explanation as the landing "Luck Percentile" card and the
+    // Records tab's Best/Worst Luck records — single source: the 'luck-percentile'
+    // popup in popupContent.js. Both language blocks ship inline; the flag bar
+    // only flips which is visible.
+    section.insertAdjacentHTML('beforeend', `
+        <div class="predictor-info-popup" id="pg-luck-info-popup" hidden>
+            <button class="predictor-info-close" id="pg-luck-info-close">&times;</button>
+            <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
+            <div class="popup-lang-en" data-lang="en">${getPopup('luck-percentile').render('en')}</div>
+            <div class="popup-lang-he" data-lang="he">${getPopup('luck-percentile').render('he')}</div>
+        </div>`);
     container.appendChild(section);
+
+    const infoPopup = section.querySelector('#pg-luck-info-popup');
+    wireLangPopup(infoPopup, {
+        btn: section.querySelector('#pg-luck-info-btn'),
+        popup: infoPopup,
+        close: section.querySelector('#pg-luck-info-close'),
+    });
 
     const body = document.createElement('div');
     body.className = 'pg-tabs-body';
@@ -1167,7 +1201,7 @@ function collectPlayerPrGaps(perLeague, typeId) {
  */
 function buildPgGaussianExplainerHtml(displayName, seriesLabel, values) {
     const { mean, std } = pgMeanStd(values);
-    const args = { displayName, seriesLabel, mean, std };
+    const args = { displayName, seriesLabel, mean, std, games: values.length };
     return `
         <div class="pg-gauss-block">
         <div class="popup-lang-en" data-lang="en">${playerGaussianSeriesHtml('en', args)}</div>
@@ -1319,7 +1353,9 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
                 entry.name = sel.value;
                 // Analytics: a <select> change is not a DOM click the delegated
                 // listener can catch, so announce it as an interaction (👤 icon).
-                window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: 'Compare: change player' } }));
+                // The chosen player is named — public league data, already stored
+                // freely as "Player link: <name>" elsewhere in this file.
+                window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `Compare: change player: ${sel.value}` } }));
                 await loadEntry(entry);
                 redrawAll();
             });

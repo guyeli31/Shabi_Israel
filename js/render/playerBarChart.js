@@ -83,6 +83,20 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer,
     const slots = new Array(N).fill(null);
     matches.slice(0, N).forEach((m, i) => slots[i] = m);
 
+    /**
+     * The charted metric for one match, or null when the match logs no such rate.
+     * REGULAR-league matches record neither PR nor Luck — on the cross-league
+     * player page they share the chart with doubling/UBC matches, so they keep
+     * their slot (and their place in the match numbering) but draw no bar and
+     * never enter the moving average. Treating them as 0 would drag the average
+     * toward a value nobody played.
+     */
+    function metricValue(m) {
+        if (!m) return null;
+        const v = metric === 'luck' ? m.luckSelf : m.prSelf;
+        return v == null ? null : v;
+    }
+
     // Y range — default 0..20 for PR, ±5 for Luck; bumps in multiples of 5 to
     // contain any out-of-range bar. A scaleOverride (from the dashboard) keeps
     // every chart on a shared, identical Y scale.
@@ -91,23 +105,26 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer,
         minV = scaleOverride.min;
         maxV = scaleOverride.max;
     } else {
-        const values = matches
-            .map(m => (metric === 'luck' ? m.luckSelf : m.prSelf))
-            .filter(v => v != null);
+        const values = matches.map(metricValue).filter(v => v != null);
         ({ min: minV, max: maxV } = computeNiceRange(metric, values));
     }
     const range = (maxV - minV) || 1;
 
-    // Pre-compute MA over played slots (independent of geometry).
-    const playedValues = [];
-    for (const m of slots) {
-        if (m) playedValues.push(metric === 'luck' ? (m.luckSelf ?? 0) : (m.prSelf ?? 0));
-        else break;
+    // Pre-compute the running mean over RATED slots only (independent of
+    // geometry). Each point carries the slot index it sits above, so unrated
+    // slots are stepped over rather than renumbering the line. With no rated
+    // slots at all the array is empty and no average is drawn.
+    const maPoints = [];
+    {
+        let sum = 0, n = 0;
+        slots.forEach((m, i) => {
+            const v = metricValue(m);
+            if (v == null) return;
+            sum += v;
+            n += 1;
+            maPoints.push({ slot: i, value: sum / n });
+        });
     }
-    const maCache = playedValues.map((_, i) => {
-        const slice = playedValues.slice(0, i + 1);
-        return slice.reduce((s, v) => s + v, 0) / slice.length;
-    });
 
     // Interaction state
     let hoverIndex = -1;
@@ -196,7 +213,8 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer,
         const activeIdx = pinnedIndex >= 0 ? pinnedIndex : hoverIndex;
         slots.forEach((m, i) => {
             if (!m) return;
-            const v = metric === 'luck' ? (m.luckSelf ?? 0) : (m.prSelf ?? 0);
+            const v = metricValue(m);
+            if (v == null) return; // unrated match (REGULAR league) — slot stays empty
             const x = padL + step * i + (step - barW) / 2;
             const y = yPx(plotH, v);
             const top = v >= 0 ? y : zeroY;
@@ -218,22 +236,23 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer,
         });
 
         // Moving average line
-        if (maCache.length > 1) {
+        if (maPoints.length > 1) {
             ctx.strokeStyle = C.accent;
             ctx.lineWidth = 2;
             ctx.beginPath();
-            maCache.forEach((v, i) => {
-                const x = padL + step * i + step / 2;
-                const y = yPx(plotH, v);
+            maPoints.forEach((p, i) => {
+                const x = padL + step * p.slot + step / 2;
+                const y = yPx(plotH, p.value);
                 if (i === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
             });
             ctx.stroke();
 
             const activeMA = pinnedMA >= 0 ? pinnedMA : hoverMA;
-            if (activeMA >= 0 && activeMA < maCache.length) {
-                const x = padL + step * activeMA + step / 2;
-                const y = yPx(plotH, maCache[activeMA]);
+            if (activeMA >= 0 && activeMA < maPoints.length) {
+                const p = maPoints[activeMA];
+                const x = padL + step * p.slot + step / 2;
+                const y = yPx(plotH, p.value);
                 ctx.fillStyle = C.accent;
                 ctx.beginPath();
                 ctx.arc(x, y, 4, 0, Math.PI * 2);
@@ -276,8 +295,12 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer,
     function matchInfoHtml(idx) {
         const m = slots[idx];
         if (!m) return placeholderHtml();
-        const dateStr = m.updatedAt
-            ? new Date(m.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+        // matchDate is the cross-league page's date (falls back to the league's
+        // start date for pre-database leagues); single-league callers pass rows
+        // that only carry updatedAt.
+        const dateISO = m.matchDate ?? m.updatedAt ?? null;
+        const dateStr = dateISO
+            ? new Date(dateISO).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
             : '—';
         const prStr   = m.prSelf   != null ? m.prSelf.toFixed(2)   : '—';
         const luckStr = m.luckSelf != null ? m.luckSelf.toFixed(2) : '—';
@@ -293,10 +316,12 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer,
     }
 
     function maInfoHtml(idx) {
+        const p = maPoints[idx];
+        if (!p) return placeholderHtml();
         return `
-            <div class="cip-row cip-title">Moving average through match #${idx + 1}</div>
+            <div class="cip-row cip-title">Moving average through match #${p.slot + 1}</div>
             <div class="cip-row">
-                <span class="cip-item"><span class="cip-k">${metric.toUpperCase()} avg</span><span class="cip-v">${maCache[idx].toFixed(2)}</span></span>
+                <span class="cip-item"><span class="cip-k">${metric.toUpperCase()} avg</span><span class="cip-v">${p.value.toFixed(2)}</span></span>
             </div>
         `;
     }
@@ -340,11 +365,15 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer,
         const step = plotW / N;
         const idx = Math.floor((mx - padL) / step);
 
+        // maHit indexes maPoints, not slots — unrated slots carry no MA point.
         let maHit = -1;
-        if (idx >= 0 && idx < maCache.length) {
-            const x = padL + step * idx + step / 2;
-            const y = yPx(plotH, maCache[idx]);
-            if (Math.hypot(mx - x, my - y) < 8) maHit = idx;
+        if (maPoints.length > 1) {
+            const pi = maPoints.findIndex(p => p.slot === idx);
+            if (pi >= 0) {
+                const x = padL + step * idx + step / 2;
+                const y = yPx(plotH, maPoints[pi].value);
+                if (Math.hypot(mx - x, my - y) < 8) maHit = pi;
+            }
         }
         const barHit = (idx >= 0 && idx < N && slots[idx]) ? idx : -1;
         return { barHit, maHit };

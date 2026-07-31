@@ -299,6 +299,14 @@
     background: rgba(148, 163, 184, 0.15);
     color: var(--color-text-muted);
 }
+/* Neutral count badge — an occurrence tally (e.g. the analytics click-search
+   showing how many times each click happened), not a win/loss verdict, so it
+   takes a quiet accent-tinted pill rather than a themed result colour. */
+.sf-badge--count,
+.search-sheet-badge--count {
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+    color: var(--color-accent);
+}
 
 /* Lock the page behind the sheet while keeping its scroll position. We pin
    <body> (NOT overflow:hidden on <html>, which collapses the page to the top on

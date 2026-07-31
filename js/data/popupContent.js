@@ -3,11 +3,11 @@
  *
  * Every "?" popup on the site is bilingual (English / Hebrew). This module holds
  * the inner HTML of each popup's two language blocks in one place, so a text edit
- * here updates BOTH the live pages and the Luck Metrics Lab tool that imports it.
+ * here updates BOTH the live pages and the "Explanation and Maths" tool that imports it.
  *
  * Consumers:
- *   - the Luck Metrics Lab tool (luck-lab.html) — reads POPUPS to render the
- *     "Question-mark explanations" tab.
+ *   - the "Explanation and Maths" tool (luck-lab.html) — reads POPUPS to render
+ *     the "Question-mark explanations" tab.
  *   - (planned) js/render/dashboardPage.js + js/render/landingPage.js — will be
  *     refactored to build their .popup-lang-en / .popup-lang-he blocks from
  *     getPopup(id).render(lang) instead of inline strings. Until then the inline
@@ -280,7 +280,7 @@ function esc(s) {
  * their own), so the sentence follows the series being fitted: in Wins, μ is how
  * much better they played in matches they won.
  */
-export function playerGaussianSeriesHtml(lang, { displayName, seriesLabel, mean, std }) {
+export function playerGaussianSeriesHtml(lang, { displayName, seriesLabel, mean, std, games }) {
     const lo = minusFix((mean - std).toFixed(2)), hi = minusFix((mean + std).toFixed(2));
     const abs = Math.abs(mean).toFixed(2);
     const better = mean >= 0;
@@ -288,26 +288,20 @@ export function playerGaussianSeriesHtml(lang, { displayName, seriesLabel, mean,
     const label = esc(seriesLabel);
 
     if (lang === 'he') {
-        const dirHe = better ? 'טוב יותר (PR נמוך יותר)' : 'גרוע יותר (PR גבוה יותר)';
-        const scopeHe = { Wins: 'המשחקים שניצח', Losses: 'המשחקים שהפסיד', All: 'כל משחקיו' }[seriesLabel] || 'המשחקים האלה';
+        const dirHe = better ? 'טוב יותר' : 'גרוע יותר';
+        const scopeHe = { Wins: 'המשחקים שניצח', Losses: 'המשחקים שהפסיד', All: 'משחקיו' }[seriesLabel] || 'המשחקים';
         return `
             <h4>${label} &mdash; מה &mu; ו-&sigma; אומרים כאן?</h4>
-            <p><b>&mu; (ממוצע) = <span dir="ltr">${minusFix(mean.toFixed(2))}</span></b>: בממוצע, על פני ${scopeHe}, ${name} שיחק
-            בכ-${abs} נקודות PR ${dirHe} מיריבו באותו משחק.</p>
-            <p><b>&sigma; (סטיית תקן) = ${std.toFixed(2)}</b>: המשחקים האלה משתנים הרבה סביב הממוצע הזה
-            &mdash; בכשני שליש מהם (סטיית תקן אחת לכל צד של הממוצע) הפרש ה-PR היה אי שם בין
-            <b><span dir="ltr">${lo}</span></b> ל-<b><span dir="ltr">${hi}</span></b>.</p>
+            <p><b>&mu; (ממוצע) = <span dir="ltr">${minusFix(mean.toFixed(2))}</span></b>: בממוצע, על פני ${games} ${scopeHe}, ${name} שיחק בכ-${abs} נקודות PR ${dirHe} מיריבו באותו משחק.</p>
+            <p><b>&sigma; (סטיית תקן) = ${std.toFixed(2)}</b>: בכ-66.7% מ-${games} המשחקים הפרש ה-PR היה בין <b><span dir="ltr">${lo}</span></b> ל-<b><span dir="ltr">${hi}</span></b>.</p>
         `;
     }
-    const dirEn = better ? 'better (a lower PR)' : 'worse (a higher PR)';
-    const scopeEn = { Wins: 'the matches they won', Losses: 'the matches they lost', All: 'all of their matches' }[seriesLabel] || 'these matches';
+    const dirEn = better ? 'better' : 'worse';
+    const scopeEn = { Wins: 'matches they won', Losses: 'matches they lost', All: 'matches' }[seriesLabel] || 'matches';
     return `
         <h4>${label} &mdash; what do &mu; and &sigma; mean here?</h4>
-        <p><b>&mu; (mean) = ${minusFix(mean.toFixed(2))}</b>: on average, across ${scopeEn}, ${name} played
-        about ${abs} PR points ${dirEn} than their opponent in that match.</p>
-        <p><b>&sigma; (standard deviation) = ${std.toFixed(2)}</b>: those matches vary a lot around that
-        average &mdash; about two-thirds of them (one standard deviation either side of the mean) had a
-        PR gap somewhere between <b>${lo}</b> and <b>${hi}</b>.</p>
+        <p><b>&mu; (mean) = ${minusFix(mean.toFixed(2))}</b>: on average, across the ${games} ${scopeEn}, ${name} played about ${abs} PR points ${dirEn} than their opponent that match.</p>
+        <p><b>&sigma; (standard deviation) = ${std.toFixed(2)}</b>: in about 66.7% of those ${games} matches the PR gap was between <b>${lo}</b> and <b>${hi}</b>.</p>
     `;
 }
 
@@ -556,8 +550,8 @@ export const POPUPS = [
         title: { en: 'What μ and σ mean (player Gaussian fit)', he: 'מה μ ו-σ אומרים (התאמת גאוס, עמוד שחקן)' },
         render(lang) {
             const sample = [
-                { seriesLabel: 'Wins',   mean: 3.21, std: 5.80 },
-                { seriesLabel: 'Losses', mean: 0.10, std: 8.41 },
+                { seriesLabel: 'Wins',   mean: 3.21, std: 5.80, games: 18 },
+                { seriesLabel: 'Losses', mean: 0.10, std: 8.41, games: 12 },
             ];
             const note = lang === 'he'
                 ? `<p class="popup-sample-note">חלונית מבוססת נתונים &mdash; מוצג בלוק אחד לכל סדרה מוצגת, עם הממוצע וסטיית התקן שלה, בצבע הסדרה. הדוגמה: שחקן בשם Moriarty עם הסדרות Wins ו-Losses.</p>`
@@ -575,17 +569,21 @@ export const POPUPS = [
         id: 'gaussian', page: 'dashboard', dynamic: true,
         title: { en: 'What μ and σ mean (Gaussian fit)', he: 'מה μ ו-σ אומרים (התאמת גאוס)' },
         render(lang) {
-            const mean = 2.14, std = 3.80, lo = minusFix((mean - std).toFixed(2)), hi = minusFix((mean + std).toFixed(2));
+            const mean = 2.14, std = 3.80, games = 240;
+            const lo = minusFix((mean - std).toFixed(2)), hi = minusFix((mean + std).toFixed(2));
+            const abs = Math.abs(mean).toFixed(2);
+            const dirHe = mean >= 0 ? 'טוב יותר' : 'גרוע יותר';
+            const dirEn = mean >= 0 ? 'better' : 'worse';
             return lang === 'he' ? `
                 <p class="popup-sample-note">חלונית מבוססת נתונים — הערכים מחושבים חי לכל שורה. הדוגמה: μ=${mean.toFixed(2)}, σ=${std.toFixed(2)}.</p>
                 <h4>מה בעצם &mu; ו-&sigma; אומרים?</h4>
-                <p><b>&mu; (ממוצע) = <span dir="ltr">${minusFix(mean.toFixed(2))}</span></b>: בממוצע, על פני המשחקים האלה, לשחקן שבאמת ניצח היה PR טוב בכ-${Math.abs(mean).toFixed(2)} נקודות טוב יותר (PR נמוך יותר) מהשחקן שהפסיד באותו משחק.</p>
-                <p><b>&sigma; (סטיית תקן) = ${std.toFixed(2)}</b>: התוצאות משתנות הרבה סביב הממוצע הזה &mdash; בכשני שליש מהמשחקים (סטיית תקן אחת לכל צד של הממוצע) פער ה-PR מצד המנצח היה אי שם בין <b><span dir="ltr">${lo}</span></b> ל-<b><span dir="ltr">${hi}</span></b>.</p>
+                <p><b>&mu; (ממוצע) = <span dir="ltr">${minusFix(mean.toFixed(2))}</span></b>: בממוצע, על פני ${games} המשחקים, למנצח היה PR ${dirHe} בכ-${abs} נקודות מהמפסיד.</p>
+                <p><b>&sigma; (סטיית תקן) = ${std.toFixed(2)}</b>: בכ-66.7% מ-${games} המשחקים פער ה-PR מצד המנצח היה בין <b><span dir="ltr">${lo}</span></b> ל-<b><span dir="ltr">${hi}</span></b>.</p>
             ` : `
                 <p class="popup-sample-note">Data-driven popup — values are computed live per row. Sample shown: μ=${mean.toFixed(2)}, σ=${std.toFixed(2)}.</p>
                 <h4>What do &mu; and &sigma; actually mean?</h4>
-                <p><b>&mu; (mean) = ${minusFix(mean.toFixed(2))}</b>: on average, across these matches, the player who actually won had a PR about ${Math.abs(mean).toFixed(2)} points better (a lower PR) than the player who lost that match.</p>
-                <p><b>&sigma; (standard deviation) = ${std.toFixed(2)}</b>: results vary a lot around that average &mdash; about two-thirds of matches (one standard deviation either side of the mean) had a winner-side PR gap somewhere between <b>${lo}</b> and <b>${hi}</b>.</p>
+                <p><b>&mu; (mean) = ${minusFix(mean.toFixed(2))}</b>: on average, across the ${games} matches, the winner's PR was about ${abs} points ${dirEn} than the loser's.</p>
+                <p><b>&sigma; (standard deviation) = ${std.toFixed(2)}</b>: in about 66.7% of those ${games} matches the winner-side PR gap was between <b>${lo}</b> and <b>${hi}</b>.</p>
             `;
         },
     },
