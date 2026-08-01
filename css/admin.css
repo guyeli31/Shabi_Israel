@@ -1625,6 +1625,81 @@ table.font-large { font-size: var(--fs-093); }
     opacity: 1;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   F5 — CSV Import Preview (Edit League ▸ Import CSV/Excel)
+   ─────────────────────────────────────────────────────────────
+   The only FF table rendered by the lab's `mountFFTable` (F1–F4/F6/F7 still
+   hand-build the same chrome). One row per NEW match in the uploaded file,
+   with TA/TB/TD/NP row actions mirroring F3's — but acting on the IMPORT, not
+   on the league.
+
+   Row-state model, 3 resting states + 1 hover, following F3's per-block model:
+     1. import  (default) → FF's inset well, untouched
+     2. skipped (NP)      → muted text, "not played" — row will be staged zeroed
+     3. technical (TA/TB/TD) → --color-accent-light, matching F3's "overridden"
+     4. hover → --color-hover, STATUS-INDEPENDENT (one rule, no per-state hovers)
+
+   Specificity: the state rules are (0,4,3) — enough to beat FF's base body well
+   `.admin-table.font-large tbody td` (0,2,2) and its sticky `td:first-child`
+   (0,2,1). FF's own row hover is only (0,3,3), so the F5 hover below re-asserts
+   at (0,5,3) via `tr.f5-row:hover` and covers the sticky first column too.
+
+   NOTE — no `opacity` on the skipped state. F3 learned the hard way (2026-07-03)
+   that fading a row whose first column is `position: sticky` lets the
+   horizontally-scrolled cells show through it. Muted *colour* achieves the same
+   read with none of that, so F5 never needed the first-col reconciliation. */
+.admin-table.font-large[data-mf-table-id="F5"] tbody tr.f5-row-skipped td {
+    background: var(--color-inset);
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.admin-table.font-large[data-mf-table-id="F5"] tbody tr.f5-row-tech td {
+    background: var(--color-accent-light);
+}
+
+/* Hover (status-independent) — must come AFTER the state rules AND out-specify
+   them; `tr.f5-row:hover` gives (0,5,3) vs their (0,4,3). Covers the sticky
+   first column in the same rule, so no separate first-col hover is needed. */
+.admin-table.font-large[data-mf-table-id="F5"] tbody tr.f5-row:hover td {
+    background: var(--color-hover);
+}
+
+.admin-table.font-large[data-mf-table-id="F5"] .f5-actions,
+.admin-table.font-large[data-mf-table-id="F5"] .f5-status {
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.ff-wrap .f5-actions .btn {
+    margin: 0.1em 0.15em;
+}
+
+/* Result tags — em-sized so they track the cell's fluid font like FF's buttons. */
+.f5-tag {
+    display: inline-block;
+    padding: 0.15em 0.5em;
+    border-radius: 0.9em;
+    font-size: 0.8em;
+    font-weight: 600;
+    font-style: normal;
+    white-space: nowrap;
+}
+.f5-tag-import {
+    background: var(--color-inset);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+}
+.f5-tag-tech {
+    background: var(--color-accent);
+    color: var(--color-bg);
+}
+.f5-tag-skip {
+    background: transparent;
+    color: var(--color-text-muted);
+    border: 1px dashed var(--color-border);
+}
+
 /* All cells left-aligned per TABLE-DESIGN.md iron rule 7. */
 .admin-round-table th,
 .admin-round-table td {

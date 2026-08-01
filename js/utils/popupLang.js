@@ -70,8 +70,12 @@ export function langFlagsHtml() {
  * `root` scopes the querySelectorAll to a specific header element (needed
  * on the landing page, where multiple per-league-type instances of the
  * same ids/classes exist in the DOM at once).
+ *
+ * `onLangPick(lang)` (optional) fires only when the user CLICKS a flag here —
+ * not when this popup merely follows another popup's language broadcast — so a
+ * caller can log the deliberate choice without every sibling popup logging it too.
  */
-export function wireLangPopup(root, { btn, popup, close, onOpen } = {}) {
+export function wireLangPopup(root, { btn, popup, close, onOpen, onLangPick } = {}) {
     if (!popup) return;
     const flagBtns = (root || document).querySelectorAll('.popup-lang-flag');
 
@@ -99,6 +103,7 @@ export function wireLangPopup(root, { btn, popup, close, onOpen } = {}) {
             setPopupLang(flagBtn.dataset.lang);
             popup.hidden = false;
             if (onOpen) onOpen();
+            if (onLangPick) onLangPick(flagBtn.dataset.lang);
         });
     });
 

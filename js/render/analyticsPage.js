@@ -37,6 +37,10 @@ import { mountAppTabs } from './appTabs.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { mountSearchField } from '../utils/combobox.js';
 import { installSearchOverlay } from './searchOverlay.js';
+import { typePillHtml } from '../presets/playerLeaguesPreset.js';
+import { primeTitleMeta, titleHtmlFor } from '../utils/playerTitleBadge.js';
+import { getPlayerFlagCode, ensurePlayerIndex } from './navigation.js';
+import { searchFlagHtml } from '../utils/helpers.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DWELL_BUCKET_ORDER = ['<10s', '10-30', '30-60', '1-5m', '5m+'];
@@ -49,20 +53,68 @@ const PAGE_LABELS = {
     admin: 'Admin',
 };
 const pageLabel = (p) => PAGE_LABELS[p] || p;
-// League IDs are folder names (e.g. "Shabi Israel July 2026" — see CLAUDE.md's
-// "Key Conventions"); stripping the fixed "Shabi Israel " prefix leaves the
-// short display form ("July 2026") already used elsewhere in the site's own
-// nav (js/render/siteSidebar.js's league menu entries).
-const shortLeague = (leagueId) => (leagueId ? leagueId.replace(/^Shabi Israel /, '') : leagueId);
+// A league is shown by its TITLE + TYPE, e.g. "July 2026 · Doubling", not by its
+// raw league_id. Two real leagues can share a title ("July 2026") while their ids
+// differ AND follow inconsistent conventions (the doubling one is stored as the
+// full folder id "Shabi Israel July 2026", the regular one as the short "July
+// 2026") — so the raw id is both confusing and, on its own, ambiguous about which
+// league it is. title+type is the site's own display name plus the one fact that
+// tells the two apart. `_leagueMeta` (id → {title,type}) is loaded once per page
+// from the leagues table; an id missing from it (a legacy/renamed league) falls
+// back to the raw id so nothing renders blank.
+let _leagueMeta = new Map();
+let _leagueMetaLoaded = false;
+const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
+const typeLabel = (t) => LEAGUE_TYPE_LABELS[t] || (t ? t.charAt(0).toUpperCase() + t.slice(1) : '');
+const leagueDisplay = (leagueId) => {
+    const m = _leagueMeta.get(leagueId);
+    return m ? `${m.title} · ${typeLabel(m.type)}` : leagueId;
+};
 const contextLabel = (page, leagueId, player) => {
     if (page === 'player_league' && player) {
-        return `Player in league (${player}${leagueId ? ', ' + shortLeague(leagueId) : ''})`;
+        return `Player in league (${player}${leagueId ? ', ' + leagueDisplay(leagueId) : ''})`;
     }
     const base = pageLabel(page);
     if (player) return `${base} (${player})`;
-    if (leagueId) return `${base} (${leagueId})`;
+    if (leagueId) return `${base} (${leagueDisplay(leagueId)})`;
     return base;
 };
+
+// Rich (HTML) counterparts of the two entities the text labels above name, so a
+// log cell shows a player/league exactly as the rest of the site does: a player
+// gets their flag before the name and their title badges (BMAB rank + WC/NC …)
+// after it (shared searchFlagHtml + titleHtmlFor + getPlayerFlagCode — the same
+// primitives every player picker uses), and a league shows its title followed by
+// the real league-type PILL (typePillHtml) instead of the word "Doubling". The
+// text contextLabel() is kept for the sort key; these feed the column `render`.
+function playerHtml(name) {
+    if (!name) return '';
+    return `<span class="ana-entity">${searchFlagHtml(getPlayerFlagCode(name))}${escapeHtml(name)}${titleHtmlFor(name)}</span>`;
+}
+function leagueHtml(leagueId) {
+    const m = _leagueMeta.get(leagueId);
+    // Always the full league id (e.g. "Shabi Israel July 2026"), never the short
+    // stored title — the _leagueMeta lookup is only for the type pill now.
+    if (!m) return escapeHtml(leagueId);
+    return `<span class="ana-entity">${escapeHtml(leagueId)}${typePillHtml(m.type)}</span>`;
+}
+function contextHtml(page, leagueId, player) {
+    if (page === 'player_league' && player) {
+        return `Player in league (${playerHtml(player)}${leagueId ? ', ' + leagueHtml(leagueId) : ''})`;
+    }
+    const base = escapeHtml(pageLabel(page));
+    if (player) return `${base} (${playerHtml(player)})`;
+    if (leagueId) return `${base} (${leagueHtml(leagueId)})`;
+    return base;
+}
+// The Click-target cell reuses the same entity rendering for its "Player link:"
+// / "League link:" values (the name/id is the tail after the prefix); everything
+// else stays plain text via displayTarget.
+function clickTargetHtml(target) {
+    if (target.startsWith('Player link: ')) return `Player link: ${playerHtml(target.slice(13))}`;
+    if (target.startsWith('League link: ')) return `League link: ${leagueHtml(target.slice(13))}`;
+    return escapeHtml(displayTarget(target));
+}
 
 // The range is a calendar MONTH, not a rolling window. Rolling windows straddle
 // the format break (see the header) and blend legacy rows with new-format ones
@@ -591,15 +643,17 @@ function renderTransitionsLog(section, transitionsLog) {
         emptyWindowText: 'No transitions in this time window.',
         rows: (transitionsLog || []).map((t) => ({
             date: new Date(t.created_at),
-            from: contextLabel(t.from_page, t.from_league_id, t.from_player),
+            from: contextLabel(t.from_page, t.from_league_id, t.from_player), // text = sort key
             to: contextLabel(t.to_page, t.to_league_id, t.to_player),
+            fromRaw: [t.from_page, t.from_league_id || '', t.from_player || ''], // rich render
+            toRaw: [t.to_page, t.to_league_id || '', t.to_player || ''],
             device: t.device_type || 'unknown',
             count: t.running_count,
         })),
         columns: [
             { key: 'date', label: 'Date', render: (r) => escapeHtml(formatEventTime(r.date)) },
-            { key: 'from', label: 'From', render: (r) => escapeHtml(r.from) },
-            { key: 'to', label: 'To', render: (r) => escapeHtml(r.to) },
+            { key: 'from', label: 'From', render: (r) => contextHtml(...r.fromRaw) },
+            { key: 'to', label: 'To', render: (r) => contextHtml(...r.toRaw) },
             { key: 'device', label: 'Device', render: (r) => escapeHtml(r.device) },
             { key: 'count', label: 'Count', render: (r) => r.count },
         ],
@@ -611,7 +665,29 @@ function renderTransitionsLog(section, transitionsLog) {
 // never stored. "League link: " is a plain content link like any other, so
 // it shares the generic Link icon rather than a distinct one.
 const CLICK_TYPE_ICONS = [
-    { prefix: 'What if baseline: ', icon: '🕘' }, // before 'What if: ' is irrelevant (distinct prefix), listed together for readability
+    // ── What If (dashboard B4) ────────────────────────────────────────────
+    // Every control in the section is 🧪 + one glyph naming the control, so a
+    // What-If row is recognisable at a glance yet still tells you WHICH control
+    // produced it. ORDER MATTERS: the match is startsWith (see clickIcon
+    // below), so each specific prefix must stay ABOVE the bare 'What if: '
+    // fallback — otherwise all of them collapse onto the plain 🧪.
+    // Prefixes are also mutually exclusive by design: 'What if: section '
+    // (the whole panel folding) vs 'What if: table ' (the result list
+    // expanding) never share a leading string.
+    { prefix: 'What if baseline: ', icon: '🧪🕘' },  // rewind the starting point
+    { prefix: 'What if topx: ', icon: '🧪🔝' },      // P(finish in top X) metric
+    { prefix: 'What if: player ', icon: '🧪👤' },    // A / B picker
+    { prefix: 'What if: add match', icon: '🧪🆚' },  // pair staged
+    { prefix: 'What if: winner ', icon: '🧪🏅' },    // forced a winner
+    { prefix: 'What if: not played ', icon: '🧪↩️' }, // rolled a result back
+    { prefix: 'What if: remove match', icon: '🧪🗑️' },
+    { prefix: 'What if: clear all', icon: '🧪🧹' },
+    { prefix: 'What if: run', icon: '🧪▶️' },
+    { prefix: 'What if: table ', icon: '🧪👁️' },    // rows shown, numbers unchanged
+    { prefix: 'What if: section ', icon: '🧪🔽' },
+    { prefix: 'What if: help language', icon: '🧪🌐' },
+    // Bare fallback — also what pre-existing 'What if: <n> staged' rows
+    // (logged before 'What if: run — ' replaced that format) still resolve to.
     { prefix: 'What if: ', icon: '🧪' },
     { prefix: 'Export: ', icon: '🖼️' },
     { prefix: 'Search: ', icon: '🔍' },
@@ -707,6 +783,12 @@ function clickIcon(target) {
         // reads as "came from the navigation menu" rather than showing nothing.
         return MENU_LABEL_ICONS[label] || '☰';
     }
+    // The What-If "?" is logged generically by js/analytics.js as `Info: <section
+    // heading>` like every other "?" on the site, so it can't carry a What-If
+    // prefix of its own. Exact-matched here (before the prefix scan) purely so
+    // the section's help control joins its 🧪 family instead of showing the
+    // generic ℹ️.
+    if (target === 'Info: What If') return '🧪ℹ️';
     const match = CLICK_TYPE_ICONS.find((c) => target.startsWith(c.prefix));
     if (match) return match.icon;
     if (target === 'export_image') return CLICK_TYPE_ICONS.find((c) => c.prefix === 'Export: ').icon;
@@ -763,14 +845,16 @@ function displayTarget(target) {
 const clickColumns = ({ withSession = false } = {}) => [
     { key: 'date', label: 'Date', render: (r) => escapeHtml(formatEventTime(r.date)) },
     ...(withSession ? [{ key: 'session', label: 'Session ID', render: (r) => sessionCell(r) }] : []),
-    { key: 'page', label: 'Page', render: (r) => escapeHtml(r.page) },
+    // Rich page/entity render (flag + name + title, or league title + type pill);
+    // the plain-text r.page is kept only as the sort key (set on the row).
+    { key: 'page', label: 'Page', render: (r) => contextHtml(r.pageType, r.leagueId, r.player) },
     // Wrap icon+label in a nowrap span so the icon never orphans onto its own
     // line. A plain &nbsp; is NOT enough here (it was tried and verified to fail):
     // the icon can be an inline-block SVG glyph (TAB_ICONS, e.g. "Tab: leagues"),
     // and a no-break space only glues text-to-text — it does not suppress the
     // break between an ATOMIC INLINE (the SVG) and the text after it. nowrap keeps
     // the whole cell on one line; long labels ride the .mf-wrap horizontal scroll.
-    { key: 'target', label: 'Click target', render: (r) => `<span class="ana-click-target">${r.icon ? r.icon + ' ' : ''}${escapeHtml(displayTarget(r.target))}</span>` },
+    { key: 'target', label: 'Click target', render: (r) => `<span class="ana-click-target">${r.icon ? r.icon + ' ' : ''}${clickTargetHtml(r.target)}</span>` },
     { key: 'device', label: 'Device', render: (r) => escapeHtml(r.device) },
 ];
 
@@ -810,7 +894,8 @@ function renderClicksLog(section, clicksLog, sessions) {
         emptyWindowText: 'No clicks in this time window.',
         rows: (clicksLog || []).map((c) => ({
             date: new Date(c.created_at),
-            page: contextLabel(c.page, c.league_id, c.player),
+            page: contextLabel(c.page, c.league_id, c.player), // plain text = sort key
+            pageType: c.page, leagueId: c.league_id || '', player: c.player || '', // rich render
             target: c.click_target || '',
             icon: clickIcon(c.click_target || ''),
             device: c.device_type || 'unknown',
@@ -842,7 +927,8 @@ function renderClicksLog(section, clicksLog, sessions) {
 function timelineRow(e, sessionDevice) {
     return {
         date: new Date(e.created_at),
-        page: contextLabel(e.page, e.league_id, e.player),
+        page: contextLabel(e.page, e.league_id, e.player), // plain text = sort key
+        pageType: e.page, leagueId: e.league_id || '', player: e.player || '', // rich render
         target: e.click_target || '',
         icon: clickIcon(e.click_target || ''),
         device: sessionDevice || 'unknown',
@@ -1290,6 +1376,20 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
     if (error) {
         content.innerHTML = `<div class="admin-msg admin-msg-error">${escapeHtml(error.message)}</div>`;
         return;
+    }
+
+    // League id → {title, type} for the log context labels, plus the player
+    // title/flag caches the rich entity render reads. All loaded once (none
+    // change mid-session); every failure is non-fatal — the labels degrade to the
+    // raw id / no-flag / no-badge rather than throwing. Not awaited on re-renders.
+    if (!_leagueMetaLoaded) {
+        const [{ data: leagues }] = await Promise.all([
+            supabase.from('leagues').select('id, title, league_type'),
+            primeTitleMeta().catch(() => {}),   // players_metadata → titleHtmlFor()
+            ensurePlayerIndex().catch(() => {}), // custom flags → getPlayerFlagCode()
+        ]);
+        for (const l of leagues || []) _leagueMeta.set(l.id, { title: l.title, type: l.league_type });
+        _leagueMetaLoaded = true;
     }
 
     const fetchedAt = new Date();

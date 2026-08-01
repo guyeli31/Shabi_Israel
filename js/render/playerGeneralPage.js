@@ -41,7 +41,7 @@ import { renderBreadcrumbs } from './navigation.js';
 import { mountAppTabs } from './appTabs.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
-import { mountPillTabs, ALL_TYPES_TAB, ALL_TYPES_ID } from './subTabs.js';
+import { mountPillTabs, mountLengthSelector, ALL_TYPES_TAB, ALL_TYPES_ID } from './subTabs.js';
 import { langFlagsHtml, wireLangPopup, wireDynamicLangPopup } from '../utils/popupLang.js';
 import { getPopup, playerGaussianSeriesHtml } from '../data/popupContent.js';
 import { getTitleBadgesHtml, getTitleAbbreviationsHtml, getHighestTier } from '../data/titleConstants.js';
@@ -1182,12 +1182,13 @@ function collectPlayerPrGaps(perLeague, typeId) {
     for (const e of perLeague) {
         if (!e.league.config?.showPR) continue;
         if (typeId !== ALL_TYPES_ID && e.league.leagueType !== typeId) continue;
+        const matchLength = e.league.params?.MatchLength ?? 7;
         for (const m of e.playerMatches) {
             if (m._technical || m._draw) continue;
             if (m.prSelf == null || m.prOpp == null) continue;
             if (!(m.prSelf > 0) || !(m.prOpp > 0)) continue;
             if (m.scoreSelf === m.scoreOpp) continue;
-            out.push({ gap: m.prOpp - m.prSelf, win: m.scoreSelf > m.scoreOpp });
+            out.push({ gap: m.prOpp - m.prSelf, win: m.scoreSelf > m.scoreOpp, matchLength });
         }
     }
     return out;
@@ -1296,6 +1297,9 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
     // display-only: the fit and the μ/σ readout always use the FULL data.
     let trimmed = false;
     let typeId = ALL_TYPES_ID;
+    // null = all match lengths pooled (default); a number narrows to that length.
+    // The selector below only appears once the selected type spans >1 length.
+    let lengthFilter = null;
 
     // One entry per row. entries[0] is ALWAYS this page's player and can be
     // neither re-pointed nor removed — the whole section is their profile, and
@@ -1393,8 +1397,14 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
     }
 
     function recomputeEntry(entry) {
-        entry.rows = collectPlayerPrGaps(entry.perLeague || [], typeId);
-        entry.counts = countPlayerRatedMatches(entry.perLeague || [], typeId, entry.rows.length);
+        // rowsAll = every rated match for the selected type (used to discover
+        // which match lengths exist); rows = those narrowed to the chosen length
+        // (null = all lengths pooled, the default).
+        entry.rowsAll = collectPlayerPrGaps(entry.perLeague || [], typeId);
+        entry.rows = lengthFilter == null
+            ? entry.rowsAll
+            : entry.rowsAll.filter(r => r.matchLength === lengthFilter);
+        entry.counts = countPlayerRatedMatches(entry.perLeague || [], typeId, entry.rows.length, lengthFilter);
     }
 
     function redrawAll() {
@@ -1537,9 +1547,32 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
         redrawAll();
     });
 
+    const lengthHost = document.createElement('div');
+    lengthHost.className = 'pg-prres-length';
+
+    // (Re)build the match-length sub-selector for the current type. It appears
+    // only when the selected type spans more than one match length — a different
+    // length is a different win-probability model, so this lets the reader look
+    // at one length at a time instead of the pooled mix (the "All lengths" default).
+    function rebuildLengthSelector() {
+        lengthHost.innerHTML = '';
+        const lengths = [...new Set(entries.flatMap(e => (e.rowsAll || []).map(r => r.matchLength)))];
+        mountLengthSelector(lengthHost, {
+            lengths,
+            defaultLen: lengthFilter,
+            onSelect: (len) => {
+                lengthFilter = len;
+                for (const e of entries) recomputeEntry(e);
+                redrawAll();
+            },
+        });
+    }
+
     function showType(id) {
         typeId = id;
+        lengthFilter = null;              // a new type may span different lengths
         for (const e of entries) recomputeEntry(e);
+        rebuildLengthSelector();
         redrawAll();
     }
 
@@ -1554,6 +1587,7 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
         onSelect: showType,
     });
     section.insertBefore(bar, body);
+    section.insertBefore(lengthHost, body);
 
     // Comparison roster — every player in any visible league, sorted by the
     // DISPLAYED name (the dropdown shows those, so a raw-key sort reads as
@@ -1581,11 +1615,12 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
  * matches" sample-size readout above each chart. `rated` is passed in rather
  * than recomputed so it can never disagree with the marks being drawn.
  */
-function countPlayerRatedMatches(perLeague, typeId, rated) {
+function countPlayerRatedMatches(perLeague, typeId, rated, lengthFilter = null) {
     let total = 0;
     for (const e of perLeague) {
         if (!e.league.config?.showPR) continue;
         if (typeId !== ALL_TYPES_ID && e.league.leagueType !== typeId) continue;
+        if (lengthFilter != null && (e.league.params?.MatchLength ?? 7) !== lengthFilter) continue;
         total += e.playerMatches.length;
     }
     return { rated, total };

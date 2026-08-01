@@ -79,6 +79,56 @@ export function mountPillTabs(mountEl, { tabs, defaultId = null, pillClassFor = 
     return { bar, select };
 }
 
+/**
+ * Match-length sub-selector — a secondary, lighter pill row that narrows a
+ * histogram to one match length (e.g. after the league-type pill is chosen).
+ * A different match length is a genuinely different win-probability model, so
+ * a view built on it must be read on its own.
+ *
+ * Rendered only when there is more than one length to choose between — a
+ * single-length view has nothing to disambiguate, so the selector is omitted.
+ * Reuses the pill primitive, so it inherits the themed look (see the `.ml-*`
+ * rules in subtabs.css).
+ *
+ * @param {HTMLElement} mountEl  where to append the selector
+ * @param {object} opts
+ *   lengths     {number[]} the distinct match lengths available
+ *   defaultLen  {number|null} pre-selected length (falls back to "All"/first)
+ *   includeAll  {boolean} offer an "All lengths" option (default true). Set
+ *               false where mixing lengths would be wrong (e.g. a view compared
+ *               against a single win-probability table column).
+ *   onSelect(lenOrNull) called with the chosen length, or null for "All".
+ * @returns {{ wrap: HTMLElement, select: (id:string)=>void } | null}
+ */
+export function mountLengthSelector(mountEl, { lengths, defaultLen = null, includeAll = true, onSelect } = {}) {
+    const uniq = [...new Set(lengths)].filter(n => Number.isFinite(n)).sort((a, b) => a - b);
+    if (uniq.length < 2) return null;   // nothing to choose between → no selector
+
+    const wrap = document.createElement('div');
+    wrap.className = 'ml-select';
+    const cap = document.createElement('span');
+    cap.className = 'ml-select-cap';
+    cap.textContent = 'Match length';
+    wrap.appendChild(cap);
+    mountEl.appendChild(wrap);
+
+    const tabs = [
+        ...(includeAll ? [{ id: 'all', label: 'All lengths' }] : []),
+        ...uniq.map(l => ({ id: String(l), label: `${l} pt` })),
+    ];
+    const startId = defaultLen != null && uniq.includes(defaultLen)
+        ? String(defaultLen)
+        : (includeAll ? 'all' : String(uniq[0]));
+
+    const { select } = mountPillTabs(wrap, {
+        tabs,
+        defaultId: startId,
+        pillClassFor: () => 'ml-pill',
+        onSelect: (id) => onSelect(id === 'all' ? null : Number(id)),
+    });
+    return { wrap, select };
+}
+
 export function mountAccordionTabs(barEl, { tabs, defaultOpenId = null, onOpen } = {}) {
     barEl.classList.add('subtabs', 'subtabs--accordion');
 

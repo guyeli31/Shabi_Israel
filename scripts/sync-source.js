@@ -963,6 +963,20 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
     await writeMatchesToSupabase(folder, matchesToWrite);
     await reconcileMatchHistoryInSupabase(folder);
     console.log('  ✓ Supabase updated');
+
+    // Restore point for this sync (sql/db_version_control.sql), so an automated
+    // run is as recoverable as an admin publish. Server-side it is a no-op when
+    // the source served nothing new. Best-effort — never fail a sync over it.
+    try {
+      const { error } = await supabase.rpc('dbc_snapshot', {
+        p_message: `Auto-sync — ${folder}`,
+        p_audit_batch_id: null,
+      });
+      if (error) throw new Error(error.message);
+      console.log('  ✓ Restore point saved');
+    } catch (err) {
+      console.log(`  ! Restore point skipped: ${err.message}`);
+    }
   }
 
   await logEvent(folder, 'success', `Sync complete — "${sourceLeagueName}" data updated.`);

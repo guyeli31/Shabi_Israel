@@ -798,6 +798,17 @@
 .predictor-info-popup[data-active-lang="he"] .popup-lang-he td {
     text-align: right;
 }
+/* Justify the popup body prose in BOTH languages so paragraphs align flush to
+   the right AND the left edge. Targets p/li directly (more specific than the
+   block-level right-align above), so headings stay right-aligned and inline
+   text-align:center lines — the formulas — keep their own centring. Only lines
+   that wrap are stretched; a single/last line keeps its natural edge. */
+.predictor-info-popup .popup-lang-en p,
+.predictor-info-popup .popup-lang-en li,
+.predictor-info-popup .popup-lang-he p,
+.predictor-info-popup .popup-lang-he li {
+    text-align: justify;
+}
 
 .predictor-info-popup {
     position: relative;

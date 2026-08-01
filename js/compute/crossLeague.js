@@ -46,7 +46,8 @@ export function loadAllLeagues() {
                 const rankings = buildRankings(statsMap, config);
                 return {
                     id: e.id,
-                    title: league.params.LeagueTitle || e.title,
+                    title: e.id, // always the full league name (folder id), never the short LeagueTitle
+
                     params: league.params,
                     leagueType,
                     config,

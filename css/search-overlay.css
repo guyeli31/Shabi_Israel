@@ -163,7 +163,8 @@
    navigation.css. em-based so it tracks the surrounding font size; horizontal
    spacing comes from each row's own flex `gap` (no ad-hoc margin). */
 :is(.nav-search-results, .search-sheet-results, .whatif-options,
-    .app-combo-dropdown, .player-search-results, .player-autocomplete) .search-flag {
+    .app-combo-dropdown, .player-search-results, .player-autocomplete,
+    .ana-entity) .search-flag {
     flex-shrink: 0;
     height: 1.05em;
     width: auto;

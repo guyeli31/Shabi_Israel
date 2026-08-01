@@ -104,9 +104,9 @@ export function ensureLeagueIndex() {
             const displayOrder = await loadLeagueOrder();
             const folderNames = displayOrder.map(t => t.replace(' - ', ' '));
             const allParams = await loadAllLeagueParams(folderNames);
-            leagueIndex = allParams.map((lp, i) => ({
+            leagueIndex = allParams.map((lp) => ({
                 id: lp.id,
-                title: lp.params?.LeagueTitle || displayOrder[i],
+                title: lp.id, // always the full league name (id), never the short LeagueTitle
                 running: lp.params?.Running === true,
                 hidden: lp.params?.Hidden === true,
                 leagueType: lp.params?.LeagueType || 'doubling'
@@ -176,9 +176,9 @@ async function buildPlayerIndex() {
             const folderNames = displayOrder.map(t => t.replace(' - ', ' '));
             const allParams = await loadAllLeagueParams(folderNames);
             leagues = allParams
-                .map((lp, i) => ({
+                .map((lp) => ({
                     id: lp.id,
-                    title: lp.params?.LeagueTitle || displayOrder[i],
+                    title: lp.id, // always the full league name (id), never the short LeagueTitle
                     running: lp.params?.Running === true,
                     hidden: lp.params?.Hidden === true
                 }))

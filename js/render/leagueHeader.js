@@ -68,10 +68,10 @@ export function formatLastUpdatedDate(headerVal) {
  * @returns {Object} { name, type, typeLabel, running, statusLabel,
  *                     startDate, lastUpdated }
  */
-export function buildLeagueHeaderData(params, lastModified) {
+export function buildLeagueHeaderData(params, lastModified, leagueId) {
     const type = params.LeagueType || 'doubling';
     return {
-        name: params.LeagueTitle || '',
+        name: leagueId || params.LeagueTitle || '',
         type,
         typeLabel: LEAGUE_TYPE_LABELS[type] || type,
         running: !!params.Running,

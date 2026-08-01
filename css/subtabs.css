@@ -44,6 +44,52 @@
 .subtabs--pill .subtab--pill:disabled { cursor: default; opacity: 0.35; }
 .subtabs--pill .subtab--pill:disabled:hover { opacity: 0.35; }
 
+/* ---- Match-length sub-selector (mountLengthSelector) ----
+   A lighter, neutral secondary pill row that sits under the league-type pills to
+   narrow a histogram to one match length. Its pills carry no league-type colour,
+   so — unlike the type pills — they define their own themed shape here. */
+.ml-select {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+    margin: calc(-1 * var(--space-xs)) 0 var(--space-md);
+}
+.ml-select .subtabs--pill { margin-bottom: 0; gap: var(--space-xs); }
+.ml-select-cap {
+    font-size: var(--fs-080);
+    color: var(--color-text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.subtab--pill.ml-pill {
+    padding: 0.16em 0.7em;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    font-size: var(--fs-080);
+    font-weight: 600;
+}
+/* Higher specificity than the generic inactive rule so the themed shape holds. */
+.subtabs--pill .subtab--pill.ml-pill:not(.active) {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    opacity: 0.75;
+}
+.subtabs--pill .subtab--pill.ml-pill:not(.active):hover {
+    opacity: 1;
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+.subtabs--pill .subtab--pill.ml-pill.active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-bg);
+    opacity: 1;
+}
+
 /* ---- ACCORDION variant ---- */
 .subtabs--accordion {
     gap: var(--space-xs);

@@ -81,13 +81,13 @@ The project has **five** table formats. Each format is owned by `table-lab/` and
 
 | Format | Code | Used by |
 |---|---|---|
-| Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3, C4, C6, **F5** |
+| Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3, C4, C6 |
 | Secondary Format | **SF** | A3, A4, A5, A6, C5 |
 | Expandable Format | **exp** | C0 |
-| Form Format | **FF** | F1 (League Manager), F2 (Players), F3 (Round Editor), F4 (View Overrides), F6 (Medals & Prizes), F7 (Sync ▸ Active Leagues) |
+| Form Format | **FF** | F1 (League Manager), F2 (Players), F3 (Round Editor), F4 (View Overrides), **F5 (CSV Import Preview)**, F6 (Medals & Prizes), F7 (Sync ▸ Active Leagues) |
 | PR Matrix Format | **PM** | PR Win-Probability Table (every "?" popup that shows it), Table Validation popup |
 
-> **F5 is the lone admin table on MF** (every other admin table is FF). It is a read-only CSV-import preview, so MF — not the editable FF — is the right format. It renders through `mountMFTable` with `fontClass:'font-small'` (matching B3) and `stickyCols:1` (left column pinned). The MF sticky **header** is a no-op here because `.mf-wrap` is `overflow-y:clip` (never a vertical scroll context) — satisfying the "no floating header" requirement without any change to the shared MF format. `admin.html` loads `table-lab/formats/mf/mf.css` for this one table. The preview shows **only the "N updates"**: matches played in the upload that were not already played and are not override-covered (computed in `js/admin/csvValidation.js`).
+> **Every admin table is FF.** F5 was the lone MF holdout while the CSV-import preview was read-only; once it grew per-row actions (TA/TB/TD/NP — the same vocabulary as F3's Round Editor) MF was the wrong format by definition: MF has no Action-cell concept. It moved to FF in the same change, and became the first production caller of the lab's `mountFFTable`. The preview still shows **only the "N updates"**: matches played in the upload that were not already played and are not override-covered (computed in `js/admin/csvValidation.js`). What the buttons do to the staged output is documented at the F5 note under the FF format below and in `js/admin/excelImporter.js`.
 
 ### Units policy (load-bearing — applies to ALL four formats)
 
@@ -617,7 +617,9 @@ mountExpTable(mountPoint, {
 
 ### FF (Form Format — Admin tables)
 
-Unified admin table format used by: **F1 (Leagues / League Manager), F2 (Players in Edit League), F3 (Round Editor), F4 (View Overrides), F6 (Medals & Prizes in Edit + Add League), F7 (Active Leagues on the Sync page) — all on admin.html.**
+Unified admin table format used by: **F1 (Leagues / League Manager), F2 (Players in Edit League), F3 (Round Editor), F4 (View Overrides), F5 (CSV Import Preview), F6 (Medals & Prizes in Edit + Add League), F7 (Active Leagues on the Sync page) — all on admin.html.**
+
+> **F5 — the first (and so far only) production call site of `mountFFTable`.** Every other FF table hand-builds the same chrome pending Phase 8; F5 was moved off MF onto the lab's real mount in the same change that gave it row actions (`js/admin/excelImporter.js`). Display cells for the match data + two Action cells (Result tag, TA/TB/TD/NP/Undo buttons); no Edit-mode cells, so `getDiff()`/`validate()` are null and the per-row decisions live in a JS state array parallel to `report.newMatches` rather than in the DOM. Per-row state tints are scoped `[data-mf-table-id="F5"]` in `css/admin.css` — see the F5 block there for the specificity ladder and why the skipped state uses muted colour instead of `opacity` (F3's sticky-first-col lesson, learned once). **Font:** `font-large` like every other FF table — F5 was `font-small` under MF and deliberately gave that up rather than fork the FF chrome.
 
 > **F7 — Sync ▸ Active Leagues.** Standalone (no `.admin-card` wrapper is required, but it is rendered inside one), `data-mf-table-id="F7"`, `font-large`. One row per **Running** league: *League* (name + type pill), *Source League Name* (Edit-mode text input — the enabling key), *Plans* (Display cell of per-plan membership checkboxes). Membership is the single source of truth in the DOM here; the Auto Sync section only owns plan meta. Rendered hand-built (FF chrome via `css/admin.css`) by `js/admin/syncManager.js`; the `mountFFTable` rewire rides along in Phase 8.
 

@@ -19,7 +19,12 @@
          the public site sidebar and the admin sidebar so the logged-in
          banner reads identical across surfaces. -->
     <link rel="stylesheet" href="css/site-sidebar.css">
-    <!-- MF format canon — styles the F5 CSV-import preview table (.mf-wrap); @imports base.css -->
+    <!-- Loaded for the base.css it @imports, NOT for MF itself: admin.html has no
+         MF table any more (F5, the last one, moved to FF). base.css carries the
+         `table.font-large` font-size every FF table is sized by and the canonical
+         `.flag` rule — and admin.html does not load css/components.css, which is
+         where those otherwise live. Dropping this link silently shrinks every
+         admin table and un-styles the F2 flags. -->
     <link rel="stylesheet" href="table-lab/formats/mf/mf.css">
     <link rel="stylesheet" href="css/typography-overrides.css">
     <script src="vendor/xlsx.full.min.js"></script>

@@ -86,6 +86,9 @@
   .pop-body h4{font-size:14.5px;margin:16px 0 4px;font-weight:700;color:var(--wood-deep)}
   .pop-body h5{font-size:13px;margin:14px 0 4px;font-weight:700;color:var(--ink-soft);padding-inline-start:.6em;border-inline-start:3px solid var(--rule-strong)}
   .pop-body p{margin:8px 0}
+  /* Justify body prose (both languages) — flush on right AND left. Inline
+     text-align:center lines (formulas) keep their own centring. */
+  .pop-body p,.pop-body li{text-align:justify}
   .pop-body ul{margin:8px 0;padding-inline-start:1.3em}
   .pop-body li{margin:4px 0}
   .pop-body b{font-weight:700}
@@ -99,6 +102,17 @@
   /* .pg-gauss-block — one per fitted series in the player page's Gaussian popup.
      Mirror of the rule in css/player-general.css (this tool loads no project CSS). */
   .pg-gauss-block + .pg-gauss-block{border-top:1px solid var(--rule);margin-top:14px;padding-top:14px}
+  /* League-type pill — mirror of components.css .league-type-pill + the --lt-*
+     tokens from variables.css (this tool loads no project CSS). Popups name a
+     league category with the same themed pill the live pages use. */
+  .league-type-pill{display:inline-block;padding:.12em .7em;font-size:.8em;font-weight:600;
+    border-radius:999px;text-transform:uppercase;letter-spacing:.04em;line-height:1.5;vertical-align:baseline}
+  .league-type-pill.type-doubling{background:#dbeafe;color:#1e40af}
+  .league-type-pill.type-ubc{background:#ede9fe;color:#5b21b6}
+  .league-type-pill.type-regular{background:#ccfbf1;color:#115e59}
+  :root[data-theme="dark"] .league-type-pill.type-doubling{background:rgba(96,165,250,.22);color:#93c5fd}
+  :root[data-theme="dark"] .league-type-pill.type-ubc{background:rgba(167,139,250,.22);color:#c4b5fd}
+  :root[data-theme="dark"] .league-type-pill.type-regular{background:rgba(45,212,191,.22);color:#5eead4}
   /* PM — PR Matrix Format (tool mirror of table-lab/formats/pm/pm.css) */
   .pm-figure{margin:12px 0}
   .pm-caption{font-size:13.5px;margin:0 0 4px}

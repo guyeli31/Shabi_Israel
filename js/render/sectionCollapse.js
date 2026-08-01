@@ -15,8 +15,12 @@
  *     "?" reveals is never shown over a folded-away section. This is the single
  *     place that behaviour lives, so it's identical for every "?" section.
  *   • Keyboard: Enter / Space toggle; the heading is exposed as role="button".
+ *   • `onToggle(open)` (optional) — called ONLY on a real user toggle (header
+ *     click / Enter / Space), never for the initial `defaultOpen` state nor for
+ *     the "?" auto-open, so a caller can log the toggle without recording
+ *     phantom events the user never performed.
  */
-export function wireSectionCollapse(section, { defaultOpen = true, infoBtn = null } = {}) {
+export function wireSectionCollapse(section, { defaultOpen = true, infoBtn = null, onToggle = null } = {}) {
     const h2 = section && section.querySelector(':scope > .app-section-h2');
     if (!h2) return;
 
@@ -30,7 +34,13 @@ export function wireSectionCollapse(section, { defaultOpen = true, infoBtn = nul
     };
     setOpen(defaultOpen);
 
-    const toggle = () => setOpen(section.classList.contains('is-collapsed'));
+    const toggle = () => {
+        // Reads the state BEFORE the flip, so `open` is what the section is
+        // about to become — that's what a caller wants to log.
+        const open = section.classList.contains('is-collapsed');
+        setOpen(open);
+        if (onToggle) onToggle(open);
+    };
 
     // Every "?" info trigger in the heading: the explicit infoBtn plus any
     // `.predictor-tooltip` markup. Clicking one opens the section (idempotent)

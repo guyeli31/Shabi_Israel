@@ -220,6 +220,29 @@
    so `display:block` pushed the text onto its own line. Inline it here. */
 .log-table .app-tab-glyph { display: inline-block; vertical-align: -0.15em; }
 
+/* A player/league shown inside a log cell: flag → name → title badges (player),
+   or title → type pill (league), all on one baseline. inline-flex so the em-sized
+   flag and .title-abbr / .league-type-pill line up with the name without each
+   needing its own vertical-align tweak. */
+.ana-entity {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+}
+/* The league-type pill is sized for table cells/headers (var(--fs-085) off the
+   ROOT + generous padding + line-height 1.5), so inline next to log text it
+   towered and sat off the baseline. In a log entity it must track the row's own
+   font and sit ON the text line: em-relative size, tight padding, and it is the
+   one child that centres (a pill reads centred, not on a baseline) while the
+   flag/name/title stay baseline-aligned with the surrounding text. */
+.ana-entity .league-type-pill {
+    font-size: 0.72em;
+    padding: 0.08em 0.5em;
+    line-height: 1.35;
+    align-self: center;
+}
+.ana-entity .search-flag { align-self: center; }
+
 /* Keep a click-target's icon glued to its label on one line. Needed because the
    icon can be an inline-block SVG glyph (app-tab-glyph), and a no-break space
    does NOT suppress the line break between that atomic inline and the following

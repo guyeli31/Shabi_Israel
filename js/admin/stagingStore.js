@@ -458,6 +458,7 @@ export async function publishAll(onProgress) {
         // splits into ONE batch PER edited player (so Historical mirrors the
         // per-player rows Pending already shows); every other unit becomes a
         // single batch headlined by its primary staged change.
+        let batchId = null;
         if (watermark != null) {
             try {
                 const isPlayerMetaUnit = unit.changes.some(
@@ -466,13 +467,28 @@ export async function publishAll(onProgress) {
                 if (isPlayerMetaUnit) {
                     await supabase.rpc('finalize_player_batches', { p_after_id: watermark });
                 } else {
-                    await supabase.rpc('finalize_publish_batch', {
+                    const { data } = await supabase.rpc('finalize_publish_batch', {
                         p_intent: deriveGroupIntent(unit.changes),
                         p_after_id: watermark,
                     });
+                    batchId = data || null;
                 }
             } catch { /* leave rows un-batched rather than fail the publish */ }
         }
+
+        // Restore point for this unit (sql/db_version_control.sql). One per
+        // logical change, so Historical Changes and the restore-point list line
+        // up one-to-one and any single publish can be checked out again. Costs a
+        // few KB — only the rows this unit touched become new objects, and a
+        // unit that changed nothing real is detected and skipped server-side.
+        // Best-effort: the migration may not be installed, and a publish must
+        // never fail over its own bookkeeping.
+        try {
+            await supabase.rpc('dbc_snapshot', {
+                p_message: describeUnit(unit.changes),
+                p_audit_batch_id: batchId,
+            });
+        } catch { /* version control unavailable → publish anyway */ }
     }
 
     // Clear staging on success (even partial — published changes are done)
@@ -481,6 +497,17 @@ export async function publishAll(onProgress) {
     }
 
     return { success: errors.length === 0, published, errors };
+}
+
+/**
+ * One-line, human-readable name for a restore point, built from the same intent
+ * the Historical row uses — so the two lists read the same way.
+ * e.g. "Match data updated — Shabi Israel April 2026 (Dan vs Ron)"
+ */
+function describeUnit(changes) {
+    const i = deriveGroupIntent(changes);
+    return [i.specific, i.subject].filter(Boolean).join(' — ')
+        + (i.detail ? ` (${i.detail})` : '');
 }
 
 /**

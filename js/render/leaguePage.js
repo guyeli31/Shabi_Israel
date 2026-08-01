@@ -66,7 +66,7 @@ export async function renderLeaguePage() {
             effectiveLastModified = asof;
         }
 
-        const title = params.LeagueTitle || leagueId;
+        const title = leagueId; // always the full league name (id), never the short LeagueTitle
         document.title = (isHistorical ? 'Historical — ' : '') + title + ' — Shabi Israel';
 
         // V13 Lichess title bar (production default for the table-D page).
@@ -74,7 +74,7 @@ export async function renderLeaguePage() {
         // the league has started; showing both dates is duplicate.
         renderV13Header(
             document.getElementById('page-title'),
-            buildLeagueHeaderData(params, effectiveLastModified),
+            buildLeagueHeaderData(params, effectiveLastModified, leagueId),
             {
                 omitStartDate: true,
                 historicalNote: isHistorical

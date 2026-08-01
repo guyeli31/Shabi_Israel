@@ -322,7 +322,7 @@ async function populateAsync(opts) {
                   })();
             return {
                 id: folderId,
-                title: lp.params?.LeagueTitle || folderId,
+                title: folderId, // always the full league name (folder id), never the short LeagueTitle
                 running: lp.params?.Running === true,
                 hidden: lp.params?.Hidden === true,
                 type: lp.params?.LeagueType || 'doubling',

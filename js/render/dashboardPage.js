@@ -20,9 +20,10 @@ import { drawPlayerBarChart, computeNiceRange } from './playerBarChart.js';
 import { drawCorrelationRow, drawHistogramRow } from './prCorrelationChart.js';
 import { luckConfidenceFromItems, luckConfidenceLabel, luckConfidenceBand } from '../compute/luckConfidence.js';
 import { renderBreadcrumbs } from './navigation.js';
-import { predictChampionship, computeTopXPct, prProbabilityTableHtml, getWinProbability, nearestMatchLengthIdx } from '../compute/championshipPredictor.js';
+import { predictChampionship, computeTopXPct, prProbabilityTableHtml, getWinProbability, nearestMatchLengthIdx, matchLengthForIdx } from '../compute/championshipPredictor.js';
 import { pmTableHtml } from '../../table-lab/formats/pm/mount.js';
-import { getPopup } from '../data/popupContent.js';
+import { getPopup, leagueTypePill } from '../data/popupContent.js';
+import { tableValidationExampleHistogramSvg } from './exampleHistograms.js';
 import { batchLast300PRForSimulator, loadVisibleLeagues } from '../compute/crossLeague.js';
 import { loadPlayersMetadata } from '../data/store.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
@@ -33,7 +34,7 @@ import { buildLeagueHeaderData, renderV16Header, formatLastUpdatedDate } from '.
 import { mountAppTabs } from './appTabs.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
-import { mountAccordionTabs } from './subTabs.js';
+import { mountAccordionTabs, mountLengthSelector } from './subTabs.js';
 import { displayPlayerName } from '../utils/nameDisplay.js';
 import { mountSearchField } from '../utils/combobox.js';
 import { mountCombobox } from '../utils/combobox.js';
@@ -68,13 +69,13 @@ export async function renderDashboardPage() {
             allParams = await loadAllLeagueParams(folderNamesAll);
         } catch { allParams = []; }
 
-        const title = params.LeagueTitle || leagueId;
+        const title = leagueId; // always the full league name (id), never the short LeagueTitle
         document.title = `${title} — Dashboard`;
 
         // V16 hero banner header (production default for the dashboard).
         renderV16Header(
             document.getElementById('page-title'),
-            buildLeagueHeaderData(params, lastModified),
+            buildLeagueHeaderData(params, lastModified, leagueId),
         );
 
         // Breadcrumbs
@@ -820,11 +821,33 @@ function renderWhatIfSimulator(ctx) {
     const baselinePrev = document.getElementById('whatif-baseline-prev');
     const baselineNext = document.getElementById('whatif-baseline-next');
 
-    // Collapse toggle (shared section header)
-    wireSectionCollapse(section, { defaultOpen: true, infoBtn });
+    // Every What-If control logs through this one helper. `shabi:interaction`
+    // (not a `data-track` attribute) because most of these carry a value only
+    // known at click time, and several must log conditionally — a `data-track`
+    // left on the element would fire again on a later no-op click.
+    // Targets share the `What if: ` family so analyticsPage.js can give the
+    // whole section the 🧪-paired icons; see CLICK_TYPE_ICONS there, where the
+    // specific prefixes MUST stay listed above the generic `What if: ` entry.
+    const trackWhatIf = (target) => {
+        window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target } }));
+    };
 
-    // Info popup
-    wireLangPopup(section, { btn: infoBtn, popup: infoPopup, close: infoClose });
+    // Collapse toggle (shared section header)
+    wireSectionCollapse(section, {
+        defaultOpen: true,
+        infoBtn,
+        onToggle: (open) => trackWhatIf(`What if: section ${open ? 'expanded' : 'collapsed'}`),
+    });
+
+    // Info popup. The "?" click itself is already logged generically as
+    // `Info: What If` (js/analytics.js names it from the section heading), so
+    // only the language choice needs wiring here.
+    wireLangPopup(section, {
+        btn: infoBtn,
+        popup: infoPopup,
+        close: infoClose,
+        onLangPick: (lang) => trackWhatIf(`What if: help language — ${lang}`),
+    });
 
     // Build schedule index: canonical key -> match record
     const scheduleByKey = new Map();
@@ -860,7 +883,7 @@ function renderWhatIfSimulator(ctx) {
         getOptions: () => allPlayersSorted,
         labelFor: displayPlayerName,
         decorate: (p) => ({ flagCode: getFlagCode(p, whatifCustomFlags), titleHtml: titleHtmlFor(p) }),
-        onSelect: () => {},
+        onSelect: (p) => trackWhatIf(`What if: player A — ${p}`),
     });
 
     // Player B — opponents of the chosen A, sorted not-yet-played first then A→Z,
@@ -896,7 +919,7 @@ function renderWhatIfSimulator(ctx) {
             const text = kind === 'won' ? 'WON' : kind === 'lost' ? 'LOST' : 'DREW';
             return { flagCode, titleHtml, badge: { text, kind } };
         },
-        onSelect: () => {},
+        onSelect: (p) => trackWhatIf(`What if: player B — ${p}`),
     });
 
     // State: staged matches
@@ -1025,6 +1048,10 @@ function renderWhatIfSimulator(ctx) {
             wasPlayed
         });
 
+        // Logged only once the pair actually staged — every `return` above is a
+        // rejected click that would otherwise record a match that never existed.
+        trackWhatIf(`What if: add match — ${a} vs ${b}`);
+
         inputA.value = '';
         inputB.value = '';
         renderStaged();
@@ -1066,11 +1093,22 @@ function renderWhatIfSimulator(ctx) {
             const idx = Number(row.dataset.idx);
             row.querySelectorAll('.whatif-res').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    staged[idx].result = btn.dataset.res;
+                    const s = staged[idx];
+                    const res = btn.dataset.res;
+                    // Re-clicking the already-active result changes nothing, so
+                    // it isn't logged — only a real change of the scenario is.
+                    if (s.result !== res) {
+                        trackWhatIf(res === 'NP'
+                            ? `What if: not played — ${s.a} vs ${s.b}`
+                            : `What if: winner — ${res === 'A' ? s.a : s.b} beats ${res === 'A' ? s.b : s.a}`);
+                    }
+                    s.result = res;
                     renderStaged();
                 });
             });
             row.querySelector('.whatif-del').addEventListener('click', () => {
+                const s = staged[idx];
+                trackWhatIf(`What if: remove match — ${s.a} vs ${s.b}`);
                 staged.splice(idx, 1);
                 renderStaged();
             });
@@ -1079,6 +1117,8 @@ function renderWhatIfSimulator(ctx) {
     renderStaged();
 
     clearBtn.addEventListener('click', () => {
+        // Clearing an already-empty list is a no-op click, not a scenario reset.
+        if (staged.length > 0) trackWhatIf(`What if: clear all — ${staged.length} staged`);
         staged.length = 0;
         renderStaged();
         // Back to the default state rather than an empty panel.
@@ -1188,6 +1228,10 @@ function renderWhatIfSimulator(ctx) {
             wiTopXInput.onchange = () => {
                 currentX = parseInt(wiTopXInput.value);
                 lastTopX = currentX;
+                // Not a display control: this changes the METRIC in the last
+                // column (P(finish in top X)) and with it the whole table's
+                // sort order — so the chosen X is what's worth logging.
+                trackWhatIf(`What if topx: ${wiTopXInput.selectedOptions[0]?.textContent || currentX}`);
                 renderTable(expanded);
             };
 
@@ -1251,6 +1295,9 @@ function renderWhatIfSimulator(ctx) {
                 expandBtn.textContent = `Show all (${total})`;
                 expandBtn.onclick = () => {
                     expanded = !expanded;
+                    // Purely how many ROWS are shown — distinct from the Top X
+                    // control above, which changes the numbers themselves.
+                    trackWhatIf(`What if: table ${expanded ? 'expanded' : 'collapsed'} — ${total} players`);
                     renderTable(expanded);
                     expandBtn.textContent = expanded ? 'Show top 5' : `Show all (${total})`;
                 };
@@ -1275,7 +1322,7 @@ function renderWhatIfSimulator(ctx) {
         const stagedSummary = staged.map((s) =>
             s.result === 'NP' ? `${s.a} vs ${s.b} not played` : `${s.result === 'A' ? s.a : s.b} beats ${s.result === 'A' ? s.b : s.a}`
         ).join('; ');
-        runBtn.dataset.track = `What if: ${staged.length} staged${stagedSummary ? ' — ' + stagedSummary : ''}`.slice(0, 300);
+        runBtn.dataset.track = `What if: run — ${staged.length} staged${stagedSummary ? ' — ' + stagedSummary : ''}`.slice(0, 300);
         runSimulation();
     });
 
@@ -1517,7 +1564,7 @@ function buildB6aPanel(panel, remaining, params, playersMeta, lastModified) {
     if (remaining.length > 0) {
         panel.appendChild(buildExportControl(remaining.length, () => {
             const sourceTable = panel.querySelector('.rem-b6a-wrap table');
-            exportRemainingMatchesImage(sourceTable, params.LeagueTitle || '', formatAsOf(lastModified), params.LeagueType || 'doubling');
+            exportRemainingMatchesImage(sourceTable, ctx.leagueId, formatAsOf(lastModified), params.LeagueType || 'doubling');
         }));
     }
     const wrap = document.createElement('div');
@@ -1549,7 +1596,7 @@ function buildB6bPanel(panel, ctx, remaining, lastModified) {
 
     panel.appendChild(buildExportControl(playerRemainingData.length, () => {
         const sourceTable = panel.querySelector('.rem-b6b-wrap table');
-        exportB6bImage(sourceTable, params.LeagueTitle || ctx.leagueId, formatAsOf(lastModified), params.LeagueType || 'doubling');
+        exportB6bImage(sourceTable, ctx.leagueId, formatAsOf(lastModified), params.LeagueType || 'doubling');
     }));
 
     const wrap = document.createElement('div');
@@ -1608,7 +1655,7 @@ function buildB6cPanel(panel, ctx, remaining, lastModified) {
 
     const input = outer.querySelector('#rem-b6c-input');
     const result = outer.querySelector('#rem-b6c-result');
-    const title = params.LeagueTitle || ctx.leagueId;
+    const title = ctx.leagueId; // full league name (id), never the short LeagueTitle
 
     function showPlayer(rawVal) {
         const lower = rawVal.trim().toLowerCase();
@@ -2146,18 +2193,20 @@ function buildExplanationTableHtml(rows, shift, mlIdx) {
         <h4>Table Validation: does the data match the table?</h4>
         <p><b>Why it's here:</b> the <i>PR Win-Probability Table</i> is a fixed, published table giving, for every
         PR gap and match length, the favourite's win chance &mdash; and this whole page leans on it. But is that
-        table actually right for our players? This check pools <b>every doubling-cube match</b> ever played (at
+        table actually right for our players? This check pools every ${leagueTypePill('doubling')} match ever played (at
         this match length) and asks, for every PR gap, whether the favourite won as often as the table predicts.</p>
+        ${tableValidationExampleHistogramSvg('en')}
         <p>For each PR gap, the comparison of the favourite's real win rate against the table's value is called
         <b>Likelihood</b>, and its meaning is &mdash; how likely it was that this gap's result came up by chance alone.</p>
         ${renderTable('en')}
         </div>
         <div class="popup-lang-he" data-lang="he">
         <h4>אימות טבלה: האם הנתונים תואמים את הטבלה?</h4>
-        <p><b>למה זה כאן:</b> ה<i>PR Win-Probability Table</i> היא טבלה קבועה ומפורסמת שנותנת, לכל פער PR ואורך
+        <p><b>למה זה כאן:</b> ה-<i>PR Win-Probability Table</i> היא טבלה קבועה ומפורסמת שנותנת, לכל פער PR ואורך
         משחק, את הסיכוי שהמועדף ינצח &mdash; וכל העמוד הזה נשען עליה. אבל האם הטבלה הזו באמת נכונה עבור השחקנים
-        שלנו? הבדיקה הזו מרכזת את <b>כל משחקי ההכפלות</b> ששוחקו אי פעם (באותו אורך משחק) ושואלת, עבור כל פער PR,
+        שלנו? הבדיקה הזו מרכזת את כל משחקי ${leagueTypePill('doubling')} ששוחקו אי פעם (באותו אורך משחק) ושואלת, עבור כל פער PR,
         האם המועדף ניצח בתדירות שהטבלה חוזה.</p>
+        ${tableValidationExampleHistogramSvg('he')}
         <p>לכל פער PR השוואת שיעור הניצחון האמיתי של המועדף מול הערך שבטבלה נקראת <b>Likelihood</b>, ומשמעותה &mdash;
         עד כמה סביר היה שתוצאת אותו פער תצא במקרה בלבד.</p>
         ${renderTable('he')}
@@ -2483,16 +2532,28 @@ function renderPrCorrelationSection(ctx) {
         // different (a bigger PR gap matters more over a longer match), so
         // it wouldn't be one consistent population to compare against a
         // single table column the way the Model-validation popup does.
-        const typeLeagues = leagues.filter(l =>
-            l.leagueType === leagueType &&
-            nearestMatchLengthIdx(l.params.MatchLength || 7) === generalMlIdx
-        );
-        const rows = [];
-        for (const league of typeLeagues) {
-            for (const m of buildGeneralAdvantageSeries(league.matches)) {
-                rows.push({ ...m, mlIdx: generalMlIdx });
+        const sameTypeLeagues = leagues.filter(l => l.leagueType === leagueType);
+        // Distinct match-length columns present among same-type leagues. Each is
+        // a genuinely different win-probability model, so the aggregate is read
+        // one length at a time — never pooled across lengths, since it is compared
+        // against a single table column. The selector below appears only when
+        // there is more than one to choose between.
+        const lenIdxSet = new Set(sameTypeLeagues.map(l => nearestMatchLengthIdx(l.params.MatchLength || 7)));
+        let poolMlIdx = generalMlIdx;   // default: this league's own length
+
+        let typeLeagues = [];
+        let rows = [];
+        function repool() {
+            typeLeagues = sameTypeLeagues.filter(l =>
+                nearestMatchLengthIdx(l.params.MatchLength || 7) === poolMlIdx);
+            rows = [];
+            for (const league of typeLeagues) {
+                for (const m of buildGeneralAdvantageSeries(league.matches)) {
+                    rows.push({ ...m, mlIdx: poolMlIdx });
+                }
             }
         }
+        repool();
 
         const labelEl = allTimePanel.querySelector('.corr-alltime-label');
         if (!rows.length) {
@@ -2500,16 +2561,23 @@ function renderPrCorrelationSection(ctx) {
             return;
         }
 
-        let allTimeMaxAbs = 0;
-        for (const r of rows) allTimeMaxAbs = Math.max(allTimeMaxAbs, Math.abs(r.advantage));
-        const expandedBound = Math.max(domain.xMax, Math.ceil(allTimeMaxAbs));
-        const domainChanged = expandedBound > domain.xMax;
-        if (domainChanged) {
-            domain.xMin = -expandedBound;
-            domain.xMax = expandedBound;
+        const showLenInLabel = lenIdxSet.size > 1;
+        let fullBound = domain.xMax;
+        // Re-fit the shared domain to the current pool (only ever expands it, so
+        // the current-league row above stays aligned) and refresh the label.
+        // Returns whether the shared domain grew, so the general row can redraw.
+        function applyPoolDomain() {
+            let maxAbs = 0;
+            for (const r of rows) maxAbs = Math.max(maxAbs, Math.abs(r.advantage));
+            const expanded = Math.max(domain.xMax, Math.ceil(maxAbs));
+            const grew = expanded > domain.xMax;
+            if (grew) { domain.xMin = -expanded; domain.xMax = expanded; }
+            fullBound = domain.xMax;
+            const lenTxt = showLenInLabel ? ` — ${matchLengthForIdx(poolMlIdx)} pt` : '';
+            labelEl.textContent = `All League Matches${lenTxt} (${rows.length} matches, ${typeLeagues.length} league${typeLeagues.length === 1 ? '' : 's'})`;
+            return grew;
         }
-
-        labelEl.textContent = `All League Matches (${rows.length} matches, ${typeLeagues.length} league${typeLeagues.length === 1 ? '' : 's'})`;
+        const domainChanged = applyPoolDomain();
         const shiftAmountEl = allTimePanel.querySelector('.corr-shift-amount');
         const trimToggle = allTimePanel.querySelector('.corr-trim-toggle');
         const host = allTimePanel.querySelector('.corr-host');
@@ -2520,7 +2588,7 @@ function renderPrCorrelationSection(ctx) {
         // them into the edge) for THIS row's own display. The Gaussian fit
         // and Table Validation table always recompute over the full,
         // untrimmed `rows` data below, so trimming never changes them.
-        const fullBound = domain.xMax;
+        // (`fullBound` is declared above and re-fitted by applyPoolDomain().)
         let trimmed = false;
 
         const gaussianToggle = allTimePanel.querySelector('.corr-gaussian-toggle');
@@ -2562,11 +2630,8 @@ function renderPrCorrelationSection(ctx) {
                 const { mean, std } = meanStd(shiftedValues);
                 gaussian = { mean, std };
                 gaussianStatsEl.textContent = `μ = ${mean.toFixed(2)}   σ = ${std.toFixed(2)}`;
-                // Always compared against THIS league's own match length
-                // (generalMlIdx), same as the plain-language ask: "what a
-                // game at this league's length would predict" — even though
-                // `rows` itself pools matches of every match length across
-                // leagues.
+                // μ/σ describe the raw PR-gap distribution, which is
+                // length-independent; the pool already holds a single length.
                 gaussianPopup.innerHTML = buildGaussianExplainerHtml(shiftedValues);
                 gaussianPopup.hidden = false;
                 wireDynamicLangPopup(gaussianPopup);
@@ -2589,12 +2654,10 @@ function renderPrCorrelationSection(ctx) {
             explanationToggle.classList.toggle('is-active', showExplanation);
 
             if (showExplanation) {
-                // Always compared against THIS league's own match length
-                // (generalMlIdx), same as the Gaussian popup: "what a game
-                // at this league's length would predict" — even though
-                // `rows` itself pools matches of every match length across
-                // leagues.
-                explanationPopup.innerHTML = buildExplanationTableHtml(rows, shift, generalMlIdx);
+                // Compared against the selected pool length (poolMlIdx) — the
+                // aggregate only ever holds one length at a time, so the table
+                // column it is validated against is exactly that length.
+                explanationPopup.innerHTML = buildExplanationTableHtml(rows, shift, poolMlIdx);
                 explanationPopup.hidden = false;
                 wireDynamicLangPopup(explanationPopup);
                 explanationPopup.querySelector('.corr-explanation-popup-close').addEventListener('click', () => {
@@ -2629,6 +2692,27 @@ function renderPrCorrelationSection(ctx) {
 
         if (domainChanged) {
             redrawGeneral();
+        }
+
+        // Match-length selector — switch which single length's aggregate is
+        // shown (default: this league's own length). No "All lengths" option:
+        // this row is validated against one table column, so pooling lengths
+        // would be meaningless here. Shown only when >1 length exists.
+        if (lenIdxSet.size > 1) {
+            const lenHost = document.createElement('div');
+            lenHost.className = 'corr-length-select';
+            allTimePanel.querySelector('.corr-controls').appendChild(lenHost);
+            mountLengthSelector(lenHost, {
+                lengths: [...lenIdxSet].map(i => matchLengthForIdx(i)),
+                defaultLen: matchLengthForIdx(generalMlIdx),
+                includeAll: false,
+                onSelect: (len) => {
+                    poolMlIdx = len == null ? generalMlIdx : nearestMatchLengthIdx(len);
+                    repool();
+                    if (applyPoolDomain()) redrawGeneral();
+                    redrawAllTime();
+                },
+            });
         }
     });
 }

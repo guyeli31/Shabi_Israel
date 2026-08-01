@@ -3,10 +3,11 @@
  * Uses SheetJS (loaded from CDN in admin.html) for Excel parsing.
  */
 
-import { addChange } from './stagingStore.js';
+import { addChange, getStagedContent, stageManualOverrides } from './stagingStore.js';
 import { computeCsvImportReport, renderCsvImportReport, wireCsvImportGate } from './csvValidation.js';
 import { parseCSV } from '../data/csvParser.js';
-import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
+import { loadLeagueParams, loadOverrides } from '../data/supabaseLoader.js';
+import { mountFFTable } from '../../table-lab/formats/ff/mount.js';
 import { formatNumber } from '../utils/helpers.js';
 import { revealMsg } from './msgScroll.js';
 
@@ -52,6 +53,19 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone) {
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
     let parsedCSV = null;
+
+    // Per-row decisions taken in the F5 preview, parallel to report.newMatches.
+    // Each entry: { action: 'import' | 'skip' | 'tech_a' | 'tech_b' | 'tech_draw' }.
+    // 'import' is the default and stages the CSV row exactly as uploaded.
+    let rowStates = [];
+    let previewMatches = [];
+
+    // Technical results need the league's match length (7 unless overridden), the
+    // same value Round Editor uses to fill the winner's score.
+    let matchLength = 7;
+    loadLeagueParams(leagueId)
+        .then(p => { matchLength = parseInt(p.MatchLength) || 7; })
+        .catch(() => { /* default stands */ });
 
     // Click to browse
     dropZone.addEventListener('click', () => fileInput.click());
@@ -144,21 +158,40 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone) {
 
     // F5 — CSV Import Preview. Shows ONLY the "N updates": matches played in the
     // uploaded CSV that were not already played and are not override-covered.
-    // Rendered with the canonical MF renderer (font-small, sticky left column).
+    //
+    // Rendered with the canonical FF renderer (`mountFFTable`) — F5 is the first
+    // production call site of the lab's FF mount (Phase 8 of the table-lab
+    // unification plan); every other admin table still hand-builds the same FF
+    // chrome. Display cells for the data, Action cells for the per-row buttons.
+    // Deliberately font-large (the FF default) — FF's chrome is keyed to
+    // `.admin-table.font-large` and a font-small variant is not part of the canon.
+    //
+    // The buttons mirror Round Editor's (TA/TB/TD/NP) so the two editors read the
+    // same, but they act on the IMPORT, not on the league: nothing is written
+    // until Confirm & Stage.
     function renderPreview(host, report) {
         if (!host) return;
-        const newMatches = report.newMatches || [];
-        showMsg('import-msg', `${newMatches.length} new match${newMatches.length === 1 ? '' : 'es'} to import.`, 'info');
-        if (newMatches.length === 0) {
+        previewMatches = report.newMatches || [];
+        rowStates = previewMatches.map(() => ({ action: 'import' }));
+        showMsg('import-msg', `${previewMatches.length} new match${previewMatches.length === 1 ? '' : 'es'} to import.`, 'info');
+        if (previewMatches.length === 0) {
             host.innerHTML = `<p style="color:var(--color-text-muted);padding:var(--space-sm) 0">No new matches in this upload.</p>`;
             return;
         }
         const num = (v) => v == null ? '—' : formatNumber(v);
-        mountMFTable(host, {
+        const actions = (_v, row) => {
+            const a = escHtml(row.playerA), b = escHtml(row.playerB);
+            return `
+                <button class="btn btn-xs btn-tech" data-f5act="tech_a" title="Technical win ${a}">TA</button>
+                <button class="btn btn-xs btn-tech" data-f5act="tech_b" title="Technical win ${b}">TB</button>
+                <button class="btn btn-xs btn-tech" data-f5act="tech_draw" title="Technical draw">TD</button>
+                <button class="btn btn-xs btn-tech" data-f5act="skip" title="Not played — leave this match out of the import">NP</button>
+                <button class="btn btn-secondary btn-xs" data-f5act="import" title="Import this row exactly as it is in the CSV">Undo</button>`;
+        };
+
+        const { table } = mountFFTable(host, {
             tableId: 'F5',
-            fontClass: 'font-small',
-            stickyCols: 1,
-            data: newMatches,
+            data: previewMatches,
             cols: [
                 { key: 'round',   label: 'Rnd' },
                 { key: 'playerA', label: 'Player A', format: (v) => escHtml(v) },
@@ -169,43 +202,211 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone) {
                 { key: 'prB',     label: 'PR',       format: num },
                 { key: 'luckB',   label: 'Luck',     format: num },
                 { key: 'scoreB',  label: 'B' },
+                { key: '_status', label: 'Result',   tdClass: 'f5-status', format: () => statusLabel({ action: 'import' }) },
+                { key: '_actions', label: 'Actions', tdClass: 'f5-actions', format: actions },
             ],
+        });
+
+        // Every body row carries .f5-row so the per-state tints and the single
+        // uniform hover rule can out-specify FF's base body well (see the F5 block
+        // in css/admin.css).
+        table.querySelectorAll('tbody > tr').forEach(tr => tr.classList.add('f5-row'));
+
+        // FF owns only the chrome — the caller wires action buttons via delegation
+        // on the returned table (see the FF contract in TABLE-DESIGN.md).
+        table.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-f5act]');
+            if (!btn || !table.contains(btn)) return;
+            const tr = btn.closest('tbody > tr');
+            if (!tr) return;
+            const i = [...tr.parentElement.children].indexOf(tr);
+            if (i < 0 || !rowStates[i]) return;
+            rowStates[i].action = btn.dataset.f5act;
+            paintRow(tr, previewMatches[i], rowStates[i]);
+            updateImportCount();
         });
     }
 
-    // Confirm
-    document.getElementById('confirm-import').addEventListener('click', () => {
+    /** Rewrite one preview row to reflect its decision (values, tint, status). */
+    function paintRow(tr, m, state) {
+        const num = (v) => v == null ? '—' : formatNumber(v);
+        const cell = (i) => tr.children[i];
+        const isTech = state.action.startsWith('tech');
+
+        // Technical results replace the source's numbers the same way Round Editor
+        // does: PR/Luck blank (they mean nothing for a forfeit), score = match length
+        // for the winner(s), 0 for the loser.
+        let prA = num(m.prA), lkA = num(m.luckA), scA = m.scoreA;
+        let prB = num(m.prB), lkB = num(m.luckB), scB = m.scoreB;
+        if (isTech) {
+            prA = lkA = prB = lkB = '—';
+            if (state.action === 'tech_draw')   { scA = matchLength; scB = matchLength; }
+            else if (state.action === 'tech_a') { scA = matchLength; scB = 0; }
+            else                                { scA = 0;           scB = matchLength; }
+        }
+        cell(2).innerHTML = prA; cell(3).innerHTML = lkA; cell(4).innerHTML = scA;
+        cell(6).innerHTML = prB; cell(7).innerHTML = lkB; cell(8).innerHTML = scB;
+        cell(9).innerHTML = statusLabel(state, m);
+
+        tr.classList.toggle('f5-row-skipped', state.action === 'skip');
+        tr.classList.toggle('f5-row-tech', isTech);
+    }
+
+    function statusLabel(state, m) {
+        switch (state.action) {
+            case 'skip':      return `<span class="f5-tag f5-tag-skip">Not played</span>`;
+            case 'tech_draw': return `<span class="f5-tag f5-tag-tech">Technical draw</span>`;
+            case 'tech_a':    return `<span class="f5-tag f5-tag-tech">Technical win: ${escHtml(m.playerA)}</span>`;
+            case 'tech_b':    return `<span class="f5-tag f5-tag-tech">Technical win: ${escHtml(m.playerB)}</span>`;
+            default:          return `<span class="f5-tag f5-tag-import">From CSV</span>`;
+        }
+    }
+
+    /** Keep the headline count honest as rows are skipped or turned technical. */
+    function updateImportCount() {
+        const kept = rowStates.filter(s => s.action === 'import').length;
+        const skipped = rowStates.filter(s => s.action === 'skip').length;
+        const tech = rowStates.filter(s => s.action.startsWith('tech')).length;
+        const parts = [`${kept} new match${kept === 1 ? '' : 'es'} to import`];
+        if (tech) parts.push(`${tech} technical`);
+        if (skipped) parts.push(`${skipped} skipped`);
+        showMsg('import-msg', `${parts.join(' · ')}.`, 'info');
+    }
+
+    // Confirm — the per-row decisions land in TWO different places, deliberately:
+    //
+    //   NP (skip)  → the CSV itself. "Not played" is the CSV's own vocabulary (an
+    //                all-zero row), and the match has no result to override — it
+    //                simply must not enter the league. So the staged CSV carries
+    //                that row zeroed.
+    //   TA/TB/TD   → manual_overrides.json ONLY. A technical result is never
+    //                written into leaguedata.csv: overrides always win on render,
+    //                they survive re-imports, and the CSV keeps the source's real
+    //                numbers so removing the override restores them.
+    //
+    // Everything else is staged byte-identical to the uploaded file.
+    const confirmBtn = document.getElementById('confirm-import');
+    confirmBtn.addEventListener('click', async () => {
         if (!parsedCSV) return;
+        confirmBtn.disabled = true;
 
-        const encoded = encodeURIComponent(leagueId);
-        let played = 0;
-        try { played = parseCSV(parsedCSV).length; } catch { /* count is best-effort */ }
-        addChange({
-            type: 'update',
-            path: `leagues/${encoded}/leaguedata.csv`,
-            content: parsedCSV,
-            description: `Import CSV: ${leagueId}`,
-            category: 'league-data',
-            subject: leagueId,
-            detail: `${played} match${played === 1 ? '' : 'es'}`
-        });
+        try {
+            const encoded = encodeURIComponent(leagueId);
 
-        if (refreshBadge) refreshBadge();
-        showMsg('import-msg', 'CSV staged. Go to Pending Changes to publish.', 'success');
-        document.getElementById('preview-area').style.display = 'none';
+            const skipKeys = new Set();
+            const techOverrides = [];
+            const ts = new Date().toISOString();
+            rowStates.forEach((state, i) => {
+                const m = previewMatches[i];
+                if (!m) return;
+                if (state.action === 'skip') {
+                    skipKeys.add(pairKey(m.playerA, m.playerB));
+                } else if (state.action === 'tech_draw') {
+                    techOverrides.push({
+                        type: 'technical_draw', playerA: m.playerA, playerB: m.playerB,
+                        reason: 'Technical draw', timestamp: ts
+                    });
+                } else if (state.action === 'tech_a' || state.action === 'tech_b') {
+                    const winner = state.action === 'tech_a' ? m.playerA : m.playerB;
+                    techOverrides.push({
+                        type: 'technical_win', playerA: m.playerA, playerB: m.playerB,
+                        winner, reason: `Technical win: ${winner}`, timestamp: ts
+                    });
+                }
+            });
 
-        if (onDone) setTimeout(onDone, 1000);
+            const csvToStage = applySkipsToCsv(parsedCSV, skipKeys);
+            let played = 0;
+            try { played = parseCSV(csvToStage).length; } catch { /* count is best-effort */ }
+            const detail = [`${played} match${played === 1 ? '' : 'es'}`];
+            if (skipKeys.size) detail.push(`${skipKeys.size} skipped`);
+            addChange({
+                type: 'update',
+                path: `leagues/${encoded}/leaguedata.csv`,
+                content: csvToStage,
+                description: `Import CSV: ${leagueId}`,
+                category: 'league-data',
+                subject: leagueId,
+                detail: detail.join(', ')
+            });
+
+            if (techOverrides.length) await mergeStagedOverrides(leagueId, techOverrides);
+
+            if (refreshBadge) refreshBadge();
+            const extra = techOverrides.length
+                ? ` ${techOverrides.length} technical result${techOverrides.length === 1 ? '' : 's'} staged as overrides.`
+                : '';
+            showMsg('import-msg', `CSV staged.${extra} Go to Pending Changes to publish.`, 'success');
+            document.getElementById('preview-area').style.display = 'none';
+
+            if (onDone) setTimeout(onDone, 1000);
+        } catch (err) {
+            confirmBtn.disabled = false;
+            showMsg('import-msg', `Staging failed: ${err.message}`, 'error');
+        }
     });
 
     // Cancel
     document.getElementById('cancel-import').addEventListener('click', () => {
         parsedCSV = null;
+        rowStates = [];
+        previewMatches = [];
         document.getElementById('preview-area').style.display = 'none';
         document.getElementById('csv-validation').innerHTML = '';
         document.getElementById('preview-host').innerHTML = '';
         dropZone.style.display = '';
     });
 }
+
+/**
+ * Zero out the rows the admin marked NP, leaving every other byte of the uploaded
+ * file untouched.
+ *
+ * Deliberately a LINE-level transform rather than a parse-and-rebuild: the CSV's
+ * round structure is carried by its `Player,...` header lines and its row order,
+ * and a league's shape (roster / rounds / rows-per-round) is fixed at creation —
+ * validateCsvStructure rejects a file whose shape drifted. Dropping the line
+ * entirely would break that shape, so the pairing stays in place and only its six
+ * numeric fields become 0, which is exactly how csvParser spells "not played".
+ */
+function applySkipsToCsv(csvText, skipKeys) {
+    if (!skipKeys || skipKeys.size === 0) return csvText;
+    const eol = csvText.includes('\r\n') ? '\r\n' : '\n';
+    return csvText.split(/\r?\n/).map(line => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.toLowerCase().startsWith('player')) return line;
+        const parts = line.split(',');
+        if (parts.length < 8) return line;
+        if (!skipKeys.has(pairKey(parts[0].trim(), parts[4].trim()))) return line;
+        const out = parts.slice();
+        for (const i of [1, 2, 3, 5, 6, 7]) out[i] = '0';
+        return out.join(',');
+    }).join(eol);
+}
+
+/**
+ * Merge technical overrides into the league's staged (or published) override set
+ * and re-stage the lot — same read-staged-else-published merge Round Editor's
+ * stageOverride does, so an import and a manual edit never clobber each other.
+ */
+async function mergeStagedOverrides(leagueId, newOverrides) {
+    const path = `leagues/${encodeURIComponent(leagueId)}/manual_overrides.json`;
+    let overrides = [];
+    const staged = getStagedContent(path);
+    if (staged) {
+        try { overrides = JSON.parse(staged).overrides || []; } catch { /* corrupt → start clean */ }
+    } else {
+        try { overrides = await loadOverrides(leagueId); } catch { /* none published yet */ }
+    }
+    for (const o of newOverrides) {
+        const key = pairKey(o.playerA, o.playerB);
+        const idx = overrides.findIndex(x => pairKey(x.playerA, x.playerB) === key);
+        if (idx !== -1) overrides[idx] = o; else overrides.push(o);
+    }
+    await stageManualOverrides(leagueId, overrides);
+}
+
+function pairKey(a, b) { return [a, b].sort().join('|'); }
 
 function showMsg(elementId, message, type) {
     const el = document.getElementById(elementId);
