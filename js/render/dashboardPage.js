@@ -29,7 +29,8 @@ import { loadPlayersMetadata } from '../data/store.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { langFlagsHtml, wireLangPopup, wireDynamicLangPopup } from '../utils/popupLang.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
-import { startSplash, endSplash } from '../utils/splash.js';
+import { startSplash, splashStage, endSplash } from '../utils/splash.js';
+import { renderErrorScreen, explainError, inlineErrorHtml } from '../utils/errorScreen.js';
 import { buildLeagueHeaderData, renderV16Header, formatLastUpdatedDate } from './leagueHeader.js';
 import { mountAppTabs } from './appTabs.js';
 import { TAB_ICONS } from './tabIcons.js';
@@ -44,21 +45,25 @@ export async function renderDashboardPage() {
     const container = document.getElementById('content');
     const leagueId = getQueryParam('league');
     if (!leagueId) {
-        container.innerHTML = '<div class="error">No league specified.</div>';
+        renderErrorScreen(container, {
+            title: 'No league selected',
+            message: 'This dashboard needs a league in its address. Pick one from the list.',
+            actions: [{ label: 'Browse leagues', href: 'index.html', primary: true }]
+        });
         return;
     }
 
-    container.innerHTML = '<div class="loading">Loading dashboard...</div>';
-
     startSplash();
     try {
+        // Each promise reports its own stage as it lands, so the splash
+        // narrates real progress rather than one opaque Promise.all.
         const [params, overrides, history, leagueOrder, playersMeta, matchesAllData] = await Promise.all([
-            loadLeagueParams(leagueId),
+            loadLeagueParams(leagueId).then(r => { splashStage('settings'); return r; }),
             loadOverrides(leagueId),
             loadMatchHistory(leagueId),
             loadLeagueOrder().catch(() => []),
-            loadPlayersMetadata(),
-            loadLeagueMatchesAll(leagueId)
+            loadPlayersMetadata().then(r => { splashStage('players'); return r; }),
+            loadLeagueMatchesAll(leagueId).then(r => { splashStage('matches'); return r; })
         ]);
         const lastModified = params.LastUpdated || null;
 
@@ -94,6 +99,8 @@ export async function renderDashboardPage() {
         const allPlayersSet = matchesAllData.allPlayers;
         const roundCount = Math.max(1, ...allMatchesIncUnplayedRaw.map(m => m.round || 1));
 
+        splashStage('ranking');
+
         // Apply manual overrides (consistency with league table)
         const playedMatches = applyOverrides(playedMatchesRaw, overrides);
         const allMatchesIncUnplayed = applyOverridesToAll(allMatchesIncUnplayedRaw, overrides);
@@ -110,6 +117,7 @@ export async function renderDashboardPage() {
 
         // Summary cards live just under the header (outside the tabs), matching
         // the landing page's hero → info-cards → tabs composition.
+        splashStage('render');
         container.innerHTML = '';
         const cardsHost = document.createElement('div');
         cardsHost.className = 'dashboard-cards';
@@ -149,8 +157,8 @@ export async function renderDashboardPage() {
         renderPlayerSection(ctx);
         renderPrCorrelationSection(ctx);
     } catch (err) {
-        container.innerHTML = `<div class="error">Failed to load dashboard: ${err.message}</div>`;
         console.error(err);
+        renderErrorScreen(container, { ...explainError(err, { leagueId }), error: err });
     } finally {
         endSplash();
     }
@@ -793,7 +801,8 @@ async function renderPredictor(ctx) {
             };
         }
     } catch (err) {
-        host.innerHTML = `<div class="error">Prediction failed: ${err.message}</div>`;
+        console.error(err);
+        host.innerHTML = inlineErrorHtml("The championship prediction couldn't be calculated", err);
         console.error('Championship predictor error:', err);
     }
 }
@@ -1305,7 +1314,8 @@ function renderWhatIfSimulator(ctx) {
                 expandBtn.style.display = 'none';
             }
         } catch (err) {
-            tableHost.innerHTML = `<div class="error">Simulation failed: ${err.message}</div>`;
+            console.error(err);
+            tableHost.innerHTML = inlineErrorHtml("This scenario couldn't be simulated", err);
             output.hidden = false;
             console.error('What-if simulator error:', err);
         } finally {

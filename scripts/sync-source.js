@@ -11,7 +11,7 @@ import { spawnSync } from 'node:child_process';
 import { createClient } from '@supabase/supabase-js';
 
 import { parseCSV, parseCSVAllWithRounds } from '../js/data/csvParser.js';
-import { applyOverrides } from '../js/data/leagueLoader.js';
+import { applyOverrides } from '../js/data/applyOverrides.js';
 import {
   validateCsvStructure, describeLeagueShape, collectPlayed,
   findPlayedRegressions, splitRegressions, formatRegressions,
@@ -24,6 +24,10 @@ const OUT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'out');
 const SESSION_PATH = resolve(OUT_DIR, 'session-state.json');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
+// Actor recorded on this script's audit rows. Must match the DB fallback in
+// sql/audit_batching.sql (coalesce(auth.email(), 'external-source-automation')),
+// because finalize_publish_batch only claims rows whose changed_by equals it.
+const AUTOMATION_ACTOR = 'external-source-automation';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY)
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
@@ -180,41 +184,26 @@ function shuffle(arr) {
   return a;
 }
 
-async function findActiveLeague(leaguesRoot) {
-  const entries = await readdir(leaguesRoot, { withFileTypes: true });
-  for (const e of entries) {
-    if (!e.isDirectory()) continue;
-    const paramsPath = join(leaguesRoot, e.name, 'league_params.json');
-    try {
-      const params = JSON.parse(await readFile(paramsPath, 'utf8'));
-      if (params.Running === true) return { folder: e.name, paramsPath, params };
-    } catch {}
-  }
-  return null;
+/** The single league marked Running in the database. */
+async function findActiveLeague() {
+  if (!supabase) return null;
+  const { data } = await supabase.from('leagues').select('*').eq('running', true).limit(1);
+  const row = (data || [])[0];
+  return row ? { folder: row.id, params: row } : null;
 }
 
-async function buildKnownPlayers(leaguesRoot) {
+/** Every player name the project has ever seen: the registry plus every
+ *  historical match roster. Sourced from the database — the repo's frozen
+ *  leagues/** snapshot this used to scan no longer exists. */
+async function buildKnownPlayers() {
   const known = new Set();
-  try {
-    const meta = JSON.parse(await readFile(join(leaguesRoot, 'players_metadata.json'), 'utf8'));
-    for (const u of Object.keys(meta)) known.add(u);
-  } catch {}
-  const entries = await readdir(leaguesRoot, { withFileTypes: true });
-  for (const e of entries) {
-    if (!e.isDirectory()) continue;
-    const csvPath = join(leaguesRoot, e.name, 'leaguedata.csv');
-    try {
-      const csv = await readFile(csvPath, 'utf8');
-      const lines = csv.split(/\r?\n/).slice(1);
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const cols = line.split(',');
-        const a = (cols[0] || '').trim();
-        const b = (cols[4] || '').trim();
-        if (a) known.add(a);
-        if (b) known.add(b);
-      }
-    } catch {}
+  if (!supabase) return known;
+  const { data: meta } = await supabase.from('players_metadata').select('id');
+  for (const row of meta || []) known.add(row.id);
+  const { data: matches } = await supabase.from('matches').select('player_a, player_b');
+  for (const m of matches || []) {
+    if (m.player_a) known.add(m.player_a);
+    if (m.player_b) known.add(m.player_b);
   }
   return known;
 }
@@ -404,16 +393,16 @@ async function relogin(page) {
  *                      from a manual override (LAYER 2 target)
  *   overrides        — re-applied to the fresh CSV for an apples-to-apples count
  *
- * Two source modes, selected by env vars:
- *   Phase 1 (no Supabase configured): read CSV + manual_overrides.json from the
- *     repo working tree. Same logic the dashboard renders with.
- *   Phase 2 (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY set): query the database.
- *     Repo files are ignored.
+ * Requires SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY: the database is the only
+ * source of truth. (This used to fall back to reading the repo's leagues/**
+ * CSVs; that snapshot froze when publishing moved to Supabase and has been
+ * removed, so a "baseline" built from it would have compared against data
+ * months out of date.)
  *
  * Returns null for a brand-new league — nothing to compare against, so LAYER 1
  * only self-checks the CSV and LAYER 2 is a no-op.
  */
-async function getLeagueBaseline(folder, repoRoot) {
+async function getLeagueBaseline(folder) {
   let allMatches = []; // every row incl. unplayed; 'Bye' already excluded
   let overrides = [];
 
@@ -442,17 +431,7 @@ async function getLeagueBaseline(folder, repoRoot) {
       round: m.round, played: m.played,
     }));
   } else {
-    try {
-      const csv = await readFile(join(repoRoot, 'leagues', folder, 'leaguedata.csv'), 'utf8');
-      const overridesRaw = await readFile(
-        join(repoRoot, 'leagues', folder, 'manual_overrides.json'),
-        'utf8',
-      ).catch(() => '{"overrides":[]}');
-      overrides = JSON.parse(overridesRaw).overrides || [];
-      allMatches = parseCSVAllWithRounds(csv).matches;
-    } catch {
-      return null;
-    }
+    return null; // no database configured → no baseline to compare against
   }
 
   if (allMatches.length === 0 && overrides.length === 0) return null; // first-ever sync
@@ -699,16 +678,18 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
       console.log(`    ${p.username.padEnd(nameWidth)}  ${code}  ${p.cname || ''}`);
     }
 
-    const leaguesRoot = join(repoRoot, 'leagues');
     let localParams = null;
-    try {
-      localParams = JSON.parse(await readFile(join(leaguesRoot, folder, 'league_params.json'), 'utf8'));
-    } catch {
-      console.warn(`  ⚠ Could not read leagues/${folder}/league_params.json — skipping league-config update`);
+    if (supabase) {
+      const { data } = await supabase.from('leagues').select('*').eq('id', folder).limit(1);
+      const row = (data || [])[0];
+      if (row) localParams = { CustomFlags: row.custom_flags || {}, RetiredPlayers: row.retired_players || [] };
+    }
+    if (!localParams) {
+      console.warn(`  ⚠ Could not read league "${folder}" from the database — skipping league-config update`);
     }
 
     if (localParams) {
-      const known = await buildKnownPlayers(leaguesRoot);
+      const known = await buildKnownPlayers();
       const newPlayers = players.filter((p) => !known.has(p.username)).map((p) => p.username).sort();
       console.log('  → Player registry check (metadata.json + historical CSVs)');
       console.log(`    Registry size: ${known.size} known players`);
@@ -734,7 +715,7 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
         const updatedParams = { ...localParams, CustomFlags: diff.desired };
         await writeFile(updatedParamsPath, JSON.stringify(updatedParams, null, 2) + '\n', 'utf8');
         console.log(`  ✓ Updated config written to ${updatedParamsPath}`);
-        console.log(`    (review and copy to leagues/${folder}/league_params.json when ready)`);
+        console.log(`    (review, then apply via Admin → Leagues → Edit when ready)`);
       }
     }
 
@@ -798,11 +779,11 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
     }
   }
 
-  const baselineCtx = await getLeagueBaseline(folder, repoRoot);
+  const baselineCtx = await getLeagueBaseline(folder);
   const expectedShape = baselineCtx?.shape ?? null;
   const previouslyPlayed = baselineCtx?.previouslyPlayed ?? [];
   const overridesForCheck = baselineCtx?.overrides ?? [];
-  const baselineSource = process.env.SUPABASE_URL ? 'Supabase' : `leagues/${folder}/leaguedata.csv + overrides`;
+  const baselineSource = 'Supabase';
   if (!expectedShape) {
     console.log('  → Integrity baseline: none (first sync — structure is taken from this CSV)');
   } else {
@@ -959,18 +940,59 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
   const matchesToWrite = parseCSVAllWithRounds(csvText).matches;
 
   if (supabase) {
+    // Audit high-water mark BEFORE the writes, so everything this sync touches
+    // (matches + the match_history reconcile fan-out) can be tagged into ONE
+    // batch afterwards — the same treatment stagingStore.publishAll() gives an
+    // admin publish. Without it the rows land with batch_id NULL and
+    // audit_batch_summary (Historical Changes) cannot see them at all: that view
+    // is `audit_batches LEFT JOIN audit_log ON batch_id`, so an unbatched row is
+    // invisible no matter who wrote it. Best-effort — never block a sync.
+    let watermark = null;
+    try {
+      const { data } = await supabase.rpc('current_max_audit_id');
+      if (data != null) watermark = data;
+    } catch { /* batching migration not applied → sync anyway */ }
+
     console.log('  → Writing matches + match_history to Supabase');
     await writeMatchesToSupabase(folder, matchesToWrite);
     await reconcileMatchHistoryInSupabase(folder);
     console.log('  ✓ Supabase updated');
 
+    // Group this run's audit rows under one Historical Changes entry. The actor
+    // is passed explicitly: the sync connects as service_role, where
+    // auth.email() is NULL, so the RPC cannot infer who to attribute it to.
+    // Requires sql/audit_batching_for_automation.sql.
+    let batchId = null;
+    if (watermark != null) {
+      try {
+        const { data, error } = await supabase.rpc('finalize_publish_batch', {
+          p_intent: {
+            topic: 'league',
+            subject: folder,
+            specific: 'Match data updated',
+            icon: '📊',
+            detail: 'Automatic sync from the External Source',
+          },
+          p_after_id: watermark,
+          p_actor: AUTOMATION_ACTOR,
+        });
+        if (error) throw new Error(error.message);
+        batchId = data || null;
+        console.log(batchId ? '  ✓ Logged to Historical Changes' : '  · Nothing changed — no history entry');
+      } catch (err) {
+        console.log(`  ! History entry skipped: ${err.message}`);
+      }
+    }
+
     // Restore point for this sync (sql/db_version_control.sql), so an automated
-    // run is as recoverable as an admin publish. Server-side it is a no-op when
-    // the source served nothing new. Best-effort — never fail a sync over it.
+    // run is as recoverable as an admin publish. Linked to the batch above so the
+    // DB version tree and Historical Changes line up one-to-one, exactly as they
+    // do for a publish. Server-side it is a no-op when the source served nothing
+    // new. Best-effort — never fail a sync over it.
     try {
       const { error } = await supabase.rpc('dbc_snapshot', {
         p_message: `Auto-sync — ${folder}`,
-        p_audit_batch_id: null,
+        p_audit_batch_id: batchId,
       });
       if (error) throw new Error(error.message);
       console.log('  ✓ Restore point saved');
@@ -1252,10 +1274,9 @@ try {
     console.log(`→ Sync targets (${targets.length}) from LEAGUES env:`);
     targets.forEach((t, i) => console.log(`  ${i + 1}. "${t.source_league_name}" → ${t.folder}`));
   } else {
-    const leaguesRoot = join(repoRoot, 'leagues');
-    const active = await findActiveLeague(leaguesRoot);
+    const active = await findActiveLeague();
     if (!active) {
-      throw new Error('No active league found (no league_params.json with "Running": true) and LEAGUES env not set');
+      throw new Error('No active league found (no league row with running = true) and LEAGUES env not set');
     }
     targets = [{ folder: active.folder, source_league_name: 'Shabi Israel' }];
     console.log(`→ Sync target (auto-detected active): "${targets[0].source_league_name}" → ${targets[0].folder}`);

@@ -21,7 +21,7 @@
 
 import { loadLeagueOrder, loadLeagueParams } from '../data/supabaseLoader.js';
 import { supabase } from '../data/supabaseClient.js';
-import { addChange, getStagedContent } from './stagingStore.js';
+import { addChange, getStagedContent, T } from './stagingStore.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { revealMsg, revealAtTop } from './msgScroll.js';
 import { wireSectionCollapse } from '../render/sectionCollapse.js';
@@ -33,7 +33,6 @@ import {
 import { createStageTracker, estimateRunSeconds, fmtDuration } from './syncProgress.js';
 
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
-const SYNC_SETTINGS_PATH = 'leagues/sync_settings.json';
 const DEFAULT_PLAN_ID = 'default';
 
 let refreshBadgeFn = null;
@@ -80,7 +79,7 @@ async function loadSyncSettings(leagues) {
     } catch { /* column not present pre-migration — legacy fallback stands */ }
 
     // Staged edits win for the INPUT values (what the admin is editing right now).
-    const staged = getStagedContent(SYNC_SETTINGS_PATH);
+    const staged = getStagedContent(T.syncSettings());
     if (staged) {
         try { return { ...normalize(JSON.parse(staged)), publishedSourceNames }; } catch { /* fall through */ }
     }
@@ -851,7 +850,7 @@ function saveAll(container, leagues, msgElId) {
     settings.publishedSourceNames = _publishedSourceNames;
     addChange({
         type: 'update',
-        path: SYNC_SETTINGS_PATH,
+        target: T.syncSettings(),
         content: JSON.stringify(settings, null, 2),
         description: 'Update sync settings',
         category: 'bgsync',

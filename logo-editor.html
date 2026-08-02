@@ -8,9 +8,10 @@
 
   <!-- Same ring fonts the logo.svg embeds — loaded here only so the LIVE inline
        preview is instant; the exported PNG uses the SVG's own embedded fonts. -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&family=Heebo:wght@800&display=swap" rel="stylesheet">
+  <!-- Self-hosted fonts. Never reference fonts.googleapis.com here: it is a
+       render-blocking third-party request that also discloses every visitor's
+       IP to Google. Add new families to scripts/fetch-fonts.js instead. -->
+  <link rel="stylesheet" href="css/fonts.css">
 
   <link rel="stylesheet" href="css/variables.css">
   <link rel="stylesheet" href="css/typography-tokens.css">

@@ -2,6 +2,8 @@
   "name": "shabi-israel-v1-build",
   "private": true,
   "description": "Content-hash fingerprinting build for the v1 (no-framework) site. See scripts/build-v1.cjs.",
+  "//type": "The site's js/ is all ES modules; declaring it here lets Node import them directly (scripts/build-splash-css.js does). build-v1.cjs is explicitly .cjs and unaffected.",
+  "type": "module",
   "scripts": {
     "build": "node scripts/build-v1.cjs"
   },

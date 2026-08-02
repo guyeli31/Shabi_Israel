@@ -3,7 +3,7 @@
  * Uses SheetJS (loaded from CDN in admin.html) for Excel parsing.
  */
 
-import { addChange, getStagedContent, stageManualOverrides } from './stagingStore.js';
+import { addChange, getStagedContent, stageManualOverrides, T } from './stagingStore.js';
 import { computeCsvImportReport, renderCsvImportReport, wireCsvImportGate } from './csvValidation.js';
 import { parseCSV } from '../data/csvParser.js';
 import { loadLeagueParams, loadOverrides } from '../data/supabaseLoader.js';
@@ -291,7 +291,6 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone) {
         confirmBtn.disabled = true;
 
         try {
-            const encoded = encodeURIComponent(leagueId);
 
             const skipKeys = new Set();
             const techOverrides = [];
@@ -322,7 +321,7 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone) {
             if (skipKeys.size) detail.push(`${skipKeys.size} skipped`);
             addChange({
                 type: 'update',
-                path: `leagues/${encoded}/leaguedata.csv`,
+                target: T.leagueCsv(leagueId),
                 content: csvToStage,
                 description: `Import CSV: ${leagueId}`,
                 category: 'league-data',
@@ -390,9 +389,8 @@ function applySkipsToCsv(csvText, skipKeys) {
  * stageOverride does, so an import and a manual edit never clobber each other.
  */
 async function mergeStagedOverrides(leagueId, newOverrides) {
-    const path = `leagues/${encodeURIComponent(leagueId)}/manual_overrides.json`;
     let overrides = [];
-    const staged = getStagedContent(path);
+    const staged = getStagedContent(T.overrides(leagueId));
     if (staged) {
         try { overrides = JSON.parse(staged).overrides || []; } catch { /* corrupt → start clean */ }
     } else {

@@ -53,14 +53,12 @@ const PAGE_LABELS = {
     admin: 'Admin',
 };
 const pageLabel = (p) => PAGE_LABELS[p] || p;
-// A league is shown by its TITLE + TYPE, e.g. "July 2026 · Doubling", not by its
-// raw league_id. Two real leagues can share a title ("July 2026") while their ids
-// differ AND follow inconsistent conventions (the doubling one is stored as the
-// full folder id "Shabi Israel July 2026", the regular one as the short "July
-// 2026") — so the raw id is both confusing and, on its own, ambiguous about which
-// league it is. title+type is the site's own display name plus the one fact that
-// tells the two apart. `_leagueMeta` (id → {title,type}) is loaded once per page
-// from the leagues table; an id missing from it (a legacy/renamed league) falls
+// A league is shown by its id + TYPE, e.g. "July 2026 · Doubling". The id is now
+// the league's full, unique name everywhere (display + primary key + ?league=
+// URL) — the cosmetic `title` column was retired — so the id alone is
+// unambiguous; the type pill is kept only to tell same-month leagues apart (e.g.
+// "July 2026" vs "July 2026 Regular"). `_leagueMeta` (id → {type}) is loaded once
+// per page from the leagues table; an id missing from it (a legacy league) falls
 // back to the raw id so nothing renders blank.
 let _leagueMeta = new Map();
 let _leagueMetaLoaded = false;
@@ -68,7 +66,7 @@ const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC
 const typeLabel = (t) => LEAGUE_TYPE_LABELS[t] || (t ? t.charAt(0).toUpperCase() + t.slice(1) : '');
 const leagueDisplay = (leagueId) => {
     const m = _leagueMeta.get(leagueId);
-    return m ? `${m.title} · ${typeLabel(m.type)}` : leagueId;
+    return m ? `${leagueId} · ${typeLabel(m.type)}` : leagueId;
 };
 const contextLabel = (page, leagueId, player) => {
     if (page === 'player_league' && player) {
@@ -1348,18 +1346,17 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
 
     // analytics_months() is already ordered newest-first.
     const monthRows = months || [];
-    const withNew = monthRows.filter((m) => m.new_events > 0);
-    const defaultKey = withNew.length ? monthKey(withNew[0].month)
-        : monthRows.length ? monthKey(monthRows[0].month) : ALL_TIME;
-    // On a fresh load (no explicit month arg) restore the last-viewed month, but
-    // only if it is still a real option — a stored month that has since aged out
-    // of the list would otherwise select nothing. Explicit args (a control
-    // change) always win over the stored value.
-    const validKeys = new Set([...monthRows.map((m) => monthKey(m.month)), ALL_TIME]);
-    const stored = loadView();
-    const restoredMonth = (!monthKeyArg && validKeys.has(stored.month)) ? stored.month : null;
-    const activeKey = monthKeyArg || restoredMonth || defaultKey;
-    // Persist whatever is now in effect, so the next refresh comes back here.
+    // Always open on the CURRENT calendar month (Israel time) — the operator
+    // asked for "this month" on every open, not the newest month that happens to
+    // hold data, and not a remembered last-viewed month. An explicit control
+    // change (monthKeyArg, from the picker or the admin toggle) still wins. The
+    // current month may have no rows yet; it is force-added as a picker option
+    // below so the select shows it and its panels say "No data yet".
+    const currentMonthKey = new Date()
+        .toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }).slice(0, 7); // "YYYY-MM"
+    const activeKey = monthKeyArg || currentMonthKey;
+    // Persist the exclude-admin choice (loadView feeds its default); the month is
+    // deliberately NOT restored across loads — see above.
     saveView(activeKey, excludeAdmin);
     const { from, to } = israelMonthRange(activeKey);
 
@@ -1384,11 +1381,11 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
     // raw id / no-flag / no-badge rather than throwing. Not awaited on re-renders.
     if (!_leagueMetaLoaded) {
         const [{ data: leagues }] = await Promise.all([
-            supabase.from('leagues').select('id, title, league_type'),
+            supabase.from('leagues').select('id, league_type'), // no `title` — column retired
             primeTitleMeta().catch(() => {}),   // players_metadata → titleHtmlFor()
             ensurePlayerIndex().catch(() => {}), // custom flags → getPlayerFlagCode()
         ]);
-        for (const l of leagues || []) _leagueMeta.set(l.id, { title: l.title, type: l.league_type });
+        for (const l of leagues || []) _leagueMeta.set(l.id, { type: l.league_type });
         _leagueMetaLoaded = true;
     }
 
@@ -1408,6 +1405,11 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
     select.id = 'analytics-range';
     select.className = 'analytics-range-select';
     const monthOpts = monthRows.map((m) => monthKey(m.month));
+    // The current month is the default but may not yet have any events, so
+    // analytics_months() can omit it — add it at the front (newest) so the
+    // picker still offers it. monthRows is newest-first, so if present it's
+    // already here and this is a no-op.
+    if (!monthOpts.includes(currentMonthKey)) monthOpts.unshift(currentMonthKey);
     select.innerHTML = [...monthOpts, ALL_TIME]
         .map((k) => `<option value="${k}"${k === activeKey ? ' selected' : ''}>${escapeHtml(monthLabel(k))}</option>`)
         .join('');

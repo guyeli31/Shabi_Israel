@@ -14,19 +14,15 @@
  *
  * Every public render/compute module imports from here directly.
  *
- * ?datasource=files still works (dataSourceConfig.js's escape hatch): every
- * exported function below delegates to the original static-file loaders in
- * that mode, unchanged from today's behavior — no bundle, no cache, no
- * version check, matching a frozen local CSV snapshot.
+ * There is no static-file fallback. The repo's leagues/** snapshot and the
+ * ?datasource=files escape hatch that read it are gone: the snapshot froze when
+ * publishing moved to Supabase, so "falling back" to it meant silently serving
+ * months-old data under folder names that no longer match any league id.
  */
 
 import { supabase } from './supabaseClient.js';
-import { getDataSource } from './dataSourceConfig.js';
 import { mergeHistoryIntoMatches } from '../compute/matchHistory.js';
-import { applyOverrides as applyOverridesPure } from './leagueLoader.js';
-import * as filesImpl from './leagueLoader.js';
-import { loadMatchHistory as loadMatchHistoryFromFiles } from '../compute/matchHistory.js';
-import * as filesMetaImpl from './playersMetadata.js';
+import { applyOverrides as applyOverridesPure } from './applyOverrides.js';
 import * as mapper from './bundleMapper.js';
 
 const CACHE_KEY = 'shabi:bundle:v1';
@@ -64,10 +60,6 @@ let _cachedEntry = null;   // { schemaVersion, dataVersion, checkedAt, fetchedAt
 let _lastFailAt = 0;       // timestamp of the last hard cold-fetch failure (see FAIL_COOLDOWN_MS)
 let _metaCache = null;
 const _updateListeners = [];
-
-function isFilesMode() {
-    return getDataSource() === 'files';
-}
 
 // ---- persistence (localStorage, try/catch — quota/private-mode degrades
 // to in-memory-only for the page's lifetime) ----
@@ -259,7 +251,6 @@ let _revalidating = false;
  *  a tab the user is actively looking at is never yanked out from under them.
  *  The first caller installs the listeners; later callers just add a handler. */
 export function onVisibleRevalidate(reRenderFn) {
-    if (isFilesMode()) return; // files mode has no server to revalidate against
     if (typeof reRenderFn === 'function') _revalidateHandlers.push(reRenderFn);
     if (_autoRevalidateInit) return;
     _autoRevalidateInit = true;
@@ -346,10 +337,7 @@ function adoptCachedEntry(entry) {
 
 // ---- league data ----
 
-export function setLeaguesBase() {} // no-op compat shim, matches supabaseLoader.js/leagueLoader.js
-
 export async function loadLandingSettings() {
-    if (isFilesMode()) return filesImpl.loadLandingSettings();
     const bundle = await ready();
     return mapper.mapLandingSettingsRow(bundle.landing_settings);
 }
@@ -360,7 +348,6 @@ export async function loadLeagueOrder() {
 }
 
 export async function loadLeagueParams(leagueId) {
-    if (isFilesMode()) return filesImpl.loadLeagueParams(leagueId);
     const bundle = await ready();
     const row = bundle.leagues.find((l) => l.id === leagueId);
     if (!row) throw new Error(`Failed to load params for "${leagueId}"`);
@@ -368,7 +355,6 @@ export async function loadLeagueParams(leagueId) {
 }
 
 export async function loadLeagueMatches(leagueId) {
-    if (isFilesMode()) return filesImpl.loadLeagueMatches(leagueId);
     const bundle = await ready();
     const rows = bundle.matches.filter((m) => m.league_id === leagueId);
     const allPlayers = new Set();
@@ -381,7 +367,6 @@ export async function loadLeagueMatches(leagueId) {
 }
 
 export async function loadLeagueMatchesAll(leagueId) {
-    if (isFilesMode()) return filesImpl.loadLeagueMatchesAll(leagueId);
     const bundle = await ready();
     const rows = bundle.matches.filter((m) => m.league_id === leagueId);
     const matches = rows.map(mapper.mapMatchRowAll);
@@ -394,13 +379,11 @@ export async function loadLeagueMatchesAll(leagueId) {
 }
 
 export async function loadOverrides(leagueId) {
-    if (isFilesMode()) return filesImpl.loadOverrides(leagueId);
     const bundle = await ready();
     return bundle.manual_overrides.filter((o) => o.league_id === leagueId).map(mapper.mapOverrideRow);
 }
 
 export async function loadMatchHistory(leagueId) {
-    if (isFilesMode()) return loadMatchHistoryFromFiles(leagueId);
     const bundle = await ready();
     const matches = bundle.match_history.filter((h) => h.league_id === leagueId).map(mapper.mapHistoryRow);
     return { matches };
@@ -411,7 +394,6 @@ export function applyOverrides(matches, overrides) {
 }
 
 export async function loadLeague(leagueId) {
-    if (isFilesMode()) return filesImpl.loadLeague(leagueId);
 
     const [params, matchData, overrides, history] = await Promise.all([
         loadLeagueParams(leagueId),
@@ -434,7 +416,6 @@ export async function loadLeague(leagueId) {
 }
 
 export async function loadAllLeagueParams(leagueIds) {
-    if (isFilesMode()) return filesImpl.loadAllLeagueParams(leagueIds);
     const bundle = await ready();
     const byId = new Map(bundle.leagues.map((row) => [row.id, mapper.mapLeagueRow(row)]));
     return leagueIds.filter((id) => byId.has(id)).map((id) => ({ id, params: byId.get(id) }));
@@ -447,15 +428,13 @@ export async function loadAllLeagueParams(leagueIds) {
  *  ensurePlayerIndex fan-out down to the single ready() call every other
  *  shim above already shares. */
 export async function loadLeaguesBulk(leagueIds) {
-    if (isFilesMode()) return filesImpl.loadLeaguesBulk(leagueIds);
     await ready(); // ensure the shared bundle is loaded before the per-league loop below
     const results = new Map();
     for (const leagueId of leagueIds) {
         try {
             results.set(leagueId, await loadLeague(leagueId));
         } catch {
-            // league row missing from the bundle — matches loadLeague() throwing
-            // + the legacy Promise.allSettled-based filtering in leagueLoader.js.
+            // league row missing from the bundle — matches loadLeague() throwing.
         }
     }
     return results;
@@ -464,7 +443,6 @@ export async function loadLeaguesBulk(leagueIds) {
 // ---- players_metadata ----
 
 export async function loadPlayersMetadata() {
-    if (isFilesMode()) return filesMetaImpl.loadPlayersMetadata();
     if (_metaCache) return _metaCache;
     const bundle = await ready();
     _metaCache = {};
@@ -475,12 +453,10 @@ export async function loadPlayersMetadata() {
 }
 
 export function clearPlayersMetadataCache() {
-    if (isFilesMode()) return filesMetaImpl.clearPlayersMetadataCache();
     _metaCache = null;
 }
 
 export function getCachedPlayerMeta(name) {
-    if (isFilesMode()) return filesMetaImpl.getCachedPlayerMeta(name);
     if (!_metaCache) return null;
     return _metaCache[name] || null;
 }

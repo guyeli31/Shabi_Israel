@@ -9,13 +9,18 @@
 
 import { loadAllLeagues } from '../compute/crossLeague.js';
 import { loadPlayersMetadata, clearPlayersMetadataCache } from '../data/supabasePlayersMetadata.js';
-import { addChange, getStagedContent, getChanges } from './stagingStore.js';
+import { addChange, getStagedContent, getChanges, T } from './stagingStore.js';
 import { BMAB_TITLES, bmabSelectOptionsHtml, COUNTRIES, getChampionshipTooltip } from '../data/titleConstants.js';
 import { filePickerHTML } from './render/formControls.js';
 import { mountCombobox } from '../utils/combobox.js';
 import { getFlagCode, searchFlagHtml } from '../utils/helpers.js';
+import { loadLeagueMatchesAll, loadLeagueParams, loadOverrides } from '../data/supabaseLoader.js';
+import { matchesToCsvText } from './csvText.js';
 
 const KNOWN_FLAGS = ['BE', 'IL', 'RU', 'TZ', 'UN'];
+
+/** metadata.photoPath is a public asset URL; the staged target names just the file. */
+const photoTarget = (photoPath) => T.playerPhoto(photoPath.replace(/^assets[/]players[/]/, ''));
 
 let refreshBadgeFn = null;
 let _state = {
@@ -68,7 +73,7 @@ export async function renderPlayerAdmin(container, refreshBadge) {
 
         // Use staged metadata if available (preserves edits across player switches)
         let metadata = fetchedMeta;
-        const stagedContent = getStagedContent('leagues/players_metadata.json');
+        const stagedContent = getStagedContent(T.playersMetadata());
         if (stagedContent) {
             try { metadata = JSON.parse(stagedContent); } catch { /* fall back to fetched */ }
         }
@@ -360,13 +365,39 @@ function renameInOverridesJson(jsonText, from, to) {
     return JSON.stringify(data, null, 2);
 }
 
-async function fetchLatestText(path) {
-    const staged = getStagedContent(path);
+/**
+ * Read a league's current state for one staged path, preferring staged
+ * (unpublished) content and falling back to LIVE Supabase — never to the repo's
+ * static leagues/** files. Those froze when publishing moved to the DB and their
+ * folder names no longer track league ids, so reading them here staged a stale
+ * set that publishAll() would then treat as authoritative: syncOverrides()
+ * deletes every row missing from the staged content, and bulkImportCSV()
+ * replaces the match set outright. A rename could therefore wipe every override
+ * and match authored since the migration.
+ *
+ * Mirrors csvValidation.js's readCurrentState(); returns null when the league
+ * has nothing of that kind yet, matching the old "file missing" contract.
+ */
+async function fetchLatestText(target, leagueId, kind) {
+    const staged = getStagedContent(target);
     if (staged != null) return { text: staged, fromStaging: true };
     try {
-        const resp = await fetch(path, { cache: 'no-store' });
-        if (resp.ok) return { text: await resp.text(), fromStaging: false };
-    } catch { /* ignore */ }
+        switch (kind) {
+            case 'csv': {
+                const { matches } = await loadLeagueMatchesAll(leagueId);
+                return { text: matchesToCsvText(matches), fromStaging: false };
+            }
+            case 'params': {
+                const params = await loadLeagueParams(leagueId);
+                return { text: JSON.stringify(params, null, 2), fromStaging: false };
+            }
+            case 'overrides': {
+                const overrides = await loadOverrides(leagueId);
+                if (overrides.length === 0) return null; // nothing to rename in
+                return { text: JSON.stringify({ overrides }, null, 2), fromStaging: false };
+            }
+        }
+    } catch { /* league has no such data yet */ }
     return null;
 }
 
@@ -376,17 +407,14 @@ async function applyGlobalRename(oldName, newName, groupId, groupDescription) {
         // Keep the cached set in sync so back-to-back renames in the same session work.
         lg.allPlayers.delete(oldName);
         lg.allPlayers.add(newName);
-        const encoded = encodeURIComponent(lg.id);
-
         // CSV
-        const csvPath = `leagues/${encoded}/leaguedata.csv`;
-        const csvLatest = await fetchLatestText(csvPath);
+        const csvLatest = await fetchLatestText(T.leagueCsv(lg.id), lg.id, 'csv');
         if (csvLatest) {
             const renamed = renameInCsvText(csvLatest.text, oldName, newName);
             if (renamed !== csvLatest.text) {
                 addChange({
                     type: 'update',
-                    path: csvPath,
+                    target: T.leagueCsv(lg.id),
                     content: renamed,
                     binary: false,
                     description: `Rename in CSV (${lg.id}): ${oldName} → ${newName}`,
@@ -397,8 +425,7 @@ async function applyGlobalRename(oldName, newName, groupId, groupDescription) {
         }
 
         // league_params.json (CustomFlags / RetiredPlayers)
-        const paramsPath = `leagues/${encoded}/league_params.json`;
-        const paramsLatest = await fetchLatestText(paramsPath);
+        const paramsLatest = await fetchLatestText(T.leagueParams(lg.id), lg.id, 'params');
         if (paramsLatest) {
             try {
                 const parsed = JSON.parse(paramsLatest.text);
@@ -407,7 +434,7 @@ async function applyGlobalRename(oldName, newName, groupId, groupDescription) {
                 if (renamedText !== paramsLatest.text) {
                     addChange({
                         type: 'update',
-                        path: paramsPath,
+                        target: T.leagueParams(lg.id),
                         content: renamedText,
                         binary: false,
                         description: `Rename in league params (${lg.id}): ${oldName} → ${newName}`,
@@ -418,16 +445,15 @@ async function applyGlobalRename(oldName, newName, groupId, groupDescription) {
             } catch { /* skip on parse error */ }
         }
 
-        // manual_overrides.json (only if exists)
-        const ovPath = `leagues/${encoded}/manual_overrides.json`;
-        const ovLatest = await fetchLatestText(ovPath);
+        // manual_overrides.json (only if the league has any)
+        const ovLatest = await fetchLatestText(T.overrides(lg.id), lg.id, 'overrides');
         if (ovLatest) {
             try {
                 const renamedText = renameInOverridesJson(ovLatest.text, oldName, newName);
                 if (renamedText !== ovLatest.text) {
                     addChange({
                         type: 'update',
-                        path: ovPath,
+                        target: T.overrides(lg.id),
                         content: renamedText,
                         binary: false,
                         description: `Rename in overrides (${lg.id}): ${oldName} → ${newName}`,
@@ -562,7 +588,7 @@ async function savePlayer(container, name) {
         // Fold into the rename group — PENDING shows a single consolidated row.
         addChange({
             type: 'update',
-            path: 'leagues/players_metadata.json',
+            target: T.playersMetadata(),
             content: JSON.stringify(_state.metadata, null, 2),
             binary: false,
             description: renameGroupDesc,
@@ -577,7 +603,7 @@ async function savePlayer(container, name) {
         // If there's already a metadata.json change in staging (from earlier edits of
         // other players), keep that entry's group/editedPlayers intact and just refresh
         // its content — otherwise we'd lose tracking of those edits.
-        const existingMeta = getChanges().find(c => c.path === 'leagues/players_metadata.json');
+        const existingMeta = getChanges().find(c => c.target?.kind === 'players_metadata');
         if (existingMeta && existingMeta.editedPlayers) {
             addChange({
                 ...existingMeta,
@@ -587,7 +613,7 @@ async function savePlayer(container, name) {
         } else {
             addChange({
                 type: 'update',
-                path: 'leagues/players_metadata.json',
+                target: T.playersMetadata(),
                 content: JSON.stringify(_state.metadata, null, 2),
                 binary: false,
                 description: photoLabelText,
@@ -601,13 +627,13 @@ async function savePlayer(container, name) {
         }
     } else {
         let editedPlayers = [finalName];
-        const existingChange = getChanges().find(c => c.path === 'leagues/players_metadata.json');
+        const existingChange = getChanges().find(c => c.target?.kind === 'players_metadata');
         if (existingChange && existingChange.editedPlayers) {
             editedPlayers = [...new Set([...existingChange.editedPlayers.filter(p => p !== name), finalName])];
         }
         addChange({
             type: 'update',
-            path: 'leagues/players_metadata.json',
+            target: T.playersMetadata(),
             content: JSON.stringify(_state.metadata, null, 2),
             binary: false,
             description: `Player metadata (${editedPlayers.join(', ')})`,
@@ -637,7 +663,7 @@ async function savePlayer(container, name) {
     if (_state.photoData && photoPath) {
         addChange({
             type: 'update',
-            path: photoPath,
+            target: photoTarget(photoPath),
             content: _state.photoData,
             binary: true,
             description: renaming ? renameGroupDesc : photoLabelText,
@@ -647,7 +673,7 @@ async function savePlayer(container, name) {
     } else if (_state.removePhoto && existingPhotoPath) {
         addChange({
             type: 'delete',
-            path: existingPhotoPath,
+            target: photoTarget(existingPhotoPath),
             content: null,
             binary: true,
             description: renaming ? renameGroupDesc : photoLabelText,
@@ -973,14 +999,14 @@ function saveNewPlayer(container, host, form) {
 
     // Build editedPlayers list
     let editedPlayers = [nickname];
-    const existingChange = getChanges().find(c => c.path === 'leagues/players_metadata.json');
+    const existingChange = getChanges().find(c => c.target?.kind === 'players_metadata');
     if (existingChange && existingChange.editedPlayers) {
         editedPlayers = [...new Set([...existingChange.editedPlayers, nickname])];
     }
 
     addChange({
         type: 'update',
-        path: 'leagues/players_metadata.json',
+        target: T.playersMetadata(),
         content: JSON.stringify(_state.metadata, null, 2),
         binary: false,
         description: `Player metadata (${editedPlayers.join(', ')})`,
@@ -995,7 +1021,7 @@ function saveNewPlayer(container, host, form) {
     if (form.flagData && form.flagCode) {
         addChange({
             type: 'create',
-            path: `assets/flags/${form.flagCode}.png`,
+            target: T.flagAsset(form.flagCode),
             content: form.flagData,
             binary: true,
             description: `Upload flag: ${form.flagCode}.png`,
@@ -1006,7 +1032,7 @@ function saveNewPlayer(container, host, form) {
     if (form.photoData && entry.photoPath) {
         addChange({
             type: 'update',
-            path: entry.photoPath,
+            target: photoTarget(entry.photoPath),
             content: form.photoData,
             binary: true,
             description: `Player photo (${nickname})`,

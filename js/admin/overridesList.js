@@ -3,7 +3,8 @@
  * staged/published for a league with a per-row Remove action.
  */
 
-import { getStagedContent, stageManualOverrides } from './stagingStore.js';
+import { getStagedContent, stageManualOverrides, T } from './stagingStore.js';
+import { loadOverrides } from '../data/supabaseLoader.js';
 import { thLabel } from '../utils/helpers.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { revealMsg } from './msgScroll.js';
@@ -12,20 +13,14 @@ export async function renderOverridesList(container, leagueId, refreshBadge) {
     container.innerHTML = '<div class="loading">Loading overrides...</div>';
 
     try {
-        const encoded = encodeURIComponent(leagueId);
-        const path = `leagues/${encoded}/manual_overrides.json`;
-
         let overrides = [];
         let staged = false;
-        const stagedContent = getStagedContent(path);
+        const stagedContent = getStagedContent(T.overrides(leagueId));
         if (stagedContent) {
             try { overrides = JSON.parse(stagedContent).overrides || []; staged = true; } catch { }
         } else {
-            const resp = await fetch(path);
-            if (resp.ok) {
-                const data = await resp.json();
-                overrides = data.overrides || [];
-            }
+            // Published set comes from Supabase, not the frozen repo JSON file.
+            overrides = await loadOverrides(leagueId);
         }
 
         if (overrides.length === 0) {

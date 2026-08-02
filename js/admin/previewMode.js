@@ -10,6 +10,22 @@
 const STAGING_KEY = 'shabi-admin-staging';
 
 /**
+ * The public URL a staged change is served from, or null when it has none.
+ *
+ * Only real static assets (flags, player photos) are still fetched from disk —
+ * league data, params, overrides and metadata are read from Supabase, so a
+ * staged change to those has nothing for this interceptor to shadow. Kept in
+ * sync with stagingStore.js's targetUrl(); duplicated rather than imported so
+ * preview mode stays a standalone drop-in on the public pages.
+ */
+function targetUrl(t) {
+    if (!t) return null;
+    if (t.kind === 'flag_asset') return `assets/flags/${t.code}.png`;
+    if (t.kind === 'player_photo') return `assets/players/${t.filename}`;
+    return null;
+}
+
+/**
  * Check if the current page is in preview mode.
  */
 export function isPreviewMode() {
@@ -24,22 +40,24 @@ export function installPreviewInterceptor() {
     const staged = loadStagedChanges();
     if (staged.length === 0) return;
 
-    // Build a lookup map: normalized path → content
+    // Build a lookup map: normalized path → content, for the staged changes that
+    // actually correspond to a fetchable asset.
     const pathMap = new Map();
-    for (const change of staged) {
-        if (change.type === 'delete') continue; // deleted files should 404
-        if (change.content == null) continue;
-        // Normalize: strip leading slash, decode URI components for comparison
-        const normalized = normalizePath(change.path);
-        pathMap.set(normalized, { content: change.content, binary: change.binary || false });
-    }
-
-    // Also track deleted paths
     const deletedPaths = new Set();
     for (const change of staged) {
+        const url = targetUrl(change.target);
+        if (!url) continue;
         if (change.type === 'delete') {
-            deletedPaths.add(normalizePath(change.path));
+            deletedPaths.add(normalizePath(url));
+        } else if (change.content != null) {
+            pathMap.set(normalizePath(url), { content: change.content, binary: change.binary || false });
         }
+    }
+    if (pathMap.size === 0 && deletedPaths.size === 0) {
+        // Nothing fetchable is staged — still show the banner + link rewriting.
+        injectBanner();
+        preservePreviewParam();
+        return;
     }
 
     // Override fetch

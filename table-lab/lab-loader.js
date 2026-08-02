@@ -4,7 +4,7 @@
  * reflects exactly what the live app shows.
  */
 
-import { setLeaguesBase, loadLandingSettings, loadLeague } from '../js/data/leagueLoader.js';
+import { loadLandingSettings, loadLeague } from '../js/data/store.js';
 import { computeAllStats } from '../js/compute/stats.js';
 import { buildRankings, computeAverages, getLevel } from '../js/compute/rankings.js';
 import { getLeagueConfig } from '../js/compute/leagueTypes.js';
@@ -21,8 +21,8 @@ import { playerNameLink } from '../js/render/playerNameInteraction.js';
 import { buildAllOpponentsPreset, aggregateOpponents } from '../js/presets/allOpponentsPreset.js';
 import { buildPlayerTotalLuckPreset, collectPlayerLeagueLuck } from '../js/presets/playerTotalLuckPreset.js';
 
-// Lab pages sit one level deep — redirect fetches to the correct root
-setLeaguesBase('../leagues');
+// Data comes from Supabase via store.js, so nothing is fetched relative to the
+// page — the lab's one-level-deep location needs no base-path override.
 
 // ─── Shared helpers ───────────────────────────────
 

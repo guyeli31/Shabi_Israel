@@ -29,7 +29,7 @@ import { buildCompletedLeaguesPreset } from '../presets/completedLeaguesPreset.j
 import { buildAnnualLeaderboardPreset } from '../presets/annualLeaderboardPreset.js';
 import { isLoggedIn } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
-import { addChange, getChangeCount } from '../admin/stagingStore.js';
+import { addChange, getChangeCount, T } from '../admin/stagingStore.js';
 import { mountAdminSidebar, refreshBadge as refreshSidebarBadge } from '../admin/render/adminSidebar.js';
 import { loadPlayersMetadata } from '../data/store.js';
 import { escapeHtml } from '../utils/sanitize.js';
@@ -42,6 +42,8 @@ import { mountSearchField } from '../utils/combobox.js';
 import { scrollToClearingTopbarSettled } from '../utils/scrollOffset.js';
 import { getInitials } from './playerHeader.js';
 import { langFlagsHtml, wireLangPopup } from '../utils/popupLang.js';
+import { startSplash, splashStage, endSplash } from '../utils/splash.js';
+import { renderErrorScreen, explainError, inlineErrorHtml } from '../utils/errorScreen.js';
 
 /* ── Helpers ─────────────────────────────────────────── */
 
@@ -69,7 +71,7 @@ let _completedFilter = null;
 
 export async function renderLandingPage() {
     const container = document.getElementById('content');
-    container.innerHTML = '<div class="loading">Loading leagues...</div>';
+    startSplash();
 
     const headerEl = document.getElementById('page-header');
     let heroBanner = null;
@@ -99,12 +101,14 @@ export async function renderLandingPage() {
     try {
         const landingSettings = await loadLandingSettings();
         _landingSettings = landingSettings;
+        splashStage('settings');
 
         const [allLeagues, playersMeta] = await Promise.all([
-            loadAllLeagues(),
-            loadPlayersMetadata()
+            loadAllLeagues().then(r => { splashStage('matches'); return r; }),
+            loadPlayersMetadata().then(r => { splashStage('players'); return r; })
         ]);
         _playersMeta = playersMeta;
+        splashStage('ranking');
 
         // Filter hidden leagues for non-admin users
         const adminLoggedIn = isLoggedIn() && !isPreviewMode();
@@ -142,6 +146,7 @@ export async function renderLandingPage() {
         const leaderboards = buildAllLeaderboards(leagues);
 
         // Render
+        splashStage('render');
         container.innerHTML = '';
 
         // Info cards belong with the hero (right under the subtitle), not inside a tab panel.
@@ -221,7 +226,13 @@ export async function renderLandingPage() {
             enterEditMode(_landingSettings);
         }
     } catch (err) {
-        container.innerHTML = `<div class="error">Failed to load leagues: ${err.message}</div>`;
+        console.error(err);
+        renderErrorScreen(container, {
+            ...explainError(err),
+            error: err,
+            // No "back to leagues" here — this IS the league list.
+            actions: [{ label: 'Try again', primary: true, onClick: () => location.reload() }]
+        });
     } finally {
         // Signal the banner's loading shimmer to stop (its .then above waits on
         // dataReady, so this works whether the banner resolved before or after
@@ -229,6 +240,7 @@ export async function renderLandingPage() {
         // banner fetch failed or returned null.
         resolveDataReady();
         if (headerEl) headerEl.style.visibility = 'visible';
+        endSplash();
     }
 }
 
@@ -823,7 +835,7 @@ async function saveEditChanges() {
 
     addChange({
         type: 'update',
-        path: 'leagues/landing_settings.json',
+        target: T.landingSettings(),
         content: JSON.stringify(newSettings, null, 2),
         description: groupDescription,
         group: groupId,
@@ -1453,7 +1465,8 @@ function renderAchievementsSection(container, presentTypes) {
                 if (card) grid.insertBefore(card, grid.firstChild);
             }
         } catch (err) {
-            panel.innerHTML = `<div class="error">Failed to load: ${escapeHtml(err.message)}</div>`;
+            console.error(err);
+            panel.innerHTML = inlineErrorHtml("This achievements table couldn't be loaded", err);
         }
     });
 }
@@ -1654,7 +1667,8 @@ function renderPRLeadersSection(container, presentTypes) {
                 if (wrap) attachStickyShadow(wrap);
             });
         } catch (err) {
-            panel.innerHTML = `<div class="error">Failed to load: ${escapeHtml(err.message)}</div>`;
+            console.error(err);
+            panel.innerHTML = inlineErrorHtml("This leaders table couldn't be loaded", err);
         }
     });
 }

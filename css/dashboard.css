@@ -963,6 +963,15 @@
     padding: 0.15em 0.4em;
     white-space: nowrap;
 }
+/* Soften the internal separators BETWEEN body rows to a lighter tint than the
+   outer frame (mirror of pm.css). On high-DPR phones a 1px inner line straddling
+   the device-pixel grid renders heavier than the crisp box edge, so the stack of
+   full-strength inner rules looked too thick against the (correct) bottom edge.
+   The outer edges, the header, and the header↔body divider stay full strength. */
+.pm-table tbody tr:not(:first-child) th,
+.pm-table tbody tr:not(:first-child) td {
+    border-top-color: color-mix(in srgb, var(--popover-border-color) 45%, transparent);
+}
 .pm-table thead th,
 .pm-table th[scope="row"] {
     background: var(--header-bg);
@@ -1004,6 +1013,21 @@
     }
     .pm-table.pm-matrix thead tr:nth-child(2) > th:nth-child(n+10),
     .pm-table.pm-matrix tbody tr > td:nth-child(n+11) {
+        display: none;
+    }
+}
+/* Narrower phones: shrink the popup tables' text and tighten the cell padding so
+   the wide matrix and the 9-column validation table need far less (often no)
+   horizontal scrolling, and their horizontal row gridlines sit closer together
+   rather than spanning tall, widely-spaced rows. Scoped to the "?" popups so the
+   dashboard's own tables are untouched. */
+@media (max-width: 480px) {
+    .predictor-info-popup .pm-table { font-size: var(--fs-070); }
+    .predictor-info-popup .pm-table th,
+    .predictor-info-popup .pm-table td { padding: 0.1em 0.28em; }
+    /* Keep only the shorter, most common match lengths so the matrix fits. */
+    .predictor-info-popup .pm-table.pm-matrix thead tr:nth-child(2) > th:nth-child(n+8),
+    .predictor-info-popup .pm-table.pm-matrix tbody tr > td:nth-child(n+9) {
         display: none;
     }
 }

@@ -30,51 +30,20 @@ const BANNER_FETCH_TIMEOUT_MS = 6000;
    Keep this ratio in sync with the aspect-ratio fallback in hero-banner.css. */
 const HERO_BASE_RATIO = 560 / 1983;
 
-/* Google Fonts specs per family the editor offers — including the weight AND
-   italic axes the banner actually uses (e.g. Playfair Display 400 italic for
-   the credit line). Pages hosting the banner don't ship these <link>s, so the
-   renderer injects exactly the families in use. `system-ui` needs no load. */
-const GOOGLE_FONT_SPECS = {
-    'Montserrat':        'Montserrat:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400;1,600',
-    'Poppins':           'Poppins:ital,wght@0,400;0,600;0,800;1,400',
-    'Oswald':            'Oswald:wght@400;600;700',
-    'Anton':             'Anton',
-    'Bebas Neue':        'Bebas+Neue',
-    'Rubik':             'Rubik:ital,wght@0,400;0,600;0,800;1,400',
-    'Heebo':             'Heebo:wght@400;600;800',
-    'Assistant':         'Assistant:wght@400;600;800',
-    'Playfair Display':  'Playfair+Display:ital,wght@0,400;0,600;0,800;1,400;1,600;1,800',
-};
+/* The banner's fonts used to be fetched at runtime: this module built a
+   fonts.googleapis.com URL from the families a config used and injected a
+   <link> (plus two preconnects) into <head>. That was one third-party request
+   on every landing-page load, disclosing each visitor's IP and user-agent to
+   Google — for a font we can simply ship ourselves.
 
-/** Inject a single Google Fonts <link> for exactly the families this config
- *  uses. Idempotent: updates the href if the set changes, no-ops otherwise. */
-function ensureBannerFonts(config) {
-    const specs = new Set();
-    (config.els || []).forEach(el => {
-        const m = /^\s*'([^']+)'/.exec(el.font || '');
-        if (m && GOOGLE_FONT_SPECS[m[1]]) specs.add(GOOGLE_FONT_SPECS[m[1]]);
-    });
-    if (specs.size === 0) return;
+   Every family the banner editor offers is now self-hosted and declared in
+   css/fonts.css, which index.html loads. So there is nothing to fetch and no
+   per-config font logic left: a `font` value in banner-config.json just has
+   to name a family that css/fonts.css declares.
 
-    const href = 'https://fonts.googleapis.com/css2?'
-        + [...specs].map(s => 'family=' + s).join('&') + '&display=swap';
-
-    let link = document.getElementById('hero-banner-fonts');
-    if (link) { if (link.getAttribute('href') !== href) link.href = href; return; }
-
-    if (!document.getElementById('hero-fonts-pre1')) {
-        const p1 = document.createElement('link');
-        p1.id = 'hero-fonts-pre1'; p1.rel = 'preconnect'; p1.href = 'https://fonts.googleapis.com';
-        document.head.appendChild(p1);
-        const p2 = document.createElement('link');
-        p2.id = 'hero-fonts-pre2'; p2.rel = 'preconnect';
-        p2.href = 'https://fonts.gstatic.com'; p2.crossOrigin = 'anonymous';
-        document.head.appendChild(p2);
-    }
-    link = document.createElement('link');
-    link.id = 'hero-banner-fonts'; link.rel = 'stylesheet'; link.href = href;
-    document.head.appendChild(link);
-}
+   To add a family to the editor: add its spec to SPECS in
+   scripts/fetch-fonts.js, re-run it, and commit the generated files. Do NOT
+   reintroduce a runtime fetch. */
 
 function buildLogo(logo, scale) {
     const img = document.createElement('img');
@@ -123,7 +92,6 @@ function buildEl(el, scale) {
  */
 export function renderHeroBanner(bannerEl, config) {
     if (!bannerEl || !config) return;
-    ensureBannerFonts(config);
     bannerEl.innerHTML = '';
 
     const photo = document.createElement('div');

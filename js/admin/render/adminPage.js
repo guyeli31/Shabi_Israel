@@ -171,10 +171,10 @@ function renderPendingChanges(container) {
             cancelAttr = `data-remove-player="${escHtml(item.removePlayer)}"`;
         } else if (item.group) {
             cancelAttr = `data-remove-group="${escHtml(item.group)}"`;
-        } else if (item.overridePath != null) {
-            cancelAttr = `data-remove-override-path="${escHtml(item.overridePath)}" data-remove-override-idx="${item.overrideIndex}"`;
-        } else if (item.restorePath != null) {
-            cancelAttr = `data-restore-override-path="${escHtml(item.restorePath)}" data-restore-override-key="${encodeURIComponent(item.restoreKey)}"`;
+        } else if (item.overrideLeague != null) {
+            cancelAttr = `data-remove-override-league="${escHtml(item.overrideLeague)}" data-remove-override-idx="${item.overrideIndex}"`;
+        } else if (item.restoreLeague != null) {
+            cancelAttr = `data-restore-override-league="${escHtml(item.restoreLeague)}" data-restore-override-key="${encodeURIComponent(item.restoreKey)}"`;
         } else {
             cancelAttr = `data-remove="${item.indices[0]}"`;
         }
@@ -229,22 +229,22 @@ function renderPendingChanges(container) {
     });
 
     // Cancel individual override from expanded overrides list
-    container.querySelectorAll('[data-remove-override-path]').forEach(btn => {
+    container.querySelectorAll('[data-remove-override-league]').forEach(btn => {
         btn.addEventListener('click', () => {
-            const path = btn.dataset.removeOverridePath;
+            const leagueId = btn.dataset.removeOverrideLeague;
             const idx = parseInt(btn.dataset.removeOverrideIdx);
-            removeOverrideFromChange(path, idx);
+            removeOverrideFromChange(leagueId, idx);
             refreshBadge();
             renderPendingChanges(container);
         });
     });
 
     // Cancel a removed-override delta row (restore it into the staged file)
-    container.querySelectorAll('[data-restore-override-path]').forEach(btn => {
+    container.querySelectorAll('[data-restore-override-league]').forEach(btn => {
         btn.addEventListener('click', () => {
-            const path = btn.dataset.restoreOverridePath;
+            const leagueId = btn.dataset.restoreOverrideLeague;
             const key = decodeURIComponent(btn.dataset.restoreOverrideKey);
-            restoreOverrideToChange(path, key);
+            restoreOverrideToChange(leagueId, key);
             refreshBadge();
             renderPendingChanges(container);
         });
@@ -353,23 +353,21 @@ function buildDisplayItems(changes) {
                 g.detail = c.detail || null;
                 g.action = c.action || null;
             }
-        } else if (c.path && c.path.endsWith('manual_overrides.json') && c.content) {
+        } else if (c.target?.kind === 'manual_overrides' && c.content) {
             // Show only the DELTA vs the published baseline: one row per added/changed
             // override (⚖️) and one per removed override (➖). Unchanged overrides that
             // happen to live in the same file are NOT shown.
             try {
                 const staged = JSON.parse(c.content).overrides || [];
                 const { added, changed, removed } = diffOverrides(staged, c.baselineOverrides || []);
-                let league = '';
-                const lm = c.path.match(/^leagues\/([^/]+)\//);
-                if (lm) league = decodeURIComponent(lm[1]);
+                const league = c.target.leagueId;
 
                 // Added — brand-new override. Cancel removes it outright.
                 for (const { override: o, index } of added) {
                     items.push({
                         group: null,
                         indices: [i],
-                        overridePath: c.path,
+                        overrideLeague: league,
                         overrideIndex: index,
                         timestamp: o.timestamp || c.timestamp,
                         displayText: renderCategoryLabel('match-override', league, `${o.playerA} vs ${o.playerB} (${o.type})`)
@@ -381,7 +379,7 @@ function buildDisplayItems(changes) {
                     items.push({
                         group: null,
                         indices: [i],
-                        restorePath: c.path,
+                        restoreLeague: league,
                         restoreKey: overrideKey(o),
                         timestamp: o.timestamp || c.timestamp,
                         displayText: renderCategoryLabel('edit-override', league, `${o.playerA} vs ${o.playerB} (${o.type})`)
@@ -392,7 +390,7 @@ function buildDisplayItems(changes) {
                     items.push({
                         group: null,
                         indices: [i],
-                        restorePath: c.path,
+                        restoreLeague: league,
                         restoreKey: overrideKey(o),
                         timestamp: c.timestamp,
                         displayText: renderCategoryLabel('remove-override', league, `${o.playerA} vs ${o.playerB}`)
@@ -443,66 +441,79 @@ function buildDisplayItems(changes) {
 
 /**
  * Format a change into: [League] • [Type] — [Detail]
+ *
+ * Fallback for changes that carry no `category` (renderCategoryLabel handles
+ * the rest). Reads the change's target instead of sniffing a path string.
  */
 function formatChangeDesc(change) {
-    const path = change.path || '';
-
-    // Extract league name from path like "leagues/Shabi%20Israel%20April%202026/..."
-    let league = '';
-    const leagueMatch = path.match(/^leagues\/([^/]+)\//);
-    if (leagueMatch) {
-        league = decodeURIComponent(leagueMatch[1]);
-    }
-
-    // Determine type and detail
+    const target = change.target || {};
+    let league = target.leagueId || '';
     let type = '';
     let detail = change.description || '';
 
-    if (path.endsWith('manual_overrides.json')) {
-        type = 'Match Override';
-        // Extract detail from description like "Override: X vs Y (result)"
-        const m = detail.match(/Override:\s*(.+)/);
-        if (m) detail = m[1];
-        else if (detail.startsWith('Remove override')) {
-            type = 'Remove Override';
-            detail = detail.replace(/Remove override #\d+:\s*/, '');
+    switch (target.kind) {
+        case 'manual_overrides': {
+            type = 'Match Override';
+            // Extract detail from description like "Override: X vs Y (result)"
+            const m = detail.match(/Override:\s*(.+)/);
+            if (m) detail = m[1];
+            else if (detail.startsWith('Remove override')) {
+                type = 'Remove Override';
+                detail = detail.replace(/Remove override #\d+:\s*/, '');
+            }
+            break;
         }
-    } else if (path.endsWith('league_params.json')) {
-        if (change.type === 'delete') {
-            type = 'Delete';
-            detail = 'League files';
-        } else if (detail.includes('Update players')) {
-            type = 'Players';
-            detail = 'Updated player settings';
-        } else if (detail.includes('Update settings') || detail.includes('Create league')) {
-            type = 'Settings';
-            detail = detail.replace(/^(Update settings|Create league):\s*/, '');
-        } else {
-            type = 'Settings';
+        case 'league_rename':
+            type = 'Rename';
+            break;
+        case 'league_params':
+            if (change.type === 'delete') {
+                type = 'Delete';
+                detail = 'League';
+            } else if (detail.includes('Update players')) {
+                type = 'Players';
+                detail = 'Updated player settings';
+            } else if (detail.includes('Update settings') || detail.includes('Create league')) {
+                type = 'Settings';
+                detail = detail.replace(/^(Update settings|Create league):\s*/, '');
+            } else {
+                type = 'Settings';
+            }
+            break;
+        case 'leaguedata_csv':
+            if (change.type === 'delete') {
+                type = 'Delete';
+                detail = 'Match data';
+            } else if (detail.includes('Rename')) {
+                type = 'CSV';
+                detail = detail.replace(/Rename players in CSV:\s*/, 'Renamed: ');
+            } else {
+                type = 'CSV Import';
+            }
+            break;
+        case 'landing_settings': {
+            type = 'Landing Settings';
+            const addMatch = detail.match(/Add "(.+)" to/);
+            const rmMatch = detail.match(/Remove "(.+)" from/);
+            if (addMatch) detail = `Added: ${addMatch[1]}`;
+            else if (rmMatch) detail = `Removed: ${rmMatch[1]}`;
+            else if (detail.includes('Update landing')) detail = 'Landing page updated';
+            break;
         }
-    } else if (path.endsWith('leaguedata.csv')) {
-        if (change.type === 'delete') {
-            type = 'Delete';
-            detail = 'CSV data';
-        } else if (detail.includes('Rename')) {
-            type = 'CSV';
-            detail = detail.replace(/Rename players in CSV:\s*/, 'Renamed: ');
-        } else {
-            type = 'CSV Import';
-        }
-    } else if (path === 'leagues/landing_settings.json') {
-        type = 'Landing Settings';
-        league = '';
-        const addMatch = detail.match(/Add "(.+)" to/);
-        const rmMatch = detail.match(/Remove "(.+)" from/);
-        if (addMatch) detail = `Added: ${addMatch[1]}`;
-        else if (rmMatch) detail = `Removed: ${rmMatch[1]}`;
-        else if (detail.includes('Update landing')) detail = 'Landing page updated';
-    } else if (path.startsWith('assets/flags/') || path.startsWith('assets/logo/')) {
-        type = 'Flag Upload';
-        league = '';
-    } else {
-        type = change.type || 'Update';
+        case 'sync_settings':
+            type = 'Sync Settings';
+            break;
+        case 'players_metadata':
+            type = 'Player Metadata';
+            break;
+        case 'flag_asset':
+            type = 'Flag Upload';
+            break;
+        case 'player_photo':
+            type = change.type === 'delete' ? 'Photo Removed' : 'Photo Upload';
+            break;
+        default:
+            type = change.type || 'Update';
     }
 
     // Build formatted string

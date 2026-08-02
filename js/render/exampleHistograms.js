@@ -148,39 +148,43 @@ export function advantageDistributionExampleHistogramSvg(lang) {
  */
 export function tableValidationExampleHistogramSvg(lang) {
     const he = lang === 'he';
-    const W = 340, H = 178, L = 30, R = 332, T = 16, B = 142;
-    const AMIN = -6, AMAX = 6, nbins = AMAX - AMIN;   // 12 bins, width 1
-    const bw = (R - L) / nbins;
-    const xForA = a => L + (a - AMIN) * bw;
-    //            -6 -5 -4 -3 -2 -1  0  1   2   3   4   5
-    const counts = [2, 5, 9, 18, 26, 34, 40, 46, 48, 42, 30, 16];
-    const POS_BIN = 9, NEG_BIN = 3;                   // advantage +3 and −3
-    const posN = counts[POS_BIN], negN = counts[NEG_BIN];
-    const YMAX = 52;
+    const W = 340, H = 184, L = 26, R = 334, T = 18, B = 142;
+    // Bins are CENTRED on integer advantage values −6…+6, so the +3 bin and the
+    // −3 bin are mirror images about 0 (a left-aligned [n, n+1) scheme would put
+    // +3 at centre +3.5 and −3 at centre −2.5 — visibly asymmetric).
+    const AMIN = -6, AMAX = 6, nbins = AMAX - AMIN + 1;   // 13 integer-centred bins
+    const barW = ((R - L) / (nbins - 1)) * 0.7;
+    const innerL = L + barW / 2, innerR = R - barW / 2;
+    const xForV = v => innerL + ((v - AMIN) / (AMAX - AMIN)) * (innerR - innerL);
+    //         v = -6 -5 -4 -3 -2 -1  0  1   2   3   4   5  6
+    const counts = [2, 4, 9, 18, 27, 36, 42, 47, 46, 42, 30, 16, 6];
+    const POS_V = 3, NEG_V = -3;                          // advantage +3 and −3
+    const posN = counts[POS_V - AMIN], negN = counts[NEG_V - AMIN];
+    const YMAX = 50;
     const yFor = c => B - (c / YMAX) * (B - T);
 
-    let bars = '', labels = '';
-    for (let i = 0; i < nbins; i++) {
-        const x = xForA(AMIN + i) + 2, w = bw - 4, y = yFor(counts[i]), h = B - y;
-        const hl = i === POS_BIN || i === NEG_BIN;
-        const fill = i === POS_BIN ? WIN : i === NEG_BIN ? LOSS : 'currentColor';
-        bars += bar(x, y, w, h, fill, hl ? 0.92 : 0.14);
-        if (hl) {
-            const cx = x + w / 2;
-            labels += `<text x="${cx.toFixed(1)}" y="${(y - 4).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="${fill}">${counts[i]}</text>`;
-        }
+    let bars = '', counts_lbl = '';
+    for (let v = AMIN; v <= AMAX; v++) {
+        const c = counts[v - AMIN], cx = xForV(v), y = yFor(c), h = B - y;
+        const hl = v === POS_V || v === NEG_V;
+        const fill = v === POS_V ? WIN : v === NEG_V ? LOSS : 'currentColor';
+        bars += bar(cx - barW / 2, y, barW, h, fill, hl ? 0.92 : 0.14);
+        if (hl) counts_lbl += `<text x="${cx.toFixed(1)}" y="${(y - 4).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${fill}">${c}</text>`;
     }
 
+    // A tick + value label under EVERY bin, so which bins are picked is explicit.
     let ticks = '';
-    for (let a = AMIN; a <= AMAX; a += 2) {
-        const x = xForA(a);
-        ticks += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${B}" y2="${B + 4}" stroke="currentColor" stroke-opacity="0.45"/>`
-              + `<text x="${x.toFixed(1)}" y="${(B + 14).toFixed(1)}" text-anchor="middle" font-size="9" fill="currentColor" fill-opacity="0.7">${a > 0 ? '+' + a : a}</text>`;
+    for (let v = AMIN; v <= AMAX; v++) {
+        const x = xForV(v), hl = v === POS_V || v === NEG_V;
+        const col = v === POS_V ? WIN : v === NEG_V ? LOSS : 'currentColor';
+        ticks += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${B}" y2="${B + 4}" stroke="${col}" stroke-opacity="${hl ? 0.9 : 0.4}"/>`
+              + `<text x="${x.toFixed(1)}" y="${(B + 14).toFixed(1)}" text-anchor="middle" font-size="${hl ? 9.5 : 8.5}" font-weight="${hl ? 700 : 400}" fill="${col}" fill-opacity="${hl ? 1 : 0.65}">${v > 0 ? '+' + v : v}</text>`;
     }
-    const x0 = xForA(0).toFixed(1);
+    const x0 = xForV(0).toFixed(1);
     const zero = `<line x1="${x0}" x2="${x0}" y1="${T}" y2="${B}" stroke="currentColor" stroke-opacity="0.35" stroke-dasharray="3 3"/>`;
     // Axis labels are ALWAYS English, matching the shared luck-metric figures.
     const xlab = 'advantage (PR points)';
+    const labels = counts_lbl;
 
     const total = posN + negN;
     const winRate = Math.round((posN / total) * 100);

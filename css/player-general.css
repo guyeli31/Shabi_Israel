@@ -1151,10 +1151,24 @@
  * RECORDS TAB — Total Luck (C6) + Total PR ↔ Result
  * ============================================================ */
 
-/* The league-type filter above C1 (Leagues tab). The pill bar itself is
-   styled by subtabs.css; this only gives it breathing room from the table. */
-.pg-leagues-filter {
+/* The league-type filter above C1 (Leagues tab) and above the Match History
+   chart + C2 table (Matches tab) — one filter per section, governing everything
+   below it. The pill bar itself is styled by subtabs.css; this only gives it
+   breathing room from the content it filters. */
+.pg-leagues-filter,
+.pg-matches-filter {
     margin-bottom: var(--space-sm);
+}
+
+/* Metric label + select as one unit inside .dash-controls, so hiding the pair
+   (no PR-recording league in view) leaves no orphan label and no double gap. */
+.pg-section .dash-controls .pg-metric-ctl {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+.pg-section .dash-controls .pg-metric-ctl[hidden] {
+    display: none;
 }
 
 /* Total PR ↔ Result — the chart panels reuse the dashboard's .corr-* chrome

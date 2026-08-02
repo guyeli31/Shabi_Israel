@@ -589,6 +589,11 @@ export function flattenAllMatches(perLeagueData) {
     const rows = [];
     perLeagueData.forEach((entry, li) => {
         const leagueDate = entry.league.params?.IssueDate || null;
+        // REGULAR leagues don't track PR (leagueTypes.js → showPR: false). The
+        // source rows may still carry a PR figure from the import, so drop it
+        // here — otherwise the cross-league views (match history, H2H detail,
+        // All Opponents) would print it and fold it into their averages.
+        const tracksPR = entry.league.config?.showPR !== false;
         for (const m of entry.playerMatches) {
             const matchDate = m.updatedAt || leagueDate;
             const year = matchDate ? new Date(matchDate).getFullYear() : null;
@@ -606,6 +611,8 @@ export function flattenAllMatches(perLeagueData) {
                 year,
                 leagueOrderIdx: li,
                 ...m,
+                prSelf: tracksPR ? m.prSelf : null,
+                prOpp:  tracksPR ? m.prOpp  : null,
                 matchDate,
                 _dateApprox: !m.updatedAt && !!leagueDate,
                 result

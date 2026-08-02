@@ -7,10 +7,7 @@
  */
 
 import { supabase } from './supabaseClient.js';
-import { matchKey, mergeHistoryIntoMatches } from '../compute/matchHistory.js';
-
-// No-op compat shim — supabaseLoader.js has no notion of a "base path".
-export function setLeaguesBase() {}
+import { mergeHistoryIntoMatches } from '../compute/matchHistory.js';
 
 function mapDbLeagueToParams(row) {
     return {
@@ -118,7 +115,7 @@ export async function loadLeagueMatches(leagueId) {
     const allRows = data || [];
     // allPlayers must come from the FULL roster (played + unplayed rows) —
     // a player with only unplayed matches still belongs on the table as a
-    // 0-game row, matching leagueLoader.js's getAllPlayersFromCSV() behavior.
+    // 0-game row, matching the historical getAllPlayersFromCSV() behavior.
     const allPlayers = new Set();
     for (const row of allRows) {
         allPlayers.add(row.player_a);
@@ -133,7 +130,7 @@ export async function loadLeagueMatches(leagueId) {
 /**
  * Load a league's match data including unplayed rows (for admin editor parity —
  * not used by admin itself, which still reads the static files, but kept for
- * signature parity with leagueLoader.js).
+ * signature parity with the historical file loader).
  */
 export async function loadLeagueMatchesAll(leagueId) {
     const { data, error } = await supabase
@@ -182,60 +179,9 @@ export async function loadMatchHistory(leagueId) {
     };
 }
 
-/**
- * Apply manual overrides on top of parsed matches. Pure function — identical
- * to leagueLoader.js's implementation, re-exported here for signature parity.
- * Each override replaces or adds a match by playerA+playerB key.
- */
-export function applyOverrides(matches, overrides) {
-    if (!overrides || overrides.length === 0) return matches;
-
-    const result = [...matches];
-
-    for (const o of overrides) {
-        const key = matchKey(o.playerA, o.playerB);
-
-        const idx = result.findIndex((m) => matchKey(m.playerA, m.playerB) === key);
-
-        let newMatch;
-        if (o.type === 'result') {
-            newMatch = {
-                playerA: o.playerA, playerB: o.playerB,
-                scoreA: o.scoreA, scoreB: o.scoreB,
-                prA: o.prA, prB: o.prB,
-                luckA: o.luckA, luckB: o.luckB,
-                _overridden: true,
-            };
-        } else if (o.type === 'technical_win') {
-            const aWins = o.winner === o.playerA;
-            newMatch = {
-                playerA: o.playerA, playerB: o.playerB,
-                scoreA: aWins ? 1 : 0, scoreB: aWins ? 0 : 1,
-                prA: null, prB: null,
-                luckA: null, luckB: null,
-                _overridden: true, _technical: true,
-            };
-        } else if (o.type === 'technical_draw') {
-            newMatch = {
-                playerA: o.playerA, playerB: o.playerB,
-                scoreA: 0, scoreB: 0,
-                prA: null, prB: null,
-                luckA: null, luckB: null,
-                _overridden: true, _technical: true, _draw: true,
-            };
-        } else if (o.type === 'not_played') {
-            if (idx !== -1) result.splice(idx, 1);
-            continue;
-        }
-
-        if (newMatch) {
-            if (idx !== -1) result[idx] = newMatch;
-            else result.push(newMatch);
-        }
-    }
-
-    return result;
-}
+// Overrides are applied identically no matter where the matches came from —
+// re-exported here so admin callers keep a single import surface.
+export { applyOverrides } from './applyOverrides.js';
 
 /**
  * Load params for all leagues (for the landing page — needs title, status, etc.).

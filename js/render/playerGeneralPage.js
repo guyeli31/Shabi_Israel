@@ -22,8 +22,11 @@ import {
     loadAllLeagues
 } from '../compute/crossLeague.js';
 import { loadPlayersMetadata } from '../data/store.js';
+import { startSplash, splashStage, endSplash } from '../utils/splash.js';
+import { renderErrorScreen, explainError } from '../utils/errorScreen.js';
 import { displayPlayerName } from '../utils/nameDisplay.js';
 import { colorForLevel } from '../compute/colorScale.js';
+import { getLeagueConfig } from '../compute/leagueTypes.js';
 import {
     getQueryParam, flagUrl, getFlagCode,
     formatNumber, leagueUrl, playerUrl, getLeagueYear, leagueTableUrl, thLabel,
@@ -54,7 +57,7 @@ import { buildPlayerAllMatchesPreset } from '../presets/playerAllMatchesPreset.j
 import { buildMatchupPreset } from '../presets/matchupPreset.js';
 import { buildAllOpponentsPreset, aggregateOpponents } from '../presets/allOpponentsPreset.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
-import { registerSearchAdapter } from './searchOverlay.js';
+import { mountSearchField } from '../utils/combobox.js';
 import { scrollToClearingTopbar } from '../utils/scrollOffset.js';
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -68,17 +71,21 @@ export async function renderPlayerGeneralPage() {
     const playerName = getQueryParam('player');
 
     if (!playerName) {
-        container.innerHTML = '<div class="error">Missing player parameter.</div>';
+        renderErrorScreen(container, {
+            title: 'No player selected',
+            message: 'This page needs a player name in its address.',
+            actions: [{ label: 'Browse players', href: 'index.html?tab=players', primary: true }]
+        });
         return;
     }
 
-    container.innerHTML = '<div class="loading">Loading cross-league data…</div>';
-
+    startSplash();
     try {
         const [perLeague, allMeta] = await Promise.all([
-            loadPlayerAcrossLeagues(playerName),
-            loadPlayersMetadata()
+            loadPlayerAcrossLeagues(playerName).then(r => { splashStage('matches'); return r; }),
+            loadPlayersMetadata().then(r => { splashStage('players'); return r; })
         ]);
+        splashStage('ranking');
         const meta = allMeta[playerName] || {};
         _allMeta = allMeta;
         const displayName = displayPlayerName(playerName, meta);
@@ -98,6 +105,7 @@ export async function renderPlayerGeneralPage() {
             { label: displayName }
         ]);
 
+        splashStage('render');
         container.innerHTML = '';
 
         // Progressive-disclosure tabs (same chrome as HOME / dashboard via mountAppTabs).
@@ -156,7 +164,9 @@ export async function renderPlayerGeneralPage() {
 
     } catch (err) {
         console.error(err);
-        container.innerHTML = `<div class="error">Failed to load data: ${escapeHtml(err.message)}</div>`;
+        renderErrorScreen(container, { ...explainError(err, { playerName }), error: err });
+    } finally {
+        endSplash();
     }
 }
 
@@ -554,6 +564,16 @@ function renderLeaguesTable(section, perLeague) {
 
 // ---- G5: Match history ----
 
+/**
+ * Does this league type record a PR at all? REGULAR leagues log none — that's a
+ * property of the league, not a missing value — so PR is not a metric one can
+ * even ask for in a REGULAR-only view. Read from the league config so the answer
+ * has a single source (compute/leagueTypes.js), not a second hardcoded list.
+ */
+function typeHasPR(type) {
+    return getLeagueConfig({ LeagueType: type }).showPR === true;
+}
+
 function renderMatchHistory(section, playerName, perLeague) {
     const allRows = flattenAllMatches(perLeague);
     if (allRows.length === 0) {
@@ -562,7 +582,18 @@ function renderMatchHistory(section, playerName, perLeague) {
     }
 
     const years = [...new Set(allRows.map(r => r.year).filter(y => y != null))].sort((a, b) => b - a);
-    const leagueTypes = [...new Set(allRows.map(r => r.leagueType))];
+    const presentTypes = [...new Set(allRows.map(r => r.leagueType))];
+
+    // League-type filter — the shared pill sub-tabs, identical to the Leagues
+    // tab (G4). It governs the WHOLE section (chart and table alike), so it sits
+    // above the chart card rather than inside its control row. Mounted at the
+    // end of this function (selecting fires a render immediately), but appended
+    // here so the DOM order is filter → chart → table.
+    const filterHost = document.createElement('div');
+    filterHost.className = 'pg-matches-filter';
+    section.appendChild(filterHost);
+
+    let typeFilter = ALL_TYPES_ID;
 
     const controls = document.createElement('div');
     controls.className = 'dash-controls';
@@ -573,11 +604,6 @@ function renderMatchHistory(section, playerName, perLeague) {
         years.map(y => `<option value="${y}"${y === CURRENT_YEAR ? ' selected' : ''}>${y}</option>`).join('');
     if (!years.includes(CURRENT_YEAR)) yearSel.value = 'all';
 
-    const typeSel = document.createElement('select');
-    typeSel.innerHTML =
-        '<option value="all">All types</option>' +
-        leagueTypes.map(t => `<option value="${t}">${t.toUpperCase()}</option>`).join('');
-
     const countSel = document.createElement('select');
     countSel.innerHTML =
         '<option value="all">All</option>' +
@@ -585,20 +611,51 @@ function renderMatchHistory(section, playerName, perLeague) {
 
     const metricSel = document.createElement('select');
     metricSel.innerHTML = '<option value="pr">PR</option><option value="luck">Luck</option>';
+    const prOption = metricSel.querySelector('option[value="pr"]');
 
     function inlineLbl(text) {
         const l = document.createElement('label');
         l.textContent = text;
         return l;
     }
+    // Metric label + select travel together: when PR drops out of the view the
+    // pair is hidden as one.
+    const metricCtl = document.createElement('span');
+    metricCtl.className = 'pg-metric-ctl';
+    metricCtl.appendChild(inlineLbl('Metric:'));
+    metricCtl.appendChild(metricSel);
+
     controls.appendChild(inlineLbl('Year:'));
     controls.appendChild(yearSel);
-    controls.appendChild(inlineLbl('Type:'));
-    controls.appendChild(typeSel);
     controls.appendChild(inlineLbl('Games:'));
     controls.appendChild(countSel);
-    controls.appendChild(inlineLbl('Metric:'));
-    controls.appendChild(metricSel);
+    controls.appendChild(metricCtl);
+
+    // What the player last picked for themselves — restored whenever PR becomes
+    // available again (see syncMetricControl).
+    let preferredMetric = metricSel.value;
+
+    /** The league types the current pill selection actually puts on screen. */
+    function typesInView() {
+        return typeFilter === ALL_TYPES_ID ? presentTypes : [typeFilter];
+    }
+
+    /**
+     * PR is offerable only while the view still contains a PR-recording league
+     * type — so a REGULAR-only player (whose ALL is REGULAR) and a mixed player
+     * filtered down to REGULAR both lose it. Luck is then the only metric left,
+     * and a one-option select isn't a choice, so the control steps aside whole.
+     */
+    function syncMetricControl() {
+        const hasPR = typesInView().some(typeHasPR);
+        prOption.hidden = !hasPR;
+        prOption.disabled = !hasPR;
+        // Luck is forced while PR is unavailable, but the player's own last
+        // choice comes back the moment a PR-recording type is in view again —
+        // a filter detour shouldn't quietly change what they were looking at.
+        metricSel.value = hasPR ? preferredMetric : 'luck';
+        metricCtl.hidden = !hasPR;
+    }
 
     const chartCard = document.createElement('div');
     chartCard.className = 'chart-panel';
@@ -615,11 +672,10 @@ function renderMatchHistory(section, playerName, perLeague) {
 
     function applyFilters() {
         const yv = yearSel.value;
-        const tv = typeSel.value;
         const cv = countSel.value;
         let filtered = allRows.filter(r => {
             if (yv !== 'all' && r.year !== parseInt(yv, 10)) return false;
-            if (tv !== 'all' && r.leagueType !== tv) return false;
+            if (typeFilter !== ALL_TYPES_ID && r.leagueType !== typeFilter) return false;
             return true;
         });
         // Apply game count limit (data is already sorted by date desc)
@@ -646,7 +702,12 @@ function renderMatchHistory(section, playerName, perLeague) {
                 const bt = b.matchDate ? new Date(b.matchDate).getTime() : 0;
                 if (at !== bt) return at - bt;
                 return b.leagueOrderIdx - a.leagueOrderIdx;
-            });
+            })
+            // A PR that reached us on a REGULAR-league row is not a rating this
+            // league keeps (the table prints "—" for exactly that reason), so
+            // the chart must not draw it either — under ALL it would otherwise
+            // sneak into the bars and the moving average.
+            .map(r => typeHasPR(r.leagueType) ? r : { ...r, prSelf: null, prOpp: null });
         // With nothing rated in view every slot would be blank, so fall back to a
         // note rather than an empty grid (e.g. filtering down to REGULAR only).
         const metricKey = metricSel.value === 'luck' ? 'luckSelf' : 'prSelf';
@@ -676,10 +737,25 @@ function renderMatchHistory(section, playerName, perLeague) {
     }
 
     yearSel.addEventListener('change', renderAll);
-    typeSel.addEventListener('change', renderAll);
     countSel.addEventListener('change', renderAll);
-    metricSel.addEventListener('change', renderAll);
-    renderAll();
+    metricSel.addEventListener('change', () => {
+        preferredMetric = metricSel.value;
+        renderAll();
+    });
+
+    // ALL is leftmost and the default; only the types the player actually played
+    // get a pill. Selecting fires onSelect once on mount, which does the first
+    // render — hence no separate renderAll() call here.
+    mountPillTabs(filterHost, {
+        tabs: [ALL_TYPES_TAB, ...presentTypes.map(t => ({ id: t, label: LEAGUE_TYPE_LABELS[t] || t.toUpperCase() }))],
+        defaultId: ALL_TYPES_ID,
+        pillClassFor: (t) => 'league-type-pill type-' + t,
+        onSelect: (id) => {
+            typeFilter = id;
+            syncMetricControl();
+            renderAll();
+        },
+    });
 }
 
 // ---- G5b: H2H tab — smart search + C3 detail (top) and C4 all-opponents (bottom) ----
@@ -715,12 +791,7 @@ function renderMatchup(panel, playerName, allRows) {
     input.placeholder = 'Search opponent…';
     input.autocomplete = 'off';
 
-    const dropdown = document.createElement('ul');
-    dropdown.className = 'matchup-search-dropdown';
-    dropdown.hidden = true;
-
-    inputWrap.appendChild(input);
-    inputWrap.appendChild(dropdown);
+    inputWrap.appendChild(input);   // mountSearchField wraps it + owns the list
 
     const badge = document.createElement('span');
     badge.className = 'matchup-count-badge';
@@ -752,7 +823,7 @@ function renderMatchup(panel, playerName, allRows) {
         if (!link) return;
         const name = link.dataset.name;
         input.value = name;
-        dropdown.hidden = true;
+        combo.close();
         renderResults(name);
         requestAnimationFrame(() => scrollToClearingTopbar(topSection, { behavior: 'smooth' }));
     });
@@ -774,43 +845,9 @@ function renderMatchup(panel, playerName, allRows) {
         allOpponents = [...playerSet].sort(byOpponentDisplay);
     }).catch(() => { /* keep the faced-opponents fallback */ });
 
-    function filterDropdown(query) {
-        const q = query.trim().toLowerCase();
-        if (q.length < 1) { dropdown.hidden = true; return; }
-        const matches = allOpponents.filter(p => {
-            const full = _allMeta[p]?.fullName || '';
-            return p.toLowerCase().includes(q) || full.toLowerCase().includes(q);
-        }).slice(0, 8);
-        if (matches.length === 0) {
-            dropdown.innerHTML = '<li class="matchup-search-empty">No players found</li>';
-        } else {
-            dropdown.innerHTML = matches.map(p => {
-                const fullName = _allMeta[p]?.fullName;
-                // displayPlayerName returns full name when the toggle is on
-                // and a full name exists in meta — otherwise the username.
-                // The secondary line shows the OTHER form so both are still
-                // discoverable when they differ.
-                const primary = displayPlayerName(p, _allMeta[p]);
-                const secondary = (fullName && primary !== fullName) ? fullName
-                                : (primary !== p ? p : '');
-                const nameHtml = secondary
-                    ? `<span class="search-player-name">${escapeHtml(primary)}</span><span class="search-player-realname">${escapeHtml(secondary)}</span>`
-                    : `<span class="search-player-name">${escapeHtml(primary)}</span>`;
-                return `<li><button class="matchup-search-option" type="button" data-name="${escapeHtml(p)}"><span class="search-player-info">${nameHtml}</span></button></li>`;
-            }).join('');
-            for (const btn of dropdown.querySelectorAll('.matchup-search-option')) {
-                btn.addEventListener('mousedown', e => {
-                    e.preventDefault();
-                    selectOpponent(btn.dataset.name);
-                });
-            }
-        }
-        dropdown.hidden = false;
-    }
-
     function selectOpponent(name) {
         input.value = name;
-        dropdown.hidden = true;
+        combo.close();
         // Analytics: the H2H opponent picker is an in-place update (not a link
         // navigation), and this is the single chokepoint for desktop dropdown,
         // mobile sheet and Enter-key selection alike — so track the chosen
@@ -819,34 +856,33 @@ function renderMatchup(panel, playerName, allRows) {
         renderResults(name);
     }
 
-    // Mobile search-sheet adapter: same opponent matcher as filterDropdown above,
-    // feeding the 16px overlay. Picking runs the normal in-place selection.
-    registerSearchAdapter(input, {
-        suggest(query) {
-            const q = query.trim().toLowerCase();
-            if (!q) return [];
-            return allOpponents.filter(p => {
-                const full = _allMeta[p]?.fullName || '';
-                return p.toLowerCase().includes(q) || full.toLowerCase().includes(q);
-            }).slice(0, 8).map(p => {
-                const fullName = _allMeta[p]?.fullName;
-                const primary = displayPlayerName(p, _allMeta[p]);
-                const secondary = (fullName && primary !== fullName) ? fullName
-                                : (primary !== p ? p : '');
-                return { label: primary, sublabel: secondary || undefined, key: p, name: p };
-            });
-        },
-        pick(item) { selectOpponent(item.name); },
-    });
-
-    input.addEventListener('input', () => filterDropdown(input.value));
-    input.addEventListener('blur', () => { dropdown.hidden = true; });
-    input.addEventListener('keydown', e => {
-        if (e.key === 'Escape') { dropdown.hidden = true; input.blur(); }
-        if (e.key === 'Enter') {
-            const first = dropdown.querySelector('.matchup-search-option');
-            if (first) { e.preventDefault(); selectOpponent(first.textContent); }
-        }
+    // The opponent picker runs on the ONE canonical search field
+    // (mountSearchField) like every other player search in the project, instead
+    // of the hand-rolled list it used to carry: flags + title badges on each
+    // row, the full opponent list browsable on focus (no "type ≥1 char first"),
+    // keyboard nav, and the mobile 16px sheet all come from the shared base.
+    const comboSublabel = (p) => {
+        const fullName = _allMeta[p]?.fullName;
+        // displayPlayerName returns the full name when the toggle is on and one
+        // exists in meta — otherwise the username. The secondary line shows the
+        // OTHER form so both stay discoverable when they differ.
+        const primary = displayPlayerName(p, _allMeta[p]);
+        if (fullName && primary !== fullName) return fullName;
+        return primary !== p ? p : '';
+    };
+    const combo = mountSearchField(input, {
+        getOptions: () => allOpponents,
+        labelFor: (p) => displayPlayerName(p, _allMeta[p]),
+        // Hidden players carry neither flag nor title anywhere else on this
+        // page (see the C4 table's flagFor/opponentSuffix) — same here.
+        decorate: (p) => (_allMeta[p]?.hidden
+            ? { sublabel: comboSublabel(p) }
+            : {
+                flagCode: getFlagCode(p, _mergedCustomFlags),
+                titleHtml: getTitleAbbreviationsHtml(_allMeta[p]),
+                sublabel: comboSublabel(p),
+            }),
+        onPick: (name) => selectOpponent(name),
     });
 
     function renderResults(opponent) {

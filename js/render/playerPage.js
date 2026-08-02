@@ -14,7 +14,8 @@ import { getTitleBadgesHtml, getHighestTier, getTitleAbbreviationsHtml } from '.
 import { renderV7Header, buildHeaderTitles, formatJoinedShort } from './playerHeader.js';
 import { attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { displayPlayerName } from '../utils/nameDisplay.js';
-import { startSplash, endSplash } from '../utils/splash.js';
+import { startSplash, splashStage, endSplash } from '../utils/splash.js';
+import { renderErrorScreen, explainError } from '../utils/errorScreen.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildPlayerMatchHistoryPreset } from '../presets/playerMatchHistoryPreset.js';
 
@@ -24,22 +25,27 @@ export async function renderPlayerPage() {
     const playerName = getQueryParam('player');
 
     if (!leagueId || !playerName) {
-        container.innerHTML = '<div class="error">Missing league or player parameter.</div>';
+        renderErrorScreen(container, {
+            title: 'No player selected',
+            message: 'This page needs both a league and a player in its address.',
+            actions: [{ label: 'Browse leagues', href: 'index.html', primary: true }]
+        });
         return;
     }
 
-    container.innerHTML = '<div class="loading">Loading player data...</div>';
-
     startSplash();
     try {
+        // Each promise reports its own stage as it lands, so the splash
+        // narrates real progress rather than one opaque Promise.all.
         const [{ params, matches, allPlayers }, allMeta, playerIndex, leagueOrder] = await Promise.all([
-            loadLeague(leagueId),
-            loadPlayersMetadata(),
+            loadLeague(leagueId).then(r => { splashStage('matches'); return r; }),
+            loadPlayersMetadata().then(r => { splashStage('players'); return r; }),
             ensurePlayerIndex(),
-            loadLeagueOrder().catch(() => [])
+            loadLeagueOrder().then(r => { splashStage('settings'); return r; }).catch(() => [])
         ]);
         const folderNames = leagueOrder.map(t => t.replace(' - ', ' '));
         const allParams = await loadAllLeagueParams(folderNames).catch(() => []);
+        splashStage('ranking');
 
         const leagueConfig = getLeagueConfig(params);
         const title = params.LeagueTitle || leagueId;
@@ -122,6 +128,7 @@ export async function renderPlayerPage() {
 
         const playerMatches = getPlayerMatches(matches, playerName, allPlayers);
 
+        splashStage('render');
         container.innerHTML = `
             <div class="dash-controls">
                 <a class="open-full-btn" href="${leagueTableUrl(leagueId)}" title="Back to the full league table">&lsaquo; Back to full table</a>
@@ -152,7 +159,8 @@ export async function renderPlayerPage() {
 
         renderAlsoPlaysIn(container, playerName, leagueId);
     } catch (err) {
-        container.innerHTML = `<div class="error">Failed to load player data: ${err.message}</div>`;
+        console.error(err);
+        renderErrorScreen(container, { ...explainError(err, { leagueId, playerName }), error: err });
     } finally {
         endSplash();
     }

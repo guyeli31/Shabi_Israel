@@ -1,0 +1,21 @@
+/* GENERATED — do not edit.
+ * Source: assets/splash/splash-config.json
+ * Rebuild: node scripts/build-splash-css.js
+ *
+ * Linked from every page's <head> so the saved splash design is in effect on
+ * the first paint, instead of arriving ~330ms later with the JSON and
+ * restyling the loading screen in front of the user. See css/splash.css.
+ */
+:root {
+    --sp-veil-cfg: 0%;
+    --sp-blur-cfg: 0px;
+    --sp-lift-cfg: 30%;
+    --sp-alt-cfg: 15%;
+    --sp-n-cfg: 24;
+    --sp-tight-cfg: 0.7;
+    --sp-scale-cfg: 1;
+    --sp-logo-cfg: 1;
+    --sp-corner-cfg: 15;
+    --sp-pop-cfg: 1.14;
+    --sp-cycle-cfg: 3s;
+}

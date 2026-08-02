@@ -1,35 +1,19 @@
 /**
- * matchHistory.js — Per-match timeline store.
+ * matchHistory.js — Per-match timeline logic (pure).
  *
- * Each league may have a `match_history.json` file with shape:
- *   { matches: [ { playerA, playerB, scoreA, scoreB, prA, prB, luckA, luckB,
- *                  round, updatedAt, source } ] }
- *
- * source: "csv" | "manual"
+ * A history record has the shape:
+ *   { playerA, playerB, scoreA, scoreB, prA, prB, luckA, luckB,
+ *     round, updatedAt, source }   // source: "csv" | "manual"
  *
  * The history is the source of truth for the "as of date" view. For the live
- * (current) view, history records override matching CSV rows (if both exist).
+ * (current) view, history records override matching match rows (if both exist).
+ *
+ * Loading lives in js/data/{store,supabaseLoader}.js — the `match_history`
+ * table. This module holds only the merge/replay logic that runs on top.
  */
-
-const LEAGUES_BASE = 'leagues';
 
 export function matchKey(playerA, playerB) {
     return [playerA, playerB].sort().join('|');
-}
-
-/**
- * Load match_history.json for a league. Returns { matches: [] } if missing.
- */
-export async function loadMatchHistory(leagueId) {
-    const encoded = encodeURIComponent(leagueId);
-    try {
-        const resp = await fetch(`${LEAGUES_BASE}/${encoded}/match_history.json`);
-        if (!resp.ok) return { matches: [] };
-        const data = await resp.json();
-        return { matches: data.matches || [] };
-    } catch {
-        return { matches: [] };
-    }
 }
 
 /**

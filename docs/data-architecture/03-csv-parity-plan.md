@@ -1,6 +1,6 @@
 # 03 — CSV Parity Verification Plan
 
-Status: **built and run (Phase 0, 2026-07-09)**. `scripts/verify-csv-parity.mjs` exists and produced a clean cutover-proof result — see [Results](#results-phase-0-2026-07-09) below and the archived report at [`verification/cutover-proof-2026-07-09.json`](verification/cutover-proof-2026-07-09.json). This document was updated post-run to reflect two things discovered only by actually executing the script (see the normalization table) — a reminder that a written plan and a run plan are not the same thing.
+Status: **done and retired (Phase 0, 2026-07-09)**. `scripts/verify-csv-parity.mjs` produced a clean cutover-proof result and has since been deleted along with the `leagues/**` snapshot it compared against — the cutover it verified is complete, Supabase is the only source of truth, and there is no longer a CSV side to diff. The archived reports below remain the record; the script itself is recoverable from git history. See [Results](#results-phase-0-2026-07-09) below and the archived report at [`verification/cutover-proof-2026-07-09.json`](verification/cutover-proof-2026-07-09.json). This document was updated post-run to reflect two things discovered only by actually executing the script (see the normalization table) — a reminder that a written plan and a run plan are not the same thing.
 
 ## Why this exists
 

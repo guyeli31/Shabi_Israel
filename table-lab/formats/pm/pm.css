@@ -67,6 +67,16 @@
     padding: 0.15em 0.4em;
     white-space: nowrap;
 }
+/* Soften the internal separators BETWEEN body rows to a lighter tint than the
+   outer frame. On high-DPR phones a 1px inner line straddling the device-pixel
+   grid renders heavier than the crisp box edge, so a stack of full-strength
+   inner rules looked too thick against the (correct) bottom edge. The table's
+   own edges, the header, and the header↔body divider (the first body row's top)
+   stay full strength. */
+.pm-table tbody tr:not(:first-child) th,
+.pm-table tbody tr:not(:first-child) td {
+    border-top-color: color-mix(in srgb, var(--popover-border-color) 45%, transparent);
+}
 /* Header tone for the column head row(s) AND the sticky row-header column of
    the matrix — the same deep table-header token MF uses. */
 .pm-table thead th,

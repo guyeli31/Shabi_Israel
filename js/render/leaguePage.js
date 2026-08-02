@@ -16,7 +16,8 @@ import { exportWhatsAppTableImage, MAX_EXPORT_ROWS, leagueTypeLabel } from '../u
 import { renderBreadcrumbs } from './navigation.js';
 import { loadPlayersMetadata } from '../data/store.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
-import { startSplash, endSplash } from '../utils/splash.js';
+import { startSplash, splashStage, endSplash } from '../utils/splash.js';
+import { renderErrorScreen, explainError } from '../utils/errorScreen.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildLeagueTablePreset } from '../presets/leagueTablePreset.js';
 import { buildLeagueHeaderData, renderV13Header, formatLastUpdatedDate } from './leagueHeader.js';
@@ -34,21 +35,26 @@ export async function renderLeaguePage() {
     if (asof) asof = asof.replace(/ (\d{2}:\d{2})$/, '+$1');
 
     if (!leagueId) {
-        container.innerHTML = '<div class="error">No league specified.</div>';
+        renderErrorScreen(container, {
+            title: 'No league selected',
+            message: 'This page needs a league in its address. Pick one from the list.',
+            actions: [{ label: 'Browse leagues', href: 'index.html', primary: true }]
+        });
         return;
     }
 
-    container.innerHTML = '<div class="loading">Loading league data...</div>';
-
     startSplash();
     try {
+        // Each promise reports its own stage as it lands, so the splash
+        // narrates real progress rather than one opaque Promise.all.
         const [{ params, matches, lastModified, totalPlayers, allPlayers, history }, playersMeta, leagueOrder] = await Promise.all([
-            loadLeague(leagueId),
-            loadPlayersMetadata(),
-            loadLeagueOrder().catch(() => [])
+            loadLeague(leagueId).then(r => { splashStage('matches'); return r; }),
+            loadPlayersMetadata().then(r => { splashStage('players'); return r; }),
+            loadLeagueOrder().then(r => { splashStage('settings'); return r; }).catch(() => [])
         ]);
         const folderNames = leagueOrder.map(t => t.replace(' - ', ' '));
         const allParams   = await loadAllLeagueParams(folderNames).catch(() => []);
+        splashStage('ranking');
         const leagueConfig = getLeagueConfig(params);
 
         // Historical snapshot: rebuild the match set as it stood at `asof`, and
@@ -100,6 +106,8 @@ export async function renderLeaguePage() {
         const averages  = computeAverages(rankings, leagueConfig);
         // matchStats no longer surfaced in the header — V13 already
         // carries the only timestamp the league-table page needs.
+
+        splashStage('render');
 
         // Build the export-button shell + a mount point for the table
         container.innerHTML = `
@@ -155,7 +163,8 @@ export async function renderLeaguePage() {
             }
         }
     } catch (err) {
-        container.innerHTML = `<div class="error">Failed to load league: ${err.message}</div>`;
+        console.error(err);
+        renderErrorScreen(container, { ...explainError(err, { leagueId }), error: err });
     } finally {
         endSplash();
     }

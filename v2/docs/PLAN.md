@@ -214,9 +214,11 @@ v2/
 │   │
 │   ├── data/                            ── Layer 7: data access (no UI) ──
 │   │   ├── csvParser.js                 # ported as-is from js/data/
-│   │   ├── leagueLoader.js              # ported; data paths via Vite alias
-│   │   ├── playersMetadata.js
-│   │   ├── settingsLoader.js
+│   │   ├── supabaseClient.js            # port of v1 js/data/supabaseClient.js
+│   │   ├── supabaseLoader.js            # port of v1 js/data/supabaseLoader.js
+│   │   ├── bundleMapper.js              # port of v1 js/data/bundleMapper.js
+│   │   ├── store.js                     # port of v1 js/data/store.js (bundle + cache)
+│   │   ├── applyOverrides.js            # port of v1 js/data/applyOverrides.js (pure)
 │   │   ├── titleConstants.js            # PURE tier semantics (no colors)
 │   │   ├── titleStyleMap.js             # tier → CSS class mapping
 │   │   └── adminWriter.js               # NEW: writes to admin overrides files
@@ -472,12 +474,14 @@ Each phase ends with a commit and an MCP verification checkpoint. If a phase fai
 - **MCP verification**: each component screenshotted in catalogue × 8 themes. Side-by-side comparison with v1 equivalents.
 
 ### Phase 4 — Data + compute layers (2–3 hours)
-- Port `js/data/{csvParser,leagueLoader,playersMetadata,settingsLoader}.js` → `v2/src/data/` (paths updated to use `/data/` Vite alias).
+- **Data source is Supabase, not files.** Port `js/data/{supabaseClient,supabaseLoader,bundleMapper,store,applyOverrides,csvParser}.js` → `v2/src/data/`. `store.js` is the public read API (one cached `get_site_bundle()` RPC); `supabaseLoader.js` is the admin read path (always fresh). Keep the v1 export names — v2's page code calls the same `loadLandingSettings / loadLeagueOrder / loadLeagueParams / loadLeagueMatches / loadLeagueMatchesAll / loadOverrides / loadLeague / loadAllLeagueParams / loadPlayersMetadata` surface.
+- **REPLACES the original Phase 4 plan**, which ported `leagueLoader.js` + `playersMetadata.js` to `fetch('/data/...')` against the shared `leagues/**` tree. That tree was deleted on 2026-08-02: it froze when v1's publishing moved to Supabase, and reading it silently served months-old data under folder names that no longer matched any league id (the same bug class this rebuild is meant to leave behind). The ported `src/data/{leagueLoader,playersMetadata,matchHistory}.js` fetch from `/data/` and must be replaced, not repaired — nothing calls them yet, so there are no consumers to migrate. `applyOverrides()` is pure and carries over unchanged (it is the only part with unit tests).
+- **Also retire**: `vite.config.js`'s `shared-data-proxy` plugin + the `leaguesDir` `fs.allow` entry, and `v2/scripts/data-sync.js` (it copied `../leagues` into `public/data` for production builds — there is no longer anything to copy).
 - Port `js/compute/{stats,rankings,leagueTypes,matchupAnalysis,championshipPredictor,whatIfSimulator}.js` → `v2/src/compute/` (unchanged logic).
 - Rewrite `js/compute/colorScale.js` → returns CSS variable references (`var(--c-level-expert)`) instead of raw hex; move the actual color values to `v2/src/tokens/color.css`.
 - Split `js/utils/helpers.js` into `v2/src/utils/{urlParams,formatting,flagUrl}.js`.
 - Write unit tests in `v2/tests/unit/` for stats, rankings, color scale.
-- **Verification**: `npm run test:unit` passes. Load a league via the data layer in a small test page; output matches v1.
+- **Verification**: `npm run test:unit` passes. Load a league via the data layer in a small test page against local Docker Supabase; output matches v1.
 
 ### Phase 5 — Table system (6–8 hours)
 - Build `v2/src/tables/{MFTable, SFTable, ExpandableTable, FormTable}/`. `FormTable` is the unified FF format covering 5 admin tables (three cell modes per ColDef: Display / Action / Edit).

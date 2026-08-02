@@ -7,6 +7,7 @@
 
 import * as supabaseAdmin from './supabaseAdmin.js';
 import { supabase } from '../data/supabaseClient.js';
+import { loadOverrides } from '../data/supabaseLoader.js';
 import { CATEGORY_TAXONOMY, CATEGORY_RANK } from './render/changeVocabulary.js';
 
 const STORAGE_KEY = 'shabi-admin-staging';
@@ -15,18 +16,87 @@ const STORAGE_KEY = 'shabi-admin-staging';
  * A staged change object:
  * {
  *   type: 'create' | 'update' | 'delete',
- *   path: string,           // repo file path
- *   content: string|null,   // file content (null for delete)
+ *   target: object,         // WHAT this change is — see TARGET below
+ *   content: string|null,   // serialized payload (null for delete)
  *   binary: boolean,        // true if content is base64-encoded binary
  *   description: string,    // human-readable description (Hebrew OK)
  *   timestamp: string        // ISO timestamp
  * }
+ *
+ * TARGET — every staged change names its destination as an explicit
+ * `{kind, ...ids}` descriptor built by the `T` factory below. It used to be a
+ * repo-style path string ("leagues/<id>/manual_overrides.json"), left over from
+ * when Admin committed files to GitHub. Publishing has gone to Supabase since;
+ * the string survived purely as a dedupe key and a routing tag, decoded back by
+ * a parseChangePath() that undid what the caller had just encoded. That
+ * round-trip was worse than redundant — a string shaped like a URL invites
+ * fetch()ing it, and three call sites did exactly that, reading a frozen repo
+ * snapshot as if it were live data (see fetchLatestText in playerManager.js).
+ * `leagues/<id>/__rename__` — a "path" for something that is not, and never
+ * was, a file — was the tell. A descriptor can't be fetched by mistake.
  */
+
+/** Target constructors. The only supported way to name a staged change's destination. */
+export const T = {
+    leagueRename:    (leagueId) => ({ kind: 'league_rename', leagueId }),
+    leagueParams:    (leagueId) => ({ kind: 'league_params', leagueId }),
+    leagueCsv:       (leagueId) => ({ kind: 'leaguedata_csv', leagueId }),
+    overrides:       (leagueId) => ({ kind: 'manual_overrides', leagueId }),
+    playersMetadata: () => ({ kind: 'players_metadata' }),
+    landingSettings: () => ({ kind: 'landing_settings' }),
+    syncSettings:    () => ({ kind: 'sync_settings' }),
+    flagAsset:       (code) => ({ kind: 'flag_asset', code }),
+    playerPhoto:     (filename) => ({ kind: 'player_photo', filename }),
+};
+
+/** Stable identity for a target — two changes with the same key supersede each other. */
+export function targetKey(t) {
+    if (!t) return '';
+    switch (t.kind) {
+        case 'flag_asset':   return `flag_asset:${t.code}`;
+        case 'player_photo': return `player_photo:${t.filename}`;
+        default:             return t.leagueId != null ? `${t.kind}:${t.leagueId}` : t.kind;
+    }
+}
+
+/**
+ * The public URL a target is served from, or null when it lives only in the DB.
+ * Only real static assets have one — this is what preview mode can intercept.
+ */
+export function targetUrl(t) {
+    if (!t) return null;
+    if (t.kind === 'flag_asset') return `assets/flags/${t.code}.png`;
+    if (t.kind === 'player_photo') return `assets/players/${t.filename}`;
+    return null;
+}
+
+/**
+ * Legacy migration: staged changes written before targets existed carry a `path`
+ * string. Convert on read so an admin mid-edit doesn't silently lose pending
+ * work across the upgrade. Delete once no live localStorage can hold the old
+ * shape (any publish or Discard All clears it).
+ */
+function legacyPathToTarget(path) {
+    let m;
+    if ((m = path.match(/^leagues\/([^/]+)\/__rename__$/))) return T.leagueRename(decodeURIComponent(m[1]));
+    if ((m = path.match(/^leagues\/([^/]+)\/league_params\.json$/))) return T.leagueParams(decodeURIComponent(m[1]));
+    if ((m = path.match(/^leagues\/([^/]+)\/leaguedata\.csv$/))) return T.leagueCsv(decodeURIComponent(m[1]));
+    if ((m = path.match(/^leagues\/([^/]+)\/manual_overrides\.json$/))) return T.overrides(decodeURIComponent(m[1]));
+    if (path === 'leagues/players_metadata.json') return T.playersMetadata();
+    if (path === 'leagues/landing_settings.json') return T.landingSettings();
+    if (path === 'leagues/sync_settings.json') return T.syncSettings();
+    if ((m = path.match(/^assets\/flags\/([^/]+)\.png$/))) return T.flagAsset(m[1]);
+    if ((m = path.match(/^assets\/players\/(.+)$/))) return T.playerPhoto(m[1]);
+    return { kind: 'unknown', path };
+}
 
 function load() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    try { return JSON.parse(raw); } catch { return []; }
+    let changes;
+    try { changes = JSON.parse(raw); } catch { return []; }
+    if (!Array.isArray(changes)) return [];
+    return changes.map(c => (c.target || !c.path) ? c : { ...c, target: legacyPathToTarget(c.path) });
 }
 
 function save(changes) {
@@ -38,8 +108,9 @@ function save(changes) {
  */
 export function addChange(change) {
     const changes = load();
-    // If a change for the same path already exists, replace it
-    const existing = changes.findIndex(c => c.path === change.path);
+    // A later change to the same target supersedes the earlier one
+    const key = targetKey(change.target);
+    const existing = changes.findIndex(c => targetKey(c.target) === key);
     if (existing !== -1) {
         const updated = { ...change, timestamp: new Date().toISOString() };
         // Mark as updated if replacing an earlier change
@@ -79,6 +150,16 @@ export function removeGroup(groupId) {
     save(changes);
 }
 
+/** Remove every staged change targeting a given league (any kind). */
+export function removeLeagueChanges(leagueId) {
+    save(load().filter(c => c.target?.leagueId !== leagueId));
+}
+
+/** True if any staged change targets this league. */
+export function hasLeagueChanges(leagueId) {
+    return load().some(c => c.target?.leagueId === leagueId);
+}
+
 /**
  * Clear all pending changes.
  */
@@ -87,12 +168,12 @@ export function clearChanges() {
 }
 
 /**
- * Get the staged content for a specific path (if any).
+ * Get the staged content for a specific target (if any).
  * Returns the content string or null if no staged change exists.
  */
-export function getStagedContent(path) {
-    const changes = load();
-    const match = changes.find(c => c.path === path);
+export function getStagedContent(target) {
+    const key = targetKey(target);
+    const match = load().find(c => targetKey(c.target) === key);
     return match ? match.content : null;
 }
 
@@ -150,29 +231,31 @@ function deltaCount(d) {
  * If the result is identical to the baseline, any staged change is dropped.
  */
 export async function stageManualOverrides(leagueId, overrides) {
-    const enc = encodeURIComponent(leagueId);
-    const path = `leagues/${enc}/manual_overrides.json`;
+    const target = T.overrides(leagueId);
+    const key = targetKey(target);
 
-    const existing = load().find(c => c.path === path);
+    const existing = load().find(c => targetKey(c.target) === key);
     let baseline = existing && existing.baselineOverrides ? existing.baselineOverrides : null;
     if (!baseline) {
+        // The published set is whatever Supabase currently holds. Historically
+        // this read the repo's manual_overrides.json, which froze when publishing
+        // moved to the DB — so every override authored since looked brand-new on
+        // each re-stage, flooding Pending Changes.
         baseline = [];
         try {
-            const resp = await fetch(path);
-            if (resp.ok) baseline = (await resp.json()).overrides || [];
-        } catch { /* no published overrides file → empty baseline */ }
+            baseline = await loadOverrides(leagueId);
+        } catch { /* league has no published overrides → empty baseline */ }
     }
 
     if (deltaCount(diffOverrides(overrides, baseline)) === 0) {
-        // No net change vs published — remove any staged change for this path.
-        const changes = load().filter(c => c.path !== path);
-        save(changes);
+        // No net change vs published — drop any staged change for this target.
+        save(load().filter(c => targetKey(c.target) !== key));
         return;
     }
 
     addChange({
         type: 'update',
-        path,
+        target,
         content: JSON.stringify({ overrides }, null, 2),
         description: `Overrides: ${leagueId}`,
         category: 'match-override',
@@ -196,9 +279,10 @@ function dropOverridesChangeIfClean(changes, idx) {
  * Used for brand-new overrides that have no published baseline to fall back to.
  * If the file then matches the published baseline, the whole change is dropped.
  */
-export function removeOverrideFromChange(path, overrideIndex) {
+export function removeOverrideFromChange(leagueId, overrideIndex) {
     const changes = load();
-    const idx = changes.findIndex(c => c.path === path);
+    const key = targetKey(T.overrides(leagueId));
+    const idx = changes.findIndex(c => targetKey(c.target) === key);
     if (idx === -1) return;
 
     try {
@@ -222,9 +306,10 @@ export function removeOverrideFromChange(path, overrideIndex) {
  * The baseline value is looked up from the change itself, so nothing is round-tripped
  * through the DOM. If the file then matches the baseline, the whole change is dropped.
  */
-export function restoreOverrideToChange(path, key) {
+export function restoreOverrideToChange(leagueId, key) {
     const changes = load();
-    const idx = changes.findIndex(c => c.path === path);
+    const tKey = targetKey(T.overrides(leagueId));
+    const idx = changes.findIndex(c => targetKey(c.target) === tKey);
     if (idx === -1) return;
 
     const override = (changes[idx].baselineOverrides || []).find(o => overrideKey(o) === key);
@@ -296,7 +381,7 @@ export function removePlayerFromGroup(playerName) {
 
 /**
  * Get number of pending changes (display count).
- * Groups count as 1, manual_overrides.json counts as N (one per override).
+ * Groups count as 1, an overrides change counts as N (one per changed override).
  */
 export function getChangeCount() {
     const changes = load();
@@ -308,7 +393,7 @@ export function getChangeCount() {
                 seen.add(c.group);
                 count += (c.editedPlayers && c.editedPlayers.length > 0) ? c.editedPlayers.length : 1;
             }
-        } else if (c.path && c.path.endsWith('manual_overrides.json') && c.content) {
+        } else if (c.target?.kind === 'manual_overrides' && c.content) {
             try {
                 const staged = JSON.parse(c.content).overrides || [];
                 count += deltaCount(diffOverrides(staged, c.baselineOverrides || []));
@@ -321,28 +406,10 @@ export function getChangeCount() {
 }
 
 /**
- * Parse a staged change's repo-style path into a (kind, ids) descriptor, so
- * publishAll() can dispatch to the right supabaseAdmin.js function. Every
- * staged path already carries the FULL current content for what it
- * represents (see file header) — this function only figures out WHERE it goes.
- */
-function parseChangePath(path) {
-    let m;
-    if ((m = path.match(/^leagues\/([^/]+)\/league_params\.json$/))) return { kind: 'league_params', leagueId: decodeURIComponent(m[1]) };
-    if ((m = path.match(/^leagues\/([^/]+)\/leaguedata\.csv$/))) return { kind: 'leaguedata_csv', leagueId: decodeURIComponent(m[1]) };
-    if ((m = path.match(/^leagues\/([^/]+)\/manual_overrides\.json$/))) return { kind: 'manual_overrides', leagueId: decodeURIComponent(m[1]) };
-    if (path === 'leagues/players_metadata.json') return { kind: 'players_metadata' };
-    if (path === 'leagues/landing_settings.json') return { kind: 'landing_settings' };
-    if (path === 'leagues/sync_settings.json') return { kind: 'sync_settings' };
-    if ((m = path.match(/^assets\/flags\/([^/]+)\.png$/))) return { kind: 'flag_asset', code: m[1] };
-    if ((m = path.match(/^assets\/players\/(.+)$/))) return { kind: 'player_photo', filename: m[1] };
-    return { kind: 'unknown' };
-}
-
-/**
- * Publish all pending changes to Supabase sequentially. Each change's `path`
- * is parsed (see parseChangePath) and dispatched to the matching
- * supabaseAdmin.js function — Admin no longer touches GitHub at all.
+ * Publish all pending changes to Supabase sequentially. Each change's `target`
+ * says which supabaseAdmin.js function it belongs to — Admin never touches
+ * GitHub, and no path is parsed to work that out. Every staged change already
+ * carries the FULL current content for what it represents (see file header).
  *
  * After publishing league data changes, saves a history snapshot + reconciles
  * match_history, same as before (now against Supabase instead of repo files).
@@ -387,9 +454,19 @@ export async function publishAll(onProgress) {
 
         for (const change of unit.changes) {
             if (onProgress) onProgress(progressIdx++, changes.length, change.description);
-            const desc = parseChangePath(change.path);
+            const desc = change.target || { kind: 'unknown' };
             try {
                 switch (desc.kind) {
+                    case 'league_rename':
+                        // Atomic id rename (RPC cascades FKs + rewrites analytics +
+                        // logs one clean audit row). Deliberately NOT added to
+                        // unitLeagues: no match/override data changed, only the
+                        // label, so no snapshot / history reconcile / last_updated
+                        // bump. Staged FIRST in its group so any same-unit
+                        // league_params upsert lands on the already-renamed row
+                        // instead of inserting a duplicate under the new id.
+                        await supabaseAdmin.renameLeague(desc.leagueId, JSON.parse(change.content).newId);
+                        break;
                     case 'league_params':
                         // Settings only (type/title/prizes/etc.) — no match/override
                         // data changed, so this deliberately does NOT add to
@@ -432,11 +509,11 @@ export async function publishAll(onProgress) {
                         else await supabaseAdmin.uploadPlayerPhoto(desc.filename, change.content);
                         break;
                     default:
-                        throw new Error(`Unrecognized staged path: ${change.path}`);
+                        throw new Error(`Unrecognized staged target: ${JSON.stringify(desc)}`);
                 }
                 published++;
             } catch (err) {
-                errors.push(`${change.path}: ${err.message}`);
+                errors.push(`${change.description || targetKey(desc)}: ${err.message}`);
             }
         }
 
@@ -462,7 +539,7 @@ export async function publishAll(onProgress) {
         if (watermark != null) {
             try {
                 const isPlayerMetaUnit = unit.changes.some(
-                    (c) => parseChangePath(c.path).kind === 'players_metadata'
+                    (c) => c.target?.kind === 'players_metadata'
                 );
                 if (isPlayerMetaUnit) {
                     await supabase.rpc('finalize_player_batches', { p_after_id: watermark });

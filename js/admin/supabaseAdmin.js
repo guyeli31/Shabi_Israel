@@ -60,6 +60,53 @@ function sameOverrideRow(row, o) {
         && sameInstant(row.edited_at, o.timestamp);
 }
 
+/**
+ * Re-express an override in an existing row's A/B orientation.
+ *
+ * "Dan vs Ron" and "Ron vs Dan" are the same match, so the two can legitimately
+ * disagree on which player is A. Every per-player field is POSITIONAL, though —
+ * scoreA belongs to playerA — so swapping the names alone would silently attach
+ * each player's score, PR and luck to the other one. `winner` is a name, not a
+ * position, so it is left alone.
+ *
+ * Returning the override in the row's own orientation keeps the stored order
+ * stable (an override's player order is what the league table renders, so
+ * re-ordering it would visibly reshuffle that one match) and lets
+ * sameOverrideRow() compare like for like.
+ */
+function orientLike(row, o) {
+    if (row.player_a === o.playerA) return o;
+    return {
+        ...o,
+        playerA: o.playerB, playerB: o.playerA,
+        scoreA: o.scoreB,   scoreB: o.scoreA,
+        prA: o.prB,         prB: o.prA,
+        luckA: o.luckB,     luckB: o.luckA,
+    };
+}
+
+/** Column payload for one override row. */
+function overrideRowValues(leagueId, o) {
+    return {
+        league_id: leagueId,
+        player_a: o.playerA,
+        player_b: o.playerB,
+        type: o.type,
+        winner: o.winner || null,
+        score_a: o.scoreA ?? null,
+        score_b: o.scoreB ?? null,
+        pr_a: o.prA ?? null,
+        pr_b: o.prB ?? null,
+        luck_a: o.luckA ?? null,
+        luck_b: o.luckB ?? null,
+        reason: o.reason || null,
+        // The admin-authored edit date (round editor's date picker → staged JSON
+        // `timestamp`). Persisted so match_history's updated_at can reflect WHEN
+        // the result actually changed, not when a sync last ran over it.
+        edited_at: o.timestamp || null,
+    };
+}
+
 function samePlayerRow(row, m) {
     return (row.full_name || null) === (m.fullName || null)
         && (row.bmab_title || null) === (m.bmabTitle || null)
@@ -73,7 +120,9 @@ function samePlayerRow(row, m) {
 function mapParamsToLeagueRow(leagueId, p) {
     return {
         id: leagueId,
-        title: p.LeagueTitle || leagueId,
+        // No `title`: the id IS the league name everywhere now, and the `title`
+        // column has been dropped (sql/drop_league_title.sql). Sending it would
+        // fail the upsert with "column leagues.title does not exist".
         league_type: p.LeagueType || 'doubling',
         running: p.Running === true,
         hidden: p.Hidden === true,
@@ -101,6 +150,19 @@ export async function upsertLeague(leagueId, params) {
 export async function deleteLeague(leagueId) {
     const { error } = await supabase.from('leagues').delete().eq('id', leagueId);
     if (error) throw new Error(`deleteLeague failed for ${leagueId}: ${error.message}`);
+}
+
+/**
+ * Rename a league's id (the natural key = the name shown everywhere). The
+ * public.rename_league RPC (sql/league_rename.sql) does it atomically: the
+ * ON UPDATE CASCADE FKs carry matches/overrides/history/snapshots/sync rows to
+ * the new id, analytics_events is rewritten, the per-row audit flood is
+ * suppressed, and exactly one clean audit row is logged. It also enforces
+ * uniqueness (case-insensitive) server-side, so a racing duplicate still fails.
+ */
+export async function renameLeague(oldId, newId) {
+    const { error } = await supabase.rpc('rename_league', { old_id: oldId, new_id: newId });
+    if (error) throw new Error(`renameLeague failed (${oldId} → ${newId}): ${error.message}`);
 }
 
 /** Sync a league's full matches table to match this CSV text (delete-stale + upsert ONLY changed rows). */
@@ -156,7 +218,11 @@ export async function syncOverrides(leagueId, overrides) {
         .eq('league_id', leagueId);
     if (fetchErr) throw new Error(`syncOverrides fetch failed for ${leagueId}: ${fetchErr.message}`);
 
-    const keyOf = (a, b) => `${a}|${b}`;
+    // Sorted, exactly like stagingStore.overrideKey() / roundEditor's pairKey():
+    // an override identifies a MATCH, and a match has no A/B order. Keying on the
+    // raw `a|b` made "Dan vs Ron" and "Ron vs Dan" two different overrides, so the
+    // same match got deleted and re-inserted under a fresh id on publish.
+    const keyOf = (a, b) => [a, b].sort().join('|');
     const existingByKey = new Map((existing || []).map((row) => [keyOf(row.player_a, row.player_b), row]));
     const freshKeys = new Set(overrides.map((o) => keyOf(o.playerA, o.playerB)));
     const staleIds = (existing || [])
@@ -168,29 +234,25 @@ export async function syncOverrides(leagueId, overrides) {
     }
 
     // Only new or genuinely-changed overrides — leave untouched ones alone.
-    const changed = overrides.filter((o) => {
-        const cur = existingByKey.get(keyOf(o.playerA, o.playerB));
-        return !cur || !sameOverrideRow(cur, o);
-    });
-    if (changed.length === 0) return;
-    const rows = changed.map((o) => ({
-        league_id: leagueId,
-        player_a: o.playerA,
-        player_b: o.playerB,
-        type: o.type,
-        winner: o.winner || null,
-        score_a: o.scoreA ?? null,
-        score_b: o.scoreB ?? null,
-        pr_a: o.prA ?? null,
-        pr_b: o.prB ?? null,
-        luck_a: o.luckA ?? null,
-        luck_b: o.luckB ?? null,
-        reason: o.reason || null,
-        // The admin-authored edit date (round editor's date picker → staged JSON
-        // `timestamp`). Persisted so match_history's updated_at can reflect WHEN
-        // the result actually changed, not when a sync last ran over it.
-        edited_at: o.timestamp || null,
-    }));
+    //
+    // A matched row is re-expressed in ITS OWN A/B orientation first. That is
+    // what keeps the upsert below safe: its conflict target is
+    // (league_id, player_a, player_b), so writing a flipped pair would miss the
+    // row we just matched and INSERT a second override for the same match. After
+    // orientLike() the payload's player_a/player_b are the stored ones by
+    // construction, so ON CONFLICT always lands on the intended row.
+    const rows = [];
+    for (const raw of overrides) {
+        const cur = existingByKey.get(keyOf(raw.playerA, raw.playerB));
+        if (!cur) {
+            rows.push(overrideRowValues(leagueId, raw)); // brand-new override
+            continue;
+        }
+        const o = orientLike(cur, raw);
+        if (!sameOverrideRow(cur, o)) rows.push(overrideRowValues(leagueId, o));
+    }
+    if (rows.length === 0) return;
+
     const { error } = await supabase.from('manual_overrides').upsert(rows, { onConflict: 'league_id,player_a,player_b' });
     if (error) throw new Error(`syncOverrides upsert failed for ${leagueId}: ${error.message}`);
 }

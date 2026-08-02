@@ -11,34 +11,14 @@
  * import is a full-file overwrite — this report is the only safety net.
  */
 
-import { getStagedContent } from './stagingStore.js';
+import { getStagedContent, T } from './stagingStore.js';
 import { parseCSV, parseCSVWithRounds, parseCSVAllWithRounds, getAllPlayersFromCSV } from '../data/csvParser.js';
 import { loadLeagueMatchesAll, loadOverrides } from '../data/supabaseLoader.js';
 import {
     validateCsvStructure, describeLeagueShape, collectPlayed,
     findPlayedRegressions, splitRegressions, formatRegressions,
 } from '../data/csvIntegrity.js';
-
-/** Reconstruct leaguedata.csv-style text from Supabase match rows, grouped by
- *  round with a "Player,..." header line per round (parseCSV*'s round-detection
- *  keys off any line starting with "player"), so downstream parseCSV/
- *  parseCSVWithRounds keep working unchanged on the reconstructed text. */
-function matchesToCsvText(matches) {
-    const byRound = new Map();
-    for (const m of matches) {
-        const r = m.round || 1;
-        if (!byRound.has(r)) byRound.set(r, []);
-        byRound.get(r).push(m);
-    }
-    const lines = [];
-    for (const round of [...byRound.keys()].sort((a, b) => a - b)) {
-        lines.push('Player,PR,Luck,Score,Player,PR,Luck,Score');
-        for (const m of byRound.get(round)) {
-            lines.push([m.playerA, m.prA, m.luckA, m.scoreA, m.playerB, m.prB, m.luckB, m.scoreB].join(','));
-        }
-    }
-    return lines.join('\n');
-}
+import { matchesToCsvText } from './csvText.js';
 
 /**
  * Read the league's current state (as CSV text + overrides) from Supabase.
@@ -46,9 +26,7 @@ function matchesToCsvText(matches) {
  * admin is actually about to publish.
  */
 async function readCurrentState(leagueId) {
-    const enc = encodeURIComponent(leagueId);
-
-    let csv = getStagedContent(`leagues/${enc}/leaguedata.csv`);
+    let csv = getStagedContent(T.leagueCsv(leagueId));
     if (csv == null) {
         try {
             const { matches } = await loadLeagueMatchesAll(leagueId);
@@ -57,7 +35,7 @@ async function readCurrentState(leagueId) {
     }
 
     let overrides = [];
-    const ovText = getStagedContent(`leagues/${enc}/manual_overrides.json`);
+    const ovText = getStagedContent(T.overrides(leagueId));
     if (ovText != null) {
         try { overrides = JSON.parse(ovText).overrides || []; } catch { /* ignore */ }
     } else {

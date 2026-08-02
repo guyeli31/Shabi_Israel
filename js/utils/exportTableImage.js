@@ -63,6 +63,54 @@ const WA_LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: '
 export function leagueTypeLabel(leagueType) {
     return WA_LEAGUE_TYPE_LABELS[leagueType] || WA_LEAGUE_TYPE_LABELS.doubling;
 }
+
+/**
+ * BMAB title-pill fix-up for an export clone ("M2" / "G0" / "A1" …).
+ *
+ * On the live page the BMAB pill's outline is `box-shadow: inset 0 0 0 1.5px
+ * currentColor` precisely so it costs NOTHING in layout — the outlined BMAB
+ * pill and the gradient championship pill (WC/NC) then have byte-identical
+ * boxes and share one baseline. html2canvas cannot render an inset shadow: it
+ * paints the whole element in the shadow colour with the glyphs knocked out
+ * (verified against html2canvas-pro 1.5.11 — the fork did NOT fix this), so
+ * the pill MUST be given something else to draw.
+ *
+ * A real `border` is the obvious substitute and the wrong one: it occupies
+ * layout, so the pill came out 4px wider and 4px taller than on the live page.
+ * With `vertical-align: text-bottom` pinning the bottom edge, the extra height
+ * grows upward and the BMAB pill visibly floated above the championship pill
+ * beside it — and even alone it read as oversized next to the player name.
+ * Compensating by shrinking the padding can't work either: browsers round
+ * border widths to whole device pixels (1.5px renders as 1px at DPR 1), and
+ * the padding is `0.12em`, which is smaller than the border once the WhatsApp
+ * frame fits the table font down toward its 8px floor.
+ *
+ * So the frame is drawn by an absolutely-positioned overlay child instead. It
+ * is out of flow, so the pill keeps EXACTLY its live width, height and
+ * baseline, while html2canvas gets a plain bordered box it renders correctly.
+ * `inset: 0` resolves against the pill's padding box, which — the pill having
+ * no border — is its outer edge, so the frame lands where the shadow was.
+ *
+ * Championship pills are deliberately NOT touched: they carry a real gradient
+ * background and no inset shadow, so html2canvas already renders them
+ * faithfully. Leaving both variants at their live geometry is what keeps them
+ * matched to each other and to the page.
+ */
+function normaliseTitleBadgesForExport(root) {
+    root.querySelectorAll('.title-abbr:not(.title-abbr-champ)').forEach(pill => {
+        pill.style.boxShadow = 'none';
+        // Unconditional: the clone is still detached here, so getComputedStyle
+        // would report nothing to test against. `.title-abbr` is unpositioned
+        // in CSS (only the champ variant is, and that one is skipped), and
+        // `relative` costs no layout — it only makes the pill the overlay's
+        // containing block, which is the whole point.
+        pill.style.position = 'relative';
+        const frame = document.createElement('span');
+        frame.style.cssText = 'position:absolute;inset:0;border:1.5px solid currentColor;'
+            + 'border-radius:inherit;box-sizing:border-box;pointer-events:none;';
+        pill.appendChild(frame);
+    });
+}
 // The whole fluid type family, keyed by its design-max in rem. Tables use
 // several of these — not just --fs-085 (data cells): B7b's "played ≥ half"
 // divider is --fs-075, footers are --fs-060, etc. The font-fit below drives
@@ -179,11 +227,7 @@ export async function exportWhatsAppTableImage({ sourceTable, filename, title, s
         cell.style.left = 'auto';
         cell.style.boxShadow = 'none';
     });
-    tableClone.querySelectorAll('.title-abbr:not(.title-abbr-champ)').forEach(pill => {
-        pill.style.boxShadow = 'none';
-        pill.style.border = '1.5px solid currentColor';
-        pill.style.boxSizing = 'border-box';
-    });
+    normaliseTitleBadgesForExport(tableClone);
     tableClone.style.maxWidth = 'none';
 
     // Content-width mode: pin every cell nowrap so each column sizes to its
@@ -363,13 +407,10 @@ export async function exportTableImage({
         cell.style.boxShadow = 'none';
     });
 
-    // BMAB pill border is `box-shadow: inset 0 0 0 1.5px currentColor` —
-    // same html2canvas inset bug. Replace with a real border on the clone.
-    tableClone.querySelectorAll('.title-abbr:not(.title-abbr-champ)').forEach(pill => {
-        pill.style.boxShadow = 'none';
-        pill.style.border = '1.5px solid currentColor';
-        pill.style.boxSizing = 'border-box';
-    });
+    // BMAB pill outline is `box-shadow: inset 0 0 0 1.5px currentColor` — same
+    // html2canvas inset bug. Redrawn as a zero-layout overlay so the pill keeps
+    // exactly its live size next to the player name.
+    normaliseTitleBadgesForExport(tableClone);
 
     // Width policy + font pin → deterministic output at any viewport/zoom.
     tableClone.style.width = 'auto';

@@ -81,6 +81,53 @@ Playwright MCP is configured in `.mcp.json` to write all artifacts (screenshots,
 
 No build, no dependencies, no package.json. All JS uses ES modules (`type="module"`).
 
+## No third-party resources — project-wide rule
+
+**No page may load anything from an origin we don't own.** No Google Fonts, no
+CDN scripts, no remote stylesheets or images, and no runtime-injected
+`<link>`/`<script>` pointing off-origin. This applies to the internal design
+tools (`banner-poc`, `design-lab`, `logo-editor`, `design-catalogue`) exactly
+as much as to the production pages. The only permitted off-origin destination
+is the app's own Supabase backend.
+
+Two reasons, both of which have already bitten this project: a third-party
+`<link>` discloses every visitor's IP address and user-agent to that company,
+and a render-blocking one in `<head>` measured **~324ms of blank screen** on a
+cold load — in front of the loading screen whose whole job is to cover latency.
+
+- **Fonts** are self-hosted in `assets/fonts/`, declared by `css/fonts.css`.
+  That CSS is **generated — never hand-edit it**. To add a family, add its spec
+  to `SPECS` in `scripts/fetch-fonts.js`, run `node scripts/fetch-fonts.js`,
+  and commit the woff2 files plus the regenerated CSS.
+- **Libraries** get vendored into `vendor/` (as `html2canvas-pro` already is),
+  never referenced from a CDN.
+- **Verify with `node scripts/check-no-external.js`** — it fails with exit 1
+  and lists every offending file:line. Run it before committing anything that
+  touches a page's `<head>` or adds a dependency. This regression is invisible
+  in code review and only shows up in a network panel, which is why the check
+  exists.
+
+## The loading screen (splash)
+
+Designed in `splash-poc.html` (the Splash Editor), rendered by
+`js/utils/splash.js` + `css/splash.css`. Its design is saved as **two files
+that must stay in step**:
+
+- `assets/splash/splash-config.json` — the full config, fetched at runtime.
+- `assets/splash/splash-vars.css` — **generated, never hand-edit**. Emits the
+  visual half as `--sp-*-cfg` properties on `:root`, and is linked in every
+  page's `<head>`.
+
+The CSS exists because the JSON fetch measured **~330ms**: long enough for the
+splash to appear in `css/splash.css`'s fallback design and then visibly
+restyle itself. A loading screen that changes design while the user watches is
+the flicker the whole rewrite set out to remove. So the `<link>` must stay in
+`<head>`, and the fallbacks in `css/splash.css` are a safety net for a missing
+stylesheet — not the design.
+
+The editor's **Save to site** writes both. After editing the JSON by hand, run
+`node scripts/build-splash-css.js` (`--check` verifies they match).
+
 ## Key Conventions
 
 - League IDs in URLs = folder names under `leagues/` (e.g., "Shabi Israel April 2026")

@@ -10,13 +10,11 @@
  */
 
 import { loadOverrides, loadLeagueParams, loadLeagueMatchesAll } from '../data/supabaseLoader.js';
-import { addChange, getStagedContent, stageManualOverrides } from './stagingStore.js';
+import { addChange, getStagedContent, stageManualOverrides, T } from './stagingStore.js';
 import { revealMsg } from './msgScroll.js';
 
 async function loadOverridesWithStaged(leagueId) {
-    const encoded = encodeURIComponent(leagueId);
-    const path = `leagues/${encoded}/manual_overrides.json`;
-    const staged = getStagedContent(path);
+    const staged = getStagedContent(T.overrides(leagueId));
     if (staged) {
         try { return JSON.parse(staged).overrides || []; } catch { return []; }
     }
@@ -325,10 +323,8 @@ function attachBulkTechLoss(root, content, leagueId, matches, matchLength, refre
  * single staged manual_overrides.json change.
  */
 async function stageBulkTechLoss(leagueId, player, playerMatches, refreshBadge) {
-    const encoded = encodeURIComponent(leagueId);
-    const path = `leagues/${encoded}/manual_overrides.json`;
     let overrides = [];
-    const staged = getStagedContent(path);
+    const staged = getStagedContent(T.overrides(leagueId));
     if (staged) {
         try { overrides = JSON.parse(staged).overrides || []; } catch { }
     } else {
@@ -580,10 +576,8 @@ function formatEdited(ts) {
 }
 
 async function stageOverride(leagueId, newOverride, refreshBadge) {
-    const encoded = encodeURIComponent(leagueId);
-    const path = `leagues/${encoded}/manual_overrides.json`;
     let overrides = [];
-    const staged = getStagedContent(path);
+    const staged = getStagedContent(T.overrides(leagueId));
     if (staged) {
         try { overrides = JSON.parse(staged).overrides || []; } catch { }
     } else {

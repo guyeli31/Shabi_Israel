@@ -22,9 +22,10 @@
     <link rel="stylesheet" href="css/typography-overrides.css">
     <link rel="stylesheet" href="table-lab/formats/mf/mf.css">
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Playfair+Display:ital,wght@0,700;1,500&display=swap" rel="stylesheet">
+    <!-- Self-hosted fonts. Never reference fonts.googleapis.com here: it is a
+         render-blocking third-party request that also discloses every visitor's
+         IP to Google. Add new families to scripts/fetch-fonts.js instead. -->
+    <link rel="stylesheet" href="css/fonts.css">
 
     <script>
       (function(){
@@ -1290,9 +1291,9 @@
         import { renderDashboardPage } from './js/render/dashboardPage.js';
         import { renderPlayerPage } from './js/render/playerPage.js';
         import { renderPlayerGeneralPage } from './js/render/playerGeneralPage.js';
-        import { loadPlayersMetadata, clearPlayersMetadataCache } from './js/data/playersMetadata.js';
+        import { loadPlayersMetadata, clearPlayersMetadataCache } from './js/data/store.js';
         import { getBmabInfo, getChampionshipInfo, getChampionshipTooltip } from './js/data/titleConstants.js';
-        import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches, loadLeague, loadLeagueParams } from './js/data/leagueLoader.js';
+        import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches, loadLeague, loadLeagueParams } from './js/data/store.js';
         import { getFlagCode, parseLeagueDate, flagUrl } from './js/utils/helpers.js';
 
         const DEFAULT_PLAYER = 'GuyEliyahu';

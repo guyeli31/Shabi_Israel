@@ -707,63 +707,10 @@ tr.retired {
     outline: 2px solid var(--color-accent);
     outline-offset: -1px;
 }
-.matchup-search-dropdown {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    max-height: 240px;
-    overflow-y: auto;
-    background: var(--color-surface);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-lg);
-    list-style: none;
-    padding: var(--space-xs) 0;
-    z-index: 20;
-    border: 1px solid var(--color-border);
-    margin: 0;
-}
-.matchup-search-option {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    width: 100%;
-    padding: 8px var(--space-md);
-    background: none;
-    border: none;
-    text-align: left;
-    font-size: var(--fs-090);
-    color: var(--color-text);
-    cursor: pointer;
-    box-sizing: border-box;
-}
-.matchup-search-option:hover { background: var(--color-hover); }
-.matchup-search-dropdown .search-player-info {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    flex: 1;
-    min-width: 0;
-}
-.matchup-search-dropdown .search-player-name {
-    font-weight: 600;
-    white-space: nowrap;
-}
-.matchup-search-dropdown .search-player-realname {
-    font-size: var(--fs-080);
-    color: var(--color-text-muted);
-    font-weight: 400;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.matchup-search-empty {
-    padding: 10px var(--space-md);
-    color: var(--color-text-muted);
-    font-size: var(--fs-085);
-    text-align: center;
-    list-style: none;
-}
+/* The H2H opponent list itself is the canonical combobox now
+   (.app-combo-dropdown in layout.css) — the hand-rolled
+   .matchup-search-dropdown/-option/-empty rules that used to live here are
+   gone with it. Only the wrap + input styling below remains local. */
 
 .matchup-count-badge {
     display: block;

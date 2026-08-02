@@ -37,6 +37,7 @@ export const TOPIC_META = {
 export const CATEGORY_TAXONOMY = {
     'create-league':   { topic: 'league',   icon: '🆕', text: 'Created' },
     'delete-league':   { topic: 'league',   icon: '🗑️', text: 'Deleted' },
+    'league-rename':   { topic: 'league',   icon: '🏷️', text: 'Renamed' },
     'league-settings': { topic: 'league',   icon: '⚙️', text: 'Settings updated' },
     'league-players':  { topic: 'league',   icon: '🚩', text: 'Players updated' },
     'league-data':     { topic: 'league',   icon: '📊', text: 'Match data updated' },
@@ -58,7 +59,7 @@ export const CATEGORY_TAXONOMY = {
  * highest-rank one headlines the batch (same rule the retroactive backfill uses).
  */
 export const CATEGORY_RANK = {
-    'create-league': 100, 'delete-league': 100,
+    'create-league': 100, 'delete-league': 100, 'league-rename': 100,
     'league-settings': 80, 'league-players': 80,
     'create-player': 80, 'player-meta': 80, 'player-photo': 80, 'player-rename': 80,
     'match-override': 75, 'edit-override': 75, 'remove-override': 75,

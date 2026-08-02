@@ -3,7 +3,7 @@
  */
 
 import { loadLeagueOrder, loadLeagueParams, loadLeagueMatches, loadLeagueMatchesAll, loadLandingSettings } from '../data/supabaseLoader.js';
-import { addChange, getStagedContent } from './stagingStore.js';
+import { addChange, getStagedContent, getChanges, hasLeagueChanges, removeLeagueChanges, T } from './stagingStore.js';
 import { getAllPlayersFromCSV } from '../data/csvParser.js';
 import { renderRoundEditor } from './roundEditor.js';
 import { renderExcelImporter } from './excelImporter.js';
@@ -17,31 +17,13 @@ import { revealMsg } from './msgScroll.js';
 import { wireSectionCollapse } from '../render/sectionCollapse.js';
 import { mountAccordionTabs } from '../render/subTabs.js';
 import { filePickerHTML } from './render/formControls.js';
+import { matchesToCsvText } from './csvText.js';
 
 // Known flag codes (from assets/flags/)
 const KNOWN_FLAGS = ['BE', 'IL', 'RU', 'TZ', 'UN'];
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 
 let refreshBadgeFn = null;
-
-/** Reconstruct leaguedata.csv-style text from Supabase match rows (round-grouped,
- *  "Player,..." header per round), so existing string-level rename logic keeps working. */
-function matchesToCsvText(matches) {
-    const byRound = new Map();
-    for (const m of matches) {
-        const r = m.round || 1;
-        if (!byRound.has(r)) byRound.set(r, []);
-        byRound.get(r).push(m);
-    }
-    const lines = [];
-    for (const round of [...byRound.keys()].sort((a, b) => a - b)) {
-        lines.push('Player,PR,Luck,Score,Player,PR,Luck,Score');
-        for (const m of byRound.get(round)) {
-            lines.push([m.playerA, m.prA, m.luckA, m.scoreA, m.playerB, m.prB, m.luckB, m.scoreB].join(','));
-        }
-    }
-    return lines.join('\n');
-}
 
 /**
  * Convert any image file (jpg, png, gif, webp, heic, etc.) to a PNG base64 string.
@@ -155,7 +137,7 @@ function renderLeagueList(container, leagues, displayOrder) {
 
         rows += `
             <tr>
-                <td>${esc(p.LeagueTitle || lg.id)}${hiddenBadge}</td>
+                <td>${esc(lg.id)}${hiddenBadge}</td>
                 <td><span class="league-type-pill type-${esc(p.LeagueType || 'doubling')}">${esc(LEAGUE_TYPE_LABELS[p.LeagueType] || LEAGUE_TYPE_LABELS.doubling)}</span></td>
                 <td>${p.IssueDate ? formatAdminDate(p.IssueDate) : '<span style="color:var(--color-text-muted)">—</span>'}</td>
                 <td>${statusPill}</td>
@@ -419,7 +401,7 @@ async function renderAddLeagueForm(container, displayOrder) {
                 const meta = await loadPlayersMetadata();
                 if (meta[name]?.defaultFlag) flag = meta[name].defaultFlag;
                 // Staged metadata takes precedence
-                const stagedRaw = getStagedContent('leagues/players_metadata.json');
+                const stagedRaw = getStagedContent(T.playersMetadata());
                 if (stagedRaw) {
                     const stagedMeta = JSON.parse(stagedRaw);
                     if (stagedMeta[name]?.defaultFlag) flag = stagedMeta[name].defaultFlag;
@@ -456,7 +438,7 @@ async function renderAddLeagueForm(container, displayOrder) {
                 const t = getTitleAbbreviationsHtml(m);
                 if (t) titleHtml[n] = t;
             }
-            const stagedRaw = getStagedContent('leagues/players_metadata.json');
+            const stagedRaw = getStagedContent(T.playersMetadata());
             if (stagedRaw) {
                 try {
                     const stagedMeta = JSON.parse(stagedRaw);
@@ -538,6 +520,18 @@ async function renderAddLeagueForm(container, displayOrder) {
             return;
         }
 
+        // Uniqueness guard: the league name IS its id (the natural key), so it
+        // must not collide with an existing one. Compare the resolved folder id
+        // (dash stripped, as stageAddLeague does) case-insensitively against the
+        // leagues the admin knows (DisplayOrder is its league list). Without this
+        // an upsert would silently overwrite the existing league of that name.
+        const newFolderId = name.replace(' - ', ' ');
+        const existingIds = displayOrder.map(t => t.replace(' - ', ' '));
+        if (existingIds.some(id => id.toLowerCase() === newFolderId.toLowerCase())) {
+            showMsg('add-msg', `A league named "${newFolderId}" already exists. League names must be unique.`, 'error');
+            return;
+        }
+
         const options = {
             issueDate: document.getElementById('new-issue-date').value || null,
             entryFee: parseInt(document.getElementById('new-entry-fee').value) || 0,
@@ -596,7 +590,6 @@ function generateRoundRobinCSV(playerNames) {
 async function stageAddLeague(name, type, displayOrder, options = {}) {
     // Folder name: title without dash
     const folderName = name.replace(' - ', ' ');
-    const encoded = encodeURIComponent(folderName);
 
     // All files that make up a brand-new league are staged under a single group
     // so Pending Changes shows (and the badge counts) the whole creation as ONE item.
@@ -613,7 +606,7 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
         if (pl.flagData && pl.flag) {
             addChange({
                 type: 'create',
-                path: `assets/flags/${pl.flag}.png`,
+                target: T.flagAsset(pl.flag),
                 content: pl.flagData,
                 binary: true,
                 description: `Upload flag: ${pl.flag}.png`,
@@ -623,9 +616,9 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
         }
     }
 
-    // league_params.json
+    // league_params.json — no LeagueTitle: the folder id IS the name, and
+    // mapParamsToLeagueRow falls the DB `title` column back to the id.
     const params = {
-        LeagueTitle: name,
         LeagueType: type,
         GoldCount: options.goldCount ?? 1,
         SilverCount: options.silverCount ?? 1,
@@ -644,7 +637,7 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
 
     addChange({
         type: 'create',
-        path: `leagues/${encoded}/league_params.json`,
+        target: T.leagueParams(leagueId),
         content: JSON.stringify(params, null, 2),
         description: `Create league: ${name}`,
         category: 'create-league',
@@ -665,7 +658,7 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
     }
     addChange({
         type: 'create',
-        path: `leagues/${encoded}/leaguedata.csv`,
+        target: T.leagueCsv(leagueId),
         content: csvContent,
         description: `Create CSV for: ${name}`,
         group: groupId,
@@ -679,7 +672,7 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
     try {
         const { loadPlayersMetadata } = await import('../data/supabasePlayersMetadata.js');
         let metadata = {};
-        const stagedMeta = getStagedContent('leagues/players_metadata.json');
+        const stagedMeta = getStagedContent(T.playersMetadata());
         if (stagedMeta) {
             try { metadata = JSON.parse(stagedMeta); } catch { metadata = {}; }
         } else {
@@ -704,7 +697,7 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
         if (added.length > 0) {
             addChange({
                 type: 'update',
-                path: 'leagues/players_metadata.json',
+                target: T.playersMetadata(),
                 content: JSON.stringify(updated, null, 2),
                 description: `Register new players: ${added.join(', ')}`,
                 group: groupId,
@@ -719,7 +712,7 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
     settings.displayOrder = newOrder;
     addChange({
         type: 'update',
-        path: 'leagues/landing_settings.json',
+        target: T.landingSettings(),
         content: JSON.stringify({
             title: settings.title,
             subtitle: settings.subtitle,
@@ -735,13 +728,12 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
 }
 
 async function stageDeleteLeague(leagueId, title, displayOrder) {
-    const encoded = encodeURIComponent(leagueId);
     const groupId = `delete-${leagueId}`;
     const groupDescription = `Delete league: ${title}`;
 
     addChange({
         type: 'delete',
-        path: `leagues/${encoded}/league_params.json`,
+        target: T.leagueParams(leagueId),
         content: null,
         description: `Delete league params: ${leagueId}`,
         category: 'delete-league',
@@ -752,7 +744,7 @@ async function stageDeleteLeague(leagueId, title, displayOrder) {
 
     addChange({
         type: 'delete',
-        path: `leagues/${encoded}/leaguedata.csv`,
+        target: T.leagueCsv(leagueId),
         content: null,
         description: `Delete league CSV: ${leagueId}`,
         group: groupId,
@@ -765,7 +757,7 @@ async function stageDeleteLeague(leagueId, title, displayOrder) {
     settings.displayOrder = newOrder;
     addChange({
         type: 'update',
-        path: 'leagues/landing_settings.json',
+        target: T.landingSettings(),
         content: JSON.stringify({
             title: settings.title,
             subtitle: settings.subtitle,
@@ -789,7 +781,7 @@ async function renderEditLeague(container, leagueId, displayOrder, openSubtab) {
         let params = await loadLeagueParams(leagueId);
         // Prefer staged (unpublished) params so edits survive a page refresh
         // before they are published via Pending Changes.
-        const stagedParams = getStagedContent(`leagues/${encodeURIComponent(leagueId)}/league_params.json`);
+        const stagedParams = getStagedContent(T.leagueParams(leagueId));
         if (stagedParams) {
             try { params = JSON.parse(stagedParams); } catch { /* fall back to file version */ }
         }
@@ -859,7 +851,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     }));
 
     container.innerHTML = `
-        <h1>Edit: ${esc(p.LeagueTitle || leagueId)}</h1>
+        <h1>Edit: ${esc(leagueId)}</h1>
         <button class="btn btn-primary btn-back" id="back-to-leagues" style="margin-bottom:var(--space-lg)">&lsaquo; Back to Leagues</button>
 
         <div class="dash-section">
@@ -870,7 +862,8 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             <div id="edit-msg"></div>
             <div class="form-group">
                 <label for="edit-title">League Name</label>
-                <input type="text" id="edit-title" value="${esc(p.LeagueTitle || leagueId)}">
+                <input type="text" id="edit-title" value="${esc(leagueId)}">
+                <small class="form-hint">This is the league's id and its page URL. Changing it renames the league everywhere (matches, history, analytics) on publish.</small>
             </div>
             <div class="form-group">
                 <label for="edit-type">League Type</label>
@@ -1009,13 +1002,41 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         });
     });
 
-    // Save settings
-    document.getElementById('save-league-settings').addEventListener('click', () => {
-        const encoded = encodeURIComponent(leagueId);
-        const stagedJson = getStagedContent(`leagues/${encoded}/league_params.json`);
+    // Save settings — the "League Name" field IS the league id (the natural key
+    // shown everywhere). Changing it drives a real rename cascade, not a cosmetic
+    // title edit: the id, its ?league= URL, and every reference (matches /
+    // overrides / history / snapshots / sync / analytics) move together via the
+    // rename_league RPC. There is no separate visual title any more.
+    document.getElementById('save-league-settings').addEventListener('click', async () => {
+        const newName = document.getElementById('edit-title').value.trim();
+        const renaming = !!newName && newName !== leagueId;
+
+        if (renaming) {
+            // Uniqueness (case-insensitive) against the leagues the admin knows —
+            // DisplayOrder is its league list. The RPC re-checks server-side, so
+            // this is early feedback, not the authority.
+            const existingIds = displayOrder.map(t => t.replace(' - ', ' '));
+            if (existingIds.some(id => id.toLowerCase() === newName.toLowerCase() && id !== leagueId)) {
+                showMsg('edit-msg', `A league named "${newName}" already exists. League names must be unique.`, 'error');
+                return;
+            }
+            // A rename rewrites this league's id everywhere; any change still
+            // staged under the OLD id would publish in an undefined order against
+            // it (or resurrect it). Require a clean slate for this league first.
+            if (hasLeagueChanges(leagueId)) {
+                showMsg('edit-msg', 'Publish or discard this league’s other pending changes before renaming it.', 'error');
+                return;
+            }
+            if (!confirm(`Rename this league from "${leagueId}" to "${newName}"?\n\nThis changes its id and its ?league= URL, and moves every reference (matches, overrides, history, analytics) to the new name. Links saved to the old name will stop working.`)) {
+                return;
+            }
+        }
+
+        const targetId = renaming ? newName : leagueId;
+        const stagedJson = getStagedContent(T.leagueParams(leagueId));
         const baseParams = stagedJson ? JSON.parse(stagedJson) : params;
         const newParams = { ...baseParams };
-        newParams.LeagueTitle = document.getElementById('edit-title').value.trim();
+        delete newParams.LeagueTitle; // the id is the name — no cosmetic title stored
         newParams.LeagueType = document.getElementById('edit-type').value;
         newParams.Running = document.getElementById('edit-status').checked;
         newParams.Hidden = document.getElementById('edit-hidden').checked;
@@ -1036,18 +1057,63 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         // Remove Hidden if false (keep JSON clean)
         if (!newParams.Hidden) delete newParams.Hidden;
 
+        const groupId = renaming ? `rename-${leagueId}` : undefined;
+        const groupDescription = renaming ? `Rename league: ${leagueId} → ${newName}` : undefined;
+
+        if (renaming) {
+            // 1. The rename itself, staged FIRST so publish runs it before the
+            //    params upsert lands on the (now-renamed) row instead of inserting
+            //    a duplicate under the new id.
+            addChange({
+                type: 'update',
+                target: T.leagueRename(leagueId),
+                content: JSON.stringify({ newId: newName }),
+                description: `Rename league: ${leagueId} → ${newName}`,
+                category: 'league-rename',
+                subject: newName,
+                group: groupId,
+                groupDescription
+            });
+            // 2. Keep this league's slot in the landing order under the new id.
+            //    The dash↔space map treats a raw-id entry as itself, so writing
+            //    newName is safe for both old dash-titles and free-form names.
+            //    Base off any already-staged landing edit so a pending reorder is
+            //    preserved.
+            try {
+                const stagedLanding = getStagedContent(T.landingSettings());
+                const ls = stagedLanding ? JSON.parse(stagedLanding) : await loadLandingSettings();
+                const order = ls.DisplayOrder || ls.displayOrder || [];
+                const swapped = order.map(e => e.replace(' - ', ' ') === leagueId ? newName : e);
+                addChange({
+                    type: 'update',
+                    target: T.landingSettings(),
+                    content: JSON.stringify({ title: ls.title, subtitle: ls.subtitle, logoPath: ls.logoPath, DisplayOrder: swapped }, null, 2),
+                    description: `Landing order: ${leagueId} → ${newName}`,
+                    category: 'landing',
+                    subject: newName,
+                    group: groupId,
+                    groupDescription
+                });
+            } catch { /* landing order is best-effort; the rename itself is what matters */ }
+        }
+
+        // 3. Settings, under the TARGET id (runs after the rename in publish order).
         addChange({
             type: 'update',
-            path: `leagues/${encoded}/league_params.json`,
+            target: T.leagueParams(targetId),
             content: JSON.stringify(newParams, null, 2),
-            description: `Update settings: ${newParams.LeagueTitle}`,
+            description: `Update settings: ${targetId}`,
             category: 'league-settings',
-            subject: newParams.LeagueTitle
+            subject: targetId,
+            group: groupId,
+            groupDescription
         });
 
         if (refreshBadgeFn) refreshBadgeFn();
         settingsTracker.markClean();
-        showMsg('edit-msg', 'Settings staged. Go to Pending Changes to publish.', 'success');
+        showMsg('edit-msg', renaming
+            ? `Rename to "${newName}" staged. Publish to apply it everywhere.`
+            : 'Settings staged. Go to Pending Changes to publish.', 'success');
     });
 
     // Remove player buttons
@@ -1108,8 +1174,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             });
 
             // Update params — use staged version as base if it exists
-            const paramsPath = `leagues/${encodeURIComponent(leagueId)}/league_params.json`;
-            const stagedPlayerJson = getStagedContent(paramsPath);
+            const stagedPlayerJson = getStagedContent(T.leagueParams(leagueId));
             const playerBaseParams = stagedPlayerJson ? JSON.parse(stagedPlayerJson) : params;
             const updatedParams = { ...playerBaseParams };
             updatedParams.CustomFlags = newCustomFlags;
@@ -1119,7 +1184,6 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                 delete updatedParams.RetiredPlayers;
             }
 
-            const encoded = encodeURIComponent(leagueId);
 
             // One group so the params + CSV-rename side-effect collapse to a single
             // Pending row instead of two ("Update players" + "Rename players in CSV").
@@ -1131,7 +1195,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
 
             addChange({
                 type: 'update',
-                path: `leagues/${encoded}/league_params.json`,
+                target: T.leagueParams(leagueId),
                 content: JSON.stringify(updatedParams, null, 2),
                 description: `Update players: ${leagueId}`,
                 category: 'league-players',
@@ -1161,7 +1225,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
 
                     addChange({
                         type: 'update',
-                        path: `leagues/${encoded}/leaguedata.csv`,
+                        target: T.leagueCsv(leagueId),
                         content: csvText,
                         description: `Rename players in CSV: ${renames.map(r => `${r.from} → ${r.to}`).join(', ')}`,
                         category: 'league-players',
@@ -1336,7 +1400,7 @@ function wireUploadFlagPanel() {
 
         addChange({
             type: 'create',
-            path: `assets/flags/${code}.png`,
+            target: T.flagAsset(code),
             content: base64,
             binary: true,
             description: `Upload flag: ${code}.png`,
