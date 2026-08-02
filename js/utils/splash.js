@@ -124,14 +124,14 @@ export function startSplash() {
     stageIdx = -1;
 
     buildSteps();
-    if (ringEl) {
-        // The page's inline script has already built a default ring so it can
-        // paint without us. Only rebuild if the count actually differs.
-        if (ringEl.querySelectorAll('.sq').length !== cfg.squares) {
-            buildRing(ringEl, cfg.squares);
-        }
-        applySplashConfig(el, ringEl, cfg);
-    }
+    // Deliberately NOT calling applySplashConfig() here. `cfg` is still
+    // DEFAULT_SPLASH_CONFIG at this point, and applying it would write those
+    // defaults as INLINE styles — which outrank the saved design that
+    // splash-vars.css already put on :root. The splash would jump from the
+    // saved look to the default one and back when the JSON lands ~330ms
+    // later, i.e. the user's own settings would be the thing that flickers
+    // away. The ring likewise stays exactly as the page's inline script built
+    // it: that script sizes it from --n, so it is already the saved count.
     splashStage(SPLASH_STAGES[0].key);
 
     // The saved design is ALREADY applied at this point: assets/splash/
@@ -145,11 +145,15 @@ export function startSplash() {
     // screen that waits for its own config is a loading screen that loads.
     loadSplashConfig().then((saved) => {
         if (!saved || ended || !el || !ringEl) return;
-        const next = { ...DEFAULT_SPLASH_CONFIG, ...saved };
-        const countChanged = next.squares !== cfg.squares;
-        cfg = next;
+        cfg = { ...DEFAULT_SPLASH_CONFIG, ...saved };
         applySplashConfig(el, ringEl, cfg);
-        if (countChanged) buildRing(ringEl, cfg.squares);
+        // Compare against what is actually on screen, not against the previous
+        // cfg: the ring was built by the page's inline script, so cfg has never
+        // described it. Rebuilding when the count already matches would throw
+        // away the painted ring for an identical one.
+        if (ringEl.querySelectorAll('.sq').length !== cfg.squares) {
+            buildRing(ringEl, cfg.squares);
+        }
         paintProgress();
         restartSlowTimer();
     }).catch(() => {});
