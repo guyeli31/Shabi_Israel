@@ -98,7 +98,8 @@
       "Bash(head-15)",
       "Bash(node --check js/render/subTabs.js)",
       "Bash(awk -F',' 'NR>1{print $1\"\\\\n\"$2}' \"leagues/Shabi Israel October 2025/leaguedata.csv\")",
-      "Bash(awk -F',' 'NR>1{gsub\\(/^ +| +$/,\"\",$1\\); gsub\\(/^ +| +$/,\"\",$5\\); if\\($1!=\"\"\\)print $1; if\\($5!=\"\"\\)print $5}' \"leagues/Shabi Israel October 2025/leaguedata.csv\")"
+      "Bash(awk -F',' 'NR>1{gsub\\(/^ +| +$/,\"\",$1\\); gsub\\(/^ +| +$/,\"\",$5\\); if\\($1!=\"\"\\)print $1; if\\($5!=\"\"\\)print $5}' \"leagues/Shabi Israel October 2025/leaguedata.csv\")",
+      "mcp__playwright__browser_handle_dialog"
     ]
   },
   "hooks": {

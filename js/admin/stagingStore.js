@@ -536,16 +536,25 @@ export async function publishAll(onProgress) {
         // per-player rows Pending already shows); every other unit becomes a
         // single batch headlined by its primary staged change.
         let batchId = null;
+        const unitIntent = deriveGroupIntent(unit.changes);
         if (watermark != null) {
             try {
-                const isPlayerMetaUnit = unit.changes.some(
+                // Per-player splitting is for a unit whose SUBJECT is the players
+                // (the Players view staging players_metadata.json). A unit that
+                // merely touches that file on the way to something else — creating
+                // a league registers its brand-new players — must NOT be split:
+                // the league rows would be left un-batched (invisible in
+                // Historical) while the new players showed up as standalone
+                // entries. Those players belong to the league's batch, as its
+                // "+N related changes".
+                const isPlayerMetaUnit = unitIntent.topic === 'player' && unit.changes.some(
                     (c) => c.target?.kind === 'players_metadata'
                 );
                 if (isPlayerMetaUnit) {
                     await supabase.rpc('finalize_player_batches', { p_after_id: watermark });
                 } else {
                     const { data } = await supabase.rpc('finalize_publish_batch', {
-                        p_intent: deriveGroupIntent(unit.changes),
+                        p_intent: unitIntent,
                         p_after_id: watermark,
                     });
                     batchId = data || null;

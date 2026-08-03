@@ -2078,7 +2078,8 @@ table.font-large { font-size: var(--fs-093); }
     flex-wrap: wrap;
 }
 .input-action-row > .ac-field,
-.input-action-row > .custom-file-input {
+.input-action-row > .custom-file-input,
+.input-action-row > select {
     flex: 1;
     min-width: 0;
 }
@@ -2097,6 +2098,19 @@ table.font-large { font-size: var(--fs-093); }
     padding: 0.4em 0.8em;
     line-height: 1.2;
 }
+
+/* Inline checkbox option under an action row (e.g. "Also copy its players"
+   beside the Add-League preset picker). Sits between the row and its hint. */
+.preset-opt {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    margin-top: var(--space-xs);
+    font-size: var(--fs-082);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+}
+.preset-opt input { cursor: pointer; }
 
 /* Helper text under a field (kept on its own line, full width). */
 .form-hint {

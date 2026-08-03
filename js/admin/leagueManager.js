@@ -18,9 +18,32 @@ import { wireSectionCollapse } from '../render/sectionCollapse.js';
 import { mountAccordionTabs } from '../render/subTabs.js';
 import { filePickerHTML } from './render/formControls.js';
 import { matchesToCsvText } from './csvText.js';
+import { KNOWN_FLAGS, ensureFlagCodes, registerFlagCode } from './flagRegistry.js';
+import { loadPlayersMetadata } from '../data/supabasePlayersMetadata.js';
 
-// Known flag codes (from assets/flags/)
-const KNOWN_FLAGS = ['BE', 'IL', 'RU', 'TZ', 'UN'];
+/**
+ * The flag each of `names` should arrive with when it's added to a league —
+ * a player who already played under ES keeps ES instead of silently reverting
+ * to the IL default. Sources, most specific first:
+ *   staged players_metadata → published players_metadata → the merged
+ *   cross-league CustomFlags (getPlayerFlagCode) → IL.
+ * Unknown (brand-new) names fall through to IL, which is what they want.
+ * @returns {Promise<Map<string,string>>} name → flag code
+ */
+async function resolveDefaultFlags(names) {
+    try { await ensurePlayerIndex(); } catch { /* cross-league flags unavailable */ }
+    let meta = {};
+    try { meta = await loadPlayersMetadata(); } catch { /* registry unavailable */ }
+    let staged = {};
+    const stagedRaw = getStagedContent(T.playersMetadata());
+    if (stagedRaw) { try { staged = JSON.parse(stagedRaw); } catch { /* ignore */ } }
+
+    const out = new Map();
+    for (const n of names) {
+        out.set(n, staged[n]?.defaultFlag || meta[n]?.defaultFlag || getPlayerFlagCode(n) || 'IL');
+    }
+    return out;
+}
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 
 let refreshBadgeFn = null;
@@ -202,6 +225,13 @@ async function renderAddLeagueForm(container, displayOrder) {
         csvText: null // if set, overrides round-robin generation
     };
 
+    // Flag dropdowns are only useful if they offer the codes already in use —
+    // resolved once here, before the first F2b render (see flagRegistry.js).
+    await ensureFlagCodes();
+
+    // Every existing league is a possible preset (see the Preset handler below).
+    const presetIds = displayOrder.map(t => t.replace(' - ', ' '));
+
     container.innerHTML = `
         <h1>Add New League</h1>
         <button class="btn btn-primary btn-back" id="cancel-new-league" style="margin-bottom:var(--space-lg)">&lsaquo; Back to Leagues</button>
@@ -212,6 +242,21 @@ async function renderAddLeagueForm(container, displayOrder) {
             <h2 class="app-section-h2">League Settings</h2>
             <div class="collapsible-body">
             <div class="admin-card edit-card-sm">
+                <div class="form-group">
+                    <label for="preset-league">Start from an existing league</label>
+                    <div class="input-action-row">
+                        <select id="preset-league">
+                            <option value="">— Blank league —</option>
+                            ${presetIds.map(id => `<option value="${esc(id)}">${esc(id)}</option>`).join('')}
+                        </select>
+                        <button class="btn btn-secondary btn-sm" id="apply-preset-btn">Load Preset</button>
+                    </div>
+                    <label class="preset-opt">
+                        <input type="checkbox" id="preset-include-players" checked>
+                        <span>Also copy its players (with flags &amp; retired state)</span>
+                    </label>
+                    <small class="form-hint">Copies type, entry fee, match length, medals &amp; prizes — so a recurring league doesn't have to be re-typed. The name, the issue date and the match results always stay yours to set.</small>
+                </div>
                 <div class="form-group">
                     <label for="new-league-name">League Name</label>
                     <input type="text" id="new-league-name" placeholder="e.g. Shabi Israel - May 2026">
@@ -356,6 +401,70 @@ async function renderAddLeagueForm(container, displayOrder) {
     }
     rerenderPlayers();
 
+    // Preset — clone an existing league's setup into this blank form. A league
+    // that runs every month is the same league with a new name and a new set of
+    // results, so re-typing type / fee / match length / medals every time is
+    // pure friction. Deliberately NOT copied: the name (it's the unique id), the
+    // issue date, and any match data — those are what makes the new league new.
+    document.getElementById('apply-preset-btn').addEventListener('click', async () => {
+        const sourceId = document.getElementById('preset-league').value;
+        if (!sourceId) {
+            showMsg('add-msg', 'Pick a league to copy from first.', 'error');
+            return;
+        }
+        const withPlayers = document.getElementById('preset-include-players').checked;
+        const btn = document.getElementById('apply-preset-btn');
+        btn.disabled = true;
+        try {
+            // Prefer this league's staged (unpublished) params, exactly as Edit
+            // League does — a preset should reflect what the admin last set.
+            let params = await loadLeagueParams(sourceId);
+            const stagedParams = getStagedContent(T.leagueParams(sourceId));
+            if (stagedParams) { try { params = JSON.parse(stagedParams); } catch { /* keep published */ } }
+
+            document.getElementById('new-league-type').value = params.LeagueType || 'doubling';
+            document.getElementById('new-entry-fee').value = params.EntryFee ?? 0;
+            document.getElementById('new-match-length').value = params.MatchLength || 7;
+            document.getElementById('new-gold-count').value = params.GoldCount ?? 1;
+            document.getElementById('new-silver-count').value = params.SilverCount ?? 1;
+            document.getElementById('new-bronze-count').value = params.BronzeCount ?? 4;
+            const prizes = params.Prizes || {};
+            document.getElementById('new-prize-gold').value = prizes.Gold || 0;
+            document.getElementById('new-prize-silver').value = prizes.Silver || 0;
+            document.getElementById('new-prize-bronze').value = prizes.Bronze || 0;
+
+            let playerNote = '';
+            if (withPlayers) {
+                const { allPlayers } = await loadLeagueMatches(sourceId);
+                const names = [...allPlayers].sort();
+                const customFlags = params.CustomFlags || {};
+                const retired = params.RetiredPlayers || [];
+                await ensureAcData();
+                const known = new Set(_acPlayerNames);
+                const defaults = await resolveDefaultFlags(names);
+                // The source league's own CustomFlags win — that's the flag this
+                // roster actually played under.
+                state.players = names.map(n => ({
+                    name: n,
+                    flag: customFlags[n] || defaults.get(n) || 'IL',
+                    retired: retired.includes(n),
+                    isNew: !known.has(n)
+                }));
+                // A preset roster replaces any uploaded CSV — the two are
+                // alternative ways to answer the same question ("who plays?").
+                state.csvText = null;
+                setCsvSourceMsg('');
+                rerenderPlayers();
+                playerNote = ` with ${names.length} player${names.length === 1 ? '' : 's'}`;
+            }
+            showMsg('add-msg', `Preset loaded from "${esc(sourceId)}"${playerNote}. Give the new league a name before creating it.`, 'success');
+        } catch (err) {
+            showMsg('add-msg', `Could not load preset: ${err.message}`, 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
     // Upload Custom Flag panel (shared with F2 in Edit League) — stages the PNG +
     // registers the code so it appears in every F2b flag dropdown.
     wireUploadFlagPanel();
@@ -393,21 +502,8 @@ async function renderAddLeagueForm(container, displayOrder) {
         }
         await ensureAcData();
         const inRegistry = _acPlayerNames.includes(name);
-        // Existing players inherit their default flag; new players default to IL.
-        let flag = 'IL';
-        if (inRegistry) {
-            try {
-                const { loadPlayersMetadata } = await import('../data/supabasePlayersMetadata.js');
-                const meta = await loadPlayersMetadata();
-                if (meta[name]?.defaultFlag) flag = meta[name].defaultFlag;
-                // Staged metadata takes precedence
-                const stagedRaw = getStagedContent(T.playersMetadata());
-                if (stagedRaw) {
-                    const stagedMeta = JSON.parse(stagedRaw);
-                    if (stagedMeta[name]?.defaultFlag) flag = stagedMeta[name].defaultFlag;
-                }
-            } catch { /* fallback to IL */ }
-        }
+        // Existing players inherit the flag they already play under; new ones get IL.
+        const flag = inRegistry ? (await resolveDefaultFlags([name])).get(name) : 'IL';
         state.players.push({ name, flag, retired: false, isNew: !inRegistry });
         acField.clear();
         showMsg('add-msg', inRegistry ? '' : `New player "${name}" added — it will be registered when you create the league.`,
@@ -501,7 +597,22 @@ async function renderAddLeagueForm(container, displayOrder) {
             state.csvText = csvText;
             const playerSet = getAllPlayersFromCSV(csvText);
             const names = [...playerSet].sort();
-            state.players = names.map(n => ({ name: n, flag: 'IL', retired: false }));
+
+            // A CSV carries names, not flags — so resolve each player's flag from
+            // what the site already knows (their registry default / the flag they
+            // played under in earlier leagues) instead of flattening everyone to
+            // IL. Anything the admin had already picked in the table for that
+            // same name wins, so an import never undoes manual work.
+            await ensureAcData();
+            const known = new Set(_acPlayerNames);
+            const picked = new Map(state.players.map(p => [p.name, p]));
+            const defaults = await resolveDefaultFlags(names);
+            state.players = names.map(n => ({
+                name: n,
+                flag: picked.get(n)?.flag || defaults.get(n) || 'IL',
+                retired: picked.get(n)?.retired || false,
+                isNew: !known.has(n)
+            }));
             rerenderPlayers();
             setCsvSourceMsg(`Loaded CSV with ${names.length} players. The uploaded file will be used as leaguedata.csv.`);
             showMsg('add-msg', `CSV loaded with ${names.length} players.`, 'success');
@@ -548,7 +659,16 @@ async function renderAddLeagueForm(container, displayOrder) {
             csvText: state.csvText
         };
 
-        await stageAddLeague(name, type, displayOrder, options);
+        // Report a staging failure instead of leaving the form looking like it
+        // worked: an exception in here used to reject silently, so the last
+        // message on screen ("CSV loaded with N players") read as success while
+        // nothing had been staged at all.
+        try {
+            await stageAddLeague(name, type, displayOrder, options);
+        } catch (err) {
+            showMsg('add-msg', `Could not stage this league: ${err.message}`, 'error');
+            return;
+        }
         showMsg('add-msg', `League "${name}" staged. Go to Pending Changes to publish.`, 'success');
         setTimeout(() => { setLeaguesHash(); renderLeagueAdmin(container, refreshBadgeFn); }, 1200);
     });
@@ -635,18 +755,10 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
     }
     if (retiredPlayers.length > 0) params.RetiredPlayers = retiredPlayers;
 
-    addChange({
-        type: 'create',
-        target: T.leagueParams(leagueId),
-        content: JSON.stringify(params, null, 2),
-        description: `Create league: ${name}`,
-        category: 'create-league',
-        subject: name,
-        group: groupId,
-        groupDescription
-    });
-
-    // CSV: uploaded text wins; otherwise round-robin from players; otherwise header only
+    // CSV: uploaded text wins; otherwise round-robin from players; otherwise header
+    // only. Resolved BEFORE the params change is staged — a manually-built league
+    // sets params.ManualEntry here, and staging the params first would freeze a
+    // copy without it (that flag is what hides the Upload-CSV tab in Edit League).
     let csvContent;
     if (options.csvText) {
         csvContent = options.csvText;
@@ -656,9 +768,21 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
     } else {
         csvContent = 'Player A,PR A,Luck A,Score A,Player B,PR B,Luck B,Score B\n';
     }
+
     addChange({
         type: 'create',
-        target: T.leagueCsv(leagueId),
+        target: T.leagueParams(folderName),
+        content: JSON.stringify(params, null, 2),
+        description: `Create league: ${name}`,
+        category: 'create-league',
+        subject: name,
+        group: groupId,
+        groupDescription
+    });
+
+    addChange({
+        type: 'create',
+        target: T.leagueCsv(folderName),
         content: csvContent,
         description: `Create CSV for: ${name}`,
         group: groupId,
@@ -778,6 +902,9 @@ async function renderEditLeague(container, leagueId, displayOrder, openSubtab) {
     container.innerHTML = '<h1>Edit League</h1><div class="loading">Loading...</div>';
 
     try {
+        // Same as the Add form: the F2 flag dropdowns are only correct once the
+        // in-use codes are known (see flagRegistry.js).
+        await ensureFlagCodes();
         let params = await loadLeagueParams(leagueId);
         // Prefer staged (unpublished) params so edits survive a page refresh
         // before they are published via Pending Changes.
@@ -1409,8 +1536,8 @@ function wireUploadFlagPanel() {
             detail: `${code}.png`
         });
 
-        // Add to known flags for this session
-        if (!KNOWN_FLAGS.includes(code)) KNOWN_FLAGS.push(code);
+        // Pickable immediately, in every flag dropdown of this session.
+        registerFlagCode(code);
 
         if (refreshBadgeFn) refreshBadgeFn();
         showMsg('flag-upload-msg', `Flag ${code}.png staged for upload.`, 'success');

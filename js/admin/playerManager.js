@@ -16,8 +16,7 @@ import { mountCombobox } from '../utils/combobox.js';
 import { getFlagCode, searchFlagHtml } from '../utils/helpers.js';
 import { loadLeagueMatchesAll, loadLeagueParams, loadOverrides } from '../data/supabaseLoader.js';
 import { matchesToCsvText } from './csvText.js';
-
-const KNOWN_FLAGS = ['BE', 'IL', 'RU', 'TZ', 'UN'];
+import { KNOWN_FLAGS, ensureFlagCodes, registerFlagCode } from './flagRegistry.js';
 
 /** metadata.photoPath is a public asset URL; the staged target names just the file. */
 const photoTarget = (photoPath) => T.playerPhoto(photoPath.replace(/^assets[/]players[/]/, ''));
@@ -709,8 +708,11 @@ async function savePlayer(container, name) {
     if (frame) frame.src = frame.src;
 }
 
-function showNewPlayerForm(container) {
+async function showNewPlayerForm(container) {
     const host = container.querySelector('#player-edit-host');
+    // The flag dropdown offers every code the site actually uses, not a frozen
+    // literal (see flagRegistry.js).
+    await ensureFlagCodes();
     const form = {
         flagCode: 'IL',
         flagData: null,
@@ -847,7 +849,7 @@ function showNewPlayerForm(container) {
 
         form.flagCode = code;
         form.flagData = base64;
-        if (!KNOWN_FLAGS.includes(code)) KNOWN_FLAGS.push(code);
+        registerFlagCode(code);
 
         flagPreview.src = `data:image/png;base64,${base64}`;
         flagPreview.alt = code;
