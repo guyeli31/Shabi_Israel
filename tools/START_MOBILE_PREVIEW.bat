@@ -22,20 +22,32 @@ if not defined PORT (
 
 echo Using port !PORT!
 
-REM Regular Chrome window (address bar + tabs, nothing special) — just a
-REM modest phone-sized viewport (402x874, iPhone 17 CSS size) with mobile UA.
-REM Uses Playwright's CLI (`playwright open`) instead of raw --window-size:
-REM Chrome's --window-size sets the OS window in physical pixels, which on a
-REM multi-monitor setup with mixed DPI/resolutions gets misjudged (tested:
-REM asked for 402x874, got 1196x752 and other garbage). Playwright's
-REM --viewport-size sets the CSS viewport directly via the DevTools protocol
-REM (the same mechanism as Chrome's own Device Toolbar / Ctrl+Shift+M),
-REM which is exact regardless of monitor geometry — only the OS window's
-REM physical size varies, never the page's rendered width.
+REM Regular Chrome window (address bar + tabs, nothing special) driven by
+REM Playwright's CLI (`playwright open`) rather than raw Chrome flags: Chrome's
+REM --window-size sets the OS window in PHYSICAL pixels, which on a multi-monitor
+REM setup with mixed DPI gets misjudged (tested: asked for 402x874, got 1196x752
+REM and other garbage). Playwright sets the CSS viewport directly over the
+REM DevTools protocol — the same mechanism as Chrome's Device Toolbar — so the
+REM rendered width is exact regardless of monitor geometry.
+REM
+REM --device does what --viewport-size + --user-agent could NOT: it sets
+REM `hasTouch` on the browser context, so `pointer: coarse` / maxTouchPoints /
+REM ontouchstart are all real, and the site's isTouchDevice() (js/render/searchOverlay.js)
+REM returns true on EVERY page. The old window faked mobile with a viewport and a
+REM UA string and then leaned on ?searchoverlay=force to reach the search sheet —
+REM but that param belongs to ONE url, so the first navigation (hub → a league)
+REM silently dropped the preview back to a narrow desktop. Touch has to come from
+REM the context at creation; there is no runtime way to add it.
+REM
+REM The device MUST be a Chromium one. Every descriptor carries a
+REM `defaultBrowserType`, and --device applies it — overriding --browser cr — so
+REM "iPhone 15 Pro Max" (defaultBrowserType: webkit) makes the CLI try to open
+REM WebKit with `--channel chrome` and die on `Unsupported webkit channel
+REM "chrome"`. "Pixel 10 Pro" is 427x876 dsf3 with hasTouch and
+REM defaultBrowserType: chromium — 3px narrower than the iPhone, on the engine
+REM this project is actually tested against.
 REM A dedicated --user-data-dir keeps this separate from your normal profile.
-REM ?searchoverlay=force triggers the real mobile search sheet (see
-REM js/render/searchOverlay.js) since this window has no real touch input.
-start /B npx -y playwright open --browser cr --channel chrome --viewport-size "402,874" --user-data-dir "%TEMP%\shabi-israel-mobile-profile" --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" "http://localhost:!PORT!/index.html?searchoverlay=force"
+start /B npx -y playwright open --browser cr --channel chrome --device "Pixel 10 Pro" --user-data-dir "%TEMP%\shabi-israel-mobile-profile" "http://localhost:!PORT!/shabi-israel/index.html"
 
 call npx -y http-server -p !PORT! --cors -c-1
 pause

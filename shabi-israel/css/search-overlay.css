@@ -1,0 +1,413 @@
+/* search-overlay.css — touch-device search sheet (see js/render/searchOverlay.js).
+   The sheet is pinned to the top of the *visual* viewport so it stays put when
+   the on-screen keyboard is up. Its input is locked to 16px — large enough that
+   mobile browsers don't zoom the page on focus. Mounted on any touch device. */
+
+.search-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    /* --vv-top tracks visualViewport.offsetTop (set from JS); falls back to 0. */
+    top: var(--vv-top, 0px);
+    height: var(--vv-height, 100vh);
+    z-index: 1000;                 /* above the sidebar (z 50/51) */
+    display: flex;
+    flex-direction: column;
+}
+
+/* CRITICAL: `display:flex` above overrides the browser's `[hidden]{display:none}`
+   (author rule wins over the UA rule), so the JS `sheet.hidden = true` on close
+   would NOT visually hide the sheet without this. `.search-sheet[hidden]` (0,2,0)
+   out-specifies `.search-sheet` (0,1,0), so the sheet actually disappears. */
+.search-sheet[hidden] {
+    display: none;
+}
+
+/* Light scrim over the page — page stays visible (the request was "the whole
+   view stays the same"), just a touch dimmed so the results read clearly. Tap
+   to close. */
+.search-sheet-scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.28);
+}
+
+.search-sheet-panel {
+    position: relative;
+    z-index: 1;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.22);
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.search-sheet-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+}
+
+.search-sheet-icon {
+    flex-shrink: 0;
+    color: var(--color-text-secondary);
+}
+
+.search-sheet-input {
+    flex: 1;
+    min-width: 0;
+    /* The reason this whole feature exists — 16px keeps mobile browsers from zooming the page. */
+    font-size: 16px;
+    font-family: inherit;
+    line-height: 1.3;
+    padding: 8px 10px;
+    color: var(--color-text);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    outline: none;
+    box-sizing: border-box;
+}
+.search-sheet-input:focus {
+    border-color: var(--color-accent);
+}
+
+.search-sheet-close {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border: none;
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+}
+.search-sheet-close:active { background: var(--color-border); }
+
+/* Permanent Clear — empties the query (browse-all again); does NOT close. */
+.search-sheet-clear {
+    flex-shrink: 0;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-080);
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+}
+.search-sheet-clear:active { background: var(--color-border); }
+
+/* Results — scroll inside the panel, never push the page. */
+.search-sheet-results {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border-top: 1px solid var(--color-border);
+}
+.search-sheet-results:empty { border-top: none; }
+
+.search-sheet-option {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--color-border);
+    cursor: pointer;
+}
+.search-sheet-option:active { background: var(--color-hover); }
+
+/* Leading icon column (league glyph / player avatar). The inner .search-icon*
+   markup is styled by navigation.css, shared with the flyout. */
+.search-sheet-option-icon {
+    flex-shrink: 0;
+    display: flex;
+}
+/* Both names, STACKED here rather than side by side as the desktop row has
+   them: at phone width there is no room for two names on one line, so the
+   secondary drops beneath the primary instead of competing with it for the same
+   px. This is the one place the two renderers legitimately differ, and the
+   reason is WIDTH, not input method — a wide touch tablet would happily take
+   the desktop row. Everything else (order, what shrinks, where information
+   pins) is identical on purpose. */
+.search-sheet-option-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+/* Name and its luck percentile side by side inside the column. The figure is a
+   SIBLING of the name here, matching the desktop row — see the note in
+   searchOverlay.js. Only rows that carry a figure get this wrapper. */
+.search-sheet-option-nameline {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+.search-sheet-option-label {
+    font-size: var(--fs-095);
+    font-weight: 600;
+    color: var(--color-text);
+    min-width: 0;
+}
+.search-sheet-option-sub {
+    font-size: var(--fs-080);
+    color: var(--color-text-secondary);
+}
+
+.search-sheet-empty {
+    padding: 14px;
+    text-align: center;
+    font-size: var(--fs-085);
+    color: var(--color-text-secondary);
+}
+
+/* Country flag shown just left of a player name in every player list — the
+   smart-search flyout/sheet, the What-If pickers, the admin comboboxes and the
+   admin player search. Lives here (not navigation.css) because BOTH the public
+   site and admin.html load search-overlay.css, whereas admin never loads
+   navigation.css. em-based so it tracks the surrounding font size; horizontal
+   spacing comes from each row's own flex `gap` (no ad-hoc margin). */
+:is(.nav-search-results, .search-sheet-results, .whatif-options,
+    .app-combo-dropdown, .app-combo-identity-flag, .app-identity,
+    .player-autocomplete, .ana-entity) .search-flag {
+    flex-shrink: 0;
+    height: 1.05em;
+    width: auto;
+    border-radius: 0.15em;
+    object-fit: contain;
+    image-rendering: auto;
+    align-self: center;
+}
+
+/* ---- Title abbreviation badges (BMAB rank + championship: G0 / WC / NC …) ----
+   SYNCED COPY of the `.title-abbr*` shared atom whose canonical home is
+   components.css. Duplicated here (kept identical — update both) because
+   admin.html loads search-overlay.css but NEVER components.css, so admin
+   comboboxes would otherwise show unstyled title badges. Same reasoning as the
+   flag rule above. The markup comes from getTitleAbbreviationsHtml()
+   (titleConstants.js) and is shared by the TABLES *and* every player search
+   (flyout, sheet, combobox). All sizing is em-relative, so a badge tracks the
+   surrounding font size in both a table cell and a search row.
+
+   "Mix G" style (Player Page Lab):
+     • BMAB (non-champ) → outlined pill, transparent body, tier-coloured border + text
+     • Championship    → gradient pill with diagonal shine, tier-coloured background
+   BOTH variants share the SAME padding (0.12em 0.5em). BMAB's "border" is an
+   inset box-shadow (not a real border) so it takes no layout space — a fixed-px
+   border would oversize BMAB pills next to champion pills at small font-sizes. */
+.title-abbr {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1em;
+    font-weight: 900;
+    padding: 0.12em 0.5em;
+    border-radius: 0.25em;
+    border: none;
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px currentColor;  /* fake border, zero layout impact */
+    margin-left: 0.5em;
+    vertical-align: text-bottom;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    min-width: 1.4em;
+}
+.title-abbr + .title-abbr { margin-left: 0.25em; }
+
+.title-abbr-gold   { color: #d4a942; }
+.title-abbr-silver { color: #94a3b8; }
+.title-abbr-bronze { color: #b45309; }
+.title-abbr-white  { color: #94a3b8; }
+
+/* Championship badges — gradient pill with diagonal shine. Same padding as
+   BMAB; the box-shadow "border" is removed since the gradient defines the shape.
+   Its own stacking context keeps the caption crisply above the ::before shine. */
+.title-abbr-champ {
+    box-shadow: none;
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.18);
+}
+.title-abbr-champ::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.45), transparent 55%);
+    pointer-events: none;
+    z-index: -1;
+}
+.title-abbr-champ.title-abbr-gold {
+    background: linear-gradient(135deg, #fbbf24, #b45309);
+    color: #1a1305;
+}
+.title-abbr-champ.title-abbr-silver {
+    background: linear-gradient(135deg, #cbd5e1, #64748b);
+    color: #1e293b;
+}
+.title-abbr-champ.title-abbr-bronze {
+    background: linear-gradient(135deg, #f59e0b, #92400e);
+    color: #fff;
+}
+.title-abbr-champ.title-abbr-white {
+    background: linear-gradient(135deg, #f8fafc, #cbd5e1);
+    color: #475569;
+}
+
+/* Trailing pill (What-If Player B: WON / LOST / DREW / NOT-PLAYED). */
+.search-sheet-badge {
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-068);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+.search-sheet-badge--won {
+    background: color-mix(in srgb, var(--color-win) 15%, transparent);
+    color: var(--color-win);
+}
+.search-sheet-badge--lost {
+    background: color-mix(in srgb, var(--color-loss) 15%, transparent);
+    color: var(--color-loss);
+}
+.search-sheet-badge--unplayed,
+.search-sheet-badge--drew {
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--color-text-secondary);
+}
+.search-sheet-badge--staged {
+    background: color-mix(in srgb, var(--color-staged) 18%, transparent);
+    color: var(--color-staged);
+}
+
+
+/* Canonical desktop-dropdown badge (mirror of .search-sheet-badge for the
+   inline list). Shared by every mountSearchField picker; themed win/loss
+   tokens so it tracks every theme. Lives here so admin (no navigation.css)
+   gets it too. */
+.sf-badge {
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-068);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+.sf-badge--won {
+    background: color-mix(in srgb, var(--color-win) 15%, transparent);
+    color: var(--color-win);
+}
+.sf-badge--lost {
+    background: color-mix(in srgb, var(--color-loss) 15%, transparent);
+    color: var(--color-loss);
+}
+.sf-badge--unplayed,
+.sf-badge--drew {
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--color-text-muted);
+}
+/* League status, for pickers that list leagues (admin's Add-League preset
+   search). Same vocabulary as the sidebar's .search-type-pill, rendered as a
+   combobox badge. */
+.sf-badge--running {
+    background: color-mix(in srgb, var(--color-win) 15%, transparent);
+    color: var(--color-win);
+}
+.sf-badge--completed {
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--color-text-muted);
+}
+
+/* Already in the scenario (What-If's opponent picker marks staged pairs ADDED).
+   Accent-tinted rather than a result colour: it reports where the row went, not
+   how the match ended. Pairs with .app-combo-option.is-disabled, which dims the
+   row around it while this badge keeps full opacity. */
+.sf-badge--staged,
+.search-sheet-badge--staged {
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+    color: var(--color-accent);
+}
+
+/* Neutral count badge — an occurrence tally (e.g. the analytics click-search
+   showing how many times each click happened), not a win/loss verdict, so it
+   takes a quiet accent-tinted pill rather than a themed result colour. */
+.sf-badge--count,
+.search-sheet-badge--count {
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+    color: var(--color-accent);
+}
+
+/* Lock the page behind the sheet while keeping its scroll position. We pin
+   <body> (NOT overflow:hidden on <html>, which collapses the page to the top on
+   some mobile browsers); JS sets `body.style.top` to the negated scrollY and
+   restores it on close. */
+html.search-sheet-open body {
+    position: fixed;
+    left: 0;
+    right: 0;
+    width: 100%;
+    overflow: hidden;
+}
+
+/* ── League-type pill — ONE definition, three renderers ──────────────────────
+   DOUBLING / REGULAR / UBC beside a league name. It used to live in
+   navigation.css scoped to `.nav-search-results`, which meant the sidebar
+   search had it and nothing else could: admin never loads navigation.css, so
+   the admin league picker fell back to an unstyled badge — transparent, 7.6px,
+   unreadable as a pill. It now lives here, where BOTH the public site and admin
+   load it, and the selector list below is what keeps it a single definition
+   rather than a copy per renderer:
+
+     .search-type-badge      the sidebar search's own markup (navigation.js)
+     .sf-badge--*            the desktop combobox row
+     .search-sheet-badge--*  the mobile sheet row
+
+   The colours are the shared --lt-* theme tokens, so the pill tracks the active
+   theme in all three places at once. `kind` in a picker's `decorate()` is the
+   league type verbatim ('doubling' | 'regular' | 'ubc'), which is what lines the
+   combobox up with the class names here.
+
+   NOT folded in: `.site-nav-type-pill` in site-sidebar.css. That one is
+   deliberately different — the sidebar flyout is always painted on dark chrome,
+   so it tints from currentColor instead of the light --lt-*-bg values. Its
+   comment explains why; leave it alone. */
+:is(.search-type-badge,
+    .sf-badge--doubling, .sf-badge--regular, .sf-badge--ubc,
+    .search-sheet-badge--doubling, .search-sheet-badge--regular, .search-sheet-badge--ubc) {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: var(--fs-068);
+    font-weight: 600;
+    line-height: 1.4;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+:is(.search-type-badge.type-doubling, .sf-badge--doubling, .search-sheet-badge--doubling) {
+    background: var(--lt-doubling-bg);
+    color: var(--lt-doubling-text);
+}
+:is(.search-type-badge.type-regular, .sf-badge--regular, .search-sheet-badge--regular) {
+    background: var(--lt-regular-bg);
+    color: var(--lt-regular-text);
+}
+:is(.search-type-badge.type-ubc, .sf-badge--ubc, .search-sheet-badge--ubc) {
+    background: var(--lt-ubc-bg);
+    color: var(--lt-ubc-text);
+}

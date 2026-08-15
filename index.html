@@ -1,175 +1,111 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Shabi Israel</title>
-    <link rel="icon" type="image/png" href="assets/favicon-round.png">
-    <!-- Hero banner photo starts downloading immediately instead of waiting for
-         JS to fetch the config and build the .hero-photo element first. -->
-    <link rel="preload" href="assets/logo/board-clean.jpg" as="image">
-    <meta name="description" content="Shabi Israel — Backgammon leagues: rankings &amp; statistics">
-    <!-- Link preview (Open Graph + Twitter) -->
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="Shabi Israel">
-    <meta property="og:description" content="Shabi Israel — Backgammon leagues: rankings &amp; statistics">
-    <meta property="og:image" content="https://golan.me.uk/assets/logo/logo.png">
-    <meta property="og:image:width" content="640">
-    <meta property="og:image:height" content="640">
-    <meta property="og:url" content="https://golan.me.uk/">
-    <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="Shabi Israel">
-    <meta name="twitter:description" content="Shabi Israel — Backgammon leagues: rankings &amp; statistics">
-    <meta name="twitter:image" content="https://golan.me.uk/assets/logo/logo.png">
-    <link rel="stylesheet" href="css/variables.css">
-    <link rel="stylesheet" href="css/typography-tokens.css">
-    <link rel="stylesheet" href="css/layout.css">
-    <link rel="stylesheet" href="css/search-overlay.css">
-    <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/theme.css">
-    <link rel="stylesheet" href="css/themes.css">
-    <link rel="stylesheet" href="css/hero-banner.css">
-    <link rel="stylesheet" href="css/theme-picker.css">
-    <link rel="stylesheet" href="css/admin-button.css">
-    <link rel="stylesheet" href="css/navigation.css">
-    <link rel="stylesheet" href="css/tabs.css">
-    <link rel="stylesheet" href="css/sections.css">
-    <link rel="stylesheet" href="css/subtabs.css">
-    <link rel="stylesheet" href="css/dashboard.css">
-    <link rel="stylesheet" href="css/index-dashboard.css">
-    <link rel="stylesheet" href="table-lab/formats/sf/sf.css">
-    <link rel="stylesheet" href="css/admin.css">
-    <link rel="stylesheet" href="css/site-sidebar.css">
-    <link rel="stylesheet" href="css/typography-overrides.css">
-    <link rel="preload" href="assets/logo/logo.png" as="image" fetchpriority="high">
-    <!-- The splash's own JS, preloaded. Without this it is discovered only
-         after the page's big renderer module has downloaded AND parsed (it is
-         the renderer that imports it), so on a slow connection the loading
-         screen appeared with an empty ring — measured: still no squares after
-         4s at 150KB/s. These two are tiny; fetching them up front costs
-         nothing and is what makes the splash useful when it actually matters. -->
-    <link rel="modulepreload" href="js/utils/splash.js">
-    <link rel="modulepreload" href="js/utils/splashConfig.js">
-    <link rel="stylesheet" href="css/splash.css">
-    <!-- GENERATED from assets/splash/splash-config.json by scripts/build-splash-css.js.
-         Must stay here, in <head>: it carries the saved splash design as
-         --sp-*-cfg custom properties, so the loading screen is correct on its
-         FIRST paint. Without it the splash renders css/splash.css's fallback
-         design and then restyles itself when the JSON lands ~330ms later. -->
-    <link rel="stylesheet" href="assets/splash/splash-vars.css">
-    <noscript><style>#logo-splash{display:none}</style></noscript>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>golan.me.uk</title>
+    <meta name="description" content="Projects hosted at golan.me.uk">
 
-    <!-- Self-hosted Bebas Neue. This page never carried a fonts.googleapis.com
-         <link>, but its hero banner can use the family, and heroBanner.js no
-         longer requests it from Google — so the face has to be declared here. -->
-    <link rel="stylesheet" href="css/fonts.css">
-    <script>
-      (function(){
-        var t=localStorage.getItem('shabi-theme');
-        if(t==='modern')t='nature';if(t==='royal')t='vegas';if(t&&t!=='current'){document.documentElement.dataset.theme=t;localStorage.setItem('shabi-theme',t);}
-        var c=localStorage.getItem('shabi-custom-vars');
-        if(c){try{var v=JSON.parse(c);for(var k in v)document.documentElement.style.setProperty(k,v[k])}catch(e){}}
-        // Fail-safe: the splash is static markup, so a module that never loads
-        // would leave it covering the page forever. Take it away regardless.
-        setTimeout(function(){var s=document.getElementById('logo-splash');if(s&&!s.dataset.done)s.remove();},25000);
-        // Don't flash the splash on a fast internal navigation. Arriving from
-        // our own site means the View Transition is still showing the previous
-        // page, so hold the splash back briefly; if the data lands first it is
-        // never seen at all. A direct hit or reload has nothing behind it, so
-        // it shows at once. splash.js reads __splashRevealAt to know whether
-        // it was ever actually on screen.
-        try {
-          if (document.referrer && document.referrer.indexOf(location.origin + '/') === 0) {
-            var DEFER = 350, de = document.documentElement;
-            de.classList.add('sp-defer');
-            window.__splashRevealAt = performance.now() + DEFER;
-            setTimeout(function(){ de.classList.remove('sp-defer'); }, DEFER);
-          }
-        } catch (e) {}
-      })();
-    </script>
+    <!-- Root landing page for the domain. Each project lives in its own folder,
+         so a new project = a new folder here (see CLAUDE.md § Hosting layout).
+         Deliberately dependency-free: no shared CSS, no fonts, no build step —
+         this page must render even if every project below is mid-deploy. -->
+    <link rel="icon" href="shabi-israel/assets/favicon-round.png">
+
+    <style>
+        :root {
+            color-scheme: light dark;
+            --bg: #faf8f4;
+            --panel: #fff;
+            --ink: #1b1813;
+            --muted: #6b6357;
+            --line: #e6e0d6;
+            --accent: #8a6d3b;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #15120e;
+                --panel: #1e1a15;
+                --ink: #f0ebe3;
+                --muted: #9a9184;
+                --line: #2e2820;
+                --accent: #c9a86a;
+            }
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1.25rem;
+            background: var(--bg);
+            color: var(--ink);
+            font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+        main { width: 100%; max-width: 34rem; }
+        h1 {
+            margin: 0 0 .25rem;
+            font-size: 1.5rem;
+            letter-spacing: -0.01em;
+        }
+        .sub { margin: 0 0 2rem; color: var(--muted); font-size: .95rem; }
+        ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .75rem; }
+        a.card {
+            display: flex;
+            align-items: center;
+            gap: .9rem;
+            padding: 1rem 1.15rem;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: .75rem;
+            text-decoration: none;
+            color: inherit;
+            transition: border-color .15s ease, transform .15s ease;
+        }
+        a.card:hover, a.card:focus-visible {
+            border-color: var(--accent);
+            transform: translateY(-1px);
+        }
+        .card img { width: 40px; height: 40px; border-radius: 50%; flex: none; }
+        .card-name { font-weight: 600; }
+        .card-desc { color: var(--muted); font-size: .875rem; }
+        .notice {
+            margin: 1.75rem 0 0;
+            padding: .9rem 1.1rem;
+            border-left: 3px solid var(--accent);
+            background: var(--panel);
+            border-radius: 0 .5rem .5rem 0;
+            color: var(--muted);
+            font-size: .875rem;
+        }
+        .notice strong { color: var(--ink); font-weight: 600; word-break: break-word; }
+    </style>
 </head>
 <body>
-    <!-- Full-screen loading screen. Static on purpose: this is the FIRST
-         paint, so it must not wait for a deferred module. js/utils/splash.js
-         only fills the ring and takes it away. On this page it also covers the
-         hero banner's own shimmer, which keeps running underneath as the
-         no-splash fallback. -->
-    <div class="splash" id="logo-splash" role="status" aria-live="polite">
-        <div class="splash-core">
-            <div class="sp-copy">
-                <p class="sp-eyebrow"><span></span><em>Shabi Israel</em></p>
-                <p class="sp-stage">Connecting to the database</p>
-                <p class="sp-detail">Step 1 of 6 · 0%</p>
-            </div>
-            <div class="sp-ring" data-mode="determinate">
-                <div class="sp-logo"><img src="assets/logo/logo.png" alt=""></div>
-            </div>
-            <ul class="sp-steps"></ul>
-            <script>
-              /* Build the ring here, not in splash.js. An ES module only
-                 EXECUTES once its whole import graph has downloaded, and
-                 splash.js is reached via the page's renderer — which pulls in
-                 dozens of files. Measured at 150KB/s: still no squares after
-                 4 seconds, i.e. the ring was missing exactly when the loading
-                 screen mattered most. A classic inline script runs during
-                 parsing, so the ring is there in the first paint.
-                 splash.js only rebuilds it if the saved config wants a
-                 different count. */
-              (function () {
-                var r = document.currentScript.parentNode.querySelector('.sp-ring'),
-                    f = document.createDocumentFragment(),
-                    /* --n comes from assets/splash/splash-vars.css, a blocking
-                       stylesheet in <head>, so the SAVED square count is already
-                       known here and the first paint has the right ring. The 24
-                       is only a fallback for that generated file going missing. */
-                    N = parseInt(getComputedStyle(r).getPropertyValue('--n'), 10) || 24;
-                for (var i = 0; i < N; i++) {
-                  var d = document.createElement('div');
-                  d.className = 'sq';
-                  d.style.setProperty('--i', i);
-                  d.style.setProperty('--a', (i * 360 / N) + 'deg');
-                  f.appendChild(d);
-                }
-                r.insertBefore(f, r.firstChild);
-              })();
-            </script>
-            <p class="sp-slow">Taking longer than usual — the connection looks slow.
-                <button type="button">Retry</button></p>
-        </div>
-    </div>
-    <div class="page-container" id="main" role="main">
-        <!-- Hero banner is injected here by applyHeroBanner(); starts hidden so
-             nothing paints before it. -->
-        <div class="page-header" id="page-header" style="visibility:hidden"></div>
-        <div id="content"></div>
-    </div>
-    <script src="vendor/html2canvas-pro.min.js"></script>
-    <script type="module">
-        import { isPreviewMode, installPreviewInterceptor } from './js/admin/previewMode.js';
-        if (isPreviewMode()) installPreviewInterceptor();
+    <main>
+        <h1>golan.me.uk</h1>
+        <p class="sub">Projects hosted on this domain.</p>
 
-        import { renderLandingPage } from './js/render/landingPage.js';
-        import { onVisibleRevalidate } from './js/data/store.js';
-        import { applyThemeBootstrap } from './js/render/themePicker.js';
-        import { initNavBar, initKeyboardShortcuts } from './js/render/navigation.js';
-        import { mountSiteSidebar } from './js/render/siteSidebar.js';
-        import { isLoggedIn } from './js/admin/auth.js';
+        <ul>
+            <li>
+                <a class="card" href="shabi-israel/">
+                    <img src="shabi-israel/assets/favicon-round.png" alt="">
+                    <span>
+                        <span class="card-name">Shabi Israel</span><br>
+                        <span class="card-desc">Backgammon leagues — rankings &amp; statistics</span>
+                    </span>
+                </a>
+            </li>
+        </ul>
 
-        applyThemeBootstrap();
-        await initNavBar();
-
-        // Admin edit mode mounts the admin sidebar from inside landingPage.js;
-        // skip the public sidebar in that case so we don't get two sidebars.
-        const isAdminEdit = isLoggedIn() && !isPreviewMode() && new URLSearchParams(location.search).get('edit') === '1';
-        if (!isAdminEdit) mountSiteSidebar({ activeView: 'home', topbarTitle: 'Home' });
-
-        renderLandingPage();
-        // Self-heal / passive refresh: on return-to-visible or bfcache restore,
-        // re-render only if the data changed or a failed load can now succeed.
-        onVisibleRevalidate(renderLandingPage);
-        initKeyboardShortcuts();
-    </script>
-    <script type="module" src="js/analytics.js"></script>
+        <p class="notice">
+            Shabi Israel is now at
+            <strong>golan.me.uk/shabi-israel</strong>.
+            Old links still work, but please save the new address — it is the
+            site's address from now on.
+        </p>
+    </main>
 </body>
 </html>

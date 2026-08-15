@@ -25,8 +25,16 @@ const path = require('path');
 const crypto = require('crypto');
 
 const ROOT = path.resolve(__dirname, '..');
+// The repo root is the DOMAIN root (golan.me.uk/): it holds only the hub page
+// and CNAME. The app itself lives one folder down and is served from
+// golan.me.uk/shabi-israel/, so every future project is a sibling folder here.
+// Everything below builds SITE → DIST/shabi-israel; only the hub and CNAME land
+// at DIST's own root.
+const SITE_DIR = 'shabi-israel';
+const SITE = path.join(ROOT, SITE_DIR);
 const DIST = path.join(ROOT, 'dist');
-const BUILD_SUBDIR = path.join('assets', 'build'); // under dist/
+const SITE_DIST = path.join(DIST, SITE_DIR);
+const BUILD_SUBDIR = path.join('assets', 'build'); // under dist/shabi-israel/
 
 // esbuild: prefer a normally-installed copy (CI runs `npm install` at the repo
 // root, where it's a devDependency); fall back to v2/node_modules for local dev
@@ -39,16 +47,29 @@ catch { esbuild = require(path.join(ROOT, 'v2', 'node_modules', 'esbuild')); }
 // Directories copied verbatim into dist (js/ is intentionally excluded — it is
 // superseded by the hashed bundles; vendor/ holds classic non-module libs that
 // are already version-named).
-const COPY_DIRS = ['assets', 'css', 'leagues', 'table-lab', 'WC26', 'vendor'];
-const COPY_ROOT_FILES = ['CNAME']; // *.html handled separately
+const COPY_DIRS = ['assets', 'css', 'leagues', 'table-lab', 'vendor'];
+// Domain-root files: the hub page, the custom-domain marker, and the old-URL
+// redirect, copied to dist/ itself rather than into the project folder.
+const COPY_DOMAIN_FILES = ['CNAME', 'index.html', '404.html'];
+// Domain-root project folders — served from golan.me.uk/<dir>/, NOT from inside
+// shabi-israel/. WC26 predates the multi-project layout and keeps its original
+// URL; it borrows the app's CSS via ../shabi-israel/css/.
+const COPY_DOMAIN_DIRS = ['WC26'];
 const MINIFY = false; // keep readable for first-pass verification; flip to true for prod
 
-// HTML pages to process (root + the standalone WC26 page).
+// HTML pages to process: the app's own pages plus any domain-root project page.
 function discoverHtml() {
-  const rootHtml = fs.readdirSync(ROOT).filter(f => f.endsWith('.html'));
+  const siteHtml = fs.readdirSync(SITE).filter(f => f.endsWith('.html'));
   const extra = ['WC26/wc26.html'].filter(p => fs.existsSync(path.join(ROOT, p)));
-  return [...rootHtml, ...extra];
+  return [...siteHtml, ...extra];
 }
+
+// A page path is resolved against the domain root when it belongs to a
+// domain-root project (WC26/…), and against the app folder otherwise. One pair
+// of helpers keeps every stage of the build agreeing on where a page lives.
+const isDomainRoot = rel => COPY_DOMAIN_DIRS.some(d => toPosix(rel).startsWith(d + '/'));
+const srcOf  = rel => path.join(isDomainRoot(rel) ? ROOT : SITE, rel);
+const distOf = rel => path.join(isDomainRoot(rel) ? DIST : SITE_DIST, rel);
 
 // ---- helpers ------------------------------------------------------------
 const sha8 = buf => crypto.createHash('sha256').update(buf).digest('hex').slice(0, 8);
@@ -68,17 +89,22 @@ function rmrf(p) { fs.rmSync(p, { recursive: true, force: true }); }
 // ---- step 1: clean + copy static tree ----------------------------------
 function copyStatic() {
   rmrf(DIST);
-  fs.mkdirSync(DIST, { recursive: true });
+  fs.mkdirSync(SITE_DIST, { recursive: true });
   for (const d of COPY_DIRS) {
-    const src = path.join(ROOT, d);
-    if (fs.existsSync(src)) fs.cpSync(src, path.join(DIST, d), { recursive: true });
+    const src = path.join(SITE, d);
+    if (fs.existsSync(src)) fs.cpSync(src, path.join(SITE_DIST, d), { recursive: true });
   }
-  for (const f of COPY_ROOT_FILES) {
+  for (const f of COPY_DOMAIN_FILES) {
     const src = path.join(ROOT, f);
     if (fs.existsSync(src)) fs.cpSync(src, path.join(DIST, f));
   }
+  for (const d of COPY_DOMAIN_DIRS) {
+    const src = path.join(ROOT, d);
+    if (fs.existsSync(src)) fs.cpSync(src, path.join(DIST, d), { recursive: true });
+  }
   for (const f of discoverHtml()) {
-    fs.cpSync(path.join(ROOT, f), path.join(DIST, f));
+    fs.mkdirSync(path.dirname(distOf(f)), { recursive: true });
+    fs.cpSync(srcOf(f), distOf(f));
   }
   // Belt-and-suspenders: never let GitHub Pages run Jekyll over the output.
   fs.writeFileSync(path.join(DIST, '.nojekyll'), '');
@@ -98,7 +124,7 @@ function collectEntries(htmlFiles) {
   const tempFiles = [];
 
   for (const rel of htmlFiles) {
-    const abs = path.join(ROOT, rel);
+    const abs = srcOf(rel);
     const dir = path.dirname(abs);
     const base = path.basename(rel).replace(/\.html$/, '');
     const text = fs.readFileSync(abs, 'utf8');
@@ -115,7 +141,7 @@ function collectEntries(htmlFiles) {
         const outName = path.basename(src).replace(/\.js$/, '');
         if (!seenExternal.has(src)) {
           seenExternal.add(src);
-          entries.push({ in: path.join(ROOT, src), out: outName });
+          entries.push({ in: path.join(SITE, src), out: outName });
         }
         htmlMap[rel].externalSrc = src;
         htmlMap[rel].externalOut = outName;
@@ -136,7 +162,7 @@ function collectEntries(htmlFiles) {
 
 // ---- step 3: esbuild bundle+split+hash ----------------------------------
 async function bundle(entries) {
-  const outdir = path.join(DIST, BUILD_SUBDIR);
+  const outdir = path.join(SITE_DIST, BUILD_SUBDIR);
   fs.mkdirSync(outdir, { recursive: true });
   await esbuild.build({
     entryPoints: entries,
@@ -184,7 +210,12 @@ function hashCss() {
       else if (name.endsWith('.css')) files.push(p);
     }
   };
-  for (const d of ['css', 'table-lab', 'WC26', 'assets']) {
+  for (const d of ['css', 'table-lab', 'assets']) {
+    const dir = path.join(SITE_DIST, d);
+    if (fs.existsSync(dir)) walk(dir);
+  }
+  // Domain-root projects keep their own CSS beside them, outside the app folder.
+  for (const d of COPY_DOMAIN_DIRS) {
     const dir = path.join(DIST, d);
     if (fs.existsSync(dir)) walk(dir);
   }
@@ -232,7 +263,7 @@ function hashCss() {
 // ---- step 5: rewrite HTML in dist --------------------------------------
 function rewriteHtml(htmlFiles, htmlMap, jsOutMap, cssMap) {
   for (const rel of htmlFiles) {
-    const abs = path.join(DIST, rel);
+    const abs = distOf(rel);
     let text = fs.readFileSync(abs, 'utf8');
     const info = htmlMap[rel];
 
@@ -240,11 +271,17 @@ function rewriteHtml(htmlFiles, htmlMap, jsOutMap, cssMap) {
     text = text.replace(SCRIPT_RE, (full, attrs, body) => {
       if (!isModule(attrs)) return full;
       const src = getAttr(attrs, 'src');
+      // RELATIVE to the page, never `/assets/build/…`. A root-absolute src
+      // resolves against the DOMAIN root, so it 404s the moment the site is
+      // served from a subfolder — which is exactly where it lives now
+      // (golan.me.uk/shabi-israel/). See CLAUDE.md § Hosting layout.
+      const buildHref = out =>
+        toPosix(path.relative(path.dirname(abs), path.join(SITE_DIST, BUILD_SUBDIR, out)));
       if (src && isLocal(src) && info.externalOut) {
-        return `<script type="module" src="/${toPosix(BUILD_SUBDIR)}/${jsOutMap[info.externalOut]}"></script>`;
+        return `<script type="module" src="${buildHref(jsOutMap[info.externalOut])}"></script>`;
       }
       if (!src && body.trim() && info.inlineOut) {
-        return `<script type="module" src="/${toPosix(BUILD_SUBDIR)}/${jsOutMap[info.inlineOut]}"></script>`;
+        return `<script type="module" src="${buildHref(jsOutMap[info.inlineOut])}"></script>`;
       }
       return full;
     });

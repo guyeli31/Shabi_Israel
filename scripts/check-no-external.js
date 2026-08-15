@@ -22,6 +22,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// The repo root is the domain root; the site lives one folder down
+// (see CLAUDE.md § Hosting layout). The hub page at the repo root is checked
+// too — it is served, so the no-third-party rule applies to it as well.
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /* Directories that are not ours to police: third-party bundles we vendored
@@ -29,7 +32,7 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
    the v2 rebuild, which has its own tooling. */
 const SKIP_DIRS = new Set([
     'node_modules', '.git', 'v2', 'vendor', '.playwright-mcp',
-    'supabase-migration', 'docs', '_archive_v1'
+    'supabase-migration', 'docs', '_archive_v1', 'dist'
 ]);
 
 const EXTS = new Set(['.html', '.css', '.js']);

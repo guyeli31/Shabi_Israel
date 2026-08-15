@@ -13,7 +13,28 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/src/tools/designCatalogue/catalogue.html)",
       "Bash(curl -s http://localhost:5173/src/tools/designCatalogue/catalogue.html)",
       "Bash(curl -s http://localhost:5173/src/primitives/index.css)",
-      "Bash(curl -s http://localhost:5173/src/primitives/Flag/flag.css)"
+      "Bash(curl -s http://localhost:5173/src/primitives/Flag/flag.css)",
+      "PowerShell([System.TimeZoneInfo]::ConvertTimeFromUtc\\(\\(Get-Date\\).ToUniversalTime\\(\\), [System.TimeZoneInfo]::FindSystemTimeZoneById\\('Israel Standard Time'\\)\\).ToString\\('dddd, dd/MM/yyyy HH:mm'\\))",
+      "mcp__playwright__browser_press_key",
+      "mcp__playwright__browser_close",
+      "mcp__playwright__browser_run_code_unsafe",
+      "Bash(node -e ' *)",
+      "Bash(npx -y playwright-core -e 1)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.mcp.json','utf8'\\)\\); console.log\\('.mcp.json valid'\\)\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8090/shabi-israel/index.html)",
+      "mcp__playwright-mobile__browser_navigate",
+      "mcp__playwright-mobile__browser_evaluate",
+      "mcp__playwright-mobile__browser_take_screenshot",
+      "Bash(echo \"url-contract exit=$?\")",
+      "Bash(echo \"no-external exit=$?\")",
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(awk 'NR>=1 && NR<=25' v2/docs/MIGRATION-FROM-V1.md)",
+      "Bash(awk 'NR==5' v2/docs/MIGRATION-FROM-V1.md)",
+      "Bash(npx -y playwright open --help)",
+      "Bash(grep -n \"localhost:[^/]*/\\\\\\(index\\\\|analytics\\\\|banner-poc\\\\|logo-editor\\\\|splash-poc\\\\|league\\\\|player\\\\|admin\\\\\\)\" *.bat)",
+      "Bash(grep -hn \"start .*http://\\\\\\(localhost\\\\|127\\\\\\)\" *.bat)",
+      "Bash(node \"C:/Users/User/AppData/Local/Temp/claude/c--WORKSPACE-Shabi-Israel/290c94bf-9884-404d-9d37-e7c5f632d113/scratchpad/dev.js\")",
+      "Bash(awk -F: '$1<360')"
     ]
   }
 }

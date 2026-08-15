@@ -33,6 +33,6 @@ if not defined PORT (
 )
 
 echo Using port !PORT!
-start "" http://localhost:!PORT!
+start "" http://localhost:!PORT!/shabi-israel/
 call npx -y http-server -p !PORT! --cors -c-1
 pause

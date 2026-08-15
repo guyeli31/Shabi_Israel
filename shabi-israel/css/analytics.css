@@ -1,0 +1,373 @@
+/* analytics.css — Traffic heatmap grid (calendar day/month x hour-of-day)
+   and its colour-scale legend. Everything else on analytics.html reuses
+   existing themed/production components (app-section, dash-card, mf-wrap).
+
+   Font sizes here use only slots docs/TYPOGRAPHY.md sanctions. This file used to
+   write `var(--fs-xs, 11px)` in six places, but --fs-xs has never existed in
+   either token set, so all six silently resolved to a FIXED 11px that never
+   scaled — the one thing the fluid scale exists to guarantee.
+   They are now --fs-085 (the doc's "small" = body/table/chrome), which measures
+   identically to the production league table on the same viewport. Note the root
+   itself is fluid (css/layout.css: html ~13px mobile -> ~15px desktop), so the
+   rem the tokens are built on already moves; --fs-065 ("micro") lands at ~7px on
+   a phone, well under the site's own table baseline, so nothing here uses it. */
+
+.analytics-heatmap {
+    border-collapse: collapse;
+    font-size: var(--fs-085);
+    white-space: nowrap;
+}
+
+.analytics-heatmap th,
+.analytics-heatmap td {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    text-align: center;
+    border: 1px solid var(--color-border, #ddd);
+    padding: 0;
+}
+
+.analytics-heatmap thead th {
+    border: none;
+    color: var(--color-text-muted, #777);
+    font-weight: normal;
+    height: auto;
+}
+
+.analytics-heatmap tbody th {
+    text-align: right;
+    padding-right: var(--space-xs, 4px);
+    color: var(--color-text-muted, #777);
+    font-weight: normal;
+    border: none;
+}
+
+/* Safety net: a bar-chart canvas's bitmap width is set once in JS from a layout
+   measurement, and drawBarChart falls back to a flat 600px whenever that
+   measurement reads 0 — which is exactly what happens for a chart sitting in a
+   tab panel that is still hidden at draw time. Opening that tab on a phone then
+   drops a 600px canvas into a ~345px viewport and the whole page scrolls
+   sideways. This caps every chart to its own container regardless.
+   Scoped to the tab shell that holds every chart on this page, rather than to an
+   id list: the previous version enumerated the four ids that existed when it was
+   written, so every chart added later silently opted out of the net — #chart-mix
+   did exactly that and reintroduced the overflow it was written to prevent. */
+.analytics-tabs-shell canvas {
+    max-width: 100%;
+    display: block;
+}
+
+.analytics-heatmap-legend {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs, 6px);
+    margin-top: var(--space-sm, 8px);
+    font-size: var(--fs-085);
+    color: var(--color-text-muted, #777);
+}
+
+.analytics-heatmap-gradient {
+    width: 160px;
+    height: 10px;
+    border-radius: var(--radius-sm, 3px);
+    border: 1px solid var(--color-border, #ddd);
+}
+
+/* Range control — same pill shape/focus treatment as the desktop player
+   search (css/navigation.css .nav-search input), adapted from that dark
+   navbar's translucent-white styling to sit on a normal light card here. */
+/* gap/wrap/align are load-bearing, not decoration: this bar held a single
+   control until the exclude-admin toggle joined it, so flex had nothing to space
+   and the select sat flush against the checkbox label. Wrapping matters on a
+   phone — a 180px select plus the label does not fit 345px on one line. */
+.analytics-range-bar {
+    margin: 0 0 var(--space-md);
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-xs) var(--space-md);
+}
+
+.analytics-range-select {
+    /* Caps at 180px but yields on a narrow screen instead of forcing a scroll. */
+    width: min(180px, 100%);
+    padding: 5px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: var(--fs-093);
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.analytics-range-select:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px var(--color-accent-light);
+}
+
+/* Smart-search box above the all-clicks log (mountSearchField wraps the input
+   in .app-combo-wrap and owns the dropdown/sheet). Same pill/focus treatment as
+   the month range select so it reads as one control family. */
+.analytics-clicks-search {
+    margin: 0 0 var(--space-sm, 8px);
+}
+.analytics-clicks-search .app-combo-wrap { max-width: min(420px, 100%); }
+/* Layout only — the box is canonical in .app-search-input (layout.css). */
+.analytics-clicks-search-input {
+    width: 100%;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.analytics-clicks-search-input:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px var(--color-accent-light);
+}
+
+.analytics-time-filter {
+    display: flex;
+    gap: var(--space-md, 12px);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-sm, 8px);
+    font-size: var(--fs-093);
+    color: var(--color-text-muted, #777);
+}
+
+.analytics-time-filter input {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    padding: 3px 6px;
+    margin-left: var(--space-xs, 4px);
+}
+
+/* "Exclude my own traffic" and the History tab's "provably mine" now use the
+   shared neutral pill (mountFilterToggle → .subtab--pill.pill-neutral,
+   css/subtabs.css). The checkbox chrome that lived here is deleted rather than
+   left behind: a dead class is an invitation to build the next filter as a
+   checkbox again. */
+
+/* Segmented Pageviews ↔ Sessions toggle above the "Traffic over time" chart.
+   Two buttons sharing one pill outline; the active one takes the accent fill.
+   Reuses the page's own tokens, no new ones — same treatment family as the
+   range select's focus ring. */
+.analytics-metric-toggle {
+    display: inline-flex;
+    margin: 0 0 var(--space-sm, 8px);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm, 4px);
+    overflow: hidden;
+}
+.analytics-metric-btn {
+    padding: 4px 14px;
+    border: none;
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    font: inherit;
+    font-size: var(--fs-093);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.analytics-metric-btn + .analytics-metric-btn { border-left: 1px solid var(--color-border); }
+.analytics-metric-btn:hover { background: var(--color-hover); color: var(--color-text); }
+.analytics-metric-btn.is-active {
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+}
+
+/* Muted caption under a panel whose numbers would be misread without it — the
+   traffic-composition note, the "global route only" region caveat, and the
+   History archive warning. */
+.analytics-mix-note {
+    margin: var(--space-sm, 8px) 0 0;
+    font-size: var(--fs-085);
+    line-height: 1.5;
+    color: var(--color-text-muted);
+}
+
+/* Device-tinted rows, shared by every log table on this page (transitions, all
+   clicks, and each expanded session's own trace — all rendered by
+   renderLogTable). Reuses the site's existing per-theme medal-tint tokens
+   (already themed across all 8 themes in css/themes.css) instead of inventing
+   new device-specific tokens.
+   These were ids (#transitions-log-table, #clicks-log-table) purely to outrank
+   .mf-wrap's own `tbody td { background: var(--color-inset) }` default. A class
+   wins that anyway — `.log-table tr.device-desktop td` is (0,2,2) against
+   .mf-wrap's (0,1,2), and the :hover pair is (0,3,2) against (0,2,3), classes
+   being compared before elements — and unlike an id it can apply to the N
+   per-session tables at once. device-unknown has no rule on purpose. */
+/* The "Leagues" tab glyph (tabIcons.js LEAGUE_GLYPH) is `display:block` for the
+   tab bar, where it lives inside an inline-flex `.app-tab-icon` wrapper. In the
+   click-log cell it's dropped straight next to the target text with no wrapper,
+   so `display:block` pushed the text onto its own line. Inline it here. */
+.log-table .app-tab-glyph { display: inline-block; vertical-align: -0.15em; }
+
+/* A page name shown with its leading icon (pageLabelHtml / the player_league
+   branch of contextHtml): Home 🏠, League Dashboard = the Leagues SVG, League
+   Table = SVG + 📊, Player 👤, Player-in-league = SVG + 👤, Admin 🛠️. The Leagues
+   SVG is display:block for the tab bar, so force it inline here (as .log-table
+   does) — this rule is container-independent so the Page column, the session entry
+   route, Top pages and Dwell-by-page all render it identically. nowrap keeps the
+   icon glued to the label (a plain space won't stop a break after an atomic SVG). */
+.ana-page { white-space: nowrap; }
+.ana-page .app-tab-glyph { display: inline-block; vertical-align: -0.15em; }
+
+/* A player/league shown inside a log cell: flag → name → title badges (player),
+   or title → type pill (league), all on one baseline. inline-flex so the em-sized
+   flag and .title-abbr / .league-type-pill line up with the name without each
+   needing its own vertical-align tweak. */
+.ana-entity {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+}
+/* The league-type pill is sized for table cells/headers (var(--fs-085) off the
+   ROOT + generous padding + line-height 1.5), so inline next to log text it
+   towered and sat off the baseline. In a log entity it must track the row's own
+   font and sit ON the text line: em-relative size, tight padding, and it is the
+   one child that centres (a pill reads centred, not on a baseline) while the
+   flag/name/title stay baseline-aligned with the surrounding text. */
+.ana-entity .league-type-pill {
+    font-size: 0.72em;
+    padding: 0.08em 0.5em;
+    line-height: 1.35;
+    align-self: center;
+}
+.ana-entity .search-flag { align-self: center; }
+
+/* Keep a click-target's icon glued to its label on one line. Needed because the
+   icon can be an inline-block SVG glyph (app-tab-glyph), and a no-break space
+   does NOT suppress the line break between that atomic inline and the following
+   text — only nowrap does. The log tables live in .mf-wrap, so a long label
+   (e.g. a "What if:" summary) scrolls horizontally rather than wrapping. */
+.ana-click-target { white-space: nowrap; }
+
+.log-table tr.device-desktop td { background: var(--color-gold-bg); }
+.log-table tr.device-mobile  td { background: var(--color-silver-bg); }
+.log-table tr.device-tablet  td { background: var(--color-bronze-bg); }
+.log-table tr.device-desktop:hover td { background: var(--color-gold-bg-hover); }
+.log-table tr.device-mobile:hover  td { background: var(--color-silver-bg-hover); }
+.log-table tr.device-tablet:hover  td { background: var(--color-bronze-bg-hover); }
+
+/* ── Session-id chip ──────────────────────────────────────────────────────
+   The base chip IS the admin/operator chip: one shared pleasant red for EVERY
+   admin (identity is spelled out in the label — user_########), so the colour
+   only ever answers "operator or ordinary visitor?", not "which admin?". A
+   fixed hsl red rather than a token keeps the tint and border legible across all
+   8 themes (several of them dark) while the label stays var(--color-text). The
+   --visitor and --external modifiers below override this fill for the other two
+   states. */
+.analytics-sid {
+    display: inline-block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--fs-085);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm, 3px);
+    white-space: nowrap;
+    color: var(--color-text);
+    background: hsl(0 72% 50% / 0.18);
+    border: 1px solid hsl(0 72% 50% / 0.50);
+}
+
+/* An ordinary visitor (admin_user null): one shared neutral, no hue. Colour on
+   this page means "operator traffic" and nothing else, so the uniformity here
+   is itself the signal. */
+.analytics-sid--visitor {
+    background: var(--color-inset);
+    border-color: var(--color-border);
+    color: var(--color-text-muted);
+}
+
+/* Global route: no session id exists at all. Dashed = absent by design. */
+.analytics-sid--external {
+    background: transparent;
+    border: 1px dashed var(--color-border);
+    color: var(--color-text-muted);
+    font-family: inherit;
+}
+
+/* ── Device pill (session cards) ──────────────────────────────────────────
+   Cards have no row to tint, so they state the device outright. Reuses the same
+   device-<type> class, and therefore the same medal tokens, as the row tints
+   above — so "gold = desktop" means one thing across the whole page. */
+.analytics-device-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    font-size: var(--fs-085);
+    white-space: nowrap;
+    color: var(--color-text);
+    background: var(--color-inset);
+}
+.analytics-device-pill.device-desktop { background: var(--color-gold-bg); }
+.analytics-device-pill.device-mobile  { background: var(--color-silver-bg); }
+.analytics-device-pill.device-tablet  { background: var(--color-bronze-bg); }
+
+/* ── Entry-referrer pill (session cards) ──────────────────────────────────
+   Same shape as the device pill but no medal tint: referrer buckets have no
+   device-style token set, and a coloured fill here would fight the operator-red
+   session chip for attention. Muted text keeps it a secondary fact. */
+.analytics-referrer-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: var(--color-inset);
+    font-size: var(--fs-085);
+    white-space: nowrap;
+    color: var(--color-text-muted);
+}
+
+/* ── Entry → exit route (session cards) ───────────────────────────────────
+   The visit's arc, on its own line under the stats row: flex-basis:100% forces
+   a wrap in the flex head so it never crowds the pills, and the whole line stays
+   muted (a path, not a stat) while the arrow takes the accent to read as motion.
+   A single-page visit renders one node with no arrow (see sessionRoute). */
+.analytics-session-route {
+    flex-basis: 100%;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: var(--fs-085);
+    color: var(--color-text-muted);
+}
+.analytics-session-route .rt-node { color: var(--color-text); }
+.analytics-session-route .rt-arrow { color: var(--color-accent); font-weight: 600; }
+
+/* ── Session card — a native <details>, so expanding needs no JS ─────────── */
+.analytics-session {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-inset);
+    margin-bottom: var(--space-sm, 8px);
+    overflow: hidden;
+}
+.analytics-session-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm, 8px);
+    flex-wrap: wrap;
+    padding: var(--space-sm, 8px);
+    cursor: pointer;
+    list-style: none; /* hide the default disclosure triangle … */
+}
+.analytics-session-head::-webkit-details-marker { display: none; } /* … and Safari's */
+/* Same caret glyphs as .app-section-h2.is-collapsible (css/sections.css), so a
+   session card discloses exactly like every other collapsible surface here. */
+.analytics-session-head::before { content: '\25B8'; opacity: 0.7; font-size: 0.85em; }
+.analytics-session[open] .analytics-session-head::before { content: '\25BE'; }
+.analytics-session-head:hover { background: var(--color-hover); }
+.analytics-session-time { font-size: var(--fs-093); }
+.analytics-session-meta { font-size: var(--fs-085); color: var(--color-text-muted); }
+.analytics-session-body { padding: 0 var(--space-sm, 8px) var(--space-sm, 8px); }

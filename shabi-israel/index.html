@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Shabi Israel</title>
+    <link rel="icon" type="image/png" href="assets/favicon-round.png">
+    <!-- Hero banner photo starts downloading immediately instead of waiting for
+         JS to fetch the config and build the .hero-photo element first. -->
+    <link rel="preload" href="assets/logo/board-clean.jpg" as="image">
+    <meta name="description" content="Shabi Israel — Backgammon leagues: rankings &amp; statistics">
+    <!-- Link preview (Open Graph + Twitter) -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Shabi Israel">
+    <meta property="og:description" content="Shabi Israel — Backgammon leagues: rankings &amp; statistics">
+    <meta property="og:image" content="https://golan.me.uk/shabi-israel/assets/logo/logo.png">
+    <meta property="og:image:width" content="640">
+    <meta property="og:image:height" content="640">
+    <meta property="og:url" content="https://golan.me.uk/shabi-israel/">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Shabi Israel">
+    <meta name="twitter:description" content="Shabi Israel — Backgammon leagues: rankings &amp; statistics">
+    <meta name="twitter:image" content="https://golan.me.uk/shabi-israel/assets/logo/logo.png">
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/typography-tokens.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/search-overlay.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/themes.css">
+    <link rel="stylesheet" href="css/hero-banner.css">
+    <link rel="stylesheet" href="css/theme-picker.css">
+    <link rel="stylesheet" href="css/admin-button.css">
+    <link rel="stylesheet" href="css/navigation.css">
+    <link rel="stylesheet" href="css/tabs.css">
+    <link rel="stylesheet" href="css/sections.css">
+    <link rel="stylesheet" href="css/subtabs.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/index-dashboard.css">
+    <link rel="stylesheet" href="table-lab/formats/sf/sf.css">
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="css/site-sidebar.css">
+    <link rel="stylesheet" href="css/typography-overrides.css">
+    <link rel="preload" href="assets/logo/logo.png" as="image" fetchpriority="high">
+    <!-- The splash's own JS, preloaded. Without this it is discovered only
+         after the page's big renderer module has downloaded AND parsed (it is
+         the renderer that imports it), so on a slow connection the loading
+         screen appeared with an empty ring — measured: still no squares after
+         4s at 150KB/s. These two are tiny; fetching them up front costs
+         nothing and is what makes the splash useful when it actually matters. -->
+    <link rel="modulepreload" href="js/utils/splash.js">
+    <link rel="modulepreload" href="js/utils/splashConfig.js">
+    <link rel="stylesheet" href="css/splash.css">
+    <!-- GENERATED from assets/splash/splash-config.json by scripts/build-splash-css.js.
+         Must stay here, in <head>: it carries the saved splash design as
+         --sp-*-cfg custom properties, so the loading screen is correct on its
+         FIRST paint. Without it the splash renders css/splash.css's fallback
+         design and then restyles itself when the JSON lands ~330ms later. -->
+    <link rel="stylesheet" href="assets/splash/splash-vars.css">
+    <noscript><style>#logo-splash{display:none}</style></noscript>
+
+    <!-- Self-hosted Bebas Neue. This page never carried a fonts.googleapis.com
+         <link>, but its hero banner can use the family, and heroBanner.js no
+         longer requests it from Google — so the face has to be declared here. -->
+    <link rel="stylesheet" href="css/fonts.css">
+    <script>
+      /* ══ TEMPORARY — slow mode for testing. Remove before committing. ══
+         Holds every data request so a page transition takes a fixed time,
+         which is the only way to actually look at the loading screen.
+             spSlow(2000)  every navigation waits ~2s   (persists)
+             spSlow(0)     back to normal
+      */
+      (function(){
+        var S = 'spSlowMs';
+        var q = new URLSearchParams(location.search).get('spWait');
+        if (q !== null) { try { localStorage.setItem(S, q); } catch (e) {} }
+        window.spSlow = function (n) { try { localStorage.setItem(S, String(n||0)); } catch(e){}
+          console.log(n ? 'Every page will now wait ~' + n + 'ms for data.' : 'Back to normal speed.'); };
+        var ms = 0; try { ms = +localStorage.getItem(S) || 0; } catch (e) {}
+        if (!ms) return;
+        /* The app caches its whole dataset in localStorage, so after the first
+           load there is no request left to hold and every later navigation is
+           instant no matter what this is set to. Drop that cache on each load
+           while slow mode is on, otherwise only the very first transition is
+           actually slow — which is exactly what it looked like. */
+        try { localStorage.removeItem('shabi:bundle:v1'); } catch (e) {}
+        var of = window.fetch;
+        window.fetch = function () {
+          var a = arguments, self = this;
+          var u = String((a[0] && a[0].url) || a[0] || '');
+          if (u.indexOf('54321') >= 0 || u.indexOf('supabase') >= 0)
+            return new Promise(function (r) { setTimeout(r, ms); }).then(function () { return of.apply(self, a); });
+          return of.apply(self, a);
+        };
+      })();
+      (function(){
+        var t=localStorage.getItem('shabi-theme');
+        if(t==='modern')t='nature';if(t==='royal')t='vegas';if(t&&t!=='current'){document.documentElement.dataset.theme=t;localStorage.setItem('shabi-theme',t);}
+        var c=localStorage.getItem('shabi-custom-vars');
+        if(c){try{var v=JSON.parse(c);for(var k in v)document.documentElement.style.setProperty(k,v[k])}catch(e){}}
+        // Fail-safe: the splash is static markup, so a module that never loads
+        // would leave it covering the page forever. Take it away regardless.
+        setTimeout(function(){var s=document.getElementById('logo-splash');if(s&&!s.dataset.done)s.remove();},25000);
+        // Don't flash the splash on a fast internal navigation. Arriving from
+        // our own site means the View Transition is still showing the previous
+        // page, so hold the splash back briefly; if the data lands first it is
+        // never seen at all. A direct hit or reload has nothing behind it, so
+        // it shows at once. splash.js reads __splashRevealAt to know whether
+        // it was ever actually on screen.
+        try {
+          if (document.referrer && document.referrer.indexOf(location.origin + '/') === 0) {
+            var DEFER = 350, de = document.documentElement;
+            de.classList.add('sp-defer');
+            window.__splashRevealAt = performance.now() + DEFER;
+            var reveal = function () {
+              de.classList.remove('sp-defer');
+              // The real reveal moment, so the minimum-display clock and the
+              // "was it ever actually seen?" test in splash.js use the truth.
+              window.__splashRevealAt = performance.now();
+            };
+            var timer = setTimeout(reveal, DEFER);
+            // A cross-document view transition shows a STILL PHOTO of each page
+            // and cross-fades them. Anything caught in that photo is frozen, so
+            // a splash inside it looks dead, then gets replaced by the live one
+            // — which reads as the splash appearing twice. Hold it back until
+            // the transition is over and the live document is on screen.
+            window.addEventListener('pagereveal', function (e) {
+              if (e && e.viewTransition) {
+                clearTimeout(timer);
+                e.viewTransition.finished.then(reveal, reveal);
+              }
+            });
+          }
+        } catch (e) {}
+      })();
+    </script>
+</head>
+<body>
+    <!-- Full-screen loading screen. Static on purpose: this is the FIRST
+         paint, so it must not wait for a deferred module. js/utils/splash.js
+         only fills the ring and takes it away. On this page it also covers the
+         hero banner's own shimmer, which keeps running underneath as the
+         no-splash fallback. -->
+    <div class="splash" id="logo-splash" role="status" aria-live="polite">
+        <div class="splash-core">
+            <div class="sp-copy">
+                <p class="sp-eyebrow"><span></span><em>Shabi Israel</em></p>
+                <p class="sp-stage">Connecting to the database</p>
+                <p class="sp-detail">Step 1 of 6 · 0%</p>
+            </div>
+            <div class="sp-ring" data-mode="determinate">
+                <div class="sp-logo"><img src="assets/logo/logo.png" alt=""></div>
+            </div>
+            <!-- Chips are STATIC so the row is there in the first paint. Built by
+                 JS they appeared ~1s late and pushed the layout, which read as the
+                 splash reloading. Must match SPLASH_STAGE_SETS[data-stages]; if they
+                 drift, buildSteps() rewrites them. -->
+            <ul class="sp-steps">
+                <li><span class="dot"></span>Connect</li>
+                <li><span class="dot"></span>Settings</li>
+                <li><span class="dot"></span>Matches</li>
+                <li><span class="dot"></span>Players</li>
+                <li><span class="dot"></span>Ranking</li>
+                <li><span class="dot"></span>Render</li>
+            </ul>
+            <script>
+              /* Build the ring here, not in splash.js. An ES module only
+                 EXECUTES once its whole import graph has downloaded, and
+                 splash.js is reached via the page's renderer — which pulls in
+                 dozens of files. Measured at 150KB/s: still no squares after
+                 4 seconds, i.e. the ring was missing exactly when the loading
+                 screen mattered most. A classic inline script runs during
+                 parsing, so the ring is there in the first paint.
+                 splash.js only rebuilds it if the saved config wants a
+                 different count. */
+              (function () {
+                var r = document.currentScript.parentNode.querySelector('.sp-ring'),
+                    f = document.createDocumentFragment(),
+                    /* --n comes from assets/splash/splash-vars.css, a blocking
+                       stylesheet in <head>, so the SAVED square count is already
+                       known here and the first paint has the right ring. The 24
+                       is only a fallback for that generated file going missing. */
+                    N = parseInt(getComputedStyle(r).getPropertyValue('--n'), 10) || 24;
+                for (var i = 0; i < N; i++) {
+                  var d = document.createElement('div');
+                  d.className = 'sq';
+                  d.style.setProperty('--i', i);
+                  d.style.setProperty('--a', (i * 360 / N) + 'deg');
+                  f.appendChild(d);
+                }
+                r.insertBefore(f, r.firstChild);
+              })();
+            </script>
+            <p class="sp-slow">Taking longer than usual — the connection looks slow.
+                <button type="button">Retry</button></p>
+        </div>
+    </div>
+    <!-- Wake the splash NOW, not when the page renderer's import graph finally
+         resolves. splash.js is reached through that renderer, and an ES module
+         only EXECUTES once its WHOLE graph has downloaded and parsed: measured
+         at 2404ms on this page, against a splash that becomes visible at 350ms.
+         For those 2 seconds the loading screen sat on screen frozen — unlit
+         ring, no step chips, "0%" — and then visibly came alive, which reads as
+         the screen loading a second time. This import has a graph of two tiny
+         preloaded files, so it runs at DOMContentLoaded instead. -->
+    <script type="module">import './js/utils/splash.js';</script>
+    <div class="page-container" id="main" role="main">
+        <!-- Hero banner is injected here by applyHeroBanner(); starts hidden so
+             nothing paints before it. -->
+        <div class="page-header" id="page-header" style="visibility:hidden"></div>
+        <div id="content"></div>
+    </div>
+    <script src="vendor/html2canvas-pro.min.js"></script>
+    <script type="module">
+        import { isPreviewMode, installPreviewInterceptor } from './js/admin/previewMode.js';
+        import { hasUrlFlag } from './js/utils/queryString.js';
+        if (isPreviewMode()) installPreviewInterceptor();
+
+        import { renderLandingPage } from './js/render/landingPage.js';
+        import { onVisibleRevalidate } from './js/data/store.js';
+        import { applyThemeBootstrap } from './js/render/themePicker.js';
+        import { initNavBar, initKeyboardShortcuts } from './js/render/navigation.js';
+        import { mountSiteSidebar } from './js/render/siteSidebar.js';
+        import { isLoggedIn } from './js/admin/auth.js';
+
+        applyThemeBootstrap();
+        await initNavBar();
+
+        // Admin edit mode mounts the admin sidebar from inside landingPage.js;
+        // skip the public sidebar in that case so we don't get two sidebars.
+        const isAdminEdit = isLoggedIn() && !isPreviewMode() && hasUrlFlag('edit');
+        if (!isAdminEdit) mountSiteSidebar({ activeView: 'home', topbarTitle: 'Home' });
+
+        renderLandingPage();
+        // Self-heal / passive refresh: on return-to-visible or bfcache restore,
+        // re-render only if the data changed or a failed load can now succeed.
+        onVisibleRevalidate(renderLandingPage);
+        initKeyboardShortcuts();
+    </script>
+    <script type="module" src="js/analytics.js"></script>
+</body>
+</html>

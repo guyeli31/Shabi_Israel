@@ -1,0 +1,386 @@
+/**
+ * mailSync.js — Admin ▸ Sync ▸ the two e-mail-ingestion sections.
+ *
+ * The External Source mails a report at the end of every match. An automation
+ * in the recipient's mailbox parses it and calls submit_match_report() — the
+ * one function `anon` may execute (sql/mail_sync.sql). Everything downstream
+ * of that call is this file's subject.
+ *
+ * Two sections, rendered above the existing Sync sections:
+ *
+ *   F8 — Unassigned Email Matches. Only rendered when there is something to
+ *        assign. A report lands here when the candidate scan found anything
+ *        other than exactly one running league holding this pair as an open,
+ *        non-override-covered fixture. The admin picks the league; Apply calls
+ *        mail_apply_report, which re-runs the scan server-side before writing
+ *        (a stale pick must never overwrite a played result).
+ *
+ *   F9 — Mail Automated Matches. Every mail-sourced match, auto-applied or
+ *        admin-assigned, newest first. Columns mirror B5 (Played Matches) plus
+ *        League — the table is cross-league, which B5 never is — and the Date
+ *        carries a time, because "which match was this" is a per-minute
+ *        question here, not a per-day one.
+ *
+ * A mail-applied match is a CSV-applied match: same override precedence, same
+ * Historical Changes batch shape. That equivalence lives in the SQL, not here.
+ */
+
+import { supabase } from '../data/supabaseClient.js';
+import { flagUrl, getFlagCode, formatNumber, thLabel } from '../utils/helpers.js';
+import { attachStickyShadow } from '../utils/stickyShadow.js';
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+));
+
+// ── Data ───────────────────────────────────────────────────────────────────
+
+export async function loadMailState() {
+    const [pending, log, health] = await Promise.all([
+        supabase.rpc('mail_reports_pending'),
+        supabase.rpc('mail_reports_log', { p_limit: 200 }),
+        supabase.rpc('mail_reports_health'),
+    ]);
+    if (pending.error || log.error || health.error) {
+        throw new Error((pending.error || log.error || health.error).message);
+    }
+    // Order F9 by the value its Date column actually shows (when the match was
+    // played), not by when the mail arrived. The two differ whenever a report
+    // is forwarded late or an admin assigns one by hand, and a table sorted by
+    // a column it doesn't display just reads as unsorted.
+    const at = (r) => new Date((r.payload && r.payload.played_at) || r.received_at).getTime();
+    return {
+        pending: pending.data || [],
+        log: (log.data || []).filter((r) => r.status === 'applied').sort((a, b) => at(b) - at(a)),
+        health: health.data || {},
+    };
+}
+
+// ── Formatting ─────────────────────────────────────────────────────────────
+
+function playerCell(name, customFlags, outcome) {
+    const code = getFlagCode(name, customFlags || {});
+    const cls = outcome === 'win' ? ' result-win' : (outcome === 'loss' ? ' result-loss' : '');
+    return `<td class="player-cell${cls}"><img class="flag" src="${flagUrl(code)}" alt="${esc(code)}"> ${esc(name)}</td>`;
+}
+
+/** Winner/loser per side, or null on a tie — mirrors B5's rule exactly. */
+function outcomes(a, b) {
+    if (a === b) return [null, null];
+    return a > b ? ['win', 'loss'] : ['loss', 'win'];
+}
+
+function fmtDateTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    const date = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
+    const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    return `${date}, ${time}`;
+}
+
+function fmtAgo(iso) {
+    if (!iso) return 'never';
+    const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 48) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+    return `${Math.floor(hrs / 24)} days ago`;
+}
+
+/**
+ * Health dot. Green while reports are arriving, amber once the mailbox has
+ * been quiet for over a day. The whole point of the strip: an automation that
+ * dies dies silently, and silence looks exactly like "no matches were played".
+ */
+function healthTone(iso) {
+    if (!iso) return 'is-stale';
+    return (Date.now() - new Date(iso).getTime()) > 24 * 3600 * 1000 ? 'is-stale' : 'is-live';
+}
+
+// ── F8 — Unassigned Email Matches ──────────────────────────────────────────
+
+/**
+ * F8 holds two problems that look alike in a count and are opposite in what the
+ * admin must do:
+ *
+ *   AMBIGUOUS — more than one running league holds this pair as an open
+ *               fixture. There IS a choice; make it and Apply.
+ *   ORPHAN    — no running league holds it at all. There is NO choice to make
+ *               from this screen. Almost always a player name that doesn't
+ *               match the roster (matching is exact-string), or a pair whose
+ *               result is already recorded or override-covered.
+ *
+ * One sentence cannot serve both: telling an admin to "pick the league" for a
+ * row with nothing to pick sends them looking for a dropdown that isn't there.
+ * So the banner counts each kind and says only what is true of it.
+ */
+function pendingBanner(pending) {
+    const orphans = pending.filter((r) => !(Array.isArray(r.candidates) && r.candidates.length)).length;
+    const ambiguous = pending.length - orphans;
+    const n = (c, one, many) => `${c} ${c === 1 ? one : many}`;
+
+    const lines = [];
+    if (ambiguous) {
+        lines.push(`<b>${n(ambiguous, 'report matches', 'reports match')} more than one running league.</b>
+                    Pick the league for each, then Apply.`);
+    }
+    if (orphans) {
+        lines.push(`<b>${n(orphans, 'report matches', 'reports match')} no open fixture in any running league.</b>
+                    The reason is on each row. These can't be applied from here — fix what the row says, or Discard.`);
+    }
+    return `<div class="admin-msg admin-msg-warning">${lines.join('<br>')}</div>`;
+}
+
+function sectionPending(pending, customFlags) {
+    if (!pending.length) return '';
+
+    const rows = pending.map((r) => {
+        const p = r.payload || {};
+        const [oa, ob] = outcomes(Number(p.score_a), Number(p.score_b));
+        const cands = Array.isArray(r.candidates) ? r.candidates : [];
+
+        // Zero candidates is a different sentence from "pick one of N", and the
+        // picker must not pretend there is a choice.
+        const picker = cands.length
+            ? `<select class="mail-league-pick" data-report="${r.id}"
+                       aria-label="Assign ${esc(p.player_a)} vs ${esc(p.player_b)} to a league">
+                   <option value="">— pick one of ${cands.length} —</option>
+                   ${cands.map((c) => `<option value="${esc(c.league_id)}">${esc(c.league_id)}</option>`).join('')}
+               </select>`
+            : `<span class="mail-no-cand">${esc(r.reason || 'No open fixture in any running league.')}</span>`;
+
+        // No candidates → no Apply button at all, not a disabled one. A button
+        // that can never become enabled advertises a path that doesn't exist;
+        // Discard is the only action this row actually has.
+        const actions = cands.length
+            ? `<button class="btn btn-primary btn-sm mail-apply" data-report="${r.id}" disabled>Apply</button>
+               <button class="btn btn-danger btn-xs mail-discard" data-report="${r.id}">Discard</button>`
+            : `<button class="btn btn-danger btn-xs mail-discard" data-report="${r.id}">Discard</button>`;
+
+        return `
+            <tr data-report-row="${r.id}">
+                ${playerCell(p.player_a, customFlags, oa)}
+                ${playerCell(p.player_b, customFlags, ob)}
+                <td>${esc(p.score_a)} - ${esc(p.score_b)}</td>
+                <td class="mail-len">${esc(p.match_length ?? '—')}</td>
+                <td>${p.pr_a == null ? '—' : formatNumber(p.pr_a, 3)}</td>
+                <td>${p.pr_b == null ? '—' : formatNumber(p.pr_b, 3)}</td>
+                <td>${p.luck_a == null ? '—' : formatNumber(p.luck_a)}</td>
+                <td>${p.luck_b == null ? '—' : formatNumber(p.luck_b)}</td>
+                <td>${fmtDateTime(r.received_at)}</td>
+                <td>${picker}</td>
+                <td class="mail-actions">${actions}</td>
+            </tr>`;
+    }).join('');
+
+    return `
+        <div class="dash-section">
+          <div class="app-section app-section--card">
+            <h2 class="app-section-h2">Unassigned Email Matches (${pending.length})</h2>
+            <div class="collapsible-body">
+              <div class="admin-card">
+                <div id="mail-pending-msg"></div>
+                ${pendingBanner(pending)}
+                <p style="color:var(--color-text-muted);margin-bottom:var(--space-md);font-size:0.9em">
+                    A report applies itself when <b>exactly one</b> running league holds this pair as an
+                    open fixture at the same match length, with no override covering it. Anything else lands here.
+                </p>
+                <div class="ff-wrap">
+                    <table class="admin-table font-large ff-sticky-2" data-mf-table-id="F8">
+                        <thead>
+                            <tr>
+                                <th scope="col">${thLabel('Player A', 'A')}</th>
+                                <th scope="col">${thLabel('Player B', 'B')}</th>
+                                <th scope="col">Score</th>
+                                <th scope="col">${thLabel('Length', 'Len')}</th>
+                                <th scope="col">PR A</th>
+                                <th scope="col">PR B</th>
+                                <th scope="col">Luck A</th>
+                                <th scope="col">Luck B</th>
+                                <th scope="col">Received</th>
+                                <th scope="col">${thLabel('Assign to League', 'League')}</th>
+                                <th scope="col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+                <p style="color:var(--color-text-muted);margin-top:var(--space-md);font-size:0.85em">
+                    Applying writes the result exactly as a CSV import would — same override precedence,
+                    and one Historical Changes entry per match.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>`;
+}
+
+// ── F9 — Mail Automated Matches ────────────────────────────────────────────
+
+function sectionLog(log, health, customFlags) {
+    const rows = log.length ? log.map((r) => {
+        const p = r.payload || {};
+        // Stored A/B may be the fixture's reverse; display the report as it came.
+        const [oa, ob] = outcomes(Number(p.score_a), Number(p.score_b));
+        return `
+            <tr data-league="${esc(r.league_id || '')}">
+                ${playerCell(p.player_a, customFlags, oa)}
+                ${playerCell(p.player_b, customFlags, ob)}
+                <td>${esc(p.score_a)} - ${esc(p.score_b)}</td>
+                <td>${p.pr_a == null ? '—' : formatNumber(p.pr_a, 3)}</td>
+                <td>${p.pr_b == null ? '—' : formatNumber(p.pr_b, 3)}</td>
+                <td>${p.luck_a == null ? '—' : formatNumber(p.luck_a)}</td>
+                <td>${p.luck_b == null ? '—' : formatNumber(p.luck_b)}</td>
+                <td>${esc(r.league_id || '—')}</td>
+                <td>${fmtDateTime(p.played_at || r.received_at)}</td>
+                <td><span class="mail-src-pill${r.auto_applied ? '' : ' is-admin'}">${r.auto_applied ? 'AUTO' : 'ADMIN'}</span></td>
+            </tr>`;
+    }).join('') : `<tr><td colspan="10" style="text-align:center;color:var(--color-text-muted)">
+                       No matches have arrived by e-mail yet.</td></tr>`;
+
+    const leagueOpts = [...new Set(log.map((r) => r.league_id).filter(Boolean))].sort();
+
+    return `
+        <div class="dash-section">
+          <div class="app-section app-section--card">
+            <h2 class="app-section-h2">Mail Automated Matches</h2>
+            <div class="collapsible-body">
+              <div class="admin-card">
+                <div class="mail-health">
+                    <span class="mail-dot ${healthTone(health.last_received)}"></span>
+                    Last report received <b>${esc(fmtAgo(health.last_received))}</b>
+                    &nbsp;·&nbsp; <b>${health.auto_applied || 0}</b> applied automatically
+                    &nbsp;·&nbsp; <b>${health.admin_applied || 0}</b> assigned by admin
+                    &nbsp;·&nbsp; <b>${health.pending || 0}</b> awaiting assignment
+                    &nbsp;·&nbsp; <b>${health.discarded || 0}</b> discarded
+                    <span style="flex:1"></span>
+                    <select class="mail-league-filter" aria-label="Filter by league">
+                        <option value="">All leagues</option>
+                        ${leagueOpts.map((l) => `<option value="${esc(l)}">${esc(l)}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="ff-wrap">
+                    <table class="admin-table font-large ff-sticky-2" data-mf-table-id="F9">
+                        <thead>
+                            <tr>
+                                <th scope="col">${thLabel('Player A', 'A')}</th>
+                                <th scope="col">${thLabel('Player B', 'B')}</th>
+                                <th scope="col">Score</th>
+                                <th scope="col">PR A</th>
+                                <th scope="col">PR B</th>
+                                <th scope="col">Luck A</th>
+                                <th scope="col">Luck B</th>
+                                <th scope="col">League</th>
+                                <th scope="col">Date</th>
+                                <th scope="col">${thLabel('Assigned', 'By')}</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+}
+
+// ── Public API ─────────────────────────────────────────────────────────────
+
+export function mailSectionsHTML(state, customFlags) {
+    return sectionPending(state.pending, customFlags) + sectionLog(state.log, state.health, customFlags);
+}
+
+/**
+ * FF's `ff-sticky-2` variant pins Player A AND Player B: a match row's identity
+ * is the pair, and a score against one name is half a result. Column 2's `left`
+ * is column 1's rendered width, which is content-driven, so it is measured —
+ * spelling mirrors SF's `--sf-col1-w` (table-lab/formats/sf/mount.js).
+ *
+ * Measure AFTER the flags load, not on first layout. `.flag` is
+ * `height: 1em; width: auto`, so an unloaded flag contributes 0 width:
+ * measured live on F8, th1 is 117.67px before the flags land and 131.33px
+ * after — exactly one 13.67px flag — which parks column 2 fourteen pixels
+ * inside column 1, permanently.
+ *
+ * Hence the observer watches the HEADER CELL, which reflows when the images
+ * do. Watching the wrap does not work (its size never changes), and neither
+ * does a one-shot rAF: pinning itself does NOT alter column 1's width
+ * (verified — identical with and without the class), so there is no single
+ * post-layout frame at which the value is already correct.
+ */
+function attachStickyCols(table) {
+    const th1 = table.querySelector('thead th:first-child');
+    if (!th1) return;
+    const measure = () => {
+        const w = th1.getBoundingClientRect().width;
+        if (w > 0) table.style.setProperty('--ff-col1-w', `${w}px`);
+    };
+    measure();
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(measure).observe(th1);
+}
+
+export function wireMailSections(container, onChanged) {
+    container.querySelectorAll('.ff-sticky-2').forEach(attachStickyCols);
+
+    // Apply stays disabled until a league is chosen; choosing one also tints the
+    // row pending, so a screen with several rows shows at a glance what a click
+    // on "Apply" is about to commit.
+    container.querySelectorAll('.mail-league-pick').forEach((sel) => {
+        sel.addEventListener('change', () => {
+            const row = sel.closest('tr');
+            const btn = row.querySelector('.mail-apply');
+            const chosen = !!sel.value;
+            btn.disabled = !chosen;
+            row.classList.toggle('is-resolved', chosen);
+        });
+    });
+
+    container.querySelectorAll('.mail-apply').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const row = btn.closest('tr');
+            const sel = row.querySelector('.mail-league-pick');
+            if (!sel || !sel.value) return;
+            btn.disabled = true;
+            btn.textContent = 'Applying…';
+            const { data, error } = await supabase.rpc('mail_apply_report', {
+                p_report_id: Number(btn.dataset.report),
+                p_league_id: sel.value,
+            });
+            if (error || (data && data.ok === false)) {
+                showMailMsg(container, (error && error.message) || data.hint || data.error, 'error');
+                btn.disabled = false;
+                btn.textContent = 'Apply';
+                return;
+            }
+            if (onChanged) onChanged();
+        });
+    });
+
+    container.querySelectorAll('.mail-discard').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            const { error } = await supabase.rpc('mail_discard_report', {
+                p_report_id: Number(btn.dataset.report), p_reason: 'Discarded by admin',
+            });
+            if (error) { showMailMsg(container, error.message, 'error'); btn.disabled = false; return; }
+            if (onChanged) onChanged();
+        });
+    });
+
+    const filter = container.querySelector('.mail-league-filter');
+    if (filter) {
+        filter.addEventListener('change', () => {
+            const want = filter.value;
+            container.querySelectorAll('[data-mf-table-id="F9"] tbody tr[data-league]').forEach((tr) => {
+                tr.hidden = !!want && tr.dataset.league !== want;
+            });
+        });
+    }
+}
+
+function showMailMsg(container, text, kind) {
+    const slot = container.querySelector('#mail-pending-msg');
+    if (!slot) return;
+    slot.innerHTML = `<div class="admin-msg admin-msg-${kind}">${esc(text)}</div>`;
+}

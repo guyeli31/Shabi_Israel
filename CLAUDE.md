@@ -6,12 +6,62 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A parallel clean-slate rebuild lives under `v2/` and is the end-state target. Plan: `C:\Users\User\.claude\plans\sharded-gliding-locket.md`. While the rebuild is in progress:
 
-- **v1 (current production)** at `css/`, `js/`, `table-lab/`, `*.html` keeps running. Serve via `npx http-server -p 8090 --cors -c-1` from repo root → `http://localhost:8090`.
+- **v1 (current production)** at `shabi-israel/` keeps running. Serve via `npx http-server -p 8090 --cors -c-1` from repo root → `http://localhost:8090/shabi-israel/`.
 - **v2 (rebuild)** at `v2/` uses Vite. `cd v2 && npm install && npm run dev` → `http://localhost:5173`.
 - Both versions share `leagues/` at the repo root. v1 reads via `fetch('leagues/...')`. v2 reads via `fetch('/data/...')` proxied by Vite's `shared-data-proxy` plugin (see `v2/vite.config.js`).
 - **Admin writes**: avoid simultaneous admin editing in both versions. v2 admin is read-only until Phase 8 of the rebuild plan.
 - **Bug fixes during rebuild**: any fix landing in v1 must also be re-applied to the corresponding v2 destination. Track in `v2/docs/MIGRATION-FROM-V1.md`.
 - **Cutover**: single scripted commit via `bash v2/scripts/migrate-v1-to-v2.sh`. Archives v1 to `_archive_v1/`, promotes `v2/*` to repo root. Rollback = `git revert HEAD`.
+
+## Hosting layout — the repo root is the DOMAIN root
+
+`golan.me.uk` hosts more than one project, so **the repo root is not the app** —
+it is the domain root, and the app lives one folder down:
+
+```
+<repo root>              → golan.me.uk/            hub page, CNAME, 404.html
+├── shabi-israel/        → golan.me.uk/shabi-israel/   the whole app
+│   └── *.html  css/  js/  assets/  vendor/  table-lab/
+└── WC26/                → golan.me.uk/WC26/       predates the layout; keeps
+                                                    its original URL, borrows the
+                                                    app's CSS via ../shabi-israel/
+```
+
+Everything else at the repo root (`scripts/`, `docs/`, `sql/`, `tools/`, `v2/`)
+is tooling, not served content.
+
+- **`404.html` at the domain root is the redirect for the old URLs.** The app
+  used to be served from the domain root, so `golan.me.uk/league.html?league=…`
+  must still land on `/shabi-israel/league.html?league=…`. Pages has no
+  server-side rewrites — serving 404.html for every unmatched path is the only
+  hook there is. It skips paths already under a served folder, so a genuine miss
+  can't loop.
+
+- **Serve locally from the repo root** so the local tree matches production:
+  `npx http-server -p 8090 --cors -c-1` → the app is at
+  `http://localhost:8090/shabi-israel/`, NOT at the port root. The `tools/*.bat`
+  launchers point there — but note the trap they all fell into after the folder
+  move: a launcher that PROBES port 8090 and falls back to claiming a free one
+  has **two** URLs in it, and only the probe branch got updated. The fallback
+  branch still opened the port root, so the launcher worked whenever a server
+  happened to be up already and silently opened the domain hub instead of the app
+  whenever it did not. When adding or editing a launcher, update every URL in it.
+- **Every path inside `shabi-israel/` is relative and must stay that way.** The
+  whole folder move worked precisely because the project has zero root-absolute
+  (`/…`) paths — a single `src="/css/x.css"` would have broken under the
+  subpath and would break the next move too.
+- **The only absolute URLs are the `og:`/`twitter:` meta tags**, which the
+  protocol requires to be absolute. They carry `/shabi-israel/` and are the one
+  thing that does NOT follow a move on its own.
+- **Scripts in `scripts/` resolve into `../shabi-israel/`**, not `..`. A new
+  script that reads the site must do the same.
+- **The build emits page-relative asset paths, never `/assets/build/…`.** A
+  root-absolute src resolves against the DOMAIN root and 404s from inside a
+  subfolder; `build-v1.cjs` computes the path relative to each page instead.
+- A future project = a sibling folder here, plus a link on the hub page. If it
+  ever needs its own repo instead, the domain has to move to a
+  `<user>.github.io` repo first; `golan.me.uk/shabi-israel/` stays identical
+  either way, so no link breaks.
 
 ## Data & query standards
 
@@ -50,17 +100,17 @@ No build step — pure vanilla HTML/CSS/JS running in the browser. Deployed on G
 
 ## Development
 
-Serve locally (ES modules require a server). **Preferred port: 8090** (we standardised off 8080 because other tools collide on it), but don't fixate on it — see below.
+Serve locally (ES modules require a server) **from the repo root** — the app is then at `http://localhost:8090/shabi-israel/`, matching production (see § Hosting layout). **Preferred port: 8090** (we standardised off 8080 because other tools collide on it), but don't fixate on it — see below.
 
 ### Dev server — reuse if already up, else claim the next free port
 
 The `http-server` process is OS-level, independent of any Claude window. If a sibling window already started one on 8090, every other window should reuse it. Before starting a server, always probe:
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}" http://localhost:8090/index.html
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8090/shabi-israel/index.html
 ```
 
-- `200` → server is up, reuse `http://localhost:8090/` as-is. Do **not** relaunch.
+- `200` → server is up, reuse `http://localhost:8090/shabi-israel/` as-is. Do **not** relaunch.
 - anything else → try to start it on 8090; if that port is already held by something that isn't this app (EADDRINUSE, or a 200 comes back but not from this app's index.html), walk up sequentially (8091, 8092, …) until one binds cleanly:
   ```bash
   npx http-server -p 8090 --cors -c-1
@@ -74,6 +124,39 @@ Never kill a running `http-server` just to "start clean" — other windows (and 
 `.mcp.json` passes `--isolated` to the Playwright MCP server, so each Claude window gets its own in-memory browser profile instead of sharing one Chrome profile. This means multiple windows/sessions can drive Playwright MCP at the same time without the old "Browser is already in use" lock.
 
 Trade-off: an isolated profile does **not** persist logins/cookies across sessions — each session starts logged out. For BGStudio automation, log in fresh each session (see `reference_mcp_credentials` memory for the test account) rather than expecting a shared authenticated session.
+
+### Playwright MCP — two servers: `playwright` (desktop) and `playwright-mobile`
+
+Mobile behaviour on this site is gated on **touch, not width**
+(`isTouchDevice()` in `js/render/searchOverlay.js` reads `pointer: coarse` /
+`maxTouchPoints` / `ontouchstart`). So `browser_resize` to 390px does **not**
+put the site in mobile mode — it gives you a narrow desktop, and every
+touch-only path (the search sheet above all) stays dormant. This has already
+caused a "the sheet is broken" false alarm.
+
+`.mcp.json` therefore declares a second server, `playwright-mobile`, started
+with `--device "iPhone 15 Pro Max"` (430×739, dsf 3, `hasTouch`) — 430px
+matching the real phone this project is checked on. Use its `browser_*` tools
+for any mobile verification; use plain `playwright` for desktop. Both carry
+`--isolated`, so they run side by side.
+
+**Do NOT emulate touch over CDP** (`Emulation.setTouchEmulationEnabled` /
+`setEmitTouchEventsForMouse` via `browser_run_code_unsafe`). It sets the
+signals the page reads, so it looks like it worked — and then **every**
+`click()` in that context times out at "performing click action", including on
+elements with no relation to touch, because Playwright's input pipeline and the
+CDP override disagree about the event model. The damage outlives
+`clearDeviceMetricsOverride`; only closing the page clears it. `hasTouch` has to
+come from the browser context at creation, which is what `--device` does.
+
+**A window is mobile or desktop for its whole life.** Pick the server before the
+first navigation and stay on it; there is no way to convert a running window.
+
+`?searchoverlay=force` / `=off` is a **per-URL** override, not a session mode: it
+applies to the page you load it on and is LOST on the next navigation, so a
+session run that way silently drops back to desktop the moment you follow a link
+to the next search. Use it for a one-off check of the opposite mode on either
+server — never as the way to test mobile.
 
 ### Playwright MCP — output directory (NEVER write to repo root)
 
@@ -128,8 +211,62 @@ stylesheet — not the design.
 The editor's **Save to site** writes both. After editing the JSON by hand, run
 `node scripts/build-splash-css.js` (`--check` verifies they match).
 
+## URL contract
+
+**The iron rule: a slug in the URL is ALWAYS the visible label, lowercased,
+with spaces → hyphens. No exceptions, no mapping tables.** `Charts` →
+`?tab=charts`. `Upload CSV` → `#…/upload-csv`. If a slug comes out too long,
+**shorten the label, not the slug** — the URL is the thing a user reads aloud
+and pastes into WhatsApp, and a URL that disagrees with the tab it opens is a
+URL nobody can trust. The one function that performs the transform is
+`tabSlug()` in `js/utils/queryString.js`; call sites **derive** their slug from
+it rather than declaring both halves separately, so a label rename can't leave a
+stale slug behind. This is not hypothetical: `?tab=insights` opened a tab called
+Charts, `?tab=leaderboard` opened Leaders, and `#…/rounds` opened the Round
+Editor, each written by hand as a pair that reads fine on its own line.
+
+- **Main tabs push, second-tier state replaces.** `mountAppTabs`
+  (`js/render/appTabs.js`) writes the active tab with `pushState` on a click,
+  arrow key or hotkey and listens for `popstate`, so Back returns to the previous
+  tab instead of leaving the page. Everything below tab level — filters, sort,
+  ranges, accordions — uses `replaceState`: a filter is a refinement of where you
+  already are, not a place you went.
+- **The default is always omitted.** The first tab and the default admin view
+  carry no param and no hash. A URL names only what differs from the default, so
+  the shortest URL is always the canonical entry point.
+- **Renames get a silent alias, never a redirect page.** `aliases: { insights:
+  'charts' }` on the `mountAppTabs` call: the old slug activates the right tab
+  and the URL is normalised with `replaceState`, so an already-shared link keeps
+  working without polluting Back. Aliases are permanent and cost one line.
+- **Never round-trip a query string through `URLSearchParams` to write one
+  param.** Its serialiser encodes a space as `+` while `encodeURIComponent`
+  (what `helpers.js` `leagueUrl()` uses) emits `%20`, so editing one param
+  silently rewrote every other one — `?league=July%20 2026` became
+  `?league=July+2026`, giving one league two different URLs depending on whether
+  the page happened to have tabs. Use `spliceQueryParam()` from
+  `js/utils/queryString.js`, which edits one param and leaves every other byte
+  alone. Reading via `URLSearchParams` is fine; the asymmetry is serialise-only.
+- **Boolean flags are valueless and read by presence.** `?edit`, `?preview` —
+  never `?edit=1` or `?preview=true`. Read them with `hasUrlFlag()` from
+  `js/utils/queryString.js`, which also honours the retired valued forms so old
+  links keep working. The two used to disagree (`preview` read with `.has()`,
+  `edit` with `=== '1'`), which meant `?preview=false` switched preview mode
+  **on**.
+- **Verify with `node scripts/check-url-contract.js`** — it fails with exit 1
+  and lists every offending file:line. It checks each `mountAppTabs` tab set and
+  its aliases, bans slug⇄panel mapping objects outright, checks the admin's view
+  and nav tables, and validates every literal `?tab=` in `js/` and the HTML pages
+  against the live slug set. Run it after touching any tab label, tab id, or nav
+  slug.
+
+Deliberately NOT in the URL today (each would be second-tier `replaceState`
+state if added): league-type and match-length filters, table sort column and
+direction, the H2H opponent on `player.html`, the dashboard's snapshot selector,
+and accordion open state outside the admin's Match Results tabs.
+
 ## Key Conventions
 
+- URL slugs = the visible label, kebab-cased — see § URL contract above; enforced by `scripts/check-url-contract.js`
 - League IDs in URLs = folder names under `leagues/` (e.g., "Shabi Israel April 2026")
 - `landing_settings.json` `DisplayOrder` titles use " - " (dash), folder names use " " (space) — `landingPage.js` handles the mapping
 - Default flag is IL (Israel); custom flags per player are in `league_params.json` → `CustomFlags`

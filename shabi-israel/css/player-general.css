@@ -1,0 +1,1364 @@
+/* player-general.css — Phase G cross-league player profile */
+
+/* Flags in tables — mirror canonical em-based .flag rule.
+   .pg-matches-table previously had `width:20px; height:14px;
+   image-rendering:crisp-edges` which stretched the square source
+   PNGs to 3:2 AND set pixelated rendering. Both removed 2026-06-04;
+   now scales with cell font and renders smooth. */
+.pg-rank-table .flag,
+.pg-matches-table .flag {
+    height: 1em;
+    width: auto;
+    vertical-align: middle;
+    margin-right: 0.3em;
+    object-fit: contain;
+    border-radius: 0.15em;
+    image-rendering: auto;
+}
+
+/* Section frame, heading and collapse now come from the shared css/sections.css
+   (.app-section / .app-section--card / .app-section-h2). `.pg-section` remains
+   on each section only as a hook for the page's content rules below. */
+.pg-note {
+    color: var(--color-text-secondary);
+    font-style: italic;
+    padding: 8px 0;
+}
+
+.pg-tabs-shell { margin-bottom: var(--space-lg); }
+
+/* ============================================
+   HEADER — "V7" Lichess-enriched horizontal card
+   (Player Page Lab)
+   - Avatar (round, 4.5em) with status-dot overlay bottom-right.
+   - Name line: flag · name · title chips.
+   - Meta line: fullname · Joined Mon YYYY · N leagues.
+   - Root font-size scales linearly with viewport (matches the
+     production tables' clamp pattern); everything inside is em-relative
+     so the in-card proportions hold from phone to desktop.
+   ============================================ */
+#page-title:has(.pg-v7-card),
+#page-title:has(.pg-v12-hero) {
+    /* Strip h1's default block styling when one of the header
+       cards is inside it. */
+    font-size: var(--fs-100);
+    font-weight: normal;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+    letter-spacing: normal;
+}
+
+/* ───────────────────────────── V12 — Hero banner ────────────────────
+   Used on player.html. Title ribbons (Bebas Neue, gold/silver/
+   bronze gradients) on the left + status chip on the right, then a
+   rounded-square photo + Bebas display name, then a 2-col stat grid
+   (Joined / Leagues) below a thin separator. Tier-coloured ribbons
+   share the same .pg-tier-X tokens used by other surfaces. */
+.pg-v12-hero {
+    position: relative;
+    display: inline-block;          /* shrink-to-fit so .page-header centres it */
+    vertical-align: top;            /* drop the inline-block's phantom descender gap below it */
+    width: min(35em, 80vw);
+    padding: 1.125em 1.375em;
+    background:
+        radial-gradient(ellipse at top right, rgba(212, 169, 66, 0.16), transparent 65%),
+        var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 0.75em;
+    box-shadow: var(--shadow-md);
+    text-align: left;
+    overflow: hidden;
+    font-size: var(--fs-135);
+    letter-spacing: normal;
+}
+
+/* Watermark glyph — giant tier-coloured ♛/⚜ sitting behind the card
+   content. Mirrors the lab's V12 treatment so titled players get the
+   decorative motif on the production page. */
+.pg-watermark-glyph {
+    position: absolute;
+    width: 1em; height: 1em;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none; user-select: none;
+    font-family: serif;
+}
+.pg-wm-gold   { color: rgba(245, 158, 11, 0.12); }
+.pg-wm-silver { color: rgba(148, 163, 184, 0.18); }
+.pg-wm-bronze { color: rgba(217, 119, 6, 0.12); }
+.pg-wm-white  { color: rgba(148, 163, 184, 0.22); }
+
+.pg-v12-watermark.pg-role-solo,
+.pg-v12-watermark.pg-role-pair-1,
+.pg-v12-watermark.pg-role-pair-2 {
+    font-size: clamp(11rem, 29vw, 20rem);
+}
+.pg-v12-watermark.pg-role-solo,
+.pg-v12-watermark.pg-role-pair-1 { right: -2%; bottom: -18%; }
+.pg-v12-watermark.pg-role-pair-2 { right: 28%; bottom: -18%; }
+
+/* Keep card content above the watermark layer. */
+.pg-v12-hero .pg-v12-top,
+.pg-v12-hero .pg-v12-bodyrow,
+.pg-v12-hero .pg-v12-statgrid { position: relative; z-index: 1; }
+
+/* Tier-themed card surface — replicates the lab's pl-card-X treatment
+   (top-anchored radial glow + accent border-top + faint tier border)
+   applied when the player carries a title. */
+.pg-card-gold   { --pg-tier-accent: #d4a942; --pg-tier-glow: rgba(245, 158, 11, 0.18); --pg-tier-border: rgba(245, 158, 11, 0.28); }
+.pg-card-silver { --pg-tier-accent: #94a3b8; --pg-tier-glow: rgba(148, 163, 184, 0.22); --pg-tier-border: rgba(148, 163, 184, 0.34); }
+.pg-card-bronze { --pg-tier-accent: #d97706; --pg-tier-glow: rgba(217, 119, 6, 0.18); --pg-tier-border: rgba(217, 119, 6, 0.30); }
+.pg-card-white  { --pg-tier-accent: #cbd5e1; --pg-tier-glow: rgba(203, 213, 225, 0.26); --pg-tier-border: rgba(203, 213, 225, 0.40); }
+
+.pg-v12-hero.pg-card-gold,
+.pg-v12-hero.pg-card-silver,
+.pg-v12-hero.pg-card-bronze,
+.pg-v12-hero.pg-card-white {
+    background:
+        radial-gradient(ellipse at top, var(--pg-tier-glow), transparent 60%),
+        var(--color-surface);
+    border: 1px solid var(--pg-tier-border);
+    border-top: 3px solid var(--pg-tier-accent);
+}
+.pg-v12-top {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 0.625em;
+    margin-bottom: 0.875em;
+    flex-wrap: wrap;
+}
+.pg-v12-titles-row { display: flex; gap: 0.4em; flex-wrap: wrap; }
+.pg-v12-titleribbon {
+    display: inline-flex; align-items: center; gap: 0.55em;
+    font-family: "Bebas Neue", "Impact", "Arial Narrow", sans-serif;
+    font-size: 0.82em; letter-spacing: 0.18em;
+    background: linear-gradient(90deg, #d4a942, #fbbf24);
+    color: #2a1c00;
+    padding: 0.35em 0.875em;
+    border-radius: 0.2em; font-weight: 400;
+}
+.pg-v12-titleribbon.pg-tier-silver { background: linear-gradient(90deg, #94a3b8, #cbd5e1); color: #1e293b; }
+.pg-v12-titleribbon.pg-tier-bronze { background: linear-gradient(90deg, #d97706, #f59e0b); color: #451a03; }
+.pg-v12-titleribbon.pg-tier-white  { background: linear-gradient(90deg, #cbd5e1, #f8fafc); color: #475569; }
+.pg-v12-titleicon { font-size: 1em; }
+/* Tap/focus target — the ribbon opens its full title tooltip on touch, where
+   there is no hover to open it with. */
+.pg-v12-titleribbon[data-tooltip-tap] {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.pg-v12-titleribbon[data-tooltip-tap]:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+/* Status chip — mirrors V16's status pill so Running / This year /
+   Inactive read at the same scale on all hero surfaces. */
+.pg-v12-statuschip {
+    display: inline-flex; align-items: center; gap: 0.4em;
+    font-size: 0.72em;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1.5;
+    padding: 0.18em 0.8em;
+    border-radius: 999px;
+    background: var(--color-running-bg);
+    color: var(--color-running);
+}
+.pg-v12-statuschip.orange {
+    background: rgba(245, 158, 11, 0.18);
+    color: #b45309;
+}
+.pg-v12-statuschip.gray {
+    background: var(--color-completed-bg);
+    color: var(--color-completed);
+}
+.pg-v12-statuschip .pg-v12-dot {
+    width: 0.55em; height: 0.55em; border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 0.45em currentColor;
+}
+.pg-v12-statuschip.gray .pg-v12-dot { box-shadow: none; opacity: 0.7; }
+
+.pg-v12-bodyrow {
+    display: flex; align-items: center; gap: 1em;
+    margin-bottom: 1em;
+    flex-wrap: wrap;
+}
+.pg-v12-photo {
+    width: 3.875em; height: 3.875em;
+    border-radius: 0.75em;
+    background: linear-gradient(135deg, var(--color-text-muted), var(--color-text-secondary));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.375em; font-weight: 700;
+    color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+.pg-v12-photo-img {
+    width: 3.875em; height: 3.875em;
+    border-radius: 0.75em; object-fit: cover;
+    border: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+.pg-v12-display {
+    margin: 0;
+    font-family: "Bebas Neue", "Impact", sans-serif;
+    font-size: 1.4em;
+    font-weight: 400;
+    letter-spacing: 0.05em;
+    color: var(--color-text);
+    line-height: 1.05;
+    display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap;
+}
+.pg-v12-name-link {
+    color: inherit;
+    text-decoration: none;
+}
+.pg-v12-name-link:hover { text-decoration: underline; }
+.pg-v12-flag {
+    display: inline-block;
+    height: 1.4em;
+    width: auto;
+    border-radius: 3px;
+    vertical-align: middle;
+}
+.pg-v12-real {
+    margin-top: 0.4em;
+    font-size: 0.85em;
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+.pg-v12-statgrid {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 0.5em;
+    margin-top: 0.85em;
+    padding-top: 0.75em;
+    border-top: 1px solid var(--color-border);
+}
+.pg-v12-stat { text-align: left; }
+.pg-v12-statlbl {
+    font-size: 0.62em; color: var(--color-text-muted);
+    text-transform: uppercase; letter-spacing: 0.14em;
+    margin-bottom: 0.2em;
+}
+.pg-v12-statnum {
+    font-size: 0.85em; font-weight: 700;
+    color: var(--color-accent);
+    font-variant-numeric: tabular-nums;
+}
+.pg-v7-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 1.125em;
+    text-align: left;
+    max-width: 80vw;
+    font-size: var(--fs-135);
+    color: var(--color-text);
+    letter-spacing: normal;
+}
+
+/* Avatar + status-dot overlay */
+.pg-v7-avatar-wrap { position: relative; flex-shrink: 0; }
+.pg-v7-avatar,
+.pg-v7-avatar-img {
+    width: 3.875em;
+    height: 3.875em;
+    border-radius: 0.75em;
+    border: 2px solid var(--color-accent);
+    display: block;
+}
+.pg-v7-avatar {
+    background: linear-gradient(135deg, var(--color-text-muted), var(--color-text-secondary));
+    color: var(--color-surface);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.375em;
+    font-weight: 700;
+}
+.pg-v7-avatar-img { object-fit: cover; }
+.pg-v7-dot-wrap {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 0.95em;
+    height: 0.95em;
+    border-radius: 50%;
+    border: 2.5px solid var(--color-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface);
+    cursor: help;
+    outline: none;
+}
+.pg-v7-dot-wrap > .pg-dot {
+    width: 100%;
+    height: 100%;
+}
+/* Hover hint now uses the shared global tooltip (js/render/tooltip.js) via the
+   element's `title`; the bespoke dark ::after tooltip was removed for uniformity. */
+
+.pg-v7-info { min-width: 0; }
+.pg-v7-name-line {
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+    flex-wrap: wrap;
+}
+.pg-v7-flag {
+    display: inline-block;
+    height: 1.4em;
+    width: auto;
+    border-radius: 3px;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+.pg-v7-name {
+    font-size: 1.1em;
+    font-weight: 700;
+    color: var(--color-text);
+    letter-spacing: -0.01em;
+}
+.pg-v7-realname {
+    font-style: italic;
+}
+.pg-v7-name-link {
+    color: var(--color-text);
+    text-decoration: none;
+}
+.pg-v7-name-link:hover {
+    color: var(--color-accent);
+    text-decoration: underline;
+}
+
+/* Title chips next to the name — small gradient pill with crown icon.
+   Tier drives the background colour. */
+.pg-v7-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    font-size: 0.7em;
+    font-weight: 700;
+    padding: 0.25em 0.7em;
+    border-radius: 0.4em;
+    font-family: -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+    white-space: nowrap;
+}
+.pg-v7-chip-icon { font-size: 1.1em; line-height: 1; }
+/* Tap/focus target — see .pg-v12-titleribbon[data-tooltip-tap]. */
+.pg-v7-chip[data-tooltip-tap] {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.pg-v7-chip[data-tooltip-tap]:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+.pg-v7-tier-gold   { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #4a2700; box-shadow: 0 1px 4px rgba(245,158,11,0.25); }
+.pg-v7-tier-silver { background: linear-gradient(135deg, #94a3b8, #cbd5e1); color: #1e293b; }
+.pg-v7-tier-bronze { background: linear-gradient(135deg, #d97706, #f59e0b); color: #451a03; }
+.pg-v7-tier-white  { background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; }
+
+.pg-v7-meta {
+    margin-top: 0.4em;
+    font-size: 0.85em;
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    flex-wrap: wrap;
+}
+.pg-v7-sep { color: var(--color-text-muted); opacity: 0.4; }
+.pg-v7-leagues { color: var(--color-accent); font-weight: 600; }
+
+/* Legacy header (.pg-header-row, .pg-name-line, etc.) is no longer
+   emitted by the header renderers — its rules remain below as inert. */
+.pg-player-name {
+    vertical-align: middle;
+}
+.pg-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+}
+.pg-header-text {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 4px 8px;
+}
+.pg-name-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+}
+.pg-badges-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+}
+.pg-player-alias {
+    flex-basis: 100%;
+    text-align: center;
+}
+.pg-player-alias {
+    font-size: var(--fs-085);
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+.pg-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--color-accent, #2563eb);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    flex-shrink: 0;
+}
+/* BMAB badge (base) */
+.pg-bmab-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 800;
+    font-size: var(--fs-085);
+    letter-spacing: 0.05em;
+    border-radius: 4px;
+    border: 1px solid;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+/* BMAB tier colors */
+.pg-badge-gold {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
+    color: #4a2700;
+    border-color: #b45309;
+}
+.pg-badge-silver {
+    background: linear-gradient(135deg, #94a3b8, #cbd5e1);
+    color: #1e293b;
+    border-color: #64748b;
+}
+.pg-badge-bronze {
+    background: linear-gradient(135deg, #d97706, #f59e0b);
+    color: #451a03;
+    border-color: #92400e;
+}
+.pg-badge-white {
+    background: #f8fafc;
+    color: #475569;
+    border-color: #94a3b8;
+}
+
+/* Championship badge — hexagon shape */
+.pg-champ-badge {
+    display: inline-block;
+    padding: 5px 20px;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 800;
+    font-size: var(--fs-085);
+    letter-spacing: 0.05em;
+    border: none;
+    text-transform: uppercase;
+    vertical-align: middle;
+    clip-path: polygon(5% 50%, 12% 0%, 88% 0%, 95% 50%, 88% 100%, 12% 100%);
+}
+.pg-champ-gold {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
+    color: #4a2700;
+}
+.pg-champ-silver {
+    background: linear-gradient(135deg, #94a3b8, #cbd5e1);
+    color: #1e293b;
+}
+
+/* Titled player name styling (varies by highest tier) */
+.pg-titled-gold .pg-player-name   { color: #b45309; font-weight: 800; }
+.pg-titled-silver .pg-player-name { color: #475569; font-weight: 800; }
+.pg-titled-bronze .pg-player-name { color: #92400e; font-weight: 800; }
+.pg-titled-white .pg-player-name  { color: #475569; font-weight: 800; }
+
+/* 3-state activity dot */
+.pg-dot-wrap {
+    position: relative;
+    display: inline-block;
+    vertical-align: middle;
+    margin: 0 6px;
+    cursor: help;
+    outline: none;
+}
+.pg-dot-wrap::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 8px);
+    transform: translateX(-50%);
+    background: rgba(20, 24, 33, 0.95);
+    color: #f3f4f6;
+    font-size: var(--fs-075);
+    line-height: 1.3;
+    padding: 6px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+    z-index: 1000;
+}
+.pg-dot-wrap:hover::after,
+.pg-dot-wrap:focus::after {
+    opacity: 1;
+}
+.pg-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    vertical-align: middle;
+}
+.pg-dot-green {
+    background: #2ecc40;
+    box-shadow: 0 0 6px rgba(46,204,64,0.7);
+}
+.pg-dot-orange {
+    background: #f59e0b;
+    box-shadow: 0 0 6px rgba(245,158,11,0.6);
+}
+.pg-dot-gray {
+    background: #9ca3af;
+    box-shadow: 0 0 4px rgba(156,163,175,0.4);
+}
+
+/* Expandable ranking rows (Achievements + PR) */
+.pg-rank-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+}
+.pg-rank-toggle:hover {
+    color: var(--color-accent, #2563eb);
+}
+.pg-rank-toggle-open {
+    color: var(--color-accent, #2563eb);
+    font-weight: 700;
+}
+.pg-rank-expanded {
+    /* fit-content so the container hugs the table width (sum of column widths);
+       margin auto centers it horizontally. max-width:100% caps growth at the
+       page-level parent (.pg-tabs-body) — table's overflow-x handles excess. */
+    width: fit-content;
+    max-width: 100%;
+    margin: 10px auto 0;
+    padding: 10px;
+    background: rgba(0,0,0,0.03);
+    border-radius: 6px;
+}
+.pg-rank-table-wrap {
+    /* Single scroll container for BOTH axes — so sticky thead (top:0) and
+       sticky cols (left:0) both resolve against this element. Mirrors MF's
+       D/E pattern in mf.css. */
+    width: 100%;
+    margin: 0 auto;
+    overflow: auto;
+    max-height: 360px;
+    /* inset well — matches the MF/SF nested-table tone inside its card */
+    background: var(--color-inset);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+.pg-rank-table {
+    /* Width = sum of column intrinsic widths (content + em-based padding).
+       width:100% would distribute excess to the widest-content column
+       (Player ends up ~50% of the table). width:max-content keeps each column
+       sized by its own content; the wrap's overflow-x handles overflow. */
+    width: max-content;
+    max-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+.pg-rank-table th,
+.pg-rank-table td {
+    padding: 0.45em 0.5em;
+    text-align: left;
+    white-space: nowrap;
+}
+.pg-rank-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--color-bg);  /* subtle tint vs --color-surface so header doesn't blend into body */
+    color: var(--color-text-muted);
+    font-weight: 700;
+}
+
+/* C0: two leftmost cols sticky (mirrors MF pattern).
+   --c0-col1-w is JS-measured by applyC0StickyAndScroll() on every expand.
+   Thead sticky-corner cells need z above both axes' stickies (z=4).
+   thead sticky cells inherit --color-bg from the rule above; tbody sticky
+   cells get --color-inset here so they match the rest of the body. */
+.pg-rank-table thead th:nth-child(1),
+.pg-rank-table thead th:nth-child(2),
+.pg-rank-table tbody td:nth-child(1),
+.pg-rank-table tbody td:nth-child(2) {
+    position: sticky;
+}
+.pg-rank-table tbody td:nth-child(1),
+.pg-rank-table tbody td:nth-child(2) {
+    background: var(--color-inset);
+}
+.pg-rank-table thead th:nth-child(1),
+.pg-rank-table tbody td:nth-child(1) { left: 0; }
+.pg-rank-table thead th:nth-child(2),
+.pg-rank-table tbody td:nth-child(2) { left: var(--c0-col1-w, 36px); }
+.pg-rank-table thead th:nth-child(1),
+.pg-rank-table thead th:nth-child(2) { z-index: 4; }
+.pg-rank-table tbody td:nth-child(1),
+.pg-rank-table tbody td:nth-child(2) { z-index: 2; }
+
+.pg-rank-table tbody tr:hover td:nth-child(1),
+.pg-rank-table tbody tr:hover td:nth-child(2) {
+    background: var(--color-hover);
+}
+
+/* Highlight the self row — theme-aware via --color-accent-light, which every
+   theme defines with text-readable contrast. Sticky cells need explicit bg
+   so the highlight carries across into the sticky cols. */
+.pg-rank-self,
+.pg-rank-self td {
+    background: var(--color-accent-light);
+    font-weight: 700;
+}
+.pg-rank-table tbody tr.pg-rank-self td:nth-child(1),
+.pg-rank-table tbody tr.pg-rank-self td:nth-child(2) {
+    background: var(--color-accent-light);
+}
+
+/* C0 sticky-boundary drop-shadow on horizontal scroll — matches MF pattern.
+   Static state: no separator. Visible only when wrapper has `.is-scrolled-x`
+   (set by attachStickyShadow when scrollLeft > 0). */
+.pg-rank-table-wrap.is-scrolled-x .pg-rank-table thead th:nth-child(2) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.pg-rank-table-wrap.is-scrolled-x .pg-rank-table tbody td:nth-child(2) {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.pg-rank-table-wrap.is-scrolled-x .pg-rank-table tbody tr:last-child td:nth-child(2) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+/* No per-theme overrides needed — --color-accent-light is defined per theme
+   with text-readable contrast against the theme's text color. */
+.pg-tile-block {
+    display: flex;
+    flex-direction: column;
+}
+.pg-tile-block > .pg-tile {
+    flex: 1;
+}
+
+/* G3 — PR cards */
+.pg-pr-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+}
+.pg-pr-card {
+    --card-fs: var(--fs-190);
+    /* background + border + border-radius come from the shared nested-card rule
+       in sections.css (inset well + hairline + --radius-md). */
+    padding: calc(var(--card-fs) * 0.46) calc(var(--card-fs) * 0.53);
+    font-size: var(--fs-105);
+}
+.pg-pr-type {
+    font-weight: 700;
+    font-size: var(--fs-100);
+    letter-spacing: 0.06em;
+    margin-bottom: 10px;
+}
+
+/* League-type pills */
+.pg-lt {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: var(--fs-075);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1.5;
+}
+.pg-pr-type.pg-lt {
+    padding: 4px 12px;
+    font-size: 0.8em;
+}
+.pg-lt-doubling {
+    background: var(--lt-doubling-bg);
+    color: var(--lt-doubling-text);
+}
+.pg-lt-ubc {
+    background: var(--lt-ubc-bg);
+    color: var(--lt-ubc-text);
+}
+.pg-lt-regular {
+    background: var(--lt-regular-bg);
+    color: var(--lt-regular-text);
+}
+.pg-pr-row {
+    display: flex;
+    gap: 20px;
+}
+.pg-pr-metric {
+    flex: 1;
+    min-width: 0;
+}
+.pg-pr-label {
+    font-size: var(--fs-090);
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+.pg-pr-value {
+    font-size: var(--fs-190);
+    font-weight: 700;
+    margin: 2px 0 4px;
+}
+.pg-level-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    /* background + colour are set inline (the level's data colour as a tint +
+       text — see levelBadge() in playerGeneralPage.js); no hardcoded white. */
+    font-size: var(--fs-080);
+    font-weight: 600;
+}
+.pg-pr-rank {
+    margin-top: 6px;
+    font-size: var(--fs-090);
+    color: var(--color-text-secondary);
+}
+.pg-rank-dim {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+/* G6 — Achievements league-type switcher: now the shared pill sub-tabs
+   (.subtab--pill in css/subtabs.css, via mountPillTabs). */
+.pg-tiles {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-auto-rows: 1fr;
+    gap: 12px;
+}
+.pg-tile-block {
+    min-width: 0;
+}
+.pg-tile {
+    --tile-fs: var(--fs-200);
+    /* background + border + border-radius come from the shared nested-card rule
+       in sections.css (inset well + hairline + --radius-md) — Achievement tiles
+       now match the PR-stat card + the index info/league cards. */
+    padding: calc(var(--tile-fs) * 0.375) calc(var(--tile-fs) * 0.4375);
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* When the viewport is too narrow for 5-per-row to fit the title+rank
+   without overflowing, switch to a 3+2 layout: 3 medal tiles on top,
+   Win Rate + Avg Rank on the bottom row. */
+@media (max-width: 830px) {
+    .pg-tiles {
+        grid-template-columns: repeat(6, 1fr);
+    }
+    .pg-tiles > .pg-tile-block:nth-child(-n+3) { grid-column: span 2; }
+    .pg-tiles > .pg-tile-block:nth-child(n+4) { grid-column: span 3; }
+}
+.pg-tile-title {
+    font-size: var(--fs-095);
+    color: var(--color-text-secondary);
+    font-weight: 600;
+}
+.pg-tile-rank {
+    display: block;
+    color: var(--color-text-muted);
+    font-weight: 400;
+    font-size: var(--fs-080);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+.pg-tile-value {
+    font-size: var(--fs-200);
+    font-weight: 700;
+    margin-top: 4px;
+}
+.pg-tile-sub {
+    font-size: var(--fs-080);
+    color: var(--color-text-muted);
+}
+
+/* G4 — Leagues table + G5 Match History table shared base */
+.pg-leagues-table,
+.pg-matches-table {
+    width: 100%;
+    border-collapse: collapse;
+    /* inset well so the table reads as separated from its white section card */
+    background: var(--color-inset);
+}
+.pg-leagues-table th,
+.pg-leagues-table td,
+.pg-matches-table th,
+.pg-matches-table td {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--color-border);
+    text-align: left;
+}
+.pg-leagues-table th,
+.pg-matches-table th {
+    background: var(--header-bg, #1e293b);
+    color: var(--header-text, #fff);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 3;  /* above body sticky (z=2) so header covers cols 1&2 when scrolling vertically */
+    cursor: pointer;
+    user-select: none;
+}
+.pg-leagues-table tr:hover td,
+.pg-matches-table tr:hover td {
+    background: var(--color-hover);
+}
+
+
+/* G5 — Matches chart card: uses shared .chart-panel from components.css */
+/* .chart-tooltip removed — chart now uses .chart-info-panel below canvas (defined in components.css) */
+
+.pg-section .dash-controls {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+.pg-section .dash-controls label {
+    color: var(--color-text-secondary);
+    font-size: var(--fs-085);
+}
+.pg-section .dash-controls select {
+    padding: 6px 12px;
+    font-size: var(--fs-085);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: var(--font-main);
+}
+.pg-chart-host {
+    max-width: 100%;
+    overflow: hidden;
+}
+.pg-matches-table .na {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+.pg-matches-table .result-win { color: var(--color-win); font-weight: 600; }
+.pg-matches-table .result-loss { color: var(--color-loss); font-weight: 600; }
+.pg-matches-table .result-draw { color: var(--color-draw); font-weight: 600; }
+
+/* Visited-link fix: keep link color consistent after clicking.
+   Covers both legacy class-based tables and mountMFTable wrappers
+   (C1/C2/C3 use only .mf-wrap + data-mf-table-id, not .pg-*-table). */
+.pg-leagues-table a,
+.pg-leagues-table a:visited,
+.pg-matches-table a,
+.pg-matches-table a:visited,
+.pg-section .mf-wrap a,
+.pg-section .mf-wrap a:visited {
+    color: var(--color-text, #222);
+    text-decoration: none;
+}
+.pg-leagues-table a:hover,
+.pg-matches-table a:hover,
+.pg-section .mf-wrap a:hover {
+    color: var(--color-accent, #1c4e80);
+    text-decoration: underline;
+}
+
+/* Rank table player name links — prevent default blue/purple visited styling.
+   font-weight: 600 keeps every clickable link cell uniform across all table
+   formats (matches td.player-cell / .achv-table links / .c4-opp-link — see
+   the single link-cell weight contract in docs/TABLE-DESIGN.md). */
+.pg-rank-table .player-name-link,
+.pg-rank-table .player-name-link:visited {
+    color: var(--color-text, #222);
+    font-weight: 600;
+    text-decoration: none;
+}
+.pg-rank-table .player-name-link:hover {
+    color: var(--color-accent, #1c4e80);
+    text-decoration: underline;
+}
+
+/* Match Records — stacked tables on player card (mirrors main dashboard layout) */
+.match-records-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+.match-records-stack .achv-table-card {
+    width: 100%;
+}
+
+/* Card shell — background + border + border-radius come from the shared
+   nested-card rule in sections.css; only padding is card-specific. */
+.achv-table-card {
+    padding: var(--space-md);
+}
+.achv-table-card h3 {
+    margin: 0 0 var(--space-sm) 0;
+    font-size: var(--fs-100);
+    font-weight: 700;
+}
+
+/* Table wrapper — scroll container inside the card */
+.achv-table-wrapper {
+    max-height: 360px;
+    overflow-x: auto;
+    overflow-y: auto;
+}
+
+/* achv-table base — matches index-dashboard.css */
+.achv-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: var(--fs-085);
+}
+.achv-table th,
+.achv-table td {
+    padding: 0.45em 0.5em;
+    text-align: left;
+}
+.achv-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--color-inset);
+    font-weight: 700;
+    color: var(--color-text-muted);
+}
+.achv-table tr:hover td {
+    background: var(--color-hover);
+}
+.achv-table .player-name-link,
+.achv-table .player-name-link:visited {
+    color: var(--color-text);
+    font-weight: 600;
+    text-decoration: none;
+}
+.achv-table .player-name-link:hover {
+    text-decoration: underline;
+}
+.achv-table .flag {
+    height: 1em;
+    vertical-align: middle;
+    margin-right: 0.3em;
+}
+.achv-table .league-link,
+.achv-table .league-link:visited {
+    color: var(--color-text);
+    font-weight: 600;
+    text-decoration: none;
+}
+.achv-table .league-link:hover {
+    text-decoration: underline;
+}
+.achv-table .na {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+.achv-table .result-win  { color: var(--color-win);  font-weight: 600; }
+.achv-table .result-loss { color: var(--color-loss); font-weight: 600; }
+.achv-table .result-draw { color: var(--color-draw); font-weight: 600; }
+/* C2 row colors applied per-cell (not on tr) and opaque, so the sticky col1
+   carries the same color as the rest of the row and rule 12 holds across all
+   states (base / stripe / hover). Order matters — later rule wins at equal
+   specificity (0,2,3 for stripe and hover; 0,1,2 for base). */
+.pg-matches-table tbody td {
+    background: var(--color-inset);
+}
+.pg-matches-table tbody tr:nth-child(even) td {
+    background: color-mix(in srgb, var(--color-inset) 97.5%, black 2.5%);
+}
+.pg-matches-table tbody tr:hover td {
+    background: var(--color-hover);
+}
+
+/* ============================================================
+ * F3 — sticky on player-general tables (desktop + mobile)
+ *   pg-leagues-table  : col1 = League (sticky, left:0)
+ *   pg-matches-table  : col1 = League (sticky, left:0)
+ *   pg-mr-table       : col1 = #,    col2 = Metric  (uses --pg-col1-w only)
+ * ============================================================ */
+.achv-table.pg-mr-table       { --pg-col1-w: 36px; }
+
+/* Override components.css `.pg-mr-table thead th { font-size: 0.65rem }` (specificity 0,1,2)
+   with a two-class + element selector (0,2,2). Matches dashboard .achv-table = 0.85rem. */
+.achv-table.pg-mr-table thead th,
+.achv-table.pg-mr-table tbody td {
+    font-size: var(--fs-085);
+}
+
+/* Col 1 = League — single sticky col (left:0, no JS offset measurement needed).
+   The :not(.pg-mr-table) defensive guard was removed — pg-mr-table is only ever
+   combined with .achv-table, never with .pg-matches-table. Keeping it here bumps
+   specificity from (0,2,2) → (0,3,2) and silently beats the z-index:4 corner
+   override below (0,2,2), letting non-sticky thead ths paint over sticky col1
+   during horizontal scroll. */
+.pg-leagues-table thead th:nth-child(1),
+.pg-leagues-table tbody td:nth-child(1),
+.pg-matches-table thead th:nth-child(1),
+.pg-matches-table tbody td:nth-child(1) {
+    white-space: nowrap;
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    border-right: 1px solid var(--color-border);
+}
+/* Match Records (achv-table.pg-mr-table): 2-col sticky on # and Metric.
+   No hard-coded width — browser sizes to max-content, JS measures col1 and writes --pg-col1-w. */
+.achv-table.pg-mr-table thead th:nth-child(1),
+.achv-table.pg-mr-table tbody td:nth-child(1) {
+    white-space: nowrap;
+    position: sticky;
+    left: 0;
+    z-index: 2;
+}
+.achv-table.pg-mr-table thead th:nth-child(2),
+.achv-table.pg-mr-table tbody td:nth-child(2) {
+    white-space: nowrap;
+    position: sticky;
+    left: var(--pg-col1-w);
+    z-index: 2;
+}
+
+/* C4 sticky-boundary drop-shadow on horizontal scroll — matches MF pattern.
+   Static state: no separator. Visible only when `.achv-table-wrapper` has
+   `.is-scrolled-x` (set by attachStickyShadow when scrollLeft > 0). */
+.achv-table-wrapper.is-scrolled-x .achv-table.pg-mr-table thead th:nth-child(2) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .achv-table.pg-mr-table tbody td:nth-child(2) {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .achv-table.pg-mr-table tbody tr:last-child td:nth-child(2) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+
+/* Sticky body cells: fully opaque so scroll content doesn't bleed through.
+   For C2 (.pg-matches-table) the per-cell row-stripe (color-mix above) overrides
+   this on even rows via higher specificity, keeping rule 12 satisfied. */
+.pg-leagues-table tbody td:nth-child(1),
+.pg-matches-table tbody td:nth-child(1),
+.achv-table.pg-mr-table tbody td:nth-child(1),
+.achv-table.pg-mr-table tbody td:nth-child(2) {
+    background: var(--color-inset);
+}
+/* Hover wins over background. */
+.pg-leagues-table tbody tr:hover td:nth-child(1),
+.pg-matches-table tbody tr:hover td:nth-child(1),
+.achv-table.pg-mr-table tbody tr:hover td:nth-child(1),
+.achv-table.pg-mr-table tbody tr:hover td:nth-child(2) {
+    background: var(--color-hover) !important;
+}
+
+/* Sticky-on-both-axes header cell (top-left corner): bump z above
+   the sticky-top-only header (z=3) AND sticky-left-only body cells (z=2). */
+.pg-leagues-table thead th:nth-child(1),
+.pg-matches-table thead th:nth-child(1) {
+    background: var(--header-bg, #1e293b) !important;
+    z-index: 4;
+}
+/* Match records header sticky corners — inset (matches the rest of the SF header
+   + the card), so the pinned header cells don't read as a lighter island. */
+.achv-table.pg-mr-table thead th:nth-child(1),
+.achv-table.pg-mr-table thead th:nth-child(2) {
+    background: var(--color-inset) !important;
+    z-index: 4;
+}
+
+/* Medal coloring in RANK column */
+.rank-cell-gold { color: var(--color-gold-text, #92400e); font-weight: 700; }
+.rank-cell-silver { color: var(--color-silver-text, #475569); font-weight: 600; }
+.rank-cell-bronze { color: var(--color-bronze-text, #b45309); font-weight: 600; }
+
+/* Leagues table wrapper — plain layout container.
+   Card visual (radius, shadow, scroll) lives on the inner .mf-wrap now,
+   so the show-more button (sibling of .mf-wrap) sits OUTSIDE the card. */
+.pg-leagues-table-wrapper {
+    width: 100%;
+}
+
+/* Match History table wrapper — identical card shell.
+   overflow-y:clip instead of hidden so position:sticky on th works
+   relative to the viewport scroll, not this container. */
+.pg-matches-table-wrapper {
+    width: 100%;
+}
+
+/* Show-top-N toggle (mirrors index-dashboard.css `.show-more-btn`).
+   Player-general HTML doesn't load index-dashboard.css, so duplicated here. */
+.table-row-hidden { display: none !important; }
+
+.show-more-btn {
+    display: block;
+    margin: var(--space-sm) auto 0;
+    padding: 0.3em 1.1em;
+    font-size: var(--fs-080);
+    font-family: var(--font-main);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-accent);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.show-more-btn:hover { background: var(--color-hover); }
+
+/* ============================================================
+ * RECORDS TAB — Total Luck (C6) + Total PR ↔ Result
+ * ============================================================ */
+
+/* The league-type filter above C1 (Leagues tab) and above the Match History
+   chart + C2 table (Matches tab) — one filter per section, governing everything
+   below it. The pill bar itself is styled by subtabs.css; this only gives it
+   breathing room from the content it filters. */
+.pg-leagues-filter,
+.pg-matches-filter {
+    margin-bottom: var(--space-sm);
+}
+
+/* Metric label + select as one unit inside .dash-controls, so hiding the pair
+   (no PR-recording league in view) leaves no orphan label and no double gap. */
+.pg-section .dash-controls .pg-metric-ctl {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+.pg-section .dash-controls .pg-metric-ctl[hidden] {
+    display: none;
+}
+
+/* Total PR ↔ Result — the chart panels reuse the dashboard's .corr-* chrome
+   (dashboard.css); only the legend and the per-series μ/σ readout are new. */
+.pg-prres-panel .corr-controls-top,
+.pg-prres-controls .corr-controls-top {
+    width: 100%;
+}
+/* The shared legend/fit/trim block above the rows carries no chart of its own,
+   so it must not reserve the chart-panel's bottom padding. */
+.pg-prres-controls {
+    padding-bottom: 0;
+    margin-bottom: var(--space-sm);
+}
+.pg-prres-self {
+    color: var(--color-text);
+}
+/* Row identity: flag + name (or the player <select>) + title badges, kept on
+   one baseline as a single unit. It is its own flex box rather than three
+   loose children of .corr-controls-top, so the row's gap never opens up
+   between a name and its own badges — and so the count/remove button that
+   follow stay a full gap away from the badges. */
+.pg-prres-who {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+/* Empty when the player is hidden (or untitled) — an empty flex item would
+   still eat a gap on each side. */
+.pg-prres-who > span:empty {
+    display: none;
+}
+.pg-prres-flag {
+    display: inline-flex;
+    align-items: center;
+}
+/* The badges sit tight against the name, as they do everywhere else on the
+   site; the 6px above is the flag/name distance. */
+.pg-prres-titles {
+    display: inline-flex;
+    align-items: center;
+    margin-left: -2px;
+}
+.pg-prres-add {
+    display: block;
+    width: 100%;
+    margin-top: var(--space-sm);
+}
+.pg-prres-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin-top: var(--space-xs);
+}
+.pg-prres-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.25em 0.7em;
+    font-family: var(--font-main);
+    font-size: var(--fs-085);
+    color: var(--color-text-secondary);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+}
+.pg-prres-legend-item:hover:not(:disabled) {
+    background: var(--color-hover);
+}
+/* Off = the swatch drains to a hollow outline, so "which series am I looking
+   at" is readable without relying on the text weight alone. */
+.pg-prres-legend-item:not(.is-active) .pg-prres-swatch {
+    background: transparent !important;
+    box-shadow: inset 0 0 0 2px var(--color-border);
+}
+.pg-prres-legend-item.is-active {
+    color: var(--color-text);
+    border-color: var(--color-text-muted);
+    font-weight: 600;
+}
+.pg-prres-legend-item:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+/* em throughout (Units policy): the swatch tracks the chip's font size, so it
+   stays proportional at every viewport. The 2px inset ring is a hairline. */
+.pg-prres-swatch {
+    width: 0.75em;
+    height: 0.75em;
+    border-radius: 0.2em;
+    flex: none;
+}
+.pg-prres-legend-n {
+    color: var(--color-text-muted);
+    font-weight: 400;
+}
+.pg-prres-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+    font-weight: 600;
+}
+.pg-prres-stat {
+    white-space: nowrap;
+}
+/* One explainer block per displayed series, separated by a hairline so the
+   Wins / Losses / All readings never run together. */
+.pg-gauss-block + .pg-gauss-block {
+    border-top: 1px solid var(--color-border);
+    margin-top: var(--space-sm);
+    padding-top: var(--space-sm);
+}
+/* …and one group per charted player, in the same order as the charts. The
+   between-player rule is heavier than the between-series one above, so the
+   two levels of grouping stay legible at a glance. */
+.pg-gauss-player + .pg-gauss-player {
+    border-top: 2px solid var(--color-text-muted);
+    margin-top: var(--space-md);
+    padding-top: var(--space-md);
+}
+.pg-gauss-player-name {
+    font-weight: 700;
+    font-size: var(--fs-110);
+    color: var(--color-text);
+    margin-bottom: var(--space-xs);
+}
+
+/* ============================================================
+ * MOBILE (≤640px) — Step 6.6 compression for player-general
+ * ============================================================ */
+@media (max-width: 640px) {
+    /* Player card header — stack vertically, compact badges */
+    .pg-header-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+    .pg-header-text {
+        flex-direction: column;
+        align-items: center;
+    }
+    .pg-player-alias {
+        flex-basis: auto;
+        text-align: center;
+    }
+    .pg-name-line {
+        justify-content: center;
+    }
+    .pg-avatar {
+        width: 64px;
+        height: 64px;
+    }
+    .pg-badges-line {
+        justify-content: center;
+    }
+    .pg-bmab-badge {
+        font-size: var(--fs-065);
+        padding: 2px 7px;
+        letter-spacing: 0.02em;
+    }
+    .pg-champ-badge {
+        font-size: var(--fs-065);
+        padding: 3px 14px;
+        letter-spacing: 0.02em;
+    }
+    .flag-title {
+        height: 18px;
+    }
+
+    /* Chart never wider than viewport — already enforced at base level */
+
+    .achv-table.pg-mr-table thead th,
+    .achv-table.pg-mr-table tbody td {
+        padding: 3px 5px;
+    }
+
+    /* Match-record card tables: compress + horizontal scroll */
+    .achv-table-card {
+        padding: 8px;
+    }
+    .pg-mr-table {
+        min-width: max-content;
+    }
+    .pg-mr-table th,
+    .pg-mr-table td {
+        padding: 2px 4px;
+        white-space: nowrap;
+    }
+
+}

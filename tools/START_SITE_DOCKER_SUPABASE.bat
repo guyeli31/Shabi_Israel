@@ -40,6 +40,6 @@ if not defined PORT (
 
 echo Using port !PORT!
 echo Site will connect to the LOCAL Supabase ^(Docker^) since it's opened via localhost.
-start "" http://localhost:!PORT!
+start "" http://localhost:!PORT!/shabi-israel/
 call npx -y http-server -p !PORT! --cors -c-1
 pause

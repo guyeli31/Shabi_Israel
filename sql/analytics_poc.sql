@@ -75,6 +75,18 @@ alter table public.analytics_events add column if not exists region     text;
 -- correlation handle applied to a stranger.
 alter table public.analytics_events add column if not exists admin_user text;
 
+-- The in-page view/tab the event happened on, derived client-side from the URL
+-- so the log can say WHICH section of a page, not just the page type:
+--   • site pages    → the ?tab= slug (leaders / predictor / charts / h2h / …),
+--                     null for the DEFAULT tab (the contract omits it from the URL)
+--   • league_table  → 'historical' when ?asof= is present (that page has no tabs)
+--   • admin.html    → the top hash segment (players / sync / pending-changes / …),
+--                     null for the default (empty hash = Leagues)
+-- Deliberately NO CHECK constraint: the slug set is app-controlled and grows with
+-- the UI, and an unknown slug degrades to a title-cased label with no icon rather
+-- than rejecting the whole event. Null = the page's own default view.
+alter table public.analytics_events add column if not exists tab text;
+
 -- Columns from the very first version of this table. Drop them if an old
 -- deployment still has them; no-op otherwise. (session_id is intentionally
 -- NOT dropped anymore — it is now a live column, see above.)
@@ -245,8 +257,16 @@ as $$
            -- grabs the last pageview instead of the first. Clicks/durations are
            -- filtered out so the arc is page-to-page, not event-to-event.
            (array_agg(referrer_kind order by created_at) filter (where referrer_kind is not null))[1] as entry_referrer,
-           (array_agg(page   order by created_at)      filter (where event_type = 'pageview'))[1] as entry_page,
-           (array_agg(player order by created_at)      filter (where event_type = 'pageview'))[1] as entry_player,
+           (array_agg(page      order by created_at)   filter (where event_type = 'pageview'))[1] as entry_page,
+           (array_agg(player    order by created_at)   filter (where event_type = 'pageview'))[1] as entry_player,
+           -- The entry page's league, so the card head can name WHICH league/table
+           -- the visit landed on (not just the page type). Same first-pageview
+           -- array_agg[1] pattern as entry_page/entry_player above.
+           (array_agg(league_id order by created_at)   filter (where event_type = 'pageview'))[1] as entry_league_id,
+           -- The entry page's in-page tab (?tab= slug / 'historical' / admin hash),
+           -- so the session route can say "League Dashboard › Predictor", not just
+           -- the page type. Null = the landing page's own default view.
+           (array_agg(tab       order by created_at)   filter (where event_type = 'pageview'))[1] as entry_tab,
            (array_agg(page   order by created_at desc) filter (where event_type = 'pageview'))[1] as exit_page,
            (array_agg(player order by created_at desc) filter (where event_type = 'pageview'))[1] as exit_player
     from ev
@@ -284,20 +304,25 @@ as $$
     -- not this value; see analyticsPage.js).
     'last_event_at',  (select max(created_at) from ev),
 
+    -- Every breakdown carries BOTH views (count(*)) and sessions (distinct Israel
+    -- session_id; null for global/legacy, which count(distinct) skips) so the
+    -- dashboard can toggle Pageviews ↔ Sessions per chart, exactly like the
+    -- timeseries. by_region is the one exception (see its note) — region only
+    -- exists on the session-less global route, so sessions there is always 0.
     'top_pages',       (select coalesce(jsonb_agg(t), '[]'::jsonb) from
-                          (select page, count(*) views from ev
+                          (select page, count(*) views, count(distinct session_id) sessions from ev
                            where event_type='pageview' and page is not null
                            group by page order by views desc limit 20) t),
     'top_leagues',     (select coalesce(jsonb_agg(t), '[]'::jsonb) from
-                          (select league_id, count(*) views from ev
+                          (select league_id, count(*) views, count(distinct session_id) sessions from ev
                            where event_type='pageview' and league_id is not null
                            group by league_id order by views desc limit 20) t),
     'top_players',     (select coalesce(jsonb_agg(t), '[]'::jsonb) from
-                          (select player, count(*) views from ev
+                          (select player, count(*) views, count(distinct session_id) sessions from ev
                            where event_type='pageview' and player is not null
                            group by player order by views desc limit 20) t),
     'by_device',       (select coalesce(jsonb_agg(t), '[]'::jsonb) from
-                          (select device_type, count(*) views from ev
+                          (select device_type, count(*) views, count(distinct session_id) sessions from ev
                            where event_type='pageview' and device_type is not null
                            group by device_type order by views desc) t),
     -- Coarse regional traffic (global route only — Israel rows have a null
@@ -307,7 +332,7 @@ as $$
                            where event_type='pageview' and region is not null
                            group by region order by views desc) t),
     'by_referrer',     (select coalesce(jsonb_agg(t), '[]'::jsonb) from
-                          (select referrer_kind, count(*) views from ev
+                          (select referrer_kind, count(*) views, count(distinct session_id) sessions from ev
                            where event_type='pageview' and referrer_kind is not null
                            group by referrer_kind order by views desc) t),
 
@@ -327,7 +352,8 @@ as $$
     'by_hour_day',     (select coalesce(jsonb_agg(t), '[]'::jsonb) from
                           (select (date_trunc('day', created_at at time zone 'Asia/Jerusalem'))::date as bucket,
                                   extract(hour from created_at at time zone 'Asia/Jerusalem')::int as hour,
-                                  count(*) as views
+                                  count(*) as views,
+                                  count(distinct session_id) as sessions
                            from ev where event_type='pageview'
                            group by 1, 2 order by 1, 2) t),
 
@@ -336,7 +362,8 @@ as $$
     'by_hour_month',   (select coalesce(jsonb_agg(t), '[]'::jsonb) from
                           (select (date_trunc('month', created_at at time zone 'Asia/Jerusalem'))::date as bucket,
                                   extract(hour from created_at at time zone 'Asia/Jerusalem')::int as hour,
-                                  count(*) as views
+                                  count(*) as views,
+                                  count(distinct session_id) as sessions
                            from ev where event_type='pageview'
                            group by 1, 2 order by 1, 2) t),
 
@@ -401,7 +428,7 @@ as $$
     -- route each click came from: an id (Israel) vs a coarse continent (global,
     -- zero-correlation), and whether it was the operator's own click.
     'clicks_log',      (select coalesce(jsonb_agg(t), '[]'::jsonb) from
-                          (select created_at, page, league_id, player, click_target, device_type,
+                          (select created_at, page, league_id, player, tab, click_target, device_type,
                                   session_id, region, admin_user
                            from ev
                            where event_type='click'
@@ -421,7 +448,7 @@ as $$
                                   s.event_count, s.pageview_count, s.click_count,
                                   s.device_type, s.admin_user,
                                   s.entry_referrer, s.entry_page, s.entry_player,
-                                  s.exit_page, s.exit_player, tl.timeline
+                                  s.entry_league_id, s.entry_tab, s.exit_page, s.exit_player, tl.timeline
                            from sess s
                            cross join lateral (
                              select coalesce(jsonb_agg(jsonb_build_object(
@@ -430,6 +457,7 @@ as $$
                                       'page',         x.page,
                                       'league_id',    x.league_id,
                                       'player',       x.player,
+                                      'tab',          x.tab,
                                       'click_target', x.click_target,
                                       'duration_ms',  x.duration_ms
                                     ) order by x.created_at), '[]'::jsonb) as timeline

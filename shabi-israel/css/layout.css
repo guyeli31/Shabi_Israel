@@ -1,0 +1,485 @@
+/* layout.css — Page structure, containers, responsive */
+
+/* ── Cross-document view transitions: REMOVED, deliberately ───────
+   There used to be `@view-transition { navigation: auto; }` here. It made the
+   browser photograph the outgoing page, hold the photo while the next one
+   loaded, then cross-fade. The job was to cover the gap between a click and
+   the new document's first paint.
+
+   The splash now covers that gap, and covers it better: it is static markup
+   with a CSS-driven ring, so it is drawn and already moving in the very first
+   frame, and it says what is being waited for instead of showing a dead copy
+   of the screen you just left.
+
+   Two mechanisms for one job is one too many, and these two actively fought:
+   a view-transition photo is a STILL IMAGE, so whenever the new document took
+   longer than the splash's reveal delay, the splash was already on screen when
+   the photo was taken. The user then saw a FROZEN splash, that photo swapped
+   out, and the live splash start animating — one splash that read unmistakably
+   as two. It was reported as "the animation rises, switches off, and rises
+   again", and it is exactly what the timing above produces.
+
+   Do not reinstate this without solving that: any snapshot-based transition
+   must be guaranteed to complete before the splash can become visible. If a
+   white flash ever shows up on some device, fix it with something that cannot
+   capture the splash — not with a page-wide snapshot. */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    /* Fluid typography: smoothly scales between ≡13px (mobile) and ≡15px (desktop)
+       at browser default 16px. Uses em (not px) so it respects user font-size preference. */
+    font-size: clamp(0.8125em, calc(0.75em + 0.3vw), 0.9375em);
+    scroll-behavior: smooth;
+    /* Stop mobile browsers (iOS Safari / Android Chrome) from auto-"boosting"
+       text in wide or nowrap containers to a size they pick themselves. Without
+       this, the analytics click-log's Click-target column (nowrap cells) jumped
+       to a much larger font on phones once the table grew wide — e.g. after
+       un-checking "Exclude my own traffic" added more rows. Set globally on the
+       root so every table/page is covered, not just that one column. 100% = keep
+       the size the CSS actually specifies. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+body {
+    font-family: var(--font-main);
+    background: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.6;
+    min-height: 100vh;
+}
+
+/* Form controls otherwise default to UA fonts (Arial on Chromium, system-control
+   on others) which breaks visual parity with surrounding text. Opt them back
+   into normal inheritance so buttons/inputs/selects/textareas all render with
+   the page's font, size, weight, and line-height. */
+button, input, select, textarea {
+    font: inherit;
+}
+
+/* ── Canonical search / filter field ─────────────────────────────────────
+   Single source of truth for every "type a query here" input across the
+   site: sidebar global search, opponent matchup, dashboard player lookup,
+   What-If predictor, and the admin match/round filters. The WHOLE BOX lives
+   here — padding, border, radius, colours, focus ring — not just the font.
+
+   It has to. Each field used to restate the box in its own file and they
+   drifted: 7px/12px with a 1.5px border here, `--space-xs`/`--space-sm` (4px/
+   8px) with a 1px border there, and the two chart pickers matched a rule that
+   covers `select` and `button` but not `input`, so on conversion they fell back
+   to the browser's own 2px inset border and zero padding. That is invisible
+   until something has to align to the field's text — the identity flag does
+   (combobox.js measures this padding to place it), and it made the same flag
+   sit 12px into one field and flush against the border of another.
+
+   Callers keep only LAYOUT: width, flex, min-width. A deliberate skin may still
+   override — the sidebar's dark glass and its 30px inset for the magnifier icon
+   are the one intended exception. Broad rules that would otherwise capture a
+   search field opt out explicitly (see `.form-group input:not(.app-search-input)`
+   in admin.css) rather than winning by accident of specificity.
+
+   6px/12px with a 1px border matches `.dash-controls select` and `button`, so a
+   search field standing in a row of controls reads as one of them.
+
+   On touch devices these inline fields are never focused (a tap opens the 16px
+   search sheet instead — see js/render/searchOverlay.js), so no coarse-pointer
+   anti-zoom rule is needed. */
+/* Width: a FLOOR only, and one that yields.
+
+   A field with no width rule of its own gets the browser's default `size=20`,
+   which came out at 200px — measured on four of them (the per-chart pickers and
+   the admin round filter). That is not a decision, and it is not enough: once a
+   player is picked the box also carries their flag on the left and title badges
+   on the right, and 200px leaves the name squeezed between them. Widest real
+   name (`Danny_kondrea`, 93px) + flag side (34px) + badge side (58px) = 185px of
+   content in a 200px box.
+
+   300px gives that content room. It is written as `width`, NOT `min-width`, and
+   the difference is the whole fix: `min-width` FORBIDS shrinking, so it dragged
+   every phone-width field up to 300 too and burst the 240px sidebar rail. A
+   plain `width` is only a default — any call site that states its own width
+   (the sidebar rail, the admin form rows) still wins, and `max-width: 100%`
+   lets a narrow container win as well. So this reaches exactly the fields that
+   never declared a width and were sitting on the browser's `size=20`, and
+   nothing else. Deliberately no ceiling: capping the wide admin fields is a
+   separate decision, and this change is only about fields too narrow to hold
+   their own contents. */
+.app-search-input {
+    width: 300px;
+    max-width: 100%;
+    padding: 6px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: var(--font-main);
+    font-size: var(--fs-090);
+    box-sizing: border-box;
+    outline: none;
+}
+.app-search-input:focus {
+    border-color: var(--color-accent);
+}
+
+/* ── Canonical combobox dropdown ─────────────────────────────────────────
+   Replaces every native `<input list> + <datalist>` in the codebase (see
+   js/utils/combobox.js). Native datalist popups are OS/browser chrome — no
+   CSS can theme them, so they always render "white" regardless of the
+   site's dark/light mode. This is a plain DOM list, themed like every other
+   surface via --color-surface/--color-border, and identical on desktop and
+   mobile (mobile still layers the 16px search-sheet on top via the same
+   adapter registration). */
+.app-combo-wrap {
+    position: relative;
+}
+
+/* Touch, and this field has no list of its own (its results are the page) — so
+   the FIELD is what pins above the keyboard, in the sheet's place. It carries
+   the sheet's chrome: a 16px input (below 16px mobile browsers zoom the page),
+   a permanent Clear, and a dismiss button, laid out in the same order, reusing
+   `.search-sheet-clear` / `.search-sheet-close` so the two controls cannot drift
+   apart visually. Non-modal on purpose: nothing dims or covers the page, because
+   the page is the result. `--vv-top` is written by trackVisualViewport(),
+   exactly as it is for the sheet. */
+.app-pinned-bar {
+    position: fixed;
+    /* BELOW the site topbar, not over it. The topbar is `fixed; top: 0;
+       height: var(--topbar-height); z-index: 110` and fully opaque — pinning to
+       plain `top: 0` at a lower z-index puts the field behind it, where it is
+       invisible while its spacer still holds the gap open in the flow: a search
+       box that vanishes on tap. The sheet gets away with `top: 0` because it is
+       MODAL and rides above everything at z 1000; a non-modal bar has to leave
+       the site chrome reachable, so it queues under it. */
+    top: calc(var(--vv-top, 0px) + var(--topbar-height) + env(safe-area-inset-top, 0px));
+    left: 0;
+    right: 0;
+    z-index: 60;                   /* above the sidebar (50/51), below the sheet (1000) */
+    display: flex;
+    align-items: center;
+    gap: 8px;                      /* same as .search-sheet-bar */
+    padding: 10px 12px;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.22);
+}
+.app-pinned-bar .app-combo-wrap {
+    flex: 1;
+    min-width: 0;
+}
+.app-pinned-bar .app-search-input {
+    font-size: 16px;               /* below 16px mobile browsers zoom the page in */
+    width: 100%;
+}
+/* The list matches the field's width, but is never NARROWER than a result row
+   needs. A dropdown is a popup, not a column of the form: it may overhang the
+   control that opened it, exactly as every OS menu does. Without the floor, a
+   list inherited whatever width its field happened to have — the per-chart
+   player picker is 178px — and a row carrying a flag, two names and a luck
+   figure came out as three ellipses (`Hummus…  I…  51`).
+
+   A floor is the cheaper fix than a second, narrow-mode row layout: stacking
+   the second name here too would mean the same visual result built twice, since
+   the mobile sheet already stacks with a different structure. The sheet keeps
+   stacking because there the width IS the device and nothing can overhang.
+
+   Both `left: 0` and `right: 0` stay, so a field wider than the floor still
+   gets an exactly-matching list; when the floor wins, the box grows rightward
+   (over-constrained absolute positioning drops `right` in LTR). `max-width`
+   keeps it inside the window on a narrow screen. */
+.app-combo-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    min-width: min(280px, 92vw);
+    max-width: 92vw;
+    max-height: 240px;
+    overflow-y: auto;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+    list-style: none;
+    margin: 0;
+    padding: var(--space-2xs, 2px);
+    z-index: 30;
+    -webkit-overflow-scrolling: touch;
+}
+.app-combo-dropdown[hidden] {
+    display: none;
+}
+.app-combo-option {
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    font-size: var(--fs-090);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.app-combo-option:hover,
+.app-combo-option.active {
+    background: var(--color-accent);
+    color: var(--color-bg);
+}
+/* Unpickable row (combobox `decorate → disabled`). It stays VISIBLE — the whole
+   point is to show why it can't be picked — but loses the pointer affordance
+   and the hover/active highlight, and keyboard nav skips it entirely. The badge
+   keeps full opacity so the reason still reads at a glance. */
+.app-combo-option.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+.app-combo-option.is-disabled:hover,
+.app-combo-option.is-disabled.active {
+    background: transparent;
+    color: var(--color-text);
+}
+.app-combo-option.is-disabled .sf-badge {
+    opacity: 1;
+}
+
+/* Flag + name on one row (player-name pickers). Flag styling comes from the
+   shared .search-flag rule in navigation.css. */
+.app-combo-option--flag {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    white-space: normal;
+}
+/* Identity on the left, information on the right — and the two NAMES sit
+   TOGETHER, the second reading as a continuation of the first rather than as a
+   separate column.
+
+   `flex: 0 1 auto` is what makes that true, and it is the whole point of this
+   rule: with `1 1 auto` the primary name GREW to swallow the row's spare width,
+   so its short text sat at the left of a very wide box and shoved the second
+   name to the far edge — measured at 485px of blank between "AP" and "OMRAD" in
+   a 672px row. The names read as unrelated, which is the opposite of what a
+   secondary name is for. Both still shrink and ellipsise when the row is
+   genuinely too narrow; neither grows.
+
+   The spare width goes to the informational cluster instead, via the auto
+   margin below. */
+.app-combo-option-name {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* The player's OTHER name (combobox `altFor`), dim, beside the primary one. */
+.app-combo-option-sub {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text-muted);
+    font-size: var(--fs-080);
+}
+
+/* The row's spare width lands HERE, between the identity and the information,
+   so the luck figure and the pill pin to the trailing edge while the names stay
+   packed at the leading one. Only the FIRST informational element takes the auto
+   margin: two auto margins would split the free space between them and open a
+   gap inside the cluster, so a pill following a luck figure gets a plain gap
+   instead. Direct children only — the mobile sheet nests its luck figure inside
+   the name line, where it must stay adjacent. */
+.app-combo-option > .player-luck-badge,
+.app-combo-option > .sf-badge {
+    margin-left: auto;
+}
+.app-combo-option > .player-luck-badge + .sf-badge {
+    margin-left: 6px;
+}
+
+/* Luck percentile beside a player's name in any search (utils/playerLuckBadge.js).
+   The COLOUR is inline per value — it is a point on the shared red→amber→green
+   value scale, the same one the Luck Percentile table tints its cells with, so
+   it cannot live in a class. Everything else is here.
+
+   `em`, not a --fs-* token: the badge must track whatever row it lands in (the
+   desktop dropdown, the mobile sheet's larger 16px rows), exactly as the title
+   badges beside it already do. tabular-nums so a column of results doesn't
+   jitter, and flex-shrink:0 so the number is never the thing that gets
+   ellipsised when a long name squeezes the row. */
+.player-luck-badge {
+    flex-shrink: 0;
+    font-size: 0.82em;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+}
+/* The badge sits beside the name rather than in the row's own flex flow, so it
+   carries its own left gap. Covers both renderers: the desktop row (sibling of
+   .app-combo-option-name) and the mobile sheet's name line. */
+.search-sheet-option-nameline .player-luck-badge,
+.app-combo-option-name .player-luck-badge {
+    margin-left: 6px;
+}
+
+/* ── Identity chrome on a search field (combobox `identity: true`) ───────────
+   A picked player keeps their flag and title badges INSIDE the field, in the
+   same order the dropdown row showed them (flag · name · titles) — the standard
+   input-adornment pattern, so the selection reads as one control rather than a
+   name box with decorations loose beside it.
+
+   They must be overlays: an <input> can hold text and nothing else. So each slot
+   is absolutely positioned against the field's own edges, and combobox.js grows
+   the input's padding to exactly the slot's measured width — the typed text
+   scrolls up to the badge and stops, never under it. `pointer-events: none` so
+   the adornments are decoration, not targets: a click anywhere over them still
+   lands in the field and opens the list. Empty slots take no space at all, so an
+   unselected field is pixel-identical to a plain one. */
+.app-combo-identity-flag,
+.app-combo-identity-titles {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    pointer-events: none;
+    line-height: 0;          /* no stray descender space around the flag */
+}
+/* The exact offsets are set inline by combobox.js: the flag mirrors the field's
+   own left padding (so it starts where the value starts) and the badges are
+   placed after the measured width of the text, one gap behind the last
+   character — mirroring the flag's gap ahead of the first. These values are only
+   the position before that measure has run. */
+.app-combo-identity-flag {
+    left: var(--space-xs, 6px);
+}
+.app-combo-identity-titles {
+    right: var(--space-xs, 6px);
+    gap: 2px;
+    line-height: normal;
+}
+.app-combo-identity-flag:empty,
+.app-combo-identity-titles:empty {
+    display: none;
+}
+
+/* ── The canonical player-identity chip (combobox.js `playerIdentityHtml`) ───
+   Used wherever a picked player is echoed back OUTSIDE a field — a staged
+   What-If card, a result heading. Same three parts, same order, same flag as
+   a search row, so the echo is recognisably the row you picked. The name is
+   the only part allowed to shrink: flag and badges are identity, not detail,
+   and must survive a long name rather than be ellipsised away with it. */
+.app-identity {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs, 6px);
+    min-width: 0;
+    max-width: 100%;
+}
+.app-identity-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* Title badges sit inside the name span (they are part of how a player is
+   addressed) but must not be eaten by the name's ellipsis. */
+.app-identity-name .title-abbr {
+    flex-shrink: 0;
+}
+
+.page-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: var(--space-lg) var(--space-md);
+}
+
+.page-header {
+    --title-size: 2rem;
+    text-align: center;
+    padding: var(--space-xl) 0 var(--space-md);
+}
+
+.page-header h1 {
+    font-size: var(--title-size);
+    font-weight: 700;
+    color: var(--color-text);
+    letter-spacing: -0.5px;
+}
+
+.page-header .subtitle {
+    font-size: var(--fs-100);
+    color: var(--color-text-secondary);
+    margin-top: var(--space-xs);
+    font-style: italic;
+}
+
+.page-header .logo {
+    display: block;
+    height: calc(var(--title-size) * 2.5);
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    margin: var(--space-md) auto;
+    border-radius: 50%;
+}
+
+/* The old `.logo-splash` breathe overlay, its `logo-breathe` keyframes and the
+   mobile `.logo.logo-loading` variant lived here. All three are gone: the
+   loading screen is now `css/splash.css` (+ `js/utils/splash.js`), whose
+   markup is static in each page's HTML. Nothing referenced these classes
+   after that change. */
+
+.table-wrapper {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    margin-bottom: var(--space-md);
+}
+
+.table-scroll {
+    overflow: auto;
+    max-height: calc(100vh - var(--nav-height, 48px) - 40px);
+}
+
+/* Loading / Error */
+.loading {
+    text-align: center;
+    padding: var(--space-2xl);
+    color: var(--color-text-muted);
+    font-size: var(--fs-110);
+}
+
+.error {
+    text-align: center;
+    padding: var(--space-2xl);
+    color: var(--color-loss);
+    font-size: var(--fs-110);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    /* html font-size handled by fluid clamp() above — no breakpoint override */
+
+    .page-container {
+        padding: var(--space-md) var(--space-sm);
+    }
+
+    .page-header {
+        padding: var(--space-lg) 0 var(--space-md);
+    }
+}
+
+/* Phone — edge-to-edge so cards can span the full viewport width */
+@media (max-width: 640px) {
+    .page-container {
+        padding: var(--space-md) var(--space-xs);
+    }
+
+    /* Remove vertical cap so all rows show; page scrolls naturally */
+    .table-scroll {
+        max-height: none;
+    }
+}

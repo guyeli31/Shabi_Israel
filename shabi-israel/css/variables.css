@@ -1,0 +1,287 @@
+/* variables.css — Design tokens */
+
+:root {
+    /* Colors */
+    /* Elevation ladder (by lightness): --color-bg ◂ --color-inset ◂ --color-surface.
+       bg = page canvas, surface = section panel (most prominent), inset = the
+       nested "well" (card-in-section / graph / table cells) sitting between them.
+       Kept as subtle, evenly-stepped tones for a modern layered UI. */
+    --color-bg: #e0e3ea;
+    --color-surface: #ffffff;
+    --color-text: #1a1a2e;
+    --color-text-secondary: #52546b;
+    --color-text-muted: #6b6d84;
+    --color-border: #d4d7df;
+    --color-hover: #f5f6f8;
+    --color-accent: #2563eb;
+    --color-accent-light: #dbeafe;
+    /* Text/icon colour placed ON a --color-accent fill (breadcrumb .current,
+       skip-link, open-full-btn, also-plays hover). White reads on the blue/green/
+       brown accents, but light-accent themes (Vegas/Casino gold, X22 orange)
+       override this to a dark companion so the text stays readable. */
+    --color-on-accent: #fff;
+
+    /* Primary action button (Export Image, Save, active Edit-Mode toggle).
+       Reuses the themed header chrome — --header-bg/--header-text are a designed
+       dark-bg / light-text pair — so the button follows the theme AND its text
+       stays readable. (A naive alias to --color-accent would put white text on a
+       light accent in themes like Vegas/Casino.) */
+    --color-primary: var(--header-bg);
+    --color-primary-text: var(--header-text);
+
+    /* Medal colors */
+    --color-gold: #fbbf24;
+    --color-gold-bg: #fef3c7;
+    --color-silver: #9ca3af;
+    --color-silver-bg: #f3f4f6;
+    --color-bronze: #d97706;
+    --color-bronze-bg: #fde8c8;
+
+    /* Status */
+    --color-running: #047857;
+    --color-running-bg: #d1fae5;
+    --color-completed: #4b5563;
+    --color-completed-bg: #f3f4f6;
+
+    /* Player presence — independent of league Running/Completed and of the
+       medal palette so theme overrides of those tokens never re-tint the
+       player chips/dots (the A7 "This Year" pill used to flip green in X22
+       because it borrowed --color-bronze, which X22 maps to green). */
+    --color-player-active: #047857;
+    --color-player-active-bg: #d1fae5;
+    --color-player-recent: #d97706;
+    --color-player-recent-bg: #fde8c8;
+    --color-player-inactive: #6b7280;
+    --color-player-inactive-bg: #f3f4f6;
+
+    /* Results */
+    --color-win: #047857;
+    --color-loss: #b91c1c;
+    --color-loss-bg: #fef2f2;
+    --color-draw: #4b5563;
+
+    /* Semantic aliases — these names were referenced across the app with
+       hardcoded fallbacks but were never defined, so they ignored the theme.
+       Alias them to the themed result colors so every usage follows the theme. */
+    --color-danger: var(--color-loss);
+    --color-success: var(--color-win);
+
+    /* Brier-score traffic-light scale (PR <-> Result Correlation): green at 0
+       (perfect fit), amber at 0.25 (coin-flip), red near 1 (mostly upsets).
+       Aliased to the existing themed/constant tokens so it follows theme
+       switches automatically, with no per-theme overrides needed. */
+    --brier-good: var(--color-win);
+    --brier-mid:  var(--color-warning);
+    --brier-bad:  var(--color-loss);
+
+    /* Match-density heatmap (All League Matches strip): single sequential hue,
+       aliased to the theme accent so the ramp follows every theme automatically
+       with no per-theme overrides. The "cold" (0% density) stop is derived FROM
+       this same colour in JS (darkened, not lightened toward white/pale — see
+       prCorrelationChart.js's densityFill) so both ends of the ramp visibly
+       track the theme's actual accent hue instead of collapsing toward a
+       near-white tint that reads the same across every theme. */
+    --density-hot: var(--color-accent);
+
+    /* The "All / both outcomes pooled" series colour, for charts that plot a
+       win series and a loss series alongside their union (the player page's
+       Total PR ↔ Result histogram). It must be a THIRD hue that reads as
+       neither win nor loss and doesn't collide with --color-accent (which is
+       already spoken for by links, buttons and the density ramp) — hence
+       violet. Intentionally CONSTANT across themes, same reasoning as
+       --color-warning below: it encodes a fixed meaning, not a palette mood.
+       This value clears 3:1 against every theme's surface, light and dark. */
+    --color-series-all: #8b5cf6;
+
+    /* "Already staged" — an entity that exists in the current What-If scenario
+       and therefore cannot be picked again. Intentionally CONSTANT across
+       themes and deliberately a FOURTH hue: it must out-rank the result badges
+       it replaces (win green / loss red / not-played grey), so it can be
+       neither of those nor --color-accent (links and buttons). Violet reads as
+       "claimed / locked", not as a verdict. Same family as
+       --color-series-all and likewise clears 3:1 on every theme surface. */
+    --color-staged: #8b5cf6;
+
+    /* Warning — intentionally CONSTANT across all themes. A caution signal
+       (like a traffic light) shouldn't shift with the palette. Foreground use:
+       the .whatif-warn icon and CSV-validation messages. */
+    --color-warning: #d97706;
+    /* Derived warning BACKGROUND — blends the warning hue with the theme's
+       accent-light so a warning fill (e.g. the admin pending-match block) is
+       theme-aware yet readable. Don't use --color-warning directly as a fill. */
+    --color-warning-bg: color-mix(in srgb, var(--color-accent-light) 60%, var(--color-warning) 40%);
+
+    /* Probability tier scale for the Championship-Predictor bars
+       (high -> mid -> low). Tinted (translucent) so the % label — which is the
+       theme text colour — stays readable on the fill in every theme; a solid
+       fill clashed with light text in dark themes. high/low reuse already-themed
+       tokens; --tier-mid is a per-theme amber (dark themes override it below). */
+    --tier-high: color-mix(in srgb, var(--color-win) 40%, transparent);
+    --tier-mid:  color-mix(in srgb, #b8860b 45%, transparent);
+    --tier-low:  color-mix(in srgb, var(--color-text-muted) 30%, transparent);
+
+    /* Average row */
+    --color-avg-bg: #ecfdf5;
+    --color-avg-border: #a7f3d0;
+
+    /* Typography */
+    --font-main: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
+
+    /* Spacing */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 40px;
+    --space-2xl: 64px;
+
+    /* ── Sidebar canon ───────────────────────────────────────────
+       Single source of truth for sidebar width — consumed by BOTH
+       the public site sidebar (.site-sidebar in css/site-sidebar.css)
+       and the admin sidebar (.admin-sidebar in css/admin.css). Change
+       these to resize both at once.
+       240px is the minimum that fits "SHABI ISRAEL" in full at the
+       brand row's fixed 1.2rem/34px-logo sizing (see --sidebar-brand-fs) —
+       don't shrink below this without re-checking that text still fits. */
+    --sidebar-width: 240px;
+    --sidebar-width-mobile: min(280px, 84vw);
+    --sidebar-flyout-width: 240px;
+    /* Fixed (not vw-fluid like --fs-160) so the brand reads at the SAME
+       size whether shown in the sidebar (.site-sidebar-brand, open state)
+       or the top bar (.site-topbar-brand, closed state) — both reference
+       these same two tokens. Fixed rather than fluid also guarantees the
+       text always fits the sidebar's fixed-width column, regardless of
+       viewport (a vw-growing font in a non-growing column is what caused
+       the original "SHABI ISRAEL" clipping). */
+    --sidebar-brand-fs: 1.2rem;
+    --sidebar-brand-logo-size: 34px;
+    --sidebar-flyout-width-wide: 280px;
+    /* Narrow-viewport "rail" mode: when a submenu is open on mobile, the
+       sidebar (and, recursively, an outer flyout that itself has a pinned
+       nested submenu) collapses to an icons-only column so the flyout has
+       room to read on the right. */
+    --sidebar-rail-width: 56px;
+
+    /* Borders */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-full: 9999px;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
+
+    /* Inset / "well" surface — for data blocks (tables, chart canvas, chart-info
+       panel, nested mini-cards) sitting INSIDE a --color-surface section card.
+       Derived as a blend weighted toward bg, so it lands as a distinct middle tier
+       between bg and surface (see ladder above) in EVERY theme automatically — the
+       var()s resolve to each theme's own bg/surface at use-time, no per-theme
+       override needed. The bg-heavy weighting keeps it clear of the lighter, more
+       neutral --color-silver-bg, so a default MF table row (= inset) never
+       collides with the silver medal row. Verified ≥3.5% apart across all themes. */
+    --color-inset: color-mix(in srgb, var(--color-surface) 28%, var(--color-bg));
+
+    /* Floating surface popover — single source for the elevated "text box"
+       surfaces (tooltip, context menu, info popups, chart panel). Components
+       reference these instead of re-declaring surface/border/radius/shadow. */
+    --popover-bg:           var(--color-surface);
+    --popover-border-color: var(--color-border);
+    --popover-radius:       var(--radius-sm);
+    --popover-shadow:       var(--shadow-md);
+
+    /* Table */
+    --header-bg: #1e293b;
+    --header-text: #f8fafc;
+    --header-bg-hover: #334155;
+
+    /* Medal text */
+    --color-gold-text: #78350f;
+    --color-silver-text: #1f2937;
+    --color-bronze-text: #78350f;
+
+    /* Chart (canvas) colors — overridden per theme */
+    --chart-grid: rgba(0,0,0,0.18);
+    --chart-axis: rgba(0,0,0,0.35);
+    --chart-label: rgba(0,0,0,0.65);
+    --chart-hover-outline: #000000;
+
+    /* Medal hover */
+    --color-gold-bg-hover: #fde68a;
+    --color-silver-bg-hover: #e5e7eb;
+    --color-bronze-bg-hover: rgba(217, 119, 6, 0.14);
+
+    /* Unplayed */
+    --color-unplayed-bg: #fafafa;
+
+    /* Navigation — tracks the natural bar height (font * line-height + 2*0.6em padding).
+       48px floor matches the original at narrow viewports; grows ~10px at 1440+ widths. */
+    --nav-height: clamp(48px, calc(0.93vw + 44.7px), 58px);
+
+    /* Fixed top bar (closed-state chrome — hamburger · logo · brand · admin
+       pill). A touch taller than --nav-height so the 38px hamburger sits
+       vertically centred with equal 13px padding top & bottom (13+38+13=64). */
+    --topbar-height: 64px;
+
+    /* Color scale filter (for theme adaptation of inline colors) */
+    --color-scale-filter: none;
+
+    /* League-type pill colors (default / light themes) */
+    --lt-doubling-bg: #dbeafe;
+    --lt-doubling-text: #1e40af;
+    --lt-ubc-bg: #ede9fe;
+    --lt-ubc-text: #5b21b6;
+    --lt-regular-bg: #ccfbf1;
+    --lt-regular-text: #115e59;
+    /* "All" — the type-agnostic filter pill (no league type of its own) */
+    --lt-all-bg: #e2e8f0;
+    --lt-all-text: #334155;
+}
+
+/* Dark-theme league-type pill overrides */
+[data-theme="dark"] {
+    --tier-mid: color-mix(in srgb, #f5d76e 40%, transparent);
+    --lt-doubling-bg: rgba(96, 165, 250, 0.22);
+    --lt-doubling-text: #93c5fd;
+    --lt-ubc-bg: rgba(167, 139, 250, 0.22);
+    --lt-ubc-text: #c4b5fd;
+    --lt-regular-bg: rgba(45, 212, 191, 0.22);
+    --lt-regular-text: #5eead4;
+    --lt-all-bg: rgba(148, 163, 184, 0.22);
+    --lt-all-text: #cbd5e1;
+}
+[data-theme="vegas"] {
+    --tier-mid: color-mix(in srgb, #f5d76e 40%, transparent);
+    --lt-doubling-bg: rgba(96, 165, 250, 0.22);
+    --lt-doubling-text: #93c5fd;
+    --lt-ubc-bg: rgba(167, 139, 250, 0.22);
+    --lt-ubc-text: #c4b5fd;
+    --lt-regular-bg: rgba(45, 212, 191, 0.22);
+    --lt-regular-text: #5eead4;
+    --lt-all-bg: rgba(148, 163, 184, 0.22);
+    --lt-all-text: #cbd5e1;
+}
+[data-theme="casino"] {
+    --tier-mid: color-mix(in srgb, #ffd700 40%, transparent);
+    --lt-doubling-bg: rgba(96, 165, 250, 0.22);
+    --lt-doubling-text: #93c5fd;
+    --lt-ubc-bg: rgba(236, 72, 153, 0.22);
+    --lt-ubc-text: #f9a8d4;
+    --lt-regular-bg: rgba(45, 212, 191, 0.22);
+    --lt-regular-text: #5eead4;
+    --lt-all-bg: rgba(148, 163, 184, 0.22);
+    --lt-all-text: #cbd5e1;
+}
+[data-theme="x22"] {
+    --tier-mid: color-mix(in srgb, #f5d76e 40%, transparent);
+    --lt-doubling-bg: rgba(96, 165, 250, 0.22);
+    --lt-doubling-text: #93c5fd;
+    --lt-ubc-bg: rgba(236, 72, 153, 0.22);
+    --lt-ubc-text: #f9a8d4;
+    --lt-regular-bg: rgba(94, 234, 212, 0.22);
+    --lt-regular-text: #5eead4;
+    --lt-all-bg: rgba(148, 163, 184, 0.22);
+    --lt-all-text: #cbd5e1;
+}

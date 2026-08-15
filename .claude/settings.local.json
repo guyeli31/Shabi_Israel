@@ -99,7 +99,20 @@
       "Bash(node --check js/render/subTabs.js)",
       "Bash(awk -F',' 'NR>1{print $1\"\\\\n\"$2}' \"leagues/Shabi Israel October 2025/leaguedata.csv\")",
       "Bash(awk -F',' 'NR>1{gsub\\(/^ +| +$/,\"\",$1\\); gsub\\(/^ +| +$/,\"\",$5\\); if\\($1!=\"\"\\)print $1; if\\($5!=\"\"\\)print $5}' \"leagues/Shabi Israel October 2025/leaguedata.csv\")",
-      "mcp__playwright__browser_handle_dialog"
+      "mcp__playwright__browser_handle_dialog",
+      "Bash(cp js/render/dashboardPage.js /tmp/dp.bak)",
+      "Bash(sed -i \"s/{ id: 'charts',    label: 'Charts',    icon/{ id: 'charts',    label: 'Insights',    icon/\" js/render/dashboardPage.js)",
+      "Bash(cp /tmp/dp.bak js/render/dashboardPage.js)",
+      "Bash(cp js/render/siteSidebar.js /tmp/ss.bak)",
+      "Bash(sed -i 's|index.html?tab=leaders#leaders-panel|index.html?tab=leaderz#leaders-panel|' js/render/siteSidebar.js)",
+      "Bash(cp /tmp/ss.bak js/render/siteSidebar.js)",
+      "Bash(cp js/admin/leagueManager.js /tmp/lm.bak)",
+      "Bash(sed -i \"s|const LEGACY_SUBTAB_SLUGS = {|const SLUG_TO_PANEL = { a: 1 };\\\\n    const LEGACY_SUBTAB_SLUGS = {|\" js/admin/leagueManager.js)",
+      "Bash(git show *)",
+      "Read(//tmp/**)",
+      "Bash(cd /c/WORKSPACE/Shabi_Israel *)",
+      "Bash(xxd)",
+      "Bash(grep -v '^[+-]\\\\s*$')"
     ]
   },
   "hooks": {

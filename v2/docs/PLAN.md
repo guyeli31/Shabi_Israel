@@ -189,7 +189,7 @@ v2/
 │   │       ├── A4_prLeaders.js          (SF)
 │   │       ├── A5_matchRecords.js       (SF)
 │   │       ├── A6_leagueRecords.js      (SF)
-│   │       ├── A7_playersDirectory.js   (SF — single combined list, no Notable/Rest split; sticky Player col; fixed sort: titled-first → alpha; lives inside a collapsible Section ["Players" h2] with a live-filter search box above the table — see v2/docs/MIGRATION-FROM-V1.md 2026-07-05 row)
+│   │       ├── A7_playersDirectory.js   (SF — single combined list, no Notable/Rest split; sticky Player col; fixed sort: titled-first → alpha; lives inside a collapsible Section ["Players" h2] with a live-filter search box above the table — see v2/docs/MIGRATION-FROM-V1.md 2026-07-05 row. THREE columns — Player / Status / Last Active. No Title column: titles stack as extra lines inside the Player cell, one line per title — see the 2026-08-14 MIGRATION row)
 │   │       ├── B1_prizesAndMedals.js    (MF)
 │   │       ├── B2_historicalView.js     (MF)
 │   │       ├── B3_championshipPredictor.js (MF)

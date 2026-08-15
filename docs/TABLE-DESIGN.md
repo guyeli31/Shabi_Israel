@@ -72,6 +72,8 @@ Table code mapping for the app. All future references to a table use the code be
 | F5 | CSV Import Preview (Edit League → Import CSV/Excel) |
 | F6 | Medals & Prizes (Edit League + Add New League → League Settings) |
 | F7 | Active Leagues (Sync page → Active Leagues: Source League Name + plan membership) |
+| F8 | Unassigned Email Matches (Sync page → incoming mail reports awaiting a league) |
+| F9 | Mail Automated Matches (Sync page → log of every mail-sourced match) |
 
 ---
 
@@ -84,7 +86,7 @@ The project has **five** table formats. Each format is owned by `table-lab/` and
 | Main Format | **MF** | A1, A2, D, E, all B, C1, C2, C3, C4, C6 |
 | Secondary Format | **SF** | A3, A4, A5, A6, C5 |
 | Expandable Format | **exp** | C0 |
-| Form Format | **FF** | F1 (League Manager), F2 (Players), F3 (Round Editor), F4 (View Overrides), **F5 (CSV Import Preview)**, F6 (Medals & Prizes), F7 (Sync ▸ Active Leagues) |
+| Form Format | **FF** | F1 (League Manager), F2 (Players), F3 (Round Editor), F4 (View Overrides), **F5 (CSV Import Preview)**, F6 (Medals & Prizes), F7 (Sync ▸ Active Leagues), F8 + F9 (Sync ▸ mail ingestion) |
 | PR Matrix Format | **PM** | PR Win-Probability Table (every "?" popup that shows it), Table Validation popup |
 
 > **Every admin table is FF.** F5 was the lone MF holdout while the CSV-import preview was read-only; once it grew per-row actions (TA/TB/TD/NP — the same vocabulary as F3's Round Editor) MF was the wrong format by definition: MF has no Action-cell concept. It moved to FF in the same change, and became the first production caller of the lab's `mountFFTable`. The preview still shows **only the "N updates"**: matches played in the upload that were not already played and are not override-covered (computed in `js/admin/csvValidation.js`). What the buttons do to the staged output is documented at the F5 note under the FF format below and in `js/admin/excelImporter.js`.
@@ -306,7 +308,9 @@ Columns (left → right):
 | 3 | `matches` | match count (includes technical results) |
 | 4 | `pr` | mean of the player's PR (technical results excluded) |
 | 5 | `oppPr` | mean of the opponent's PR |
-| 6 | `luck` | **differential** — mean(player luck) − mean(opponent luck) |
+| 6 | `luck` | Luck Confidence percentile **D** (0–100) computed from the matches against that opponent only, tinted by `colorForValue(D, 0, 100)` at weight 600 — same metric and same fixed scale as C6 and the landing page's Best/Worst Luck records. `N/A` when no rated, decided match exists. |
+
+The section heading carries a **"?"** (`.predictor-tooltip`) opening the shared `luck-percentile` popup — the same explanation the landing page's *Best Luck* / *Worst Luck* record cards and the Records tab's *Total Luck* section use.
 
 Selecting an opponent via the smart search **or** clicking an opponent row both render C3 above; the row-click additionally scrolls the page up to reveal it. Both H2H sections are always open (no collapse).
 
@@ -382,7 +386,7 @@ Rendered entirely by `mountSFTable(mountPoint, args)` (`table-lab/formats/sf/mou
 
 #### A7 — Players directory (Players tab on index.html)
 
-A **single** SF table inside the Players tab — `tableId: 'A7'`, `fontClass: 'font-small'`, `stickyCols: 1`, `showTopN: 50`. `title` is **`null`** — the table has no internal `<h3>`; instead the whole thing (search box + table) sits inside its own collapsible `app-section app-section--card` with `<h2 class="app-section-h2">Players</h2>` (same chrome as Match Records / Achievements / League Records, wired via `wireSectionCollapse({ defaultOpen: true })`). There is no Notable-Figures / Rest-of-Players split: every non-hidden player is one combined list. Sort puts **titled players first, then untitled** (`sortPlayerRows`), each subgroup alphabetical A→Z — "notable" is just a sort key, not a separate table or section. The first column (`Player`) is `position: sticky; left: 0` so the leftmost name stays visible while scrolling horizontally on narrow viewports.
+A **single** SF table inside the Players tab — `tableId: 'A7'`, `fontClass: 'font-small'`, `stickyCols: 1`, `showTopN: 50`. Three columns; the player's title rides as a second line inside the Player cell rather than a column of its own (see the note under the column table). `title` is **`null`** — the table has no internal `<h3>`; instead the whole thing (search box + table) sits inside its own collapsible `app-section app-section--card` with `<h2 class="app-section-h2">Players</h2>` (same chrome as Match Records / Achievements / League Records, wired via `wireSectionCollapse({ defaultOpen: true })`). There is no Notable-Figures / Rest-of-Players split: every non-hidden player is one combined list. Sort puts **titled players first, then untitled** (`sortPlayerRows`), each subgroup alphabetical A→Z — "notable" is just a sort key, not a separate table or section. The first column (`Player`) is `position: sticky; left: 0` so the leftmost name stays visible while scrolling horizontally on narrow viewports.
 
 **Live search filter (added 2026-07-05):** a plain `<input class="lp-players-search-input app-search-input">` sits above the table (`.lp-players-search-wrap`, 50% width). No dropdown/combobox, no selection step — every `input` event re-filters the in-memory `rows` array by substring match on `name`/`fullName` and re-mounts the SF table (`mountSFTable` is called again with the filtered `data`). Title stays `null`; the section's `<h2>` doesn't carry a live count. While a query is non-empty, `showTopN` is passed as `null` so every match is shown and the "Show all" toggle disappears — it only makes sense against the unfiltered default view. This is deliberately *not* the H2H opponent-lookup pattern (smart-search combobox that opens a separate detail panel on pick) — here typing directly narrows the same table in place.
 
@@ -392,10 +396,17 @@ Columns (left → right):
 
 | # | Key | Cell |
 |---|---|---|
-| 1 | `name` | Flag + `playerNameLink(name, meta)` + optional real-name (`.lp-realname`, hidden on mobile) |
+| 1 | `name` | Stacked lines. **Line 1:** flag + `playerNameLink(name, meta)` + title badge + the player's *other* name inline (`.lp-realname`, `alternateName()`). **Then one line per title** (`getTitleDescriptionParts(meta)`, championships first, BMAB last), each an `<em class="lp-titledesc">`. No title → no extra line. |
 | 2 | `status` | `<span class="lp-status lp-status-active\|inactive">` pill with glowing `currentColor` dot. `active` = player appears in any league with `Running: true`. |
 | 3 | `lastActiveDate` | `<a class="league-link" href="leagueTableUrl(id)">Jun 2026</a>` — same quiet hover-underline style as A6's league column. `—` if the player has never appeared (notable-only). |
-| 4 | `titleDesc` | `getFullTitleDescription(meta)` in `<em>` — Master/Grandmaster/Champion/etc. `—` for rest-of-players. |
+
+**Stacked Player cell — A7's one deliberate departure from the SF canon (2026-08-14).** The title description used to be a fourth column, `Title`. On a 430px phone it measured **182px of the table's 395px — 46% of the width — while reading `—` on 53 of the 56 rows**, and it was the sole cause of the horizontal overflow. Two workarounds had grown on top of it: A7's font shrank to `--fs-078` on mobile (the only A table not on `font-small` at every width) and `.lp-realname` was hidden outright below 600px, which removed the whole point of a directory you look people up in. Folding the description into the name cell deleted both: three columns now measure 371.3px against a 371px viewport at the canonical `font-small`, verified with a stress test that gave all 56 rows a full-length real name.
+
+- **One line per title, never a comma-spliced sentence.** `getTitleDescriptionParts()` (`js/data/titleConstants.js`) returns the titles as separate strings and `getFullTitleDescription()` is now just `.join(', ')` over it — splitting the joined string back apart would break on any title containing a comma of its own.
+- **Same font as the column it replaced** — italic, inherited size, inherited colour, and `font-weight: 400`. The weight has to be stated: the line now lives in `td.player-cell`, which is 600, while the old `Title` column was an ordinary cell. Without it the description came out bolder than it had ever been.
+- **Indent is `1.3em`, not a round guess:** the flag is `1em` wide with a `0.3em` right margin, so the second line starts at exactly the same x as the name link above it (measured: both at 17.68px from the cell edge).
+- **`white-space: normal`** overrides `.achv-table td`'s `nowrap`. `1990 Monte Carlo Doubles World Champion` is the longest string in the table; as a nowrap line it would dictate the Player column's width for all 56 rows — the exact problem the column removal solved. Wrapping engages only on the few titled rows on a narrow screen.
+- **No `Title` header anywhere.** The description reads as itself; a column label for a line that appears on 3 rows would be noise.
 
 To convert a table to SF in a future session, say:
 > "Update table X to use the SF variant. Derive the unique parameters for this table on your own and ask me questions as needed."
@@ -631,6 +642,12 @@ Rendered by `mountFFTable(mountPoint, args)` (`table-lab/formats/ff/mount.js`). 
 
 > **F1 — standalone, no `.admin-card` (elevation shift).** F1 (Leagues list) is the only FF table rendered **without** a wrapping `.admin-card` — it is the sole child of its view, so the card was redundant chrome and was removed. Because the table now sits directly on the page `--color-bg` (not inside a `--color-surface` card), it shifts **up** one elevation tier: body + sticky col = `--color-surface` (the table-equivalent of the `.dash-card` "on page bg keeps surface" precedent — see Surface elevation tiers). The **header** uses the per-theme `--header-bg`/`--header-text` table-header tokens, **not** `--color-inset` — inset sits only 28% off `--color-bg`, so on the bare canvas the header read too close to the page background; `--header-bg` is a distinct, theme-tailored tone in every theme (dark `#14141e`, vegas deep-red, casino `#8b0000`, x22 green, rainbow purple…). Scoped via `[data-mf-table-id="F1"]` in `css/admin.css`; the `.admin-card` chrome (incl. its fluid `clamp()` padding) is simply absent here. F2/F3/F4/F6 remain inset-in-card.
 
+> **F8 / F9 — Sync ▸ mail ingestion.** Both hand-built FF chrome inside `.admin-card`, `font-large`, rendered by `js/admin/mailSync.js` off `sql/mail_sync.sql`. **F8 (Unassigned Email Matches)** renders only when reports are waiting: Display cells for the match data, one Edit-mode `<select>` (Assign to League, options = the server-computed candidate list), one Action cell (Apply / Discard). A row with a league chosen gets `.is-resolved` → F3's `--color-warning-bg` pending tint, scoped `[data-mf-table-id="F8"]` in `css/admin.css` — and the rule **must** name `td:first-child` explicitly, because FF paints the sticky first column at (0,2,3) and a specificity tie loses on source order (same trap as the F3 match-block regression above). **F9 (Mail Automated Matches)** is Display-only: B5's Played-Matches columns plus **League** (F9 is cross-league, B5 never is) and a Date carrying a time. Sorted by the value the Date column shows (`played_at`), not by arrival — a table sorted by a column it doesn't display reads as unsorted.
+>
+> Both wear the **two-sticky-column variant** `ff-sticky-2` (see the Sticky col 2 row in the parameter table above): Player A **and** Player B stay pinned, because a match row's identity is the pair, not the first name in it.
+>
+> F8 is also the first FF Edit-mode `<select>` outside F3, which is how it surfaced that `ff.css`'s canonical `.ff-wrap select` rule had never been mirrored into `css/admin.css`. It now is, em-based per the Units policy — sizing from `ff.css`, skin from `.form-group select`, and **no `appearance: none`**: a drawn arrow needs a hardcoded stroke colour that ignores all 8 themes.
+
 **Concept — single format, three cell modes per column.** FF mirrors SF on the 7 shared visual parameters (border-collapse, row hairline, white-space, padding, sticky thead, scroll wrapper, scroll shadow), with admin-specific chrome on top: stronger header typography (uppercase + letter-spacing), `--color-bg` header background tint, and 1-column sticky-left default. The list-vs-edit distinction is per-column, not per-table:
 
 | Cell mode | When | Required ColDef properties | Participates in |
@@ -663,6 +680,7 @@ To convert a table to FF in a future session, say:
 | Header text | `var(--color-text-secondary)` with `font-weight: 700`, `font-size: var(--fs-078)`, `text-transform: uppercase`, `letter-spacing: 0.05em` (admin-style chrome) |
 | Header bottom hairline | `box-shadow: inset 0 -1px 0 var(--color-border)` (no `border-bottom`) |
 | Sticky col 1 | Always on — `th:first-child` and `tbody td:first-child` are sticky-left automatically via the canonical CSS (no JS measurement, no class) |
+| Sticky col 2 (opt-in variant) | **`ff-sticky-2` on the TABLE** pins the **second** column too. For tables whose subject is a **pairing** — F8/F9, where a pinned Player A alone leaves "7 - 4" against one name, i.e. half a result. Class name, class placement and the measured custom property all mirror **SF**, which solved this first (`sf-sticky-N` + `--sf-col1-w`) — the format family already treats sticky-column count as a parameter, so FF adopts the sibling's spelling instead of a second vocabulary. Unlike col 1 this **needs a measurement**: col 2's `left` must equal col 1's rendered width, which is content-driven, so JS writes `--ff-col1-w` on the table (**iron rule 12**; CSS carries a `9em` pre-measurement fallback). **Measure after the flags load, not on first layout.** `.flag` is `height: 1em; width: auto`, so an unloaded flag contributes 0 width — measured on F8: th1 is 117.67px before the flags land and 131.33px after, exactly one 13.67px flag, which parks col 2 fourteen pixels *inside* col 1 permanently. So the observer watches the **header cell** (it reflows when the images do); watching the wrap never fires (its size never changes), and a one-shot rAF is not enough either, because **pinning itself does not change col 1's width** (verified: identical with and without the class) — there is no single settled frame to latch onto. The scroll shadow **moves to the last pinned column** and is cancelled on col 1 — two adjacent shadows would draw a seam between two columns that are pinned together. Any row tint must name `td:nth-child(2)` alongside `td:first-child`, for the same specificity reason the F3 lesson records |
 | Body + sticky col background | `var(--color-inset)` on all `tbody td` **including** the pinned first column — FF adopted the inset-well tier (2026-06-24) like MF/SF/exp, so the table separates from its `--color-surface` `.admin-card`. Edit-mode inputs, hover, validation, and the F3 match-block state colours (overridden/pending/unplayed) override per-cell on top. |
 | F3 match-block state tint | The state colour tints the **whole** match-block row (incl. the sticky first col): overridden → `--color-accent-light`, pending → `--color-warning-bg`, unplayed → `--color-inset` + `opacity:.6`. The match-block **is** the `<tbody>`, so the selector is `tbody.match-block-X td` (compound, no descendant space) scoped with the full `.admin-table.font-large.admin-round-table` prefix → specificity (0,4,2), which must beat the FF inset body well (0,2,2). The earlier `tbody .match-block-X td:first-child` *descendant* form never matched and left the row inset (regression fixed 2026-06-24). **Per-block model — each match-block is ONE uniform colour:** 4 resting states (1) played→`--color-inset`, (2) unplayed→`--color-inset` + `opacity:.6` (faded), (3) pending/edited→`--color-warning-bg`, (4) overridden/edited+saved→`--color-accent-light`; **+ (5) hover→`--color-hover` (colour E), STATUS-INDEPENDENT.** Hover is a **single** rule `tbody.match-block:has(:hover) td { background: var(--color-hover); opacity: 1 }` (spec 0,5,2 — beats FF's inset/row-hover/sticky-col-hover **and** every per-state resting tint at 0,4,2, so no first-col reconciliation is needed) that flips the **entire** match (both sub-rows + sticky col) to one colour for **every** status, played/unplayed/pending/overridden alike. `opacity:1` overrides unplayed's resting `.6` so it hovers at full strength like the rest. There are intentionally **no per-state hover overrides**. |
 | Header background | `var(--color-bg)` on thead + the sticky thead corner — one step below the inset body, a slightly-recessed admin-chrome header (uppercase + letter-spacing + bold), matching exp's header-tint approach |
@@ -811,7 +829,7 @@ Luck Percentile) and the **Table Validation** popup on the dashboard.
 
 Canon lives in `table-lab/formats/pm/` (`pm.css` auto-imports `base/base.css`).
 Mirrored to `css/dashboard.css` (production popups on `index.html` + the league
-dashboard) and to `luck-lab.html` (the standalone **Explanation and Maths** tool)
+dashboard) and to `explanation-and-maths.html` (the standalone **Explanation and Maths** tool)
 until table-lab unification Phase 7 lets production import the format CSS.
 
 > **Why PM is string-first, not mount-first.** Unlike MF/SF/exp/FF — which build

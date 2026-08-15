@@ -10,13 +10,13 @@ import { spawnSync } from 'node:child_process';
 
 import { createClient } from '@supabase/supabase-js';
 
-import { parseCSV, parseCSVAllWithRounds } from '../js/data/csvParser.js';
-import { applyOverrides } from '../js/data/applyOverrides.js';
+import { parseCSV, parseCSVAllWithRounds } from '../shabi-israel/js/data/csvParser.js';
+import { applyOverrides } from '../shabi-israel/js/data/applyOverrides.js';
 import {
   validateCsvStructure, describeLeagueShape, collectPlayed,
   findPlayedRegressions, splitRegressions, formatRegressions,
-} from '../js/data/csvIntegrity.js';
-import { computeMatchHistoryReconcile } from '../js/data/matchHistoryReconcile.js';
+} from '../shabi-israel/js/data/csvIntegrity.js';
+import { computeMatchHistoryReconcile } from '../shabi-israel/js/data/matchHistoryReconcile.js';
 
 const DEFAULT_FLAG = 'IL';
 const SITE_URL = process.env.SOURCE_URL;
@@ -254,51 +254,6 @@ async function browseTab(page, tabName, durationS) {
   if (!switched) throw new Error(`tab "${tabName}" not found or unreachable`);
   await page.waitForTimeout(randInt(1000, 3000));
   await scrollPage(page, Math.max(0, durationS - 3));
-}
-
-const STATUS_FLAGS = {
-  friendReady: { code: 1, label: 'Friend ready' },
-  tournamentReady: { code: 11, label: 'Tournament ready' },
-  sourceReady: { code: 18, label: 'External Source ready' },
-  busy: { code: 16, label: 'Busy' },
-};
-
-async function changeStatusTask(page, durationS) {
-  const keys = Object.keys(STATUS_FLAGS);
-  const pickCount = randInt(2, 3);
-  const picks = shuffle(keys).slice(0, pickCount);
-  const perStepMs = Math.max(2000, Math.floor((durationS * 1000) / picks.length));
-  for (const key of picks) {
-    const { code, label } = STATUS_FLAGS[key];
-    const opened = await page.evaluate(() => {
-      const own = Array.from(document.querySelectorAll('button')).find((b) => {
-        if (b.offsetParent === null) return false;
-        const oc = b.getAttribute('onclick') || '';
-        if (!/^ca\(129,/.test(oc)) return false;
-        const r = b.getBoundingClientRect();
-        return r.left < 100 && r.top < 80;
-      });
-      if (!own) return false;
-      own.click();
-      return true;
-    });
-    if (!opened) throw new Error(`could not open status picker for "${label}"`);
-    await page.waitForTimeout(500);
-    const set = await page.evaluate(
-      ({ code }) => {
-        const opt = Array.from(document.querySelectorAll('button')).find(
-          (b) => b.offsetParent !== null && b.getAttribute('onclick') === `ca(35,${code})`,
-        );
-        if (!opt) return false;
-        opt.click();
-        return true;
-      },
-      { code },
-    );
-    if (!set) throw new Error(`could not set status "${label}" (picker option not visible)`);
-    console.log(`    status → ${label} (code ${code})`);
-    await page.waitForTimeout(perStepMs);
-  }
 }
 
 /**
@@ -1165,7 +1120,6 @@ try {
       { kind: 'browsePrivateDB', label: 'browse Private DB', durationS: randInt(15, 45) },
       { kind: 'scrollHere', label: 'scroll current page', durationS: randInt(10, 30) },
       { kind: 'idle', label: 'idle pause', durationS: randInt(20, 60) },
-      { kind: 'changeStatus', label: 'change status flag (2-3 toggles)', durationS: randInt(15, 40) },
     ];
 
     const sideCount = randInt(2, 4);
@@ -1346,9 +1300,6 @@ try {
             break;
           case 'browsePrivateDB':
             await browseTab(page, 'Private DB', task.durationS);
-            break;
-          case 'changeStatus':
-            await changeStatusTask(page, task.durationS);
             break;
           case 'EXPORT':
             await runAllExports();

@@ -17,7 +17,7 @@ REM --- Reuse a server already listening on 8090 (project default) ---
 netstat -ano -p tcp | findstr /c:":8090 " | findstr /c:"LISTENING" >nul
 if not errorlevel 1 (
     echo Reusing existing server on port 8090.
-    start "" "http://localhost:8090/banner-poc.html"
+    start "" "http://localhost:8090/shabi-israel/banner-poc.html"
     echo Banner Editor opened. You can close this window.
     timeout /t 2 >nul
     exit /b 0
@@ -48,10 +48,10 @@ start "Shabi http-server (!PORT!)" /min cmd /c npx -y http-server -p !PORT! --co
 
 REM Give the server a moment to bind, then open the editor in the default browser.
 timeout /t 2 >nul
-start "" "http://localhost:!PORT!/banner-poc.html"
+start "" "http://localhost:!PORT!/shabi-israel/banner-poc.html"
 
 echo.
-echo Banner Editor: http://localhost:!PORT!/banner-poc.html
+echo Banner Editor: http://localhost:!PORT!/shabi-israel/banner-poc.html
 echo The server runs in the minimized "Shabi http-server (!PORT!)" window.
 echo Close that window to stop the server.
 pause

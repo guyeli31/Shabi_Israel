@@ -3,6 +3,15 @@
     "playwright": {
       "command": "npx",
       "args": ["@playwright/mcp@latest", "--output-dir", ".playwright-mcp", "--isolated"]
+    },
+    "playwright-mobile": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--output-dir", ".playwright-mcp",
+        "--isolated",
+        "--device", "Pixel 10 Pro"
+      ]
     }
   }
 }

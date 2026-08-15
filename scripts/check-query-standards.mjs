@@ -15,7 +15,9 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join, relative, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+// The repo root is the domain root; the site lives one folder down
+// (see CLAUDE.md § Hosting layout).
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'shabi-israel');
 const JS_ROOT = join(REPO_ROOT, 'js');
 
 // Files allowed to call supabase.from()/rpc() directly (rule 1).

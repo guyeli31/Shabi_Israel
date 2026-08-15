@@ -1,0 +1,1036 @@
+/* components.css — Tables, badges, medals, flags, pills */
+
+/* ---- Global table font-size classes (iron rule 3) ----
+   Attached per table on the <table> element. Single source of truth.
+   Values are constant across viewports — rem base shift on <html>
+   (layout.css) handles device density, not media queries here. */
+table.font-large { font-size: var(--fs-093); }
+table.font-small { font-size: var(--fs-085); }
+
+
+/* ---- Global focus-visible (a11y H5) ---- */
+:focus-visible {
+    outline: 2px solid var(--color-accent, #2563eb);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+th[data-col]:focus-visible {
+    outline: 2px solid var(--color-accent, #2563eb);
+    outline-offset: 2px;
+}
+/* Remove default outline only when :focus-visible is supported — still keep :focus fallback */
+:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* ---- Export Image button (shared across pages) ---- */
+.img-export-btn {
+    padding: 6px 12px;
+    font-size: var(--fs-085);
+    font-weight: 600;
+    background: var(--color-primary);
+    color: var(--color-primary-text);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+.img-export-btn:hover { filter: brightness(1.1); }
+
+/* ---- Data Table ---- */
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: var(--fs-093);
+}
+
+thead th {
+    background: var(--header-bg);
+    color: var(--header-text);
+    padding: 0.45em 0.5em;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+}
+
+thead th:hover {
+    background: var(--header-bg-hover);
+}
+
+thead th .sort-icon {
+    margin-left: 4px;
+    font-size: 0.75em;
+    opacity: 0.5;
+}
+
+thead th.sorted .sort-icon {
+    opacity: 1;
+}
+
+tbody td {
+    padding: 0.45em 0.5em;
+    text-align: center;
+    box-shadow: inset 0 -1px 0 var(--color-border);
+    white-space: nowrap;
+}
+
+/* mountMFTable wrapper — self-contained visual + scroll + alignment, matching
+   the lab canon (lab.css `.mf-wrap`). Outer wrappers (.pg-leagues-table-wrapper,
+   .pg-matches-table-wrapper, .matchup-table-wrapper) are plain layout containers
+   so the show-more button sits OUTSIDE the card. */
+.mf-wrap {
+    overflow-x: auto;
+    overflow-y: clip;
+    min-width: 0;
+    box-shadow: var(--shadow-sm);
+}
+.mf-wrap thead th,
+.mf-wrap tbody td {
+    text-align: left;
+}
+
+/* ---- League table (D): font enum + sticky left 2 cols (Rank + Player) ----
+   Iron rule 1/12: no hard-coded widths. Cols size by max-content.
+   Iron rule 12: col-2 left offset comes from JS-measured CSS variable
+   --sticky-col-1-width (set on .table-scroll by measureLeagueStickyCols).
+   The 36px fallback is a one-frame seed before JS runs.
+   Iron rule 7: content aligned left. */
+#leagueTable thead th,
+#leagueTable tbody td {
+    text-align: left;
+}
+
+#leagueTable thead th:nth-child(1),
+#leagueTable thead th:nth-child(2) {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+}
+#leagueTable thead th:nth-child(2) {
+    left: var(--sticky-col-1-width, 36px);
+}
+
+#leagueTable tbody td:nth-child(1),
+#leagueTable tbody td:nth-child(2) {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--color-surface);
+}
+#leagueTable tbody td:nth-child(2) {
+    left: var(--sticky-col-1-width, 36px);
+}
+#leagueTable tbody tr:hover td:nth-child(1),
+#leagueTable tbody tr:hover td:nth-child(2) {
+    background: var(--color-hover);
+}
+
+/* Medal row tints on sticky cells */
+#leagueTable tbody tr.rank-gold td:nth-child(1),
+#leagueTable tbody tr.rank-gold td:nth-child(2) { background: var(--color-gold-bg); }
+#leagueTable tbody tr.rank-silver td:nth-child(1),
+#leagueTable tbody tr.rank-silver td:nth-child(2) { background: var(--color-silver-bg); }
+#leagueTable tbody tr.rank-bronze td:nth-child(1),
+#leagueTable tbody tr.rank-bronze td:nth-child(2) { background: var(--color-bronze-bg); }
+
+#leagueTable tbody tr.rank-gold:hover td:nth-child(1),
+#leagueTable tbody tr.rank-gold:hover td:nth-child(2) { background: var(--color-gold-bg-hover); }
+#leagueTable tbody tr.rank-silver:hover td:nth-child(1),
+#leagueTable tbody tr.rank-silver:hover td:nth-child(2) { background: var(--color-silver-bg-hover); }
+#leagueTable tbody tr.rank-bronze:hover td:nth-child(1),
+#leagueTable tbody tr.rank-bronze:hover td:nth-child(2) { background: var(--color-bronze-bg-hover); }
+
+#leagueTable tr.avg-row td:nth-child(1),
+#leagueTable tr.avg-row td:nth-child(2) {
+    background: var(--color-avg-bg) !important;
+}
+#leagueTable tr.avg-row td:first-child {
+    left: 0;
+    z-index: 3;
+}
+
+/* Sticky boundary drop-shadow on col 2 (Player) right edge — Google-style cue.
+   Visible ONLY when `.table-scroll` has `.is-scrolled-x` (added by stickyShadow.js
+   when scrollLeft > 0). In static state no vertical separator is visible. */
+.is-scrolled-x #leagueTable thead th:nth-child(2) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.is-scrolled-x #leagueTable tbody td:nth-child(2) {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.is-scrolled-x #leagueTable tbody tr:last-child td:nth-child(2) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+
+/* ---- Player table (E): font enum + sticky left col (Opponent only) ----
+   Iron rule 1/12: no hard-coded widths — single sticky col uses
+   `position: sticky; left: 0;` directly with content-based width.
+   Iron rule 7: content aligned left. */
+#playerTable thead th,
+#playerTable tbody td {
+    text-align: left;
+}
+
+#playerTable thead th:nth-child(1) {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+}
+#playerTable tbody td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--color-surface);
+}
+#playerTable tbody tr:hover td:nth-child(1) {
+    background: var(--color-hover);
+}
+#playerTable tr.avg-row td:nth-child(1) {
+    background: var(--color-avg-bg);
+}
+#playerTable tbody tr.unplayed td:nth-child(1) {
+    background: var(--color-unplayed-bg);
+}
+
+/* Sticky boundary drop-shadow on col 1 (Opponent) — visible ONLY when
+   `.table-scroll` has `.is-scrolled-x`. Static state: no separator. */
+.is-scrolled-x #playerTable thead th:nth-child(1) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.is-scrolled-x #playerTable tbody td:nth-child(1) {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.is-scrolled-x #playerTable tbody tr:last-child td:nth-child(1) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+
+tbody tr:hover {
+    background: var(--color-hover);
+    transition: background 0.1s;
+}
+
+tbody tr:last-child td {
+    box-shadow: none;
+}
+
+/* Player name cell.
+   `league-cell` (the clickable League column in C1/C2 on player-general)
+   shares this exact treatment so every clickable link cell on those tables
+   reads like the OPPONENT cell: semibold text, quiet link (text colour,
+   no underline), accent on hover. See docs/TABLE-DESIGN.md §"Clickable link
+   cells in C1/C2". */
+td.player-cell,
+td.league-cell {
+    text-align: left;
+    font-weight: 600;
+}
+
+td.player-cell a,
+td.league-cell a {
+    color: var(--color-text);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+td.player-cell a:hover,
+td.league-cell a:hover {
+    color: var(--color-accent);
+}
+
+/* ---- Flags ────────────────────────────────────────────────────
+   Mirrors the canonical .flag rule in table-lab/formats/base/base.css.
+   em-based: flag height tracks the surrounding font, so it scales with
+   any fluid font token (--fs-093, --fs-085, etc.) without ratio drift.
+   image-rendering:auto is explicit — overrides any inherited
+   `crisp-edges`/`pixelated` that legacy CSS elsewhere might have set. */
+.flag {
+    height: 1em;
+    width: auto;
+    margin-right: 0.3em;
+    object-fit: contain;
+    border-radius: 0.15em;
+    vertical-align: middle;
+    image-rendering: auto;
+}
+
+.flag-title {
+    height: 24px;
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+/* ---- Medal badges ---- */
+.medal {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    line-height: 1;
+    border-radius: var(--radius-full);
+    font-size: var(--fs-072);
+    font-weight: 700;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.medal-gold {
+    background: var(--color-gold);
+    color: var(--color-gold-text);
+}
+
+.medal-silver {
+    background: var(--color-silver);
+    color: var(--color-silver-text);
+}
+
+.medal-bronze {
+    background: var(--color-bronze);
+    color: var(--color-bronze-text, #fff);
+}
+
+/* Row medal highlights */
+tr.rank-gold { background: var(--color-gold-bg); }
+tr.rank-silver { background: var(--color-silver-bg); }
+tr.rank-bronze { background: var(--color-bronze-bg); }
+
+tr.rank-gold:hover { background: var(--color-gold-bg-hover); }
+tr.rank-silver:hover { background: var(--color-silver-bg-hover); }
+tr.rank-bronze:hover { background: var(--color-bronze-bg-hover); }
+
+/* ---- Status pills ---- */
+/* Unified pill sizing (mirrors the v2 Pill primitive: em-based padding so the
+   pill scales with its inherited font-size, one fluid font token shared with
+   .league-type-pill, line-height 1.5). .status-pill and .league-type-pill are
+   the same size; .league-type-pill only adds uppercase. */
+.status-pill {
+    display: inline-block;
+    padding: 0.2em 0.85em;
+    border-radius: var(--radius-full);
+    font-size: var(--fs-085);
+    font-weight: 600;
+    line-height: 1.5;
+    letter-spacing: 0.02em;
+}
+
+.status-running {
+    background: var(--color-running-bg);
+    color: var(--color-running);
+}
+
+.status-completed {
+    background: var(--color-completed-bg);
+    color: var(--color-completed);
+}
+
+/* ---- League-type pill (unified: Main Dashboard, Player General, Admin) ---- */
+.league-type-pill {
+    display: inline-block;
+    padding: 0.2em 0.85em;
+    font-size: var(--fs-085);
+    font-weight: 600;
+    border-radius: var(--radius-full);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1.5;
+}
+.league-type-pill.type-doubling {
+    background: var(--lt-doubling-bg);
+    color: var(--lt-doubling-text);
+}
+.league-type-pill.type-regular {
+    background: var(--lt-regular-bg);
+    color: var(--lt-regular-text);
+}
+.league-type-pill.type-ubc {
+    background: var(--lt-ubc-bg);
+    color: var(--lt-ubc-text);
+}
+/* "All" — not a league type; the type-agnostic pill used by filter bars. */
+.league-type-pill.type-all {
+    background: var(--lt-all-bg);
+    color: var(--lt-all-text);
+}
+
+/* ---- Average / Stats rows ---- */
+:root {
+    --stat-row-height: 36px;
+}
+
+tr.avg-row {
+    background: var(--color-avg-bg) !important;
+    font-weight: 700;
+}
+
+tr.avg-row td {
+    background: var(--color-avg-bg);
+    border-top: 2px solid var(--color-avg-border);
+    box-shadow: none;
+    padding: var(--space-sm) var(--space-md);
+}
+
+tr.stat-row {
+    background: var(--color-surface) !important;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+}
+
+tr.stat-row td {
+    background: var(--color-surface);
+    padding: var(--space-sm) var(--space-md);
+    color: var(--color-text-secondary);
+    font-size: var(--fs-088);
+    box-shadow: none;
+}
+
+.last-updated {
+    font-size: var(--fs-082);
+    color: var(--color-text-muted);
+    margin-top: var(--space-xs);
+}
+
+.games-played {
+    font-size: var(--fs-095);
+    color: var(--color-text-secondary);
+    font-weight: 600;
+    margin-top: var(--space-xs);
+}
+
+/* ---- Result badges ---- */
+.result-win {
+    color: var(--color-win);
+    font-weight: 700;
+}
+
+.result-loss {
+    color: var(--color-loss);
+    font-weight: 700;
+}
+
+.result-draw {
+    color: var(--color-draw);
+    font-weight: 600;
+}
+
+/* Unplayed rows (league table: no games; player table: not yet played) */
+tr.unplayed {
+    color: var(--color-text-muted);
+    background: var(--color-unplayed-bg);
+}
+
+tr.unplayed td {
+    font-style: italic;
+}
+
+tr.unplayed td.player-cell {
+    font-style: italic;
+}
+
+tr.unplayed td.player-cell a {
+    color: var(--color-text-muted);
+}
+
+/* ---- Retired players ---- */
+tr.retired {
+    opacity: 0.6;
+}
+
+.player-hidden {
+    font-style: italic;
+    color: var(--color-text-muted);
+    font-weight: 400;
+}
+
+.retired-mark {
+    font-size: var(--fs-085);
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.retired-badge {
+    display: inline-block;
+    background: var(--color-completed-bg);
+    color: var(--color-completed);
+    font-size: var(--fs-075);
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+/* ---- Title abbreviation badges (inline, in tables) ----
+   Shared atom (Group B) — the canonical home for `.title-abbr*`, consumed by
+   the league/dashboard/player tables and the table/design labs. Player SEARCHES
+   render the SAME markup (getTitleAbbreviationsHtml, js/data/titleConstants.js);
+   because admin.html loads search-overlay.css but NOT this file, an identical
+   copy of these rules lives there too (see the note in search-overlay.css) so
+   admin comboboxes get styled badges. Keep the two copies in sync.
+
+   "Mix G" style (Player Page Lab):
+     • BMAB (non-champ) → outlined pill, transparent body, tier-coloured border + text
+     • Championship    → gradient pill with diagonal shine, tier-coloured background
+
+   BOTH variants share the SAME padding (0.12em 0.5em). BMAB's "border" is
+   drawn with an inset box-shadow rather than a real `border` so it doesn't
+   take up layout space — otherwise the fixed-pixel border adds a
+   disproportionate offset at small font-sizes (where 1.5px is a larger
+   fraction of the em) and visibly oversizes BMAB pills compared with
+   the champion pills next to them.
+*/
+.title-abbr {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1em;
+    font-weight: 900;
+    padding: 0.12em 0.5em;
+    border-radius: 0.25em;
+    border: none;
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px currentColor;  /* fake border, zero layout impact */
+    margin-left: 0.5em;
+    vertical-align: text-bottom;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    min-width: 1.4em;
+}
+.title-abbr + .title-abbr { margin-left: 0.25em; }
+
+.title-abbr-gold   { color: #d4a942; }
+.title-abbr-silver { color: #94a3b8; }
+.title-abbr-bronze { color: #b45309; }
+.title-abbr-white  { color: #94a3b8; }
+
+/* Championship badges — gradient pill with diagonal shine.
+   Same padding as BMAB; the box-shadow "border" is removed since the
+   gradient itself defines the shape. The badge sits in its own
+   stacking context so the caption stays crisply above the ::before
+   shine overlay. */
+.title-abbr-champ {
+    box-shadow: none;
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.18);
+}
+.title-abbr-champ::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.45), transparent 55%);
+    pointer-events: none;
+    z-index: -1;
+}
+.title-abbr-champ.title-abbr-gold {
+    background: linear-gradient(135deg, #fbbf24, #b45309);
+    color: #1a1305;
+}
+.title-abbr-champ.title-abbr-silver {
+    background: linear-gradient(135deg, #cbd5e1, #64748b);
+    color: #1e293b;
+}
+.title-abbr-champ.title-abbr-bronze {
+    background: linear-gradient(135deg, #f59e0b, #92400e);
+    color: #fff;
+}
+.title-abbr-champ.title-abbr-white {
+    background: linear-gradient(135deg, #f8fafc, #cbd5e1);
+    color: #475569;
+}
+
+/* ---- Landing table specific ---- */
+.landing-table td {
+    padding: var(--space-sm) var(--space-lg);
+}
+
+.landing-table a {
+    color: var(--color-text);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.15s;
+}
+
+.landing-table a:hover {
+    color: var(--color-accent);
+}
+
+/* ---- Level cell ---- */
+.level-cell {
+    letter-spacing: 0.03em;
+}
+
+/* ---- Color scale filter (theme adaptation for inline colors) ---- */
+.color-scaled {
+    filter: var(--color-scale-filter);
+}
+
+/* ============================================================
+ * MOBILE MATRIX COMPRESSION (≤640px) — Step 6.6
+ * ------------------------------------------------------------
+ * Tables remain matrix layout (rows × columns), fit full page
+ * width without horizontal scroll by default. Sticky Rank +
+ * Player engages only when overflow occurs (zoom-in). Pattern
+ * mirrors Championship Predictor table which user approved.
+ * ============================================================ */
+
+/* Dual-label pattern for abbreviated headers (full vs. abbr) */
+.th-abbr { display: none; }
+
+@media (max-width: 640px) {
+    /* Show abbreviated label on mobile, hide full */
+    .th-full { display: none; }
+    .th-abbr { display: inline; }
+
+    /* Matrix compression — small font, minimal padding.
+       Excluded from this @media font-size/width override (per iron rules 3/10):
+         A1 (.completed-leagues-table) — font-size is user-controlled.
+         .dash-table, .pg-rank-table, .pg-matches-table — font enum per-table.
+         #leagueTable (Table D) — owns .font-small enum.
+         #playerTable (Table E) — owns .font-small enum. */
+    .pg-mr-table {
+        font-size: var(--fs-065);
+        width: 100%;
+        table-layout: auto;
+    }
+    .pg-mr-table thead th {
+        padding: 0.3em 0.2em;
+        font-size: var(--fs-065);
+        white-space: nowrap;
+    }
+    .pg-mr-table tbody td {
+        padding: 0.2em 0.3em;
+        white-space: nowrap;
+    }
+
+    /* Smaller medals on mobile.
+       Flag mobile override removed 2026-06-04 — the canonical
+       em-based .flag rule above scales automatically with the
+       mobile font drop, so the explicit px override is redundant
+       (and would actually conflict with the em scaling). */
+    .medal {
+        width: 14px;
+        height: 14px;
+        line-height: 1;
+        font-size: var(--fs-060);
+    }
+    .retired-mark, .retired-badge {
+        font-size: var(--fs-065);
+        margin-left: 2px;
+    }
+}
+
+/* ---- Matchup sub-section (General Player Card G5) ---- */
+.matchup-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-md) 0 6px;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 12px;
+    transition: background 0.12s;
+}
+
+.matchup-arrow {
+    display: inline-block;
+    font-size: var(--fs-085);
+    color: var(--color-text-muted);
+    transition: transform 0.2s;
+}
+.matchup-arrow.open { transform: rotate(90deg); }
+
+.matchup-title {
+    font-size: var(--fs-125);
+    font-weight: 700;
+    color: var(--color-text);
+}
+.matchup-hint {
+    font-size: 0.8em;
+    color: var(--color-text-muted);
+    font-weight: 400;
+}
+
+.matchup-body { padding: var(--space-sm) var(--space-md) var(--space-md); }
+
+.matchup-selector-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+    flex-wrap: nowrap;
+    width: 50%;
+}
+.matchup-selector-label {
+    font-size: var(--fs-085);
+    font-weight: 700;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+}
+.matchup-search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+/* Layout only — the box (padding, border, colours, focus) is canonical in
+   .app-search-input (layout.css). This used to restate it as 7px/12px with a
+   1.5px border, which is why the same field looked different here than in the
+   dashboard. */
+.matchup-search-input {
+    width: 100%;
+}
+/* The H2H opponent list itself is the canonical combobox now
+   (.app-combo-dropdown in layout.css) — the hand-rolled
+   .matchup-search-dropdown/-option/-empty rules that used to live here are
+   gone with it. Only the wrap + input styling below remains local. */
+
+.matchup-count-badge {
+    display: block;
+    width: fit-content;
+    font-size: var(--fs-075);
+    color: var(--color-text-muted);
+    background: var(--color-bg);
+    padding: 3px 8px;
+    margin-bottom: var(--space-md);
+    border-radius: var(--radius-full);
+    font-weight: 600;
+    white-space: nowrap;
+}
+.matchup-count-badge[hidden] { display: none; }
+
+.matchup-table-wrapper {
+    /* plain layout container — card visual lives on inner .mf-wrap */
+}
+
+table.matchup-table {
+    --mu-col1-w: 88px;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+/* Font-size inherits from table.font-small (= var(--fs-085)) — unified slope family.
+   Padding stays em-based so it scales proportionally with the fluid font-size. */
+table.matchup-table thead th {
+    background: var(--header-bg);
+    color: var(--header-text);
+    padding: 0.45em var(--space-md);
+    font-weight: 600;
+    text-align: left;
+    white-space: nowrap;
+    position: relative;
+}
+table.matchup-table tbody td {
+    padding: 0.45em var(--space-md);
+    text-align: left;
+    box-shadow: inset 0 -1px 0 var(--color-border);
+    white-space: nowrap;
+    background: var(--color-surface);
+    position: relative;
+}
+table.matchup-table tbody tr:last-child td { box-shadow: none; }
+table.matchup-table tbody tr:hover td { background: var(--color-hover); }
+
+/* Sticky DATE (col 1) + LEAGUE (col 2) */
+table.matchup-table thead th:nth-child(1),
+table.matchup-table tbody  td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    min-width: 88px;
+}
+table.matchup-table thead th:nth-child(2),
+table.matchup-table tbody  td:nth-child(2) {
+    position: sticky;
+    left: var(--mu-col1-w);
+    z-index: 2;
+    min-width: 150px;
+}
+table.matchup-table thead th:nth-child(1),
+table.matchup-table thead th:nth-child(2) { z-index: 3; }
+
+/* Shadow divider after sticky col 2 */
+table.matchup-table tbody td:nth-child(2)::after {
+    content: '';
+    position: absolute;
+    right: -5px;
+    top: 0; bottom: 0;
+    width: 5px;
+    background: linear-gradient(to right, rgba(0,0,0,0.06), transparent);
+    pointer-events: none;
+    z-index: 1;
+}
+table.matchup-table tbody tr:hover td:nth-child(1),
+table.matchup-table tbody tr:hover td:nth-child(2) { background: var(--color-hover); }
+
+/* League links — match pg-matches-table style.
+   font-weight: 600 keeps this link cell uniform with every other clickable
+   link cell (see the single link-cell weight contract in docs/TABLE-DESIGN.md). */
+table.matchup-table a,
+table.matchup-table a:visited {
+    color: var(--color-text);
+    font-weight: 600;
+    text-decoration: none;
+}
+table.matchup-table a:hover {
+    color: var(--color-accent);
+    text-decoration: underline;
+}
+
+/* PR / Luck emphasis */
+.matchup-pr-best   { font-weight: 700; }
+.matchup-pr-other  { color: var(--color-text-muted); }
+.matchup-luck-best { font-weight: 700; }
+.matchup-luck-other{ color: var(--color-text-muted); }
+
+/* Winner cell */
+.matchup-winner-win  { color: var(--color-win);  font-weight: 600; }
+.matchup-winner-loss { color: var(--color-loss); font-weight: 600; }
+
+/* Empty / no-match state */
+.matchup-empty {
+    padding: var(--space-lg);
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: var(--fs-085);
+    background: var(--color-bg);
+    border-radius: var(--radius-sm);
+    border: 1px dashed var(--color-border);
+    line-height: 1.6;
+}
+.matchup-empty strong {
+    display: block;
+    color: var(--color-text-secondary);
+    margin-bottom: 4px;
+    font-size: var(--fs-090);
+}
+
+/* ---- C4: All Opponents aggregate table (H2H bottom section) ---- */
+.c4-table-wrapper {
+    /* plain layout container — card visual lives on inner .mf-wrap */
+}
+/* Clickable opponent name (sticky col 1) — flag + name, links to the C3 detail above. */
+.c4-opp-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: var(--color-text);
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+}
+.c4-opp-link:hover .c4-opp-name {
+    color: var(--color-accent);
+    text-decoration: underline;
+}
+.c4-opp-link:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+/* Win% — slightly more prominent, mirroring the Luck Percentile right column. */
+.c4-winrate { font-weight: 600; }
+
+/* Show-all button */
+.matchup-footer { display: flex; justify-content: center; padding: var(--space-md) 0 0; }
+.matchup-show-all-btn {
+    padding: 6px 20px;
+    font-size: var(--fs-078);
+    font-weight: 700;
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: background 0.12s;
+}
+.matchup-show-all-btn:hover { background: var(--color-border); color: var(--color-text); }
+
+/* ---- Matchup — mobile (≤640px) ---- */
+@media (max-width: 640px) {
+    /* Header: flush with section title */
+    .matchup-header {
+        padding: var(--space-sm) 0 6px;
+    }
+    /* Body: remove side padding so table can full-bleed */
+    .matchup-body {
+        padding: var(--space-xs) 0 var(--space-md);
+    }
+
+    /* Selector row: minor compact adjustments on mobile (width handled by 50% base) */
+    .matchup-selector-row {
+        padding: 0 var(--space-xs);
+        gap: 6px;
+        margin-bottom: var(--space-sm);
+    }
+    .matchup-search-wrap {
+        flex: 1;
+        min-width: 0;
+    }
+    .matchup-count-badge {
+        align-self: flex-start;
+        font-size: var(--fs-070);
+    }
+
+    /* Table: horizontal scroll only — font + padding are fluid (no hard override) */
+    table.matchup-table {
+        min-width: max-content;
+    }
+    table.matchup-table .pg-lt {
+        font-size: var(--fs-055);
+        padding: 1px 4px;
+    }
+
+    /* Sticky col widths: tighter (mirror --pg-date-w: 62px / --pg-col1-w: 110px) */
+    table.matchup-table thead th:nth-child(1),
+    table.matchup-table tbody  td:nth-child(1) {
+        min-width: 62px;
+    }
+    table.matchup-table thead th:nth-child(2),
+    table.matchup-table tbody  td:nth-child(2) {
+        min-width: 90px;
+        /* left is var(--mu-col1-w) — JS measures col-1 and updates the variable */
+    }
+
+    /* Table wrapper: full-bleed edge-to-edge */
+    .matchup-table-wrapper {
+        border-left: none;
+        border-right: none;
+        border-radius: 0;
+    }
+
+    /* Empty state: compact */
+    .matchup-empty {
+        padding: var(--space-md);
+        font-size: var(--fs-078);
+        border-left: none;
+        border-right: none;
+        border-radius: 0;
+    }
+    .matchup-empty strong { font-size: var(--fs-082); }
+
+    .matchup-show-all-btn { font-size: var(--fs-072); }
+}
+
+/* ============================================================
+   Bar chart (shared by dashboard F4 and player-general G5)
+   ============================================================ */
+
+.chart-panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    margin-bottom: var(--space-md);
+    box-shadow: var(--shadow-sm);
+    position: relative;
+}
+
+.chart-host {
+    position: relative;
+}
+
+.bar-chart-canvas {
+    display: block;
+    background: var(--color-inset);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.chart-info-panel {
+    margin-top: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-inset);
+    border: 1px solid var(--popover-border-color);
+    border-radius: var(--popover-radius);
+    font-family: var(--font-main);
+    font-size: var(--fs-085);
+    line-height: 1.4;
+    color: var(--color-text);
+    min-height: 56px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+}
+.chart-info-panel .cip-title {
+    font-weight: 600;
+    color: var(--color-text);
+}
+.chart-info-panel .cip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+}
+.chart-info-panel .cip-item {
+    display: inline-flex;
+    gap: 6px;
+    align-items: baseline;
+}
+.chart-info-panel .cip-k {
+    color: var(--color-text-muted);
+    font-size: var(--fs-078);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.chart-info-panel .cip-v {
+    font-weight: 600;
+}
+.chart-info-panel .chart-info-placeholder {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+/* ---- Global hover tooltip (js/render/tooltip.js) ----
+   One themed popup that replaces native [title] tooltips everywhere. Shares the
+   visual language of .player-context-menu: themed surface + border + shadow. */
+.app-tooltip {
+    position: fixed;
+    z-index: 1100;
+    background: var(--popover-bg);
+    color: var(--color-text);
+    border: 1px solid var(--popover-border-color);
+    border-radius: var(--popover-radius);
+    box-shadow: var(--popover-shadow);
+    /* font-small + em padding → the box scales with the viewport (fluid token
+       drives both the text and, via em, the padding). */
+    font-size: var(--fs-085);
+    padding: 0.4em 0.7em;
+    line-height: 1.4;
+    /* Shrink-to-fit, so a short hint still renders on one line — but bounded,
+       so a long one (e.g. a player holding five championships) wraps instead of
+       running off a phone screen. */
+    max-width: min(88vw, 30em);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-2px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.app-tooltip--visible {
+    opacity: 1;
+    transform: translateY(0);
+}

@@ -27,7 +27,7 @@ import { chromium } from 'playwright';
 import { writeFile } from 'node:fs/promises';
 
 const args0 = process.argv.slice(2);
-const BASE_URL = (args0.find((a) => a.startsWith('--base-url=')) || '--base-url=https://golan.me.uk').split('=')[1];
+const BASE_URL = (args0.find((a) => a.startsWith('--base-url=')) || '--base-url=https://golan.me.uk/shabi-israel').split('=')[1];
 const SUPABASE_HOST = (args0.find((a) => a.startsWith('--supabase-host=')) || '--supabase-host=oaowwbwssfsohaskrgnc.supabase.co').split('=')[1];
 
 const LEAGUE_ID = 'Shabi Israel June 2026';

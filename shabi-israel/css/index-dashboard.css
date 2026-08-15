@@ -1,0 +1,1350 @@
+/* index-dashboard.css — Index page dashboard styles (Phase H) */
+
+/* H4 — Info cards row */
+.index-info-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+}
+
+/* A1 stat cards: nested inside the white hero, so they get the inset well tone —
+   now via the shared nested-card rule in sections.css (which lists
+   `.index-info-cards .dash-card`). The dashboard's own .dash-card sits on the
+   page bg and keeps --color-surface, so it is intentionally NOT in that list. */
+
+/* H3 — Player search */
+.index-search {
+    margin-bottom: var(--space-xl);
+    position: relative;
+    max-width: 500px;
+}
+
+.index-search-input {
+    width: 100%;
+    padding: 12px 16px 12px 40px;
+    font-size: var(--fs-100);
+    font-family: var(--font-main);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: var(--shadow-sm);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    box-sizing: border-box;
+}
+
+.index-search-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.index-search-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-text-muted);
+    font-size: var(--fs-100);
+    pointer-events: none;
+}
+
+.index-search-results {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    z-index: 100;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.index-search-results li {
+    padding: 0;
+}
+
+.index-search-results a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px var(--space-md);
+    color: var(--color-text);
+    text-decoration: none;
+    gap: var(--space-sm);
+}
+
+.index-search-results a:hover {
+    background: var(--color-hover);
+}
+
+.index-search-results .search-player-name {
+    font-weight: 600;
+}
+
+.index-search-results .search-league-hint {
+    font-size: var(--fs-078);
+    color: var(--color-text-muted);
+    margin-left: auto;
+}
+
+.index-search-results .search-empty {
+    padding: 12px var(--space-md);
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+/* H1 — Active league cards (horizontal scroll) */
+.active-leagues-wrapper {
+    position: relative;
+    /* No extra bottom margin — the cards' bottom gap comes only from the
+       section card's padding, exactly like the A1 (Completed Leagues) table,
+       whose .mf-wrap has --mf-mb:0. (The grid keeps a small padding-bottom for
+       the horizontal scrollbar / card hover-shadow clearance.) */
+    margin-bottom: 0;
+}
+
+.active-leagues-grid {
+    display: flex;
+    gap: var(--space-md);
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    padding-bottom: var(--space-xs);
+    -ms-overflow-style: none;
+    scrollbar-width: thin;
+}
+
+.league-card {
+    /* background + border + border-radius come from the shared nested-card rule
+       in sections.css — do not re-declare here. */
+    padding: var(--space-md) var(--space-lg);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.15s, transform 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    flex: 0 0 280px;
+    min-width: 280px;
+}
+
+.league-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.league-card-title {
+    font-size: var(--fs-105);
+    font-weight: 700;
+}
+
+.league-card-title a {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.league-card-title a:hover {
+    text-decoration: underline;
+}
+
+.league-card-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: var(--fs-090);
+    color: var(--color-text-secondary);
+}
+
+.league-card-leader {
+    font-size: var(--fs-090);
+    color: var(--color-text-secondary);
+}
+
+.league-card-leader .flag {
+    height: 16px;
+    vertical-align: middle;
+    margin-right: 4px;
+    object-fit: cover;
+}
+
+.league-card-leader strong {
+    color: var(--color-text);
+}
+
+.league-card-leader .player-name-link {
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.completed-leagues-table .player-name-link {
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+/* League type pill — unified rule lives in components.css (.league-type-pill) */
+
+/* Scroll arrows for active leagues */
+.scroll-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    font-size: var(--fs-140);
+    line-height: 34px;
+    text-align: center;
+    box-shadow: var(--shadow-sm);
+    color: var(--color-text);
+    transition: background 0.15s;
+}
+
+.scroll-arrow:hover {
+    background: var(--color-hover);
+}
+
+.scroll-arrow-left {
+    left: -18px;
+}
+
+.scroll-arrow-right {
+    right: -18px;
+}
+
+/* Collapsible section chrome now lives in the shared css/sections.css +
+   sectionCollapse.js (.app-section-h2.is-collapsible / .app-section.is-collapsed). */
+
+/* H2 — Leaderboard tables. Section frame + heading come from the shared
+   css/sections.css (.app-section / .app-section-h2); no overrides here. */
+
+/* Leaderboard header row with PDF buttons */
+.leaderboard-header-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+.leaderboard-header-row h2 {
+    margin-bottom: 0;
+}
+
+.pdf-export-group {
+    display: flex;
+    gap: var(--space-xs);
+    margin-left: auto;
+}
+
+.pdf-export-btn {
+    font-size: var(--fs-078);
+    padding: 4px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+
+.pdf-export-btn:hover {
+    background: var(--color-hover);
+}
+
+.leaderboard-table-wrapper {
+    overflow-x: auto;
+    max-width: 100%;
+    min-width: 0;
+    margin-bottom: var(--space-xl);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Completed leagues table wrapper — MF-compliant: overflow-x only, box-shadow
+   on wrapper (not table), no border-radius, no vertical scroll cap.
+   Row visibility is controlled by .table-row-hidden (Show Top N mechanism). */
+.completed-table-wrapper {
+    overflow-x: auto;
+    margin-bottom: var(--space-lg);
+    max-width: 100%;
+    min-width: 0;
+    box-shadow: var(--shadow-sm);
+}
+
+/* font-size comes from `.font-large` / `.font-small` on the <table>
+   (see components.css). No font-size here or in media queries. */
+/* Mirror Table D's structure: no table-level drop-shadow, no per-cell
+   default background — opaque background is applied to sticky cells only.
+   This is what makes D's bottom hairline "stitch" seamlessly across the
+   sticky/non-sticky boundary; A2 now uses the same pattern. */
+.leaderboard-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--color-inset);
+    color: var(--color-text);
+}
+
+.leaderboard-table th,
+.leaderboard-table td {
+    padding: 0.45em 0.5em;
+    box-shadow: inset 0 -1px 0 var(--color-border);
+    text-align: left;
+    white-space: nowrap;
+    font-size: inherit;
+}
+
+.leaderboard-table tbody tr:last-child td {
+    box-shadow: none;
+}
+
+.leaderboard-table th {
+    background: var(--header-bg, #1e293b);
+    color: var(--header-text, #fff);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+
+
+.leaderboard-table td.player-cell .flag {
+    height: 1em;
+    vertical-align: middle;
+    margin-right: 0.3em;
+    object-fit: cover;
+}
+
+
+.leaderboard-table td.month-col {
+    color: var(--color-text-secondary);
+}
+
+.leaderboard-table th.total-col,
+.leaderboard-table td.total-col {
+    font-weight: 700;
+}
+
+
+/* Sticky first two columns (rank + player).
+   Col-2 offset is a JS-measured CSS variable — no hard-coded px.
+   Opaque background only on sticky cells (mirrors D), so non-sticky
+   content does not leak through during horizontal scroll. */
+.leaderboard-table tbody td:first-child,
+.leaderboard-table tbody td:nth-child(2) {
+    position: sticky;
+    z-index: 2;
+    background: var(--color-inset);
+}
+.leaderboard-table thead th:first-child,
+.leaderboard-table thead th:nth-child(2) {
+    position: sticky;
+    z-index: 4;
+}
+.leaderboard-table tbody td:first-child,
+.leaderboard-table thead th:first-child { left: 0; }
+.leaderboard-table tbody td:nth-child(2),
+.leaderboard-table thead th:nth-child(2) { left: var(--sticky-col-1-width, 0); }
+
+/* Sticky boundary drop-shadow on col 2 right edge — Google-style cue.
+   Visible ONLY when wrapper has `.is-scrolled-x`. The bottom hairline
+   (inset 0 -1px 0) is always kept by re-declaring it on both branches. */
+.leaderboard-table thead th:nth-child(2) {
+    box-shadow: inset 0 -1px 0 var(--color-border);
+}
+.is-scrolled-x .leaderboard-table thead th:nth-child(2) {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.is-scrolled-x .leaderboard-table tbody td:nth-child(2) {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.is-scrolled-x .leaderboard-table tbody tr:last-child td:nth-child(2) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+
+/* Medal row tints — applied uniformly to ALL cells (sticky included)
+   so the row reads as a single solid color, matching D's behavior.
+   Non-sticky cells inherit via the global `tr.rank-* { background }`
+   in components.css (transparent td shows tr); sticky cells need an
+   explicit override here because they have their own opaque bg. */
+.leaderboard-table tbody tr.rank-gold td:first-child,
+.leaderboard-table tbody tr.rank-gold td:nth-child(2) { background: var(--color-gold-bg); }
+.leaderboard-table tbody tr.rank-silver td:first-child,
+.leaderboard-table tbody tr.rank-silver td:nth-child(2) { background: var(--color-silver-bg); }
+.leaderboard-table tbody tr.rank-bronze td:first-child,
+.leaderboard-table tbody tr.rank-bronze td:nth-child(2) { background: var(--color-bronze-bg); }
+
+.leaderboard-table tr:hover td { background: var(--color-hover); }
+.leaderboard-table tbody tr.rank-gold:hover td   { background: var(--color-gold-bg-hover); }
+.leaderboard-table tbody tr.rank-silver:hover td { background: var(--color-silver-bg-hover); }
+.leaderboard-table tbody tr.rank-bronze:hover td { background: var(--color-bronze-bg-hover); }
+
+/* Completed leagues table (compact).
+   NOTE: no `overflow: hidden` on the table itself — it would become the
+   sticky scroll ancestor and break left-column sticky. Rounded corners +
+   clipping live on the wrapper below.
+   font-size comes from the global `.font-large` / `.font-small` class
+   attached on the <table> element (see components.css). */
+.completed-leagues-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--color-inset);
+    color: var(--color-text);
+}
+
+/* Bottom hairline mechanism mirrors Table D (#leagueTable):
+   inset box-shadow on every cell. Sticky overrides never re-declare it,
+   so the line stitches across the sticky/non-sticky boundary seamlessly. */
+.completed-leagues-table th,
+.completed-leagues-table td {
+    padding: 0.45em 0.5em;
+    box-shadow: inset 0 -1px 0 var(--color-border);
+    text-align: left;
+    white-space: nowrap;
+    font-size: inherit;
+}
+.completed-leagues-table tbody tr:last-child td {
+    box-shadow: none;
+}
+
+.completed-leagues-table th {
+    background: var(--header-bg, #1e293b);
+    color: var(--header-text, #fff);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+
+/* LEAGUE column: sticky left on both viewports.
+   Width derives from content (no hard-coded width).
+   Right-edge drop-shadow signals the sticky boundary during horizontal scroll —
+   appears ONLY when the wrapper has `.is-scrolled-x` (added by stickyShadow.js
+   when scrollLeft > 0). In static state no separator is visible. */
+.is-scrolled-x .completed-leagues-table thead th:first-child,
+.is-scrolled-x .completed-leagues-table tbody td:first-child {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.is-scrolled-x .completed-leagues-table tbody tr:last-child td:first-child {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.completed-leagues-table tbody td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--color-inset);
+}
+.completed-leagues-table tr:hover td {
+    background: var(--color-hover);
+}
+.completed-leagues-table thead th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    background: var(--header-bg, #1e293b);
+}
+
+/* font-weight: 600 keeps the League-title link uniform with every other
+   clickable link cell (see the single link-cell weight contract in
+   docs/TABLE-DESIGN.md). The Winner column already inherits 600 from
+   td.player-cell; this matches it. */
+.completed-leagues-table td a {
+    color: var(--color-text);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.completed-leagues-table td a:hover {
+    text-decoration: underline;
+}
+
+.completed-leagues-table .flag {
+    height: 1em;
+    vertical-align: middle;
+    margin-right: 0.3em;
+    object-fit: cover;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .index-search {
+        max-width: 100%;
+    }
+
+    .active-leagues-grid .league-card {
+        flex: 0 0 240px;
+        min-width: 240px;
+    }
+
+    .index-info-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .leaderboard-header-row {
+        flex-wrap: wrap;
+    }
+
+    .scroll-arrow-left { left: -12px; }
+    .scroll-arrow-right { right: -12px; }
+}
+
+/* ── Image export controls (Chunk 3 / NEW-1) ────────── */
+.img-export-group {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.img-export-label {
+    font-size: var(--fs-085);
+    color: var(--color-text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.img-export-rows {
+    width: 56px;
+    padding: 4px 6px;
+    font-size: var(--fs-085);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+/* NOTE: duplicate of components.css .img-export-btn (both load on index.html);
+   kept in sync — candidate for dedup. */
+.img-export-btn {
+    padding: 6px 12px;
+    font-size: var(--fs-085);
+    font-weight: 600;
+    background: var(--color-primary);
+    color: var(--color-primary-text);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.img-export-btn:hover { filter: brightness(1.1); }
+
+/* Completed leagues row tinting — applied per-td above to keep sticky and
+   non-sticky cells identical in color (iron rule 11). */
+
+/* ── Achievements + PR Leaders (Chunk 3 / NEW-4) ────── */
+/* The league-type switcher is now the shared pill sub-tabs (.subtab--pill in
+   css/subtabs.css, via mountPillTabs); .achv-panel is just the content panel. */
+.achv-panel.hidden { display: none; }
+
+.achv-tables-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: var(--space-md);
+}
+/* Merged Medals table — full-width row, above the metric cards (like Best PR Matches). */
+.achv-tables-grid > .achv-medals-card {
+    grid-column: 1 / -1;
+}
+/* Column spans are a DESKTOP-only concern. On mobile (≤640) every card is
+   1/-1 in a single-column grid; leaving any `span N` (N>1) active there makes
+   CSS Grid synthesise implicit columns, so `1/-1` items (Medals, Luck) end up
+   ~2 gaps narrower than `span 3` items (the 559 vs 543 bug). Scoping all spans
+   to ≥641 keeps the mobile grid truly 1-up and equal-width across every card. */
+@media (min-width: 641px) {
+    /* Metric cards (Avg Rank / Avg Win%) — share the row below Medals (50/50).
+       Excludes the full-width Medals + Luck cards. */
+    .achv-tables-grid > .achv-table-card:not(.achv-medals-card):not(.achv-luck-card) {
+        grid-column: span 3;
+    }
+    /* UBC adds a 3rd metric card (Avg PR Win) → 1/3 each. */
+    .achv-tables-grid.type-ubc > .achv-table-card:not(.achv-medals-card):not(.achv-luck-card) {
+        grid-column: span 2;
+    }
+    /* A4 PR Leaders — 2 cards side-by-side (50/50), matching Avg Rank / Avg Win Rate. */
+    .achv-tables-grid.pr-leaders-grid > .achv-table-card {
+        grid-column: span 3;
+    }
+}
+@media (max-width: 640px) {
+    .achv-tables-grid {
+        grid-template-columns: 1fr;
+    }
+    .achv-tables-grid > .achv-table-card {
+        grid-column: 1 / -1;
+    }
+}
+
+.achv-table-card {
+    /* background + border + border-radius come from the shared nested-card rule
+       in sections.css — do not re-declare here. */
+    padding: var(--space-md);
+    /* As a grid/flex item, default min-width:auto refuses to shrink below the
+       table's content width — a wide table (e.g. Medals) then blows the card
+       past its track and off-screen. min-width:0 lets the card match its track
+       so the inner .achv-table-wrapper scrolls horizontally instead. */
+    min-width: 0;
+}
+
+.achv-table-card h3 {
+    margin: 0 0 var(--space-sm) 0;
+    font-size: var(--fs-100);
+    color: var(--color-text);
+}
+
+.achv-table-wrapper {
+    max-height: 360px;
+    overflow-y: auto;
+    overflow-x: auto;
+    min-width: 0;
+}
+
+.achv-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+/* Flag inherits table cell font-size per iron rule 5 (no hard-coded px). */
+.achv-table .flag {
+    height: 1em;
+    vertical-align: middle;
+    margin-right: 0.3em;
+}
+
+.achv-table th,
+.achv-table td {
+    padding: 0.45em 0.5em;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.achv-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--color-surface);
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+/* Medals table (A3) — 🥇🥈🥉 column headers matched to the card's own
+   "Medals 🏅" title icon (.achv-table-card h3 uses the same --fs-100 token),
+   so both medal icons on this card read as the same visual size. */
+.achv-medals-card thead th:nth-child(3),
+.achv-medals-card thead th:nth-child(4),
+.achv-medals-card thead th:nth-child(5) {
+    font-size: var(--fs-100);
+}
+
+/* A4 PR Leaders — sticky rank col (iron rule 12: single sticky → left:0 directly, no JS) */
+.pr-leaders-table thead th:nth-child(1),
+.pr-leaders-table tbody td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+}
+.pr-leaders-table thead th:nth-child(1) {
+    z-index: 3;
+    background: var(--color-inset);
+}
+.pr-leaders-table tbody td:nth-child(1) {
+    background: var(--color-inset);
+}
+.pr-leaders-table tbody tr:hover td:nth-child(1) {
+    background: var(--color-hover);
+}
+
+/* A4 sticky-boundary drop-shadow on horizontal scroll — matches MF pattern.
+   Static state: no separator. Visible only when `.achv-table-wrapper` has
+   `.is-scrolled-x` (set by attachStickyShadow when scrollLeft > 0). */
+.achv-table-wrapper.is-scrolled-x .pr-leaders-table thead th:nth-child(1) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .pr-leaders-table tbody td:nth-child(1) {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .pr-leaders-table tbody tr:last-child td:nth-child(1) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+
+.achv-table .player-name-link {
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.match-records-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.match-records-stack .achv-table-card {
+    width: 100%;
+}
+
+/* ── Match Records: 3-col horizontal sticky (# | Player | Metric) ──
+   --mr-col1-w / --mr-col2-w are JS-measured on render and resize (Iron Rule 12).
+   Values below are CSS fallbacks only; JS overwrites them on the <table> element.
+   All 3 cols: no hard-coded width — browser sizes to max-content, JS reads actual px. */
+.match-records-table {
+    --mr-col1-w: 36px;
+    --mr-col2-w: 156px;
+}
+.match-records-table tbody td:nth-child(2),
+.match-records-table thead th:nth-child(3),
+.match-records-table tbody td:nth-child(3) {
+    white-space: nowrap;
+}
+
+/* tbody sticky cells — inset well (matches card + non-sticky cells) */
+.match-records-table tbody td:nth-child(1) {
+    position: sticky; left: 0; z-index: 3;
+    background: var(--color-inset);
+}
+.match-records-table tbody td:nth-child(2) {
+    position: sticky; left: var(--mr-col1-w); z-index: 2;
+    background: var(--color-inset);
+}
+.match-records-table tbody td:nth-child(3) {
+    position: sticky;
+    left: calc(var(--mr-col1-w) + var(--mr-col2-w));
+    z-index: 2;
+    background: var(--color-inset);
+}
+
+/* tbody sticky hover — explicit td-level override (tr:hover won't pierce sticky td background) */
+.match-records-table tbody tr:hover td:nth-child(1),
+.match-records-table tbody tr:hover td:nth-child(2),
+.match-records-table tbody tr:hover td:nth-child(3) {
+    background: var(--color-hover);
+}
+
+/* thead sticky cells — header row already sticky top:0; add left-sticky + higher z */
+.match-records-table thead th:nth-child(1) {
+    position: sticky; left: 0; top: 0; z-index: 5;
+    background: var(--color-inset);
+}
+.match-records-table thead th:nth-child(2) {
+    position: sticky; left: var(--mr-col1-w); top: 0; z-index: 4;
+    background: var(--color-inset);
+}
+.match-records-table thead th:nth-child(3) {
+    position: sticky;
+    left: calc(var(--mr-col1-w) + var(--mr-col2-w));
+    top: 0; z-index: 4;
+    background: var(--color-inset);
+}
+
+/* A5 sticky-boundary drop-shadow on horizontal scroll — matches MF pattern.
+   Static state: no separator. Visible only when `.achv-table-wrapper` has
+   `.is-scrolled-x` (set by attachStickyShadow when scrollLeft > 0). */
+.achv-table-wrapper.is-scrolled-x .match-records-table thead th:nth-child(3) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .match-records-table tbody td:nth-child(3) {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .match-records-table tbody tr:last-child td:nth-child(3) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+
+
+.achv-table .league-link,
+.achv-table .league-link:visited {
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+.achv-table .league-link:hover {
+    text-decoration: underline;
+}
+
+/* ── League Records (A6): 3-col horizontal sticky (# | Player | PR) ──
+   --lr-col1-w / --lr-col2-w are JS-measured on render and resize.
+   All 3 cols: no hard-coded width — browser sizes to max-content, JS reads actual px. */
+.league-records-table {
+    --lr-col1-w: 36px;
+    --lr-col2-w: 156px;
+}
+.league-records-table tbody td:nth-child(2),
+.league-records-table thead th:nth-child(3),
+.league-records-table tbody td:nth-child(3) {
+    white-space: nowrap;
+}
+
+.league-records-table tbody td:nth-child(1) {
+    position: sticky; left: 0; z-index: 3;
+    background: var(--color-inset);
+}
+.league-records-table tbody td:nth-child(2) {
+    position: sticky; left: var(--lr-col1-w); z-index: 2;
+    background: var(--color-inset);
+}
+.league-records-table tbody td:nth-child(3) {
+    position: sticky;
+    left: calc(var(--lr-col1-w) + var(--lr-col2-w));
+    z-index: 2;
+    background: var(--color-inset);
+}
+
+.league-records-table tbody tr:hover td:nth-child(1),
+.league-records-table tbody tr:hover td:nth-child(2),
+.league-records-table tbody tr:hover td:nth-child(3) {
+    background: var(--color-hover);
+}
+
+.league-records-table thead th:nth-child(1) {
+    position: sticky; left: 0; top: 0; z-index: 5;
+    background: var(--color-inset);
+}
+.league-records-table thead th:nth-child(2) {
+    position: sticky; left: var(--lr-col1-w); top: 0; z-index: 4;
+    background: var(--color-inset);
+}
+.league-records-table thead th:nth-child(3) {
+    position: sticky;
+    left: calc(var(--lr-col1-w) + var(--lr-col2-w));
+    top: 0; z-index: 4;
+    background: var(--color-inset);
+}
+
+/* A6 sticky-boundary drop-shadow on horizontal scroll — matches MF pattern.
+   Static state: no separator. Visible only when `.achv-table-wrapper` has
+   `.is-scrolled-x` (set by attachStickyShadow when scrollLeft > 0). */
+.achv-table-wrapper.is-scrolled-x .league-records-table thead th:nth-child(3) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .league-records-table tbody td:nth-child(3) {
+    box-shadow:
+        inset 0 -1px 0 var(--color-border),
+        6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+.achv-table-wrapper.is-scrolled-x .league-records-table tbody tr:last-child td:nth-child(3) {
+    box-shadow: 6px 0 8px -4px rgba(0, 0, 0, 0.18);
+}
+
+
+.lr-rank-gold   { color: var(--color-gold-text);   font-weight: 700; }
+.lr-rank-silver { color: var(--color-silver-text); font-weight: 600; }
+.lr-rank-bronze { color: var(--color-bronze-text); font-weight: 600; }
+
+.achv-tables-loading {
+    color: var(--color-text-muted);
+    font-style: italic;
+    padding: var(--space-md);
+}
+
+/* ── Luck Percentile card (Achievements) ───────────── */
+@media (min-width: 641px) {
+    .achv-tables-grid > .achv-table-card.achv-luck-card { grid-column: span 6; }
+}
+
+.achv-luck-table th:nth-child(3),
+.achv-luck-table td:nth-child(3),
+.achv-luck-table th:nth-child(4),
+.achv-luck-table td:nth-child(4) {
+    white-space: nowrap;
+}
+
+.achv-table tr.unstable-sample td {
+    opacity: 0.55;
+    font-style: italic;
+}
+.achv-table tr.unstable-sample .player-name-link {
+    font-style: italic;
+    color: var(--color-text-muted);
+}
+
+.luck-info-popup {
+    margin-top: var(--space-sm);
+    margin-bottom: var(--space-sm);
+}
+.luck-info-popup .luck-bell-curve {
+    display: block;
+    width: 100%;
+    max-width: 320px;
+    height: auto;
+    margin: var(--space-sm) auto 0;
+}
+.luck-bell-curve .bc-curve       { fill: none; stroke: var(--color-text); stroke-width: 1.5; }
+.luck-bell-curve .bc-fill-left   { fill: var(--color-danger, #dc3545);  opacity: 0.22; }
+.luck-bell-curve .bc-fill-right  { fill: var(--color-success, #28a745); opacity: 0.22; }
+.luck-bell-curve .bc-axis        { stroke: var(--color-border); stroke-width: 1; }
+.luck-bell-curve .bc-tick        { stroke: var(--color-border); stroke-width: 1; }
+.luck-bell-curve .bc-label-sigma { fill: var(--color-text-muted); font-size: var(--fs-065); }
+.luck-bell-curve .bc-label-pct   { fill: var(--color-text); font-size: var(--fs-065); font-weight: 600; }
+
+/* ── Admin Edit Mode (Chunk 7) ─────────────────────────── */
+
+/* Edit-mode toggle button (pencil) */
+.edit-mode-toggle {
+    position: absolute;
+    top: var(--space-sm);
+    right: var(--space-sm);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    font-size: var(--fs-110);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-sm);
+    transition: background 0.15s, transform 0.15s;
+    z-index: 5;
+}
+
+.edit-mode-toggle:hover { background: var(--color-hover); }
+
+.edit-mode-toggle.active {
+    background: var(--color-primary);
+    color: var(--color-primary-text);
+    border-color: var(--color-primary);
+}
+
+/* Make page-header position:relative for the toggle */
+.page-header { position: relative; }
+
+/* Editable field highlight */
+.editable-field {
+    outline: 2px dashed var(--color-accent, #2563eb);
+    outline-offset: 4px;
+    border-radius: var(--radius-sm);
+    min-width: 80px;
+    cursor: text;
+}
+
+.editable-field:focus {
+    outline-style: solid;
+    background: rgba(37, 99, 235, 0.04);
+}
+
+/* Logo edit overlay */
+.logo-edit-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.logo-edit-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font-weight: 600;
+    font-size: var(--fs-090);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.logo-edit-wrapper:hover .logo-edit-overlay { opacity: 1; }
+
+/* Drag handles */
+.drag-handle {
+    cursor: grab;
+    font-size: var(--fs-110);
+    color: var(--color-text-muted);
+    user-select: none;
+    text-align: center;
+    width: 30px;
+    padding: 6px 4px;
+}
+
+.drag-handle:active { cursor: grabbing; }
+
+.card-drag-handle {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--fs-090);
+    z-index: 2;
+}
+
+/* Edit-mode: league cards need relative for the handle */
+.edit-mode .league-card { position: relative; }
+
+/* Edit-mode: disable in-page navigation. Only the embedded admin sidebar
+   (which lives outside .page-container) should remain clickable. */
+.page-container.edit-mode a {
+    pointer-events: none;
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* Drag visual feedback */
+tr.dragging, .league-card.dragging {
+    opacity: 0.4;
+}
+
+tr.drag-over {
+    border-top: 2px solid var(--color-accent, #2563eb);
+}
+
+.league-card.drag-over {
+    outline: 2px solid var(--color-accent, #2563eb);
+    outline-offset: -2px;
+}
+
+/* Save / Cancel bar */
+.edit-bar {
+    position: fixed;
+    bottom: 0;
+    left: 240px;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-md);
+    padding: var(--space-sm) var(--space-lg);
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+}
+
+.edit-bar-label {
+    margin-right: auto;
+    font-weight: 600;
+    font-size: var(--fs-095);
+    color: var(--color-text);
+}
+
+.edit-bar-cancel {
+    padding: 8px 20px;
+    font-size: var(--fs-085);
+    font-weight: 600;
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.edit-bar-cancel:hover { background: var(--color-hover); }
+
+.edit-bar-save {
+    padding: 8px 20px;
+    font-size: var(--fs-085);
+    font-weight: 600;
+    background: var(--color-primary);
+    color: var(--color-primary-text);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.edit-bar-save:hover { filter: brightness(1.1); }
+.edit-bar-save:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Raise theme picker above edit bar when in edit mode */
+body:has(.edit-bar) .theme-picker {
+    bottom: 70px;
+}
+
+/* Mobile: edit bar spans full width */
+@media (max-width: 768px) {
+    .edit-bar { left: 0; }
+    body:has(.edit-bar) .theme-picker { bottom: 65px; }
+}
+
+/* ============================================================
+ * MOBILE (≤640px) — Step 6.6 compression for landing + achievements
+ * ============================================================ */
+@media (max-width: 640px) {
+    /* Achievement + match-records tables — allow horizontal scroll.
+       Padding scales via clamp() on base rule; white-space set in base rule. */
+    .achv-table-wrapper {
+        overflow-x: auto;
+    }
+    .achv-table {
+        min-width: max-content;
+    }
+    .achv-tables-grid {
+        gap: 8px;
+    }
+    .achv-table-card {
+        padding: 8px;
+    }
+
+    /* Completed-leagues mobile: padding scales via clamp() on base rule — no override needed.
+       Font-size, column width, and icon height inherit desktop per iron rules 1–5.
+       Flag margin override removed 2026-06-04 — canonical em-based margin
+       above scales automatically when the cell font drops on mobile. */
+
+    /* PDF export buttons — wrap and shrink */
+    .pdf-export-btn { font-size: var(--fs-070); padding: 2px 6px; }
+
+    /* Info cards — 2-up at mobile */
+    .index-info-cards { gap: 8px; }
+
+    /* Achievement (A3) + PR Leaders (A4) cards on mobile — full width.
+       A3 previously shrank to 80vw/centered, which made the section jump
+       narrower than A4 once the Avg Rank / Avg Win% pair stacked. Both now
+       fill the column (grid is already 1-up here), so A3 behaves like A4. */
+    .achievements-section .achv-table-card,
+    .pr-leaders-section .achv-table-card {
+        max-width: 100%;
+        width: 100%;
+        margin-left: 0;
+        margin-right: 0;
+    }
+}
+
+/* ── Show-more / Show-top-N toggle ─────────────────── */
+.table-row-hidden { display: none !important; }
+
+.show-more-btn {
+    display: block;
+    margin: var(--space-sm) auto var(--space-xl);
+    padding: 0.3em 1.1em;
+    font-size: var(--fs-085);
+    font-family: var(--font-main);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.show-more-btn:hover { background: var(--color-hover); }
+
+/* When a show-more button immediately follows the table wrapper,
+   collapse the wrapper's bottom margin so the button sits flush. */
+.leaderboard-table-wrapper:has(+ .show-more-btn),
+.completed-table-wrapper:has(+ .show-more-btn) {
+    margin-bottom: 0;
+}
+.leaderboard-table-wrapper + .show-more-btn,
+.completed-table-wrapper + .show-more-btn {
+    margin-top: 0.45em;
+    margin-bottom: var(--space-xl);
+}
+
+/* ── Edit-mode: drag-handle narrow + Date+League sticky (mobile) ─── */
+
+/* All viewports: drag handle is td:first-child in edit mode — keep it narrow */
+.page-container.edit-mode .completed-leagues-table {
+    --cl-handle-w: 28px;
+}
+.page-container.edit-mode .completed-leagues-table thead th:first-child,
+.page-container.edit-mode .completed-leagues-table tbody td:first-child {
+    width: var(--cl-handle-w);
+    min-width: var(--cl-handle-w);
+    max-width: var(--cl-handle-w);
+    border-right: none;
+    padding: 4px 2px;
+}
+
+/* Mobile: also make Date (col 2) sticky after the drag handle.
+   League (col 3) sticky dropped on mobile — multi-column sticky requires a
+   fixed left-offset, which would reintroduce a hard-coded column width and
+   violate iron rules 1–2. Row-type tint inherits from base per-td rules
+   (iron rule 11: sticky cell color identical to rest of row). */
+@media (max-width: 640px) {
+    .page-container.edit-mode .completed-leagues-table {
+        --cl-handle-w: 22px;
+    }
+
+    /* Date column — sticky after drag handle */
+    .page-container.edit-mode .completed-leagues-table thead th:nth-child(2),
+    .page-container.edit-mode .completed-leagues-table tbody td:nth-child(2) {
+        position: sticky;
+        left: var(--cl-handle-w);
+        border-right: 1px solid var(--color-border);
+    }
+    .page-container.edit-mode .completed-leagues-table tbody td:nth-child(2) {
+        z-index: 2;
+    }
+    .page-container.edit-mode .completed-leagues-table thead th:nth-child(2) {
+        z-index: 4;
+        background: var(--header-bg, #1e293b);
+    }
+}
+
+/* ============================================================================
+   HOME — Progressive Disclosure: framed hero + segmented tabs + section cards
+   Dogfoods the demo at docs/ui-demos/progressive-disclosure-demo.html
+   ============================================================================ */
+
+/* ---- Hero card: page-header + info-cards visually unified ---- */
+/* The .page-header lives in index.html; the .index-info-cards is appended as
+   the first child of #content. CSS makes the two flow as one bordered card
+   so the tiles appear "under By Marcel Dana and Avshalom Yaish" cohesively. */
+.page-container > .page-header {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-bottom: 0;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    padding: var(--space-lg) var(--space-md) var(--space-md);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 0;
+}
+#content > .index-info-cards:first-child {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-top: 0;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    padding: var(--space-md);
+    margin-top: 0;
+    margin-bottom: var(--space-md);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Segmented tab bar lives in css/tabs.css (.app-tabs / .app-tab).
+   Section frame, heading and collapse now come from the shared css/sections.css
+   (.app-section / .app-section--card / .app-section-h2). The HOME content classes
+   (.dash-section / .leaderboard-section / .lp-players-section) remain only as
+   hooks for the content rules below. */
+.lp-tabs-shell { margin-bottom: var(--space-lg); }
+.lp-tab-panel[hidden] { display: none; }
+
+/* Sidebar deep-links (Records sub-menu, ?tab=…) scroll these into view via
+   a manual scrollTo in landingPage.js that measures the fixed topbar's live
+   height at scroll time (measureFixedTopOffset) — no scroll-margin-top
+   needed/used here; keep it that way so there's a single dynamic source of
+   truth instead of a CSS constant that can drift out of sync with it. */
+
+/* Leaderboard export controls sit in their own row under the heading. */
+.lp-tab-panel > .leaderboard-section .leaderboard-header-row {
+    margin-bottom: var(--space-md);
+}
+
+/* ---- Theme adaptations ---- */
+/* (tab theme overrides moved to css/tabs.css — single source for .app-tabs) */
+
+/* ---- Players sections (stacked Notable + Rest, A7 format) ---- */
+.lp-players-search-wrap {
+    width: 50%;
+    margin-bottom: var(--space-md);
+}
+/* Layout only — the box is canonical in .app-search-input (layout.css). */
+.lp-players-search-input {
+    width: 100%;
+}
+.lp-players-section + .lp-players-section {
+    margin-top: var(--space-md);
+}
+
+/* The single Players directory sizes its height to the default 50-row view
+   instead of the shared 360px scroll cap — all 50 are visible at once, and
+   "Show all (55)" reveals the remainder below. */
+.lp-players-section .achv-table-wrapper {
+    max-height: none;
+}
+
+/* ---- Player status pill (used inside the Players SF tables) ---- */
+.lp-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.18em 0.55em;
+    border-radius: var(--radius-full);
+    font-size: 0.95em;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.lp-status-dot {
+    width: 0.55em;
+    height: 0.55em;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 0 0.18em color-mix(in srgb, currentColor 25%, transparent);
+}
+.lp-status-active {
+    background: var(--color-player-active-bg, #d1fae5);
+    color: var(--color-player-active, #047857);
+}
+.lp-status-this-year {
+    background: var(--color-player-recent-bg, #fde8c8);
+    color: var(--color-player-recent, #d97706);
+}
+.lp-status-inactive {
+    background: var(--color-player-inactive-bg, #f3f4f6);
+    color: var(--color-player-inactive, #6b7280);
+}
+.lp-status-inactive .lp-status-dot {
+    box-shadow: none;
+    opacity: 0.7;
+}
+
+/* Real-name inline next to player link (Player col only) */
+.lp-realname {
+    color: var(--color-text-muted);
+    font-style: italic;
+    margin-inline-start: 0.4em;
+}
+.lp-muted { color: var(--color-text-muted); }
+
+/* Title description — A7's second line inside the Player cell (no Title column).
+   1.3em is not a guess: the flag is 1em wide with a 0.3em right margin, so this
+   is exactly where the name link starts one line above. Same font as the column
+   it replaces (italic, inherited size) — only the placement changed.
+   `white-space: normal` overrides .achv-table td's nowrap: "1990 Monte Carlo
+   Doubles World Champion" is the longest string in the table, and as a nowrap
+   line it would set the Player column's width for all 56 rows — the exact
+   problem the column removal set out to solve. Wrapping costs nothing: it only
+   engages on the handful of titled rows on a narrow screen. */
+.lp-titledesc {
+    display: block;
+    margin-inline-start: 1.3em;
+    font-style: italic;
+    font-weight: 400;   /* td.player-cell is 600; the old Title column was not */
+    white-space: normal;
+}
+
+/* Players-tab SF tables — let the Player col breathe + truncate gracefully */
+.lp-tab-panel[data-panel="players"] .achv-table { table-layout: auto; }
+.lp-tab-panel[data-panel="players"] .achv-table th,
+.lp-tab-panel[data-panel="players"] .achv-table td {
+    text-align: start;
+}
+.lp-tab-panel[data-panel="players"] .achv-table th:nth-child(1),
+.lp-tab-panel[data-panel="players"] .achv-table td:nth-child(1) {
+    min-width: 11em;
+}
+
+/* ---- Mobile ---- */
+@media (max-width: 600px) {
+    .lp-tab-panel .app-section--card {
+        padding: var(--space-sm) var(--space-sm);
+    }
+    /* No font-size carve-out and no hidden real-name here any more. Both were
+       compensating for the Title column's ~182px on a 430px phone; with the
+       title moved into the Player cell the three remaining columns fit the
+       viewport at the canonical font-small, so A7 now matches every other
+       A table at every width. */
+}
+

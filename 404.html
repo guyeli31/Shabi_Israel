@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirecting…</title>
+    <meta name="robots" content="noindex">
+
+    <!-- GitHub Pages serves this file for ANY unmatched path on the domain, which
+         makes it the only redirect mechanism available (Pages has no server-side
+         rewrites). Its job: the app used to be served from the domain root and now
+         lives in /shabi-israel/, so an old deep link like
+             golan.me.uk/league.html?league=July%20 2026
+         must land on
+             golan.me.uk/shabi-israel/league.html?league=July%20 2026
+         with its query string and hash intact.
+
+         The redirect runs before paint so the "not found" text below is only ever
+         seen when there is genuinely nothing to redirect to. location.replace (not
+         .href) keeps the dead URL out of history, so Back returns where the user
+         came from instead of bouncing through the redirect again. -->
+    <script>
+        (function () {
+            var path = location.pathname;
+            // Folders that are already correct destinations. If one of these 404s,
+            // the target genuinely does not exist — redirecting again would loop.
+            var SERVED = ['/shabi-israel/', '/WC26/'];
+            for (var i = 0; i < SERVED.length; i++) {
+                if (path.indexOf(SERVED[i]) === 0) return;
+            }
+            // The bare domain root is the hub page, not a miss.
+            if (path === '/' || path === '') return;
+            // Tag the hop with the valueless `moved` flag so the app can tell this
+            // visitor their link is out of date — the redirect is instant, so
+            // without it they land correctly having never learned the address
+            // changed, and keep re-sharing the old link. js/render/movedNotice.js
+            // shows the banner and strips the flag straight back out of the URL.
+            // TEMPORARY: drop `+ moved` when that module is removed (2026-08-27).
+            var qs = location.search ? location.search + '&moved' : '?moved';
+            location.replace('/shabi-israel' + path + qs + location.hash);
+        })();
+    </script>
+
+    <style>
+        :root { color-scheme: light dark; --bg:#faf8f4; --ink:#1b1813; --muted:#6b6357; --accent:#8a6d3b; }
+        @media (prefers-color-scheme: dark) {
+            :root { --bg:#15120e; --ink:#f0ebe3; --muted:#9a9184; --accent:#c9a86a; }
+        }
+        body {
+            margin: 0; min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            padding: 2rem 1.25rem; text-align: center;
+            background: var(--bg); color: var(--ink);
+            font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+        h1 { margin: 0 0 .5rem; font-size: 1.35rem; }
+        p { margin: 0 0 1.5rem; color: var(--muted); }
+        a { color: var(--accent); }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>Page not found</h1>
+        <p>That address doesn't point to anything here.</p>
+        <p><a href="/">Back to golan.me.uk</a></p>
+    </main>
+</body>
+</html>

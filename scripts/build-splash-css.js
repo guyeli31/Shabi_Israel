@@ -24,9 +24,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { splashCss } from '../js/utils/splashCss.js';
+import { splashCss } from '../shabi-israel/js/utils/splashCss.js';
 
-const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+// The repo root is the domain root; the site lives one folder down
+// (see CLAUDE.md § Hosting layout).
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'shabi-israel');
 const JSON_PATH = path.join(ROOT, 'assets/splash/splash-config.json');
 const CSS_PATH  = path.join(ROOT, 'assets/splash/splash-vars.css');
 

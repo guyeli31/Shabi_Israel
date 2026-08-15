@@ -279,6 +279,8 @@ Any code in `js/render/*.js` that built MF tables by hand-concatenating HTML is 
 
 **Scope:** A3, A4, A5, A6, **A7**, C4. (A7 added 2026-06-08 — already wired through `mountSFTable` in production as the first SF call site on `index.html`. The other SF tables still hand-build their DOM until Phase 7.2 rewires them.)
 
+> **A7 carries one sanctioned deviation from SF canon (2026-08-14):** its Player cell stacks lines — name row, then one line per title (`.lp-titledesc`) — and it has **no `Title` column**. The A7 preset built in 5.3 must reproduce the two-line cell; a preset that "restores" the fourth column would put back the 182px-of-395px column that forced A7's mobile horizontal scroll. Rationale and measurements: `docs/TABLE-DESIGN.md` § A7.
+
 **Outcome:** SF is the canonical format for compact records / leaderboards-snippet tables. Each of A3–A6 and C4 is rendered through `mountSFTable` with a dedicated preset.
 
 ### 5.1 Inventory current SF-target tables
