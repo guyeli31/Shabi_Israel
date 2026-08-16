@@ -361,6 +361,18 @@ button, input, select, textarea {
     gap: 2px;
     line-height: normal;
 }
+/* The gap between the name and the first badge is owned by combobox.js
+   (`BADGE_GAP_EM`), which positions this slot — and by nothing else. `.title-abbr`
+   carries `margin-left: 0.5em` of its own, authored for sitting INLINE after a
+   name in a table cell, where there is no positioning code to do the job. Inside
+   the slot that margin is a second, invisible contributor to the same gap: the
+   spacing became `BADGE_GAP_EM + 0.5em`, split across a JS constant and a CSS
+   rule in two files, and it silently shrank when the slot's font-size was
+   corrected to the field's. One gap, one owner — and it is em-relative there,
+   so it stays a constant number of characters exactly as this margin is. */
+.app-combo-identity-titles > .title-abbr:first-child {
+    margin-left: 0;
+}
 .app-combo-identity-flag:empty,
 .app-combo-identity-titles:empty {
     display: none;

@@ -51,6 +51,7 @@ import { splashStage, endSplash } from '../utils/splash.js';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DWELL_BUCKET_ORDER = ['<10s', '10-30', '30-60', '1-5m', '5m+'];
 const PAGE_LABELS = {
+    hub: 'Hub',
     landing: 'Home',
     league: 'League Dashboard',
     league_table: 'League Table',
@@ -69,6 +70,7 @@ const pageLabel = (p) => PAGE_LABELS[p] || p;
 // so pageLabel + contextLabel stay icon-free; only the HTML paths (pageLabelHtml,
 // contextHtml) carry the glyph.
 const PAGE_ICON_HTML = {
+    hub:           '🌐',
     landing:       '🏠',
     league:        TAB_ICONS.leagues,
     league_table:  `${TAB_ICONS.leagues}📊`,
@@ -379,8 +381,11 @@ function referrerPill(kind) {
  *  in-range pageview. */
 function sessionRoute(s) {
     if (!s.entry_page) return '';
+    // 📦 (TEMPORARY, with movedNotice.js): the visit's entry page carried the "we
+    // moved" banner, i.e. this session arrived on a pre-move link.
+    const mark = s.entry_moved_banner ? '📦 ' : '';
     return `<span class="analytics-session-route" title="Entry page">`
-         + `${contextHtml(s.entry_page, s.entry_league_id, s.entry_player, s.entry_tab)}</span>`;
+         + `${mark}${contextHtml(s.entry_page, s.entry_league_id, s.entry_player, s.entry_tab)}</span>`;
 }
 
 function hexToRgba(color, alpha) {
@@ -858,12 +863,12 @@ const CLICK_TYPE_ICONS = [
     { prefix: 'Info: ', icon: 'ℹ️' },
     { prefix: 'History view: ', icon: '🕘' },
     { prefix: 'Privacy: ', icon: '🛡️' },
-    // TEMPORARY, with js/render/movedNotice.js (remove after 2026-08-27). A row
-    // here means someone reached the site through a pre-move link; the row's
-    // Page column names which old link they were holding. ORDER MATTERS (the
-    // match is startsWith): the dismissal's ✅ must sit above the bare prefix,
-    // so an arrival reads 📦 "still on an old link" and the acknowledgement
-    // reads ✅ "and they were told".
+    // TEMPORARY, with js/render/movedNotice.js (remove after 2026-08-27). The only
+    // moved-notice CLICK now is the "Got it" dismissal (✅) — arrival is no longer
+    // its own event; it shows as the 📦 page-mark (movedMarkHtml) on the pageview
+    // instead. The bare 📦 entry below is kept only for legacy "Moved notice: shown"
+    // rows still in the table from before that change. ORDER MATTERS (startsWith):
+    // dismissed must stay above the bare prefix.
     { prefix: 'Moved notice: dismissed', icon: '✅' },
     { prefix: 'Moved notice: ', icon: '📦' },
     { prefix: 'Nav: previous', icon: '⬅️' },
@@ -984,6 +989,9 @@ function clickIcon(target) {
     // follow (their prefixes are "Search player/league: ", not the bare "Search: ",
     // so the CLICK_TYPE_ICONS scan below won't catch them).
     if (target.startsWith('Search player: ') || target.startsWith('Search league: ')) return '🔍';
+    // The "Shabi Israel" card on the domain hub (golan.me.uk/) — the real league
+    // logo, exactly like the sidebar's own "Menu: Shabi Israel" brand entry.
+    if (target.startsWith('Hub link: ')) return BRAND_ICON;
     const match = CLICK_TYPE_ICONS.find((c) => target.startsWith(c.prefix));
     if (match) return match.icon;
     if (target === 'export_image') return CLICK_TYPE_ICONS.find((c) => c.prefix === 'Export: ').icon;
@@ -1034,11 +1042,14 @@ function displayTarget(target) {
 }
 
 /** TEMPORARY, with js/render/movedNotice.js (remove after 2026-08-27).
- *  Marks the Page cell of any moved-notice row with 📦, so scanning the Page
- *  column alone answers "which pages are people still reaching on pre-move
- *  links" without having to read the Click-target column of every row. */
-const movedMarkHtml = (target) =>
-    String(target || '').startsWith('Moved notice: ') ? '📦 ' : '';
+ *  Marks the Page cell of ANY event captured while the "we moved" banner was on
+ *  screen with 📦, so scanning the Page column alone answers "which pages are
+ *  people still reaching on pre-move links". Keyed off the `moved_banner` flag the
+ *  collector stamps on every such event (pageview OR click) — one-to-one with "the
+ *  banner was shown", not off the click text — so it marks the whole visit, not
+ *  just the one row of an arrival event (which no longer exists). */
+const movedMarkHtml = (row) =>
+    (row && row.moved_banner) ? '📦 ' : '';
 
 /** The column set for the all-clicks table AND for each session's own trace —
  *  the same array, so "the session view is the clicks table" holds by
@@ -1054,7 +1065,7 @@ const clickColumns = ({ withSession = false } = {}) => [
     ...(withSession ? [{ key: 'session', label: 'Session ID', render: (r) => sessionCell(r) }] : []),
     // Rich page/entity render (flag + name + title, or league title + type pill);
     // the plain-text r.page is kept only as the sort key (set on the row).
-    { key: 'page', label: 'Page', render: (r) => movedMarkHtml(r.target) + contextHtml(r.pageType, r.leagueId, r.player, r.tab) },
+    { key: 'page', label: 'Page', render: (r) => movedMarkHtml(r) + contextHtml(r.pageType, r.leagueId, r.player, r.tab) },
     // Wrap icon+label in a nowrap span so the icon never orphans onto its own
     // line. A plain &nbsp; is NOT enough here (it was tried and verified to fail):
     // the icon can be an inline-block SVG glyph (TAB_ICONS, e.g. "Tab: leagues"),
@@ -1103,6 +1114,7 @@ function renderClicksLog(section, clicksLog, sessions) {
             date: new Date(c.created_at),
             page: contextLabel(c.page, c.league_id, c.player, c.tab), // plain text = sort key
             pageType: c.page, leagueId: c.league_id || '', player: c.player || '', tab: c.tab || '', // rich render
+            moved_banner: c.moved_banner, // 📦 page-mark (TEMPORARY, with movedNotice.js)
             target: c.click_target || '',
             icon: clickIcon(c.click_target || ''),
             device: c.device_type || 'unknown',
@@ -1136,6 +1148,7 @@ function timelineRow(e, sessionDevice) {
         date: new Date(e.created_at),
         page: contextLabel(e.page, e.league_id, e.player, e.tab), // plain text = sort key
         pageType: e.page, leagueId: e.league_id || '', player: e.player || '', tab: e.tab || '', // rich render
+        moved_banner: e.moved_banner, // 📦 page-mark (TEMPORARY, with movedNotice.js)
         target: e.click_target || '',
         icon: clickIcon(e.click_target || ''),
         device: sessionDevice || 'unknown',
@@ -1447,6 +1460,7 @@ function renderHistory(panel, data, hideMine, onToggle) {
             date: new Date(c.created_at),
             page: contextLabel(c.page, c.league_id, c.player, c.tab), // plain text = sort key
             pageType: c.page, leagueId: c.league_id || '', player: c.player || '', tab: c.tab || '', // rich render
+            moved_banner: c.moved_banner, // 📦 page-mark (TEMPORARY, with movedNotice.js)
             target: c.click_target || '',
             icon: clickIcon(c.click_target || ''),
             device: c.device_type || 'unknown',
@@ -1538,6 +1552,11 @@ function saveView(monthKeyValue, excludeAdmin) {
 // when nothing was ever saved.
 export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loadView().excludeAdmin ?? true) {
     const content = document.getElementById('content');
+    // The page ships an empty header (see analytics.html); a static <h1> read
+    // through the transparent splash while the splash was narrating its own
+    // progress. Written here so it appears with the rest of the content.
+    const title = document.getElementById('page-title');
+    if (title) title.textContent = 'Analytics';
 
     // The RPCs are authenticated-only (see header). A Supabase session lives in
     // localStorage PER ORIGIN, so being logged in on the live domain does NOT

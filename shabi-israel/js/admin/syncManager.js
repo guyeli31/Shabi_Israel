@@ -159,10 +159,31 @@ export function renderSyncPage(container, leagues, settings, mail = null) {
     const active = leagues.filter((l) => l.params && l.params.Running === true);
     const { plans } = settings;
 
-    // Flags for the mail tables come from the union of every league's CustomFlags —
-    // a mail report arrives before we know which league it belongs to, so no single
-    // league's map is the right one to look a player up in.
-    const customFlags = Object.assign({}, ...leagues.map((l) => (l.params && l.params.CustomFlags) || {}));
+    // Flags for the mail tables.
+    //
+    // A player's flag is a property of the LEAGUE, not of the player: the same
+    // name can carry different flags in different seasons, which is exactly why
+    // CustomFlags lives in league_params. So a report that already knows its
+    // league is looked up in that league's own map — `flagsByLeague` below —
+    // and only a report with no league yet needs a merged one.
+    //
+    // The merge was `Object.assign({}, ...leagues.map(...))`, and in
+    // Object.assign the LAST source wins. `leagues` follows DisplayOrder, which
+    // runs newest-first, so the last entry is the OLDEST league — and every
+    // player was shown the flag from the first season they ever played in,
+    // never their current one. Sorting by IssueDate ascending puts the newest
+    // league last, so it is the one that wins.
+    const byDate = [...leagues].sort((a, b) => {
+        const da = (a.params && a.params.IssueDate) || '';
+        const db = (b.params && b.params.IssueDate) || '';
+        // Undated leagues sort first, i.e. lose to every dated one. They are
+        // the ones whose recency we cannot establish, so they are the ones that
+        // should not be allowed to overwrite a league we can date.
+        return String(da).localeCompare(String(db));
+    });
+    const customFlags = Object.assign({}, ...byDate.map((l) => (l.params && l.params.CustomFlags) || {}));
+    const flagsByLeague = {};
+    for (const l of leagues) flagsByLeague[l.id] = (l.params && l.params.CustomFlags) || {};
 
     container.innerHTML = `
         <h1>Sync</h1>
@@ -170,7 +191,7 @@ export function renderSyncPage(container, leagues, settings, mail = null) {
             Control every External Source sync — manual runs and scheduled plans — from one place.
         </p>
 
-        ${mail ? mailSectionsHTML(mail, customFlags) : ''}
+        ${mail ? mailSectionsHTML(mail, customFlags, flagsByLeague) : ''}
         ${sectionActiveLeagues(active, plans, settings)}
         ${sectionRunNow(active, settings)}
         ${sectionAutoSync(active, plans, settings)}

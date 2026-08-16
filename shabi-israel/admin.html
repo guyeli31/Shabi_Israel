@@ -80,7 +80,7 @@
         if(c){try{var v=JSON.parse(c);for(var k in v)document.documentElement.style.setProperty(k,v[k])}catch(e){}}
         // Fail-safe: the splash is static markup, so a module that never loads
         // would leave it covering the page forever. Take it away regardless.
-        setTimeout(function(){var s=document.getElementById('logo-splash');if(s&&!s.dataset.done)s.remove();},25000);
+        setTimeout(function(){var s=document.getElementById('logo-splash');if(s&&!s.dataset.done){s.remove();document.documentElement.classList.remove('sp-active');}},25000);
         // Don't flash the splash on a fast internal navigation — see index.html.
         // This matters more here than anywhere: admin is only ever reached from
         // our own sidebar, so without the defer it would flash on every entry.
@@ -94,7 +94,8 @@
               // The real reveal moment, so the minimum-display clock and the
               // "was it ever actually seen?" test in splash.js use the truth.
               window.__splashRevealAt = performance.now();
-            };            var timer = setTimeout(reveal, DEFER);
+            };
+            var timer = setTimeout(reveal, DEFER);
             // A cross-document view transition shows a STILL PHOTO of each page
             // and cross-fades them. Anything caught in that photo is frozen, so
             // a splash inside it looks dead, then gets replaced by the live one
@@ -169,9 +170,10 @@
          preloaded files, so it runs at DOMContentLoaded instead. -->
     <script type="module">import './js/utils/splash.js';</script>
     <a class="skip-link" href="#main">Skip to content</a>
-    <div id="app" role="main">
-        <div class="loading">Loading...</div>
-    </div>
+    <!-- Empty on purpose — the splash is the only loading UI. See the note in
+         analytics.html; this shipped a "Loading..." line that read through the
+         transparent splash as a second, contradictory progress message. -->
+    <div id="app" role="main"></div>
     <script type="module">
         import { initAdminPage, navigateTo, refreshBadge } from './js/admin/render/adminPage.js';
         import { applyThemeBootstrap } from './js/render/themePicker.js';

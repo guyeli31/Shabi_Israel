@@ -150,6 +150,17 @@
    is meant to remove. Fading OUT is still right; that is `.is-leaving`. */
 :root.sp-defer .splash { transition: none; }
 
+/* One loading message at a time.
+   The canonical pattern is that a page ships an EMPTY shell and the splash is
+   the only thing narrating the wait — index.html even hides its own header
+   explicitly. Pages that predate the splash (analytics, admin) still INJECT a
+   "Loading…" line from their renderer mid-flight, and with a transparent
+   splash that line reads straight through it: two different progress messages
+   stacked on top of each other. Rather than hunt every injection site, the
+   placeholders are simply not painted while the splash owns the screen.
+   `visibility`, not `display`, so nothing reflows when it comes back. */
+:root.sp-active .loading { visibility: hidden; }
+
 /* Grain — keeps the gradient from reading as flat CSS. */
 .splash::after {
     content: '';

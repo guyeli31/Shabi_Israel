@@ -64,6 +64,19 @@ function playerCell(name, customFlags, outcome) {
     return `<td class="player-cell${cls}"><img class="flag" src="${flagUrl(code)}" alt="${esc(code)}"> ${esc(name)}</td>`;
 }
 
+/**
+ * The flag map to read a report's players out of.
+ *
+ * A flag belongs to a player IN A LEAGUE — CustomFlags is per-league state, and
+ * the same name can fly different flags in different seasons. So once a report
+ * has been assigned, its own league's map is the only correct one; the merged
+ * fallback is for reports that do not have a league yet, and is a best guess by
+ * construction.
+ */
+function flagsFor(leagueId, flagsByLeague, fallback) {
+    return (leagueId && flagsByLeague && flagsByLeague[leagueId]) || fallback || {};
+}
+
 /** Winner/loser per side, or null on a tie — mirrors B5's rule exactly. */
 function outcomes(a, b) {
     if (a === b) return [null, null];
@@ -158,6 +171,8 @@ function sectionPending(pending, customFlags) {
                <button class="btn btn-danger btn-xs mail-discard" data-report="${r.id}">Discard</button>`
             : `<button class="btn btn-danger btn-xs mail-discard" data-report="${r.id}">Discard</button>`;
 
+        // Every row here is unassigned by definition, so the merged fallback is
+        // all there is — there is no league whose map could be preferred.
         return `
             <tr data-report-row="${r.id}">
                 ${playerCell(p.player_a, customFlags, oa)}
@@ -218,15 +233,17 @@ function sectionPending(pending, customFlags) {
 
 // ── F9 — Mail Automated Matches ────────────────────────────────────────────
 
-function sectionLog(log, health, customFlags) {
+function sectionLog(log, health, customFlags, flagsByLeague) {
     const rows = log.length ? log.map((r) => {
         const p = r.payload || {};
         // Stored A/B may be the fixture's reverse; display the report as it came.
         const [oa, ob] = outcomes(Number(p.score_a), Number(p.score_b));
+        // Assigned rows read their own league's flags; unassigned ones fall back.
+        const f = flagsFor(r.league_id, flagsByLeague, customFlags);
         return `
             <tr data-league="${esc(r.league_id || '')}">
-                ${playerCell(p.player_a, customFlags, oa)}
-                ${playerCell(p.player_b, customFlags, ob)}
+                ${playerCell(p.player_a, f, oa)}
+                ${playerCell(p.player_b, f, ob)}
                 <td>${esc(p.score_a)} - ${esc(p.score_b)}</td>
                 <td>${p.pr_a == null ? '—' : formatNumber(p.pr_a, 3)}</td>
                 <td>${p.pr_b == null ? '—' : formatNumber(p.pr_b, 3)}</td>
@@ -247,14 +264,30 @@ function sectionLog(log, health, customFlags) {
             <h2 class="app-section-h2">Mail Automated Matches</h2>
             <div class="collapsible-body">
               <div class="admin-card">
+                <!-- Health strip. Each figure and its label are ONE element, not
+                     a run of bare text: as an anonymous inline run inside the
+                     flex row they broke wherever the line happened to end,
+                     stranding "14" on one line and "applied automatically" on
+                     the next. On a phone that is most of the strip. -->
                 <div class="mail-health">
-                    <span class="mail-dot ${healthTone(health.last_received)}"></span>
-                    Last report received <b>${esc(fmtAgo(health.last_received))}</b>
-                    &nbsp;·&nbsp; <b>${health.auto_applied || 0}</b> applied automatically
-                    &nbsp;·&nbsp; <b>${health.admin_applied || 0}</b> assigned by admin
-                    &nbsp;·&nbsp; <b>${health.pending || 0}</b> awaiting assignment
-                    &nbsp;·&nbsp; <b>${health.discarded || 0}</b> discarded
-                    <span style="flex:1"></span>
+                    <p class="mail-health-lead">
+                        <span class="mail-dot ${healthTone(health.last_received)}"></span>
+                        Last report received <b>${esc(fmtAgo(health.last_received))}</b>
+                    </p>
+                    <dl class="mail-stats">
+                        <div class="mail-stat">
+                            <dt>${health.auto_applied || 0}</dt><dd>Auto&#8209;applied</dd>
+                        </div>
+                        <div class="mail-stat">
+                            <dt>${health.admin_applied || 0}</dt><dd>By admin</dd>
+                        </div>
+                        <div class="mail-stat">
+                            <dt>${health.pending || 0}</dt><dd>Awaiting</dd>
+                        </div>
+                        <div class="mail-stat">
+                            <dt>${health.discarded || 0}</dt><dd>Discarded</dd>
+                        </div>
+                    </dl>
                     <select class="mail-league-filter" aria-label="Filter by league">
                         <option value="">All leagues</option>
                         ${leagueOpts.map((l) => `<option value="${esc(l)}">${esc(l)}</option>`).join('')}
@@ -287,8 +320,9 @@ function sectionLog(log, health, customFlags) {
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
-export function mailSectionsHTML(state, customFlags) {
-    return sectionPending(state.pending, customFlags) + sectionLog(state.log, state.health, customFlags);
+export function mailSectionsHTML(state, customFlags, flagsByLeague) {
+    return sectionPending(state.pending, customFlags)
+         + sectionLog(state.log, state.health, customFlags, flagsByLeague);
 }
 
 /**

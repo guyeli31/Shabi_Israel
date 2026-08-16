@@ -183,6 +183,12 @@ export function startSplash() {
     // page's own <head> already knows it — see SPLASH_STAGE_SETS.
     stages = stagesFor(el.dataset.stages);
     ended = false;
+    // The splash IS the page's loading state. While it is up, anything the page
+    // paints underneath is a SECOND loading message showing through a
+    // transparent splash — which is exactly how analytics ended up narrating
+    // "Fetching this month's activity" over its own "Loading analytics…".
+    // css/splash.css keys the placeholder carve-out off this class.
+    document.documentElement.classList.add('sp-active');
     // On a deferred (internal-navigation) load the splash is transparent until
     // __splashRevealAt, so the minimum-visible clock starts there, not now.
     shownAt = window.__splashRevealAt || performance.now();
@@ -298,6 +304,10 @@ export function updateSplashLogo(src) {
 export function endSplash() {
     if (!el || ended) return;
     ended = true;
+    // Dropped at the START of the close, not after it: the page is ready by
+    // now, so the ring's closing animation should be revealing real content,
+    // not a blank frame that fills in once the splash has already gone.
+    document.documentElement.classList.remove('sp-active');
     cancelAnimationFrame(creepRaf);
     clearTimeout(slowTimer);
 

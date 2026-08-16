@@ -87,6 +87,13 @@ alter table public.analytics_events add column if not exists admin_user text;
 -- than rejecting the whole event. Null = the page's own default view.
 alter table public.analytics_events add column if not exists tab text;
 
+-- TEMPORARY (remove after 2026-08-27, with js/render/movedNotice.js). True on every
+-- event fired while the "we moved" banner was on screen — i.e. the visit arrived on
+-- a pre-move golan.me.uk/ link and hasn't dismissed the banner yet. The dashboard
+-- marks each such page with 📦. Null for the overwhelming majority of rows (banner
+-- absent) and for all rows predating the banner; NO CHECK, same rationale as tab.
+alter table public.analytics_events add column if not exists moved_banner boolean;
+
 -- Columns from the very first version of this table. Drop them if an old
 -- deployment still has them; no-op otherwise. (session_id is intentionally
 -- NOT dropped anymore — it is now a live column, see above.)
@@ -101,11 +108,15 @@ alter table public.analytics_events drop column if exists viewport_h;
 alter table public.analytics_events drop constraint if exists analytics_events_event_type_check;
 alter table public.analytics_events add constraint analytics_events_event_type_check check (event_type in ('pageview','duration','click'));
 
+-- 'hub' = the domain root page (golan.me.uk/), which loads analytics too so the
+-- hub visit and the click into the app are recorded; it is a real page type here
+-- (from_page too, since a visit can arrive FROM the hub). Kept a closed set on
+-- purpose — an unknown page is a bug worth a 400, not silent data.
 alter table public.analytics_events drop constraint if exists analytics_events_page_check;
-alter table public.analytics_events add constraint analytics_events_page_check check (page in ('landing','league','league_table','player','player_league','admin'));
+alter table public.analytics_events add constraint analytics_events_page_check check (page in ('hub','landing','league','league_table','player','player_league','admin'));
 
 alter table public.analytics_events drop constraint if exists analytics_events_from_page_check;
-alter table public.analytics_events add constraint analytics_events_from_page_check check (from_page in ('landing','league','league_table','player','player_league','admin'));
+alter table public.analytics_events add constraint analytics_events_from_page_check check (from_page in ('hub','landing','league','league_table','player','player_league','admin'));
 
 alter table public.analytics_events drop constraint if exists analytics_events_referrer_kind_check;
 alter table public.analytics_events add constraint analytics_events_referrer_kind_check check (referrer_kind in ('direct','search','social','internal','other'));
@@ -267,6 +278,9 @@ as $$
            -- so the session route can say "League Dashboard › Predictor", not just
            -- the page type. Null = the landing page's own default view.
            (array_agg(tab       order by created_at)   filter (where event_type = 'pageview'))[1] as entry_tab,
+           -- TEMPORARY (movedNotice.js): did the entry pageview carry the "we moved"
+           -- banner? Drives the 📦 on the session route. Null once the banner is gone.
+           (array_agg(moved_banner order by created_at) filter (where event_type = 'pageview'))[1] as entry_moved_banner,
            (array_agg(page   order by created_at desc) filter (where event_type = 'pageview'))[1] as exit_page,
            (array_agg(player order by created_at desc) filter (where event_type = 'pageview'))[1] as exit_player
     from ev
@@ -429,7 +443,8 @@ as $$
     -- zero-correlation), and whether it was the operator's own click.
     'clicks_log',      (select coalesce(jsonb_agg(t), '[]'::jsonb) from
                           (select created_at, page, league_id, player, tab, click_target, device_type,
-                                  session_id, region, admin_user
+                                  session_id, region, admin_user,
+                                  moved_banner  -- TEMPORARY (movedNotice.js): 📦 page-mark
                            from ev
                            where event_type='click'
                            order by created_at desc limit 500) t),
@@ -448,7 +463,8 @@ as $$
                                   s.event_count, s.pageview_count, s.click_count,
                                   s.device_type, s.admin_user,
                                   s.entry_referrer, s.entry_page, s.entry_player,
-                                  s.entry_league_id, s.entry_tab, s.exit_page, s.exit_player, tl.timeline
+                                  s.entry_league_id, s.entry_tab, s.entry_moved_banner,
+                                  s.exit_page, s.exit_player, tl.timeline
                            from sess s
                            cross join lateral (
                              select coalesce(jsonb_agg(jsonb_build_object(
@@ -458,6 +474,7 @@ as $$
                                       'league_id',    x.league_id,
                                       'player',       x.player,
                                       'tab',          x.tab,
+                                      'moved_banner', x.moved_banner,
                                       'click_target', x.click_target,
                                       'duration_ms',  x.duration_ms
                                     ) order by x.created_at), '[]'::jsonb) as timeline

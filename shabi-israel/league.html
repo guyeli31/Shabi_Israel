@@ -99,7 +99,7 @@
         if(c){try{var v=JSON.parse(c);for(var k in v)document.documentElement.style.setProperty(k,v[k])}catch(e){}}
         // Fail-safe: the splash is static markup, so a module that never loads
         // would leave it covering the page forever. Take it away regardless.
-        setTimeout(function(){var s=document.getElementById('logo-splash');if(s&&!s.dataset.done)s.remove();},25000);
+        setTimeout(function(){var s=document.getElementById('logo-splash');if(s&&!s.dataset.done){s.remove();document.documentElement.classList.remove('sp-active');}},25000);
         // Don't flash the splash on a fast internal navigation. Arriving from
         // our own site means the View Transition is still showing the previous
         // page, so hold the splash back briefly; if the data lands first it is

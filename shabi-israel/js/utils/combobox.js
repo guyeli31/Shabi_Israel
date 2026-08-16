@@ -81,6 +81,37 @@
  * Font size, flag size, badge markup, spacing, the mobile sheet and the
  * identity chrome are NOT variation points — they come from here and from
  * layout.css so every search reads as the same control.
+ *
+ * ── The identity chrome, and why it has three rules ─────────────────────────
+ * A search ROW gets this for free: the flag and the title badges are children
+ * of the row, so `height: 1.05em` and `font-size: 1em` resolve against the
+ * row's own text and everything tracks it. Inside a FIELD none of that holds,
+ * because an `<input>` can hold text and nothing else — the adornments have to
+ * be absolutely-positioned siblings, which puts them outside the input's
+ * typographic scope and outside its layout. Three consequences, each of which
+ * shipped as a visible bug before it was a rule. Any future adornment layered
+ * over a field — a unit suffix, an avatar, a status dot — inherits all three:
+ *
+ *   1. SIZE comes from the field, not the page. `applyIdentityLayout` copies
+ *      the input's computed `font-size` onto both slots. Left alone, their em
+ *      resolved against `.app-combo-wrap` (the page's inherited size) and the
+ *      badges rendered 15px beside a 13.5px name — and worse as the viewport
+ *      narrowed, since `--fs-*` are clamp() tokens that shrink faster than the
+ *      root: +11% at 1440px, +31% at 390px, where two badges then ate 87px of
+ *      padding out of a 158px field.
+ *   2. SPACING has exactly one owner. `BADGE_GAP_EM` sets the name→badge
+ *      distance and layout.css zeroes `.title-abbr`'s own `margin-left` inside
+ *      the slot. A gap assembled from a JS constant PLUS a margin in a shared
+ *      CSS rule is a gap nobody owns: it measured differently depending on a
+ *      browser's stylesheet state, and it moved on its own when rule 1 landed.
+ *      It is em-relative, never px — a gap after a word is typography, so it
+ *      must stay a constant number of characters at every width.
+ *   3. It MUST be re-run when the viewport changes, and a `ResizeObserver` on
+ *      the field will not tell you. `.app-search-input` is a fixed 300px, so
+ *      narrowing the window changes the clamp() font without moving any box:
+ *      the observer never fires and the adornments keep the size and offset of
+ *      the old width — badges parked 1.8em past a name that shrank, or sitting
+ *      ON a name that grew. `onViewportResize` is that second signal.
  */
 
 import { registerSearchAdapter, isTouchDevice, trackVisualViewport } from '../render/searchOverlay.js';
@@ -101,6 +132,43 @@ export function playerIdentityHtml({ name, flagCode = '', titleHtml = '' } = {})
         + (flagCode ? searchFlagHtml(flagCode) : '')
         + `<span class="app-identity-name">${escapeHtml(name)}${titleHtml}</span>`
         + `</span>`;
+}
+
+/* ── Identity re-layout on viewport change ───────────────────────────────
+   An identity field's adornments are sized and positioned from the field's
+   COMPUTED FONT SIZE, which is a clamp() token — it changes with the viewport
+   width. Nothing about the field's own box does: `.app-search-input` is a fixed
+   300px, so narrowing the window from 1277 to 500 shrinks the text from 13.5px
+   to 11.05px while the wrap stays exactly 300px wide.
+
+   That is why a `ResizeObserver` on the wrap is the wrong trigger and missed it
+   entirely: no box changed, so it never fired, and the badges kept the font AND
+   the left offset computed for the old size — 13.5px badges beside 11.05px text,
+   sitting 1.8em after a name that had become narrower. Resizing the other way
+   parks them ON the name instead. The observer stays for what it was written
+   for (a field built inside a hidden panel, 0 → visible); the viewport is a
+   separate signal and needs its own.
+
+   One window listener drives every mounted field, coalesced into a frame so a
+   drag-resize does not run the layout per pixel. Entries whose wrap has left the
+   document are dropped on the next pass — chart panels are removable. */
+const identityLayouts = new Set();
+let identityResizeBound = false;
+
+function onViewportResize(wrap, relayout) {
+    identityLayouts.add({ wrap, relayout });
+    if (identityResizeBound) return;
+    identityResizeBound = true;
+    let pending = 0;
+    window.addEventListener('resize', () => {
+        cancelAnimationFrame(pending);
+        pending = requestAnimationFrame(() => {
+            for (const entry of identityLayouts) {
+                if (!entry.wrap.isConnected) identityLayouts.delete(entry);
+                else if (entry.wrap.offsetWidth > 0) entry.relayout();
+            }
+        });
+    });
 }
 
 function escapeHtml(s) {
@@ -197,9 +265,65 @@ export function mountSearchField(input, opts = {}) {
         baseMeasured = true;
     }
 
+    // How much air each adornment gets.
+    //
+    // The badge gap is expressed in EM of the field's own text, never in px: a
+    // gap after a word is typography, so it has to be a constant number of
+    // characters at every viewport, exactly as it is in a table cell — where the
+    // badge follows the name inline and `.title-abbr`'s `margin-left: 0.5em`
+    // sets it (0.5em = 1.83 space characters in this font). A fixed px gap looks
+    // identical to an em one at the width you happen to check, then drifts: the
+    // field's font is a clamp() token, so 12px is 0.89em at 1440px and 1.20em at
+    // 390px — the same distance reading as a wider and wider space as the type
+    // shrinks.
+    //
+    // 0.75em rather than the table's 0.5em, because the same distance reads
+    // tighter here: the table's badge is baseline-aligned after the text, while
+    // the field's is a filled pill centred on the field, so its box overshoots
+    // the name's ink above and below and crowds it. Whatever the number, it is
+    // the ONLY thing setting the name→badge distance — layout.css zeroes
+    // `.title-abbr`'s own margin inside the slot, because a gap assembled from a
+    // JS constant PLUS a margin in a shared CSS rule is a gap nobody owns: it
+    // measured differently depending on which stylesheet state a browser had,
+    // and it moved on its own when the slot's font-size was corrected.
+    //
+    // The flag keeps a plain px gap: it is a picture, not text, with its own
+    // margin of white baked into the image, and it aligns to the field's padding
+    // rather than to a character.
+    const FLAG_GAP = 6;
+    const BADGE_GAP_EM = 0.75;
+
     function applyIdentityLayout() {
         measureBasePadding();
-        const gap = 6;
+        const gap = FLAG_GAP;
+        // The adornments are em-sized (`.title-abbr` is `font-size: 1em`, the flag
+        // `height: 1.05em`) so that a badge always matches the text it belongs to
+        // — the same rule that makes them look right inside a table cell, where
+        // they are children of the cell and the em resolves against the cell's
+        // font. Here they CANNOT be children: an <input> holds text and nothing
+        // else, so they are absolutely-positioned SIBLINGS, and their em resolved
+        // against `.app-combo-wrap` — the page's inherited size — instead of the
+        // field's own `var(--fs-090)`. Same badge, same class, measuring a
+        // different neighbour: 15px beside a 13.5px name in the field, against a
+        // perfect 12.75/12.75 in the table two rows below.
+        //
+        // The gap WIDENS as the viewport narrows, because `--fs-*` are clamp()
+        // tokens that shrink faster than the root: +11% at 1440px, +31% at 390px,
+        // where two badges then claimed 87px of padding-right out of a 158px field
+        // and left the name 38px to live in.
+        //
+        // So hand the slots the field's own computed size. Read every pass rather
+        // than cached with the base padding: the token is viewport-dependent, and
+        // a field may also carry a deliberate skin (the pinned mobile bar forces
+        // 16px) — copying the computed value keeps every such case in step with
+        // no second rule. Must precede the offsetWidth reads below, which it
+        // changes.
+        const fieldFontSize = getComputedStyle(input).fontSize;
+        identityFlagEl.style.fontSize = fieldFontSize;
+        identityTitlesEl.style.fontSize = fieldFontSize;
+        // Same font, so one em here is one em of the name the badges trail.
+        const badgeGap = (parseFloat(fieldFontSize) || 0) * BADGE_GAP_EM;
+
         // The flag sits exactly where the field's own text would have started,
         // so it lines up with the value rather than floating in from an
         // arbitrary offset.
@@ -210,15 +334,15 @@ export function mountSearchField(input, opts = {}) {
         // Padding keeps the typed text clear of both adornments.
         const padLeft = flagW ? basePadLeft + flagW + gap : basePadLeft;
         input.style.paddingLeft = flagW ? `${padLeft}px` : '';
-        input.style.paddingRight = titlesW ? `${basePadRight + titlesW + gap}px` : '';
+        input.style.paddingRight = titlesW ? `${basePadRight + titlesW + badgeGap}px` : '';
 
         if (!titlesW) return;
         // Title badges belong to the NAME, not to the field: they trail the last
-        // character by the same gap the flag leads the first one, exactly as a
+        // character, mirroring the way the flag leads the first one, exactly as a
         // dropdown row renders them. Only when the name is too long to leave
         // room do they fall back to the trailing edge — at which point the text
         // scrolls under its own padding and stops short of them anyway.
-        const trailing = padLeft + textWidth(input.value) + gap;
+        const trailing = padLeft + textWidth(input.value) + badgeGap;
         const pinnedRight = input.clientWidth - basePadRight - titlesW;
         identityTitlesEl.style.right = 'auto';
         identityTitlesEl.style.left = `${Math.min(trailing, Math.max(pinnedRight, padLeft))}px`;
@@ -256,15 +380,22 @@ export function mountSearchField(input, opts = {}) {
        isConnected does NOT catch this: a hidden element is still connected. The
        thing that actually changes is the box getting a size, so that is what we
        watch. Cheap — one observer per identity field, and the callback is a
-       no-op until the size is real. */
+       no-op until the size is real.
+
+       It does NOT cover a viewport change — the field is a fixed 300px, so its
+       box is unmoved while its clamp() font shrinks. `onViewportResize` below is
+       that signal; see its note. No feedback loop from either: the only thing
+       the callback writes back to the field is padding, and the input is
+       `box-sizing: border-box`, so its width — and the wrap's — is unmoved. */
     if (identity && typeof ResizeObserver !== 'undefined') {
-        let hadSize = false;
+        let lastWidth = -1;
         new ResizeObserver(() => {
-            const sized = wrap.offsetWidth > 0;
-            if (sized && !hadSize) applyIdentityLayout();   // 0 → visible: redo it
-            hadSize = sized;
+            const w = wrap.offsetWidth;
+            if (w > 0 && w !== lastWidth) applyIdentityLayout();
+            lastWidth = w;
         }).observe(wrap);
     }
+    if (identity) onViewportResize(wrap, applyIdentityLayout);
 
     /**
      * Declare what the field stands for, and paint it. Reads the SAME

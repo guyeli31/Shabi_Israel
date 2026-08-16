@@ -34,7 +34,21 @@
       "Bash(grep -n \"localhost:[^/]*/\\\\\\(index\\\\|analytics\\\\|banner-poc\\\\|logo-editor\\\\|splash-poc\\\\|league\\\\|player\\\\|admin\\\\\\)\" *.bat)",
       "Bash(grep -hn \"start .*http://\\\\\\(localhost\\\\|127\\\\\\)\" *.bat)",
       "Bash(node \"C:/Users/User/AppData/Local/Temp/claude/c--WORKSPACE-Shabi-Israel/290c94bf-9884-404d-9d37-e7c5f632d113/scratchpad/dev.js\")",
-      "Bash(awk -F: '$1<360')"
+      "Bash(awk -F: '$1<360')",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' -X POST https://oaowwbwssfsohaskrgnc.supabase.co/rest/v1/rpc/submit_match_report -H 'apikey: sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G' -H 'Authorization: Bearer sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G' -H 'Content-Type: application/json' -d '{\"p_token\":\"definitely-not-a-real-token\",\"p_payload\":{\"player_a\":\"ZZ_Probe_A\",\"player_b\":\"ZZ_Probe_B\",\"score_a\":1,\"score_b\":0,\"match_length\":1}}')",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' -X POST https://oaowwbwssfsohaskrgnc.supabase.co/rest/v1/rpc/mail_reports_health -H 'apikey: sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G' -H 'Authorization: Bearer sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G' -H 'Content-Type: application/json' -d '{}')",
+      "Bash(cp /c/WORKSPACE/Shabi_Israel/tools/mail-sync/Code.gs ./codegs-check.js)",
+      "Bash(node --check ./codegs-check.js)",
+      "Bash(curl -s -w '  [HTTP %{http_code}]\\\\n' -X POST __TRACKED_VAR__/rest/v1/rpc/submit_match_report -H 'apikey: __TRACKED_VAR__' -H 'Authorization: Bearer __TRACKED_VAR__' -H 'Content-Type: application/json' -d '{\"p_token\":\"wrong-token\",\"p_payload\":{}}')",
+      "mcp__playwright-mobile__browser_click",
+      "mcp__playwright-mobile__browser_console_messages",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8090/shabi-israel/index.html)",
+      "Bash(PGPASSWORD=postgres psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f sql/analytics_poc.sql)",
+      "Bash(docker cp *)",
+      "Bash(MSYS_NO_PATHCONV=1 docker cp sql/analytics_poc.sql supabase_db_supabase-migration:/tmp/analytics_poc.sql)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec supabase_db_supabase-migration psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/analytics_poc.sql)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec supabase_db_supabase-migration psql -U postgres -d postgres -c \"select to_char\\(created_at,'HH24:MI:SS'\\) t, event_type, page, coalesce\\(from_page,'—'\\) fp, coalesce\\(referrer_kind,'—'\\) rk, coalesce\\(click_target,'—'\\) ct from public.analytics_events order by created_at desc limit 6;\")",
+      "Bash(node resign-test.js)"
     ]
   }
 }

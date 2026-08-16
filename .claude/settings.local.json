@@ -112,7 +112,11 @@
       "Read(//tmp/**)",
       "Bash(cd /c/WORKSPACE/Shabi_Israel *)",
       "Bash(xxd)",
-      "Bash(grep -v '^[+-]\\\\s*$')"
+      "Bash(grep -v '^[+-]\\\\s*$')",
+      "Bash(cp /c/WORKSPACE/Shabi_Israel/tools/mail-sync/Code.gs ./codegs-check.js)",
+      "Bash(node --check ./codegs-check.js)",
+      "Bash(sed -i 's|\\\\.match\\(/function sweepIfUpgraded_\\\\[\\\\\\\\s\\\\\\\\S\\\\]\\\\*?\\\\\\\\n}\\\\\\\\n/\\)\\\\[0\\\\]\\);|.replace\\(/\\\\\\\\r/g,\"\"\\).match\\(/function sweepIfUpgraded_[\\\\\\\\s\\\\\\\\S]*?\\\\\\\\n}\\\\\\\\n/\\)[0]\\);|' sweep-test.js)",
+      "Bash(node sweep-test.js)"
     ]
   },
   "hooks": {

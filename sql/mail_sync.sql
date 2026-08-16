@@ -108,6 +108,38 @@ alter table public.match_reports enable row level security;
 -- Getting that wrong is the override-orientation bug this project already paid
 -- for once; it is resolved here, once, at the source.
 -- ============================================================================
+-- ----------------------------------------------------------------------------
+-- Is this pair of scores possible at all?
+-- ----------------------------------------------------------------------------
+-- A match ends the moment somebody reaches the match length. So exactly one
+-- side is ON the length and the other is BELOW it — there is no third shape.
+--
+-- Measured, not assumed: across all 3,825 played matches in this database the
+-- winner's score equals the match length every single time (3,476 sevens in
+-- 7-point leagues, 349 fives in 5-point leagues). Not one overshoot, not one
+-- unfinished match. The rule below is that observation written down.
+--
+-- It exists because the source has twice put something that is not a score in
+-- the winner's slot: 1004 (its marker for "the opponent resigned"), and a 13 in
+-- a 7-point match whose meaning is still unknown. The mailbox script resolves
+-- the first; this catches the second, and whatever comes next, without needing
+-- to know what it means. A report that fails lands in F8 for an admin instead
+-- of writing an impossible result into a league.
+create or replace function public.mail_score_ok(
+    p_score_a int,
+    p_score_b int,
+    p_length  int
+)
+returns boolean
+language sql
+immutable
+as $$
+    select p_score_a is not null and p_score_b is not null and p_length is not null
+       and p_score_a >= 0 and p_score_b >= 0
+       and greatest(p_score_a, p_score_b) = p_length      -- someone won, exactly
+       and least(p_score_a, p_score_b)    < p_length;     -- and only one of them
+$$;
+
 create or replace function public.mail_candidate_leagues(
     p_player_a text,
     p_player_b text,
@@ -169,6 +201,22 @@ begin
     select * into r from public.match_reports where id = p_report_id for update;
     if r.id is null then
         return jsonb_build_object('ok', false, 'error', 'report_not_found');
+    end if;
+
+    -- The same gate the resolver applies, repeated at the point of writing.
+    --
+    -- Not redundant: the resolver decides whether to auto-apply, and this is
+    -- the only path an ADMIN takes when assigning a report by hand from F8. A
+    -- held report is visible in that list with its picker, so without this
+    -- check the one control built for reviewing a bad report is also the one
+    -- that commits it.
+    if not public.mail_score_ok((r.payload->>'score_a')::int,
+                                (r.payload->>'score_b')::int,
+                                (r.payload->>'match_length')::int) then
+        return jsonb_build_object('ok', false, 'error', 'implausible_score',
+                                  'detail', format('%s-%s in a %spt match',
+                                      r.payload->>'score_a', r.payload->>'score_b',
+                                      coalesce(r.payload->>'match_length', '?')));
     end if;
     if r.status = 'applied' then
         return jsonb_build_object('ok', false, 'error', 'already_applied');
@@ -276,6 +324,23 @@ begin
         return jsonb_build_object('ok', false, 'error', 'report_not_found');
     end if;
 
+    -- Before looking for a league at all: are these scores possible?
+    --
+    -- Placed here, ahead of the candidate scan, because the scan's job is to
+    -- find a fixture and it would happily find a perfectly good one — and then
+    -- a single candidate means AUTO-APPLY, writing 1004-0 into a league with no
+    -- one ever seeing it. An impossible score has no correct league; it has an
+    -- admin.
+    if not public.mail_score_ok((r.payload->>'score_a')::int,
+                                (r.payload->>'score_b')::int,
+                                (r.payload->>'match_length')::int) then
+        update public.match_reports
+           set candidates = '[]'::jsonb, status = 'pending_assign', auto_applied = false
+         where id = p_report_id;
+        return jsonb_build_object('ok', true, 'auto', false, 'candidates', 0,
+                                  'held', 'implausible_score');
+    end if;
+
     select coalesce(jsonb_agg(jsonb_build_object(
                'league_id', c.league_id, 'round', c.round)), '[]'::jsonb),
            count(*)
@@ -372,9 +437,9 @@ $$;
 -- Why did a report match NO league?
 -- ----------------------------------------------------------------------------
 -- mail_candidate_leagues answers "which leagues qualify" and, when the answer
--- is none, says nothing about WHY. Four very different situations collapse into
+-- is none, says nothing about WHY. Nine very different situations collapse into
 -- that one empty result — an unknown player name, a result already recorded, an
--- override, a match length no running league uses — and they need four different
+-- override, a match length no running league uses — and they need different
 -- actions from the admin. Without this, every empty row costs a manual
 -- investigation to tell them apart.
 --
@@ -382,6 +447,23 @@ $$;
 -- and report the FIRST one that fails. Recomputed on read rather than stored,
 -- because the answer changes when the roster does — a stored reason would go
 -- quietly stale the moment a player is renamed.
+--
+-- ── House style for these strings ─────────────────────────────────────────
+-- They are read inside a TABLE CELL, next to the row they describe and next to
+-- a Discard button. That context does three things to the wording:
+--
+--   * No advice. "Delete that result first", "Check the spelling against the
+--     roster" — the cell says what is true; what to do about it is the admin's
+--     call and the buttons are right there.
+--   * Nothing the row already shows. The league, and both player names, are
+--     columns of their own. Repeating them in prose doubles the reading with
+--     no information added.
+--   * Only the facts that are NOT on screen: the score of the clashing result,
+--     the two match lengths, and which of the two names is the unknown one.
+--
+-- Two to four words wherever the case carries no such fact. The long-form
+-- versions these replaced ran to two full sentences and pushed the cell past
+-- the width of every other column in the table.
 create or replace function public.mail_orphan_reason(
     p_a   text,
     p_b   text,
@@ -404,7 +486,7 @@ declare
 begin
     select count(*) into v_running from public.leagues where running and not archived;
     if v_running = 0 then
-        return 'No league is currently running, so there is nothing to add this match to.';
+        return 'No running league';
     end if;
 
     -- Which running leagues does each player appear in at all?
@@ -418,18 +500,19 @@ begin
       join public.matches m on m.league_id = l.id
      where l.running and not l.archived and (m.player_a = p_b or m.player_b = p_b);
 
+    -- Which name is the unrecognised one is the whole point of these three, so
+    -- it is named. Both unknown needs no name: they are the only two on the row.
     if v_a is null and v_b is null then
-        return format('Neither %s nor %s is a player in any running league. Check the spelling against the league roster — names must match exactly.', p_a, p_b);
+        return 'Both names unknown';
     elsif v_a is null then
-        return format('%s is not a player in any running league, though %s is. Check the spelling against the league roster — names must match exactly.', p_a, p_b);
+        return format('Unknown player: %s', p_a);
     elsif v_b is null then
-        return format('%s is not a player in any running league, though %s is. Check the spelling against the league roster — names must match exactly.', p_b, p_a);
+        return format('Unknown player: %s', p_b);
     end if;
 
     select array(select unnest(v_a) intersect select unnest(v_b)) into v_both;
     if v_both = '{}' then
-        return format('%s and %s do not play in the same running league (%s plays in %s; %s plays in %s).',
-                      p_a, p_b, p_a, array_to_string(v_a, ', '), p_b, array_to_string(v_b, ', '));
+        return 'Different leagues';
     end if;
 
     select l.id as lid, m.player_a, m.player_b, m.score_a, m.score_b
@@ -440,8 +523,14 @@ begin
        and ((m.player_a = p_a and m.player_b = p_b) or (m.player_a = p_b and m.player_b = p_a))
      limit 1;
     if found then
-        return format('This match is already recorded in %s as %s %s - %s %s. Delete or edit that result first if the e-mail is the correct one.',
-                      v_played.lid, v_played.player_a, v_played.score_a, v_played.score_b, v_played.player_b);
+        -- The score is ORIENTED to the report's own player order. Dropping the
+        -- names from this string is only safe because of that: the stored match
+        -- may hold the same pair the other way round, and "Already played
+        -- (7-1)" printed in storage order would name the wrong winner while
+        -- reading perfectly next to the row's own two columns.
+        return format('Already played (%s-%s)',
+                      case when v_played.player_a = p_a then v_played.score_a else v_played.score_b end,
+                      case when v_played.player_a = p_a then v_played.score_b else v_played.score_a end);
     end if;
 
     select o.league_id into v_ovr
@@ -450,7 +539,7 @@ begin
        and ((o.player_a = p_a and o.player_b = p_b) or (o.player_a = p_b and o.player_b = p_a))
      limit 1;
     if found then
-        return format('A manual override already covers this match in %s, and an override always wins over imported data. Remove the override first if the e-mail is the correct one.', v_ovr.league_id);
+        return 'Manual override exists';
     end if;
 
     select l.id as lid, l.match_length
@@ -461,12 +550,14 @@ begin
        and ((m.player_a = p_a and m.player_b = p_b) or (m.player_a = p_b and m.player_b = p_a))
      limit 1;
     if found then
-        return format('%s and %s are due to meet in %s, but that is a %s-point league and this match was played to %s.',
-                      p_a, p_b, v_len.lid, coalesce(v_len.match_length::text, 'different length'), coalesce(p_len::text, 'an unknown length'));
+        -- League length first, then the report's — the same order as the words
+        -- "expected" and "got", which is how this gets read.
+        return format('Length mismatch (%s vs %s)',
+                      coalesce(v_len.match_length::text, '?'),
+                      coalesce(p_len::text, '?'));
     end if;
 
-    return format('%s and %s both play in %s, but they are not scheduled to meet there.',
-                  p_a, p_b, array_to_string(v_both, ', '));
+    return 'Not scheduled to meet';
 end;
 $$;
 
@@ -491,7 +582,18 @@ security definer
 set search_path = public
 as $$
     select r.id, r.payload, r.candidates, r.received_at,
-           case when jsonb_array_length(r.candidates) = 0
+           case
+                -- An impossible score is reported as itself, ahead of any
+                -- league reasoning. mail_orphan_reason would otherwise answer
+                -- the wrong question — "they are not scheduled to meet" is true
+                -- but useless when the actual problem is a score of 1004.
+                when not public.mail_score_ok((r.payload->>'score_a')::int,
+                                              (r.payload->>'score_b')::int,
+                                              (r.payload->>'match_length')::int)
+                then format('Impossible score (%s-%s in a %spt match)',
+                            r.payload->>'score_a', r.payload->>'score_b',
+                            coalesce(r.payload->>'match_length', '?'))
+                when jsonb_array_length(r.candidates) = 0
                 then public.mail_orphan_reason(r.payload->>'player_a',
                                                r.payload->>'player_b',
                                                (r.payload->>'match_length')::int)
@@ -561,6 +663,10 @@ revoke all on function public.mail_orphan_reason(text, text, int)         from p
 revoke all on function public.mail_reports_log(int)                       from public;
 revoke all on function public.mail_reports_health()                       from public;
 revoke all on function public.mail_discard_report(bigint, text)           from public;
+-- mail_score_ok is a pure predicate over three integers: it reads nothing,
+-- writes nothing, and reveals nothing. It is left executable so the callers
+-- above (all security definer) need no further grant, and so the rule can be
+-- checked from a query without reproducing it by hand.
 
 -- anon gets exactly one verb, and it cannot read anything back.
 grant execute on function public.submit_match_report(text, jsonb) to anon;

@@ -50,10 +50,18 @@ import { resolvedUrl as SUPABASE_URL, resolvedAnonKey as SUPABASE_ANON_KEY } fro
 // import populating a module-level var) would leave admin_user null on the
 // FIRST pageview of every load, which is the event most worth attributing.
 import { isLoggedIn, getUsername } from './admin/auth.js';
-// TEMPORARY — delete this import together with js/render/movedNotice.js after
+// TEMPORARY — delete these imports together with js/render/movedNotice.js after
 // 2026-08-27. It hangs here only because analytics.js is the one module every
 // shareable page already loads, so the "we moved" banner needs no per-page wiring.
-import { mountMovedNotice } from './render/movedNotice.js';
+import { mountMovedNotice, movedBannerActive } from './render/movedNotice.js';
+
+// TEMPORARY (with movedNotice.js). Resolved ONCE, up front, before the pageview
+// below: true while the "we moved" banner is on screen this page. Stamped onto
+// every event via baseFields so the dashboard marks each such page with 📦 —
+// one-to-one with "the banner was shown". Computing it here also runs the flag's
+// one-time strip of ?moved before the pageview reads the URL. null (not false) so
+// the column stays empty for the overwhelming majority of rows.
+const MOVED_BANNER = movedBannerActive() || null;
 
 const PAGE_BY_FILENAME = {
     'index.html': 'landing',
@@ -129,7 +137,18 @@ function currentAdminUser() {
 
 function pageFromPathname(pathname) {
     const filename = pathname.split('/').pop() || 'index.html';
-    return PAGE_BY_FILENAME[filename] || null;
+    const type = PAGE_BY_FILENAME[filename] || null;
+    // The domain hub (golan.me.uk/) and the app landing (golan.me.uk/shabi-israel/)
+    // are BOTH index.html — same filename, different page — told apart only by
+    // depth: the hub sits at the domain root, the app one folder down. Count the
+    // path's folder segments (ignoring the file itself); 0 → hub, ≥1 → app landing.
+    // Depth-based, not folder-name-coupled, so a future app-folder rename can't
+    // silently reclassify the hub.
+    if (type === 'landing') {
+        const depth = pathname.split('/').filter((s) => s && !s.includes('.')).length;
+        return depth === 0 ? 'hub' : 'landing';
+    }
+    return type;
 }
 
 // The in-page view/tab, derived from the URL so the log can say WHICH section of
@@ -208,6 +227,7 @@ function baseFields() {
         league_id: params.get('league') || null,
         player: params.get('player') || null,
         tab: currentTab(page, params),
+        moved_banner: MOVED_BANNER,
         ...detectDevice(),
         ...detectReferrer(),
     };

@@ -83,7 +83,7 @@
         if(c){try{var v=JSON.parse(c);for(var k in v)document.documentElement.style.setProperty(k,v[k])}catch(e){}}
         // Fail-safe: the splash is static markup, so a module that never loads
         // would leave it covering the page forever. Take it away regardless.
-        setTimeout(function(){var s=document.getElementById('logo-splash');if(s&&!s.dataset.done)s.remove();},25000);
+        setTimeout(function(){var s=document.getElementById('logo-splash');if(s&&!s.dataset.done){s.remove();document.documentElement.classList.remove('sp-active');}},25000);
         // Don't flash the splash on a fast internal navigation — see index.html.
         try {
           if (document.referrer && document.referrer.indexOf(location.origin + '/') === 0) {
@@ -172,12 +172,16 @@
          preloaded files, so it runs at DOMContentLoaded instead. -->
     <script type="module">import './js/utils/splash.js';</script>
     <div class="page-container" id="main" role="main">
+        <!-- Empty on purpose, exactly like league.html / player.html: the
+             splash is the only loading UI, so nothing here paints until there
+             is real content. Both halves used to ship filled in — a hardcoded
+             <h1> and a "Loading analytics…" line — which showed straight
+             through the transparent splash as a second loading message.
+             renderAnalyticsPage() writes the title. -->
         <div class="page-header">
-            <h1>Analytics</h1>
+            <h1 id="page-title"></h1>
         </div>
-        <div id="content">
-            <div class="loading">Loading analytics...</div>
-        </div>
+        <div id="content"></div>
     </div>
     <script type="module">
         import { renderAnalyticsPage } from './js/render/analyticsPage.js';

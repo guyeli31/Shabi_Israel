@@ -8,8 +8,11 @@
 
     <!-- Root landing page for the domain. Each project lives in its own folder,
          so a new project = a new folder here (see CLAUDE.md § Hosting layout).
-         Deliberately dependency-free: no shared CSS, no fonts, no build step —
-         this page must render even if every project below is mid-deploy. -->
+         Dependency-free by design: no shared CSS, no fonts, no build step — this
+         page must render even if every project below is mid-deploy. The ONE
+         exception is the analytics beacon at the bottom, a non-blocking module:
+         if it fails to load the page still renders, only the hub visit + the
+         "Shabi Israel" click go unrecorded. -->
     <link rel="icon" href="shabi-israel/assets/favicon-round.png">
 
     <style>
@@ -90,7 +93,7 @@
 
         <ul>
             <li>
-                <a class="card" href="shabi-israel/">
+                <a class="card" href="shabi-israel/" data-track="Hub link: Shabi Israel">
                     <img src="shabi-israel/assets/favicon-round.png" alt="">
                     <span>
                         <span class="card-name">Shabi Israel</span><br>
@@ -107,5 +110,13 @@
             site's address from now on.
         </p>
     </main>
+
+    <!-- Analytics beacon. Loaded from the app folder (the one place it lives) so
+         the hub is tracked as its own page ('hub') and the click into the app is
+         recorded (keepalive fetch survives the navigation). Module + at the end of
+         <body> = non-blocking; see the head comment on the dependency exception.
+         TEMPORARY note: this also carries the "we moved" banner logic, but the
+         banner only shows on ?moved arrivals, which the hub normally isn't. -->
+    <script type="module" src="shabi-israel/js/analytics.js"></script>
 </body>
 </html>

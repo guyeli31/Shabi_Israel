@@ -263,9 +263,11 @@ function standingsPanel() {
         <section class="app-section app-section--card dash-section">
             <h2 class="app-section-h2">Table</h2>
             <div class="dash-controls">
-                <button id="hist-prev" title="Previous snapshot">&lsaquo;</button>
-                <select id="hist-date" title="Select snapshot date"></select>
-                <button id="hist-next" title="Next snapshot">&rsaquo;</button>
+                <div class="snap-nav">
+                    <button id="hist-prev" title="Previous snapshot">&lsaquo;</button>
+                    <select id="hist-date" title="Select snapshot date"></select>
+                    <button id="hist-next" title="Next snapshot">&rsaquo;</button>
+                </div>
                 <a id="hist-to-full" class="open-full-btn" href="#" title="Open the full league table for the current state">Open full table &rsaquo;</a>
             </div>
             <div id="hist-table"></div>
@@ -337,9 +339,11 @@ function predictorPanel() {
                 <div id="whatif-body">
                     <div class="whatif-baseline dash-controls" id="whatif-baseline-row" hidden>
                         <label for="whatif-baseline-select">Run from</label>
-                        <button id="whatif-baseline-prev" type="button" title="Newer snapshot">&lsaquo;</button>
-                        <select id="whatif-baseline-select" title="Historical version to run the simulation from"></select>
-                        <button id="whatif-baseline-next" type="button" title="Older snapshot">&rsaquo;</button>
+                        <div class="snap-nav">
+                            <button id="whatif-baseline-prev" type="button" title="Newer snapshot">&lsaquo;</button>
+                            <select id="whatif-baseline-select" title="Historical version to run the simulation from"></select>
+                            <button id="whatif-baseline-next" type="button" title="Older snapshot">&rsaquo;</button>
+                        </div>
                     </div>
                     <div class="whatif-picker">
                         <div class="whatif-combo">

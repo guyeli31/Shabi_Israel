@@ -121,6 +121,31 @@
     cursor: not-allowed;
 }
 
+/* Snapshot stepper — the ‹ select › triple, as ONE unwrappable unit.
+   Used by the Table panel (F2) and by What-If's "Run from" baseline picker, so
+   the two pickers are identical in geometry and not merely in chrome.
+
+   Why a wrapper and not three flex siblings: .dash-controls wraps, and three
+   siblings can break ANYWHERE between them — so on a 430px phone the "Run from"
+   label plus a flex-grown select ate row one and stranded the `›` button alone
+   on row two. Nesting them makes the triple a single flex item: it wraps as a
+   whole or not at all.
+
+   flex: 1 1 240px — both instances grow into whatever the row has left, which
+   is what makes their widths match; 240px is the basis below which the select
+   would start truncating snapshot labels. min-width: 0 lets the select actually
+   shrink inside it (a flex item's auto minimum would otherwise pin it to its
+   longest <option> and force the wrap this rule exists to prevent). */
+.snap-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex: 1 1 240px;
+    min-width: 0;
+}
+.snap-nav select { flex: 1 1 auto; min-width: 0; }
+.snap-nav button { flex: 0 0 auto; }
+
 .round-label {
     font-weight: 600;
     min-width: 130px;
@@ -1178,14 +1203,10 @@
     border-radius: var(--radius-md);
 }
 
-/* "Run from" baseline picker — reuses .dash-controls chrome (see B2). Sits
-   above the Player A/B picker inside #whatif-body. */
+/* "Run from" baseline picker — reuses .dash-controls chrome (see B2) and the
+   shared .snap-nav stepper, so it is the same control as the Table panel's.
+   Sits above the Player A/B picker inside #whatif-body. */
 .whatif-baseline[hidden] { display: none; }
-.whatif-baseline select {
-    max-width: 100%;
-    flex: 1 1 auto;
-    min-width: 0;
-}
 
 .whatif-picker {
     display: flex;
