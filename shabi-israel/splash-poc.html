@@ -691,7 +691,10 @@ $('retry').onclick = runLoad;
  * Slow motion multiplies the delays, not the animation: the per-square
  * transition-delay comes from CSS, so it is scaled with --sp-close-scale.
  */
-const CLOSE_MS = 260;
+// Keep in step with CLOSE_MS in js/utils/splash.js by hand — this file is a
+// classic script and cannot import it. If the preview's exit stops matching
+// the site's, this is the number that drifted.
+const CLOSE_MS = 240;
 function playExit(scale = 1) {
     const ring = splash.querySelector('.sp-ring');
     // Reset to a partly-filled ring so there is something left to close.

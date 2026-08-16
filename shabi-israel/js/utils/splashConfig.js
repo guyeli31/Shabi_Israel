@@ -79,6 +79,14 @@ export const SPLASH_STAGE_SETS = {
         { key: 'shell',   label: 'Preparing the admin panel',  chip: 'Panel',   ms: 600 },
         { key: 'data',    label: 'Loading leagues & players',  chip: 'Data',    ms: 1300 },
         { key: 'render',  label: 'Rendering',                  chip: 'Render',  ms: 600 }
+    ],
+    /* Moving between admin sections once the panel is already open. The shell,
+       the session and the connection are all established by then, so narrating
+       them again would be a lie — and would leave three chips visibly skipped.
+       Only the two steps that actually happen. See restartSplash({stages}). */
+    adminView: [
+        { key: 'data',   label: 'Loading this section', chip: 'Data',   ms: 1300 },
+        { key: 'render', label: 'Rendering',            chip: 'Render', ms:  600 }
     ]
 };
 

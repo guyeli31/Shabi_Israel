@@ -374,13 +374,28 @@
  *
  * So the stagger is declarative. JS adds one class and lights everything; the
  * per-square transition-delay makes them arrive in sequence, and CSS keeps that
- * promise whether or not the main thread is free. ~10ms apart = the full ring
- * closes in ~240ms, matching CLOSE_MS in splash.js. */
+ * promise whether or not the main thread is free.
+ *
+ * THE LAST SQUARE MUST FINISH BEFORE THE SPLASH IS GONE. The ring closing is a
+ * promise that the work completed; a ring removed at 19/24 says the opposite.
+ * The budget is easy to get wrong, and was: the note here used to read "~10ms
+ * apart = the full ring closes in ~240ms", which counted the delay span (23 ×
+ * 10ms) and forgot that the last square then still has its own transition to
+ * run. The real figure was 230 + 280 = 510ms — longer than the whole exit, so
+ * the ring was carried off screen before it ever reached 100%.
+ *
+ * Both halves count:
+ *     last square done = (n - 1) × step + duration
+ *                      = 23 × 6ms + 200ms ≈ 340ms   (n = 24)
+ * against CLOSE_MS = 240ms in splash.js, which is when the fade starts. So the
+ * ring completes ~100ms into a 300ms fade — visibly, at roughly two-thirds
+ * opacity, which is the intent: seen at 100%, just slightly faded. Change
+ * either number and re-check that sum. */
 .splash.is-closing .sp-ring[data-mode="determinate"] .sq {
     /* --sp-close-scale is 1 everywhere except the editor's slow-motion
        preview, which stretches it so a ~250ms event can actually be watched. */
-    transition-delay: calc(var(--i) * 10ms * var(--sp-close-scale, 1));
-    transition-duration: calc(.28s * var(--sp-close-scale, 1));
+    transition-delay: calc(var(--i) * 6ms * var(--sp-close-scale, 1));
+    transition-duration: calc(.2s * var(--sp-close-scale, 1));
 }
 
 /* ── Logo at the centre ───────────────────────────────────────── */
@@ -485,8 +500,19 @@
     background: color-mix(in srgb, var(--sp-accent) 16%, transparent);
 }
 
-/* ── Exit ─────────────────────────────────────────────────────── */
-.splash.is-leaving { animation: sp-leave .55s cubic-bezier(.6,0,.35,1) forwards; }
+/* ── Exit ─────────────────────────────────────────────────────────
+   .3s, not the .55s this started at. The splash is no longer only a
+   page-load screen: restartSplash() also runs it for in-page refetches
+   (analytics' filters, the admin's section switches), and there the exit
+   is a tail on an action the user took a moment ago rather than the end
+   of a page load. Measured end-to-end, the old pair (.55s here plus the
+   260ms ring-close wait in splash.js) left the screen covered for ~810ms
+   after the data was already in. This halves that to ~480ms.
+
+   Not taken to zero on purpose: an animation that is cut off mid-way
+   reads as broken, which is the failure this whole mechanism exists to
+   avoid. Shorten it, don't remove it. */
+.splash.is-leaving { animation: sp-leave .3s cubic-bezier(.6,0,.35,1) forwards; }
 @keyframes sp-leave {
     to { opacity: 0; transform: scale(1.045); filter: blur(6px); }
 }

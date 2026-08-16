@@ -48,7 +48,10 @@
       "Bash(MSYS_NO_PATHCONV=1 docker cp sql/analytics_poc.sql supabase_db_supabase-migration:/tmp/analytics_poc.sql)",
       "Bash(MSYS_NO_PATHCONV=1 docker exec supabase_db_supabase-migration psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/analytics_poc.sql)",
       "Bash(MSYS_NO_PATHCONV=1 docker exec supabase_db_supabase-migration psql -U postgres -d postgres -c \"select to_char\\(created_at,'HH24:MI:SS'\\) t, event_type, page, coalesce\\(from_page,'—'\\) fp, coalesce\\(referrer_kind,'—'\\) rk, coalesce\\(click_target,'—'\\) ct from public.analytics_events order by created_at desc limit 6;\")",
-      "Bash(node resign-test.js)"
+      "Bash(node resign-test.js)",
+      "Bash(node --check js/render/siteSidebar.js)",
+      "Bash(node -e \"new \\(require\\('vm'\\).Script\\)\\(require\\('fs'\\).readFileSync\\('js/render/siteSidebar.js','utf8'\\),{}\\);console.log\\('parse ok'\\)\")",
+      "mcp__playwright__browser_wait_for"
     ]
   }
 }

@@ -296,9 +296,6 @@ function renderShell(sidebar, opts) {
     if (opts.activeView === 'records') sidebar.querySelector('[data-view="records"]')?.classList.add('active');
     if (opts.activeView === 'leaders') sidebar.querySelector('[data-view="leaders"]')?.classList.add('active');
     if (opts.activeView === 'player' || opts.activeView === 'playerLeague') sidebar.querySelector('[data-view="players"]')?.classList.add('active');
-
-    const select = sidebar.querySelector('#site-name-display-select');
-    if (select) select.value = getNameDisplayMode();
 }
 
 /* ── Async population ────────────────────────────────────────────────── */

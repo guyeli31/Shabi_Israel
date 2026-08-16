@@ -21,6 +21,7 @@ import { matchesToCsvText } from './csvText.js';
 import { KNOWN_FLAGS, ensureFlagCodes, registerFlagCode } from './flagRegistry.js';
 import { loadPlayersMetadata } from '../data/supabasePlayersMetadata.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
+import { restartSplash, endSplash } from '../utils/splash.js';
 
 /**
  * Per-league CustomFlags plus the recency order of the leagues themselves —
@@ -148,7 +149,8 @@ function setLeaguesHash(kind, leagueId, subtab) {
 
 export async function renderLeagueAdmin(container, refreshBadge, subroute = []) {
     refreshBadgeFn = refreshBadge;
-    container.innerHTML = '<h1>Leagues</h1><div class="loading">Loading leagues...</div>';
+    restartSplash({ stages: 'adminView' });   // shared loading screen — see syncManager.js
+    container.innerHTML = '<h1>Leagues</h1>';
 
     try {
         const displayOrder = await loadLeagueOrder();
@@ -179,6 +181,8 @@ export async function renderLeagueAdmin(container, refreshBadge, subroute = []) 
         renderLeagueList(container, leagues, displayOrder);
     } catch (err) {
         container.innerHTML = `<h1>Leagues</h1><div class="admin-msg admin-msg-error">Failed to load: ${err.message}</div>`;
+    } finally {
+        endSplash();   // pairs with restartSplash() — see syncManager.js
     }
 }
 
@@ -1098,7 +1102,8 @@ async function stageDeleteLeague(leagueId, title, displayOrder) {
 // ---- Edit League ----
 
 async function renderEditLeague(container, leagueId, displayOrder, openSubtab) {
-    container.innerHTML = '<h1>Edit League</h1><div class="loading">Loading...</div>';
+    restartSplash({ stages: 'adminView' });   // shared loading screen — see syncManager.js
+    container.innerHTML = '<h1>Edit League</h1>';
 
     try {
         // Same as the Add form: the F2 flag dropdowns are only correct once the
@@ -1120,6 +1125,8 @@ async function renderEditLeague(container, leagueId, displayOrder, openSubtab) {
         renderEditLeagueForm(container, leagueId, params, players, displayOrder, openSubtab);
     } catch (err) {
         container.innerHTML = `<h1>Edit League</h1><div class="admin-msg admin-msg-error">${err.message}</div>`;
+    } finally {
+        endSplash();   // pairs with restartSplash() — see syncManager.js
     }
 }
 

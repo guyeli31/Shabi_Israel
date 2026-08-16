@@ -22,6 +22,7 @@ import { supabase } from '../../data/supabaseClient.js';
 import { renderChangeLabel } from './changeVocabulary.js';
 import { describeFieldChange, describeEntitySummary } from './changeDetails.js';
 import { mountFilterToggle } from '../../render/subTabs.js';
+import { restartSplash, endSplash } from '../../utils/splash.js';
 
 // Per-table icon + label for the attachment sub-rows shown under "Details".
 const ATTACHMENT_META = {
@@ -144,9 +145,8 @@ function bindLimitInput(container) {
 }
 
 export async function renderHistoricalChanges(container) {
-    container.innerHTML = `
-        <h1>Historical Changes</h1>
-        <div class="admin-card"><p class="loading">Loading history...</p></div>`;
+    restartSplash({ stages: 'adminView' });   // shared loading screen — see syncManager.js
+    container.innerHTML = '<h1>Historical Changes</h1>';
 
     const limit = getHistoryLimit();
 
@@ -161,6 +161,7 @@ export async function renderHistoricalChanges(container) {
 
     if (error) {
         container.innerHTML = `<h1>Historical Changes</h1><div class="admin-msg admin-msg-error">${esc(error.message)}</div>`;
+        endSplash();   // a failed load must still uncover the page
         return;
     }
 
@@ -249,6 +250,7 @@ export async function renderHistoricalChanges(container) {
     wireBulk(container, data);
     wireDiffToggles(container);
     wireRowActions(container);
+    endSplash();   // pairs with restartSplash() — see syncManager.js
 }
 
 // ---- Details (lazy-load one batch's non-ghost rows on expand) ----

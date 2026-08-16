@@ -32,6 +32,7 @@ import {
 } from './syncLog.js';
 import { createStageTracker, estimateRunSeconds, fmtDuration } from './syncProgress.js';
 import { loadMailState, mailSectionsHTML, wireMailSections } from './mailSync.js';
+import { restartSplash, endSplash } from '../utils/splash.js';
 
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 const DEFAULT_PLAN_ID = 'default';
@@ -45,7 +46,11 @@ let _publishedSourceNames = {};
 // ── entry ───────────────────────────────────────────────────────────────
 export async function renderSyncAdmin(container, refreshBadge) {
     refreshBadgeFn = refreshBadge;
-    container.innerHTML = '<h1>Sync</h1><div class="loading">Loading sync settings…</div>';
+    // Every path into this view fetches from Supabase, so it gets the shared
+    // loading screen rather than a line of text of its own. A no-op when the
+    // admin's first-load splash is still up. See restartSplash().
+    restartSplash({ stages: 'adminView' });
+    container.innerHTML = '<h1>Sync</h1>';
 
     try {
         const displayOrder = await loadLeagueOrder();
@@ -67,6 +72,12 @@ export async function renderSyncAdmin(container, refreshBadge) {
         renderSyncPage(container, leagues, settings, mail);
     } catch (err) {
         container.innerHTML = `<h1>Sync</h1><div class="admin-msg admin-msg-error">Failed to load: ${esc(err.message)}</div>`;
+    } finally {
+        // Pairs with the restartSplash() above. Must be here, not at the call
+        // site: this view is re-rendered from inside itself (the mail-section
+        // wiring), and those paths would otherwise leave the loading screen up
+        // until the 25s fail-safe. Harmless when no splash is running.
+        endSplash();
     }
 }
 
@@ -169,21 +180,46 @@ export function renderSyncPage(container, leagues, settings, mail = null) {
     //
     // The merge was `Object.assign({}, ...leagues.map(...))`, and in
     // Object.assign the LAST source wins. `leagues` follows DisplayOrder, which
-    // runs newest-first, so the last entry is the OLDEST league — and every
-    // player was shown the flag from the first season they ever played in,
-    // never their current one. Sorting by IssueDate ascending puts the newest
-    // league last, so it is the one that wins.
-    const byDate = [...leagues].sort((a, b) => {
-        const da = (a.params && a.params.IssueDate) || '';
-        const db = (b.params && b.params.IssueDate) || '';
-        // Undated leagues sort first, i.e. lose to every dated one. They are
-        // the ones whose recency we cannot establish, so they are the ones that
-        // should not be allowed to overwrite a league we can date.
-        return String(da).localeCompare(String(db));
-    });
-    const customFlags = Object.assign({}, ...byDate.map((l) => (l.params && l.params.CustomFlags) || {}));
+    // runs newest-first, so the last entry was the OLDEST league — every player
+    // wore the flag from the first season they ever played in.
+    //
+    // The fallback now answers the question the table is actually asking. A mail
+    // report can only ever belong to a RUNNING league — that is the first
+    // condition in mail_candidate_leagues — so the flag beside an unassigned
+    // player should be the one they fly in the league this match is going to
+    // land in, which is a running one.
+    //
+    // So the fallback is built from the RUNNING leagues ONLY — not from every
+    // league with the running ones layered on top.
+    //
+    // The difference is absence. CustomFlags holds only the players who differ
+    // from the IL default, and getFlagCode() reads a missing name AS IL. Layering
+    // running leagues over all leagues therefore lets an old entry survive where
+    // the running league is silent — and silence there is not "no opinion", it is
+    // the opinion "IL". Moriarty is the live case: TZ up to April 2026, GE from
+    // May, and no entry at all in August 2026, which he plays in. The league page
+    // shows him IL; a layered merge showed him GE, so the two disagreed about the
+    // same player in the same league.
+    //
+    // "Newest" and "running" are also not the same thing and can disagree: a
+    // league can carry a later date and not be running yet, and more than one
+    // league can run at once — August 2026 and August 2026 Regular both do.
+    // Among several running leagues the newest wins, which is the best available
+    // answer when the report has not been assigned to one of them yet.
+    const oldestFirst = (list) => [...list].sort((a, b) =>
+        // Undated leagues sort first, i.e. lose to every dated one — they are the
+        // ones whose recency cannot be established, so they are the ones that
+        // should not overwrite a league that can be dated.
+        String((a.params && a.params.IssueDate) || '')
+            .localeCompare(String((b.params && b.params.IssueDate) || '')));
+
+    const flagsOf = (l) => (l.params && l.params.CustomFlags) || {};
+    const running = leagues.filter((l) => l.params && l.params.Running === true);
+
+    const customFlags = Object.assign({}, ...oldestFirst(running).map(flagsOf));
+
     const flagsByLeague = {};
-    for (const l of leagues) flagsByLeague[l.id] = (l.params && l.params.CustomFlags) || {};
+    for (const l of leagues) flagsByLeague[l.id] = flagsOf(l);
 
     container.innerHTML = `
         <h1>Sync</h1>

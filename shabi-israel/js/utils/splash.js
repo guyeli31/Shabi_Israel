@@ -15,6 +15,7 @@
  *   splashStage(key)     — advance to a stage from the page's stage set
  *                          (`data-stages` on .splash; see SPLASH_STAGE_SETS)
  *   endSplash()          — fade out and remove
+ *   restartSplash()      — run it again for an in-page refetch (see its note)
  *   updateSplashLogo(src)— swap the centre logo (per-league logos)
  */
 
@@ -66,8 +67,15 @@ const revealedAt = () => window.__splashRevealAt || shownAt;
 let litShown = 0;
 let litTarget = 0;
 let litRaf = null;
-/** Time budget for catching up a backlog of squares. */
-const CLOSE_MS = 260;
+/** Time budget for catching up a backlog of squares, and the pause endSplash()
+ *  holds before starting the exit.
+ *
+ *  Budgeted against the ring's closing stagger, which finishes at roughly
+ *  (n-1) × 6ms + 200ms ≈ 340ms for the default 24 squares — see the
+ *  `.is-closing` note in css/splash.css. At 240ms the 300ms fade starts while
+ *  the last squares are still arriving, so the ring is seen reaching 100%,
+ *  slightly faded, rather than being removed short of it. */
+const CLOSE_MS = 240;
 
 /**
  * Light squares one at a time, never in a batch.
@@ -164,6 +172,8 @@ function creepTo(target) {
 /* ── Public API ───────────────────────────────────────────────── */
 
 let started = false;
+/** The page's own splash markup, captured pristine on first start. */
+let template = null;
 
 /**
  * Called automatically on import (see the bottom of this file) and again by
@@ -178,6 +188,13 @@ export function startSplash() {
     el = document.getElementById('logo-splash');
     if (!el) return;                       // page opted out of the splash
     started = true;
+    // Snapshot the pristine markup before anything below touches it — this is
+    // what restartSplash() re-inserts. Taken here, not written by hand, so the
+    // rebuilt splash is byte-for-byte the page's own: same stage set, same
+    // static chips, same ring (built by the inline script at parse time, which
+    // has already run). A hand-built copy would drift the moment a page's
+    // markup changed. See restartSplash().
+    template = el.cloneNode(true);
     ringEl = el.querySelector('.sp-ring');
     // Which surface's work are we narrating? Declared in the markup so the
     // page's own <head> already knows it — see SPLASH_STAGE_SETS.
@@ -310,6 +327,7 @@ export function endSplash() {
     document.documentElement.classList.remove('sp-active');
     cancelAnimationFrame(creepRaf);
     clearTimeout(slowTimer);
+    clearTimeout(deferTimer);
 
     const node = el;
     el = null;
@@ -328,6 +346,25 @@ export function endSplash() {
 
     const list = node.querySelector('.sp-steps');
     if (list) [...list.children].forEach(li => { li.classList.add('is-done'); li.classList.remove('is-active'); });
+
+    // The written progress has to finish too. The ring below is driven to a
+    // full circle, every chip is marked done — but the counter kept whatever
+    // number the creep had crawled to, so a load that finished early went out
+    // reading "Step 2 of 5 · 14%" under a complete ring and a row of ticks.
+    // Three claims about the same moment, two of them saying it succeeded and
+    // one saying it stopped a seventh of the way in.
+    //
+    // Written straight onto `node`, not via paintDetail(): `el` is already null
+    // by this point, which is exactly why this was missed.
+    progress = 1;
+    stageIdx = stages.length - 1;
+    const detail = node.querySelector('.sp-detail');
+    if (detail) detail.textContent = `Step ${stages.length} of ${stages.length} · 100%`;
+    // Same reason: the sentence above the counter named whichever stage the
+    // work happened to stop on. Set plainly, not through splashStage(), which
+    // would run its swap animation over a screen that is already leaving.
+    const label = node.querySelector('.sp-stage');
+    if (label) label.textContent = stages[stages.length - 1].label;
 
     // Close the ring so the last thing seen is a complete circle, not the
     // arbitrary arc the progress happened to reach. `.is-closing` gives every
@@ -350,6 +387,76 @@ export function endSplash() {
         // background tab), take it away anyway.
         setTimeout(() => node.remove(), 900);
     }, wait);
+}
+
+/** The delay half of the delay/minimum pair, mirroring each page's inline
+ *  head script. Kept in step with it by hand: the head script cannot import. */
+const DEFER_MS = 350;
+let deferTimer = null;
+
+/**
+ * Run the loading screen again for an IN-PAGE refetch.
+ *
+ * The splash was originally a once-per-document thing, because a document only
+ * loads once. But some in-page controls are not filters — they change what the
+ * numbers MEAN, and the answer can only come from the database. Analytics'
+ * "Exclude my own traffic" is the clearest case: every KPI, chart and top-list
+ * is aggregated server-side, so "without my traffic" is not derivable from the
+ * totals the browser was sent. The month picker is the same shape. Those are
+ * full reloads of the page's data in everything but the URL, and they deserve
+ * the same loading screen a navigation gets — not a bare line of text.
+ *
+ * The delay/minimum pair applies exactly as on a navigation: nothing appears
+ * for DEFER_MS, so a refetch that returns from a warm connection never flashes
+ * a loading screen at all.
+ *
+ * Callers should NOT clear their content first. The splash is translucent, so
+ * leaving the previous render underneath keeps the operator anchored in the
+ * page they are already reading; swap the content in when the data lands.
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.stages] — a SPLASH_STAGE_SETS name to narrate instead
+ *        of the page's own. A refetch rarely repeats a page's whole first-load
+ *        story: the admin's section switches, for instance, have already
+ *        connected and built the shell, so they use the two-step `adminView`
+ *        list rather than showing three chips that instantly skip.
+ * @returns {boolean} false if this page has no splash markup, or one is
+ *          already running — in both cases the caller needs no loading UI.
+ */
+export function restartSplash({ stages: stagesName } = {}) {
+    if (!template) return false;            // page opted out, or never started
+    if (el && !ended) return true;          // already narrating; don't stack
+
+    // A splash mid-fade is still in the DOM. Take it away rather than letting
+    // the new one cross-fade with the corpse of the old one.
+    document.getElementById('logo-splash')?.remove();
+
+    cancelAnimationFrame(creepRaf);
+    cancelAnimationFrame(litRaf);
+    clearTimeout(slowTimer);
+    clearTimeout(deferTimer);
+    litShown = litTarget = 0;
+    started = false;
+
+    const fresh = template.cloneNode(true);
+    // startSplash() reads the stage set off the markup, so overriding it here
+    // needs nothing else; buildSteps() rebuilds the chip row to match.
+    if (stagesName) fresh.dataset.stages = stagesName;
+    document.body.appendChild(fresh);
+
+    // Same "don't flash a loader" rule as an internal navigation — see the
+    // sp-defer note in css/splash.css. The estimate is published first and
+    // overwritten with the truth at reveal, which is what revealedAt() reads.
+    const de = document.documentElement;
+    de.classList.add('sp-defer');
+    window.__splashRevealAt = performance.now() + DEFER_MS;
+    deferTimer = setTimeout(() => {
+        de.classList.remove('sp-defer');
+        window.__splashRevealAt = performance.now();
+    }, DEFER_MS);
+
+    startSplash();
+    return true;
 }
 
 // Start as early as any of our JS can possibly run — see startSplash().

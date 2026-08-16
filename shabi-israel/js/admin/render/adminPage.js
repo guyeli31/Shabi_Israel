@@ -12,7 +12,7 @@ import { buildAdminSidebarHtml, wireAdminSidebar } from './adminSidebarNav.js';
 import { renderHistoricalChanges } from './historicalChanges.js';
 import { renderCategoryLabel } from './changeVocabulary.js';
 // Stage keys must match SPLASH_STAGE_SETS.admin.
-import { splashStage, endSplash } from '../../utils/splash.js';
+import { splashStage, endSplash, restartSplash } from '../../utils/splash.js';
 
 // Hash slug → view title. Per CLAUDE.md § URL contract the slug IS the title,
 // kebab-cased — `#pending-changes`, not `#pending` for a section called
@@ -102,10 +102,17 @@ export function navigateTo(view, opts = {}) {
 
     const main = document.getElementById('admin-content');
     if (!main) {
-        finishFirstNav();   // nothing left to wait for; don't strand the splash
+        finishNav();   // nothing left to wait for; don't strand the splash
         return;
     }
 
+    // Every section here loads its own data from Supabase, so a section switch
+    // is a data load, not a panel swap — the same category as analytics' month
+    // picker. Each view used to narrate that with its own line of text
+    // ("Loading sync settings…", "Loading leagues...", one per module), which
+    // is how the admin ended up with seven different loading screens. A no-op
+    // on the first navigation, where the page's own splash is still up.
+    restartSplash({ stages: 'adminView' });
     splashStage('data');
 
     let pending;
@@ -125,15 +132,19 @@ export function navigateTo(view, opts = {}) {
     // 25s fail-safe. Promise.resolve() normalises the synchronous branches.
     Promise.resolve(pending)
         .catch(() => {})    // a failing view must still uncover the page
-        .finally(() => { splashStage('render'); finishFirstNav(); });
+        .finally(() => { splashStage('render'); finishNav(); });
 }
 
-/** Only the first navigation owns the splash: later ones are in-page moves and
- *  must not raise a full-screen loader over a panel the operator is using. */
-let firstNavDone = false;
-function finishFirstNav() {
-    if (firstNavDone) return;
-    firstNavDone = true;
+/** Take the splash away once this navigation's view has settled.
+ *
+ *  This used to fire only on the FIRST navigation, on the reasoning that later
+ *  ones are in-page moves that shouldn't raise a full-screen loader. That was
+ *  the wrong cut: every admin section fetches its own data, so a section switch
+ *  is a wait of the same kind as opening the page, and leaving it to each view
+ *  module meant seven different loading messages for one action. Now every
+ *  navigation both starts (restartSplash) and ends the splash — and the
+ *  delay/minimum pair means a section that loads from cache never flashes one. */
+function finishNav() {
     endSplash();
 }
 
@@ -158,9 +169,10 @@ function renderAdminShell() {
             <aside class="admin-sidebar site-sidebar" id="admin-sidebar">
                 ${buildAdminSidebarHtml({ mode: 'view' })}
             </aside>
-            <main class="admin-main" id="admin-content">
-                <div class="loading">Loading...</div>
-            </main>
+            <!-- Empty: the splash is up for the whole of the first load and
+                 the first view renders straight into here, so a placeholder is
+                 never seen. It only existed from before the splash. -->
+            <main class="admin-main" id="admin-content"></main>
         </div>`;
 
     const sidebar = document.getElementById('admin-sidebar');

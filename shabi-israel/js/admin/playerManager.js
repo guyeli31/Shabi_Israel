@@ -18,6 +18,7 @@ import { getFlagCode } from '../utils/helpers.js';
 import { loadLeagueMatchesAll, loadLeagueParams, loadOverrides } from '../data/supabaseLoader.js';
 import { matchesToCsvText } from './csvText.js';
 import { KNOWN_FLAGS, ensureFlagCodes, registerFlagCode } from './flagRegistry.js';
+import { restartSplash, endSplash } from '../utils/splash.js';
 
 /** metadata.photoPath is a public asset URL; the staged target names just the file. */
 const photoTarget = (photoPath) => T.playerPhoto(photoPath.replace(/^assets[/]players[/]/, ''));
@@ -69,7 +70,8 @@ async function fileToPngBase64(file) {
 
 export async function renderPlayerAdmin(container, refreshBadge) {
     refreshBadgeFn = refreshBadge;
-    container.innerHTML = '<h1>Players</h1><div class="loading">Loading players…</div>';
+    restartSplash({ stages: 'adminView' });   // shared loading screen — see syncManager.js
+    container.innerHTML = '<h1>Players</h1>';
 
     try {
         const [leagues, fetchedMeta] = await Promise.all([
@@ -100,6 +102,8 @@ export async function renderPlayerAdmin(container, refreshBadge) {
         renderShell(container);
     } catch (err) {
         container.innerHTML = `<h1>Players</h1><div class="admin-msg admin-msg-error">Failed to load: ${esc(err.message)}</div>`;
+    } finally {
+        endSplash();   // pairs with restartSplash() — see syncManager.js
     }
 }
 

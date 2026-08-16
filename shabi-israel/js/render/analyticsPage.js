@@ -43,10 +43,11 @@ import { primeTitleMeta, titleHtmlFor } from '../utils/playerTitleBadge.js';
 import { titleAbbrBadgeHtml } from '../data/titleConstants.js';
 import { getPlayerFlagCode, ensurePlayerIndex } from './navigation.js';
 import { searchFlagHtml } from '../utils/helpers.js';
-// Stage keys must match SPLASH_STAGE_SETS.analytics. Safe to call on the
-// re-renders below (month picker, admin toggle): once the splash is gone both
-// are no-ops, so the controls don't resurrect a loading screen.
-import { splashStage, endSplash } from '../utils/splash.js';
+// Stage keys must match SPLASH_STAGE_SETS.analytics. The re-renders below (month
+// picker, admin toggle) deliberately DO resurrect the loading screen, via
+// restartSplash() — they re-run the server-side aggregation, so they are data
+// reloads, not filters, and a bare line of text under-reported the wait.
+import { splashStage, endSplash, restartSplash } from '../utils/splash.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DWELL_BUCKET_ORDER = ['<10s', '10-30', '30-60', '1-5m', '5m+'];
@@ -1558,6 +1559,15 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
     const title = document.getElementById('page-title');
     if (title) title.textContent = 'Analytics';
 
+    // Bring the loading screen back for a refetch (the month picker and the
+    // exclude-my-own-traffic toggle both land here). Every number on this page
+    // is aggregated in SQL, so neither control can be answered from what the
+    // browser already holds — they are full data reloads, and they get the same
+    // loading screen a navigation gets. A no-op on the first load, where the
+    // splash is already up. Placed above the first splashStage() call so the
+    // stage narration starts from the top rather than mid-list.
+    restartSplash();
+
     // The RPCs are authenticated-only (see header). A Supabase session lives in
     // localStorage PER ORIGIN, so being logged in on the live domain does NOT
     // carry to a 127.0.0.2 / localhost preview — that different origin has no
@@ -1574,8 +1584,12 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
         return;
     }
 
-    content.innerHTML = '<div class="loading">Loading analytics...</div>';
-
+    // The previous render is deliberately NOT cleared here. The splash is
+    // translucent, so leaving it underneath keeps the operator anchored in the
+    // page they were reading; content.innerHTML = '' below swaps it once the
+    // data has actually arrived. This line used to install a "Loading
+    // analytics…" placeholder instead, which both blanked the page early and
+    // showed straight through the splash as a second progress message.
     splashStage('months');
     const { data: months, error: monthsError } = await supabase.rpc('analytics_months');
     if (monthsError) {
