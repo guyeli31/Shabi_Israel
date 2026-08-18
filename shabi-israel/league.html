@@ -63,35 +63,6 @@
     <link rel="stylesheet" href="css/fonts.css">
 
     <script>
-      /* ══ TEMPORARY — slow mode for testing. Remove before committing. ══
-         Holds every data request so a page transition takes a fixed time,
-         which is the only way to actually look at the loading screen.
-             spSlow(2000)  every navigation waits ~2s   (persists)
-             spSlow(0)     back to normal
-      */
-      (function(){
-        var S = 'spSlowMs';
-        var q = new URLSearchParams(location.search).get('spWait');
-        if (q !== null) { try { localStorage.setItem(S, q); } catch (e) {} }
-        window.spSlow = function (n) { try { localStorage.setItem(S, String(n||0)); } catch(e){}
-          console.log(n ? 'Every page will now wait ~' + n + 'ms for data.' : 'Back to normal speed.'); };
-        var ms = 0; try { ms = +localStorage.getItem(S) || 0; } catch (e) {}
-        if (!ms) return;
-        /* The app caches its whole dataset in localStorage, so after the first
-           load there is no request left to hold and every later navigation is
-           instant no matter what this is set to. Drop that cache on each load
-           while slow mode is on, otherwise only the very first transition is
-           actually slow — which is exactly what it looked like. */
-        try { localStorage.removeItem('shabi:bundle:v1'); } catch (e) {}
-        var of = window.fetch;
-        window.fetch = function () {
-          var a = arguments, self = this;
-          var u = String((a[0] && a[0].url) || a[0] || '');
-          if (u.indexOf('54321') >= 0 || u.indexOf('supabase') >= 0)
-            return new Promise(function (r) { setTimeout(r, ms); }).then(function () { return of.apply(self, a); });
-          return of.apply(self, a);
-        };
-      })();
       (function(){
         var t=localStorage.getItem('shabi-theme');
         if(t==='modern')t='nature';if(t==='royal')t='vegas';if(t&&t!=='current'){document.documentElement.dataset.theme=t;localStorage.setItem('shabi-theme',t);}
@@ -107,8 +78,41 @@
         // it shows at once. splash.js reads __splashRevealAt to know whether
         // it was ever actually on screen.
         try {
-          if (document.referrer && document.referrer.indexOf(location.origin + '/') === 0) {
-            var DEFER = 350, de = document.documentElement;
+          // ── Is there anything to load at all? ────────────────────────────
+          // The loading screen exists to cover a wait. On an internal
+          // navigation the whole dataset is already in localStorage, so there
+          // is no request to wait for and no wait to cover; a loading screen
+          // over a page with nothing to load is pure added latency. The old
+          // rule here was a stopwatch — "wait 350ms, show if the page isn't
+          // done" — which made it a coin toss decided by device speed: the
+          // same transition showed nothing on a fast machine and a full
+          // ~1s splash (defer + minimum-display + ring-close + fade) on a
+          // slow one.
+          //
+          // So: if js/data/store.js left a valid receipt, the data is already
+          // here and the splash is suppressed outright. Infinity makes every
+          // "was it ever seen?" test in splash.js answer no, so endSplash()
+          // removes it with no minimum-display, no ring-close and no fade.
+          //
+          // If the page turns out to need the network after all (receipt
+          // present but bundle evicted), store.js fires
+          // shabi:bundle-fetch-start and splash.js arms it then — see
+          // armSplashForFetch(). This mirrors store.js's RECEIPT_KEY rule by
+          // hand, because a <head> script cannot import;
+          // scripts/check-splash-arming.mjs fails if the two drift apart.
+          var SP_SCHEMA = 1, SP_MAX_AGE = 604800000, DEFER = 350;
+          var de = document.documentElement, spWarm = false;
+          try {
+            var rcpt = JSON.parse(localStorage.getItem('shabi:bundle:receipt') || 'null');
+            spWarm = !!rcpt && rcpt.schemaVersion === SP_SCHEMA
+              && typeof rcpt.fetchedAt === 'number'
+              && (Date.now() - rcpt.fetchedAt) <= SP_MAX_AGE;
+          } catch (e) {}
+          if (spWarm) {
+            de.classList.add('sp-defer');
+            window.__splashSuppress = true;
+            window.__splashRevealAt = Infinity;
+          } else if (document.referrer && document.referrer.indexOf(location.origin + '/') === 0) {
             de.classList.add('sp-defer');
             window.__splashRevealAt = performance.now() + DEFER;
             var reveal = function () {

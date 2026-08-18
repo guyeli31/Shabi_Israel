@@ -51,7 +51,20 @@
       "Bash(node resign-test.js)",
       "Bash(node --check js/render/siteSidebar.js)",
       "Bash(node -e \"new \\(require\\('vm'\\).Script\\)\\(require\\('fs'\\).readFileSync\\('js/render/siteSidebar.js','utf8'\\),{}\\);console.log\\('parse ok'\\)\")",
-      "mcp__playwright__browser_wait_for"
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_network_request",
+      "Bash(curl -s -o /dev/null -w \"supabase=%{http_code}\\\\n\" http://127.0.0.1:54321/rest/v1/)",
+      "Bash(npm ls *)",
+      "Bash(node -e \"require.resolve\\('playwright'\\); console.log\\('resolved'\\)\")",
+      "Bash(npm install *)",
+      "Bash(npx http-server *)",
+      "Bash(node scripts/perf/measure-transitions.mjs --runs=5 --out=docs/data-architecture/verification/perf-before-production-2026-08-18.json)",
+      "Bash(node --check shabi-israel/js/admin/mailSync.js)",
+      "Bash(node --check shabi-israel/js/render/analyticsPage.js)",
+      "Bash(node scripts/perf/measure-transitions.mjs --runs=5 --out=docs/data-architecture/verification/perf-prod-before-2026-08-18.json)",
+      "Bash(rm -f scripts/perf/_dbg-hop.mjs)",
+      "Bash(node scripts/perf/measure-transitions.mjs --runs=2 --out=docs/data-architecture/verification/_smoke.json)",
+      "Bash(rm -f docs/data-architecture/verification/_smoke.json)"
     ]
   }
 }

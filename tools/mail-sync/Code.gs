@@ -475,9 +475,24 @@ function getConfig_() {
         token:  clean_(p.getProperty('REPORT_TOKEN')),
         sender: clean_(p.getProperty('SOURCE_SENDER'))
     };
+
+    // Report the SCRIPT PROPERTY name, not the internal field name. The two are
+    // different vocabularies and only one of them exists on the settings screen
+    // the reader is about to go and look at: "Missing Script Properties: sender"
+    // sends them hunting for a field called "sender", which is not there.
+    var PROP_OF = {
+        url:    'SUPABASE_URL',
+        anon:   'SUPABASE_ANON',
+        token:  'REPORT_TOKEN',
+        sender: 'SOURCE_SENDER'
+    };
     var missing = [];
-    for (var k in cfg) if (!cfg[k]) missing.push(k);
-    if (missing.length) throw new Error('Missing Script Properties: ' + missing.join(', '));
+    for (var k in cfg) if (!cfg[k]) missing.push(PROP_OF[k]);
+    if (missing.length) {
+        throw new Error('Missing Script Properties: ' + missing.join(', ') +
+            '. Set them under Project Settings > Script Properties. ' +
+            '(A value made only of spaces or invisible characters counts as missing.)');
+    }
     return cfg;
 }
 

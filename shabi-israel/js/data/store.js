@@ -26,6 +26,40 @@ import { applyOverrides as applyOverridesPure } from './applyOverrides.js';
 import * as mapper from './bundleMapper.js';
 
 const CACHE_KEY = 'shabi:bundle:v1';
+/**
+ * Tiny companion to CACHE_KEY, holding only what a page needs to answer ONE
+ * question before any module has loaded: "will this page have to go to the
+ * network, or is it already served?"
+ *
+ * It exists because that question has to be answered in the <head>, and the
+ * only honest answer lives inside CACHE_KEY — whose value is the entire site
+ * bundle. Reading it is one localStorage hit, but JSON.parse()ing megabytes
+ * synchronously in the <head> to check two numbers would cost far more than
+ * the decision saves. So the two numbers are also written out on their own.
+ *
+ * The receipt is a HINT, never a source of truth: it is only ever used to
+ * decide whether to arm the loading screen. Every real read still goes through
+ * readPersisted(), which validates the actual bundle. A receipt that lies (the
+ * bundle was evicted by quota pressure while the receipt survived) costs a
+ * loading screen that arms slightly late — see the fetch-start event below,
+ * which is what actually reveals it.
+ *
+ * Its shape and the rule for judging it are mirrored by hand in every page's
+ * inline head script; scripts/check-splash-arming.mjs fails the build if the
+ * two drift apart.
+ */
+const RECEIPT_KEY = 'shabi:bundle:receipt';
+/**
+ * Fired on `window` the moment a BLOCKING bundle fetch starts — i.e. only on
+ * the cold path, where the page genuinely has nothing to render yet. This is
+ * the signal that arms the loading screen (see js/utils/splash.js).
+ *
+ * A custom event rather than an import so the data layer never reaches into a
+ * UI module: store.js announces a fact about itself, and whoever cares
+ * listens. The background revalidation fetch deliberately does NOT fire it —
+ * that one has a fully-rendered page in front of it and nothing to cover.
+ */
+const FETCH_START_EVENT = 'shabi:bundle-fetch-start';
 const CHECK_TTL_MS = 60_000;
 // The bundle shape this client build understands (mirrors the RPC's
 // schema_version). A persisted entry stamped with any other value is from a
@@ -69,6 +103,7 @@ const _updateListeners = [];
  *  display-preference keys are never touched. */
 function evictPersisted() {
     try { localStorage.removeItem(CACHE_KEY); } catch { /* ignore */ }
+    try { localStorage.removeItem(RECEIPT_KEY); } catch { /* ignore */ }
 }
 
 /** Parse and VALIDATE a stored entry: reject a foreign schema (different
@@ -99,7 +134,23 @@ function writePersisted(entry) {
     } catch {
         // quota exceeded or private browsing — page still works, just
         // without a cross-page cache for this session.
+        //
+        // The receipt must NOT be written when the bundle was not: a receipt
+        // without a bundle claims the next page needs no network, which would
+        // suppress the loading screen on a page that then fetches from cold.
+        // (The fetch-start event still reveals it, so the failure mode is a
+        // late splash rather than none — but there is no reason to create it.)
+        return;
     }
+    // Deliberately AFTER the bundle write, and deliberately its own try/catch:
+    // the receipt is a hint, so failing to record it must never fail the write
+    // that matters.
+    try {
+        localStorage.setItem(RECEIPT_KEY, JSON.stringify({
+            schemaVersion: entry.schemaVersion,
+            fetchedAt: entry.fetchedAt,
+        }));
+    } catch { /* ignore — worst case the next page arms its splash */ }
 }
 
 /** AbortSignal that fires after `ms`, tolerant of runtimes without
@@ -208,6 +259,12 @@ function ready() {
             maybeCheckInBackground();
             return persisted.bundle;
         }
+        // Nothing to serve: this page is about to wait on the network, and
+        // this is the ONLY place in the whole read path where that is true.
+        // Announcing it here is what lets the loading screen exist exactly
+        // when there is a wait to cover and never otherwise — see
+        // FETCH_START_EVENT.
+        try { window.dispatchEvent(new CustomEvent(FETCH_START_EVENT)); } catch { /* non-DOM host */ }
         const bundle = await fetchBundle();
         _cachedEntry = toEntry(bundle);
         writePersisted(_cachedEntry);
@@ -413,6 +470,24 @@ export async function loadLeague(leagueId) {
         allPlayers: matchData.allPlayers,
         history,
     };
+}
+
+/**
+ * Every league in the bundle, as Map<leagueId, params>.
+ *
+ * Distinct from loadAllLeagueParams(ids), which answers "these leagues, in this
+ * order" and silently drops ids the bundle does not carry. Callers that need
+ * the whole set — the analytics dashboard labelling arbitrary league ids that
+ * appear in its event rows, including ones absent from the landing page's
+ * display order — need every league, keyed for lookup.
+ *
+ * Added rather than letting the caller run its own `from('leagues')` query
+ * (02-query-standards rule 3: new data needs extend the shared read path, they
+ * do not get their own query).
+ */
+export async function loadAllLeagues() {
+    const bundle = await ready();
+    return new Map(bundle.leagues.map((row) => [row.id, mapper.mapLeagueRow(row)]));
 }
 
 export async function loadAllLeagueParams(leagueIds) {

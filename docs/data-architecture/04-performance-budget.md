@@ -1,5 +1,30 @@
 # 04 — Performance Budget & Measurement Harness
 
+> ## Wave 2 (2026-08-18) — read this first
+>
+> A second round of work landed, and it corrected **two measurement errors** in
+> everything below. The Phase 0–3 numbers are not wrong about request counts,
+> but their millisecond figures describe a journey no visitor makes and stop the
+> clock before the user can see anything.
+>
+> **1. Warm transitions were driven by `page.goto()`, which sends no Referer.**
+> The splash's entire defer mechanism is gated on `document.referrer` starting
+> with our own origin. With no referrer every warm "navigation" in the old runs
+> was treated as a direct hit, so the splash was shown *at once* — a code path a
+> real click never takes. The harness now walks the site by clicking real links.
+>
+> **2. Time-to-table is not time-to-visible.** The ready-selector fires when the
+> table enters the DOM; the loading screen is an overlay *on top of it* with a
+> minimum-display floor, a ring-close wait and a fade. A transition measured at
+> 445ms could stay covered until ~1040ms. The harness now also records whether
+> the splash was ever visible, and `msVisible` — when the content was actually
+> uncovered.
+>
+> New results: [Wave 2 results](#wave-2-results-2026-08-18). New acceptance
+> test: [`scripts/perf/verify-splash-guarantee.mjs`](../../scripts/perf/verify-splash-guarantee.mjs).
+> Admin has its own harness now:
+> [`scripts/perf/measure-admin-views.mjs`](../../scripts/perf/measure-admin-views.mjs).
+
 Status: standards binding. **Harness built; "before" baseline captured against production (Phase 0, 2026-07-09); "after" captured against local Docker (Phase 3, 2026-07-10) AND then re-run against production after the cloud deploy (2026-07-10) — closing the one apples-to-apples gap.** Raw output: [`verification/perf-baseline-2026-07-09.json`](verification/perf-baseline-2026-07-09.json) (before, production), [`verification/perf-after-local-2026-07-10.json`](verification/perf-after-local-2026-07-10.json) (after, local Docker), and [`verification/perf-after-production-2026-07-10.json`](verification/perf-after-production-2026-07-10.json) (**after, production — same environment as the before baseline**).
 
 > **The production after-run makes the ms directly comparable.** Both the "before" baseline (2026-07-09) and the production "after" run (2026-07-10) were measured on `golan.me.uk` against the cloud DB — same network, same Postgres. The earlier local-Docker "after" run is kept for the request-count proof but its ms were never cross-comparable (localhost has no network hop). **Use the [production after results](#after-results-production-2026-07-10) for the real before↔after ms delta.**
@@ -110,3 +135,163 @@ Every budget in the standards table is met on production. This closes the last o
 ## Standing use
 
 Re-running this harness (default flags → production) after any future change touching the read path is the regression check referenced by `02-query-standards.md` rule 4. A budget breach on any tracked transition blocks merge once the harness is wired into CI (the CI wiring itself — headed via Xvfb per caveat #3 — is not yet done).
+
+---
+
+## Wave 2 results (2026-08-18)
+
+Four runs, per the measurement matrix: production before, Docker before, Docker
+after, and production after (pending — it needs the deploy). **The improvement
+delta is always Docker→Docker**; the production pair is a separate record of
+what live visitors experience across the release.
+
+Raw output: [`verification/perf-prod-before-2026-08-18.json`](verification/perf-prod-before-2026-08-18.json),
+[`verification/perf-docker-before-2026-08-18.json`](verification/perf-docker-before-2026-08-18.json),
+[`verification/perf-docker-after-2026-08-18.json`](verification/perf-docker-after-2026-08-18.json).
+
+### Warm transitions — real clicks (median of 5)
+
+| Transition | before, table | before, visible | after, table | after, visible | change |
+|---|---|---|---|---|---|
+| index → league (dashboard) | 4332ms | 4359ms | **728ms** | **744ms** | **−83%** |
+| league → league_table | 511ms | 527ms | 480ms | 498ms | −6% |
+| league_table → player_league | 369ms | 385ms | 357ms | 373ms | −3% |
+| player_league → player | 615ms | 630ms | 600ms | 642ms | −2% |
+| back-nav | 298ms | — | 246ms | — | −17% |
+
+Blocking Supabase requests: **0 on every warm transition, before and after** —
+the Phase 2 bundle already had that right.
+
+### Cold entry (median of 5)
+
+| Page | before, table | before, visible | after, table | after, visible | change |
+|---|---|---|---|---|---|
+| league.html (dashboard) | 5093ms | 5132ms | **1449ms** | **1797ms** | **−72%** |
+| index.html | 1851ms | 2185ms | 1820ms | 2173ms | −2% |
+| league_table.html | 1213ms | 1515ms | 1200ms | 1546ms | ≈0 |
+| player_league.html | 1144ms | 1501ms | 1136ms | 1492ms | ≈0 |
+| player.html | 1466ms | 1805ms | 1515ms | 1854ms | ≈0 |
+
+Still exactly 1 blocking request cold, 5/5 splash shown — unchanged and correct.
+
+### Splash visibility — the new acceptance metric
+
+| Scenario | before | after |
+|---|---|---|
+| Warm transition, production (`player_league → player`) | **shown 4/5, 229ms on screen** | *(pending deploy)* |
+| Warm transition, Docker, 1× CPU | not shown 0/5 | not shown 0/5 |
+| Warm transition, Docker, 4× CPU | — | **not shown** |
+| Warm transition, Docker, 10× CPU | — | **not shown** |
+| Warm transition, Docker, 20× CPU (30s transition) | — | **not shown** |
+| Cold entry | shown 5/5 | shown 5/5 |
+
+The CPU-throttled rows are the ones that matter. The old mechanism was a race —
+wait 350ms, show if the page is not done — so on a fast desktop it mostly stayed
+hidden and on slower hardware it did not, which is exactly what the production
+before-run caught. The splash is now armed by *a blocking fetch starting*, not
+by a stopwatch, so no device speed can make it appear over a navigation that has
+nothing to fetch. Verified by
+[`scripts/perf/verify-splash-guarantee.mjs`](../../scripts/perf/verify-splash-guarantee.mjs),
+which also asserts the converse (cold entry must still show it).
+
+### Production, before (2026-08-18, real clicks)
+
+Recorded so the post-deploy run has a same-environment partner.
+
+| Scenario | table | visible | splash |
+|---|---|---|---|
+| cold index.html | 3329ms | 3574ms | 5/5 |
+| cold league.html | 3783ms | 4023ms | 5/5 |
+| cold league_table.html | 2774ms | 2817ms | 5/5 |
+| cold player_league.html | 2964ms | 3301ms | 5/5 |
+| cold player.html | 3167ms | 3501ms | 5/5 |
+| warm index → league | 2753ms | 2770ms | 1/5 |
+| warm league → league_table | 561ms | 577ms | 0/5 |
+| warm league_table → player_league | 629ms | 649ms | 0/5 |
+| warm player_league → player | 1041ms | **1250ms** | **4/5, 229ms** |
+| back-nav | 103ms | — | bfcache 100% |
+
+**Pending:** re-run against production after the deploy and add the "after"
+column — see `02-query-standards.md` rule 4.
+
+### Admin — a full walk through the views
+
+`scripts/perf/measure-admin-views.mjs`. One lap is: Leagues → open league A →
+Round Editor → Overrides → back → open league B → same → Players → Pending
+Changes → Historical Changes → Sync → Leagues. The lap is walked **twice with
+nothing written in between**, so every data call in lap 2 is a re-download of
+rows the page provably already had.
+
+The script is read-only by construction: it clicks navigation only, and refuses
+any target whose label matches a write verb (save/publish/delete/run/import/…).
+That guard is why `Upload CSV` is absent from the journey — opening that tab is
+in fact harmless, but a blunt guard is worth more than one extra tab on a script
+licensed to run against production.
+
+| | lap 1 | lap 2 (nothing written) |
+|---|---|---|
+| **production, before** | 86 data calls, 18.2s | **85 data calls**, 17.9s |
+| **Docker, before** | 83 data calls, 9.9s | **80 data calls**, 9.8s |
+| **Docker, after** | **16 data calls**, 9.8s | **8 data calls + 4 verify**, 10.1s |
+| production, after | *(pending deploy)* | *(pending deploy)* |
+
+Lap 2 is the headline: essentially **nothing** was being reused. The single
+worst pattern is `leagues`, fetched **11, 12, 14, 15, 16 and 24 times inside one
+navigation** on production — one round trip per league, from several modules
+that had no idea the others had just done the same. After the change the league
+editors cost **0** on reopen, and the whole lap trades ~72 row fetches for 4
+one-row version checks.
+
+The 8 data calls remaining in lap 2 are all from **Sync** and **Historical
+Changes** — live-status views that are *supposed* to re-poll. They are not
+served from the memo and should not be.
+
+Production is meaningfully worse than Docker here (86 vs 83 calls, but 18.2s vs
+9.9s) because every one of those repeated fetches pays a real network round
+trip. The same fix therefore returns more on production than the Docker figures
+alone suggest.
+
+> **A measurement trap worth recording.** The first admin harness clicked only
+> between the top-level sidebar views and reported a flat zero *both before and
+> after* — those views barely touch the network. The admin read path is
+> exercised when a **league editor** opens. A harness pointed at the wrong
+> interaction does not report an error; it reports "no difference", which is
+> indistinguishable from a change that did nothing. A second version then
+> reported zeros again because `networkidle` resolved before the views had
+> rendered, and a third because a failed login had silently redirected it to the
+> public landing page — `admin.html` redirects when logged out, so the run
+> looked healthy while sitting on `index.html`. Log in via `analytics.html`,
+> whose gate stays put and reports its own failure.
+
+### Analytics
+
+Measured by the same script, on the same three runs.
+
+| Action | prod before | Docker before | Docker after | prod after |
+|---|---|---|---|---|
+| Page load | 3 calls | 3 calls | **2 calls** | *(pending)* |
+| Each month change | 2 calls | 2 calls | **1 call** | *(pending)* |
+| Returning to a month already viewed | 2 calls | 2 calls | **1 call** | *(pending)* |
+
+| Action | before | after |
+|---|---|---|
+| Month change / exclude-admin toggle | 2 RPCs (`analytics_months` + `analytics_summary`) | **1 RPC** (`analytics_summary`) |
+| Page load | 2 RPCs **sequential** + 1 direct `leagues` query | 2 RPCs **in parallel**, `leagues` served from the bundle |
+
+The two RPCs were awaited one after the other though neither needs the other:
+the month the page opens on comes from the clock or from the caller, never from
+the month list, which only fills the picker. `analytics_months` is now also held
+for the life of the page — the set of months with data cannot change while the
+operator sits there.
+
+### Still on the table
+
+- `measureScrollWrapStickyCols`'s `write()` is now the dashboard's largest
+  remaining JS cost (~130–270ms). It reads `getBoundingClientRect()` and writes
+  a CSS variable per scrollable table; a value-guard was added to stop the
+  ResizeObserver loop, but the read/write interleave across tables remains.
+  Untouched further because it is sticky-column layout code and a regression
+  there is visual, not measurable.
+- Cold entry outside the dashboard is unchanged (~1.1–1.8s local, ~2.8–3.8s
+  production). That cost is the bundle round trip plus parse, and reducing it
+  means changing what the bundle carries — a design change, not a fix.

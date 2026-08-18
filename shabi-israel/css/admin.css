@@ -2660,6 +2660,22 @@ table.font-large { font-size: var(--fs-093); }
 .mail-dot.is-live  { background: var(--color-win); }
 .mail-dot.is-stale { background: var(--color-warning); }
 
+/* ---- Show-all button under F9 — layout glue only -------------------------
+   The button itself is canonical and already styled: admin.html loads
+   table-lab/formats/mf/mf.css, which carries `.table-row-hidden` and imports
+   base.css for `.show-more-btn`. Nothing about the button is redefined here.
+
+   These two rules are the FF twin of mf.css's `.mf-wrap:has(+ .show-more-btn)`
+   pair — collapse the wrap's bottom margin so the button sits flush against
+   the table it belongs to, and centre it when the wrap's parent is a flex
+   container. */
+.ff-wrap:has(+ .show-more-btn) {
+    margin-bottom: 0;
+}
+.ff-wrap + .show-more-btn {
+    align-self: center;
+}
+
 /* ---- FF sticky columns 2/3 — mirror of table-lab/formats/ff/ff.css --------
    FF's canon pins exactly one left column (`th/td:first-child`, no class).
    `.ff-sticky-2` on the TABLE pins the second one too, for tables whose

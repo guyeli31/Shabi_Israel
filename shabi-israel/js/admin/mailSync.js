@@ -166,10 +166,22 @@ function sectionPending(pending, customFlags) {
         // No candidates → no Apply button at all, not a disabled one. A button
         // that can never become enabled advertises a path that doesn't exist;
         // Discard is the only action this row actually has.
+        // Analytics: these carry a `data-track` so the operator's mail-sync review
+        // actions are logged as named clicks (js/analytics.js's delegated listener).
+        // The pair identifies the report at a glance; the Apply target gets the
+        // CHOSEN league folded in on select-change (see wireMailActions) so one row
+        // says which league resolved the conflict. "(Admin Mode)" mirrors the
+        // convention for admin actions; admin_user is set regardless, so these sit
+        // in the excluded operator lane by default.
+        const dtPair = `${esc(p.player_a)} vs ${esc(p.player_b)}`;
         const actions = cands.length
-            ? `<button class="btn btn-primary btn-sm mail-apply" data-report="${r.id}" disabled>Apply</button>
-               <button class="btn btn-danger btn-xs mail-discard" data-report="${r.id}">Discard</button>`
-            : `<button class="btn btn-danger btn-xs mail-discard" data-report="${r.id}">Discard</button>`;
+            ? `<button class="btn btn-primary btn-sm mail-apply" data-report="${r.id}"
+                       data-pa="${esc(p.player_a)}" data-pb="${esc(p.player_b)}"
+                       data-track="Mail: apply ${dtPair} (Admin Mode)" disabled>Apply</button>
+               <button class="btn btn-danger btn-xs mail-discard" data-report="${r.id}"
+                       data-track="Mail: discard ${dtPair} (Admin Mode)">Discard</button>`
+            : `<button class="btn btn-danger btn-xs mail-discard" data-report="${r.id}"
+                       data-track="Mail: discard ${dtPair} (Admin Mode)">Discard</button>`;
 
         // Every row here is unassigned by definition, so the merged fallback is
         // all there is — there is no league whose map could be preferred.
@@ -318,6 +330,74 @@ function sectionLog(log, health, customFlags, flagsByLeague) {
         </div>`;
 }
 
+/** Rows of F9 shown before "Show all". Matches the presets that already chose
+ *  a number for a log-shaped table — completedLeagues, playerAllMatches and
+ *  matchup all use 10. */
+const MAIL_LOG_TOP_N = 10;
+
+/**
+ * Show-top-N for F9 — the canonical mechanism, wired to an FF table.
+ *
+ * Same contract as table-lab's MF and SF mounts: hide rows past N with
+ * `.table-row-hidden`, offer a `.show-more-btn` reading "Show all (N)" /
+ * "Show top N". Both classes already reach this page — admin.html loads
+ * mf.css, which carries `.table-row-hidden` and imports base.css for the
+ * button — so nothing is redefined here. FF has no showTopN option of its
+ * own, which is the only reason this is written out rather than passed as a
+ * parameter; when F9 moves onto a real FF mount in Phase 8 this should become
+ * `showTopN: 10` and be deleted.
+ *
+ * The one thing it does NOT share with the canonical version is what "the
+ * rows" means. F9 also has a league filter, which hides rows with the `hidden`
+ * attribute. A top-N that counted every row in the tbody would slice the first
+ * ten of ALL matches and then let the filter hide most of them — filter to a
+ * league whose matches sit at rows 15-20 and the table comes back empty while
+ * claiming to show the top ten. So the count, the slice and the button's total
+ * are all over the rows the filter is currently letting through, and the filter
+ * re-runs this on every change.
+ *
+ * @returns {{sync: function}} call sync() after changing what the filter shows
+ */
+function applyShowTopN(table, n) {
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return { sync: () => {} };
+
+    // `[data-league]` excludes the "no matches yet" placeholder row, which is
+    // neither filterable nor countable.
+    const all = () => [...tbody.querySelectorAll('tr[data-league]')];
+    if (!all().length) return { sync: () => {} };
+
+    const wrap = table.closest('.ff-wrap') || table;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'show-more-btn';
+    wrap.after(btn);
+
+    let expanded = false;
+
+    function sync() {
+        const visible = all().filter((tr) => !tr.hidden);
+        visible.forEach((tr, i) => tr.classList.toggle('table-row-hidden', !expanded && i >= n));
+        // Rows the filter is hiding must not keep a stale collapse class, or
+        // they stay hidden by two mechanisms and re-appear only by luck.
+        all().filter((tr) => tr.hidden).forEach((tr) => tr.classList.remove('table-row-hidden'));
+
+        const needed = visible.length > n;
+        btn.hidden = !needed;
+        if (needed) btn.textContent = expanded ? `Show top ${n}` : `Show all (${visible.length})`;
+        else expanded = false;   // a narrowed filter leaves no expanded state to restore
+    }
+
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        expanded = !expanded;
+        sync();
+    });
+
+    sync();
+    return { sync };
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────
 
 export function mailSectionsHTML(state, customFlags, flagsByLeague) {
@@ -357,6 +437,11 @@ function attachStickyCols(table) {
 export function wireMailSections(container, onChanged) {
     container.querySelectorAll('.ff-sticky-2').forEach(attachStickyCols);
 
+    // F9 only. F8 is a work queue — every row there is waiting on a decision,
+    // so collapsing it would hide outstanding work behind a button.
+    const logTable = container.querySelector('[data-mf-table-id="F9"]');
+    const topN = logTable ? applyShowTopN(logTable, MAIL_LOG_TOP_N) : { sync: () => {} };
+
     // Apply stays disabled until a league is chosen; choosing one also tints the
     // row pending, so a screen with several rows shows at a glance what a click
     // on "Apply" is about to commit.
@@ -367,6 +452,13 @@ export function wireMailSections(container, onChanged) {
             const chosen = !!sel.value;
             btn.disabled = !chosen;
             row.classList.toggle('is-resolved', chosen);
+            // Fold the chosen league into the Apply click's target, so the single
+            // logged event names WHICH league the conflict resolved to — not just
+            // "Apply". The league selection is captured here, inside the action it
+            // belongs to, rather than as a separate row per dropdown fiddle.
+            btn.dataset.track = chosen
+                ? `Mail: apply ${btn.dataset.pa} vs ${btn.dataset.pb} → ${sel.value} (Admin Mode)`
+                : `Mail: apply ${btn.dataset.pa} vs ${btn.dataset.pb} (Admin Mode)`;
         });
     });
 
@@ -409,6 +501,8 @@ export function wireMailSections(container, onChanged) {
             container.querySelectorAll('[data-mf-table-id="F9"] tbody tr[data-league]').forEach((tr) => {
                 tr.hidden = !!want && tr.dataset.league !== want;
             });
+            // Re-slice over what the filter now lets through — see applyShowTopN.
+            topN.sync();
         });
     }
 }

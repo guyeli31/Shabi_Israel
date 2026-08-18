@@ -283,6 +283,13 @@ function restartSlowTimer() {
     const slow = el?.querySelector('.sp-slow');
     if (!slow) return;
     const elapsed = performance.now() - revealedAt();
+    // A suppressed splash has revealedAt() === Infinity (see armSplashForFetch),
+    // making `elapsed` -Infinity. setTimeout coerces a non-finite delay to 0,
+    // so without this the "taking longer than usual" panel would be switched on
+    // instantly — invisible for now, but pre-lit for the moment the splash is
+    // armed. Nothing is scheduled while there is no reveal to schedule against;
+    // arming calls this again with a real number.
+    if (!Number.isFinite(elapsed)) return;
     slowTimer = setTimeout(
         () => slow.classList.add('is-shown'),
         Math.max(0, cfg.slowAfterMs - elapsed)
@@ -296,6 +303,24 @@ export function splashStage(key) {
     const idx = stages.findIndex(s => s.key === key);
     if (idx < 0 || idx <= stageIdx) return;
     stageIdx = idx;
+
+    // Nothing is on screen yet — the splash is suppressed (internal navigation
+    // with the data already cached) or still inside its defer window. Record
+    // the stage and skip every DOM write below.
+    //
+    // Not a micro-optimisation: the label swap forces a synchronous layout
+    // (`void label.offsetWidth`) and paintSteps()/creepTo() then write and
+    // animate. Profiling a warm navigation into the dashboard measured ~166ms
+    // of the page's load inside this function — all of it spent narrating
+    // progress on a loading screen that is never shown.
+    //
+    // State still advances, so if a cold fetch arms the splash later
+    // (armSplashForFetch), it paints from the right stage rather than from the
+    // beginning of a story the page has already finished.
+    if (performance.now() < revealedAt()) {
+        progress = clamp01((idx + 0.92) / stages.length);
+        return;
+    }
 
     const label = el.querySelector('.sp-stage');
     if (label && label.textContent !== stages[idx].label) {
@@ -390,9 +415,62 @@ export function endSplash() {
 }
 
 /** The delay half of the delay/minimum pair, mirroring each page's inline
- *  head script. Kept in step with it by hand: the head script cannot import. */
+ *  head script. Kept in step with it by hand: the head script cannot import.
+ *  scripts/check-splash-arming.mjs fails if the two drift apart. */
 const DEFER_MS = 350;
 let deferTimer = null;
+
+/**
+ * Arm a SUPPRESSED splash, because a blocking data fetch has just started.
+ *
+ * Why suppression exists at all
+ * -----------------------------
+ * The splash used to be armed by the act of LOADING A PAGE, and decided
+ * whether to appear with a stopwatch: wait DEFER_MS, and if the page is not
+ * finished by then, show. That is a race, and a race cannot be guaranteed —
+ * the same transition showed no splash on a fast machine and a full one
+ * (DEFER + MIN_VISIBLE + CLOSE + fade ≈ 1s) on a slow one, because 20ms either
+ * side of the threshold decides it.
+ *
+ * It was also asking the wrong question. On an internal navigation the whole
+ * dataset is already in localStorage, so there is no request to wait for at
+ * all: no amount of slow network or slow device can make one appear. A loading
+ * screen over a page with nothing to load is pure added latency.
+ *
+ * So the splash is now armed by the act of MAKING A REQUEST. Each page's head
+ * script suppresses it up front when the store's receipt says the data is
+ * already here (window.__splashSuppress, with __splashRevealAt = Infinity so
+ * every "was it seen?" test answers no and endSplash() removes it outright).
+ * store.js then fires shabi:bundle-fetch-start on the one code path that
+ * genuinely blocks on the network — a cold fetch — and this un-suppresses.
+ *
+ * The DEFER_MS delay survives, but now measures the right thing: not "is this
+ * page slow?" but "is this REQUEST slow?". A cold fetch that returns inside
+ * DEFER_MS still shows nothing.
+ */
+function armSplashForFetch() {
+    if (!window.__splashSuppress) return;   // never suppressed — normal timing already applies
+    window.__splashSuppress = false;
+    if (ended || !el) return;               // page already finished; nothing to cover
+
+    const de = document.documentElement;
+    de.classList.add('sp-defer');
+    window.__splashRevealAt = performance.now() + DEFER_MS;
+    shownAt = window.__splashRevealAt;
+    clearTimeout(deferTimer);
+    deferTimer = setTimeout(() => {
+        de.classList.remove('sp-defer');
+        window.__splashRevealAt = performance.now();
+        shownAt = window.__splashRevealAt;
+        restartSlowTimer();
+    }, DEFER_MS);
+}
+
+// Listened for unconditionally: on a page whose splash was never suppressed
+// this is a no-op, so there is no ordering requirement between this module and
+// store.js. `once` because only the first blocking fetch of a page load has a
+// blank screen behind it.
+window.addEventListener('shabi:bundle-fetch-start', armSplashForFetch, { once: true });
 
 /**
  * Run the loading screen again for an IN-PAGE refetch.

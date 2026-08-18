@@ -158,6 +158,31 @@ session run that way silently drops back to desktop the moment you follow a link
 to the next search. Use it for a one-off check of the opposite mode on either
 server — never as the way to test mobile.
 
+### Automated browsing must never reach the live analytics
+
+Driving a real browser against `golan.me.uk` fires **real analytics beacons**.
+A single performance run once wrote **151 pageviews across 103 sessions into one
+hour** of the production dashboard — each measurement uses a fresh browser
+profile, so each registered as its own visitor. Cleaning it up needed a
+hand-written SQL file reconstructed from timestamps
+(`sql/cleanup_test_analytics_2026-08-18.sql`), because the traffic had left no
+marker to filter on.
+
+- **Playwright scripts:** set the flag in `context.addInitScript()`, before the
+  first navigation —
+  `try { localStorage.setItem('shabi:no-analytics', '1'); } catch {}`
+- **MCP / hand-driven browsing:** load the FIRST url with `?notrack`. It writes
+  the same localStorage key, so it survives every navigation after it — a
+  per-URL override alone would cover exactly one pageview, the same trap as
+  `?searchoverlay=force`. `?track` clears it.
+- `analytics.html` emits nothing (it does not load `js/analytics.js`), so
+  reading the dashboard is always free.
+- **Verify with `node scripts/check-no-analytics-pollution.mjs`** (fails if a
+  browser-driving script under `scripts/` forgot the flag) and
+  **`node scripts/perf/verify-analytics-optout.mjs`** (proves `js/analytics.js`
+  still honours it, with a control case so a silent no-op cannot pass). The
+  second refuses to run against production.
+
 ### Playwright MCP — output directory (NEVER write to repo root)
 
 Playwright MCP is configured in `.mcp.json` to write all artifacts (screenshots, traces, sessions) into `.playwright-mcp/`, which is gitignored. **Never** save MCP-generated files at the repo root — and never pass an absolute path or a bare filename like `"foo.png"` to `browser_take_screenshot` that would land in the project root. If you need a tracked screenshot (e.g. for a design audit), explicitly write it under `docs/audit-*/screenshots/`. Repo root has a blanket `/*.png /*.jpg /*.jpeg /*.gif /*.webp` ignore rule — even an accidental drop won't be committed, but it also won't appear in `git status`, so be deliberate.

@@ -36,18 +36,56 @@
     padding: clamp(8px, 0.4rem + 0.8vw, 18px) clamp(6px, 0.3rem + 0.6vw, 16px);
     box-shadow: var(--shadow-sm);
     text-align: center;
-    min-width: 0;
+    /* Every card keeps at least its own value legible. Without this floor the
+       one card allowed to expand (Leading Player) takes the room from the two
+       that aren't, and Average PR renders as "9.". Declared here, above the
+       .dash-card--flex rule, so that card's max-content floor still wins. */
+    min-width: min-content;
+    /* The Progress card is two stacked rows, so it sets the strip's height.
+       Centring every card's value keeps the single-line cards (Average PR,
+       Leading Player) optically level with it instead of clinging to the top. */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
 /* Flex card: stays 1fr when content fits, but expands past 1fr instead of
-   ellipsis-clipping when content is wider — the other (non-flex) cards have
-   min-width:0 so they shrink to make room. */
+   ellipsis-clipping when content is wider — the other cards shrink to make
+   room, down to their own min-content floors and no further. */
 .dash-card.dash-card--flex {
     min-width: max-content;
 }
 .dash-card.dash-card--flex .dash-card-value {
     overflow: visible;
     text-overflow: clip;
+    /* …and when even THAT isn't enough — a 25-character leader name on a
+       375px phone, where growing the card would leave the neighbours less
+       room than their own numbers need — the name wraps onto a second line
+       instead of spilling across the card border. max-content above still
+       means one line is the preferred outcome; this is only the floor. */
+    white-space: normal;
+    /* `anywhere`, not `break-word`: the two break identically on screen, but
+       only `anywhere` also tells the grid that this card CAN be narrow. Under
+       break-word an unbreakable 40-character name still reports its full width
+       as a minimum, and the grid honours it by starving the neighbours —
+       Average PR was measured at 17px, i.e. "9.". */
+    overflow-wrap: anywhere;
+}
+/* On a phone there is no room to expand INTO: a 25-character name claimed
+   230 of 367 available pixels and left Average PR 22px, i.e. "9." — so below
+   this width the card gives up the max-content floor and the strip stops
+   splitting itself into equal columns. Sizing the columns by their CONTENT
+   instead gives the leader name the slack the two number cards don't need,
+   which matters because player names here have no spaces ("YossiEliezer23"):
+   a name that doesn't fit can only break mid-name, so the fix is to make it
+   fit. */
+@media (max-width: 560px) {
+    .dashboard-cards {
+        grid-auto-columns: auto;
+    }
+    .dash-card.dash-card--flex {
+        min-width: 0;
+    }
 }
 
 .dash-card-label {
@@ -69,6 +107,106 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* League Progress card — two readings (schedule and calendar) in one card.
+   It is the widest of the three, so it takes two of the auto columns; the
+   others keep 1fr each. */
+/* Same 1fr share as the other two cards whenever the row can afford it — the
+   two readings need ~180px at desktop type sizes, so a third of the strip is
+   already generous and a wider card would only stretch the bars into long
+   empty tails.
+
+   What it does NOT do is shrink without limit. The neighbouring Leading Player
+   card is min-width: max-content and will otherwise take every pixel it wants:
+   a long leader name once squeezed this card to 85px while its numbers needed
+   99px, and the readings drew straight across the card's own border. The floor
+   below settles that conflict in this card's favour — it cannot go under, so
+   the leader card is the one that has to give (it wraps its name). */
+.dash-card--progress {
+    /* The widest UNBREAKABLE token ("236 / 300") — the phone floor, where the
+       fluid type is at its smallest and every pixel is contested. */
+    min-width: min-content;
+}
+@media (min-width: 561px) {
+    .dash-card--progress {
+        /* Measured: the card's content needs 180px at full desktop type. 190
+           keeps one line per reading with a little slack. */
+        min-width: 190px;
+    }
+}
+/* Its value is a block of rows, not one line of text — cancel the single-line
+   ellipsis clamp inherited from .dash-card-value, but keep the clip: nothing
+   may leave the card. */
+.dash-card--progress .dash-card-value {
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: clip;
+}
+
+.dash-progress {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(4px, 0.2rem + 0.4vw, 10px);
+    /* Green on schedule, orange once the games fall behind the calendar.
+       --color-warning is deliberately constant across themes (a caution signal
+       is a traffic light, not a palette mood); --color-success follows it. */
+    --dash-prog-tone: var(--color-success);
+}
+.dash-progress.is-behind {
+    --dash-prog-tone: var(--color-warning);
+}
+
+.dash-prog-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.4em;
+    /* Each piece stays on its own line; the ROW wraps when the card is too
+       narrow to hold "GAMES 236 / 300 79%" in one, so the percentage drops
+       under the count instead of being cut off. */
+    flex-wrap: wrap;
+    row-gap: 0;
+    white-space: nowrap;
+}
+
+.dash-prog-name {
+    font-size: var(--fs-072);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+/* The count itself keeps the card-value size, so "236 / 300" still reads as
+   the headline figure next to "9.75" in the Average PR card. */
+.dash-prog-value {
+    font-size: var(--fs-112);
+    font-weight: 700;
+    color: var(--color-text);
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-prog-pct {
+    font-size: var(--fs-090);
+    font-weight: 700;
+    color: var(--dash-prog-tone);
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-prog-track {
+    height: clamp(4px, 0.2rem + 0.25vw, 7px);
+    border-radius: 999px;
+    background: var(--color-border);
+    overflow: hidden;
+}
+
+.dash-prog-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--dash-prog-tone);
 }
 
 /* Flag in the Leading Player card — sized in em so it tracks the player-name text,

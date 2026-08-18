@@ -47,35 +47,6 @@
     <noscript><style>#logo-splash{display:none}</style></noscript>
 
     <script>
-      /* ══ TEMPORARY — slow mode for testing. Remove before committing. ══
-         Holds every data request so a page transition takes a fixed time,
-         which is the only way to actually look at the loading screen.
-             spSlow(2000)  every navigation waits ~2s   (persists)
-             spSlow(0)     back to normal
-      */
-      (function(){
-        var S = 'spSlowMs';
-        var q = new URLSearchParams(location.search).get('spWait');
-        if (q !== null) { try { localStorage.setItem(S, q); } catch (e) {} }
-        window.spSlow = function (n) { try { localStorage.setItem(S, String(n||0)); } catch(e){}
-          console.log(n ? 'Every page will now wait ~' + n + 'ms for data.' : 'Back to normal speed.'); };
-        var ms = 0; try { ms = +localStorage.getItem(S) || 0; } catch (e) {}
-        if (!ms) return;
-        /* The app caches its whole dataset in localStorage, so after the first
-           load there is no request left to hold and every later navigation is
-           instant no matter what this is set to. Drop that cache on each load
-           while slow mode is on, otherwise only the very first transition is
-           actually slow — which is exactly what it looked like. */
-        try { localStorage.removeItem('shabi:bundle:v1'); } catch (e) {}
-        var of = window.fetch;
-        window.fetch = function () {
-          var a = arguments, self = this;
-          var u = String((a[0] && a[0].url) || a[0] || '');
-          if (u.indexOf('54321') >= 0 || u.indexOf('supabase') >= 0)
-            return new Promise(function (r) { setTimeout(r, ms); }).then(function () { return of.apply(self, a); });
-          return of.apply(self, a);
-        };
-      })();
       (function(){
         var t=localStorage.getItem('shabi-theme');
         if(t==='modern')t='nature';if(t==='royal')t='vegas';if(t&&t!=='current'){document.documentElement.dataset.theme=t;localStorage.setItem('shabi-theme',t);}

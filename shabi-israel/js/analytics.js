@@ -74,6 +74,46 @@ const PAGE_BY_FILENAME = {
 
 const ENDPOINT = SUPABASE_URL ? `${SUPABASE_URL}/rest/v1/analytics_events` : null;
 
+// ── Automated-traffic opt-out ──────────────────────────────────────────────
+//
+// Performance harnesses drive a REAL browser against the REAL site — that is
+// the only way to measure what a visitor actually experiences — so every page
+// they open fires a real beacon. On 2026-08-18 a "before" measurement run put
+// **151 pageviews across 103 sessions into one hour** of production analytics,
+// because each measurement uses a fresh browser profile and so registers as its
+// own visit. The numbers were not wrong; they were simply not people.
+//
+// So automation declares itself, and this file goes silent for it. Two ways in,
+// for the two kinds of automation:
+//
+//   • `localStorage['shabi:no-analytics'] = '1'` — what a Playwright script
+//     sets via context.addInitScript(), before the first navigation. Nothing a
+//     real browser ever runs, so a visitor cannot acquire it by accident.
+//
+//   • `?notrack` on any URL — for hand-driven browser automation that cannot
+//     inject a script before the first page load. It writes the localStorage
+//     key, so it survives the navigation that follows: without that, the flag
+//     would cover exactly one pageview and every click after it would be
+//     recorded, which is the trap a per-URL override always sets.
+//
+// `?track` clears it again. A console line is printed while suppression is
+// active, deliberately: a site that has silently stopped counting itself is a
+// worse failure than one that counts too much, and the message is the only
+// thing that would ever reveal it.
+const NO_TRACK_KEY = 'shabi:no-analytics';
+const SUPPRESSED = (() => {
+    try {
+        const params = new URLSearchParams(location.search);
+        if (params.has('track')) localStorage.removeItem(NO_TRACK_KEY);
+        if (params.has('notrack')) localStorage.setItem(NO_TRACK_KEY, '1');
+        const off = localStorage.getItem(NO_TRACK_KEY) === '1';
+        if (off) console.info('[analytics] suppressed for this browser profile (%s). Add ?track to a URL to re-enable.', NO_TRACK_KEY);
+        return off;
+    } catch {
+        return false; // private mode / storage blocked — behave normally
+    }
+})();
+
 // ── Privacy-differentiated identity (see sql/analytics_poc.sql header) ─────
 // Timezone is the ONLY signal used to route — never IP (no IP is read, sent,
 // or stored anywhere in this file).
@@ -234,7 +274,8 @@ function baseFields() {
 }
 
 function send(event) {
-    if (!ENDPOINT) return; // no-config = silent no-op
+    if (!ENDPOINT) return;  // no-config = silent no-op
+    if (SUPPRESSED) return; // automated traffic — see NO_TRACK_KEY above
 
     // Israel → session-linked; everyone else → zero-correlation + coarse region.
     const routed = IS_LOCAL

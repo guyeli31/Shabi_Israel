@@ -1,0 +1,95 @@
+{
+  "generatedAt": "2026-08-18T12:14:57.467Z",
+  "baseUrl": "http://localhost:8090/shabi-israel",
+  "supabaseHost": "127.0.0.1:54321",
+  "runs": 5,
+  "discovered": {
+    "league": "July 2026",
+    "player": "Avi"
+  },
+  "scenarios": {
+    "cold:index.html": {
+      "msMedian": 1820,
+      "msMax": 2263,
+      "msVisibleMedian": 2173,
+      "splashSeenRate": 1,
+      "splashVisibleMsMedian": 1722,
+      "blockingRequestsMedian": 1,
+      "totalRequestsMedian": 2,
+      "bytesMedian": 740251
+    },
+    "cold:league.html": {
+      "msMedian": 1449,
+      "msMax": 1538,
+      "msVisibleMedian": 1797,
+      "splashSeenRate": 1,
+      "splashVisibleMsMedian": 1309,
+      "blockingRequestsMedian": 1,
+      "totalRequestsMedian": 2,
+      "bytesMedian": 740251
+    },
+    "cold:league_table.html": {
+      "msMedian": 1200,
+      "msMax": 1265,
+      "msVisibleMedian": 1546,
+      "splashSeenRate": 1,
+      "splashVisibleMsMedian": 1098,
+      "blockingRequestsMedian": 1,
+      "totalRequestsMedian": 2,
+      "bytesMedian": 740251
+    },
+    "cold:player_league.html": {
+      "msMedian": 1136,
+      "msMax": 1231,
+      "msVisibleMedian": 1492,
+      "splashSeenRate": 1,
+      "splashVisibleMsMedian": 1031,
+      "blockingRequestsMedian": 1,
+      "totalRequestsMedian": 2,
+      "bytesMedian": 740251
+    },
+    "cold:player.html": {
+      "msMedian": 1515,
+      "msMax": 1622,
+      "msVisibleMedian": 1854,
+      "splashSeenRate": 1,
+      "splashVisibleMsMedian": 1405,
+      "blockingRequestsMedian": 1,
+      "totalRequestsMedian": 2,
+      "bytesMedian": 740251
+    },
+    "warm:index.html->league.html": {
+      "msMedian": 728,
+      "msVisibleMedian": 744,
+      "splashSeenRate": 0,
+      "splashVisibleMsMedian": 0,
+      "blockingRequestsMedian": 0
+    },
+    "warm:league.html->league_table.html": {
+      "msMedian": 480,
+      "msVisibleMedian": 498,
+      "splashSeenRate": 0,
+      "splashVisibleMsMedian": 0,
+      "blockingRequestsMedian": 0
+    },
+    "warm:league_table.html->player_league.html": {
+      "msMedian": 357,
+      "msVisibleMedian": 373,
+      "splashSeenRate": 0,
+      "splashVisibleMsMedian": 0,
+      "blockingRequestsMedian": 0
+    },
+    "warm:player_league.html->player.html": {
+      "msMedian": 600,
+      "msVisibleMedian": 642,
+      "splashSeenRate": 0,
+      "splashVisibleMsMedian": 0,
+      "blockingRequestsMedian": 0
+    },
+    "back-nav": {
+      "msMedian": 246,
+      "blockingRequestsMedian": 0,
+      "bfcacheHitRate": 0
+    }
+  }
+}

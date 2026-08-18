@@ -462,19 +462,113 @@ function renderSummaryCards(ctx) {
     }
     const avgPR = averages && averages.meanPR != null ? formatNumber(averages.meanPR) : 'N/A';
     const cards = [
-        { label: 'Games Played', value: `${matchStats.playedMatches} / ${matchStats.totalMatches}` }
+        { label: 'League Progress', value: leagueProgressHtml(params, matchStats), cls: 'dash-card--progress' }
     ];
     if (leagueConfig.showPR) cards.push({ label: 'Average PR', value: avgPR });
     cards.push({ label: 'Leading Player', value: leaderHtml, flex: true });
 
     const cardsHost = document.getElementById('dash-cards');
     cardsHost.innerHTML = cards.map(c => `
-        <div class="dash-card${c.flex ? ' dash-card--flex' : ''}">
+        <div class="dash-card${c.flex ? ' dash-card--flex' : ''}${c.cls ? ` ${c.cls}` : ''}">
             <div class="dash-card-label">${c.label}</div>
             <div class="dash-card-value">${c.value}</div>
         </div>
     `).join('');
     attachPlayerNameInteractions(cardsHost, ctx.leagueId);
+}
+
+/* ---------- F1: League Progress card ----------
+   Two progress readings side by side: how much of the SCHEDULE has been played,
+   and how much of the league's CALENDAR has passed. Read together they answer
+   the only question the old "Games Played" count couldn't: is the league on
+   time? */
+
+// A league is behind schedule once the calendar has moved this many percentage
+// points further than the games have. Below it the two readings are effectively
+// in step (a single missing match on a small league is a few points on its own),
+// so anything inside the band — and anything AHEAD of the calendar — is green.
+const PROGRESS_GAP_TOLERANCE = 10;
+
+/**
+ * The league's calendar window as [start, end], both at local midnight.
+ *
+ * There is no end date in the data. Leagues run for a calendar month, so the
+ * month that IssueDate falls in IS the window, and its last day is the end.
+ * A league with no IssueDate has no window at all — the caller then shows the
+ * games reading alone rather than inventing a date.
+ */
+function leagueDateWindow(params) {
+    const iso = params && params.IssueDate;
+    if (!iso) return null;
+    const start = new Date(String(iso).length <= 10 ? `${iso}T00:00:00` : iso);
+    if (isNaN(start)) return null;
+    start.setHours(0, 0, 0, 0);
+    // Day 0 of the NEXT month is the last day of this one.
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+    return { start, end };
+}
+
+const _MS_PER_DAY = 86400000;
+
+/** Whole days between two local-midnight dates. */
+function daysBetween(a, b) {
+    return Math.round((b - a) / _MS_PER_DAY);
+}
+
+/** Games + calendar progress for the League Progress card, or null halves when unknown. */
+function computeLeagueProgress(params, matchStats) {
+    const total = matchStats.totalMatches;
+    const games = {
+        played: matchStats.playedMatches,
+        total,
+        pct: total > 0 ? (matchStats.playedMatches / total) * 100 : 0,
+    };
+
+    const window = leagueDateWindow(params);
+    let days = null;
+    if (window) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        // Inclusive on both ends: a one-day league is 1 day long, and its own
+        // first day already counts as elapsed.
+        const totalDays = daysBetween(window.start, window.end) + 1;
+        const elapsed = Math.min(Math.max(daysBetween(window.start, today) + 1, 0), totalDays);
+        days = { elapsed, total: totalDays, pct: totalDays > 0 ? (elapsed / totalDays) * 100 : 0 };
+    }
+
+    // Behind = the calendar has run further than the games have. Ahead needs no
+    // warning, so the comparison is one-sided.
+    const behind = days ? days.pct - games.pct > PROGRESS_GAP_TOLERANCE : false;
+    return { games, days, behind };
+}
+
+function progressRowHtml(label, value, pct, title) {
+    const width = Math.min(Math.max(pct, 0), 100);
+    return `
+        <div class="dash-prog-row" title="${escapeHtml(title)}">
+            <div class="dash-prog-head">
+                <span class="dash-prog-name">${escapeHtml(label)}</span>
+                <span class="dash-prog-value">${escapeHtml(value)}</span>
+                <span class="dash-prog-pct">${Math.round(pct)}%</span>
+            </div>
+            <div class="dash-prog-track"><span class="dash-prog-fill" style="width:${width.toFixed(1)}%"></span></div>
+        </div>`;
+}
+
+function leagueProgressHtml(params, matchStats) {
+    const { games, days, behind } = computeLeagueProgress(params, matchStats);
+    const state = behind ? 'is-behind' : 'is-on-track';
+    const rows = [
+        progressRowHtml('Games', `${games.played} / ${games.total}`, games.pct,
+            `${games.played} of ${games.total} scheduled matches played`),
+    ];
+    if (days) {
+        rows.push(progressRowHtml('Days', `${days.elapsed} / ${days.total}`, days.pct,
+            behind
+                ? `Day ${days.elapsed} of ${days.total} — the schedule is behind the calendar`
+                : `Day ${days.elapsed} of ${days.total} — the schedule is keeping up with the calendar`));
+    }
+    return `<div class="dash-progress ${state}">${rows.join('')}</div>`;
 }
 
 // Measures the rendered width of sticky col-1 and writes --col1-w on the wrapper
@@ -483,9 +577,18 @@ function measureScrollWrapStickyCols(wrap) {
     if (!wrap) return;
     const th1 = wrap.querySelector('thead th:nth-child(1)');
     if (!th1) return;
+    // Writing the variable changes the wrapper's own layout, which re-fires the
+    // ResizeObserver below, which measures and writes again. It does converge —
+    // the width stops changing — but every lap costs a forced layout, and this
+    // runs once per scrollable table on the page. Remembering the last value
+    // written makes the second lap free and stops the loop dead.
+    let lastW = null;
     const write = () => {
         const w = th1.getBoundingClientRect().width;
-        if (w > 0) wrap.style.setProperty('--col1-w', w + 'px');
+        if (w > 0 && w !== lastW) {
+            lastW = w;
+            wrap.style.setProperty('--col1-w', w + 'px');
+        }
     };
     write();
     if (typeof ResizeObserver !== 'undefined') {
@@ -685,6 +788,28 @@ function ensureLast300Map(ctx) {
     return ctx._last300MapPromise;
 }
 
+/**
+ * Resolve once `el` is actually on screen — used to keep work off the load path.
+ *
+ * An IntersectionObserver rather than a hook on mountAppTabs: a hidden tab
+ * panel does not intersect, so this covers being switched to by a click, by a
+ * keyboard shortcut, by Back, and by landing directly on ?tab=… , without
+ * teaching the tab component about any particular panel's cost. Resolves
+ * immediately when the element is already visible.
+ *
+ * Falls back to resolving straight away where IntersectionObserver is missing:
+ * the point is to defer work, never to lose it.
+ */
+function whenVisible(el) {
+    if (!el || typeof IntersectionObserver === 'undefined') return Promise.resolve();
+    return new Promise((resolve) => {
+        const io = new IntersectionObserver((entries) => {
+            if (entries.some((e) => e.isIntersecting)) { io.disconnect(); resolve(); }
+        });
+        io.observe(el);
+    });
+}
+
 async function renderPredictor(ctx) {
     const section = document.getElementById('predictor-section');
     const host = document.getElementById('predictor-table');
@@ -714,6 +839,22 @@ async function renderPredictor(ctx) {
         host.innerHTML = `<div style="text-align:center;color:var(--color-text-muted);padding:var(--space-md)">Season complete — ${top ? top.player : 'N/A'} wins the championship.</div>`;
         return;
     }
+
+    // ── Do not simulate until the Predictor tab is actually open ────────────
+    // predictChampionship() is a Monte Carlo run with a floor of 50 000
+    // iterations (see estimateIterations' STEP pin), and it is a SYNCHRONOUS
+    // CPU loop — being inside an async function buys nothing, because once it
+    // starts it owns the main thread until it finishes. Profiling a warm
+    // navigation into this page put 76% of a 5 s transition inside this one
+    // call tree (simulateMonteCarlo + gaussianLUT + getWinProbability), all of
+    // it for a panel behind the third of four tabs that most visits never open.
+    //
+    // Waiting for the panel to be visible costs nothing when it IS the tab
+    // being opened, and removes the whole cost from every visit that isn't.
+    // Nothing about the simulation itself changes — same iterations, same
+    // accuracy — it simply stops running before the page it is not part of.
+    host.innerHTML = '<div class="loading">Computing projection…</div>';
+    await whenVisible(section);
 
     try {
         const statsMap = computeAllStats(ctx.liveMatches, ctx.allPlayersSet);
@@ -1458,9 +1599,13 @@ function renderWhatIfSimulator(ctx) {
         runSimulation();
     });
 
-    // First paint: show the default (unmodified) projection straight away, so
-    // the section is never an empty shell waiting for input.
-    runSimulation();
+    // Show the default (unmodified) projection without waiting for input, so
+    // the section is never an empty shell — but not until the section is on
+    // screen. This is a second full Monte Carlo run (see renderPredictor's
+    // note): together the two accounted for ~76% of a warm navigation into
+    // this page, both of them for panels behind a tab. Deferring costs nothing
+    // when the tab IS opened and removes the cost entirely when it is not.
+    whenVisible(document.getElementById('whatif-section') || runBtn).then(runSimulation);
 }
 
 function canonKey(a, b) {

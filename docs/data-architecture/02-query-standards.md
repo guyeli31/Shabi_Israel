@@ -1,6 +1,6 @@
 # 02 — Query Standards (mandatory for all future pages/features)
 
-Status: **binding (Phase 2/3 landed on local Docker).** Rule 1 is enforced by `scripts/check-query-standards.mjs`, which is built and **passing** (scans 83 files under `js/`, 0 violations as of 2026-07-10). The remaining rules are review-checklist items (see rule 10). Their purpose is to stop the pattern that caused this whole effort: a point-fix landing, then the next feature re-introducing the same class of bug because there was no standing rule against it.
+Status: **binding (Phase 2/3 landed on local Docker).** Rule 1 is enforced by `scripts/check-query-standards.mjs`, which is built and **passing** (scans 83 files under `js/`, 0 violations as of 2026-07-10). The remaining rules are review-checklist items (see rule 12). Their purpose is to stop the pattern that caused this whole effort: a point-fix landing, then the next feature re-introducing the same class of bug because there was no standing rule against it.
 
 Not yet wired into CI / a pre-commit hook — the gate script exists and runs on demand (`node scripts/check-query-standards.mjs`); automating it is a separate follow-up.
 
@@ -26,7 +26,13 @@ Not yet wired into CI / a pre-commit hook — the gate script exists and runs on
 
 9. **Admin never reads the public cache/store; public pages never import `supabaseLoader.js`.** These are two halves of the same rule (see `01-architecture.md` §A7): admin needs fresh, cache-free reads to see its own writes; public pages must not accidentally acquire a direct, cache-bypassing path back into the old bug class.
 
-10. **PR checklist** (attach to any PR touching data reads or adding a page):
+10. **Work belongs on the path that needs it.** Two rules, both added 2026-08-18 after a warm navigation into the dashboard was profiled and found to be 76% Monte Carlo simulation for panels behind an unopened tab:
+    - **A synchronous CPU loop is not made non-blocking by an `async` wrapper.** Once it starts it owns the main thread until it finishes; `async` only decides *when* it starts. Expensive compute for a tab, an accordion or a below-the-fold panel waits for that element to be visible (`whenVisible()` in `dashboardPage.js` — an IntersectionObserver, so it covers a click, a keyboard shortcut, Back, and landing on `?tab=…` alike).
+    - **The loading screen is armed by a request, never by a page load.** `store.js` fires `shabi:bundle-fetch-start` on the one path that blocks on the network; each page's head script suppresses the splash up front when the receipt says the data is already cached. A timer-based rule ("show if not done in N ms") is a race decided by device speed, and it put a ~1s loading screen over navigations that had nothing to load. Enforced by `scripts/check-splash-arming.mjs` (the head script cannot import, so its copy of the receipt rule is checked mechanically) and `scripts/perf/verify-splash-guarantee.mjs` (asserts the splash never appears on a warm transition at up to 20× CPU throttling, and still appears on a cold entry).
+
+11. **A cache is not the opposite of freshness — an invalidation rule is.** "Never cache" is the absence of a mechanism, not a guarantee, and it cost the admin a full re-download of the same rows on every league-editor open. Where fresh reads are required (`supabaseLoader.js`), memoise against `site_meta.data_version`, checked before every serve, plus an explicit invalidation on the caller's own writes. If the version cannot be read, do not serve from memory. Do not reintroduce an ad-hoc TTL cache — that is what rule 5 forbids.
+
+12. **PR checklist** (attach to any PR touching data reads or adding a page):
     - [ ] Does every new/changed query have a deterministic `ORDER BY` with a unique tiebreaker, or a proven <1000-row bound? (rule 2)
     - [ ] Does this read go through `store.js`, with no direct `supabase.from()/rpc()` outside the allowed files? (rule 1, 9)
     - [ ] If new data is needed, was it added to the bundle rather than a new query? (rule 3)
@@ -34,3 +40,6 @@ Not yet wired into CI / a pre-commit hook — the gate script exists and runs on
     - [ ] No new cache mechanism was introduced? (rule 5)
     - [ ] Any new DB object is in a dated `sql/` file, and `schema_version` was bumped if the bundle shape changed? (rule 6)
     - [ ] No new top-level network await in `js/data/**`? (rule 7)
+    - [ ] Is expensive compute gated on the element that needs it actually being visible? (rule 10)
+    - [ ] Does the loading screen still never appear on a warm transition? `node scripts/perf/verify-splash-guarantee.mjs` (rule 10)
+    - [ ] Any new cache carries an exact invalidation rule, not a TTL guess? (rule 11)

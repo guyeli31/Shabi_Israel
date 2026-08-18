@@ -8,6 +8,7 @@
     "build": "node scripts/build-v1.cjs"
   },
   "devDependencies": {
-    "esbuild": "0.21.5"
+    "esbuild": "0.21.5",
+    "playwright": "^1.62.1"
   }
 }

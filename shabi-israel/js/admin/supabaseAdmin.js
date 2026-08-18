@@ -19,6 +19,33 @@ import { supabase } from '../data/supabaseClient.js';
 import { parseCSVAllWithRounds } from '../data/csvParser.js';
 import { computeMatchHistoryReconcile } from '../data/matchHistoryReconcile.js';
 
+import { invalidateAdminCache } from '../data/supabaseLoader.js';
+
+/**
+ * Wraps a write so the admin read path's memo is dropped once it completes.
+ *
+ * Applied to EVERY exported function in this file rather than called by hand
+ * inside each one, because "remember to invalidate" is precisely the kind of
+ * instruction that holds until someone adds the fourteenth write function. The
+ * memo in supabaseLoader.js is version-gated and would notice the change on its
+ * own within a couple of seconds; this closes that window so the admin sees its
+ * own edit on the very next read, with no waiting at all.
+ *
+ * `finally`, not `then`: a write that throws may still have committed part of
+ * its work (bulkImportCSV deletes stale rows before upserting new ones), so a
+ * failure is exactly when cached rows are least trustworthy.
+ */
+function invalidating(fn) {
+    return async function (...args) {
+        try {
+            return await fn.apply(this, args);
+        } finally {
+            invalidateAdminCache();
+        }
+    };
+}
+
+
 function b64ToUint8Array(base64) {
     return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 }
@@ -147,16 +174,16 @@ function mapParamsToLeagueRow(leagueId, p) {
 }
 
 /** Create or update a league's params row. */
-export async function upsertLeague(leagueId, params) {
+export const upsertLeague = invalidating(async function upsertLeague(leagueId, params) {
     const { error } = await supabase.from('leagues').upsert(mapParamsToLeagueRow(leagueId, params));
     if (error) throw new Error(`upsertLeague failed for ${leagueId}: ${error.message}`);
-}
+});
 
 /** Delete a league. Cascades to matches/manual_overrides/match_history/league_snapshots via FK. */
-export async function deleteLeague(leagueId) {
+export const deleteLeague = invalidating(async function deleteLeague(leagueId) {
     const { error } = await supabase.from('leagues').delete().eq('id', leagueId);
     if (error) throw new Error(`deleteLeague failed for ${leagueId}: ${error.message}`);
-}
+});
 
 /**
  * Rename a league's id (the natural key = the name shown everywhere). The
@@ -166,13 +193,13 @@ export async function deleteLeague(leagueId) {
  * suppressed, and exactly one clean audit row is logged. It also enforces
  * uniqueness (case-insensitive) server-side, so a racing duplicate still fails.
  */
-export async function renameLeague(oldId, newId) {
+export const renameLeague = invalidating(async function renameLeague(oldId, newId) {
     const { error } = await supabase.rpc('rename_league', { old_id: oldId, new_id: newId });
     if (error) throw new Error(`renameLeague failed (${oldId} → ${newId}): ${error.message}`);
-}
+});
 
 /** Sync a league's full matches table to match this CSV text (delete-stale + upsert ONLY changed rows). */
-export async function bulkImportCSV(leagueId, csvText) {
+export const bulkImportCSV = invalidating(async function bulkImportCSV(leagueId, csvText) {
     const { matches } = parseCSVAllWithRounds(csvText);
 
     const { data: existing, error: fetchErr } = await supabase
@@ -214,10 +241,10 @@ export async function bulkImportCSV(leagueId, csvText) {
     }));
     const { error } = await supabase.from('matches').upsert(rows, { onConflict: 'league_id,round,player_a,player_b' });
     if (error) throw new Error(`bulkImportCSV upsert failed for ${leagueId}: ${error.message}`);
-}
+});
 
 /** Sync a league's full manual_overrides table to match this overrides array. */
-export async function syncOverrides(leagueId, overrides) {
+export const syncOverrides = invalidating(async function syncOverrides(leagueId, overrides) {
     const { data: existing, error: fetchErr } = await supabase
         .from('manual_overrides')
         .select('id, player_a, player_b, type, winner, score_a, score_b, pr_a, pr_b, luck_a, luck_b, reason, edited_at')
@@ -261,10 +288,10 @@ export async function syncOverrides(leagueId, overrides) {
 
     const { error } = await supabase.from('manual_overrides').upsert(rows, { onConflict: 'league_id,player_a,player_b' });
     if (error) throw new Error(`syncOverrides upsert failed for ${leagueId}: ${error.message}`);
-}
+});
 
 /** Sync the whole players_metadata table to match this {[nickname]: {...}} object. */
-export async function syncPlayersMetadata(metadataObj) {
+export const syncPlayersMetadata = invalidating(async function syncPlayersMetadata(metadataObj) {
     const { data: existing, error: fetchErr } = await supabase
         .from('players_metadata')
         .select('id, full_name, bmab_title, championship_titles, hidden, photo_path, inactive, joined');
@@ -298,10 +325,10 @@ export async function syncPlayersMetadata(metadataObj) {
     if (rows.length === 0) return;
     const { error } = await supabase.from('players_metadata').upsert(rows);
     if (error) throw new Error(`syncPlayersMetadata upsert failed: ${error.message}`);
-}
+});
 
 /** Update landing_settings (title/subtitle/logo stay pass-through fallback fields; DisplayOrder is the only field any UI actually edits today). */
-export async function updateLandingSettings({ title, subtitle, logoPath, DisplayOrder }) {
+export const updateLandingSettings = invalidating(async function updateLandingSettings({ title, subtitle, logoPath, DisplayOrder }) {
     const { error } = await supabase.from('landing_settings').upsert({
         id: 1,
         title: title || 'Shabi Israel',
@@ -310,7 +337,7 @@ export async function updateLandingSettings({ title, subtitle, logoPath, Display
         display_order: DisplayOrder || [],
     });
     if (error) throw new Error(`updateLandingSettings failed: ${error.message}`);
-}
+});
 
 /**
  * Mirror leagues/sync_settings.json into the plan-scheduler tables the pg_cron
@@ -323,7 +350,7 @@ export async function updateLandingSettings({ title, subtitle, logoPath, Display
  * every league — a league absent from the map has its name cleared (which also
  * removes it from any plan on the next scheduled tick).
  */
-export async function updateSyncSettings(payload) {
+export const updateSyncSettings = invalidating(async function updateSyncSettings(payload) {
     try {
         return await _updateSyncSettings(payload);
     } catch (err) {
@@ -336,7 +363,7 @@ export async function updateSyncSettings(payload) {
         }
         throw err;
     }
-}
+});
 
 async function _updateSyncSettings({ plans = [], sourceNames = {} }) {
     // 1. Plans — upsert present, delete absent.
@@ -393,16 +420,16 @@ async function _updateSyncSettings({ plans = [], sourceNames = {} }) {
 }
 
 /** Upload a flag PNG (base64 content, as staged) to the public `flags` bucket. */
-export async function uploadFlagAsset(code, base64Content) {
+export const uploadFlagAsset = invalidating(async function uploadFlagAsset(code, base64Content) {
     const { error } = await supabase.storage.from('flags').upload(`${code}.png`, b64ToUint8Array(base64Content), {
         contentType: 'image/png',
         upsert: true,
     });
     if (error) throw new Error(`uploadFlagAsset failed for ${code}: ${error.message}`);
-}
+});
 
 /** Upload a player photo (base64 content, as staged) to the public `player-photos` bucket. */
-export async function uploadPlayerPhoto(filename, base64Content) {
+export const uploadPlayerPhoto = invalidating(async function uploadPlayerPhoto(filename, base64Content) {
     const ext = (filename.match(/\.(\w+)$/) || [, ''])[1].toLowerCase();
     const contentType = ext === 'png' ? 'image/png' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
         : ext === 'gif' ? 'image/gif' : ext === 'webp' ? 'image/webp' : 'application/octet-stream';
@@ -411,20 +438,20 @@ export async function uploadPlayerPhoto(filename, base64Content) {
         upsert: true,
     });
     if (error) throw new Error(`uploadPlayerPhoto failed for ${filename}: ${error.message}`);
-}
+});
 
 /** Remove a player photo from the `player-photos` bucket. */
-export async function deletePlayerPhoto(filename) {
+export const deletePlayerPhoto = invalidating(async function deletePlayerPhoto(filename) {
     const { error } = await supabase.storage.from('player-photos').remove([filename]);
     if (error) throw new Error(`deletePlayerPhoto failed for ${filename}: ${error.message}`);
-}
+});
 
 /**
  * Snapshot a league's current state (mirrors the old saveSnapshot()) and bump
  * leagues.last_updated. Reads current matches+overrides from Supabase itself
  * (now the source of truth), not from any file.
  */
-export async function createSnapshot(leagueId) {
+export const createSnapshot = invalidating(async function createSnapshot(leagueId) {
     const { data: matches } = await supabase
         .from('matches')
         .select('round, player_a, player_b, pr_a, luck_a, score_a, pr_b, luck_b, score_b, played')
@@ -450,13 +477,13 @@ export async function createSnapshot(leagueId) {
 
     const { error: updErr } = await supabase.from('leagues').update({ last_updated: new Date().toISOString() }).eq('id', leagueId);
     if (updErr) throw new Error(`createSnapshot last_updated bump failed for ${leagueId}: ${updErr.message}`);
-}
+});
 
 /**
  * Reconcile match_history for a league (mirrors the old updateMatchHistory()),
  * reading matches + overrides from Supabase instead of GitHub files.
  */
-export async function reconcileMatchHistory(leagueId) {
+export const reconcileMatchHistory = invalidating(async function reconcileMatchHistory(leagueId) {
     const { data: matchRows } = await supabase
         .from('matches')
         .select('*')
@@ -479,4 +506,4 @@ export async function reconcileMatchHistory(leagueId) {
         const { error } = await supabase.from('match_history').upsert(upsertRows, { onConflict: 'league_id,player_a,player_b' });
         if (error) throw new Error(`reconcileMatchHistory upsert failed for ${leagueId}: ${error.message}`);
     }
-}
+});

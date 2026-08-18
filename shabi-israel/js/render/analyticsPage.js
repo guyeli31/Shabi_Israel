@@ -30,6 +30,7 @@
  */
 
 import { supabase } from '../data/supabaseClient.js';
+import { loadAllLeagues } from '../data/store.js';
 import { isLoggedIn, login } from '../admin/auth.js';
 import { escapeHtml } from '../utils/sanitize.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
@@ -96,6 +97,17 @@ const pageLabelHtml = (p) => {
 // back to the raw id so nothing renders blank.
 let _leagueMeta = new Map();
 let _leagueMetaLoaded = false;
+/**
+ * The `analytics_months` result, held for the life of the page.
+ *
+ * It lists which months have data, which cannot change while the operator sits
+ * on the page — but both controls here (the month picker and the
+ * exclude-my-own-traffic toggle) re-enter renderAnalyticsPage() from the top,
+ * so it was re-fetched on every single control change. The month list is only
+ * ever used to fill the picker's options; refetching it bought nothing and cost
+ * a round trip per click.
+ */
+let _monthsCache = null;
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 const typeLabel = (t) => LEAGUE_TYPE_LABELS[t] || (t ? t.charAt(0).toUpperCase() + t.slice(1) : '');
 const leagueDisplay = (leagueId) => {
@@ -861,6 +873,13 @@ const CLICK_TYPE_ICONS = [
     { prefix: 'Title: ', icon: '🎖️' },   // player-header title-chip click (badge rendered in the cell)
     { prefix: 'Search: ', icon: '🔍' },
     { prefix: 'Action: ', icon: '💾' },
+    // Admin mail-sync review (js/admin/mailSync.js): resolving an unassigned
+    // emailed result. 📧 + the action glyph — apply (✅, with the chosen league
+    // folded into the target) or discard (🗑️). Admin-only, so admin_user is set and
+    // these sit in the excluded operator lane by default. ORDER: startsWith, and
+    // both prefixes are distinct, so placement only needs to precede the generic Link.
+    { prefix: 'Mail: apply', icon: '📧✅' },
+    { prefix: 'Mail: discard', icon: '📧🗑️' },
     { prefix: 'Info: ', icon: 'ℹ️' },
     { prefix: 'History view: ', icon: '🕘' },
     { prefix: 'Privacy: ', icon: '🛡️' },
@@ -1590,8 +1609,45 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
     // data has actually arrived. This line used to install a "Loading
     // analytics…" placeholder instead, which both blanked the page early and
     // showed straight through the splash as a second progress message.
+    // ── The two RPCs run TOGETHER, because neither needs the other ──────────
+    // This used to be strictly sequential: await the month list, then await the
+    // summary. It reads as a dependency and is not one — the month the page
+    // opens on is either the caller's explicit choice (monthKeyArg, from the
+    // picker or the admin toggle) or the current calendar month computed from
+    // the clock right here. The month LIST only ever fills the picker's
+    // <option>s. So the second request was waiting on a first it never
+    // consumed, and the page paid one extra full round trip on every load and
+    // on every control change.
+    //
+    // The month list is also stable for the life of the page, so it is fetched
+    // once and reused: a re-render caused by the picker or the exclude-admin
+    // toggle re-runs only the summary.
+    const currentMonthKey = new Date()
+        .toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }).slice(0, 7); // "YYYY-MM"
+    const activeKey = monthKeyArg || currentMonthKey;
+    // Persist the exclude-admin choice (loadView feeds its default); the month is
+    // deliberately NOT restored across loads — see below.
+    saveView(activeKey, excludeAdmin);
+    const { from, to } = israelMonthRange(activeKey);
+
     splashStage('months');
-    const { data: months, error: monthsError } = await supabase.rpc('analytics_months');
+    const monthsPromise = _monthsCache
+        ? Promise.resolve(_monthsCache)
+        : supabase.rpc('analytics_months').then((r) => { if (!r.error) _monthsCache = r; return r; });
+
+    // Live tabs are new-format only. Legacy rows predate the route model and
+    // would otherwise drown every panel (they are ~98% of the table today);
+    // they live in the History tab instead.
+    const summaryPromise = supabase.rpc('analytics_summary', {
+        from_date: from.toISOString(),
+        to_date: to.toISOString(),
+        exclude_admin: excludeAdmin,
+        scope: 'new',
+    });
+
+    const [{ data: months, error: monthsError }, { data, error }] =
+        await Promise.all([monthsPromise, summaryPromise]);
+
     if (monthsError) {
         endSplash();
         // A live session can still expire mid-use: a permission/JWT error means
@@ -1604,32 +1660,14 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
     }
 
     // analytics_months() is already ordered newest-first.
+    // The page always OPENS on the current calendar month (Israel time) — the
+    // operator asked for "this month" on every open, not the newest month that
+    // happens to hold data, and not a remembered last-viewed month. That month
+    // may have no rows yet; it is force-added as a picker option below so the
+    // select shows it and its panels say "No data yet".
     const monthRows = months || [];
-    // Always open on the CURRENT calendar month (Israel time) — the operator
-    // asked for "this month" on every open, not the newest month that happens to
-    // hold data, and not a remembered last-viewed month. An explicit control
-    // change (monthKeyArg, from the picker or the admin toggle) still wins. The
-    // current month may have no rows yet; it is force-added as a picker option
-    // below so the select shows it and its panels say "No data yet".
-    const currentMonthKey = new Date()
-        .toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }).slice(0, 7); // "YYYY-MM"
-    const activeKey = monthKeyArg || currentMonthKey;
-    // Persist the exclude-admin choice (loadView feeds its default); the month is
-    // deliberately NOT restored across loads — see above.
-    saveView(activeKey, excludeAdmin);
-    const { from, to } = israelMonthRange(activeKey);
 
-    // Live tabs are new-format only. Legacy rows predate the route model and
-    // would otherwise drown every panel (they are ~98% of the table today);
-    // they live in the History tab instead.
     splashStage('summary');
-    const { data, error } = await supabase.rpc('analytics_summary', {
-        from_date: from.toISOString(),
-        to_date: to.toISOString(),
-        exclude_admin: excludeAdmin,
-        scope: 'new',
-    });
-
     if (error) {
         endSplash();
         content.innerHTML = `<div class="admin-msg admin-msg-error">${escapeHtml(error.message)}</div>`;
@@ -1642,12 +1680,19 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
     // raw id / no-flag / no-badge rather than throwing. Not awaited on re-renders.
     if (!_leagueMetaLoaded) {
         splashStage('context');
-        const [{ data: leagues }] = await Promise.all([
-            supabase.from('leagues').select('id, league_type'), // no `title` — column retired
+        // The league list comes from the site bundle, not from its own
+        // `supabase.from('leagues')` query. ensurePlayerIndex() below already
+        // loads that bundle for the custom flags, so the separate query was
+        // fetching a table the page was about to hold anyway — one extra round
+        // trip for data already in flight. It was also the one read here with
+        // no ORDER BY and no proof of a row bound (02-query-standards rule 2);
+        // going through the store removes the question entirely.
+        const [leagues] = await Promise.all([
+            loadAllLeagues().catch(() => new Map()),
             primeTitleMeta().catch(() => {}),   // players_metadata → titleHtmlFor()
             ensurePlayerIndex().catch(() => {}), // custom flags → getPlayerFlagCode()
         ]);
-        for (const l of leagues || []) _leagueMeta.set(l.id, { type: l.league_type });
+        for (const [id, params] of leagues) _leagueMeta.set(id, { type: params.LeagueType });
         _leagueMetaLoaded = true;
     }
 
