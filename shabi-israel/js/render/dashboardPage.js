@@ -13,6 +13,7 @@ import { getMatchesAsOf, getUpdatePoints, mergeHistoryIntoMatches, matchKey, INI
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
+import { leagueDateWindow, daysBetween, durationMode } from '../compute/leagueDuration.js';
 import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagueUrl, leagueUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
 import { exportWhatsAppTableImage, MAX_EXPORT_ROWS, leagueTypeLabel } from '../utils/exportTableImage.js';
 import { colorForValue, colorForValueInverted, colorForConfidence } from '../compute/colorScale.js';
@@ -490,32 +491,13 @@ function renderSummaryCards(ctx) {
 const PROGRESS_GAP_TOLERANCE = 10;
 
 /**
- * The league's calendar window as [start, end], both at local midnight.
+ * Games + calendar progress for the League Progress card.
  *
- * There is no end date in the data. Leagues run for a calendar month, so the
- * month that IssueDate falls in IS the window, and its last day is the end.
- * A league with no IssueDate has no window at all — the caller then shows the
- * games reading alone rather than inventing a date.
+ * `days` is null whenever there is no window to measure against — the league
+ * runs with no time limit, or it has no issue date to count from. The caller
+ * then shows the games reading ALONE rather than inventing an end date; see
+ * js/compute/leagueDuration.js, which owns what a league's window is.
  */
-function leagueDateWindow(params) {
-    const iso = params && params.IssueDate;
-    if (!iso) return null;
-    const start = new Date(String(iso).length <= 10 ? `${iso}T00:00:00` : iso);
-    if (isNaN(start)) return null;
-    start.setHours(0, 0, 0, 0);
-    // Day 0 of the NEXT month is the last day of this one.
-    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
-    return { start, end };
-}
-
-const _MS_PER_DAY = 86400000;
-
-/** Whole days between two local-midnight dates. */
-function daysBetween(a, b) {
-    return Math.round((b - a) / _MS_PER_DAY);
-}
-
-/** Games + calendar progress for the League Progress card, or null halves when unknown. */
 function computeLeagueProgress(params, matchStats) {
     const total = matchStats.totalMatches;
     const games = {
@@ -567,6 +549,12 @@ function leagueProgressHtml(params, matchStats) {
             behind
                 ? `Day ${days.elapsed} of ${days.total} — the schedule is behind the calendar`
                 : `Day ${days.elapsed} of ${days.total} — the schedule is keeping up with the calendar`));
+    } else if (durationMode(params) === 'unlimited') {
+        // Say WHY there's no Days bar. A league that runs open-endedly is never
+        // "behind the calendar" — there is no calendar to be behind — and a
+        // silently missing second bar reads as missing data instead of as the
+        // deliberate setting it is.
+        rows.push(`<div class="dash-prog-note" title="This league has no end date, so there is no time progress to show">No time limit</div>`);
     }
     return `<div class="dash-progress ${state}">${rows.join('')}</div>`;
 }

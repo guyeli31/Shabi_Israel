@@ -36,6 +36,7 @@ const FIELD_LABELS = {
         entry_fee: 'Entry fee', prizes: 'Prizes', custom_flags: 'Custom flags',
         retired_players: 'Retired players', external_source_sync: 'Auto-sync',
         source_league_name: 'Source league', in_leaderboard: 'In leaderboard',
+        duration_mode: 'Duration', duration_days: 'Duration in days',
     },
     matches: {
         round: 'Round', player_a: 'Player A', player_b: 'Player B',
@@ -68,6 +69,13 @@ const FREE_TEXT = {
 const isFreeText = (table, key) => !!(FREE_TEXT[table] && FREE_TEXT[table].has(key));
 
 const LEAGUE_TYPE = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
+// How long a league runs (sql/league_duration.sql). Phrased as the window it
+// produces, not as the stored token: "Duration: the calendar month → no time limit".
+const DURATION_MODE = {
+    month: 'the calendar month',
+    days: 'a fixed number of days',
+    unlimited: 'no time limit',
+};
 const OVERRIDE_TYPE = {
     result: 'Result', technical_win: 'Technical win',
     technical_draw: 'Technical draw', not_played: 'Not played',
@@ -100,6 +108,7 @@ function bmabLabel(code) {
 function mapValue(table, key, v) {
     if (isEmpty(v)) return null;
     if (table === 'leagues' && key === 'league_type') return LEAGUE_TYPE[v] || cap(v);
+    if (table === 'leagues' && key === 'duration_mode') return DURATION_MODE[v] || cap(v);
     if (table === 'manual_overrides' && key === 'type') return OVERRIDE_TYPE[v] || cap(v);
     if ((table === 'matches' || table === 'match_history') && key === 'source') return SOURCE[v] || cap(v);
     if (table === 'players_metadata' && key === 'bmab_title') return bmabLabel(v);
@@ -168,6 +177,11 @@ export function describeEntitySummary(table, action, oldVal, newVal) {
                 const bits = [];
                 if (v.match_length) bits.push(`match length ${v.match_length}`);
                 if (v.issue_date) bits.push(`issue date ${v.issue_date}`);
+                // How long it runs is part of what the league IS, so it belongs
+                // in the one-line summary rather than only in a later diff.
+                if (v.duration_mode === 'days' && v.duration_days) bits.push(`runs ${v.duration_days} days`);
+                else if (v.duration_mode === 'month') bits.push('runs to the end of the calendar month');
+                else if (v.duration_mode === 'unlimited') bits.push('runs with no time limit');
                 return bits.length ? `New ${type} — ${bits.join(', ')}.` : `New ${type} created.`;
             }
             case 'matches':       { const s = scoreStr(v); return s ? `Result ${s} added.` : 'Match added.'; }

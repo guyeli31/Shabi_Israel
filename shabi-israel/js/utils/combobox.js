@@ -49,6 +49,15 @@
  *   identity          — true: once a value is picked, the FIELD keeps showing that
  *                       player's flag (before the input) and title badges (after
  *                       it), in the same order the dropdown row used. See below.
+ *                       NEVER write `input.value` yourself on such a field —
+ *                       the text and the chrome are one state. Use the returned
+ *                       `setValue(key)` (label + identity together) for a value
+ *                       coming from outside the list, or `setIdentity('')` when
+ *                       you clear the text yourself. This is enforced, not just
+ *                       asked: an identity field intercepts writes to `.value`
+ *                       and drops the flag + badges when the text stops matching
+ *                       the subject, so the worst a stray write can do is show
+ *                       NO identity — never someone else's.
  *   browseOnOpen      — true: entering a FILLED field empties it so the list
  *                       opens on the whole roster instead of filtering to the
  *                       name already there; leaving without picking puts the
@@ -409,6 +418,71 @@ export function mountSearchField(input, opts = {}) {
         paintIdentity(subject);
     }
 
+    /**
+     * Point the field at a value chosen OUTSIDE the list — a click on a table
+     * row, a deep link, a caller's own "jump to this player" control. Writes the
+     * display label AND repaints the identity in one call, which is the entire
+     * reason it exists: those were two separate steps, and a caller that did only
+     * the first left the PREVIOUS player's flag and title badges sitting beside
+     * the new name. That shipped — clicking an opponent in the All Opponents
+     * table put `YossiEliezer23` in the H2H field with boutsky's G2 still on it.
+     *
+     * It also writes `labelFor(value)`, not the raw key, so an external jump
+     * cannot disagree with what the dropdown would have shown for the same
+     * player under the "Show name as" toggle.
+     *
+     * Deliberately NOT `choose()`: this is not a selection from the list, so it
+     * fires neither onPick nor onChange — the caller is already doing whatever
+     * its own click means, and re-entering the pick path would double it.
+     */
+    function setValue(value) {
+        writeText(value ? (labelFor ? labelFor(value) : value) : '');
+        setIdentity(value);
+        close();
+    }
+
+    /* Every write to the field's text that this module makes goes through here,
+       so the guard below can tell "the combobox moved the text, and the chrome
+       with it" from "somebody outside moved the text and left the chrome". */
+    let internalValueWrite = false;
+    function writeText(text) {
+        internalValueWrite = true;
+        try { input.value = text; } finally { internalValueWrite = false; }
+    }
+
+    /* ── The structural half of "text and chrome are one state" ──────────────
+       `setValue()` makes doing it right a single call, but a header rule cannot
+       stop the next call site from writing `input.value` directly — which is
+       exactly how the H2H field ended up showing one player's name over another
+       player's flag and title badges. So an identity field intercepts the write.
+
+       It cannot REPAIR the chrome: the text is a display label and the identity
+       is keyed by username, and there is no reliable way back from one to the
+       other (two players can share a full name; a caller may write anything).
+       What it can do is guarantee the chrome is never WRONG — an outside write
+       whose text does not match the current subject's label drops the flag and
+       badges, exactly as typing into the field does. A missing flag is a caller
+       that should have used `setValue`; a wrong flag is a lie about who this is.
+
+       Instance-level, over the native accessor, so `.value` reads and every
+       other input behaviour are untouched. */
+    if (identity) {
+        const native = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+        if (native && native.get && native.set) {
+            Object.defineProperty(input, 'value', {
+                configurable: true,
+                enumerable: true,
+                get() { return native.get.call(this); },
+                set(v) {
+                    native.set.call(this, v);
+                    if (internalValueWrite) return;
+                    const expected = subject ? (labelFor ? labelFor(subject) : subject) : '';
+                    if (String(v) !== expected) setIdentity('');
+                },
+            });
+        }
+    }
+
     const dropdown = document.createElement('ul');
     dropdown.className = 'app-combo-dropdown';
     dropdown.hidden = true;
@@ -548,7 +622,7 @@ export function mountSearchField(input, opts = {}) {
         // field whose identity already matches the pick.
         setIdentity(value);
         if (onPick) { onPick(value); close(); return; }
-        input.value = value;
+        writeText(value);
         close();
         if (onChange || onSelect) {
             if (onChange) onChange(value);
@@ -564,7 +638,7 @@ export function mountSearchField(input, opts = {}) {
     // field, closes the list, and notifies (so dependent filters reset) WITHOUT
     // re-focusing (focusing would re-open the list).
     function clear() {
-        input.value = '';
+        writeText('');
         setIdentity('');
         close();
         if (onChange) onChange('');
@@ -607,7 +681,7 @@ export function mountSearchField(input, opts = {}) {
     const enterField = () => {
         if (suppressOpen) return;
         if (browseOnOpen && input.value !== '') {
-            input.value = '';
+            writeText('');
             paintIdentity('');       // paint only — `subject` is what we go back to
         }
         open();
@@ -720,7 +794,7 @@ export function mountSearchField(input, opts = {}) {
         // After the dropdown's own mousedown-pick has had time to land.
         setTimeout(() => {
             if (!subject || input.value !== '') return;
-            input.value = labelFor ? labelFor(subject) : subject;
+            writeText(labelFor ? labelFor(subject) : subject);
             paintIdentity(subject);
         }, 160);
     });
@@ -770,7 +844,7 @@ export function mountSearchField(input, opts = {}) {
 
     input.addEventListener('blur', () => setTimeout(close, 150));
 
-    return { close, clear, wrap, dropdown, setIdentity, matchesQuery };
+    return { close, clear, wrap, dropdown, setIdentity, setValue, matchesQuery };
 }
 
 // Backward-compatible alias — existing callers keep working unchanged.

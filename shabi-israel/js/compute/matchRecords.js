@@ -8,7 +8,7 @@
 /**
  * Collect one entry per non-technical match where both luck values exist.
  * The "player" is the side that benefited (higher luck); opponent is the other side.
- * Returns: [{ luckGap, player, opponent, score, result, leagueId, leagueTitle, date, customFlags }]
+ * Returns: [{ luckGap, player, opponent, score, result, prSelf, prOpp, leagueId, leagueTitle, date, customFlags }]
  */
 export function collectLuckMatches(leagues) {
     const out = [];
@@ -33,6 +33,8 @@ export function collectLuckMatches(leagues) {
                 scoreSelf,
                 scoreOpp,
                 result: resultFrom(scoreSelf, scoreOpp, m._draw),
+                prSelf: aBenefits ? m.prA : m.prB,
+                prOpp:  aBenefits ? m.prB : m.prA,
                 leagueId,
                 leagueTitle,
                 date: m.updatedAt || fallbackDate,

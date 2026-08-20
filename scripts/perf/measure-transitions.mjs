@@ -122,6 +122,11 @@ function scopedLocator(page, selector, scope = '.site-main') {
  *  measurement by exactly 1. */
 const NON_BLOCKING_PATHS = ['/analytics_events', '/rest/v1/site_meta'];
 
+/** Analytics beacons this whole run let escape. Must finish at 0 — see the
+ *  opt-out in INIT_SCRIPT. Reported at the end so a regression is impossible to
+ *  miss, rather than discovered later in someone's live dashboard. */
+let beaconsSent = 0;
+
 /**
  * Installed once per context, BEFORE the first navigation: the analytics
  * opt-out, the splash probe, and the bfcache flag.
@@ -169,6 +174,15 @@ async function newInstrumentedContext(browser) {
 
   const events = [];
   const page = await context.newPage();
+
+  // Proof, per run, that the opt-out above held. Counted on `request` rather
+  // than `response` because a beacon is fire-and-forget: it can leave without
+  // its reply ever being awaited, and counting replies would under-report the
+  // exact thing we are trying to guarantee is zero.
+  page.on('request', (req) => {
+    if (req.url().includes('/analytics_events')) beaconsSent++;
+  });
+
   page.on('response', (resp) => {
     try {
       const url = resp.url();
@@ -407,6 +421,16 @@ async function main() {
   console.log(`[back] ${String(median(backRuns.map((r) => r.ms))).padStart(5)}ms | bfcache ${Math.round(100 * results.scenarios['back-nav'].bfcacheHitRate)}%`);
 
   await browser.close();
+
+  results.analyticsBeaconsSent = beaconsSent;
+  if (beaconsSent === 0) {
+    console.log('\n✓ 0 analytics beacons sent — this run left no trace in the dashboard.');
+  } else {
+    console.error(`\n✗ ${beaconsSent} ANALYTICS BEACON(S) ESCAPED — this run polluted the dashboard.`);
+    console.error('  The opt-out in INIT_SCRIPT did not hold. Check js/analytics.js still reads');
+    console.error("  localStorage['shabi:no-analytics'], and see sql/cleanup_test_analytics_2026-08-18.sql");
+    console.error('  for the shape of the cleanup this needs.');
+  }
 
   if (outPath) {
     await writeFile(outPath, JSON.stringify(results, null, 2), 'utf8');

@@ -22,6 +22,11 @@ export function mapLeagueRow(row) {
         BronzeCount: row.bronze_count,
         MatchLength: row.match_length,
         IssueDate: row.issue_date,
+        // How long the league runs (sql/league_duration.sql). A DB that predates
+        // those columns yields undefined, which durationMode() reads as 'month' —
+        // the default every league ran on before the setting existed.
+        DurationMode: row.duration_mode || undefined,
+        DurationDays: row.duration_days ?? undefined,
         // Opt-OUT semantics: a DB that predates sql/league_in_leaderboard.sql
         // has no such column, and `undefined !== false` keeps those leagues in
         // their leaderboards rather than blanking every one of them.

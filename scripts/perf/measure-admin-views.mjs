@@ -62,6 +62,36 @@ await context.addInitScript(() => {
   // page load and this journey is dozens. See NO_TRACK_KEY in js/analytics.js.
   try { localStorage.setItem('shabi:no-analytics', '1'); } catch { /* storage blocked */ }
 
+  // ── True render time, independent of how long the harness waits ──────────
+  // An admin view swaps in place, so there is no navigation to time and no
+  // single "ready" selector to wait on across a dozen different views. The
+  // harness therefore settles on a fixed pause — which lands INSIDE the
+  // measured span and swamps it: with a 600ms settle, a step that really took
+  // 90ms reports ~690ms, and every step looks identical. The first version of
+  // this script reported exactly that, and the per-step times were worthless.
+  //
+  // So the page timestamps its own last DOM change. Time-to-rendered is then
+  // (last mutation − click), read back after the settle, and the harness's own
+  // waiting is excluded by construction rather than subtracted by guesswork.
+  // Attached once the document root exists. addInitScript runs at
+  // document_start, where `document.documentElement` can still be null —
+  // observe(null) THROWS, and because everything here shares one init script
+  // that took the splash probe below down with it. The whole run then reported
+  // "no splash" everywhere, which read as a result rather than as a crash.
+  window.__t0 = null;
+  window.__lastMutation = null;
+  const attachObserver = () => {
+    if (!document.documentElement) return false;
+    new MutationObserver(() => {
+      if (window.__t0 !== null) window.__lastMutation = performance.now();
+    }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+    return true;
+  };
+  if (!attachObserver()) {
+    document.addEventListener('readystatechange', attachObserver, { once: true });
+    document.addEventListener('DOMContentLoaded', attachObserver, { once: true });
+  }
+
   const s = { seen: false };
   window.__splashProbe = s;
   const poll = () => {
@@ -77,6 +107,13 @@ await context.addInitScript(() => {
 const page = await context.newPage();
 
 const calls = [];
+// Proof, per run, that the opt-out held. Counted on `request`, not `response`:
+// a beacon is fire-and-forget, so counting replies would under-report exactly
+// the number we need to be zero.
+let beaconsSent = 0;
+page.on('request', (r) => {
+  if (r.url().includes('/analytics_events')) beaconsSent++;
+});
 page.on('response', (r) => {
   const u = r.url();
   if (!u.includes('/rest/v1/')) return;
@@ -103,12 +140,25 @@ async function settle() {
 /** Run one navigation step and report what it cost. */
 async function step(label, action, bucket) {
   const from = calls.length;
-  await page.evaluate(() => { if (window.__splashProbe) window.__splashProbe.seen = false; }).catch(() => {});
-  const t0 = Date.now();
+  await page.evaluate(() => {
+    if (window.__splashProbe) window.__splashProbe.seen = false;
+    window.__t0 = performance.now();
+    window.__lastMutation = null;
+  }).catch(() => {});
+  const wallT0 = Date.now();
   const ok = await action();
   await settle();
-  const ms = Date.now() - t0;
-  const splash = await page.evaluate(() => !!window.__splashProbe?.seen).catch(() => false);
+  const wallMs = Date.now() - wallT0;
+  const probe = await page.evaluate(() => ({
+    splash: !!window.__splashProbe?.seen,
+    // null when the click changed nothing at all.
+    renderMs: window.__lastMutation === null ? null : Math.round(window.__lastMutation - window.__t0),
+  })).catch(() => ({ splash: false, renderMs: null }));
+  const splash = probe.splash;
+  // The number that means something: click → last DOM change. `wallMs` is kept
+  // only as a sanity check; it is dominated by settle() and must never be
+  // reported as a speed.
+  const ms = probe.renderMs;
 
   const made = calls.slice(from).filter((p) => !NOISE.includes(p));
   const verify = made.filter((p) => VERIFY.includes(p)).length;
@@ -116,10 +166,10 @@ async function step(label, action, bucket) {
   const byPath = {};
   for (const p of data) byPath[p] = (byPath[p] || 0) + 1;
 
-  const row = { label, ok, ms, data: data.length, verify, splash, paths: byPath };
+  const row = { label, ok, renderMs: ms, wallMs, data: data.length, verify, splash, paths: byPath };
   bucket.push(row);
   console.log(
-    `  ${label.padEnd(34)} ${ok ? ' ' : '!'} ${String(ms).padStart(5)}ms | ${String(data.length).padStart(2)} data | ${verify} verify | splash ${splash ? 'SHOWN' : 'no'}` +
+    `  ${label.padEnd(34)} ${ok ? ' ' : '!'} ${String(ms === null ? '—' : ms).padStart(5)}ms | ${String(data.length).padStart(2)} data | ${verify} verify | splash ${splash ? 'SHOWN' : 'no'}` +
     (data.length ? ` | ${JSON.stringify(byPath)}` : '')
   );
   return ok;
@@ -174,7 +224,20 @@ if (await page.locator('input[type=password]').count()) {
   process.exit(2);
 }
 
+// Cold load of the admin shell, reported on its own. The laps below all start
+// from a page that has already loaded, so without this the first load — where a
+// per-league fan-out shows up most plainly — is measured by nothing at all.
+const coldFrom = calls.length;
 await page.goto(`${BASE_URL}/admin.html`, { waitUntil: 'networkidle' });
+await page.locator('button:has-text("Edit")').first().waitFor({ timeout: 30000 }).catch(() => {});
+await page.waitForTimeout(1000);
+{
+  const made = calls.slice(coldFrom).filter((p) => !NOISE.includes(p));
+  const counts = {};
+  for (const p of made) counts[p] = (counts[p] || 0) + 1;
+  results.adminColdLoad = { calls: made.length, paths: counts };
+  console.log(`cold load of admin.html: ${made.length} calls | ${JSON.stringify(counts)}\n`);
+}
 if (!page.url().includes('admin.html')) {
   console.error(`Signed in, but admin.html redirected to ${page.url()} — this account may not have admin access.`);
   await browser.close();
@@ -229,9 +292,13 @@ for (let lap = 1; lap <= LAPS; lap++) {
 
   const data = bucket.reduce((s, r) => s + r.data, 0);
   const verify = bucket.reduce((s, r) => s + r.verify, 0);
-  const ms = bucket.reduce((s, r) => s + r.ms, 0);
-  console.log(`  ── lap ${lap} total: ${ms}ms, ${data} data calls, ${verify} verify calls\n`);
-  results.admin.push({ lap, totalMs: ms, totalData: data, totalVerify: verify, steps: bucket });
+  // Real render time only. Never sum wallMs: it is mostly settle(), so a total
+  // built from it measures the harness's patience, not the app's speed.
+  const ms = bucket.reduce((s, r) => s + (r.renderMs || 0), 0);
+  const timed = bucket.filter((r) => r.renderMs !== null);
+  const slowest = timed.reduce((a, r) => (r.renderMs > a.renderMs ? r : a), timed[0] || { label: '—', renderMs: 0 });
+  console.log(`  ── lap ${lap}: ${ms}ms of rendering across ${timed.length} steps · slowest ${slowest.label.trim()} at ${slowest.renderMs}ms · ${data} data calls · ${verify} verify\n`);
+  results.admin.push({ lap, totalRenderMs: ms, totalData: data, totalVerify: verify, steps: bucket });
 }
 
 // ── Analytics ──────────────────────────────────────────────────────────────
@@ -277,11 +344,19 @@ console.log('── ANALYTICS ──');
   }
 
   const data = bucket.reduce((s, r) => s + r.data, 0);
-  console.log(`  ── analytics total: ${bucket.reduce((s, r) => s + r.ms, 0)}ms, ${data} data calls\n`);
+  console.log(`  ── analytics: ${bucket.reduce((s, r) => s + (r.renderMs || 0), 0)}ms of rendering · ${data} data calls\n`);
   results.analytics = bucket;
 }
 
 await browser.close();
+
+results.analyticsBeaconsSent = beaconsSent;
+if (beaconsSent === 0) {
+  console.log('✓ 0 analytics beacons sent — this run left no trace in the dashboard.');
+} else {
+  console.error(`✗ ${beaconsSent} ANALYTICS BEACON(S) ESCAPED — this run polluted the dashboard.`);
+  console.error("  Check js/analytics.js still reads localStorage['shabi:no-analytics'].");
+}
 
 if (outPath) {
   await writeFile(outPath, JSON.stringify(results, null, 2), 'utf8');

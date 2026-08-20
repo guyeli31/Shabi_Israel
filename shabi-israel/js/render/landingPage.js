@@ -1785,7 +1785,8 @@ function applyMatchRecordsStickyOffsets(root) {
 
 function renderMatchRecordsTables(luckRows, prRows) {
     const notHidden = r => !_playersMeta[r.player]?.hidden && !_playersMeta[r.opponent]?.hidden;
-    const luckHtml = luckRows.filter(notHidden).map((r, i) => matchRecordRow(i + 1, r, formatNumber(r.luckGap))).join('');
+    const prCells = r => `<td>${r.prSelf == null ? '—' : formatNumber(r.prSelf)}</td><td>${r.prOpp == null ? '—' : formatNumber(r.prOpp)}</td>`;
+    const luckHtml = luckRows.filter(notHidden).map((r, i) => matchRecordRow(i + 1, r, formatNumber(r.luckGap), prCells(r))).join('');
     const prHtml   = prRows.filter(notHidden).map((r, i)   => matchRecordRow(i + 1, r, formatNumber(r.pr))).join('');
     return `
         <div class="match-records-stack">
@@ -1807,16 +1808,17 @@ function renderMatchRecordsTables(luckRows, prRows) {
                     <table class="achv-table match-records-table font-small" data-mf-table-id="A5">
                         <thead><tr>
                             <th scope="col">#</th><th scope="col">Player</th><th scope="col">Luck Gap</th><th scope="col">Opponent</th>
-                            <th scope="col">Score</th><th scope="col">Result</th><th scope="col">League</th><th scope="col">Date</th>
+                            <th scope="col">Score</th><th scope="col">Result</th><th scope="col">Player PR</th><th scope="col">Opp PR</th>
+                            <th scope="col">League</th><th scope="col">Date</th>
                         </tr></thead>
-                        <tbody>${luckHtml || '<tr><td colspan="8">No data</td></tr>'}</tbody>
+                        <tbody>${luckHtml || '<tr><td colspan="10">No data</td></tr>'}</tbody>
                     </table>
                 </div>
             </div>
         </div>`;
 }
 
-function matchRecordRow(rank, r, metricCell) {
+function matchRecordRow(rank, r, metricCell, extraCells = '') {
     const playerFlag   = flagUrl(getFlagCode(r.player, r.customFlags));
     const opponentFlag = flagUrl(getFlagCode(r.opponent, r.customFlags));
     const resultClass = r.result === 'W' ? 'result-win'
@@ -1830,6 +1832,7 @@ function matchRecordRow(rank, r, metricCell) {
             <td><img class="flag" src="${opponentFlag}" alt="flag"> ${playerNameLink(r.opponent, _playersMeta[r.opponent])}</td>
             <td>${r.scoreSelf}-${r.scoreOpp}</td>
             <td><span class="${resultClass}">${r.result}</span></td>
+            ${extraCells}
             <td><a class="league-link" href="${leagueTableUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
             <td>${formatShortDate(r.date)}</td>
         </tr>`;

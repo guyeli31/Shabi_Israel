@@ -18,6 +18,7 @@
 import { supabase } from '../data/supabaseClient.js';
 import { parseCSVAllWithRounds } from '../data/csvParser.js';
 import { computeMatchHistoryReconcile } from '../data/matchHistoryReconcile.js';
+import { DURATION_MODES, DEFAULT_DURATION_MODE } from '../compute/leagueDuration.js';
 
 import { invalidateAdminCache } from '../data/supabaseLoader.js';
 
@@ -164,6 +165,11 @@ function mapParamsToLeagueRow(leagueId, p) {
         // an included league silently opts it out here rather than sending a
         // row the database would reject.
         in_leaderboard: p.InLeaderboard !== false && !!p.IssueDate,
+        // Duration (sql/league_duration.sql). duration_days is meaningful ONLY
+        // in 'days' mode; the DB's CHECK enforces that pairing, so anything else
+        // must send null rather than a leftover count from a previous mode.
+        duration_mode: DURATION_MODES.includes(p.DurationMode) ? p.DurationMode : DEFAULT_DURATION_MODE,
+        duration_days: p.DurationMode === 'days' ? (parseInt(p.DurationDays, 10) || null) : null,
         entry_fee: p.EntryFee ?? 0,
         prizes: p.Prizes || { Gold: 0, Silver: 0, Bronze: 0 },
         custom_flags: p.CustomFlags || {},

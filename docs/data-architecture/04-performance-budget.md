@@ -20,6 +20,9 @@
 > the splash was ever visible, and `msVisible` — when the content was actually
 > uncovered.
 >
+> **Production before→after is now complete** — deployed 2026-08-19, re-measured
+> 2026-08-20: [Production, before → after](#production-before--after-the-pair-that-matters-to-visitors).
+>
 > New results: [Wave 2 results](#wave-2-results-2026-08-18). New acceptance
 > test: [`scripts/perf/verify-splash-guarantee.mjs`](../../scripts/perf/verify-splash-guarantee.mjs).
 > Admin has its own harness now:
@@ -141,7 +144,7 @@ Re-running this harness (default flags → production) after any future change t
 ## Wave 2 results (2026-08-18)
 
 Four runs, per the measurement matrix: production before, Docker before, Docker
-after, and production after (pending — it needs the deploy). **The improvement
+after, and production after (deployed 2026-08-19, measured 2026-08-20). **The improvement
 delta is always Docker→Docker**; the production pair is a separate record of
 what live visitors experience across the release.
 
@@ -178,7 +181,7 @@ Still exactly 1 blocking request cold, 5/5 splash shown — unchanged and correc
 
 | Scenario | before | after |
 |---|---|---|
-| Warm transition, production (`player_league → player`) | **shown 4/5, 229ms on screen** | *(pending deploy)* |
+| Warm transition, production (`player_league → player`) | **shown 4/5, 229ms on screen** | **not shown 0/5** |
 | Warm transition, Docker, 1× CPU | not shown 0/5 | not shown 0/5 |
 | Warm transition, Docker, 4× CPU | — | **not shown** |
 | Warm transition, Docker, 10× CPU | — | **not shown** |
@@ -193,6 +196,86 @@ by a stopwatch, so no device speed can make it appear over a navigation that has
 nothing to fetch. Verified by
 [`scripts/perf/verify-splash-guarantee.mjs`](../../scripts/perf/verify-splash-guarantee.mjs),
 which also asserts the converse (cold entry must still show it).
+
+### Production, before → after (the pair that matters to visitors)
+
+Before: 2026-08-18, on the shipped code. After: 2026-08-20, once the change was
+deployed. Same environment, same harness, same click-through journey, median of
+5. `visible` is when the content was actually uncovered — see the two
+measurement corrections at the top of this file.
+
+**Both after-runs sent 0 analytics beacons.** The harnesses now opt out via
+`localStorage['shabi:no-analytics']` and report the count, so the 2026-08-18
+pollution incident cannot repeat silently.
+
+#### Warm transitions — what a visitor feels while browsing
+
+| Transition | before | after | change | splash before | splash after |
+|---|---|---|---|---|---|
+| index → league (dashboard) | 2770ms | **640ms** | **−77%** | 1 of 5 | **0 of 5** |
+| player_league → player | 1250ms | **723ms** | **−42%** | **4 of 5** (229ms on screen) | **0 of 5** |
+| league_table → player_league | 649ms | 551ms | −15% | 0 of 5 | 0 of 5 |
+| league → league_table | 577ms | 492ms | −15% | 0 of 5 | 0 of 5 |
+| back-nav | 103ms | **58ms** | −44% | — | bfcache 100% |
+
+Blocking Supabase requests stayed at **0** on every warm transition, before and
+after; that was already right.
+
+The two rows that moved most are exactly the two where the splash used to
+appear. That is not a coincidence and it is worth stating plainly: the splash
+never made those transitions slow — it appeared *because* they were slow, and
+then held the finished page behind a minimum-display floor. Removing the cause
+(the dashboard's Monte Carlo) and removing the stopwatch both landed on the same
+two rows.
+
+#### Cold entry — essentially unchanged, as expected
+
+| Page | before | after | change |
+|---|---|---|---|
+| league.html (dashboard) | 4023ms | **3479ms** | −14% |
+| player_league.html | 3301ms | 3189ms | −3% |
+| player.html | 3501ms | 3533ms | +1% |
+| index.html | 3574ms | 3967ms | +11% |
+| league_table.html | 2817ms | 3254ms | +16% |
+
+Only the dashboard improved, and only by the share of its work that was the
+deferred simulation. Everything else is within run-to-run network noise — a cold
+entry is dominated by the bundle round trip, which nothing here touched, and the
+±10-16% spread on index/league_table is that noise, not a regression: their
+blocking-request count and code paths are unchanged. Reducing cold entry means
+changing what the bundle carries, which is a design decision, not a fix.
+
+Splash still shown 5 of 5 on every cold entry, which is correct — there is a
+real network wait there and it is what the splash is for.
+
+#### Admin — the same walkthrough, twice, with nothing written in between
+
+| | lap 1 | lap 2 (nothing written) |
+|---|---|---|
+| **production, before** | 86 data calls, 18.2s | **85 data calls**, 17.9s |
+| **production, after** | **15 data calls**, 13.7s | **7 data calls + 4 verify**, 12.0s |
+
+Lap 2 went from 85 re-fetches to 7. The `leagues` table — fetched **11, 12, 14,
+15, 16 and 24 times inside single navigations** before — is now fetched once and
+shared. The 7 that remain are Sync and Historical Changes, live-status views
+that are supposed to re-poll.
+
+A second effect worth noting: the splash largely disappeared from admin view
+switches too, without admin ever being given the receipt suppression (it does
+not read the site bundle, so the receipt says nothing about it). Lap 1 still
+shows it on most steps; lap 2 shows it almost nowhere. The cache made those
+switches fast enough to finish inside the defer window on their own.
+
+#### Analytics
+
+| Action | before | after |
+|---|---|---|
+| Page load | 3 calls | **2 calls**, and the two RPCs now run in parallel |
+| Three month changes | 6 calls | **3 calls** |
+
+The splash still appears on a month change, deliberately: that control is a
+genuine full refetch of every number on the page, so it is a real wait and gets
+a real loading screen.
 
 ### Production, before (2026-08-18, real clicks)
 
@@ -211,8 +294,7 @@ Recorded so the post-deploy run has a same-environment partner.
 | warm player_league → player | 1041ms | **1250ms** | **4/5, 229ms** |
 | back-nav | 103ms | — | bfcache 100% |
 
-**Pending:** re-run against production after the deploy and add the "after"
-column — see `02-query-standards.md` rule 4.
+**Done** — the after-run landed 2026-08-20; see [Production, before → after](#production-before--after-the-pair-that-matters-to-visitors) above.
 
 ### Admin — a full walk through the views
 
@@ -233,7 +315,7 @@ licensed to run against production.
 | **production, before** | 86 data calls, 18.2s | **85 data calls**, 17.9s |
 | **Docker, before** | 83 data calls, 9.9s | **80 data calls**, 9.8s |
 | **Docker, after** | **16 data calls**, 9.8s | **8 data calls + 4 verify**, 10.1s |
-| production, after | *(pending deploy)* | *(pending deploy)* |
+| **production, after** | **15 data calls**, 13.7s | **7 data calls + 4 verify**, 12.0s |
 
 Lap 2 is the headline: essentially **nothing** was being reused. The single
 worst pattern is `leagues`, fetched **11, 12, 14, 15, 16 and 24 times inside one
@@ -269,9 +351,9 @@ Measured by the same script, on the same three runs.
 
 | Action | prod before | Docker before | Docker after | prod after |
 |---|---|---|---|---|
-| Page load | 3 calls | 3 calls | **2 calls** | *(pending)* |
-| Each month change | 2 calls | 2 calls | **1 call** | *(pending)* |
-| Returning to a month already viewed | 2 calls | 2 calls | **1 call** | *(pending)* |
+| Page load | 3 calls | 3 calls | **2 calls** | **2 calls** |
+| Each month change | 2 calls | 2 calls | **1 call** | **1 call** |
+| Returning to a month already viewed | 2 calls | 2 calls | **1 call** | **1 call** |
 
 | Action | before | after |
 |---|---|---|

@@ -195,6 +195,18 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* Stands in for the Days bar on an unlimited league. Sized and cased like
+   .dash-prog-name (the label it replaces), not like the count — it states a
+   setting, it is not a reading. */
+.dash-prog-note {
+    font-size: var(--fs-072);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    text-align: center;
+}
+
 .dash-prog-track {
     height: clamp(4px, 0.2rem + 0.25vw, 7px);
     border-radius: 999px;

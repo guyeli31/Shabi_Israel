@@ -19,7 +19,7 @@
  * also filters to running leagues, so it leaves all plans automatically.
  */
 
-import { loadLeagueOrder, loadLeagueParams } from '../data/supabaseLoader.js';
+import { loadLeagueOrder, loadAllLeagueParams } from '../data/supabaseLoader.js';
 import { supabase } from '../data/supabaseClient.js';
 import { addChange, getStagedContent, T } from './stagingStore.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
@@ -55,20 +55,42 @@ export async function renderSyncAdmin(container, refreshBadge) {
     try {
         const displayOrder = await loadLeagueOrder();
         const folderNames = displayOrder.map((t) => t.replace(' - ', ' '));
-        const leagues = await Promise.all(
-            folderNames.map(async (id, i) => {
-                try { return { id, title: displayOrder[i], params: await loadLeagueParams(id) }; }
-                catch { return { id, title: displayOrder[i], params: null }; }
-            }),
+
+        // ONE query for every league's params, not one per league.
+        // `loadLeagueParams(id)` in a map fires a separate round trip per
+        // league — eleven of them here — which is the exact fan-out the public
+        // read path was rebuilt to remove, still living in the admin.
+        // `loadAllLeagueParams` asks for them with a single `in (…)`.
+        const paramsById = new Map(
+            (await loadAllLeagueParams(folderNames).catch(() => []))
+                .map(({ id, params }) => [id, params]),
         );
-        const settings = await loadSyncSettings(leagues);
+        const leagues = folderNames.map((id, i) => ({
+            id,
+            title: displayOrder[i],
+            // null for a league the query did not return, matching the old
+            // per-league catch: a missing row hides one row's controls, it does
+            // not fail the page.
+            params: paramsById.get(id) ?? null,
+        }));
+
+        // The two loads below are INDEPENDENT — mail state knows nothing about
+        // sync settings — but were awaited one after the other, so the page paid
+        // both round trips end to end. Run together they cost the slower of the
+        // two instead of the sum. This was the Sync view's largest single cost:
+        // it was measured on production at ~1s to swap a panel, slower than
+        // loading a whole public page from scratch.
+        //
         // The mail sections must never take the Sync page down with them: a
         // missing sql/mail_sync.sql (not yet run on this environment) is a
         // reason to hide two sections, not to lose Run Now.
-        const mail = await loadMailState().catch((err) => {
-            console.warn('Mail sync sections unavailable:', err.message);
-            return null;
-        });
+        const [settings, mail] = await Promise.all([
+            loadSyncSettings(leagues),
+            loadMailState().catch((err) => {
+                console.warn('Mail sync sections unavailable:', err.message);
+                return null;
+            }),
+        ]);
         renderSyncPage(container, leagues, settings, mail);
     } catch (err) {
         container.innerHTML = `<h1>Sync</h1><div class="admin-msg admin-msg-error">Failed to load: ${esc(err.message)}</div>`;

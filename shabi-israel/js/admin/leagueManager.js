@@ -19,6 +19,10 @@ import { mountAccordionTabs } from '../render/subTabs.js';
 import { filePickerHTML } from './render/formControls.js';
 import { matchesToCsvText } from './csvText.js';
 import { KNOWN_FLAGS, ensureFlagCodes, registerFlagCode } from './flagRegistry.js';
+import {
+    DURATION_MODES, DURATION_MODE_LABELS, DEFAULT_DURATION_MODE,
+    durationMode, durationDays, leagueDateWindow, describeDuration, daysBetween,
+} from '../compute/leagueDuration.js';
 import { loadPlayersMetadata } from '../data/supabasePlayersMetadata.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
 import { restartSplash, endSplash } from '../utils/splash.js';
@@ -167,16 +171,24 @@ export async function renderLeagueAdmin(container, refreshBadge, subroute = []) 
             if (folderNames.includes(id)) { renderEditLeague(container, id, displayOrder, subroute[2]); return; }
         }
 
-        const leagues = await Promise.all(
-            folderNames.map(async (id, i) => {
-                try {
-                    const params = await loadLeagueParams(id);
-                    return { id, title: displayOrder[i], params };
-                } catch {
-                    return { id, title: displayOrder[i], params: null };
-                }
-            })
+        // ONE query for every league's params, not one per league. The map
+        // above fired a separate round trip per league — measured on production
+        // at eleven `leagues` requests to render a single list, and up to
+        // twenty-four inside one navigation once other modules joined in. This
+        // is the same fan-out the public read path was rebuilt to remove; it
+        // simply survived in the admin. A league the query does not return
+        // still gets a row with null params, exactly as the per-league catch
+        // did — a missing row hides one row's controls, it does not fail the
+        // page.
+        const paramsById = new Map(
+            (await loadAllLeagueParams(folderNames).catch(() => []))
+                .map(({ id, params }) => [id, params]),
         );
+        const leagues = folderNames.map((id, i) => ({
+            id,
+            title: displayOrder[i],
+            params: paramsById.get(id) ?? null,
+        }));
 
         renderLeagueList(container, leagues, displayOrder);
     } catch (err) {
@@ -299,7 +311,7 @@ async function renderAddLeagueForm(container, displayOrder) {
                         <input type="checkbox" id="preset-include-players" checked>
                         <span>Also copy its players (with flags &amp; retired state)</span>
                     </label>
-                    <small class="form-hint">Copies type, entry fee, match length, medals &amp; prizes — so a recurring league doesn't have to be re-typed. The name, the issue date and the match results always stay yours to set.</small>
+                    <small class="form-hint">Copies type, duration, entry fee, match length, medals &amp; prizes — so a recurring league doesn't have to be re-typed. The name, the issue date and the match results always stay yours to set.</small>
                 </div>
                 <div class="form-group">
                     <label for="new-league-name">League Name</label>
@@ -336,6 +348,7 @@ async function renderAddLeagueForm(container, displayOrder) {
                         <input type="number" id="new-match-length" value="7" min="1" max="25" step="2">
                     </div>
                 </div>
+                ${durationFieldsHTML('new')}
                 <div class="form-group">
                     <label>Medals &amp; Prizes</label>
                     ${ffMedalsTableHTML([
@@ -528,6 +541,7 @@ async function renderAddLeagueForm(container, displayOrder) {
         document.getElementById('new-in-leaderboard'),
         document.getElementById('new-in-leaderboard')?.closest('.form-group')?.querySelector('.leaderboard-hint')
     );
+    wireDurationFields(container, 'new');
 
     // Preset — clone an existing league's setup into this blank form. A league
     // that runs every month is the same league with a new name and a new set of
@@ -564,6 +578,13 @@ async function renderAddLeagueForm(container, displayOrder) {
             document.getElementById('new-prize-gold').value = prizes.Gold || 0;
             document.getElementById('new-prize-silver').value = prizes.Silver || 0;
             document.getElementById('new-prize-bronze').value = prizes.Bronze || 0;
+            // How long it ran is part of "the same league again" — copied like
+            // the fee and the match length. The Issue Date still isn't, so the
+            // window lands wherever the new league's own start date puts it.
+            document.getElementById('new-duration-mode').value = durationMode(params);
+            const presetDays = durationDays(params);
+            if (presetDays) document.getElementById('new-duration-days').value = presetDays;
+            document.getElementById('new-duration-mode').dispatchEvent(new Event('change'));
 
             let playerNote = '';
             if (withPlayers) {
@@ -837,6 +858,7 @@ async function renderAddLeagueForm(container, displayOrder) {
                 Silver: parseInt(document.getElementById('new-prize-silver').value) || 0,
                 Bronze: parseInt(document.getElementById('new-prize-bronze').value) || 0
             },
+            ...readDurationFields('new'),
             players: state.players,
             csvText: state.csvText,
             overrides: state.importOverrides
@@ -937,6 +959,11 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
     if (!options.issueDate || options.inLeaderboard === false) params.InLeaderboard = false;
     if (options.entryFee) params.EntryFee = options.entryFee;
     if (options.matchLength) params.MatchLength = options.matchLength;
+    // Always written, including the default: the params blob is what Pending
+    // shows and what publish upserts, so an omitted mode would read as "unknown"
+    // in the review step even though the form clearly said "calendar month".
+    params.DurationMode = options.durationMode || DEFAULT_DURATION_MODE;
+    if (params.DurationMode === 'days' && options.durationDays) params.DurationDays = options.durationDays;
     if (options.prizes && (options.prizes.Gold || options.prizes.Silver || options.prizes.Bronze)) {
         params.Prizes = options.prizes;
     }
@@ -963,6 +990,9 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
         description: `Create league: ${name}`,
         category: 'create-league',
         subject: name,
+        // Pending shows how long the new league will run, so the duration is
+        // reviewable before publish rather than only visible afterwards.
+        detail: `Runs ${describeDuration(params).toLowerCase()}`,
         group: groupId,
         groupDescription
     });
@@ -1293,6 +1323,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                     <input type="number" id="edit-match-length" value="${p.MatchLength || 7}" min="1" max="25" step="2">
                 </div>
             </div>
+            ${durationFieldsHTML('edit', p)}
             <button class="btn btn-primary" id="save-league-settings">Save Settings</button>
             </div>
             </div>
@@ -1339,6 +1370,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         container.querySelector('#edit-in-leaderboard')?.closest('.form-group')?.querySelector('.leaderboard-hint'),
         inLeaderboard
     );
+    wireDurationFields(container, 'edit');
 
     // F2 (Players) — sticky-col drop-shadow on horizontal scroll, same as F1/F4 (FF chrome).
     container.querySelectorAll('.ff-wrap').forEach(w => attachStickyShadow(w));
@@ -1450,8 +1482,24 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             Bronze: parseInt(document.getElementById('edit-prize-bronze').value) || 0
         };
 
+        // Duration. DurationDays is dropped outside 'days' mode so a count left
+        // over from a previous mode can't linger in the params and reappear if
+        // the mode is switched back.
+        const duration = readDurationFields('edit');
+        const durationBefore = describeDuration(baseParams);
+        newParams.DurationMode = duration.durationMode;
+        if (duration.durationMode === 'days' && duration.durationDays) newParams.DurationDays = duration.durationDays;
+        else delete newParams.DurationDays;
+
         // Remove Hidden if false (keep JSON clean)
         if (!newParams.Hidden) delete newParams.Hidden;
+
+        // Pending detail — name the duration only when it actually changed, so
+        // the row says what this edit did rather than restating every setting.
+        const durationAfter = describeDuration(newParams);
+        const settingsDetail = durationAfter !== durationBefore
+            ? `Duration: ${durationBefore.toLowerCase()} → ${durationAfter.toLowerCase()}`
+            : null;
 
         const groupId = renaming ? `rename-${leagueId}` : undefined;
         const groupDescription = renaming ? `Rename league: ${leagueId} → ${newName}` : undefined;
@@ -1501,6 +1549,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             description: `Update settings: ${targetId}`,
             category: 'league-settings',
             subject: targetId,
+            detail: settingsDetail,
             group: groupId,
             groupDescription
         });
@@ -1729,6 +1778,97 @@ function ffMedalsTableHTML(rows) {
                     <tbody>${body}</tbody>
                 </table>
             </div>`;
+}
+
+/* ---- League Duration (Add + Edit) ----
+   How long the league runs, in the same `.add-league-row` chrome as Issue Date
+   and Match Length: label above, full-width control, hint below. The Days count
+   is a SIBLING field rather than a second control crammed into one group, so it
+   inherits that chrome unchanged and is simply hidden in the two modes that have
+   no count. Ids are prefixed per form ('new' / 'edit') so both can be on screen
+   in the same session without colliding. */
+
+/**
+ * @param {'new'|'edit'} prefix
+ * @param {object} [params] — the league being edited (Add starts on the default)
+ */
+function durationFieldsHTML(prefix, params) {
+    const mode = durationMode(params || {});
+    const days = durationDays(params || {}) || 30;
+    const options = DURATION_MODES
+        .map(m => `<option value="${m}" ${m === mode ? 'selected' : ''}>${esc(DURATION_MODE_LABELS[m])}</option>`)
+        .join('');
+    return `
+            <div class="add-league-row">
+                <div class="form-group">
+                    <label for="${prefix}-duration-mode">Duration</label>
+                    <select id="${prefix}-duration-mode">${options}</select>
+                    <small class="form-hint duration-window-hint"></small>
+                </div>
+                <div class="form-group duration-days-group" ${mode === 'days' ? '' : 'hidden'}>
+                    <label for="${prefix}-duration-days">Days</label>
+                    <input type="number" id="${prefix}-duration-days" value="${days}" min="1" max="365" step="1">
+                    <small class="form-hint">Counted from the Issue Date, including it.</small>
+                </div>
+            </div>`;
+}
+
+/**
+ * Show the Days field only in 'days' mode, and state the END DATE the current
+ * settings produce — under the Duration select itself, so it is visible in every
+ * mode rather than only in the one that happens to show a second field. An
+ * admin should see the window before saving, not discover it after publishing.
+ */
+function wireDurationFields(scope, prefix) {
+    const modeSel = scope.querySelector(`#${prefix}-duration-mode`);
+    const daysInput = scope.querySelector(`#${prefix}-duration-days`);
+    if (!modeSel || !daysInput) return;
+    const daysGroup = daysInput.closest('.form-group');
+    const hint = modeSel.closest('.form-group').querySelector('.duration-window-hint');
+    const dateInput = scope.querySelector(`#${prefix}-issue-date`);
+
+    const sync = () => {
+        const mode = modeSel.value;
+        daysGroup.hidden = mode !== 'days';
+        const window = leagueDateWindow({
+            IssueDate: dateInput ? dateInput.value : null,
+            DurationMode: mode,
+            DurationDays: daysInput.value,
+        });
+        if (mode === 'unlimited') {
+            hint.textContent = 'Runs with no end date — the dashboard shows no time progress.';
+        } else if (window) {
+            // Spell out the LENGTH next to the dates. In calendar-month mode the
+            // length depends on where in the month the league opens (issued on
+            // the 21st of a 28-day month it runs 8 days), and the dates alone
+            // make that easy to miss.
+            const total = daysBetween(window.start, window.end) + 1;
+            hint.textContent = `Runs ${formatAdminDate(toIsoDay(window.start))} → ${formatAdminDate(toIsoDay(window.end))}`
+                + ` (${total} day${total === 1 ? '' : 's'}).`;
+        } else {
+            hint.textContent = 'Set an Issue Date to see the end date.';
+        }
+    };
+    modeSel.addEventListener('change', sync);
+    daysInput.addEventListener('input', sync);
+    if (dateInput) dateInput.addEventListener('change', sync);
+    sync();
+}
+
+/** Read the duration settings out of one of the two forms. */
+function readDurationFields(prefix) {
+    const mode = document.getElementById(`${prefix}-duration-mode`)?.value || DEFAULT_DURATION_MODE;
+    const days = parseInt(document.getElementById(`${prefix}-duration-days`)?.value, 10);
+    return {
+        durationMode: DURATION_MODES.includes(mode) ? mode : DEFAULT_DURATION_MODE,
+        durationDays: mode === 'days' && days > 0 ? days : null,
+    };
+}
+
+/** Local-midnight Date → "YYYY-MM-DD" (formatAdminDate's input shape). */
+function toIsoDay(d) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
 /** The "Upload Custom Flag" panel that accompanies an FF players table. */

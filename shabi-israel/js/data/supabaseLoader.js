@@ -126,6 +126,8 @@ function mapDbLeagueToParams(row) {
         MatchLength: row.match_length,
         IssueDate: row.issue_date,
         InLeaderboard: row.in_leaderboard !== false, // opt-out — see bundleMapper.js
+        DurationMode: row.duration_mode || undefined, // absent ⇒ 'month' (see leagueDuration.js)
+        DurationDays: row.duration_days ?? undefined,
         EntryFee: row.entry_fee ?? 0,
         Prizes: row.prizes || { Gold: 0, Silver: 0, Bronze: 0 },
         CustomFlags: row.custom_flags || {},

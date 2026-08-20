@@ -849,8 +849,12 @@ function renderMatchup(panel, playerName, allRows) {
         const link = e.target.closest('.c4-opp-link');
         if (!link) return;
         const name = link.dataset.name;
-        input.value = name;
-        combo.close();
+        // setValue, not `input.value = name` — this jump comes from outside the
+        // list, so the field's identity chrome has to be repointed with the text
+        // or it keeps the PREVIOUS opponent's flag and title badges. It also
+        // writes the display name rather than the raw key, matching what the
+        // dropdown would have shown and what the row you just clicked said.
+        combo.setValue(name);
         renderResults(name);
         requestAnimationFrame(() => scrollToClearingTopbar(topSection, { behavior: 'smooth' }));
     });
@@ -873,11 +877,12 @@ function renderMatchup(panel, playerName, allRows) {
     }).catch(() => { /* keep the faced-opponents fallback */ });
 
     function selectOpponent(name) {
-        // The DISPLAY name, not the raw key: the row you clicked showed the
-        // full name when the "Show name as" toggle is on, and the field snapping
-        // back to the username read as the pick having silently changed.
-        input.value = displayPlayerName(name, _allMeta[name]);
-        combo.close();
+        // setValue writes the DISPLAY name (its `labelFor`) rather than the raw
+        // key — the row you clicked showed the full name when the "Show name as"
+        // toggle is on, and the field snapping back to the username read as the
+        // pick having silently changed — and repoints the identity chrome in the
+        // same call, so the text and the flag/badges beside it cannot disagree.
+        combo.setValue(name);
         // Analytics: the H2H opponent picker is an in-place update (not a link
         // navigation), and this is the single chokepoint for desktop dropdown,
         // mobile sheet and Enter-key selection alike — so track the chosen

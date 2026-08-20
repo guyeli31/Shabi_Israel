@@ -1,0 +1,431 @@
+{
+  "generatedAt": "2026-08-20T07:22:50.424Z",
+  "baseUrl": "http://localhost:8090/shabi-israel",
+  "laps": 2,
+  "admin": [
+    {
+      "lap": 1,
+      "totalRenderMs": 2181,
+      "totalData": 83,
+      "totalVerify": 0,
+      "steps": [
+        {
+          "label": "L1 → Leagues",
+          "ok": true,
+          "renderMs": 118,
+          "wallMs": 684,
+          "data": 12,
+          "verify": 0,
+          "splash": true,
+          "paths": {
+            "landing_settings": 1,
+            "leagues": 11
+          }
+        },
+        {
+          "label": "L1 → open league #1",
+          "ok": true,
+          "renderMs": 522,
+          "wallMs": 661,
+          "data": 8,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "landing_settings": 1,
+            "leagues": 3,
+            "players_metadata": 1,
+            "matches": 2,
+            "manual_overrides": 1
+          }
+        },
+        {
+          "label": "L1   ↳ Round Editor",
+          "ok": true,
+          "renderMs": 95,
+          "wallMs": 732,
+          "data": 0,
+          "verify": 0,
+          "splash": false,
+          "paths": {}
+        },
+        {
+          "label": "L1   ↳ Overrides",
+          "ok": true,
+          "renderMs": 91,
+          "wallMs": 712,
+          "data": 1,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "manual_overrides": 1
+          }
+        },
+        {
+          "label": "L1 ← back to Leagues",
+          "ok": true,
+          "renderMs": 147,
+          "wallMs": 735,
+          "data": 12,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "landing_settings": 1,
+            "leagues": 11
+          }
+        },
+        {
+          "label": "L1 → open league #2",
+          "ok": true,
+          "renderMs": 341,
+          "wallMs": 661,
+          "data": 5,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "leagues": 2,
+            "matches": 2,
+            "manual_overrides": 1
+          }
+        },
+        {
+          "label": "L1   ↳ Round Editor",
+          "ok": true,
+          "renderMs": 107,
+          "wallMs": 738,
+          "data": 0,
+          "verify": 0,
+          "splash": false,
+          "paths": {}
+        },
+        {
+          "label": "L1   ↳ Overrides",
+          "ok": true,
+          "renderMs": 96,
+          "wallMs": 714,
+          "data": 1,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "manual_overrides": 1
+          }
+        },
+        {
+          "label": "L1 ← back to Leagues",
+          "ok": true,
+          "renderMs": 160,
+          "wallMs": 725,
+          "data": 12,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "landing_settings": 1,
+            "leagues": 11
+          }
+        },
+        {
+          "label": "L1 → Players",
+          "ok": true,
+          "renderMs": 109,
+          "wallMs": 689,
+          "data": 0,
+          "verify": 0,
+          "splash": false,
+          "paths": {}
+        },
+        {
+          "label": "L1 → Pending Changes",
+          "ok": true,
+          "renderMs": 44,
+          "wallMs": 651,
+          "data": 0,
+          "verify": 0,
+          "splash": false,
+          "paths": {}
+        },
+        {
+          "label": "L1 → Historical Changes",
+          "ok": true,
+          "renderMs": 100,
+          "wallMs": 685,
+          "data": 1,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "audit_batch_summary": 1
+          }
+        },
+        {
+          "label": "L1 → Sync",
+          "ok": true,
+          "renderMs": 176,
+          "wallMs": 669,
+          "data": 19,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "landing_settings": 1,
+            "leagues": 12,
+            "sync_plans": 1,
+            "sync_plan_members": 1,
+            "rpc/mail_reports_log": 1,
+            "rpc/mail_reports_pending": 1,
+            "rpc/mail_reports_health": 1,
+            "external_source_sync_events": 1
+          }
+        },
+        {
+          "label": "L1 → Leagues (return)",
+          "ok": true,
+          "renderMs": 75,
+          "wallMs": 655,
+          "data": 12,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "landing_settings": 1,
+            "leagues": 11
+          }
+        }
+      ]
+    },
+    {
+      "lap": 2,
+      "totalRenderMs": 1865,
+      "totalData": 80,
+      "totalVerify": 0,
+      "steps": [
+        {
+          "label": "L2 → Leagues",
+          "ok": true,
+          "renderMs": 93,
+          "wallMs": 664,
+          "data": 12,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "landing_settings": 1,
+            "leagues": 11
+          }
+        },
+        {
+          "label": "L2 → open league #1",
+          "ok": true,
+          "renderMs": 324,
+          "wallMs": 670,
+          "data": 5,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "leagues": 2,
+            "matches": 2,
+            "manual_overrides": 1
+          }
+        },
+        {
+          "label": "L2   ↳ Round Editor",
+          "ok": true,
+          "renderMs": 82,
+          "wallMs": 703,
+          "data": 0,
+          "verify": 0,
+          "splash": false,
+          "paths": {}
+        },
+        {
+          "label": "L2   ↳ Overrides",
+          "ok": true,
+          "renderMs": 111,
+          "wallMs": 725,
+          "data": 1,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "manual_overrides": 1
+          }
+        },
+        {
+          "label": "L2 ← back to Leagues",
+          "ok": true,
+          "renderMs": 153,
+          "wallMs": 729,
+          "data": 12,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "landing_settings": 1,
+            "leagues": 11
+          }
+        },
+        {
+          "label": "L2 → open league #2",
+          "ok": true,
+          "renderMs": 316,
+          "wallMs": 677,
+          "data": 5,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "leagues": 2,
+            "matches": 2,
+            "manual_overrides": 1
+          }
+        },
+        {
+          "label": "L2   ↳ Round Editor",
+          "ok": true,
+          "renderMs": 112,
+          "wallMs": 738,
+          "data": 0,
+          "verify": 0,
+          "splash": false,
+          "paths": {}
+        },
+        {
+          "label": "L2   ↳ Overrides",
+          "ok": true,
+          "renderMs": 131,
+          "wallMs": 746,
+          "data": 1,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "manual_overrides": 1
+          }
+        },
+        {
+          "label": "L2 ← back to Leagues",
+          "ok": true,
+          "renderMs": 149,
+          "wallMs": 727,
+          "data": 12,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "landing_settings": 1,
+            "leagues": 11
+          }
+        },
+        {
+          "label": "L2 → Players",
+          "ok": true,
+          "renderMs": 57,
+          "wallMs": 673,
+          "data": 0,
+          "verify": 0,
+          "splash": false,
+          "paths": {}
+        },
+        {
+          "label": "L2 → Pending Changes",
+          "ok": true,
+          "renderMs": 43,
+          "wallMs": 660,
+          "data": 0,
+          "verify": 0,
+          "splash": false,
+          "paths": {}
+        },
+        {
+          "label": "L2 → Historical Changes",
+          "ok": true,
+          "renderMs": 72,
+          "wallMs": 659,
+          "data": 1,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "audit_batch_summary": 1
+          }
+        },
+        {
+          "label": "L2 → Sync",
+          "ok": true,
+          "renderMs": 134,
+          "wallMs": 677,
+          "data": 19,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "landing_settings": 1,
+            "leagues": 12,
+            "sync_plan_members": 1,
+            "sync_plans": 1,
+            "rpc/mail_reports_health": 1,
+            "rpc/mail_reports_pending": 1,
+            "rpc/mail_reports_log": 1,
+            "external_source_sync_events": 1
+          }
+        },
+        {
+          "label": "L2 → Leagues (return)",
+          "ok": true,
+          "renderMs": 88,
+          "wallMs": 666,
+          "data": 12,
+          "verify": 0,
+          "splash": false,
+          "paths": {
+            "landing_settings": 1,
+            "leagues": 11
+          }
+        }
+      ]
+    }
+  ],
+  "analytics": [
+    {
+      "label": "load analytics.html",
+      "ok": true,
+      "renderMs": null,
+      "wallMs": 1551,
+      "data": 3,
+      "verify": 0,
+      "splash": true,
+      "paths": {
+        "rpc/analytics_months": 1,
+        "rpc/analytics_summary": 1,
+        "leagues": 1
+      }
+    },
+    {
+      "label": "month → 2026-07",
+      "ok": true,
+      "renderMs": 146,
+      "wallMs": 632,
+      "data": 2,
+      "verify": 0,
+      "splash": false,
+      "paths": {
+        "rpc/analytics_months": 1,
+        "rpc/analytics_summary": 1
+      }
+    },
+    {
+      "label": "month → 2026-08 (back)",
+      "ok": true,
+      "renderMs": 343,
+      "wallMs": 637,
+      "data": 2,
+      "verify": 0,
+      "splash": false,
+      "paths": {
+        "rpc/analytics_months": 1,
+        "rpc/analytics_summary": 1
+      }
+    },
+    {
+      "label": "month → 2026-07 (already seen)",
+      "ok": true,
+      "renderMs": 149,
+      "wallMs": 633,
+      "data": 2,
+      "verify": 0,
+      "splash": false,
+      "paths": {
+        "rpc/analytics_months": 1,
+        "rpc/analytics_summary": 1
+      }
+    }
+  ],
+  "analyticsBeaconsSent": 0
+}
