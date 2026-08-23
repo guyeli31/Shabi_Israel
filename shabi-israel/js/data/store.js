@@ -60,7 +60,30 @@ const RECEIPT_KEY = 'shabi:bundle:receipt';
  * that one has a fully-rendered page in front of it and nothing to cover.
  */
 const FETCH_START_EVENT = 'shabi:bundle-fetch-start';
-const CHECK_TTL_MS = 60_000;
+/**
+ * The freshness contract: **every page load version-checks, and a change always
+ * repaints.** No visitor should ever need a second refresh to see data that is
+ * already in the database.
+ *
+ * This deliberately replaces an earlier 60s "check TTL" that gated the check
+ * itself. That gate was a freshness gate wearing a performance costume: a
+ * refresh inside the window skipped the check entirely, so the page could not
+ * update no matter how many times it was reloaded. The check is one row of one
+ * column from a one-row table and never blocks a render — there is nothing to
+ * save by skipping it, and correctness to lose.
+ *
+ * What remains is a pure burst-coalescer: several store consumers boot in
+ * sequence on one page, and alt-tabbing fires visibilitychange repeatedly.
+ * Those are the same instant, not separate questions.
+ */
+const CHECK_COALESCE_MS = 3_000;
+/**
+ * While the tab is visible and the user is looking at it, re-ask on this
+ * cadence. This is what lets a tab left open on a league table pick up a match
+ * that was just applied WITHOUT any refresh at all — one tiny request a minute,
+ * suspended entirely while the tab is hidden.
+ */
+const POLL_MS = 60_000;
 // The bundle shape this client build understands (mirrors the RPC's
 // schema_version). A persisted entry stamped with any other value is from a
 // different deploy and is discarded on read rather than fed to a mapper that
@@ -92,6 +115,8 @@ const FAIL_COOLDOWN_MS = 3_000;
 let _bundlePromise = null; // per-page-load memo, like crossLeague.js's allLeaguesPromise
 let _cachedEntry = null;   // { schemaVersion, dataVersion, checkedAt, fetchedAt, bundle }
 let _lastFailAt = 0;       // timestamp of the last hard cold-fetch failure (see FAIL_COOLDOWN_MS)
+let _checkInFlight = null; // the version check currently in the air, shared by concurrent callers
+let _lastCheckAt = 0;      // in-memory only, reset by every page load (see refreshIfChanged)
 let _metaCache = null;
 const _updateListeners = [];
 
@@ -224,18 +249,55 @@ function applyNewBundle(bundle) {
     for (const cb of _updateListeners) { try { cb(bundle); } catch { /* ignore */ } }
 }
 
-/** Fire-and-forget: revalidate in the background if the last check is stale.
- *  Never blocks the caller — this is what makes warm navigation 0-blocking. */
-function maybeCheckInBackground() {
-    if (!_cachedEntry) return;
-    if (Date.now() - _cachedEntry.checkedAt < CHECK_TTL_MS) return;
-    _cachedEntry.checkedAt = Date.now();
-    writePersisted(_cachedEntry);
+/**
+ * The one implementation of "is what I am showing still true?" — shared by the
+ * page-load check, the tab-return check and the visible-tab poll, so those three
+ * can never drift into three different answers.
+ *
+ * Asks the server for the current data_version; if it differs from the cached
+ * one, fetches the new bundle, swaps it in, AND REPAINTS. That last step is the
+ * whole point: an earlier version of this code did everything up to the swap and
+ * then notified only onUpdate — a subscriber list no page had ever joined. The
+ * fresh data landed in localStorage and the visitor kept reading the old render
+ * until they reloaded a second time. Refreshing the cache without refreshing the
+ * screen is not a refresh.
+ *
+ * Never blocks a render: callers fire and forget, so warm navigation stays at
+ * zero blocking requests. Failures keep serving the copy we have.
+ */
+function refreshIfChanged() {
+    if (!_cachedEntry) return Promise.resolve(false);
+    // Share a check that is already in the air — this is what stops the several
+    // store consumers that boot in sequence on one page (navbar, page render,
+    // sidebar) from firing three identical requests.
+    if (_checkInFlight) return _checkInFlight;
+    // Only then fall back to a time gap, for bursts that arrive just after one
+    // finished (alt-tabbing, a poll tick racing a tab-return).
+    //
+    // Both gates are IN-MEMORY and reset by a page load, deliberately. An
+    // earlier draft gated on the persisted entry's own checkedAt, which meant a
+    // reload moments after the previous page had checked inherited that
+    // timestamp and skipped its check entirely — a fresh reload showing stale
+    // data, which is precisely the bug this file is fixing, reintroduced at a
+    // smaller scale. A new page load always asks.
+    if (Date.now() - _lastCheckAt < CHECK_COALESCE_MS) return Promise.resolve(false);
+    _checkInFlight = doCheck().finally(() => { _checkInFlight = null; _lastCheckAt = Date.now(); });
+    return _checkInFlight;
+}
 
-    fetchServerVersion().then((serverVersion) => {
-        if (serverVersion == null || serverVersion === _cachedEntry.dataVersion) return;
-        return fetchBundle().then((bundle) => applyNewBundle(bundle));
-    }).catch(() => { /* best-effort revalidation; keep serving the stale copy */ });
+async function doCheck() {
+    const serverVersion = await fetchServerVersion();
+    if (serverVersion == null) return false;          // offline / timed out — keep what we have
+    if (serverVersion === _cachedEntry.dataVersion) return false; // nothing changed: zero further cost
+
+    applyNewBundle(await fetchBundle());
+    await rerenderAll();
+    return true;
+}
+
+/** Fire-and-forget wrapper for the page-load path. */
+function maybeCheckInBackground() {
+    refreshIfChanged().catch(() => { /* best-effort; keep serving the stale copy */ });
 }
 
 /** Ensures the bundle is loaded, returns it. Cold (no cache): exactly one
@@ -298,6 +360,7 @@ export function onUpdate(cb) {
 const _revalidateHandlers = [];
 let _autoRevalidateInit = false;
 let _revalidating = false;
+let _pendingRerender = false; // a repaint arrived before any handler existed (see rerenderAll)
 
 /** Register a page's re-render function to run when the tab becomes visible
  *  again (or is restored from bfcache) AND either the data changed on the
@@ -309,6 +372,9 @@ let _revalidating = false;
  *  The first caller installs the listeners; later callers just add a handler. */
 export function onVisibleRevalidate(reRenderFn) {
     if (typeof reRenderFn === 'function') _revalidateHandlers.push(reRenderFn);
+    // Flush a repaint that the page-load check produced while this page was
+    // still doing its first render (see rerenderAll).
+    if (_pendingRerender) { _pendingRerender = false; rerenderAll(); }
     if (_autoRevalidateInit) return;
     _autoRevalidateInit = true;
     document.addEventListener('visibilitychange', () => {
@@ -317,6 +383,7 @@ export function onVisibleRevalidate(reRenderFn) {
     window.addEventListener('pageshow', (e) => {
         if (e.persisted) runRevalidate();
     });
+    startVisiblePoll();
     // Cross-tab sync: when another tab refreshes the bundle, the `storage` event
     // fires HERE (it never fires in the tab that made the write). Adopt the
     // newer bundle with zero network of our own and re-render, so several open
@@ -334,45 +401,56 @@ export function onVisibleRevalidate(reRenderFn) {
 }
 
 async function runRevalidate() {
-    if (_revalidating) return; // coalesce overlapping triggers (visibility + pageshow)
+    if (_revalidating) return; // coalesce overlapping triggers (visibility + pageshow + poll)
     _revalidating = true;
     try {
-        let changed = false;
         if (!_cachedEntry) {
             // Previous load failed or never completed — attempt it now. Success
             // heals a page stuck on its error/spinner with no manual refresh
-            // (the exact symptom that started this work).
-            try { await ready(); changed = !!_cachedEntry; }
-            catch { changed = false; }
-        } else {
-            // Have data: TTL-gate the version check so rapid alt-tabbing doesn't
-            // spam it. The failure-heal branch above is deliberately NOT gated —
-            // a broken page should retry on every return.
-            if (Date.now() - _cachedEntry.checkedAt < CHECK_TTL_MS) return;
-            const serverVersion = await fetchServerVersion();
-            if (serverVersion != null && serverVersion !== _cachedEntry.dataVersion) {
-                try { applyNewBundle(await fetchBundle()); changed = true; }
-                catch { /* keep serving the stale copy */ }
-            } else {
-                _cachedEntry.checkedAt = Date.now(); // record the successful check
-                writePersisted(_cachedEntry);
-            }
+            // (the exact symptom that started this work). Deliberately NOT
+            // coalesce-gated: a broken page should retry on every return.
+            try { await ready(); } catch { return; }
+            if (!_cachedEntry) return;
+            invalidateSiblingMemos();
+            await rerenderAll();
+            return;
         }
-        if (!changed) return;
-        // Clear sibling memos (applyNewBundle already did for the data-changed
-        // path; the heal-from-failure path above went through ready(), so do it
-        // here too) before asking each page to re-render from fresh data.
-        invalidateSiblingMemos();
-        await rerenderAll();
+        await refreshIfChanged();
+    } catch {
+        /* keep serving the copy we have */
     } finally {
         _revalidating = false;
     }
+}
+
+/** Poll while the tab is visible; stand down entirely while it is hidden, so a
+ *  backgrounded tab costs nothing and a returning one is caught by
+ *  visibilitychange anyway. */
+function startVisiblePoll() {
+    let timer = null;
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+    const start = () => {
+        if (timer) return;
+        timer = setInterval(() => { runRevalidate(); }, POLL_MS);
+    };
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') start(); else stop();
+    });
+    window.addEventListener('pagehide', stop);
+    if (document.visibilityState === 'visible') start();
 }
 
 /** Re-run every registered page re-render handler, preserving scroll position
  *  across the DOM rebuild. Shared by the visibility revalidation and the
  *  cross-tab storage adoption below. */
 async function rerenderAll() {
+    // A page registers its re-render function only AFTER its first render has
+    // finished — but the page-load version check starts before that and can come
+    // back mid-render. Landing a repaint on an empty handler list would drop it
+    // silently and leave exactly the stale page this whole path exists to
+    // prevent, so remember it and let registration flush it instead.
+    if (_revalidateHandlers.length === 0) { _pendingRerender = true; return; }
+    _pendingRerender = false;
     for (const fn of _revalidateHandlers) {
         const y = window.scrollY;
         try { await fn(); } catch { /* a page's own render error is its to surface */ }

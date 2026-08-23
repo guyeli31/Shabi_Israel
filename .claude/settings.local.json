@@ -168,7 +168,11 @@
       "mcp__playwright-mobile__browser_console_messages",
       "Bash(curl -s -o /dev/null -w \"rest:%{http_code}\\\\n\" http://127.0.0.1:54321/rest/v1/)",
       "Bash(docker restart *)",
-      "Bash(curl -s -o /dev/null -w \"rest:%{http_code}\\\\n\" -m 8 http://127.0.0.1:54321/rest/v1/)"
+      "Bash(curl -s -o /dev/null -w \"rest:%{http_code}\\\\n\" -m 8 http://127.0.0.1:54321/rest/v1/)",
+      "Bash(node --check shabi-israel/js/render/analyticsPage.js)",
+      "Bash(curl -s https://oaowwbwssfsohaskrgnc.supabase.co/rest/v1/site_meta?select=data_version,updated_at -H 'apikey: sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G' -H 'Authorization: Bearer sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G')",
+      "Bash(curl -s 'https://oaowwbwssfsohaskrgnc.supabase.co/rest/v1/match_reports?select=status,auto_applied,league_id,received_at&order=received_at.desc&limit=8' -H 'apikey: sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G' -H 'Authorization: Bearer sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G')",
+      "Bash(curl -s 'https://oaowwbwssfsohaskrgnc.supabase.co/rest/v1/leagues?select=id,last_updated,running&order=last_updated.desc&limit=5' -H 'apikey: sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G' -H 'Authorization: Bearer sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G')"
     ]
   },
   "hooks": {

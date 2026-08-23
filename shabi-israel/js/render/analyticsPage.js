@@ -1244,14 +1244,18 @@ function renderSessions(section, sessions) {
 }
 
 function renderKpiCards(host, data, fetchedAt) {
+    // Three cards, not five: Avg-dwell and Bounce were dropped. On a phone the
+    // strip is one non-wrapping grid row, and five columns crushed the flex
+    // "Last Updated" card until its date wrapped one character per line. The two
+    // removed metrics still live in the History strip and can return here as a
+    // second wrapped row if ever wanted — but three keeps the row legible on
+    // mobile, which is where it was breaking.
     const cards = [
         { label: 'Pageviews', value: data.total_pageviews },
         // Israel-route visits only — every other visitor is recorded without a
         // session id and so cannot be counted as a distinct visit at all. Hence
         // the label: this is not a visitor count.
         { label: 'Sessions (Israel)', value: data.total_sessions },
-        { label: 'Avg. dwell time', value: formatMs(data.avg_dwell_ms) },
-        { label: 'Bounce rate', value: `${data.bounce_pct}%` },
         // Confirms this view is live — every refresh means a fresh request to
         // Supabase, so this always shows "just now", not the underlying data's
         // own timestamp (that's `data.last_event_at`, unused here on purpose).
@@ -1337,14 +1341,19 @@ function renderTrafficMix(section, mix, excludeAdmin) {
 function renderFlows(section, transitions) {
     renderMfTable(section.querySelector('#table-flows'),
         (transitions || []).map((t) => ({
+            // Plain text = sort key; the rich icon+token cell renders from the raw
+            // parts, so From/To read exactly like the session route and every other
+            // page cell (page icon + league type pill / player flag), not bare text.
             from: contextLabel(t.from_page, t.from_league_id, t.from_player),
             to: contextLabel(t.to_page, t.to_league_id, t.to_player),
+            fromRaw: [t.from_page, t.from_league_id || '', t.from_player || ''],
+            toRaw: [t.to_page, t.to_league_id || '', t.to_player || ''],
             n: t.n,
             last: formatEventTime(new Date(t.last_seen)),
         })),
         [
-            { key: 'from', label: 'From' },
-            { key: 'to', label: 'To' },
+            { key: 'from', label: 'From', render: (r) => contextHtml(...r.fromRaw) },
+            { key: 'to', label: 'To', render: (r) => contextHtml(...r.toRaw) },
             { key: 'n', label: 'Count' },
             { key: 'last', label: 'Last seen' },
         ]);

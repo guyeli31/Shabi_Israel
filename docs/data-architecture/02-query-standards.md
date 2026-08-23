@@ -1,6 +1,6 @@
 # 02 — Query Standards (mandatory for all future pages/features)
 
-Status: **binding (Phase 2/3 landed on local Docker).** Rule 1 is enforced by `scripts/check-query-standards.mjs`, which is built and **passing** (scans 83 files under `js/`, 0 violations as of 2026-07-10). The remaining rules are review-checklist items (see rule 12). Their purpose is to stop the pattern that caused this whole effort: a point-fix landing, then the next feature re-introducing the same class of bug because there was no standing rule against it.
+Status: **binding (Phase 2/3 landed on local Docker).** Rule 1 is enforced by `scripts/check-query-standards.mjs`, which is built and **passing** (scans 83 files under `js/`, 0 violations as of 2026-07-10). The remaining rules are review-checklist items (see rule 13). Their purpose is to stop the pattern that caused this whole effort: a point-fix landing, then the next feature re-introducing the same class of bug because there was no standing rule against it.
 
 Not yet wired into CI / a pre-commit hook — the gate script exists and runs on demand (`node scripts/check-query-standards.mjs`); automating it is a separate follow-up.
 
@@ -32,7 +32,15 @@ Not yet wired into CI / a pre-commit hook — the gate script exists and runs on
 
 11. **A cache is not the opposite of freshness — an invalidation rule is.** "Never cache" is the absence of a mechanism, not a guarantee, and it cost the admin a full re-download of the same rows on every league-editor open. Where fresh reads are required (`supabaseLoader.js`), memoise against `site_meta.data_version`, checked before every serve, plus an explicit invalidation on the caller's own writes. If the version cannot be read, do not serve from memory. Do not reintroduce an ad-hoc TTL cache — that is what rule 5 forbids.
 
-12. **PR checklist** (attach to any PR touching data reads or adding a page):
+12. **Refreshing the cache is not refreshing the screen.** Added 2026-08-23 after mail-applied matches sat in the database, correct and visible in admin, while the public tables kept showing the previous state — sometimes across several reloads. Three separate mistakes stacked into one symptom, and each is now a standing rule:
+    - **A version check may never be TTL-gated.** The old code skipped the check entirely for 60s after the last one, which meant a reload inside that window could not possibly pick up new data — a freshness gate wearing a performance costume. The check is one column of one row of a one-row table and never blocks a render; there is nothing to save by skipping it and correctness to lose. Coalesce concurrent checks (several store consumers boot per page; alt-tabbing fires repeatedly) — never *skip* one.
+    - **A path that swaps the bundle must repaint.** `applyNewBundle` notified only `onUpdate`, a subscriber list no page had ever joined, so fresh data landed in `localStorage` and the visitor kept reading the old render until a *second* reload. Every refresh path now funnels through one `refreshIfChanged()` that ends in `rerenderAll()`. If you add a fourth trigger, route it through that function rather than repeating its three steps.
+    - **A repaint that arrives before any handler is registered must not be dropped.** Pages register their re-render function *after* their first render, and the load-time check can resolve mid-render. `rerenderAll()` therefore records a pending repaint that `onVisibleRevalidate()` flushes on registration — otherwise the race silently reproduces the exact staleness this rule exists to prevent.
+    - **Do not persist a bookkeeping timestamp into the bundle entry.** `checkedAt` used to be written back on every check, which serialises the whole multi-megabyte bundle to `localStorage` to record a number. Affordable when a TTL made it rare; pure main-thread jank once every page load checks. It is in-memory only.
+
+    The contract this buys, and the one to preserve: **any visitor, on any browser, with at most one reload, sees the current database** — and an open tab converges on its own within ~60s (visible-tab poll, suspended while hidden) or immediately on tab-return, with no reload at all.
+
+13. **PR checklist** (attach to any PR touching data reads or adding a page):
     - [ ] Does every new/changed query have a deterministic `ORDER BY` with a unique tiebreaker, or a proven <1000-row bound? (rule 2)
     - [ ] Does this read go through `store.js`, with no direct `supabase.from()/rpc()` outside the allowed files? (rule 1, 9)
     - [ ] If new data is needed, was it added to the bundle rather than a new query? (rule 3)
@@ -43,3 +51,4 @@ Not yet wired into CI / a pre-commit hook — the gate script exists and runs on
     - [ ] Is expensive compute gated on the element that needs it actually being visible? (rule 10)
     - [ ] Does the loading screen still never appear on a warm transition? `node scripts/perf/verify-splash-guarantee.mjs` (rule 10)
     - [ ] Any new cache carries an exact invalidation rule, not a TTL guess? (rule 11)
+    - [ ] Does a data change still reach the screen with at most one reload, and an open tab without any? (rule 12)
