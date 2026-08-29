@@ -135,11 +135,21 @@ import { searchFlagHtml } from './helpers.js';
  * `titleHtml` is trusted markup (titleConstants.js escapes it); `name` is not.
  * Pass `flagCode: ''` for hidden players — they carry neither flag nor titles
  * anywhere on the site.
+ *
+ * `link: { href, player }` turns the NAME (only the name — the flag and the
+ * title badges stay outside the anchor, exactly as `playerNameLink()` emits
+ * them) into a `.player-name-link`, so a chip echoed inside a table can lead to
+ * the player's card. The caller still has to run
+ * `attachPlayerNameInteractions()` over the mounted root for the context menu.
  */
-export function playerIdentityHtml({ name, flagCode = '', titleHtml = '' } = {}) {
+export function playerIdentityHtml({ name, flagCode = '', titleHtml = '', link = null } = {}) {
+    const nameHtml = link
+        ? `<a class="player-name-link" data-player="${escapeHtml(link.player ?? name)}"`
+          + ` href="${escapeHtml(link.href)}" title="Open general player card">${escapeHtml(name)}</a>`
+        : escapeHtml(name);
     return `<span class="app-identity">`
         + (flagCode ? searchFlagHtml(flagCode) : '')
-        + `<span class="app-identity-name">${escapeHtml(name)}${titleHtml}</span>`
+        + `<span class="app-identity-name">${nameHtml}${titleHtml}</span>`
         + `</span>`;
 }
 

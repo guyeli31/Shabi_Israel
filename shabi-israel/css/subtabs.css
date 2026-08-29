@@ -31,6 +31,15 @@
     border: 1px solid transparent;
     transition: opacity 0.15s, background 0.15s, color 0.15s;
 }
+/* Size pinned to the absolute token, NOT inherited (2026-08-29). These carry
+   .league-type-pill for their shape and colour, and that class is now `1em` so a
+   pill tracks the table it sits in — but a filter bar sits in no table. Its
+   parent is the page (15px), so inheriting would grow these to 15px and change a
+   TAP TARGET: they are controls, not labels. Pinning holds them at exactly the
+   12.75px/20px-tall box they have always had, on every viewport. */
+.subtabs--pill .subtab--pill {
+    font-size: var(--fs-085);
+}
 /* Inactive state. Descendant-scoped (.subtabs--pill …) so it reliably beats the
    equal-specificity .league-type-pill.type-* colour rule regardless of which
    stylesheet loads last — every inactive pill looks identical, every type. */

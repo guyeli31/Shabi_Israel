@@ -118,8 +118,10 @@ const GROUPS = [
     { id: 'c3-matchup',        pages: ['player'], tier: 't5', bold: false, label: 'C3 — Matchup (H2H)',   sel: '[data-mf-table-id="C3"] th, [data-mf-table-id="C3"] td', isTable: true, tableSel: '[data-mf-table-id="C3"]' },
     { id: 'c4-opponents',      pages: ['player'], tier: 't6', bold: false, label: 'C4 — All Opponents (H2H)', sel: '[data-mf-table-id="C4"] th, [data-mf-table-id="C4"] td', isTable: true, tableSel: '[data-mf-table-id="C4"]' },
     { id: 'c5-mr',             pages: ['player'], tier: 't6', bold: false, label: 'C5 — Match Records',   sel: '[data-mf-table-id="C5"] th, [data-mf-table-id="C5"] td', isTable: true, tableSel: '[data-mf-table-id="C5"]' },
-    // C6 shares C1's tier — it is C1's cell vocabulary, narrowed to four columns.
-    { id: 'c6-total-luck',     pages: ['player'], tier: 't5', bold: false, label: 'C6 — Total Luck',      sel: '[data-mf-table-id="C6"] th, [data-mf-table-id="C6"] td', isTable: true, tableSel: '[data-mf-table-id="C6"]' },
+    // C6 reuses C1's cell vocabulary but was deliberately set to C5's tier
+    // (t6 / .font-small), matching the tables it is stacked under on the Records
+    // tab. A design choice for uniformity there — not a derived rule.
+    { id: 'c6-total-luck',     pages: ['player'], tier: 't6', bold: false, label: 'C6 — Total Luck',      sel: '[data-mf-table-id="C6"] th, [data-mf-table-id="C6"] td', isTable: true, tableSel: '[data-mf-table-id="C6"]' },
 
     // D / E — league / per-league player tables (out of unification scope per TABLE-DESIGN, but still useful)
     { id: 'league-table',      pages: ['league_table'], tier: 't5', bold: false, label: 'D — League Table',          sel: '[data-mf-table-id="D"] th, [data-mf-table-id="D"] td', isTable: true, tableSel: '[data-mf-table-id="D"]' },

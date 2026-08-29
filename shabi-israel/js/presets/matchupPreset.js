@@ -31,7 +31,7 @@ export function buildMatchupPreset({ rows, playerName, opponent, enrich = {} }) 
           format: (v, row) => {
               const cls = row._selfWon ? 'matchup-winner-win' : 'matchup-winner-loss';
               const t = row._technical ? ' <small>(T)</small>' : '';
-              const who = enrich.playerIdentity ? enrich.playerIdentity(v) : displayPlayerName(v);
+              const who = enrich.playerIdentity ? enrich.playerIdentity(v, row._leagueId) : displayPlayerName(v);
               return `<span class="${cls}">${who}${t}</span>`;
           } },
         { key: 'score',       label: 'Score',  type: 'string', sortable: false, colorFn: null },

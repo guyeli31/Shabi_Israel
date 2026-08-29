@@ -26,6 +26,7 @@
  */
 
 import { attachStickyShadow } from '../../../js/utils/stickyShadow.js';
+import { pinStickyCols } from '../../../js/utils/stickyCols.js';
 
 /**
  * @param {HTMLElement} mountPoint  Empty container the caller owns; renderer rebuilds inside.
@@ -84,12 +85,7 @@ export function mountSFTable(mountPoint, args) {
     mountPoint.appendChild(card);
 
     if (stickyCols >= 2) {
-        const measure = () => measureStickyCols(table, stickyCols);
-        requestAnimationFrame(measure);
-        window.addEventListener('resize', measure);
-        if (typeof ResizeObserver !== 'undefined') {
-            new ResizeObserver(measure).observe(table);
-        }
+        pinStickyCols(table, SF_COL_VARS.slice(0, stickyCols - 1));
     }
 
     attachStickyShadow(wrap);
@@ -128,22 +124,9 @@ function buildTbody(data, cols) {
 // Sticky col measurement (cols 2/3 offset)
 // ─────────────────────────────────────────────
 
-function measureStickyCols(table, stickyCols) {
-    if (stickyCols >= 2) {
-        const th1 = table.querySelector('thead th:nth-child(1)');
-        if (th1) {
-            const w = th1.getBoundingClientRect().width;
-            if (w > 0) table.style.setProperty('--sf-col1-w', `${w}px`);
-        }
-    }
-    if (stickyCols >= 3) {
-        const th2 = table.querySelector('thead th:nth-child(2)');
-        if (th2) {
-            const w = th2.getBoundingClientRect().width;
-            if (w > 0) table.style.setProperty('--sf-col2-w', `${w}px`);
-        }
-    }
-}
+/* One var per MEASURED column: col 1 pins at left:0, so N sticky columns need
+   N-1 offsets. The measuring itself lives in js/utils/stickyCols.js. */
+const SF_COL_VARS = ['--sf-col1-w', '--sf-col2-w'];
 
 // ─────────────────────────────────────────────
 // Show top N

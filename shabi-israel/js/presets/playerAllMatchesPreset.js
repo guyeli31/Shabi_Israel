@@ -23,7 +23,8 @@ function rateCell(v, row) {
 /**
  * @param {object} input
  *   rows    — flattenAllMatches() output, already filtered by caller
- *   enrich  — { leagueLink(id, title) => html, opponentCell(name) => html }
+ *   enrich  — { leagueLink(id, title) => html,
+ *               opponentCell(name, leagueId) => html }
  */
 export function buildPlayerAllMatchesPreset({ rows, enrich = {} }) {
     const cols = [
@@ -41,9 +42,13 @@ export function buildPlayerAllMatchesPreset({ rows, enrich = {} }) {
                         : 'result-draw';
               return `<span class="${cls}">${v}${t}</span>`;
           } },
+        // The row goes to opponentCell, not just the name: this table pools
+        // every league the player ever appeared in, and the opponent's flag is
+        // the one they wore IN THAT LEAGUE. Passing the name alone is what
+        // forced the caller to fall back on a cross-league flag merge.
         { key: 'opponent',    label: 'Opponent', type: 'string', sortable: true, colorFn: null,
           tdClass: 'player-cell',
-          format: v => enrich.opponentCell ? enrich.opponentCell(v) : v },
+          format: (v, row) => enrich.opponentCell ? enrich.opponentCell(v, row._leagueId) : v },
         { key: 'score',       label: 'Score',  type: 'string', sortable: false, colorFn: null },
         { key: 'prSelf',      label: 'PR',     type: 'number', sortable: true, colorFn: null,
           sortKey: row => typeof row.prSelf === 'number' ? row.prSelf : null,

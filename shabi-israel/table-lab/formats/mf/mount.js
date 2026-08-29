@@ -27,6 +27,7 @@
  */
 
 import { attachStickyShadow } from '../../../js/utils/stickyShadow.js';
+import { pinStickyCols } from '../../../js/utils/stickyCols.js';
 
 // Public registry of mounted MF tables, keyed by tableId. Each entry:
 //   { id, mountPoint, wrapper, table, args }
@@ -122,13 +123,7 @@ export function mountMFTable(mountPoint, args) {
     if (stickyCols > 0) applyStickyLeftCols(table, stickyCols);
 
     // 7. Sticky col-2 offset measurement
-    if (stickyCols >= 2) {
-        const measure = () => measureStickyCols(wrapper, table);
-        measure();
-        window.addEventListener('resize', measure);
-        if (typeof ResizeObserver !== 'undefined')
-            new ResizeObserver(measure).observe(table);
-    }
+    if (stickyCols >= 2) measureStickyCols(wrapper, table);
 
     // 8. Drop-shadow on sticky boundary during horizontal scroll
     attachStickyShadow(wrapper);
@@ -277,11 +272,11 @@ function applyStickyLeftCols(table, stickyCols) {
     });
 }
 
+/* Measuring + observing live in js/utils/stickyCols.js; MF only supplies the
+   var name and the element the CSS reads it from (the wrapper, not the table).
+   Idempotent, so the re-sort call site below can simply call it again. */
 function measureStickyCols(wrapper, table) {
-    const th1 = table.querySelector('thead th:first-child');
-    if (!th1) return;
-    const w = th1.getBoundingClientRect().width;
-    if (w > 0) wrapper.style.setProperty('--sticky-col-1-width', `${w}px`);
+    pinStickyCols(table, '--sticky-col-1-width', { target: wrapper });
 }
 
 // ─────────────────────────────────────────────

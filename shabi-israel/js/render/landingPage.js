@@ -9,6 +9,7 @@
  */
 
 import { loadAllLeagues } from '../compute/crossLeague.js';
+import { buildPlayerFlagIndex } from '../utils/playerFlags.js';
 import { buildAllTimeRankings } from '../compute/allTimeRankings.js';
 import { colorForValue } from '../compute/colorScale.js';
 import { prProbabilityTableHtml } from '../compute/championshipPredictor.js';
@@ -24,6 +25,7 @@ import { getPopup } from '../data/popupContent.js';
 import { getLevel } from '../compute/rankings.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
+import { pinStickyCols, pinStickyColsAll } from '../utils/stickyCols.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { mountSFTable } from '../../table-lab/formats/sf/mount.js';
 import { buildCompletedLeaguesPreset } from '../presets/completedLeaguesPreset.js';
@@ -66,6 +68,7 @@ const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 let _landingSettings = null;
 /** Players metadata loaded once, shared across renderers. */
 let _playersMeta = {};
+let _flags = buildPlayerFlagIndex([]);
 /** Completed-leagues league-type filter (mountPillTabs handle), or null when
  *  only one type exists. Edit mode forces it back to ALL — drag-reorder saves
  *  the order of the VISIBLE rows, so a filtered table would drop leagues. */
@@ -110,6 +113,10 @@ export async function renderLandingPage() {
             loadPlayersMetadata().then(r => { splashStage('players'); return r; })
         ]);
         _playersMeta = playersMeta;
+        // Flag resolver for this page's context-free tables (annual leaderboard,
+        // all-time). The per-match record cards (A5 and friends) stay bound to
+        // their own league — see utils/playerFlags.js for why the two differ.
+        _flags = buildPlayerFlagIndex(allLeagues.filter(l => !l.params.Hidden));
         splashStage('ranking');
 
         // Filter hidden leagues for non-admin users
@@ -1151,7 +1158,7 @@ function buildAnnualLeaderboard(group) {
     const months = entries.map(e => e.monthShort);
 
     // Aggregate per player
-    const playerData = new Map(); // name → { monthly, totalWins/totalPoints, totalGames, prSum, prCount, customFlags }
+    const playerData = new Map(); // name → { monthly, totalWins/totalPoints, totalGames, prSum, prCount }
     for (const entry of entries) {
         for (const [player, stats] of entry.statsMap) {
             if (!playerData.has(player)) {
@@ -1161,8 +1168,7 @@ function buildAnnualLeaderboard(group) {
                     totalPoints: 0,
                     totalGames: 0,
                     prSum: 0,
-                    prCount: 0,
-                    customFlags: {}
+                    prCount: 0
                 });
             }
             const pd = playerData.get(player);
@@ -1179,10 +1185,6 @@ function buildAnnualLeaderboard(group) {
                 }
             }
 
-            // Capture custom flags
-            if (entry.params.CustomFlags) {
-                Object.assign(pd.customFlags, entry.params.CustomFlags);
-            }
         }
     }
 
@@ -1194,7 +1196,11 @@ function buildAnnualLeaderboard(group) {
         const winRate = pd.totalGames > 0 ? pd.totalWins / pd.totalGames : 0;
         const meanPR = pd.prCount > 0 ? pd.prSum / pd.prCount : null;
         const avgPoints = pd.totalGames > 0 ? pd.totalPoints / pd.totalGames : 0;
-        const flagCode = getFlagCode(player, pd.customFlags);
+        // A leaderboard row is a player, not a match, so it carries the flag
+        // they last played under site-wide — not the last one seen INSIDE this
+        // year's leagues. A within-year merge could never let a flag lapse back
+        // to IL either, since IL is an absence from CustomFlags.
+        const flagCode = _flags.latest(player);
 
         rows.push({
             player,
@@ -1344,19 +1350,7 @@ function renderLeaderboards(container, leaderboards) {
    `left:` can lock to it without any hard-coded px (iron rule 12). */
 function measureLeaderboardStickyCols(wrapper) {
     const table = wrapper.querySelector('.leaderboard-table');
-    if (!table) return;
-    const write = () => {
-        const firstTh = table.querySelector('thead th:first-child');
-        if (!firstTh) return;
-        const w = firstTh.getBoundingClientRect().width;
-        wrapper.style.setProperty('--sticky-col-1-width', `${w}px`);
-    };
-    write();
-    if (typeof ResizeObserver !== 'undefined') {
-        const ro = new ResizeObserver(write);
-        ro.observe(table);
-    }
-    window.addEventListener('resize', write);
+    pinStickyCols(table, '--sticky-col-1-width', { target: wrapper });
 }
 
 // Thin wrapper around the shared exportTableImage() helper. A2 is the
@@ -1749,8 +1743,9 @@ function renderMatchRecordsSection(container, allLeagues, presentTypes) {
         tabs: types.map(t => ({ id: t, label: TYPE_LABELS[t] || t })),
         pillClassFor: (t) => 'league-type-pill type-' + t,
         onSelect: (t) => {
+            // No re-measure on switch: the revealed panel's header cells go
+            // 0 → n, which is a ResizeObserver notification (stickyCols.js).
             section.querySelectorAll('.achv-panel').forEach(p => p.classList.toggle('hidden', p.dataset.type !== t));
-            requestAnimationFrame(() => applyMatchRecordsStickyOffsets(section));
         },
     });
 
@@ -1762,25 +1757,10 @@ function renderMatchRecordsSection(container, allLeagues, presentTypes) {
         if (wrap) attachStickyShadow(wrap);
     });
 
-    requestAnimationFrame(() => applyMatchRecordsStickyOffsets(section));
-
-    let _mrRafId;
-    window.addEventListener('resize', () => {
-        cancelAnimationFrame(_mrRafId);
-        _mrRafId = requestAnimationFrame(() => applyMatchRecordsStickyOffsets(section));
-    });
-}
-
-function applyMatchRecordsStickyOffsets(root) {
-    root.querySelectorAll('.match-records-table').forEach(table => {
-        const th1 = table.querySelector('thead th:nth-child(1)');
-        const th2 = table.querySelector('thead th:nth-child(2)');
-        if (!th1 || !th2) return;
-        const w1 = th1.getBoundingClientRect().width;
-        const w2 = th2.getBoundingClientRect().width;
-        if (w1 > 0) table.style.setProperty('--mr-col1-w', w1 + 'px');
-        if (w2 > 0) table.style.setProperty('--mr-col2-w', w2 + 'px');
-    });
+    // 3 sticky cols → 2 measured offsets. The observer inside pinStickyCols
+    // replaces the old rAF + `resize` pair, which missed both the flag-load
+    // reflow and the pill-switch re-reveal (see stickyCols.js).
+    pinStickyColsAll(section, '.match-records-table', ['--mr-col1-w', '--mr-col2-w']);
 }
 
 function renderMatchRecordsTables(luckRows, prRows) {
@@ -1966,7 +1946,6 @@ function renderLeagueRecordsSection(container, allLeagues, presentTypes) {
         pillClassFor: (t) => 'league-type-pill type-' + t,
         onSelect: (t) => {
             section.querySelectorAll('.achv-panel').forEach(p => p.classList.toggle('hidden', p.dataset.type !== t));
-            requestAnimationFrame(() => applyLeagueRecordsStickyOffsets(section));
         },
     });
 
@@ -1985,25 +1964,7 @@ function renderLeagueRecordsSection(container, allLeagues, presentTypes) {
         if (wrap) attachStickyShadow(wrap);
     });
 
-    requestAnimationFrame(() => applyLeagueRecordsStickyOffsets(section));
-
-    let _lrRafId;
-    window.addEventListener('resize', () => {
-        cancelAnimationFrame(_lrRafId);
-        _lrRafId = requestAnimationFrame(() => applyLeagueRecordsStickyOffsets(section));
-    });
-}
-
-function applyLeagueRecordsStickyOffsets(root) {
-    root.querySelectorAll('.league-records-table').forEach(table => {
-        const th1 = table.querySelector('thead th:nth-child(1)');
-        const th2 = table.querySelector('thead th:nth-child(2)');
-        if (!th1 || !th2) return;
-        const w1 = th1.getBoundingClientRect().width;
-        const w2 = th2.getBoundingClientRect().width;
-        if (w1 > 0) table.style.setProperty('--lr-col1-w', w1 + 'px');
-        if (w2 > 0) table.style.setProperty('--lr-col2-w', w2 + 'px');
-    });
+    pinStickyColsAll(section, '.league-records-table', ['--lr-col1-w', '--lr-col2-w']);
 }
 
 function collectLeagueLuckRecords(typeLeagues) {

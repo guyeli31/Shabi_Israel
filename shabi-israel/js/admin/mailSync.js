@@ -28,6 +28,7 @@
 import { supabase } from '../data/supabaseClient.js';
 import { flagUrl, getFlagCode, formatNumber, thLabel } from '../utils/helpers.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
+import { pinStickyCols } from '../utils/stickyCols.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
@@ -411,27 +412,13 @@ export function mailSectionsHTML(state, customFlags, flagsByLeague) {
  * is column 1's rendered width, which is content-driven, so it is measured —
  * spelling mirrors SF's `--sf-col1-w` (table-lab/formats/sf/mount.js).
  *
- * Measure AFTER the flags load, not on first layout. `.flag` is
- * `height: 1em; width: auto`, so an unloaded flag contributes 0 width:
- * measured live on F8, th1 is 117.67px before the flags land and 131.33px
- * after — exactly one 13.67px flag — which parks column 2 fourteen pixels
- * inside column 1, permanently.
- *
- * Hence the observer watches the HEADER CELL, which reflows when the images
- * do. Watching the wrap does not work (its size never changes), and neither
- * does a one-shot rAF: pinning itself does NOT alter column 1's width
- * (verified — identical with and without the class), so there is no single
- * post-layout frame at which the value is already correct.
+ * The flag-load trap this table exposed (th1 is 117.67px before the flags land
+ * and 131.33px after — one 13.67px flag, which parks column 2 fourteen pixels
+ * inside column 1, permanently) is trap 2 in js/utils/stickyCols.js, which now
+ * owns the measuring for every sticky table in the project.
  */
 function attachStickyCols(table) {
-    const th1 = table.querySelector('thead th:first-child');
-    if (!th1) return;
-    const measure = () => {
-        const w = th1.getBoundingClientRect().width;
-        if (w > 0) table.style.setProperty('--ff-col1-w', `${w}px`);
-    };
-    measure();
-    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(measure).observe(th1);
+    pinStickyCols(table, '--ff-col1-w');
 }
 
 export function wireMailSections(container, onChanged) {

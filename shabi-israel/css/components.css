@@ -314,14 +314,35 @@ tr.rank-bronze:hover { background: var(--color-bronze-bg-hover); }
 
 /* ---- Status pills ---- */
 /* Unified pill sizing (mirrors the v2 Pill primitive: em-based padding so the
-   pill scales with its inherited font-size, one fluid font token shared with
-   .league-type-pill, line-height 1.5). .status-pill and .league-type-pill are
-   the same size; .league-type-pill only adds uppercase. */
+   pill scales with its inherited font-size, line-height 1.5). .status-pill and
+   .league-type-pill are the same size; .league-type-pill only adds uppercase —
+   and because C1/F1 show the two in ADJACENT columns of the same row, they must
+   always be changed together or that pair visibly splits.
+
+   FONT: `1em` — the pill tracks whatever it sits in (changed 2026-08-29). It was
+   `var(--fs-085)`, an ABSOLUTE token, so a pill measured the same 12.75px in a
+   12.75px font-small cell and in a 13.95px font-large one — right by accident in
+   the first, one step too small in the second. Four places had already worked
+   around this locally with their own em ratio (.ana-entity, .predictor-info-popup,
+   the league-header cards, explanation-and-maths.html); this makes the base rule
+   agree with them instead of being the last absolute holdout.
+
+   Why 1em here and 0.72em there: those four all put the pill INLINE IN RUNNING
+   TEXT, where it is a label beside a sentence and must be modest. In a table the
+   pill IS the whole cell, with no prose to defer to — at 0.72em a font-small cell
+   on a 430px phone (already clamped to 9.83px) would render the pill at 7.08px.
+
+   Two contexts are therefore pinned explicitly, because their parent is NOT a
+   table and `1em` would inherit something far too large:
+     • .subtabs--pill .subtab--pill   (subtabs.css) — a filter CONTROL, parent 15px
+     • .app-section-h2 .league-type-pill (sections.css) — a badge in an 18px heading
+   Anything else that puts a pill inside a heading or oversized container needs the
+   same treatment; a pill with no explicit size now inherits its container. */
 .status-pill {
     display: inline-block;
     padding: 0.2em 0.85em;
     border-radius: var(--radius-full);
-    font-size: var(--fs-085);
+    font-size: 1em;
     font-weight: 600;
     line-height: 1.5;
     letter-spacing: 0.02em;
@@ -337,11 +358,12 @@ tr.rank-bronze:hover { background: var(--color-bronze-bg-hover); }
     color: var(--color-completed);
 }
 
-/* ---- League-type pill (unified: Main Dashboard, Player General, Admin) ---- */
+/* ---- League-type pill (unified: Main Dashboard, Player General, Admin) ----
+   `1em` and its twinning with .status-pill: see the note above .status-pill. */
 .league-type-pill {
     display: inline-block;
     padding: 0.2em 0.85em;
-    font-size: var(--fs-085);
+    font-size: 1em;
     font-weight: 600;
     border-radius: var(--radius-full);
     text-transform: uppercase;
@@ -804,6 +826,16 @@ table.matchup-table a:hover {
 /* Winner cell */
 .matchup-winner-win  { color: var(--color-win);  font-weight: 600; }
 .matchup-winner-loss { color: var(--color-loss); font-weight: 600; }
+
+/* The winner NAME links to that player's general card. The anchor must keep the
+   cell's win/loss colour instead of the global link accent — specificity (0,2,0)
+   beats the bare .player-name-link rule. */
+.matchup-winner-win  .player-name-link,
+.matchup-winner-win  .player-name-link:visited { color: var(--color-win); text-decoration: none; }
+.matchup-winner-loss .player-name-link,
+.matchup-winner-loss .player-name-link:visited { color: var(--color-loss); text-decoration: none; }
+.matchup-winner-win  .player-name-link:hover,
+.matchup-winner-loss .player-name-link:hover   { text-decoration: underline; }
 
 /* Empty / no-match state */
 .matchup-empty {

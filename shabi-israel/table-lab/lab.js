@@ -168,7 +168,7 @@ export const PRESETS = {
         args: {
             tableId:    'C6',
             data: [], cols: [],
-            fontClass:  'font-large',
+            fontClass:  'font-small',
             stickyCols: 1,
             medalRows:  false,
             showTopN:   null,
@@ -177,7 +177,7 @@ export const PRESETS = {
             mfBg:       null,
         },
         argDocs: {
-            fontClass:  'font-large — same tier as C1, whose cell vocabulary C6 reuses (league link, type pill, medal-tinted rank).',
+            fontClass:  'font-small — C6 reuses C1\'s cell vocabulary (league link, type pill, medal-tinted rank) but not its font tier. Chosen to match the four font-small C5 tables it sits under on the Records tab; a per-table design call, not a derived rule.',
             stickyCols: '1 — League column pinned, as in C1.',
             showTopN:   'null — a player finishes few enough leagues that every row is worth showing.',
         },

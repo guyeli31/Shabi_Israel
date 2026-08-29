@@ -14,7 +14,7 @@ import { BMAB_TITLES, bmabSelectOptionsHtml, COUNTRIES, getChampionshipTooltip, 
 import { filePickerHTML } from './render/formControls.js';
 import { mountCombobox } from '../utils/combobox.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
-import { getFlagCode } from '../utils/helpers.js';
+import { buildPlayerFlagIndex } from '../utils/playerFlags.js';
 import { loadLeagueMatchesAll, loadLeagueParams, loadOverrides } from '../data/supabaseLoader.js';
 import { matchesToCsvText } from './csvText.js';
 import { KNOWN_FLAGS, ensureFlagCodes, registerFlagCode } from './flagRegistry.js';
@@ -125,10 +125,16 @@ function renderShell(container) {
 
     const input = container.querySelector('#player-search');
 
-    // Country flag per player — merged CustomFlags across every league (any
-    // custom flag wins; default IL), matching the site's global convention.
-    const mergedFlags = {};
-    for (const lg of _state.leagues || []) Object.assign(mergedFlags, lg.params?.CustomFlags || {});
+    // Country flag per player. The registry lists PEOPLE, not matches, so this
+    // is the context-free question: the flag they LAST played under
+    // (utils/playerFlags.js). `_state.leagues` is loadAllLeagues() output —
+    // DisplayOrder, newest first — which is the recency the index wants.
+    //
+    // This used to be a flat `Object.assign` merge over the same list, which
+    // handed the win to whichever league came LAST in DisplayOrder — the oldest
+    // — so the registry showed a player's FIRST flag and could never let one
+    // lapse back to IL (IL is an absence from CustomFlags, not a value).
+    const flags = buildPlayerFlagIndex(_state.leagues || []);
 
     // This lookup used to be a hand-rolled input + <ul>: no keyboard nav, no
     // title badges, and — because it lacked the .app-search-input hook — no
@@ -155,7 +161,7 @@ function renderShell(container) {
                 : hasEdits ? { text: 'edited', kind: 'count' }
                 : null;
             return {
-                flagCode: getFlagCode(name, mergedFlags),
+                flagCode: flags.latest(name),
                 titleHtml: getTitleAbbreviationsHtml(meta),
                 badge,
             };

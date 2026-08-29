@@ -145,11 +145,51 @@ Defined once in `table-lab/formats/base/base.css` (and mirrored to `css/componen
 
 Per-context overrides (`.dash-table .flag`, `.achv-table .flag`, etc.) carry the same em-based metrics. Source PNGs in `assets/flags/` are 1600×1600 square; rendering at `1em` against the small cell font is heavily downscaled, so `image-rendering: auto` (browser-default bilinear smoothing) is required — `crisp-edges` / `pixelated` would force nearest-neighbor and visibly pixelate the thumbnails.
 
+### Canonical pill sizing rule (load-bearing — applies to ALL formats)
+
+**A pill's font-size is `em`-relative to whatever it sits in. Never an absolute token.** Same principle as `.flag` above, and it applies to `.league-type-pill` and `.status-pill` alike (`css/components.css`, mirrored in `css/admin.css`).
+
+**In a table the pill is `1em` — exactly the cell's own size.** The pill *is* the whole cell there (the Type/Status columns), with no surrounding prose to defer to.
+
+**Inline in running text it is `0.72em`** — a label beside a sentence must be modest. Four contexts already do this and are the reference: `.ana-entity` (analytics log rows), `.predictor-info-popup` (the "?" explanations), the league-header cards (`.lh13-card` / `.lh16-hero`), and `.app-section-h2` (a badge riding in a section heading). They pair the smaller size with tighter `padding: 0.08em 0.5em` and `line-height: 1.35`.
+
+**Two contexts are pinned to `var(--fs-085)` on purpose:** `.subtabs--pill .subtab--pill`, because a filter bar is a *control* whose tap target must not move and whose parent is the page rather than a table; and any future pill in an oversized container. **A pill with no explicit size now inherits its container** — so anything dropping one into a heading or hero must size it, or it will render at the heading's size.
+
+**History (2026-08-29).** The base was `var(--fs-085)`, an absolute token, so every pill measured 12.75px regardless of host: correct by coincidence in a `font-small` cell, one step too small in a `font-large` one (C1, F1). The four inline contexts above had each already patched around it locally; this change made the base agree with them rather than remain the last absolute holdout. `0.72em` was measured and rejected for tables: a `font-small` cell on a 430px phone is already clamped to 9.83px, and `0.72` of it renders the pill at **7.08px** — a fixed ratio *multiplies* the fluid clamp instead of adding to it.
+
+> **`.status-pill` and `.league-type-pill` must always change together.** C1 and F1 show the two in **adjacent columns of the same row**, and `components.css` states they are the same size by design. Editing one class, or one of the two files, splits that pair — and `admin.html` does not load `components.css`, so the admin copy is a genuine second site, not a stale duplicate.
+
+The image export is immune to all of this: `js/utils/exportTableImage.js` sets `pill.style.fontSize` inline in px, which outranks every stylesheet.
+
 > **FF — three cell modes per ColDef.** A single FF table can mix freely:
 > • **Display** — read-only HTML (text, pills, badges).
 > • **Action** — button(s) with `data-*` attrs; caller wires event delegation (used for Edit/Delete/Save-per-match).
 > • **Edit** — input/select/toggle in the cell + `getValue` reader; participates in `getDiff()` and optional `validate()`.
 > FF1 ("list + action buttons") and FF2 ("edit-in-place") were earlier intermediate names for what is now a single unified format — the distinction is now per-column, not per-table.
+
+### Canonical sticky-column offsets (load-bearing — applies to ALL formats)
+
+Column 1 pins at `left: 0` and needs nothing. **Every column after it needs a measurement**, because its `left` must equal the rendered width of the columns before it, and that width is content-driven (iron rule 12 — no hard-coded px). One module owns that measurement for the whole project:
+
+```js
+import { pinStickyCols } from 'js/utils/stickyCols.js';
+
+pinStickyCols(table, '--pg-col1-w');                     // 2 sticky cols
+pinStickyCols(table, ['--sf-col1-w', '--sf-col2-w']);    // 3 sticky cols
+pinStickyCols(table, '--col1-w', { target: wrap });      // CSS reads it off the wrapper
+```
+
+One var per **measured** column, i.e. one fewer than the number of sticky columns. It is idempotent (a re-render or a re-sort just re-measures), and it returns a `dispose()`.
+
+**Do not hand-roll the measurement.** It was hand-rolled nine times — landingPage ×3, dashboardPage ×2, playerGeneralPage ×2, mailSync, and the lab mounts — and each copy carried a different subset of the triggers, so a trap solved in one file stayed live in the other eight. The three traps, all now handled once in `stickyCols.js`:
+
+| Trap | What it looks like | Why the naive fix fails |
+|---|---|---|
+| **Measured while hidden** | A table built inside an inactive tab panel or a collapsed section measures **0** on every cell, the write is skipped, and the user sees the CSS fallback (usually `36px`) — parking col 2 ~20px to the right of col 1 on mobile, leaving a **gap through which the scrolled-under column shows**. Reproduced on C5 (player Records tab): `left: 36px` vs a real column of `16.59px`. | A one-shot `requestAnimationFrame` runs in a frame where the table has no size. A per-tab `onSelect` re-measure patches the one surface it is written on, and nothing else. |
+| **Measured before the flags load** | `.flag` is `height: 1em; width: auto`, so an unloaded flag contributes 0 width. On F8, th1 is `117.67px` before the flags land and `131.33px` after — one 13.67px flag — parking col 2 fourteen pixels **inside** col 1, permanently. | Pinning itself does not change col 1's width, so there is no settled frame to latch onto. |
+| **The measure→write loop** | Writing the var can reflow the table, re-firing the observer. It converges, but every lap is a forced layout, once per scrollable table on the page. | — (fixed by remembering the last value written) |
+
+The fix for the first two is the same one: **observe the header cells themselves.** A `ResizeObserver` on a cell fires on the `0 → n` transition when the tab opens, when an image inside it finally has a size, and on any later width change (mobile font breakpoint, longer values revealed by "Show all"). Observing the **wrapper** does not work — its size never changes — and a `resize` listener catches only the last of the three.
 
 ---
 
@@ -318,7 +358,9 @@ Selecting an opponent via the smart search **or** clicking an opponent row both 
 
 #### C6 — Total Luck (Records tab, player-general)
 
-The middle section of the **Records** tab on `player.html`, between *Match Records* (C5) and *Total PR ↔ Result*. One MF table (`tableId: 'C6'`, `fontClass: 'font-large'`, `stickyCols: 1`, `showTopN: null`) deliberately built from the **same cell vocabulary as C1 Leagues** — league link, league-type pill, medal-tinted `rank / total` — narrowed to the four columns the section is about. Built by `js/presets/playerTotalLuckPreset.js` (`buildPlayerTotalLuckPreset` + `collectPlayerLeagueLuck`); the shared `typePillHtml` / `rankCellHtml` helpers are exported from `js/presets/playerLeaguesPreset.js` so C1 and C6 can never drift.
+The middle section of the **Records** tab on `player.html`, between *Match Records* (C5) and *Total PR ↔ Result*. One MF table (`tableId: 'C6'`, `fontClass: 'font-small'`, `stickyCols: 1`, `showTopN: null`) deliberately built from the **same cell vocabulary as C1 Leagues** — league link, league-type pill, medal-tinted `rank / total` — narrowed to the four columns the section is about. Built by `js/presets/playerTotalLuckPreset.js` (`buildPlayerTotalLuckPreset` + `collectPlayerLeagueLuck`); the shared `typePillHtml` / `rankCellHtml` helpers are exported from `js/presets/playerLeaguesPreset.js` so C1 and C6 can never drift.
+
+**Font: the vocabulary is shared, the tier is not (changed 2026-08-29).** C6 was `font-large` to match C1, the table it borrows its cells from — but C1 lives on the *Leagues* tab and C6 lives on *Records*, directly under the four `font-small` C5 tables. At `--fs-093` against C5's `--fs-085` it measured **13.95px next to 12.75px**. **This is a design call, not a derived rule** — a table's font tier is chosen per table, and any tier is legitimate; here the choice was that the Records tab should read as one uniform set, so C6 was matched to the C5 tables above it. Nothing else keyed off the class — no CSS rule anywhere scopes `.font-large` to C6, and `stickyCols` is font-independent — so the change is one enum. `js/render/typoEditor.js` moves C6 from `t5` to `t6` to match, and the lab's `argDocs` carries the reason.
 
 Columns (left → right):
 

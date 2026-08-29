@@ -904,6 +904,25 @@
     text-decoration: underline;
 }
 
+/* …except the H2H Winner name, which links to that player's general card and
+   must keep the cell's win/loss colour. The component rule lives in
+   components.css (.matchup-winner-* .player-name-link) but scores (0,2,0) —
+   the blanket `.pg-section .mf-wrap a` above is (0,2,1) and would win, so the
+   override has to be restated here at page scope. */
+.pg-section .mf-wrap .matchup-winner-win .player-name-link,
+.pg-section .mf-wrap .matchup-winner-win .player-name-link:visited {
+    color: var(--color-win);
+}
+.pg-section .mf-wrap .matchup-winner-loss .player-name-link,
+.pg-section .mf-wrap .matchup-winner-loss .player-name-link:visited {
+    color: var(--color-loss);
+}
+.pg-section .mf-wrap .matchup-winner-win .player-name-link:hover,
+.pg-section .mf-wrap .matchup-winner-loss .player-name-link:hover {
+    color: inherit;
+    text-decoration: underline;
+}
+
 /* Rank table player name links — prevent default blue/purple visited styling.
    font-weight: 600 keeps every clickable link cell uniform across all table
    formats (matches td.player-cell / .achv-table links / .c4-opp-link — see
@@ -1169,6 +1188,20 @@
 }
 .pg-section .dash-controls .pg-metric-ctl[hidden] {
     display: none;
+}
+
+/* Sort label + its two-pill toggle, sitting inline among the selects. The pill
+   bar's own bottom margin is zeroed: inside a control row the row owns the
+   spacing, and .subtabs--pill's --space-md would push the row's baseline down
+   by itself. */
+.pg-section .dash-controls .pg-sort-ctl {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+.pg-section .dash-controls .pg-sort-ctl .subtabs--pill {
+    margin-bottom: 0;
+    gap: var(--space-xs);
 }
 
 /* Total PR ↔ Result — the chart panels reuse the dashboard's .corr-* chrome

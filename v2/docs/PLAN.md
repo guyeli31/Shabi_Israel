@@ -489,6 +489,31 @@ Each phase ends with a commit and an MCP verification checkpoint. If a phase fai
 - Port all 24 presets to `v2/src/tables/presets/{A1..A7,B1..B7c,C0..C4,D,E,F1,F2,F3,F4,F5,F6}_*.js` (B5 = Played Matches, B6 = Rounds, B7a-c = Remaining). Each declares `export const variant = '...'` for lab auto-discovery. F1/F2/F3/F4/F6 use `variant: 'FF'`; **F5 is MF** (read-only CSV Import Preview — `mountMFTable`, `fontClass:'font-small'`, `stickyCols:1`); **A7 is SF** (Players directory — a single combined list, `tableId: 'A7'`, `title: null`, `fontClass: 'font-small'`, `stickyCols: 1`, `showTopN: 50`; lives inside a collapsible `Section` ["Players" h2] with a live-filter search box above the table, not the plain unwrapped SF card — see `MIGRATION-FROM-V1.md` 2026-07-05 row).
 - **MF tables flow with the page** — `MFTable` must NOT pin `thead` (`top:0`) or `tr.avg-row` (`bottom:0`) for D or E (vertical sticky was removed in v1 on 2026-06-30; see the matching row in `MIGRATION-FROM-V1.md`). The `.mf-wrap` wrapper stays a horizontal-only scroll container (`overflow-x:auto; overflow-y:clip`) with no D/E-specific `max-height` / vertical scroll promotion. Sticky cols (`stickyCols:2` D, `stickyCols:1` E) and the scroll-shadow on the sticky col boundary are kept. If a later preset needs a sticky header/footer, expose it as an opt-in arg (`stickyHeader: boolean`) on `mountMFTable` rather than scoping via legacy IDs.
 - Source files are the **canonized** v1 lab files at `table-lab/formats/{base,mf,sf,exp,ff}/*.css` (Path-X canonization landed 2026-06-04; legacy mirrors in `css/components.css` etc. lose by cascade). The `Units policy` doc-block at the top of `base.css` (em for sizing-with-font; px for hairlines/shadows/viewport-caps/breakpoints/JS-fallbacks) ports verbatim into v2 as a non-negotiable foundation rule.
+- **The relative chain must be UNBROKEN, on both axes — extends the Units policy above (added 2026-08-30).** The policy says "use em for padding"; it did not say *whose* em. A descendant that sets its own `font-size` from an **absolute token** restarts the chain, and every `em` beneath it then scales off the wrong root — so a rule can satisfy the Units policy line-by-line and still break the proportion. The chain a table must preserve is:
+
+  ```
+  viewport  →  clamp(…vw…)  →  cell font-size  →  em padding/gap/radius  →  row height
+  ```
+
+  **Rule: inside a table, a descendant's `font-size` is `em` (or unset). Never `var(--fs-*)`.** Absolute `--fs-*` tokens belong at the *root* of a text context (the table's own `font-small` / `font-large` enum, a heading, a card), never partway down it.
+
+  **Both axes.** Horizontal proportion is the visible half and was already covered by the F3 retrospective. Vertical proportion is the half that hides: it surfaces only as row height, which nobody measures. `MFTable`'s parity check (§ below) must therefore assert **row height ÷ cell font-size**, not just font-size — the two tables in the v1 incident had *identical* fonts and *different* row proportions.
+
+  **The v1 incident this comes from (2026-08-29, see `MIGRATION-FROM-V1.md`):** `.league-type-pill` / `.status-pill` were `font-size: var(--fs-085)` while sitting in cells that were `--fs-085` (`font-small`) or `--fs-093` (`font-large`). Measured row height in cell-em: **font-small 2.797, font-large 2.634** — the same format rendering at two proportions.
+
+  ```
+   row height              pill font-size
+  ────────────  =  1.9 · ────────────────  +  0.9
+   cell font                cell font
+  ```
+
+  `1.9` = the pill's `line-height: 1.5` + `2 × 0.2em` padding; `0.9` = the cell's `2 × 0.45em`. Only the middle term varies, and it is `1` **only** when the absolute token happens to equal the cell's own token. That is why `font-small` looked correct through every check: `--fs-085` in an `--fs-085` cell is a coincidence, not a chain. `1em` makes the term `1` by construction and collapses the whole thing to a constant `2.8` for every table at every viewport.
+
+- **Pill sizing is a component contract, not a per-page override.** v2 already splits the concept three ways — `TypePill`, `StatusChip` (both Layer-5 components) and `FilterPill` — which is exactly the distinction v1 had to discover by measurement. Encode it in the components:
+  - `TypePill` + `StatusChip` **inside a table cell** → `font-size: 1em`. The pill *is* the cell; there is no prose to defer to. **These two must always carry the same size** — C1 and F1 show them in adjacent columns of one row, and v1's `components.css` states they are the same size by design.
+  - The same components **inline in running text** (log rows, "?" explanation prose, hero cards, a badge in a heading) → `font-size: 0.72em` with `padding: 0.08em 0.5em`, `line-height: 1.35`. Expose this as a variant/prop on the component, not as a page-level override — v1 accumulated four independent copies of this same 0.72em patch before the base rule was fixed.
+  - `FilterPill` is a **control**, not a label: it is pinned to an absolute token on purpose, because its parent is the page rather than a table and its tap target must not move with a neighbouring font. It borrows the pill's shape and colour, never its sizing chain.
+  - `0.72em` is **wrong for table cells** and was measured as such: a `font-small` cell on a 430px phone is already clamped to 9.83px, and `0.72` of that renders the pill at **7.08px**. A fixed ratio *multiplies* the fluid clamp instead of adding to it.
 - Build `v2/src/tools/tableLab/` with auto-discovery, args form, theme bridge, code snippet, iron rules panel.
 - **MCP verification**: open `/tableLab.html` in v2; for each preset, screenshot the preview at 3 viewports × dark+light themes. Open the same preset in v1 (e.g., open v1 league_table.html for D, league.html for B-series). Pixel diff per cell — allow ≤2% delta for font rendering.
 
@@ -503,7 +528,8 @@ Each phase ends with a commit and an MCP verification checkpoint. If a phase fai
   3. Take screenshot of each.
   4. Measure font-size, font-weight, font-family, color, layout box for 10 representative elements per page using `getComputedStyle()`.
   5. Allowed delta: font-size identical to 0.01px; color identical to RGB integer; font-family identical; box position ≤2px diff.
-  6. Record results in `v2/docs/PARITY-LOG.md`.
+  6. **Proportion check (both axes) — for every table, at every viewport:** assert `rowHeight / cellFontSize` is the SAME constant across all tables of a format, and that each pill/badge/flag inside a cell reports `fontSize === cellFontSize` (or a declared em ratio). Absolute px equality is NOT sufficient: v1's broken and correct tables had identical fonts and differed only in this ratio (2.634 vs 2.797), so a font-size-only parity check passes a broken chain. Do the same for the horizontal axis: `cellPaddingLeft / cellFontSize` must be viewport-invariant.
+  7. Record results in `v2/docs/PARITY-LOG.md`.
 
 ### Phase 7 — typoEditor + designLab (4–5 hours)
 - Build `v2/src/tools/typoEditor/` per the typography spec: 7-size + 4-weight + 4-icon dropdowns; inventory-driven element registry; save-history; publish action; auto-discovery scanner.

@@ -60,12 +60,12 @@ export function prGapExampleHistogramSvg(lang) {
     const xlab = 'PR gap';
 
     const cap = he
-        ? `העמודות האפורות הן כלל משחקי השחקן. התא הירוק <span dir="ltr">[2,&nbsp;3)</span> הוא המשחק שנוצח (הפרש <span dir="ltr">+2.5</span>), והתא האדום <span dir="ltr">[3,&nbsp;4)</span> הוא המשחק שהופסד (הפרש <span dir="ltr">+3.0</span>).`
+        ? `העמודות האפורות הן כלל דו קרבות השחקן. התא הירוק <span dir="ltr">[2,&nbsp;3)</span> הוא הדו קרב שנוצח (הפרש <span dir="ltr">+2.5</span>), והתא האדום <span dir="ltr">[3,&nbsp;4)</span> הוא הדו קרב שהופסד (הפרש <span dir="ltr">+3.0</span>).`
         : `The grey bars are all of the player's matches. The green bin [2,&nbsp;3) holds the won match (gap +2.5) and the red bin [3,&nbsp;4) the lost match (gap +3.0).`;
 
     return `
         <figure class="pm-figure" style="margin:14px 0">
-            <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${he ? 'לאן נכנס כל משחק לדוגמה' : 'where each example match lands'}" xmlns="http://www.w3.org/2000/svg" style="max-width:360px;width:100%;height:auto;color:inherit;direction:ltr">
+            <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${he ? 'לאן נכנס כל דו קרב לדוגמה' : 'where each example match lands'}" xmlns="http://www.w3.org/2000/svg" style="max-width:360px;width:100%;height:auto;color:inherit;direction:ltr">
                 ${zero}
                 ${bars}
                 ${labels}
@@ -122,7 +122,7 @@ export function advantageDistributionExampleHistogramSvg(lang) {
     const xlab = 'advantage (PR points)';
 
     const cap = he
-        ? `זו התפלגות היתרון של כל משחקי הליגה. רוב המסה נמצאת <b>מימין ל-0</b> — כלומר המנצח בדרך כלל שיחק טוב יותר (המועדף ניצח); הזנב השמאלי הדק הוא ההפתעות. שיא הגבעה יושב ימינה מ-0, מה שמאשר שהשחקן הטוב יותר אכן מנצח לרוב.`
+        ? `זו התפלגות היתרון של כל דו קרבות הליגה. רוב המסה נמצאת <b>מימין ל-0</b> — כלומר המנצח בדרך כלל שיחק טוב יותר (המועדף ניצח); הזנב השמאלי הדק הוא ההפתעות. שיא הגבעה יושב ימינה מ-0, מה שמאשר שהשחקן הטוב יותר אכן מנצח לרוב.`
         : `This is the advantage distribution over every match in the league. Most of the mass sits <b>right of 0</b> — the winner usually also played better (the favourite won); the thin left tail is the upsets. The peak sits right of 0, confirming the better player does win most of the time.`;
 
     return `
@@ -189,7 +189,7 @@ export function tableValidationExampleHistogramSvg(lang) {
     const total = posN + negN;
     const winRate = Math.round((posN / total) * 100);
     const cap = he
-        ? `שני התאים המסומנים הם אותו פער בגודל 3, בשני הכיוונים: <b>${posN}</b> משחקים בפער <span dir="ltr">+3</span> (המועדף ניצח) מול <b>${negN}</b> בפער <span dir="ltr">&minus;3</span> (הפתעה). שיעור ניצחון המועדף בפועל = <span dir="ltr">${posN} / ${total} = ${winRate}%</span>, לעומת כ-<span dir="ltr">66%</span> שהטבלה חוזה לפער כזה &mdash; קרוב, כלומר הנתונים תואמים את הטבלה.`
+        ? `שני התאים המסומנים הם אותו פער בגודל 3, בשני הכיוונים: <b>${posN}</b> דו קרבות בפער <span dir="ltr">+3</span> (המועדף ניצח) מול <b>${negN}</b> בפער <span dir="ltr">&minus;3</span> (הפתעה). שיעור ניצחון המועדף בפועל = <span dir="ltr">${posN} / ${total} = ${winRate}%</span>, לעומת כ-<span dir="ltr">66%</span> שהטבלה חוזה לפער כזה &mdash; קרוב, כלומר הנתונים תואמים את הטבלה.`
         : `The two tinted bins are the same 3-point gap in both directions: <b>${posN}</b> matches at <span dir="ltr">+3</span> (favourite won) vs <b>${negN}</b> at <span dir="ltr">&minus;3</span> (an upset). The favourite's real win rate = <span dir="ltr">${posN} / ${total} = ${winRate}%</span>, against the ~<span dir="ltr">66%</span> the table predicts for that gap &mdash; close, so the data matches the table.`;
 
     return `

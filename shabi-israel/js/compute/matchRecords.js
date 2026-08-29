@@ -118,6 +118,8 @@ function playerRowBase(m, league) {
         scoreSelf: m.scoreSelf,
         scoreOpp: m.scoreOpp,
         result: resultFrom(m.scoreSelf, m.scoreOpp, m._draw),
+        prSelf: m.prSelf ?? null,
+        prOpp: m.prOpp ?? null,
         leagueId: league.id,
         leagueTitle: league.title,
         date: m.updatedAt || league.params?.IssueDate || null,

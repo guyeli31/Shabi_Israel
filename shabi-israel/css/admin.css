@@ -2402,11 +2402,15 @@ table.font-large { font-size: var(--fs-093); }
 }
 
 /* ---- League-type pill (mirrors components.css for admin page, which
-   doesn't load components.css) ---- */
+   doesn't load components.css) ----
+   `1em` — tracks the table it sits in; see the long note above .status-pill in
+   components.css. This copy MUST move with that one: F1 shows the type pill and
+   the status pill in adjacent columns, so a change applied to only one file
+   splits that pair on admin.html alone. */
 .league-type-pill {
     display: inline-block;
     padding: 0.2em 0.85em;
-    font-size: var(--fs-085);
+    font-size: 1em;
     font-weight: 600;
     border-radius: var(--radius-full);
     text-transform: uppercase;
@@ -2431,11 +2435,12 @@ table.font-large { font-size: var(--fs-093); }
 }
 
 /* ---- Status pill (mirrors components.css for admin page) ---- */
+/* `1em` — twin of .league-type-pill above; see components.css. */
 .status-pill {
     display: inline-block;
     padding: 0.2em 0.85em;
     border-radius: var(--radius-full);
-    font-size: var(--fs-085);
+    font-size: 1em;
     font-weight: 600;
     line-height: 1.5;
     letter-spacing: 0.02em;

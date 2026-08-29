@@ -31,6 +31,7 @@ import { loadPlayersMetadata } from '../data/store.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { langFlagsHtml, wireLangPopup, wireDynamicLangPopup } from '../utils/popupLang.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
+import { pinStickyCols } from '../utils/stickyCols.js';
 import { startSplash, splashStage, endSplash } from '../utils/splash.js';
 import { renderErrorScreen, explainError, inlineErrorHtml } from '../utils/errorScreen.js';
 import { buildLeagueHeaderData, renderV16Header, formatLastUpdatedDate } from './leagueHeader.js';
@@ -561,27 +562,10 @@ function leagueProgressHtml(params, matchStats) {
 
 // Measures the rendered width of sticky col-1 and writes --col1-w on the wrapper
 // so sticky col-2's left: var(--col1-w) aligns correctly (iron rule 12).
+// The measuring, the loop guard and the observer all live in stickyCols.js.
 function measureScrollWrapStickyCols(wrap) {
     if (!wrap) return;
-    const th1 = wrap.querySelector('thead th:nth-child(1)');
-    if (!th1) return;
-    // Writing the variable changes the wrapper's own layout, which re-fires the
-    // ResizeObserver below, which measures and writes again. It does converge —
-    // the width stops changing — but every lap costs a forced layout, and this
-    // runs once per scrollable table on the page. Remembering the last value
-    // written makes the second lap free and stops the loop dead.
-    let lastW = null;
-    const write = () => {
-        const w = th1.getBoundingClientRect().width;
-        if (w > 0 && w !== lastW) {
-            lastW = w;
-            wrap.style.setProperty('--col1-w', w + 'px');
-        }
-    };
-    write();
-    if (typeof ResizeObserver !== 'undefined') {
-        new ResizeObserver(write).observe(wrap);
-    }
+    pinStickyCols(wrap.querySelector('table'), '--col1-w', { target: wrap });
 }
 
 // ---------- Prizes ----------
@@ -636,10 +620,16 @@ function renderHistorical(ctx) {
             fullLink.href = leagueTableUrl(leagueId);
             fullLink.textContent = 'Open full table ›';
             fullLink.title = 'Open the full league table for the current state';
+            // Distinct analytics target: this navigates to the league TABLE, unlike
+            // a landing league-card (also an <a href ?league=>, which the generic
+            // listener logs as "League link:"). data-track wins over that branch,
+            // so the two reads apart even though both land on the same league.
+            fullLink.dataset.track = `Full table: ${leagueId}`;
         } else {
             fullLink.href = `${leagueTableUrl(leagueId)}&asof=${encodeURIComponent(value)}`;
             fullLink.textContent = 'Open full historical table ›';
             fullLink.title = `Open the full league table as of ${label} (historical version)`;
+            fullLink.dataset.track = `Full table: ${leagueId} (historical)`;
         }
     }
 
@@ -1753,16 +1743,9 @@ function drawMatchTable(host, matches, opts = {}) {
     attachPlayerNameInteractions(host, leagueId);
     const wrap = host.querySelector('.rounds-scroll-wrap');
     if (wrap) {
-        const th1 = wrap.querySelector('thead th:nth-child(1)');
-        const th2 = wrap.querySelector('thead th:nth-child(2)');
-        const measure = () => {
-            const w1 = th1 && th1.getBoundingClientRect().width;
-            const w2 = th2 && th2.getBoundingClientRect().width;
-            if (w1 > 0) wrap.style.setProperty('--col1-w', w1 + 'px');
-            if (w2 > 0) wrap.style.setProperty('--col2-w', w2 + 'px');
-        };
-        measure();
-        if (typeof ResizeObserver !== 'undefined') new ResizeObserver(measure).observe(wrap);
+        // 3 sticky cols (Player A / Player B / …) → 2 measured offsets. Both
+        // player cells carry a flag, so this table is trap 2 in stickyCols.js.
+        pinStickyCols(wrap.querySelector('table'), ['--col1-w', '--col2-w'], { target: wrap });
         attachStickyShadow(wrap);
     }
 }
@@ -2381,8 +2364,8 @@ function buildGaussianExplainerHtml(values) {
         </div>
         <div class="popup-lang-he" data-lang="he">
         <h4>מה בעצם &mu; ו-&sigma; אומרים?</h4>
-        <p><b>&mu; (ממוצע) = <span dir="ltr">${mfix(mean.toFixed(2))}</span></b>: בממוצע, על פני ${games} המשחקים, למנצח היה PR ${meanDirHe} בכ-${abs} נקודות מהמפסיד.</p>
-        <p><b>&sigma; (סטיית תקן) = ${std.toFixed(2)}</b>: בכ-66.7% מ-${games} המשחקים פער ה-PR מצד המנצח היה בין <b><span dir="ltr">${loBand}</span></b> ל-<b><span dir="ltr">${hiBand}</span></b>.</p>
+        <p><b>&mu; (ממוצע) = <span dir="ltr">${mfix(mean.toFixed(2))}</span></b>: בממוצע, על פני ${games} הדו קרבות, למנצח היה PR ${meanDirHe} בכ-${abs} נקודות מהמפסיד.</p>
+        <p><b>&sigma; (סטיית תקן) = ${std.toFixed(2)}</b>: בכ-66.7% מ-${games} הדו קרבות פער ה-PR מצד המנצח היה בין <b><span dir="ltr">${loBand}</span></b> ל-<b><span dir="ltr">${hiBand}</span></b>.</p>
         </div>
     `;
 }
@@ -2523,10 +2506,10 @@ function buildExplanationTableHtml(rows, shift, mlIdx) {
         });
 
         const headers = lang === 'he'
-            ? ['הפרש PR', 'משחקים', 'ניצחונות המועדף', 'הפסדי המועדף', 'Win% של הנתונים', 'Win% של הטבלה', 'שגיאה', 'Likelihood', 'המשמעות']
+            ? ['הפרש PR', 'דו קרבות', 'ניצחונות המועדף', 'הפסדי המועדף', 'Win% של הנתונים', 'Win% של הטבלה', 'שגיאה', 'Likelihood', 'המשמעות']
             : ['PR gap', 'Matches', 'Favourite wins', 'Favourite loses', 'Win% of data', 'Win% of table', 'Error', 'Likelihood', 'What this means'];
         const caption = lang === 'he' ? 'אימות טבלה — פער אחר פער' : 'Table Validation — gap by gap';
-        const note = lang === 'he' ? 'רק משחקים עם קוביית הכפלה (Doubling).' : 'Doubling-cube matches only.';
+        const note = lang === 'he' ? 'רק דו קרבות עם קוביית הכפלה (Doubling).' : 'Doubling-cube matches only.';
 
         return pmTableHtml({
             variant: 'list',
@@ -2555,8 +2538,8 @@ function buildExplanationTableHtml(rows, shift, mlIdx) {
         <div class="popup-lang-he" data-lang="he">
         <h4>אימות טבלה: האם הנתונים תואמים את הטבלה?</h4>
         <p><b>למה זה כאן:</b> ה-<i>PR Win-Probability Table</i> היא טבלה קבועה ומפורסמת שנותנת, לכל פער PR ואורך
-        משחק, את הסיכוי שהמועדף ינצח &mdash; וכל העמוד הזה נשען עליה. אבל האם הטבלה הזו באמת נכונה עבור השחקנים
-        שלנו? הבדיקה הזו מרכזת את כל משחקי ${leagueTypePill('doubling')} ששוחקו אי פעם (באותו אורך משחק) ושואלת, עבור כל פער PR,
+        דו קרב, את הסיכוי שהמועדף ינצח &mdash; וכל העמוד הזה נשען עליה. אבל האם הטבלה הזו באמת נכונה עבור השחקנים
+        שלנו? הבדיקה הזו מרכזת את כל דו קרבות ${leagueTypePill('doubling')} ששוחקו אי פעם (באותו אורך דו קרב) ושואלת, עבור כל פער PR,
         האם המועדף ניצח בתדירות שהטבלה חוזה.</p>
         ${tableValidationExampleHistogramSvg('he')}
         <p>לכל פער PR השוואת שיעור הניצחון האמיתי של המועדף מול הערך שבטבלה נקראת <b>Likelihood</b>, ומשמעותה &mdash;

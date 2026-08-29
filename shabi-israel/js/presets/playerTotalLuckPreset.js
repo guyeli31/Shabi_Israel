@@ -85,7 +85,12 @@ export function buildPlayerTotalLuckPreset({ rows, enrich = {} }) {
         tableId:    'C6',
         data:       rows,
         cols,
-        fontClass:  'font-large',
+        // font-small, not C1's font-large. C6 borrows C1's CELL VOCABULARY, but
+        // the font tier is a separate, deliberate choice: on the Records tab this
+        // sits directly under the four font-small C5 tables and was matched to
+        // them so the tab reads as one set. Nothing derives this — a different
+        // tier here would be equally valid.
+        fontClass:  'font-small',
         stickyCols: 1,
         medalRows:  false,
         showTopN:   null,

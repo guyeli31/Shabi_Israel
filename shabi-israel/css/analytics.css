@@ -333,17 +333,67 @@
    a wrap in the flex head so it never crowds the pills, and the whole line stays
    muted (a path, not a stat) while the arrow takes the accent to read as motion.
    A single-page visit renders one node with no arrow (see sessionRoute). */
+/* NOT flex: the route is one inline blob (📦 + page head + "(league)") built by
+   contextHtml, and the bare "(" / ")" around the entity are text nodes. Under
+   display:flex each became its OWN flex item, so gap:6px pushed the parens off
+   the name — "( August 2026  Doubling )" — and on a narrow card flex-wrap stacked
+   each item on its own line. As normal inline flow the parens hug the entity and
+   the whole thing wraps as text. flex-basis:100% still makes it take its own line
+   inside the flex .analytics-session-head. */
 .analytics-session-route {
     flex-basis: 100%;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px;
     font-size: var(--fs-085);
     color: var(--color-text-muted);
+    line-height: 1.5;
 }
 .analytics-session-route .rt-node { color: var(--color-text); }
 .analytics-session-route .rt-arrow { color: var(--color-accent); font-weight: 600; }
+
+/* ── Stacked click log (Activity / History / each Journeys session trace) ──────
+   Replaces the wide Page|Click table: each block is a PAGE header with its
+   click(s) indented beneath under an ↳ arrow, each carrying its own time. Gives
+   Page and Click a full line instead of two columns fighting for width. */
+/* One uniform size for the whole block — matching the old table.font-small
+   (var(--fs-085)); page and click read at the same weight/size, the way they did
+   as two cells of one row. The indent + ↳ arrow (not bold or a larger font) are
+   what mark the page as the header. */
+.clog { display: flex; flex-direction: column; font-size: var(--fs-085); }
+.clog-empty { min-height: 1.5em; }         /* a click-less session: same box, empty */
+.clog-group {
+    padding: var(--space-sm) var(--space-sm);
+    border-bottom: 1px solid var(--color-border);
+}
+.clog-group:last-child { border-bottom: 0; }
+/* PAGE header line: [session chip] page-name … [device pill]. */
+.clog-page {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-sm);
+}
+.clog-sess { flex: 0 0 auto; }
+.clog-pagename { flex: 1 1 auto; min-width: 0; }   /* takes the row; .ana-page keeps its own nowrap */
+.clog-dev { flex: 0 0 auto; margin-left: auto; font-weight: 400; }
+/* The click(s), indented under the page name. */
+.clog-clicks {
+    margin-top: 4px;
+    padding-left: 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.clog-click {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-sm);
+}
+.clog-arrow { flex: 0 0 auto; color: var(--color-accent); font-weight: 600; }
+.clog-time {
+    flex: 0 0 auto;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.clog-target { min-width: 0; }   /* may wrap now that it owns its own line */
 
 /* ── Session card — a native <details>, so expanding needs no JS ─────────── */
 .analytics-session {

@@ -209,6 +209,14 @@ function contextHtml(page, leagueId, player, tab) {
 function clickTargetHtml(target) {
     if (target.startsWith('Player link: ')) return `Player link: ${playerHtml(target.slice(13))}`;
     if (target.startsWith('League link: ')) return `League link: ${leagueHtml(target.slice(13))}`;
+    // "Open full table" — same rich league cell as a link, with the "(historical)"
+    // suffix (a ?asof= snapshot) kept as plain text after the league.
+    if (target.startsWith('Full table: ')) {
+        const rest = target.slice('Full table: '.length);
+        const hist = rest.endsWith(' (historical)');
+        const id = hist ? rest.slice(0, -' (historical)'.length) : rest;
+        return `Full table: ${leagueHtml(id)}${hist ? ' (historical)' : ''}`;
+    }
     // A pick from the search box — render the chosen entity richly (flag + name +
     // title, or league + type pill), same as the link variants, and keep the
     // "Search:" prefix so it reads as "found via search", not a plain content link.
@@ -706,13 +714,81 @@ function renderLogTable(host, rows, columns, { emptyText = 'No data yet.', sort,
     draw();
 }
 
+/** Stacked click log — the CLICKS logs (Activity, History, and each Journeys
+ *  session trace) render through this instead of the flat Page|Click|… table:
+ *  the Page and Click-target columns were too wide side by side. Each block is a
+ *  PAGE header with its click(s) indented beneath under an ↳ arrow, and every
+ *  click carries its own event time — so each gets a full line instead of
+ *  fighting for width. (The transitions log keeps renderLogTable — it is From→To,
+ *  not Page/Click.)
+ *
+ *  `grouped` (Journeys only) folds CONSECUTIVE events on the same page under one
+ *  header: within one visit a page is revisited across several clicks, so
+ *  repeating it says nothing. Ungrouped (Activity/History) gives every
+ *  cross-visitor event its own header — there, consecutive same-page rows are
+ *  DIFFERENT visitors and must never merge.
+ *
+ *  `withSession`/`withDevice`: the header shows the session chip and/or device
+ *  pill only where they vary (the cross-visitor Activity/History logs), never
+ *  inside a session card whose head already carries both.
+ *
+ *  No column-header sorting (there are no columns): the log is chronological, and
+ *  the section's own search box + time window do the finding. `sort` still sets
+ *  the direction — desc (newest first) for the logs, asc for a session trace. */
+function renderClickLog(host, rows, { grouped = false, withSession = false, withDevice = false, sort, emptyText = 'No data yet.', emptyKeepsTable = false } = {}) {
+    const st = sort || { key: 'date', dir: 'desc' };
+    const sorted = [...rows].sort((a, b) => cmp(a[st.key], b[st.key]) * (st.dir === 'asc' ? 1 : -1));
+
+    if (sorted.length === 0) {
+        // emptyKeepsTable (a click-less session): keep the same stacked container,
+        // just empty — consistent with every other trace, and NOT the bare "No
+        // clicks" sentence the card head's "0 clicks" already states.
+        host.innerHTML = emptyKeepsTable ? '<div class="clog clog-empty"></div>'
+            : `<p class="muted">${escapeHtml(emptyText)}</p>`;
+        return;
+    }
+
+    // Group consecutive same-page events by comparing the identity fields
+    // directly (no delimiter string a value could forge a boundary in).
+    const samePage = (a, b) => a.pageType === b.pageType && a.leagueId === b.leagueId
+        && a.player === b.player && a.tab === b.tab;
+    const groups = [];
+    for (const r of sorted) {
+        const last = groups[groups.length - 1];
+        if (grouped && last && samePage(last.head, r)) last.clicks.push(r);
+        else groups.push({ head: r, clicks: [r] });
+    }
+
+    host.innerHTML = `<div class="clog">${groups.map((g) => {
+        const r = g.head;
+        const sess = withSession ? `<span class="clog-sess">${sessionCell(r)}</span>` : '';
+        const dev = withDevice ? `<span class="clog-dev">${devicePill(r.device)}</span>` : '';
+        const pageHtml = movedMarkHtml(r) + contextHtml(r.pageType, r.leagueId, r.player, r.tab);
+        const clicks = g.clicks.map((c) => `
+            <div class="clog-click">
+                <span class="clog-arrow" aria-hidden="true">↳</span>
+                <span class="clog-time">${escapeHtml(formatEventTime(c.date))}</span>
+                <span class="clog-target">${c.icon ? c.icon + ' ' : ''}${clickTargetHtml(c.target)}</span>
+            </div>`).join('');
+        return `<div class="clog-group">
+            <div class="clog-page">${sess}<span class="clog-pagename">${pageHtml}</span>${dev}</div>
+            <div class="clog-clicks">${clicks}</div>
+        </div>`;
+    }).join('')}</div>`;
+}
+
 /** The shared From/To time window, layered on top of renderLogTable — kept out
  *  of the table renderer itself because the per-session tables don't want one.
  *  Known pre-existing quirk, unchanged here: the datetime-local inputs read the
  *  BROWSER's timezone while the Date column renders Asia/Jerusalem, so filter
  *  boundaries only line up with displayed times for an admin sitting in Israel.
  *  `section` must contain the three selectors passed in. */
-function mountFilteredLog(section, { hostSel, fromSel, toSel, rows, columns, emptyWindowText, search }) {
+function mountFilteredLog(section, { hostSel, fromSel, toSel, rows, columns, emptyWindowText, search, render }) {
+    // How each filtered row set is drawn: the transitions log keeps the table
+    // (renderLogTable + columns); the clicks logs pass `render` to stack Page over
+    // its click(s) instead. Same filtered rows either way, so search/window are
+    // unaffected.
+    const renderRows = render || ((h, r, opts) => renderLogTable(h, r, columns, opts));
     const host = section.querySelector(hostSel);
     const fromInput = section.querySelector(fromSel);
     const toInput = section.querySelector(toSel);
@@ -769,7 +845,7 @@ function mountFilteredLog(section, { hostSel, fromSel, toSel, rows, columns, emp
                 return raw.includes(q) || disp.includes(q);
             })
             : inWindow;
-        renderLogTable(host, shown, columns,
+        renderRows(host, shown,
             { emptyText: q ? 'No clicks match this search.' : emptyWindowText, sort });
     };
 
@@ -908,6 +984,10 @@ const CLICK_TYPE_ICONS = [
     { prefix: 'Compare: change', icon: '👤' },
     { prefix: 'H2H: ', icon: '🆚' }, // player page H2H opponent picker
 
+    // The dashboard's "Open full table" button (dashboardPage.js) — navigates to
+    // the league TABLE, so it gets the table glyph, distinct from a plain league
+    // link (🔗) which from the landing goes to the league DASHBOARD instead.
+    { prefix: 'Full table: ', icon: '📊' },
     { prefix: 'Player link: ', icon: '🔗' },
     { prefix: 'League link: ', icon: '🔗' },
     { prefix: 'Link: ', icon: '🔗' },
@@ -1071,31 +1151,6 @@ function displayTarget(target) {
 const movedMarkHtml = (row) =>
     (row && row.moved_banner) ? '📦 ' : '';
 
-/** The column set for the all-clicks table AND for each session's own trace —
- *  the same array, so "the session view is the clicks table" holds by
- *  construction rather than by agreement.
- *
- *  `withSession` is off inside a session card: the id is constant for every row
- *  there and is already the card's own header chip, so repeating it would cost a
- *  column of width to say nothing. Session ID sits second in the main table so
- *  it reads left-to-right as when → who; sorting on it clusters one visit's rows
- *  together and pools all the external ones. */
-const clickColumns = ({ withSession = false } = {}) => [
-    { key: 'date', label: 'Date', render: (r) => escapeHtml(formatEventTime(r.date)) },
-    ...(withSession ? [{ key: 'session', label: 'Session ID', render: (r) => sessionCell(r) }] : []),
-    // Rich page/entity render (flag + name + title, or league title + type pill);
-    // the plain-text r.page is kept only as the sort key (set on the row).
-    { key: 'page', label: 'Page', render: (r) => movedMarkHtml(r) + contextHtml(r.pageType, r.leagueId, r.player, r.tab) },
-    // Wrap icon+label in a nowrap span so the icon never orphans onto its own
-    // line. A plain &nbsp; is NOT enough here (it was tried and verified to fail):
-    // the icon can be an inline-block SVG glyph (TAB_ICONS, e.g. "Tab: leagues"),
-    // and a no-break space only glues text-to-text — it does not suppress the
-    // break between an ATOMIC INLINE (the SVG) and the text after it. nowrap keeps
-    // the whole cell on one line; long labels ride the .mf-wrap horizontal scroll.
-    { key: 'target', label: 'Click target', render: (r) => `<span class="ana-click-target">${r.icon ? r.icon + ' ' : ''}${clickTargetHtml(r.target)}</span>` },
-    { key: 'device', label: 'Device', render: (r) => escapeHtml(r.device) },
-];
-
 /** Chronological, click-to-sort log of every click/interaction event (Export
  *  Image, Run Simulation with its staged summary, search outcomes, link
  *  clicks). Same shape/behaviour as renderTransitionsLog (device-tinted rows,
@@ -1144,7 +1199,10 @@ function renderClicksLog(section, clicksLog, sessions) {
             region: c.region || '',
             adminUser: sessionAdminUser(c),
         })),
-        columns: clickColumns({ withSession: true }),
+        // Stacked: each cross-visitor event as PAGE (with its session chip + device
+        // pill, since both vary here) over its one click. Not grouped — consecutive
+        // same-page rows are different visitors.
+        render: (h, r, o) => renderClickLog(h, r, { ...o, grouped: false, withSession: true, withDevice: true }),
         // Smart-search the log by click target: browse-all lists every distinct
         // click with its count badge, picking one filters the table to it, and
         // it works on mobile via the shared sheet (mountSearchField). Label +
@@ -1229,10 +1287,12 @@ function renderSessions(section, sessions) {
             // clicks) shows the same table with an empty body (emptyKeepsTable),
             // so it reads like every other session's table — just with no rows.
             const events = timeline.filter((e) => e.event_type === 'click');
-            // Same columns as the all-clicks table, minus Session ID (constant
-            // here); ascending, because a trace is read forwards.
-            renderLogTable(body, events.map((e) => timelineRow(e, s.device_type)),
-                clickColumns(), { sort: { key: 'date', dir: 'asc' }, emptyKeepsTable: true });
+            // Stacked AND grouped by page: within one visit a page is revisited
+            // across several clicks, so the page shows once with its clicks beneath.
+            // No session/device (constant here — the card head already shows both);
+            // ascending, because a trace is read forwards.
+            renderClickLog(body, events.map((e) => timelineRow(e, s.device_type)),
+                { grouped: true, withSession: false, withDevice: false, sort: { key: 'date', dir: 'asc' }, emptyKeepsTable: true });
             // click_count is counted over the WHOLE visit server-side, so if the
             // 500-event timeline cap dropped some clicks, this still flags it.
             if (events.length < s.click_count) {
@@ -1494,8 +1554,8 @@ function renderHistory(panel, data, hideMine, onToggle) {
             icon: clickIcon(c.click_target || ''),
             device: c.device_type || 'unknown',
         })),
-        // No Session ID column: these rows never had one.
-        columns: clickColumns(),
+        // Stacked, no session chip (legacy rows never had one), device pill kept.
+        render: (h, r, o) => renderClickLog(h, r, { ...o, grouped: false, withSession: false, withDevice: true }),
     });
 
     host.querySelectorAll('.app-section').forEach((s) => wireSectionCollapse(s, { defaultOpen: true }));

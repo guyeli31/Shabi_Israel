@@ -49,10 +49,10 @@ export function prProbabilityTableHtml(lang = 'en') {
     const minV = Math.min(...allValues);
     const maxV = Math.max(...allValues);
     const gapLabel = lang === 'he' ? 'הפרש&nbsp;PR' : 'PR&nbsp;gap';
-    const lenLabel = lang === 'he' ? 'אורך המשחק' : 'Match length';
+    const lenLabel = lang === 'he' ? 'אורך הדו קרב' : 'Match length';
     const title = lang === 'he' ? 'טבלת סיכויי הניצחון לפי PR' : 'PR Win-Probability Table';
     const note = lang === 'he'
-        ? 'רק משחקים עם קוביית הכפלה (Doubling).'
+        ? 'רק דו קרבות עם קוביית הכפלה (Doubling).'
         : 'Doubling-cube matches only.';
     return pmTableHtml({
         variant: 'matrix',

@@ -11,6 +11,7 @@
 
 import { loadAllLeagues } from './crossLeague.js';
 import { luckConfidenceStats } from './luckConfidence.js';
+import { buildPlayerFlagIndex } from '../utils/playerFlags.js';
 
 const PR_TYPES = new Set(['doubling', 'ubc']); // league types that have PR
 
@@ -36,11 +37,21 @@ export async function buildAllTimeRankings(leagueType) {
         const isUBC = leagueType === 'ubc';
         const prWeight = (leagueType === 'regular') ? 5 : 7;
 
-        // Merge custom flags from all leagues of this type
+        // Flags for an ALL-TIME table are the context-free question, so each
+        // player gets the flag they LAST played under (utils/playerFlags.js).
+        // Resolved here into a plain name → code map, which `getFlagCode` reads
+        // exactly like the CustomFlags object this used to be, so no call site
+        // downstream changes.
+        //
+        // Two things the old flat merge got wrong: it ran in DisplayOrder with
+        // `Object.assign`, so the OLDEST league won, and it drew only on
+        // `typeLeagues` — a player's flag is theirs, not a property of the
+        // league type whose table you happen to be looking at.
+        const flags = buildPlayerFlagIndex(allLeagues.filter(l => !l.params.Hidden));
         const customFlags = {};
         for (const league of typeLeagues) {
-            if (league.params.CustomFlags) {
-                Object.assign(customFlags, league.params.CustomFlags);
+            for (const name of league.allPlayers) {
+                if (!(name in customFlags)) customFlags[name] = flags.latest(name);
             }
         }
 

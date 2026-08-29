@@ -22,6 +22,7 @@
  */
 
 import { attachStickyShadow } from '../../../js/utils/stickyShadow.js';
+import { pinStickyCols } from '../../../js/utils/stickyCols.js';
 
 /**
  * @param {HTMLElement} mountPoint  Caller-owned container; renderer rebuilds inside.
@@ -76,13 +77,7 @@ export function mountExpTable(mountPoint, args) {
     mountPoint.appendChild(wrap);
 
     requestAnimationFrame(() => {
-        if (stickyCols >= 2) {
-            const th1 = table.querySelector('thead th:nth-child(1)');
-            if (th1) {
-                const w = th1.getBoundingClientRect().width;
-                if (w > 0) table.style.setProperty('--c0-col1-w', `${w}px`);
-            }
-        }
+        if (stickyCols >= 2) pinStickyCols(table, '--c0-col1-w');
         attachStickyShadow(wrap);
         const selfRow = table.querySelector('tr.pg-rank-self');
         if (selfRow) {

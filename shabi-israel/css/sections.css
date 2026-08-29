@@ -77,6 +77,19 @@
 .app-section-h2 a { color: var(--color-accent); text-decoration: none; }
 .app-section-h2 a:hover { text-decoration: underline; }
 
+/* A pill riding INSIDE the heading (Sync ▸ the "Default" plan badge) — sized
+   relative to the heading, like every other pill that sits in running text
+   (.ana-entity, .predictor-info-popup, the league-header cards all use 0.72em).
+   Required since .league-type-pill became `1em` (2026-08-29): without this the
+   badge would inherit the heading's --fs-120 and render at 18px instead of ~13. */
+.app-section-h2 .league-type-pill,
+.app-section-h2 .status-pill {
+    font-size: 0.72em;
+    padding: 0.08em 0.5em;
+    line-height: 1.35;
+    vertical-align: middle;
+}
+
 /* Collapsible heading — chevron tracks aria-expanded (set by wireSectionCollapse). */
 .app-section-h2.is-collapsible {
     cursor: pointer;

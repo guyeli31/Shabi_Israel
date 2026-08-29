@@ -5,6 +5,7 @@
 
 import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches, registerMemoInvalidator } from '../data/store.js';
 import { leagueUrl, playerLeagueUrl, playerUrl, parseLeagueDate, getFlagCode, searchFlagHtml } from '../utils/helpers.js';
+import { buildPlayerFlagIndex } from '../utils/playerFlags.js';
 import { loadPlayersMetadata } from '../data/store.js';
 import { getInitials } from './playerHeader.js';
 import { primeTitleMeta, titleHtmlFor } from '../utils/playerTitleBadge.js';
@@ -148,7 +149,7 @@ export async function initNavBar() {
 
 let playerIndexPromise = null;
 let playerIndex = null; // Map<playerName, [{leagueId, title}]>
-let _playerFlags = {};  // merged CustomFlags across all leagues → search flags
+let _playerFlags = {};  // name → the flag they last played under (search flags)
 
 /**
  * Build and return the cross-league player index (memoized).
@@ -238,14 +239,30 @@ async function buildPlayerIndex() {
         }
     }
 
-    // Merge every league's CustomFlags so the smart search can flag each player.
-    // Cheap — loadAllLeagueParams filters the one already-fetched bundle. Players
-    // with no custom flag fall back to IL via getFlagCode at render time.
+    // Flags for the smart search: each player gets the flag they LAST played
+    // under (utils/playerFlags.js — the context-free question; a search result
+    // names a person, not a match). `leagues` is in DisplayOrder, newest first,
+    // which is the recency the index wants. Cheap — loadAllLeagueParams filters
+    // the one already-fetched bundle.
+    //
+    // This used to be a flat `Object.assign` merge of every league's
+    // CustomFlags, which handed the win to whichever league came LAST in
+    // DisplayOrder — the oldest — so the search showed a player's first flag
+    // and could never let one lapse back to IL.
     try {
         const params = await loadAllLeagueParams(leagues.map(l => l.id));
-        const merged = {};
-        for (const e of params) Object.assign(merged, e.params?.CustomFlags || {});
-        _playerFlags = merged;
+        const byId = new Map(params.map(e => [e.id, e.params]));
+        const flags = buildPlayerFlagIndex(
+            leagues.map(l => ({ id: l.id, params: byId.get(l.id) }))
+        );
+        const resolved = {};
+        for (const [name, entries] of map) {
+            const code = flags.latestAmong(name, entries.map(e => e.leagueId));
+            // A pre-registered player (preview mode) has played nowhere yet, so
+            // there is no league to read — fall back to their registry flag.
+            resolved[name] = code !== 'IL' ? code : (meta[name]?.defaultFlag || 'IL');
+        }
+        _playerFlags = resolved;
     } catch { _playerFlags = {}; }
 
     // Warm the title-badge metadata cache so search results can flag titles
@@ -264,7 +281,7 @@ export function getPlayerLeagues(playerName) {
 }
 
 /**
- * A player's flag code from the merged cross-league CustomFlags (default IL).
+ * The flag a player LAST played under (default IL).
  * Valid once `ensurePlayerIndex()` has resolved (that populates `_playerFlags`).
  * Shared so global player pickers (admin "Add a player") flag names the same
  * way the smart search does.

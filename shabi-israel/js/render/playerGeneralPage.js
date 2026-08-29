@@ -28,7 +28,7 @@ import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
 import { colorForLevel } from '../compute/colorScale.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import {
-    getQueryParam, flagUrl, getFlagCode,
+    getQueryParam, flagUrl,
     formatNumber, leagueUrl, playerUrl, getLeagueYear, leagueTableUrl, thLabel,
     parseLeagueDate
 } from '../utils/helpers.js';
@@ -38,7 +38,7 @@ import {
     collectPlayerWorstLuckAgainst,
     collectPlayerBestOpponentPR
 } from '../compute/matchRecords.js';
-import { drawPlayerBarChart } from './playerBarChart.js';
+import { drawPlayerBarChart, drawPlayerHistogram } from './playerBarChart.js';
 import { drawMultiHistogramRow } from './prCorrelationChart.js';
 import { applyLuckPill } from './luckPill.js';
 import { luckConfidenceFromItems } from '../compute/luckConfidence.js';
@@ -60,15 +60,20 @@ import { buildPlayerAllMatchesPreset } from '../presets/playerAllMatchesPreset.j
 import { buildMatchupPreset } from '../presets/matchupPreset.js';
 import { buildAllOpponentsPreset, aggregateOpponents } from '../presets/allOpponentsPreset.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
+import { pinStickyCols, pinStickyColsAll } from '../utils/stickyCols.js';
 import { mountSearchField, playerIdentityHtml } from '../utils/combobox.js';
 import { createAllTimeLuckSource } from '../utils/playerLuckBadge.js';
 import { scrollToClearingTopbar } from '../utils/scrollOffset.js';
+import { buildPlayerFlagIndex } from '../utils/playerFlags.js';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 
 let _allMeta = {};
-let _mergedCustomFlags = {};
+// Flag resolver — see utils/playerFlags.js. `.latest(name)` for context-free
+// places (header, opponent aggregates, all-time tables, search fields),
+// `.inLeague(name, leagueId)` wherever a row belongs to one league or one match.
+let _flags = buildPlayerFlagIndex([]);
 
 export async function renderPlayerGeneralPage() {
     const container = document.getElementById('content');
@@ -85,9 +90,14 @@ export async function renderPlayerGeneralPage() {
 
     startSplash();
     try {
-        const [perLeague, allMeta] = await Promise.all([
+        // loadAllLeagues() is memoized and is what loadPlayerAcrossLeagues reads
+        // from, so asking for it here costs nothing. It carries EVERY league,
+        // not just this player's — the opponents on this page need their own
+        // recency, which this player's league set cannot supply.
+        const [perLeague, allMeta, allLeagues] = await Promise.all([
             loadPlayerAcrossLeagues(playerName).then(r => { splashStage('matches'); return r; }),
-            loadPlayersMetadata().then(r => { splashStage('players'); return r; })
+            loadPlayersMetadata().then(r => { splashStage('players'); return r; }),
+            loadAllLeagues()
         ]);
         splashStage('ranking');
         const meta = allMeta[playerName] || {};
@@ -95,12 +105,10 @@ export async function renderPlayerGeneralPage() {
         const displayName = displayPlayerName(playerName, meta);
         document.title = `${displayName} — Shabi Israel`;
 
-        // Build merged custom flags from all leagues
-        _mergedCustomFlags = {};
-        for (const e of perLeague) {
-            const cf = e.league.params?.CustomFlags;
-            if (cf) Object.assign(_mergedCustomFlags, cf);
-        }
+        // Flags. loadAllLeagues() is already in DisplayOrder (newest first),
+        // which is exactly the recency the index wants. Hidden leagues are
+        // dropped so this page agrees with everything else the site renders.
+        _flags = buildPlayerFlagIndex(allLeagues.filter(l => !l.params?.Hidden));
 
         // Header (render even with no leagues — inactive player)
         renderHeader(playerName, perLeague, meta);
@@ -229,8 +237,17 @@ function renderHeader(playerName, perLeague, meta = {}) {
         statusDotTitle = `Inactive in ${CURRENT_YEAR}`;
     }
 
-    // ── Flag: running league wins; otherwise latest league the player
-    //    appeared in (by date). Falls back to default for inactive players. ──
+    // ── Flag: the one they LAST played under. This is the page's context-free
+    //    spot, so it asks the shared resolver rather than re-deriving recency
+    //    from the league NAME — a league needn't be named after a month, and
+    //    when it is the name can be wrong. DisplayOrder is the site's own
+    //    recency ordering and covers a running league too, since a running
+    //    league sits at the top of it. ──
+    const flagCode = _flags.latest(playerName);
+
+    // ── Joined: meta override, else earliest league's month + year. This one
+    //    genuinely wants the calendar month to PRINT, not just an ordering,
+    //    so it still parses the league name. ──
     const dated = perLeague
         .map(e => {
             const d = parseLeagueDate(e.league.id);
@@ -238,14 +255,7 @@ function renderHeader(playerName, perLeague, meta = {}) {
         })
         .filter(x => x.year != null && x.monthIndex >= 0)
         .sort((a, b) => (a.year - b.year) || (a.monthIndex - b.monthIndex));
-    const runningEntry = perLeague.find(e => e.league.params?.Running === true);
-    const latestEntry  = dated.length ? dated[dated.length - 1].e : null;
-    const flagSourceEntry = runningEntry || latestEntry;
-    const flagCode = flagSourceEntry
-        ? getFlagCode(playerName, flagSourceEntry.league.params?.CustomFlags)
-        : getFlagCode(playerName, {});
 
-    // ── Joined: meta override, else earliest league's month + year ──
     const joinedFormatted = (meta.joined
         ? (() => {
             const [y, m] = String(meta.joined).split('-').map(x => parseInt(x, 10));
@@ -419,11 +429,7 @@ function applyC0StickyAndScroll(expanded) {
     const table = expanded.querySelector('.pg-rank-table');
     if (!wrap || !table) return;
     requestAnimationFrame(() => {
-        const th1 = table.querySelector('thead th:nth-child(1)');
-        if (th1) {
-            const w1 = th1.getBoundingClientRect().width;
-            if (w1 > 0) table.style.setProperty('--c0-col1-w', w1 + 'px');
-        }
+        pinStickyCols(table, '--c0-col1-w');
         attachStickyShadow(wrap);
         const selfRow = table.querySelector('tr.pg-rank-self');
         if (selfRow) {
@@ -448,7 +454,7 @@ function renderRankTable(rows, playerName, meta) {
             : (meta.metric === 'avgRank' ? r.value.toFixed(1)
               : meta.metric === 'winRate' ? (r.value * 100).toFixed(1) + '%'
               : String(r.value));
-        const flagCode = getFlagCode(r.name, _mergedCustomFlags);
+        const flagCode = _flags.latest(r.name);
         const flagHtml = `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`;
         const nameHtml = playerNameLink(r.name, _allMeta[r.name]);
         html += `<tr class="${isSelf ? 'pg-rank-self' : ''}"><td>${r.rank}</td><td>${flagHtml} ${nameHtml}</td><td>${r.leagues ?? ''}</td><td>${valFmt}</td></tr>`;
@@ -580,6 +586,10 @@ function typeHasPR(type) {
     return getLeagueConfig({ LeagueType: type }).showPR === true;
 }
 
+/** Chart X-axis modes: the match timeline, or the metric's own distribution. */
+const SORT_CHRONO = 'chronological';
+const SORT_VALUE = 'value';
+
 function renderMatchHistory(section, playerName, perLeague) {
     const allRows = flattenAllMatches(perLeague);
     if (allRows.length === 0) {
@@ -600,6 +610,7 @@ function renderMatchHistory(section, playerName, perLeague) {
     section.appendChild(filterHost);
 
     let typeFilter = ALL_TYPES_ID;
+    let sortMode = SORT_CHRONO;
 
     const controls = document.createElement('div');
     controls.className = 'dash-controls';
@@ -631,11 +642,20 @@ function renderMatchHistory(section, playerName, perLeague) {
     metricCtl.appendChild(inlineLbl('Metric:'));
     metricCtl.appendChild(metricSel);
 
+    // Sort: what the X axis means. CHRONOLOGICAL is the timeline (match #);
+    // VALUE re-reads the very same matches as a distribution of the selected
+    // metric — a histogram. It is a view switch, not a filter, so it gets the
+    // pill primitive rather than another select.
+    const sortCtl = document.createElement('span');
+    sortCtl.className = 'pg-sort-ctl';
+    sortCtl.appendChild(inlineLbl('Sort:'));
+
     controls.appendChild(inlineLbl('Year:'));
     controls.appendChild(yearSel);
     controls.appendChild(inlineLbl('Games:'));
     controls.appendChild(countSel);
     controls.appendChild(metricCtl);
+    controls.appendChild(sortCtl);
 
     // What the player last picked for themselves — restored whenever PR becomes
     // available again (see syncMetricControl).
@@ -719,7 +739,13 @@ function renderMatchHistory(section, playerName, perLeague) {
         const metricKey = metricSel.value === 'luck' ? 'luckSelf' : 'prSelf';
         const ratedCount = chartMatches.filter(r => r[metricKey] != null).length;
         if (chartMatches.length > 0 && ratedCount > 0) {
-            drawPlayerBarChart(chartHost, chartMatches, metricSel.value, Math.max(chartMatches.length, 1));
+            if (sortMode === SORT_VALUE) {
+                // The histogram bins by value, so chronological order is
+                // irrelevant to it — the same rows, read a different way.
+                drawPlayerHistogram(chartHost, chartMatches, metricSel.value);
+            } else {
+                drawPlayerBarChart(chartHost, chartMatches, metricSel.value, Math.max(chartMatches.length, 1));
+            }
         } else {
             chartHost.innerHTML = `<div class="pg-note">No ${metricSel.value === 'luck' ? 'Luck' : 'PR'} data for current filters.</div>`;
         }
@@ -730,10 +756,13 @@ function renderMatchHistory(section, playerName, perLeague) {
             rows,
             enrich: {
                 leagueLink: (id, title) => `<a href="${leagueUrl(id)}">${escapeHtml(title)}</a>`,
-                opponentCell: (name) => {
+                // Every row here IS one match in one league, so the opponent
+                // wears the flag they played THAT match under — not whatever
+                // they fly today. A flag change must not rewrite history.
+                opponentCell: (name, leagueId) => {
                     const flagHtml = _allMeta[name]?.hidden
                         ? ''
-                        : `<img class="flag" src="${flagUrl(getFlagCode(name, _mergedCustomFlags))}" alt="flag">`;
+                        : `<img class="flag" src="${flagUrl(_flags.inLeague(name, leagueId))}" alt="flag">`;
                     return `${flagHtml} ${playerNameLink(name, _allMeta[name])}`;
                 },
             },
@@ -749,9 +778,27 @@ function renderMatchHistory(section, playerName, perLeague) {
         renderAll();
     });
 
+    // Both pill bars fire onSelect once on mount. The type filter's mount is the
+    // one that performs the FIRST render (it is last), so the sort toggle's own
+    // mount call must not draw a chart into a section nobody has filtered yet.
+    let mounted = false;
+    mountPillTabs(sortCtl, {
+        tabs: [
+            { id: SORT_CHRONO, label: 'Chronological' },
+            { id: SORT_VALUE, label: 'Value' },
+        ],
+        defaultId: SORT_CHRONO,
+        pillClassFor: () => 'pill-neutral',
+        onSelect: (id) => {
+            sortMode = id;
+            if (mounted) renderAll();
+        },
+    });
+
     // ALL is leftmost and the default; only the types the player actually played
     // get a pill. Selecting fires onSelect once on mount, which does the first
     // render — hence no separate renderAll() call here.
+    mounted = true;
     mountPillTabs(filterHost, {
         tabs: [ALL_TYPES_TAB, ...presentTypes.map(t => ({ id: t, label: LEAGUE_TYPE_LABELS[t] || t.toUpperCase() }))],
         defaultId: ALL_TYPES_ID,
@@ -833,9 +880,12 @@ function renderMatchup(panel, playerName, allRows) {
     body.appendChild(resultsArea);
 
     // Mount C4 immediately — it's built synchronously from allRows.
+    // A C4 row is one OPPONENT summed over every league they were met in, not
+    // one match, so there is no league to bind the flag to: this is the
+    // context-free question, and the answer is the flag they last played under.
     const flagFor = (name) => _allMeta[name]?.hidden
         ? ''
-        : `<img class="flag" src="${flagUrl(getFlagCode(name, _mergedCustomFlags))}" alt="flag">`;
+        : `<img class="flag" src="${flagUrl(_flags.latest(name))}" alt="flag">`;
     const opponentSuffix = (name) => _allMeta[name]?.hidden
         ? ''
         : getTitleAbbreviationsHtml(_allMeta[name]);
@@ -908,7 +958,7 @@ function renderMatchup(panel, playerName, allRows) {
         decorate: (p) => (_allMeta[p]?.hidden
             ? {}
             : {
-                flagCode: getFlagCode(p, _mergedCustomFlags),
+                flagCode: _flags.latest(p),
                 titleHtml: getTitleAbbreviationsHtml(_allMeta[p]),
             }),
         // The chosen opponent stays in the field while their results render
@@ -975,19 +1025,25 @@ function renderMatchup(panel, playerName, allRows) {
                 // Winner cell identity — the canonical chip, so the name in the
                 // table reads like the row you picked it from. Hidden players
                 // carry neither flag nor title here either (same rule as the
-                // picker and the C4 opponents table above).
-                playerIdentity: (name) => {
+                // picker and the C4 opponents table above), and no link: a
+                // hidden player has no card to open.
+                // The row is one match in one league, so the winner wears that
+                // league's flag — same rule as the C2 match history above.
+                playerIdentity: (name, leagueId) => {
                     const meta = _allMeta[name];
                     const hidden = !!meta?.hidden;
                     return playerIdentityHtml({
                         name: displayPlayerName(name, meta),
-                        flagCode: hidden ? '' : getFlagCode(name, _mergedCustomFlags),
+                        flagCode: hidden ? '' : _flags.inLeague(name, leagueId),
                         titleHtml: hidden ? '' : getTitleAbbreviationsHtml(meta),
+                        link: hidden ? null : { href: playerUrl(name), player: name },
                     });
                 },
             },
         });
         mountMFTable(mountPoint, preset);
+        // No leagueId in scope on this page — the winner name opens the general card.
+        attachPlayerNameInteractions(mountPoint, null);
     }
 }
 
@@ -1031,12 +1087,9 @@ function renderPlayerMatchRecords(container, perLeague) {
         onSelect: (t) => showMatchRecordsType(body, perLeague, t),
     });
     section.insertBefore(bar, body);
-
-    let _pgMrRafId;
-    window.addEventListener('resize', () => {
-        cancelAnimationFrame(_pgMrRafId);
-        _pgMrRafId = requestAnimationFrame(() => applyPgMrTableStickyOffsets(body));
-    });
+    // No `resize` listener here: pinStickyCol1's ResizeObserver already covers
+    // viewport changes, and re-running the setup per resize would stack a fresh
+    // observer on every event.
 }
 
 function showMatchRecordsType(body, perLeague, type) {
@@ -1048,8 +1101,8 @@ function showMatchRecordsType(body, perLeague, type) {
     body.innerHTML = `
         <div class="match-records-stack">
             ${renderPlayerRecordTable('Best PR', 'PR', bestPR)}
-            ${renderPlayerRecordTable('Best Luck For', 'Luck Gap', bestLuck)}
-            ${renderPlayerRecordTable('Worst Luck Against', 'Luck Gap', worstLuck)}
+            ${renderPlayerRecordTable('Best Luck For', 'Luck Gap', bestLuck, { prCols: true })}
+            ${renderPlayerRecordTable('Worst Luck Against', 'Luck Gap', worstLuck, { prCols: true })}
             ${renderPlayerRecordTable('Best Opponent PR', 'Opp PR', bestOppPR)}
         </div>`;
 
@@ -1058,16 +1111,9 @@ function showMatchRecordsType(body, perLeague, type) {
         const wrap = tbl.closest('.achv-table-wrapper');
         if (wrap) attachStickyShadow(wrap);
     });
-    requestAnimationFrame(() => applyPgMrTableStickyOffsets(body));
-}
-
-function applyPgMrTableStickyOffsets(root) {
-    root.querySelectorAll('.pg-mr-table').forEach(table => {
-        const th1 = table.querySelector('thead th:nth-child(1)');
-        if (!th1) return;
-        const w1 = th1.getBoundingClientRect().width;
-        if (w1 > 0) table.style.setProperty('--pg-col1-w', w1 + 'px');
-    });
+    // C5 is built while the Records tab is still hidden — see stickyCols.js
+    // trap 1 for why measuring here (or in a rAF) is not enough on its own.
+    pinStickyColsAll(body, '.pg-mr-table', '--pg-col1-w');
 }
 
 /* Show-top-N: hide rows beyond N and add a Show all / Show top N toggle.
@@ -1111,8 +1157,15 @@ function applyShowTopN(tableEl, defaultN = 5) {
     if (insertParent) insertParent.insertBefore(btn, insertBefore);
 }
 
-function renderPlayerRecordTable(title, metricLabel, rows) {
-    const bodyHtml = rows.map((r, i) => playerMatchRecordRow(i + 1, r)).join('');
+/* `prCols`: adds Player PR / Opp PR right after Result — the two luck tables
+   carry them, mirroring the landing page's "Luckiest Matches" (A5), so a luck
+   gap can be read against the PRs that produced it. */
+function renderPlayerRecordTable(title, metricLabel, rows, { prCols = false } = {}) {
+    const bodyHtml = rows.map((r, i) => playerMatchRecordRow(i + 1, r, prCols)).join('');
+    const prHead = prCols
+        ? '<th scope="col">Player PR</th><th scope="col">Opp PR</th>'
+        : '';
+    const cols = prCols ? 9 : 7;
     return `
         <div class="achv-table-card">
             <h3>${title}</h3>
@@ -1120,19 +1173,25 @@ function renderPlayerRecordTable(title, metricLabel, rows) {
                 <table class="achv-table pg-mr-table" data-mf-table-id="C5">
                     <thead><tr>
                         <th scope="col">#</th><th scope="col">${metricLabel}</th><th scope="col">Opponent</th>
-                        <th scope="col">Score</th><th scope="col">Result</th><th scope="col">League</th><th scope="col">Date</th>
+                        <th scope="col">Score</th><th scope="col">Result</th>${prHead}<th scope="col">League</th><th scope="col">Date</th>
                     </tr></thead>
-                    <tbody>${bodyHtml || '<tr><td colspan="7" class="na">No data</td></tr>'}</tbody>
+                    <tbody>${bodyHtml || `<tr><td colspan="${cols}" class="na">No data</td></tr>`}</tbody>
                 </table>
             </div>
         </div>`;
 }
 
-function playerMatchRecordRow(rank, r) {
-    const opponentFlag = _allMeta[r.opponent]?.hidden ? null : flagUrl(getFlagCode(r.opponent, r.customFlags));
+function playerMatchRecordRow(rank, r, prCols = false) {
+    // One record = one match in one league → that league's flag, same rule as
+    // C2 and C3. (matchRecords.js also ships r.customFlags for the landing
+    // page, which has no flag index of its own; here the resolver is on hand.)
+    const opponentFlag = _allMeta[r.opponent]?.hidden ? null : flagUrl(_flags.inLeague(r.opponent, r.leagueId));
     const resultClass = r.result === 'W' ? 'result-win'
                       : r.result === 'L' ? 'result-loss'
                       : 'result-draw';
+    const prCells = prCols
+        ? `<td>${r.prSelf == null ? '—' : formatNumber(r.prSelf)}</td><td>${r.prOpp == null ? '—' : formatNumber(r.prOpp)}</td>`
+        : '';
     return `
         <tr>
             <td>${rank}</td>
@@ -1140,6 +1199,7 @@ function playerMatchRecordRow(rank, r) {
             <td>${opponentFlag ? `<img class="flag" src="${opponentFlag}" alt="flag">` : ''} ${playerNameLink(r.opponent, _allMeta[r.opponent])}</td>
             <td>${r.scoreSelf}-${r.scoreOpp}</td>
             <td><span class="${resultClass}">${r.result}</span></td>
+            ${prCells}
             <td><a class="league-link" href="${leagueUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
             <td>${formatShortDate(r.date)}</td>
         </tr>`;
@@ -1435,7 +1495,7 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
         if (!entry.flagEl) return;
         const meta = _allMeta[entry.name];
         const hidden = !!meta?.hidden;
-        const code = getFlagCode(entry.name, _mergedCustomFlags);
+        const code = _flags.latest(entry.name);
         entry.flagEl.innerHTML = hidden
             ? ''
             : `<img class="flag" src="${flagUrl(code)}" alt="${escapeHtml(code)}">`;
@@ -1491,7 +1551,7 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
                 decorate: (p) => (_allMeta[p]?.hidden
                     ? {}
                     : {
-                        flagCode: getFlagCode(p, _mergedCustomFlags),
+                        flagCode: _flags.latest(p),
                         titleHtml: getTitleAbbreviationsHtml(_allMeta[p]),
                         luckHtml: prresLuck.htmlFor(p),
                     }),
