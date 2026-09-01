@@ -205,7 +205,11 @@
    tab bar, where it lives inside an inline-flex `.app-tab-icon` wrapper. In the
    click-log cell it's dropped straight next to the target text with no wrapper,
    so `display:block` pushed the text onto its own line. Inline it here. */
-.log-table .app-tab-glyph { display: inline-block; vertical-align: -0.15em; }
+.log-table .app-tab-glyph,
+/* Same fix for the stacked click log (.clog): the leagues SVG appears both as a
+   click ICON (Tab: Leagues, Menu: Table/Leagues) and inside page names, and
+   without this the block glyph broke onto its own line before the label. */
+.clog .app-tab-glyph { display: inline-block; vertical-align: -0.15em; }
 
 /* A page name shown with its leading icon (pageLabelHtml / the player_league
    branch of contextHtml): Home 🏠, League Dashboard = the Leagues SVG, League

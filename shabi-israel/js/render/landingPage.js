@@ -782,6 +782,15 @@ function onCardDragEnd() {
 /**
  * Read the current DOM order of league cards + table rows and rebuild _editState.displayOrder.
  * Titles in DisplayOrder use " - " (dash), folder IDs use " " (space).
+ *
+ * DisplayOrder is not merely an order — it is the landing page's league-DISCOVERY
+ * list (loadLeagueOrder() → loadAllLeagueParams(ids)), so an entry dropped here
+ * stops being fetched at all and the league disappears from the site while its
+ * rows sit untouched in the database. A reorder is a permutation by definition:
+ * it must never shorten the list. Anything the DOM sweep failed to identify is
+ * therefore appended back in its original relative position rather than lost —
+ * a rail against exactly the class of bug that a row losing its data-league-id
+ * (the mountMFTable migration) already caused once.
  */
 function syncDisplayOrderFromDOM() {
     if (!_editState) return;
@@ -804,6 +813,17 @@ function syncDisplayOrderFromDOM() {
     document.querySelectorAll('.completed-leagues-table tbody tr').forEach(row => {
         const id = row.dataset.leagueId;
         if (id) order.push(idToTitle.get(id) || id);
+    });
+
+    // Re-admit every entry the sweep did not account for, each at the index it
+    // held before, so an unrendered/unidentified league keeps its place instead
+    // of being deleted from the site.
+    const seen = new Set(order);
+    const previous = _editState.displayOrder || _landingSettings.displayOrder || [];
+    previous.forEach((entry, i) => {
+        if (seen.has(entry)) return;
+        order.splice(Math.min(i, order.length), 0, entry);
+        seen.add(entry);
     });
 
     _editState.displayOrder = order;
@@ -1077,10 +1097,18 @@ function renderCompletedLeagues(container, completed) {
         table.classList.add('completed-leagues-table');
 
         // Wire context menu on each winner link, mapping row index → leagueId.
+        // The same loop re-stamps data-league-id on the <tr>: mountMFTable emits
+        // bare rows, and edit mode's syncDisplayOrderFromDOM() identifies a row
+        // ONLY by that attribute — without it every completed league was dropped
+        // from DisplayOrder on the first drag, which is the page's league-
+        // discovery list, so the whole section vanished from the landing page.
         const dataRows = mountPoint.querySelectorAll('tbody tr:not(.avg-row)');
         dataRows.forEach((tr, i) => {
             const leagueId = shown[i]?.leagueId;
-            if (leagueId) attachPlayerNameInteractions(tr, leagueId);
+            if (leagueId) {
+                tr.dataset.leagueId = leagueId;
+                attachPlayerNameInteractions(tr, leagueId);
+            }
         });
     }
 
@@ -1262,7 +1290,9 @@ function renderLeaderboards(container, leaderboards) {
         // year heading), then the leaderboard table.
         const panelsHtml = yearLbs.map((lb, i) => {
             const defaultRows = Math.min(10, lb.rows.length);
-            const maxAllowed = Math.min(25, lb.rows.length);
+            // The ceiling is the table itself — there is no flat cap on top of
+            // it, so "Top N" can always reach the last player in the leaderboard.
+            const maxAllowed = lb.rows.length;
             return `
                 <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${lb.leagueType}">
                     <div class="leaderboard-header-row">
@@ -1301,7 +1331,9 @@ function renderLeaderboards(container, leaderboards) {
         for (const lb of yearLbs) {
             const panel = section.querySelector(`.achv-panel[data-type="${lb.leagueType}"]`);
             const mountPoint = panel.querySelector('.leaderboard-mount');
-            const title = `${lb.year} ${lb.typeName} Leaderboard`;
+            // The league type is a pill in the exported header, not words in
+            // the title — so the title itself carries only year + "Leaderboard".
+            const title = `${lb.year} Leaderboard`;
 
             // Filter out hidden players up-front (live behaviour: skip entirely)
             const visibleRows = lb.rows
@@ -1320,16 +1352,25 @@ function renderLeaderboards(container, leaderboards) {
             table.classList.add('leaderboard-table');
 
             // Image export — scoped to this panel's input + table.
+            // `max` on a number input only blocks the spinner, not typing, so
+            // clamp the typed value back to the row count as it is entered.
+            const rowsInput = panel.querySelector('.img-export-rows');
+            rowsInput.addEventListener('input', () => {
+                const typed = parseInt(rowsInput.value, 10);
+                if (Number.isFinite(typed) && typed > lb.rows.length) {
+                    rowsInput.value = String(lb.rows.length);
+                }
+            });
             const exportBtn = panel.querySelector('.img-export-btn');
             exportBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const currentInput = panel.querySelector('.img-export-rows');
                 let maxRows = parseInt(currentInput.value, 10);
                 if (!Number.isFinite(maxRows) || maxRows < 1) maxRows = 1;
-                const cap = Math.min(25, lb.rows.length);
+                const cap = lb.rows.length;
                 if (maxRows > cap) maxRows = cap;
                 const sourceTable = mountPoint.querySelector('table');
-                exportLeaderboardImage(sourceTable, title, maxRows);
+                exportLeaderboardImage(sourceTable, title, maxRows, lb.leagueType, lb.typeName);
             });
             // Don't toggle collapsible when interacting with the export controls.
             panel.querySelector('.img-export-group').addEventListener('click', e => e.stopPropagation());
@@ -1355,11 +1396,14 @@ function measureLeaderboardStickyCols(wrapper) {
 
 // Thin wrapper around the shared exportTableImage() helper. A2 is the
 // only caller that uses the maxRows option (the "Top N" numeric input).
-function exportLeaderboardImage(sourceTable, title, maxRows) {
+function exportLeaderboardImage(sourceTable, title, maxRows, leagueType, typeName) {
     return exportTableImage({
         sourceTable,
-        filename: `${title}_Top${maxRows}`,
+        // The type left the title but must stay in the filename — two panels of
+        // the same year would otherwise download over each other.
+        filename: `${title}_${typeName}_Top${maxRows}`,
         title,
+        leagueType,
         maxRows,
     });
 }

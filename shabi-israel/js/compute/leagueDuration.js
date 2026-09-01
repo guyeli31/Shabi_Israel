@@ -95,6 +95,64 @@ export function leagueDateWindow(params) {
     return { start, end };
 }
 
+/**
+ * The league's own time zone. A league day starts and ends in Israel, for every
+ * viewer, wherever they are: without this the SAME instant on a one-day league
+ * read 10.49% in Los Angeles, 52.15% in Israel and 89.65% in Auckland, because
+ * each browser measured the day against its own midnight. Same convention the
+ * analytics dashboard already uses for its day and month boundaries.
+ */
+export const LEAGUE_TIME_ZONE = 'Asia/Jerusalem';
+
+const _israelClock = new Intl.DateTimeFormat('en-GB', {
+    timeZone: LEAGUE_TIME_ZONE,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hourCycle: 'h23',   // not hour12:false — that can render midnight as "24"
+});
+
+/** An instant as Israel wall-clock numbers: { year, month, day, hour, … }. */
+function israelWallClock(now) {
+    const parts = {};
+    for (const p of _israelClock.formatToParts(now)) {
+        if (p.type !== 'literal') parts[p.type] = Number(p.value);
+    }
+    return parts;
+}
+
+/**
+ * How far into its window a league is RIGHT NOW, as { elapsed, total } in days
+ * — or null when there is no window (see leagueDateWindow).
+ *
+ * `elapsed` is fractional, because the time of day is part of the answer: a
+ * one-day league is 0.07% through at 00:01 and 99.93% through at 23:59, and
+ * reporting both as "day 1 of 1 — 100%" would make its only bar useless. The
+ * count is measured against the END of the last day (the midnight that closes
+ * it), which is what makes the last day read as 100% only once it is over.
+ *
+ * Both halves are read off the ISRAEL clock — which calendar day it is there,
+ * and how far through that day it is there — so the figure is a property of the
+ * league, not of who happens to be looking. Whole days are counted as days and
+ * only the current one is a fraction, so a clock change inside the window
+ * shifts nothing.
+ */
+export function elapsedInWindow(params, now = new Date()) {
+    const w = leagueDateWindow(params);
+    if (!w) return null;
+    const total = daysBetween(w.start, w.end) + 1;
+
+    const il = israelWallClock(now);
+    // Israel's calendar date, built as a local midnight so it can be differenced
+    // against the window's own local-midnight dates — both sides are then plain
+    // calendar days and the viewer's offset cancels out.
+    const todayInIsrael = new Date(il.year, il.month - 1, il.day);
+    todayInIsrael.setHours(0, 0, 0, 0);
+    const fractionOfToday = (il.hour * 3600 + il.minute * 60 + il.second) / 86400;
+
+    const raw = daysBetween(w.start, todayInIsrael) + fractionOfToday;
+    return { elapsed: Math.min(Math.max(raw, 0), total), total };
+}
+
 /** Total days in the window, inclusive, or null when there is no window. */
 export function durationTotalDays(params) {
     const w = leagueDateWindow(params);

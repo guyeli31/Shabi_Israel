@@ -22,11 +22,14 @@
 
 /**
  * ALL — the type-agnostic pill token. Not a league type: filter bars use it for
- * the "no filter" tab, so it lives here next to the real types rather than being
- * re-invented as a magic 'all' string at each call site. Styling comes from
+ * the "no filter" tab. It is DEFINED in compute/leagueTypes.js — the compute
+ * functions behind these pills have to recognise the same token, and they must
+ * not import the render layer — and re-exported here so pill call sites keep
+ * importing it from the primitive they already use. Styling comes from
  * `.league-type-pill.type-all` (components.css → --lt-all-* tokens).
  */
-export const ALL_TYPES_ID = 'all';
+import { ALL_TYPES_ID } from '../compute/leagueTypes.js';
+export { ALL_TYPES_ID };
 export const ALL_TYPES_LABEL = 'All';
 export const ALL_TYPES_TAB = { id: ALL_TYPES_ID, label: ALL_TYPES_LABEL };
 

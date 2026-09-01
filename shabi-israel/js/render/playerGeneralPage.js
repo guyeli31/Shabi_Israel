@@ -69,6 +69,36 @@ import { buildPlayerFlagIndex } from '../utils/playerFlags.js';
 const CURRENT_YEAR = new Date().getFullYear();
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 
+/**
+ * The league-type pill bar for a section, built to ONE rule for the whole card:
+ *
+ *   more than one type with data → ALL leftmost, and it is the default
+ *   exactly one type            → no ALL; that type is the default and the
+ *                                 only choice
+ *
+ * ALL beside a single type is a pill that renders the identical view, so it
+ * reads as a filter that does nothing. Every section used to decide this for
+ * itself and they disagreed — three bars had no ALL at any count, four had one
+ * even when the player had played a single type.
+ *
+ * Callers must pass `types` (the ordered list of types that actually have data)
+ * to their onSelect handler as the ALL expansion — see `resolveTypeFilter`.
+ * Left-to-right ordering is mountPillTabs' job, not the caller's.
+ */
+function typeFilterTabs(types) {
+    const tabs = types.map(t => ({ id: t, label: LEAGUE_TYPE_LABELS[t] || t.toUpperCase() }));
+    return types.length > 1 ? [ALL_TYPES_TAB, ...tabs] : tabs;
+}
+
+/**
+ * Turn a pill id into the filter the compute layer should receive. ALL becomes
+ * the section's OWN type list rather than the bare token: a section that offers
+ * only PR-tracking types must pool only those, never every league in the app.
+ */
+function resolveTypeFilter(id, types) {
+    return id === ALL_TYPES_ID ? types : id;
+}
+
 let _allMeta = {};
 // Flag resolver — see utils/playerFlags.js. `.latest(name)` for context-free
 // places (header, opponent aggregates, all-time tables, search fields),
@@ -303,9 +333,10 @@ async function renderPRStats(section, playerName, perLeague) {
     body.className = 'pg-tabs-body';
     section.appendChild(body);
     const { bar } = mountPillTabs(section, {
-        tabs: typesWithPR.map(t => ({ id: t, label: t.toUpperCase() })),
+        tabs: typeFilterTabs(typesWithPR),
+        defaultId: typesWithPR.length > 1 ? ALL_TYPES_ID : typesWithPR[0],
         pillClassFor: (t) => 'league-type-pill type-' + t,
-        onSelect: (t) => showPRType(body, playerName, perLeague, t),
+        onSelect: (t) => showPRType(body, playerName, perLeague, resolveTypeFilter(t, typesWithPR)),
     });
     section.insertBefore(bar, body);   // bar above body; body already in DOM for the initial render
     wireRankToggles(body, playerName);
@@ -482,12 +513,9 @@ function ordinal(n) {
 // ---- G6: Achievements ----
 
 async function renderAchievements(section, playerName, perLeague) {
-    // League types the player has actually participated in, ordered by participation count
-    const typeCounts = {};
-    for (const e of perLeague) {
-        typeCounts[e.league.leagueType] = (typeCounts[e.league.leagueType] || 0) + 1;
-    }
-    const types = Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a]);
+    // League types the player has actually participated in. Not sorted here —
+    // mountPillTabs imposes the app-wide left-to-right pill order.
+    const types = [...new Set(perLeague.map(e => e.league.leagueType))];
 
     if (types.length === 0) {
         section.innerHTML += '<div class="pg-note">No league participation.</div>';
@@ -498,9 +526,10 @@ async function renderAchievements(section, playerName, perLeague) {
     body.className = 'pg-tabs-body';
     section.appendChild(body);
     const { bar } = mountPillTabs(section, {
-        tabs: types.map(t => ({ id: t, label: t.toUpperCase() })),
+        tabs: typeFilterTabs(types),
+        defaultId: types.length > 1 ? ALL_TYPES_ID : types[0],
         pillClassFor: (t) => 'league-type-pill type-' + t,
-        onSelect: (t) => showAchievementType(body, playerName, t),
+        onSelect: (t) => showAchievementType(body, playerName, resolveTypeFilter(t, types)),
     });
     section.insertBefore(bar, body);
 }
@@ -557,8 +586,8 @@ function renderLeaguesTable(section, perLeague) {
         }));
     }
 
-    // League-type filter (shared pill sub-tabs) — ALL is leftmost and the
-    // default; only the types the player actually played get a pill. Under ALL
+    // League-type filter (shared pill sub-tabs) — see typeFilterTabs for the
+    // ALL rule. Only the types the player actually played get a pill. Under ALL
     // the PR column shows "—" for REGULAR rows, which record no PR at all.
     const presentTypes = [...new Set(perLeague.map(e => e.league.leagueType))];
     const filterHost = document.createElement('div');
@@ -567,8 +596,8 @@ function renderLeaguesTable(section, perLeague) {
     section.appendChild(mountPoint);
 
     mountPillTabs(filterHost, {
-        tabs: [ALL_TYPES_TAB, ...presentTypes.map(t => ({ id: t, label: LEAGUE_TYPE_LABELS[t] || t.toUpperCase() }))],
-        defaultId: ALL_TYPES_ID,
+        tabs: typeFilterTabs(presentTypes),
+        defaultId: presentTypes.length > 1 ? ALL_TYPES_ID : presentTypes[0],
         pillClassFor: (t) => 'league-type-pill type-' + t,
         onSelect: renderTable,
     });
@@ -800,8 +829,8 @@ function renderMatchHistory(section, playerName, perLeague) {
     // render — hence no separate renderAll() call here.
     mounted = true;
     mountPillTabs(filterHost, {
-        tabs: [ALL_TYPES_TAB, ...presentTypes.map(t => ({ id: t, label: LEAGUE_TYPE_LABELS[t] || t.toUpperCase() }))],
-        defaultId: ALL_TYPES_ID,
+        tabs: typeFilterTabs(presentTypes),
+        defaultId: presentTypes.length > 1 ? ALL_TYPES_ID : presentTypes[0],
         pillClassFor: (t) => 'league-type-pill type-' + t,
         onSelect: (id) => {
             typeFilter = id;
@@ -1057,22 +1086,18 @@ function escapeHtml(s) {
 
 // ---- Match Records (per-player best PR + luck highlights) ----
 
-const MR_TYPE_LABELS = { doubling: 'Doubling', ubc: 'UBC' };
 const MR_MONTH_SHORT = [
     'Jan','Feb','Mar','Apr','May','Jun',
     'Jul','Aug','Sep','Oct','Nov','Dec'
 ];
 
 function renderPlayerMatchRecords(container, perLeague) {
-    // Only league types with PR/Luck: doubling, ubc.
-    const typeCounts = {};
-    for (const e of perLeague) {
-        const t = e.league.leagueType;
-        if (t === 'doubling' || t === 'ubc') {
-            typeCounts[t] = (typeCounts[t] || 0) + 1;
-        }
-    }
-    const types = Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a]);
+    // Only PR-tracking league types — every record here is a PR or a luck gap.
+    // Read off config.showPR (leagueTypes.js), not a hardcoded doubling/ubc
+    // pair, so a future PR-tracking type appears here without a second edit.
+    const types = [...new Set(
+        perLeague.filter(e => e.league.config?.showPR).map(e => e.league.leagueType)
+    )];
     if (types.length === 0) return;
 
     const section = makePgSection('pg-match-records', 'Match Records', { collapsible: true });
@@ -1082,9 +1107,10 @@ function renderPlayerMatchRecords(container, perLeague) {
     body.className = 'pg-tabs-body';
     section.appendChild(body);
     const { bar } = mountPillTabs(section, {
-        tabs: types.map(t => ({ id: t, label: MR_TYPE_LABELS[t] || t.toUpperCase() })),
+        tabs: typeFilterTabs(types),
+        defaultId: types.length > 1 ? ALL_TYPES_ID : types[0],
         pillClassFor: (t) => 'league-type-pill type-' + t,
-        onSelect: (t) => showMatchRecordsType(body, perLeague, t),
+        onSelect: (t) => showMatchRecordsType(body, perLeague, resolveTypeFilter(t, types)),
     });
     section.insertBefore(bar, body);
     // No `resize` listener here: pinStickyCol1's ResizeObserver already covers
@@ -1265,8 +1291,8 @@ function renderTotalLuckSection(container, playerName, perLeague) {
 
     const presentTypes = [...new Set(rows.map(r => r._type))];
     const { bar } = mountPillTabs(section, {
-        tabs: [ALL_TYPES_TAB, ...presentTypes.map(t => ({ id: t, label: LEAGUE_TYPE_LABELS[t] || t.toUpperCase() }))],
-        defaultId: ALL_TYPES_ID,
+        tabs: typeFilterTabs(presentTypes),
+        defaultId: presentTypes.length > 1 ? ALL_TYPES_ID : presentTypes[0],
         pillClassFor: (t) => 'league-type-pill type-' + t,
         onSelect: showType,
     });
@@ -1798,8 +1824,8 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
     buildEntryEl(entries[0], 0);
 
     const { bar } = mountPillTabs(section, {
-        tabs: [ALL_TYPES_TAB, ...presentTypes.map(t => ({ id: t, label: LEAGUE_TYPE_LABELS[t] || t.toUpperCase() }))],
-        defaultId: ALL_TYPES_ID,
+        tabs: typeFilterTabs(presentTypes),
+        defaultId: presentTypes.length > 1 ? ALL_TYPES_ID : presentTypes[0],
         pillClassFor: (t) => 'league-type-pill type-' + t,
         onSelect: showType,
     });

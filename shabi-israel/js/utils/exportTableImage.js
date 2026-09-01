@@ -6,7 +6,7 @@
  *
  * Callers (v1):
  *   • js/render/leaguePage.js     — D (League Table)         — uses headerNode (V13 hero)
- *   • js/render/landingPage.js    — A2 (Annual Leaderboard)  — uses title + maxRows
+ *   • js/render/landingPage.js    — A2 (Annual Leaderboard)  — uses title + leagueType + maxRows
  *   • js/render/dashboardPage.js  — B7a / B7b / B7c          — uses title + subtitle
  *
  * v2 destination: src/components/ExportTableImage/exportTableImage.js
@@ -28,6 +28,10 @@ export const PHONE_MAX_WIDTH = 932;
 // Assumes browser default 1rem = 16px (standard).
 export const EXPORT_TABLE_FONT_PX = 12.75;
 export const EXPORT_HEADER_FONT_PX = 20.25;
+// League-type pill beside the heading. Derived from the WhatsApp frame's
+// pill:title ratio (WA_PILL_FONT / WA_HEADER_FONT below) so both export
+// families show the same pill at the same relative weight.
+export const EXPORT_PILL_FONT_PX = EXPORT_HEADER_FONT_PX * (20 / 34);
 
 // ── WhatsApp-ready fixed frame ─────────────────────────────────────
 // The dashboard/league table exports (D, B7a, B7b, B7c) render into a
@@ -343,6 +347,10 @@ export async function exportWhatsAppTableImage({ sourceTable, filename, title, s
  * @param {string}           [args.subtitle]      muted line under title (creates <div>)
  * @param {HTMLElement}      [args.headerNode]    cloneable DOM node to use as heading
  *                                                 instead of `title` (e.g. V13 hero card)
+ * @param {string}           [args.leagueType]    'doubling'|'regular'|'ubc' — renders the
+ *                                                 coloured type pill beside `title`
+ *                                                 (ignored when `headerNode` is used, which
+ *                                                 carries its own pill)
  * @param {number}           [args.maxRows]       if set, keep only the first N tbody rows
  */
 export async function exportTableImage({
@@ -351,6 +359,7 @@ export async function exportTableImage({
     title,
     subtitle,
     headerNode,
+    leagueType,
     maxRows,
 }) {
     if (typeof html2canvas === 'undefined') {
@@ -390,8 +399,25 @@ export async function exportTableImage({
             `margin:0 0 4px 0;font-size:${EXPORT_HEADER_FONT_PX}px;`
             + `text-align:center;font-weight:700;`;
         h.textContent = title;
-        wrap.appendChild(h);
-        scalable.push(h);
+        if (leagueType) {
+            // Same identity as the WhatsApp frame's header: the league type is
+            // a coloured pill BESIDE the title, never words inside it.
+            const titleRow = document.createElement('div');
+            titleRow.style.cssText =
+                `display:flex;align-items:center;justify-content:center;gap:10px;`
+                + `margin:0 0 4px 0;`;
+            h.style.margin = '0';
+            const pill = document.createElement('span');
+            pill.className = `league-type-pill type-${leagueType}`;
+            pill.textContent = leagueTypeLabel(leagueType);
+            pill.style.fontSize = EXPORT_PILL_FONT_PX + 'px';
+            titleRow.append(h, pill);
+            wrap.appendChild(titleRow);
+            scalable.push(h, pill);
+        } else {
+            wrap.appendChild(h);
+            scalable.push(h);
+        }
     }
 
     if (subtitle) {

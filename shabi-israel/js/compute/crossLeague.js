@@ -8,7 +8,7 @@
 import { loadLeagueOrder, loadLeaguesBulk, registerMemoInvalidator } from '../data/store.js';
 import { computeAllStats } from './stats.js';
 import { buildRankings, getLevel } from './rankings.js';
-import { getLeagueConfig } from './leagueTypes.js';
+import { getLeagueConfig, matchesLeagueType, prWeightFor } from './leagueTypes.js';
 
 // Memoized load of every league (per-league stats/rankings computed ON TOP of
 // the store bundle). Reset it when the bundle refreshes so a data change (or a
@@ -146,21 +146,23 @@ export function extractPlayerMatches(matches, playerName) {
  * or null if no played non-technical matches exist.
  *
  * "Last 300 PR" = weighted mean of prSelf over most-recent matches accumulated
- * until weight ≥ 300. Weight per match derived from LeagueType:
+ * until weight ≥ 300. Weight per match derived from its own league's LeagueType:
  *   regular → 5, doubling/ubc → 7.
+ *
+ * `leagueType` accepts anything matchesLeagueType() does — a single type, an
+ * array of types, or ALL.
  */
 export function aggregatePR(perLeagueData, leagueType) {
-    const weight = (leagueType === 'regular') ? 5 : 7;
-
     // Collect all played non-technical matches for that leagueType
     const all = [];
     for (const entry of perLeagueData) {
-        if (entry.league.leagueType !== leagueType) continue;
+        if (!matchesLeagueType(entry.league.leagueType, leagueType)) continue;
         for (const m of entry.playerMatches) {
             if (m._technical) continue;
             if (m.prSelf == null) continue;
             all.push({
                 prSelf: m.prSelf,
+                weight: prWeightFor(entry.league.leagueType),
                 updatedAt: m.updatedAt,
                 leagueOrderIdx: perLeagueData.indexOf(entry)
             });
@@ -182,8 +184,8 @@ export function aggregatePR(perLeagueData, leagueType) {
 
     let wsum = 0, vsum = 0, used = 0;
     for (const m of sorted) {
-        vsum += m.prSelf * weight;
-        wsum += weight;
+        vsum += m.prSelf * m.weight;
+        wsum += m.weight;
         used++;
         if (wsum >= 300) break;
     }
@@ -214,20 +216,47 @@ export function aggregatePR(perLeagueData, leagueType) {
  * Used both internally by rankWithinYear and externally for the player page's
  * expandable ranking table.
  */
+/**
+ * One player's PR score for a ranking, from their pushed match list.
+ * `matches`: [{ prSelf, weight, updatedAt }]. The weight rides on each match
+ * (see prWeightFor) so a pooled ALL ranking can mix 5- and 7-point leagues in
+ * the same 300-point window. Shared by both ranking builders below — they had
+ * two byte-identical copies of this, which is how the "regular → 5" weight
+ * survived in one place while the caller was already pooling types.
+ */
+function prMetric(matches, metric) {
+    if (metric === 'totalPR') {
+        return matches.reduce((s, m) => s + m.prSelf, 0) / matches.length;
+    }
+    const sorted = [...matches].sort((a, b) => {
+        const at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return bt - at;
+    });
+    let ws = 0, vs = 0;
+    for (const m of sorted) {
+        vs += m.prSelf * m.weight;
+        ws += m.weight;
+        if (ws >= 300) break;
+    }
+    return ws > 0 ? vs / ws : 0;
+}
+
 export async function listYearRanking(leagueType, year, metric) {
     const leagues = await loadVisibleLeagues();
-    const typeLeagues = leagues.filter(l => l.leagueType === leagueType);
+    const typeLeagues = leagues.filter(l => matchesLeagueType(l.leagueType, leagueType));
     if (typeLeagues.length === 0) return [];
 
     const byPlayer = new Map();
     typeLeagues.forEach((league, li) => {
+        const weight = prWeightFor(league.leagueType);
         for (const m of league.matches) {
             if (m._technical) continue;
             const yr = m.updatedAt ? new Date(m.updatedAt).getFullYear() : null;
             if (yr !== year) continue;
             const pushFor = (name, prSelf) => {
                 if (!byPlayer.has(name)) byPlayer.set(name, []);
-                byPlayer.get(name).push({ prSelf, updatedAt: m.updatedAt, leagueOrderIdx: li });
+                byPlayer.get(name).push({ prSelf, weight, updatedAt: m.updatedAt, leagueOrderIdx: li });
             };
             if (m.prA != null) pushFor(m.playerA, m.prA);
             if (m.prB != null) pushFor(m.playerB, m.prB);
@@ -236,27 +265,8 @@ export async function listYearRanking(leagueType, year, metric) {
 
     if (byPlayer.size === 0) return [];
 
-    const weight = (leagueType === 'regular') ? 5 : 7;
-    function computeMetric(matches) {
-        if (metric === 'totalPR') {
-            return matches.reduce((s, m) => s + m.prSelf, 0) / matches.length;
-        }
-        const sorted = [...matches].sort((a, b) => {
-            const at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-            const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-            return bt - at;
-        });
-        let ws = 0, vs = 0;
-        for (const m of sorted) {
-            vs += m.prSelf * weight;
-            ws += weight;
-            if (ws >= 300) break;
-        }
-        return ws > 0 ? vs / ws : 0;
-    }
-
     const scores = [];
-    for (const [name, matches] of byPlayer) scores.push({ name, value: computeMetric(matches) });
+    for (const [name, matches] of byPlayer) scores.push({ name, value: prMetric(matches, metric) });
     scores.sort((a, b) => a.value - b.value); // lower PR = better
     return scores.map((s, i) => ({ rank: i + 1, name: s.name, value: s.value }));
 }
@@ -268,16 +278,17 @@ export async function listYearRanking(leagueType, year, metric) {
  */
 export async function listAllTimeRanking(leagueType, metric) {
     const leagues = await loadVisibleLeagues();
-    const typeLeagues = leagues.filter(l => l.leagueType === leagueType);
+    const typeLeagues = leagues.filter(l => matchesLeagueType(l.leagueType, leagueType));
     if (typeLeagues.length === 0) return [];
 
     const byPlayer = new Map();
     typeLeagues.forEach((league, li) => {
+        const weight = prWeightFor(league.leagueType);
         for (const m of league.matches) {
             if (m._technical) continue;
             const pushFor = (name, prSelf) => {
                 if (!byPlayer.has(name)) byPlayer.set(name, []);
-                byPlayer.get(name).push({ prSelf, updatedAt: m.updatedAt, leagueOrderIdx: li });
+                byPlayer.get(name).push({ prSelf, weight, updatedAt: m.updatedAt, leagueOrderIdx: li });
             };
             if (m.prA != null) pushFor(m.playerA, m.prA);
             if (m.prB != null) pushFor(m.playerB, m.prB);
@@ -286,29 +297,10 @@ export async function listAllTimeRanking(leagueType, metric) {
 
     if (byPlayer.size === 0) return [];
 
-    const weight = (leagueType === 'regular') ? 5 : 7;
-    function computeMetric(matches) {
-        if (metric === 'totalPR') {
-            return matches.reduce((s, m) => s + m.prSelf, 0) / matches.length;
-        }
-        const sorted = [...matches].sort((a, b) => {
-            const at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-            const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-            return bt - at;
-        });
-        let ws = 0, vs = 0;
-        for (const m of sorted) {
-            vs += m.prSelf * weight;
-            ws += weight;
-            if (ws >= 300) break;
-        }
-        return ws > 0 ? vs / ws : 0;
-    }
-
     const scores = [];
     for (const [name, matches] of byPlayer) {
         const leagues = new Set(matches.map(m => m.leagueOrderIdx)).size;
-        scores.push({ name, value: computeMetric(matches), leagues });
+        scores.push({ name, value: prMetric(matches, metric), leagues });
     }
     scores.sort((a, b) => a.value - b.value);
     return scores.map((s, i) => ({ rank: i + 1, name: s.name, value: s.value, leagues: s.leagues }));
@@ -408,7 +400,7 @@ export async function collectMedalsByType(playerName, leagueType) {
     // Exclude leagues that are still running — placements aren't final yet,
     // so no achievements (medals / avg-rank) should accrue for them.
     const typeLeagues = leagues.filter(l =>
-        l.leagueType === leagueType && l.params.Running !== true
+        matchesLeagueType(l.leagueType, leagueType) && l.params.Running !== true
     );
     if (typeLeagues.length === 0) return null;
 
@@ -507,7 +499,7 @@ export async function collectMedalsByType(playerName, leagueType) {
 export async function listMedalRanking(leagueType, metric) {
     const leagues = await loadVisibleLeagues();
     const typeLeagues = leagues.filter(l =>
-        l.leagueType === leagueType && l.params.Running !== true
+        matchesLeagueType(l.leagueType, leagueType) && l.params.Running !== true
     );
     if (typeLeagues.length === 0) return [];
 

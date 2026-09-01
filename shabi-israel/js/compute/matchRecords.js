@@ -5,6 +5,8 @@
  * individual single-match highlights across all loaded leagues of a given type.
  */
 
+import { matchesLeagueType } from './leagueTypes.js';
+
 /**
  * Collect one entry per non-technical match where both luck values exist.
  * The "player" is the side that benefited (higher luck); opponent is the other side.
@@ -100,11 +102,16 @@ export function topBestPRMatches(entries, limit = 100) {
  * the given league type. Shared by the three player-scoped collectors.
  * Returns: [{ m, league }] passthrough so each collector can compute its
  * own metric filter.
+ *
+ * `leagueType` accepts anything matchesLeagueType() does. Callers that pool
+ * types under ALL should pass the ARRAY of types their pills actually offer —
+ * the bare ALL token would widen the walk to REGULAR leagues too, which carry
+ * luck columns and would smuggle rows into a PR-only section.
  */
 function* walkPlayerMatches(perLeague, leagueType) {
     for (const entry of perLeague) {
         const league = entry.league;
-        if (league.leagueType !== leagueType) continue;
+        if (!matchesLeagueType(league.leagueType, leagueType)) continue;
         for (const m of entry.playerMatches) {
             if (m._technical) continue;
             yield { m, league };

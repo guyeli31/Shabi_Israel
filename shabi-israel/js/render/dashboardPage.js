@@ -13,7 +13,7 @@ import { getMatchesAsOf, getUpdatePoints, mergeHistoryIntoMatches, matchKey, INI
 import { computeAllStats } from '../compute/stats.js';
 import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
-import { leagueDateWindow, daysBetween, durationMode } from '../compute/leagueDuration.js';
+import { elapsedInWindow, durationMode } from '../compute/leagueDuration.js';
 import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagueUrl, leagueUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
 import { exportWhatsAppTableImage, MAX_EXPORT_ROWS, leagueTypeLabel } from '../utils/exportTableImage.js';
 import { colorForValue, colorForValueInverted, colorForConfidence } from '../compute/colorScale.js';
@@ -485,11 +485,12 @@ function renderSummaryCards(ctx) {
    the only question the old "Games Played" count couldn't: is the league on
    time? */
 
-// A league is behind schedule once the calendar has moved this many percentage
-// points further than the games have. Below it the two readings are effectively
-// in step (a single missing match on a small league is a few points on its own),
-// so anything inside the band — and anything AHEAD of the calendar — is green.
-const PROGRESS_GAP_TOLERANCE = 10;
+// A league is behind schedule once the calendar has moved this much further
+// than the games have (0.10 = ten percentage points). Below it the two readings
+// are effectively in step (a single missing match on a small league is a few
+// points on its own), so anything inside the band — and anything AHEAD of the
+// calendar — is green.
+const PROGRESS_GAP_TOLERANCE = 0.10;
 
 /**
  * Games + calendar progress for the League Progress card.
@@ -501,23 +502,19 @@ const PROGRESS_GAP_TOLERANCE = 10;
  */
 function computeLeagueProgress(params, matchStats) {
     const total = matchStats.totalMatches;
+    // Both readings are fractions of 1, so they are directly comparable and both
+    // print through the site's own formatPercent (two decimals, as everywhere
+    // else a percentage appears here).
     const games = {
         played: matchStats.playedMatches,
         total,
-        pct: total > 0 ? (matchStats.playedMatches / total) * 100 : 0,
+        pct: total > 0 ? matchStats.playedMatches / total : 0,
     };
 
-    const window = leagueDateWindow(params);
-    let days = null;
-    if (window) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        // Inclusive on both ends: a one-day league is 1 day long, and its own
-        // first day already counts as elapsed.
-        const totalDays = daysBetween(window.start, window.end) + 1;
-        const elapsed = Math.min(Math.max(daysBetween(window.start, today) + 1, 0), totalDays);
-        days = { elapsed, total: totalDays, pct: totalDays > 0 ? (elapsed / totalDays) * 100 : 0 };
-    }
+    const window = elapsedInWindow(params);
+    const days = window
+        ? { ...window, pct: window.total > 0 ? window.elapsed / window.total : 0 }
+        : null;
 
     // Behind = the calendar has run further than the games have. Ahead needs no
     // warning, so the comparison is one-sided.
@@ -525,16 +522,26 @@ function computeLeagueProgress(params, matchStats) {
     return { games, days, behind };
 }
 
+/**
+ * "17.75", "0.99", "31" — a day count carries its fraction, but never a bare
+ * ".00". Truncated rather than rounded: at 23:59 of a one-day league 0.9993
+ * must not print as "1 / 1" beside "99.93%", which would read as a finished
+ * league that somehow isn't.
+ */
+function formatDayCount(days) {
+    return formatNumber(Math.floor(days * 100) / 100, 2).replace(/\.?0+$/, '');
+}
+
 function progressRowHtml(label, value, pct, title) {
-    const width = Math.min(Math.max(pct, 0), 100);
+    const width = Math.min(Math.max(pct, 0), 1) * 100;
     return `
         <div class="dash-prog-row" title="${escapeHtml(title)}">
             <div class="dash-prog-head">
                 <span class="dash-prog-name">${escapeHtml(label)}</span>
                 <span class="dash-prog-value">${escapeHtml(value)}</span>
-                <span class="dash-prog-pct">${Math.round(pct)}%</span>
+                <span class="dash-prog-pct">${formatPercent(pct)}</span>
             </div>
-            <div class="dash-prog-track"><span class="dash-prog-fill" style="width:${width.toFixed(1)}%"></span></div>
+            <div class="dash-prog-track"><span class="dash-prog-fill" style="width:${width.toFixed(2)}%"></span></div>
         </div>`;
 }
 
@@ -546,10 +553,16 @@ function leagueProgressHtml(params, matchStats) {
             `${games.played} of ${games.total} scheduled matches played`),
     ];
     if (days) {
-        rows.push(progressRowHtml('Days', `${days.elapsed} / ${days.total}`, days.pct,
+        // The bar is continuous, so the count beside it is too — "17.75 / 31"
+        // is the figure the percentage was actually computed from. The tooltip
+        // carries the human framing ("day 18 of 31"), which is the calendar day
+        // currently in progress rather than the days completed.
+        const dayInProgress = Math.min(Math.floor(days.elapsed) + 1, days.total);
+        const where = `Day ${dayInProgress} of ${days.total}`;
+        rows.push(progressRowHtml('Days', `${formatDayCount(days.elapsed)} / ${days.total}`, days.pct,
             behind
-                ? `Day ${days.elapsed} of ${days.total} — the schedule is behind the calendar`
-                : `Day ${days.elapsed} of ${days.total} — the schedule is keeping up with the calendar`));
+                ? `${where} — the schedule is behind the calendar`
+                : `${where} — the schedule is keeping up with the calendar`));
     } else if (durationMode(params) === 'unlimited') {
         // Say WHY there's no Days bar. A league that runs open-endedly is never
         // "behind the calendar" — there is no calendar to be behind — and a

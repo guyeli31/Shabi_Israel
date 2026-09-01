@@ -217,6 +217,23 @@ function clickTargetHtml(target) {
         const id = hist ? rest.slice(0, -' (historical)'.length) : rest;
         return `Full table: ${leagueHtml(id)}${hist ? ' (historical)' : ''}`;
     }
+    // A league picked from the sidebar Leagues flyout (Dashboard/Table > <league>):
+    // the tail is the league id, so render it with its type pill like every other
+    // league cell — this was the one league reference still shown as bare text.
+    // Strip a trailing "(Admin Mode)" (the admin sidebar appends it) before the id.
+    for (const p of ['Menu: Dashboard: ', 'Menu: Table: ']) {
+        if (target.startsWith(p)) {
+            let rest = target.slice(p.length);
+            const admin = rest.endsWith(' (Admin Mode)');
+            if (admin) rest = rest.slice(0, -' (Admin Mode)'.length);
+            return `${p}${leagueHtml(rest)}${admin ? ' (Admin Mode)' : ''}`;
+        }
+    }
+    // A breadcrumb crumb (Home ▸ league ▸ player) — the label alone can't say which
+    // it is, so route it through leagueHtml, which adds the type pill ONLY when the
+    // label matches a known league and otherwise returns the plain text unchanged
+    // (a Home / player crumb is untouched). So every league reference gets its pill.
+    if (target.startsWith('Breadcrumb: ')) return `Breadcrumb: ${leagueHtml(target.slice('Breadcrumb: '.length))}`;
     // A pick from the search box — render the chosen entity richly (flag + name +
     // title, or league + type pill), same as the link variants, and keep the
     // "Search:" prefix so it reads as "found via search", not a plain content link.
