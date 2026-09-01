@@ -7,7 +7,7 @@ import { addChange, getStagedContent, getChanges, hasLeagueChanges, removeLeague
 import { renderRoundEditor } from './roundEditor.js';
 import { renderExcelImporter } from './excelImporter.js';
 import { renderOverridesList } from './overridesList.js';
-import { ensurePlayerIndex, ensureLeagueIndex, searchEntities, getPlayerLeagues, getPlayerFlagCode } from '../render/navigation.js';
+import { ensurePlayerIndex, ensureLeagueIndex, getPlayerLeagues, getPlayerFlagCode } from '../render/navigation.js';
 import { thLabel } from '../utils/helpers.js';
 import { tabSlug } from '../utils/queryString.js';
 import { mountCombobox } from '../utils/combobox.js';
@@ -474,22 +474,30 @@ async function renderAddLeagueForm(container, displayOrder) {
 
     // ── Preset picker — the canonical smart search, leagues only ────────────
     // Same field, same matcher and same result chrome as the site sidebar's
-    // search (mountSearchField + searchEntities): typing filters live, results
-    // carry the league glyph with its running/completed status dot and the
-    // league-type badge, and the mobile sheet is handled by the shared base.
-    // searchEntities returns players too — irrelevant here, so only its
-    // `leagues` half is used.
+    // search: typing filters live, results carry the league glyph with its
+    // running/completed status dot and the league-type badge, and the mobile
+    // sheet is handled by the shared base.
+    //
+    // HIDDEN leagues are INCLUDED here, which is why this reads `ensureLeagueIndex()`
+    // directly instead of calling the shared `searchEntities()`. That helper is
+    // the PUBLIC search and drops hidden leagues unconditionally — correct there,
+    // wrong here: this picker lives inside admin.html, where a hidden league is
+    // meant to be visible and workable, and cloning last month's setup is exactly
+    // what you want to do with a league you are still preparing. Filtering it out
+    // meant the one league most likely to be a useful template was the one you
+    // could not pick. The matching rule below is copied from searchEntities so
+    // the two still agree on WHAT matches — only on the hidden set do they differ.
     const presetIds = new Set(displayOrder.map(t => t.replace(' - ', ' ')));
     const presetInput = document.getElementById('preset-league');
     const presetMeta = new Map(); // id → {running, leagueType}
     const presetField = mountCombobox(presetInput, {
         suggest: async (query) => {
-            const q = (query || '').trim();
+            const q = (query || '').trim().toLowerCase();
             // Empty query → browse all (the list is short and the admin is
             // usually cloning "last month", which is the first row).
-            const { leagues } = q
-                ? await searchEntities(q, { leagueLimit: 20, playerLimit: 0 })
-                : { leagues: (await ensureLeagueIndex()).filter(l => !l.hidden).slice(0, 20) };
+            const leagues = (await ensureLeagueIndex())
+                .filter(l => !q || l.title.toLowerCase().includes(q))
+                .slice(0, 20);
             for (const l of leagues) presetMeta.set(l.id, l);
             return leagues.map(l => l.id);
         },

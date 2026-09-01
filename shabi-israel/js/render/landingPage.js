@@ -119,11 +119,19 @@ export async function renderLandingPage() {
         _flags = buildPlayerFlagIndex(allLeagues.filter(l => !l.params.Hidden));
         splashStage('ranking');
 
-        // Filter hidden leagues for non-admin users
+        // A hidden league is hidden from EVERYONE on the public site, a logged-in
+        // admin included: the admin session is for editing, not for a private
+        // preview, and a card that looked identical to a visible one (no "Hidden"
+        // marker anywhere on it) made the admin's own view disagree with the
+        // public one on the league list AND on every count derived from it —
+        // "15 leagues / 25 active players" against the public "14 / 0".
+        // The evidence a hidden league exists lives in admin.html (Edit Leagues
+        // lists it with a "(Hidden)" badge); `?preview` is no longer the only way
+        // to see what the public sees, because this IS what the public sees.
+        // `adminLoggedIn` is still read below — edit mode is a genuine admin
+        // affordance, unlike seeing the data.
         const adminLoggedIn = isLoggedIn() && !isPreviewMode();
-        const leagues = adminLoggedIn
-            ? allLeagues
-            : allLeagues.filter(l => !l.params.Hidden);
+        const leagues = allLeagues.filter(l => !l.params.Hidden);
 
         // Compute aggregate data
         const allPlayers = new Set();

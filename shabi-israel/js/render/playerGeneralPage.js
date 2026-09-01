@@ -19,7 +19,8 @@ import {
     collectMedalsByType,
     listMedalRanking,
     flattenAllMatches,
-    loadAllLeagues
+    loadAllLeagues,
+    loadVisibleLeagues
 } from '../compute/crossLeague.js';
 import { loadPlayersMetadata } from '../data/store.js';
 import { startSplash, splashStage, endSplash } from '../utils/splash.js';
@@ -938,18 +939,24 @@ function renderMatchup(panel, playerName, allRows) {
         requestAnimationFrame(() => scrollToClearingTopbar(topSection, { behavior: 'smooth' }));
     });
 
-    // Smart-search opponent list spans every league (lets you search anyone).
+    // Smart-search opponent list spans every VISIBLE league (lets you search
+    // anyone). loadVisibleLeagues() rather than loadAllLeagues(), and hidden
+    // players are skipped: this roster is the one place a hidden league's
+    // players could otherwise surface by name — the H2H results below read
+    // `perLeague`, which is already filtered, so picking one produced an empty
+    // table while the dropdown had already named them. Same two filters as the
+    // comparison roster in wireComparisonPicker().
     // Sort by the DISPLAYED name (displayPlayerName), not the raw username key:
     // in "full name" mode the dropdown shows full names, so a key-order sort read
     // as unsorted. Same fix as the What-If picker (dashboardPage.js).
     const byOpponentDisplay = (a, b) =>
         displayPlayerName(a, _allMeta[a]).localeCompare(displayPlayerName(b, _allMeta[b]));
     let allOpponents = opponents.map(o => o.opponent).sort(byOpponentDisplay);
-    loadAllLeagues().then(leagues => {
+    loadVisibleLeagues().then(leagues => {
         const playerSet = new Set();
         for (const l of leagues) {
             for (const p of l.allPlayers) {
-                if (p !== playerName) playerSet.add(p);
+                if (p !== playerName && !_allMeta[p]?.hidden) playerSet.add(p);
             }
         }
         allOpponents = [...playerSet].sort(byOpponentDisplay);

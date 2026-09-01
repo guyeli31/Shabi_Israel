@@ -313,7 +313,6 @@ async function populateAsync(opts) {
 
     const folderNames = settings.displayOrder.map(t => t.replace(' - ', ' '));
     const allParams = await loadAllLeagueParams(folderNames);
-    const adminLoggedIn = isLoggedIn() && !isPreviewMode();
 
     const leaguesAll = allParams
         .map((lp, i) => {
@@ -333,7 +332,13 @@ async function populateAsync(opts) {
                 date,
             };
         })
-        .filter(l => adminLoggedIn || !l.hidden)
+        // Hidden means hidden from everyone here, a logged-in admin included —
+        // the Leagues flyouts are public navigation, and they used to be the one
+        // surface where the admin's league list disagreed with the public one.
+        // Same rule as the landing page and as the smart search, which has always
+        // filtered unconditionally. Admin.html is where a hidden league is
+        // reachable.
+        .filter(l => !l.hidden)
         .sort((a, b) => b.date - a.date);
 
     populateLeaguesSubmenu(_sidebarEl.querySelector('[data-submenu="leagues-dashboard"]'),
