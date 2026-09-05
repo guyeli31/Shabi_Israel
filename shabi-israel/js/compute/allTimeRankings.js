@@ -10,6 +10,7 @@
  */
 
 import { loadAllLeagues } from './crossLeague.js';
+import { getMedalPlaces } from './prizeRows.js';
 import { luckConfidenceStats } from './luckConfidence.js';
 import { buildPlayerFlagIndex } from '../utils/playerFlags.js';
 
@@ -77,9 +78,10 @@ export async function buildAllTimeRankings(leagueType) {
         };
 
         typeLeagues.forEach((league, leagueOrderIdx) => {
-            const goldCount = league.params.GoldCount ?? 1;
-            const silverCount = league.params.SilverCount ?? 1;
-            const bronzeCount = league.params.BronzeCount ?? 1;
+            // Places per tier INCLUDING that tier's extra prize rows — a league
+            // that awards two golds hands out two gold medals here too.
+            const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
+                getMedalPlaces(league.params, { gold: 1, silver: 1, bronze: 1 });
             const isRunning = league.params.Running === true;
 
             // Win-rate accumulation includes running leagues (wins/games are

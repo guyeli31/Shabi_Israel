@@ -31,7 +31,7 @@
 
 import { supabase } from '../data/supabaseClient.js';
 import { loadAllLeagues } from '../data/store.js';
-import { isLoggedIn, login } from '../admin/auth.js';
+import { isLoggedIn, login, getUsername } from '../admin/auth.js';
 import { escapeHtml } from '../utils/sanitize.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountAppTabs } from './appTabs.js';
@@ -254,6 +254,21 @@ function clickTargetHtml(target) {
         const sep = target.indexOf(' — ');
         if (sep !== -1) return `${escapeHtml(target.slice(0, sep + 3))}${playerHtml(target.slice(sep + 3))}`;
     }
+    // "What if: winner — A beats B" / "What if: not played — A vs B": both name TWO
+    // players, and each deserves the same flag + title badge as the A/B pick above —
+    // otherwise the two forms that mention players by name read as bare text while
+    // the picker reads richly. Split the tail on the form's own joiner (players are
+    // single-token nicknames, so the first occurrence is the real separator).
+    for (const [prefix, joiner] of [['What if: winner — ', ' beats '], ['What if: not played — ', ' vs ']]) {
+        if (target.startsWith(prefix)) {
+            const tail = target.slice(prefix.length);
+            const i = tail.indexOf(joiner);
+            if (i !== -1) {
+                return `${escapeHtml(prefix)}${playerHtml(tail.slice(0, i))}`
+                     + `${escapeHtml(joiner)}${playerHtml(tail.slice(i + joiner.length))}`;
+            }
+        }
+    }
     return escapeHtml(displayTarget(target));
 }
 
@@ -352,13 +367,26 @@ function formatEventTime(date) {
  *  uniformity is the whole signal. An admin label reads `user_########` (email
  *  local part, an underscore, then the first 8 of the session id); a visitor
  *  chip is the bare 8-char code. */
+/** A stable hue (0–359) per user name, so every registered user reads as their
+ *  OWN colour across the whole page — the chip, and the session card's accent —
+ *  and one user's journeys are visually one colour. 32-bit string hash → mod 360;
+ *  a handful of admins collide only rarely across 360 hues. */
+function userHue(name) {
+    const s = String(name || '');
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+    return ((h % 360) + 360) % 360;
+}
+
 function sessionChip(sessionId, adminUser) {
     const short = escapeHtml(String(sessionId).slice(0, 8));
     if (!adminUser) return `<span class="analytics-sid analytics-sid--visitor">${short}</span>`;
     // Label carries the operator's name; title keeps the FULL session id that
-    // the 8-char label drops. Both are escaped like any other text.
+    // the 8-char label drops. Both are escaped like any other text. The chip is
+    // tinted by this user's own hue (--sid-hue), so each registered user is
+    // distinct instead of every admin sharing one red.
     const label = `${escapeHtml(adminUser)}_${short}`;
-    return `<span class="analytics-sid" title="${escapeHtml(String(sessionId))}">${label}</span>`;
+    return `<span class="analytics-sid analytics-sid--user" style="--sid-hue:${userHue(adminUser)}" title="${escapeHtml(String(sessionId))}">${label}</span>`;
 }
 
 /** A global-route row: no session id exists at all — by design, not by omission
@@ -752,6 +780,47 @@ function renderLogTable(host, rows, columns, { emptyText = 'No data yet.', sort,
  *  No column-header sorting (there are no columns): the log is chronological, and
  *  the section's own search box + time window do the finding. `sort` still sets
  *  the direction — desc (newest first) for the logs, asc for a session trace. */
+// Browser-navigation chip glyphs/labels — a Back/Forward/Refresh is recorded as a
+// click (event_type='click') carrying nav_type, and rendered here in its own
+// format rather than as a normal icon+target click.
+const NAV_GLYPH = { back: '↩', forward: '↪', reload: '⟳' };
+const NAV_LABEL = { back: 'Back', forward: 'Forward', reload: 'Refresh' };
+
+/** The page-identity fields renderClickLog groups + heads a row on, made
+ *  nav-aware. A Back/Forward/Refresh is anchored to the page it was performed ON
+ *  (its SOURCE) — exactly like a normal click, whose row head is the page you
+ *  were on and whose ↳ names what you did and where it led. So a nav row heads on
+ *  from_page and carries the DESTINATION (to*) for the chip's "to …". An ordinary
+ *  click keeps heading on its own page. (Source tab isn't stored, so a nav row's
+ *  head shows no tab — the page + league/player is enough to place it.) */
+function clogNavFields(src) {
+    const isNav = !!src.nav_type;
+    return {
+        pageType: isNav ? (src.from_page || src.page) : src.page,
+        leagueId: isNav ? (src.from_league_id || '') : (src.league_id || ''),
+        player:   isNav ? (src.from_player || '') : (src.player || ''),
+        tab:      isNav ? '' : (src.tab || ''),
+        navType:  src.nav_type || '',
+        // Destination — where the Back/Forward/Refresh LED, named after "to".
+        toPage:   src.page || '', toLeague: src.league_id || '', toPlayer: src.player || '',
+    };
+}
+
+function navChipHtml(c) {
+    const glyph = NAV_GLYPH[c.navType] || '↩';
+    const label = NAV_LABEL[c.navType] || 'Back';
+    // A Back/Forward LEADS somewhere, so it names its DESTINATION with "to". A
+    // Refresh is a same-page reload (and any traversal that landed where it
+    // started) goes nowhere new, so it shows no "to".
+    const sameSpot = c.toPage === c.pageType
+        && (c.toLeague || '') === (c.leagueId || '') && (c.toPlayer || '') === (c.player || '');
+    const showTo = c.navType !== 'reload' && c.toPage && !sameSpot;
+    const to = showTo
+        ? ` <span class="clog-nav-to">to ${contextHtml(c.toPage, c.toLeague, c.toPlayer)}</span>`
+        : '';
+    return `<span class="clog-nav-glyph" aria-hidden="true">${glyph}</span> ${label}${to}`;
+}
+
 function renderClickLog(host, rows, { grouped = false, withSession = false, withDevice = false, sort, emptyText = 'No data yet.', emptyKeepsTable = false } = {}) {
     const st = sort || { key: 'date', dir: 'desc' };
     const sorted = [...rows].sort((a, b) => cmp(a[st.key], b[st.key]) * (st.dir === 'asc' ? 1 : -1));
@@ -781,12 +850,19 @@ function renderClickLog(host, rows, { grouped = false, withSession = false, with
         const sess = withSession ? `<span class="clog-sess">${sessionCell(r)}</span>` : '';
         const dev = withDevice ? `<span class="clog-dev">${devicePill(r.device)}</span>` : '';
         const pageHtml = movedMarkHtml(r) + contextHtml(r.pageType, r.leagueId, r.player, r.tab);
-        const clicks = g.clicks.map((c) => `
-            <div class="clog-click">
+        const clicks = g.clicks.map((c) => {
+            // A browser Back/Forward/Refresh is not a UI click, so it gets its own
+            // chip format (direction glyph + label + where it came FROM) instead of
+            // the icon+target of a real click.
+            const body = c.navType
+                ? `<span class="clog-nav">${navChipHtml(c)}</span>`
+                : `<span class="clog-target">${c.icon ? c.icon + ' ' : ''}${clickTargetHtml(c.target)}</span>`;
+            return `<div class="clog-click${c.navType ? ' clog-click--nav' : ''}">
                 <span class="clog-arrow" aria-hidden="true">↳</span>
                 <span class="clog-time">${escapeHtml(formatEventTime(c.date))}</span>
-                <span class="clog-target">${c.icon ? c.icon + ' ' : ''}${clickTargetHtml(c.target)}</span>
-            </div>`).join('');
+                ${body}
+            </div>`;
+        }).join('');
         return `<div class="clog-group">
             <div class="clog-page">${sess}<span class="clog-pagename">${pageHtml}</span>${dev}</div>
             <div class="clog-clicks">${clicks}</div>
@@ -919,11 +995,17 @@ function renderTransitionsLog(section, transitionsLog) {
             fromRaw: [t.from_page, t.from_league_id || '', t.from_player || ''], // rich render
             toRaw: [t.to_page, t.to_league_id || '', t.to_player || ''],
             device: t.device_type || 'unknown',
+            navType: t.nav_type || '', // Back/Forward/Refresh transitions carry this
             count: t.running_count,
         })),
         columns: [
             { key: 'date', label: 'Date', render: (r) => escapeHtml(formatEventTime(r.date)) },
-            { key: 'from', label: 'From', render: (r) => contextHtml(...r.fromRaw) },
+            // A browser-navigation transition is badged with its direction glyph so a
+            // Refresh self-loop (A→A) and a Back/Forward read differently from an
+            // ordinary link transition; an ordinary transition carries no badge.
+            { key: 'from', label: 'From', render: (r) =>
+                (r.navType ? `<span class="ana-nav-badge" title="${escapeHtml(NAV_LABEL[r.navType] || 'Back')}">${NAV_GLYPH[r.navType] || '↩'}</span> ` : '')
+                + contextHtml(...r.fromRaw) },
             { key: 'to', label: 'To', render: (r) => contextHtml(...r.toRaw) },
             { key: 'device', label: 'Device', render: (r) => escapeHtml(r.device) },
             { key: 'count', label: 'Count', render: (r) => r.count },
@@ -1205,7 +1287,9 @@ function renderClicksLog(section, clicksLog, sessions) {
         rows: (clicksLog || []).map((c) => ({
             date: new Date(c.created_at),
             page: contextLabel(c.page, c.league_id, c.player, c.tab), // plain text = sort key
-            pageType: c.page, leagueId: c.league_id || '', player: c.player || '', tab: c.tab || '', // rich render
+            // Page-identity (head/grouping) + nav destination — nav-aware, so a
+            // Back/Forward heads on the page it was performed ON, not its target.
+            ...clogNavFields(c),
             moved_banner: c.moved_banner, // 📦 page-mark (TEMPORARY, with movedNotice.js)
             target: c.click_target || '',
             icon: clickIcon(c.click_target || ''),
@@ -1242,7 +1326,8 @@ function timelineRow(e, sessionDevice) {
     return {
         date: new Date(e.created_at),
         page: contextLabel(e.page, e.league_id, e.player, e.tab), // plain text = sort key
-        pageType: e.page, leagueId: e.league_id || '', player: e.player || '', tab: e.tab || '', // rich render
+        // Page-identity (head/grouping) + nav destination — nav-aware (see clogNavFields).
+        ...clogNavFields(e),
         moved_banner: e.moved_banner, // 📦 page-mark (TEMPORARY, with movedNotice.js)
         target: e.click_target || '',
         icon: clickIcon(e.click_target || ''),
@@ -1265,14 +1350,15 @@ function timelineRow(e, sessionDevice) {
 function renderSessions(section, sessions) {
     const host = section.querySelector('#sessions-list');
     if (!sessions || sessions.length === 0) {
-        host.innerHTML = '<p class="muted">No sessions yet. Only visits from an Asia/Jerusalem '
-            + 'timezone carry a session id — every other visitor is recorded as unlinked '
-            + 'individual events by design, and appears only in the clicks log below.</p>';
+        host.innerHTML = '<p class="muted">No sessions yet. A session id is kept for visits from an '
+            + 'Asia/Jerusalem timezone AND for any signed-in user (from anywhere) — every other '
+            + '(anonymous, non-Israel) visitor is recorded as unlinked individual events by design, '
+            + 'and appears only in the clicks log below.</p>';
         return;
     }
 
     host.innerHTML = sessions.map((s) => `
-        <details class="analytics-session">
+        <details class="analytics-session${s.admin_user ? ' analytics-session--user' : ''}"${s.admin_user ? ` style="--sid-hue:${userHue(s.admin_user)}"` : ''}>
             <summary class="analytics-session-head">
                 ${sessionChip(s.session_id, s.admin_user)}
                 <span class="analytics-session-time">${escapeHtml(formatEventTime(new Date(s.started_at)))}</span>
@@ -1390,7 +1476,7 @@ function renderDwellBuckets(host, dwellBuckets) {
  *  operator's own. Reads traffic_mix, which the RPC computes BEFORE the admin
  *  filter, so the "excluded" count survives its own filter being on. This is the
  *  panel that tells you how much to trust every other number on the page. */
-function renderTrafficMix(section, mix, excludeAdmin) {
+function renderTrafficMix(section, mix, excludeAny) {
     const host = section.querySelector('#chart-mix');
     const note = section.querySelector('#mix-note');
     if (!mix || !mix.total) {
@@ -1403,14 +1489,16 @@ function renderTrafficMix(section, mix, excludeAdmin) {
         { route: 'Global (anonymous)', n: mix.global },
     ], { labelKey: 'route', valueKey: 'n' });
 
+    // mix.internal counts EVERY operator's events (all admin_user rows), so this
+    // note tracks the "Exclude any user" switch, not the per-viewer "Exclude mine".
     const n = mix.internal;
-    note.textContent = excludeAdmin
+    note.textContent = excludeAny
         ? (n
-            ? `${n} event${n === 1 ? '' : 's'} from your own admin browsing excluded from every number on this page.`
-            : 'No admin browsing recorded in this range — these numbers are all real audience.')
+            ? `${n} operator event${n === 1 ? '' : 's'} excluded from every number on this page.`
+            : 'No operator browsing recorded in this range — these numbers are all real audience.')
         : (n
-            ? `Includes ${n} event${n === 1 ? '' : 's'} of your own admin browsing. Turn on "Exclude my own traffic" for audience-only numbers.`
-            : 'No admin browsing recorded in this range.');
+            ? `Includes ${n} operator event${n === 1 ? '' : 's'}. Turn on "Exclude any user" for audience-only numbers.`
+            : 'No operator browsing recorded in this range.');
 }
 
 /** The aggregated top A→B flows — `transitions`, which the RPC has always
@@ -1565,7 +1653,8 @@ function renderHistory(panel, data, hideMine, onToggle) {
         rows: (data.clicks_log || []).map((c) => ({
             date: new Date(c.created_at),
             page: contextLabel(c.page, c.league_id, c.player, c.tab), // plain text = sort key
-            pageType: c.page, leagueId: c.league_id || '', player: c.player || '', tab: c.tab || '', // rich render
+            // Page-identity (head/grouping) + nav destination — nav-aware (see clogNavFields).
+            ...clogNavFields(c),
             moved_banner: c.moved_banner, // 📦 page-mark (TEMPORARY, with movedNotice.js)
             target: c.click_target || '',
             icon: clickIcon(c.click_target || ''),
@@ -1593,7 +1682,7 @@ const isAuthError = (e) => /permission denied|jwt|not authenticated|unauthorized
  *  auth.js, but stays IN PLACE on success (re-renders the dashboard) instead of
  *  redirecting to admin.html the way the gear-button modal does — the whole
  *  point here is to land the operator on the analytics they asked for. */
-function renderLoginGate(content, monthKeyArg, excludeAdmin) {
+function renderLoginGate(content, monthKeyArg, viewArg) {
     content.innerHTML = `
         <div class="admin-login-modal" style="margin:8vh auto 0;max-width:360px">
             <h2 class="admin-login-modal-title">Admin Login</h2>
@@ -1627,7 +1716,7 @@ function renderLoginGate(content, monthKeyArg, excludeAdmin) {
         if (ok) {
             // Same origin, so the session auth.js just cached is the one the RPC
             // will now send. Re-enter with the caller's original view intent.
-            renderAnalyticsPage(monthKeyArg, excludeAdmin);
+            renderAnalyticsPage(monthKeyArg, viewArg);
         } else {
             btn.disabled = false;
             btn.textContent = 'Login';
@@ -1648,15 +1737,23 @@ const VIEW_STORE_KEY = 'shabi-analytics-view';
 function loadView() {
     try { return JSON.parse(localStorage.getItem(VIEW_STORE_KEY)) || {}; } catch { return {}; }
 }
-function saveView(monthKeyValue, excludeAdmin) {
-    try { localStorage.setItem(VIEW_STORE_KEY, JSON.stringify({ month: monthKeyValue, excludeAdmin })); } catch { /* private mode / quota — persistence is best-effort */ }
+function saveView(monthKeyValue, excludeMine, excludeAny) {
+    try { localStorage.setItem(VIEW_STORE_KEY, JSON.stringify({ month: monthKeyValue, excludeMine, excludeAny })); } catch { /* private mode / quota — persistence is best-effort */ }
 }
 
-// Default param evaluates ONLY when the arg is undefined — i.e. a fresh page
-// load, never a control-driven re-render (those always pass an explicit boolean).
-// `?? true` keeps a stored `false` intact (nullish, not falsy) and only defaults
-// when nothing was ever saved.
-export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loadView().excludeAdmin ?? true) {
+// Two independent exclusion switches, persisted across a refresh (loadView):
+//   excludeMine — leave out only THIS viewer's own operator rows. Default ON:
+//                 nobody wants their own testing/browsing counted as audience.
+//   excludeAny  — leave out EVERY registered operator's rows. Default OFF, so
+//                 other operators' journeys are visible by default (the whole
+//                 reason for two toggles instead of the old all-or-nothing one).
+// A control-driven re-render passes an explicit {excludeMine, excludeAny}; a fresh
+// load reads the stored pair. The retired single `excludeAdmin` key is ignored, so
+// everyone lands on the new default rather than inheriting "hide all operators".
+export async function renderAnalyticsPage(monthKeyArg = null, viewArg = null) {
+    const _stored = loadView();
+    const excludeMine = viewArg ? !!viewArg.excludeMine : (_stored.excludeMine ?? true);
+    const excludeAny  = viewArg ? !!viewArg.excludeAny  : (_stored.excludeAny ?? false);
     const content = document.getElementById('content');
     // The page ships an empty header (see analytics.html); a static <h1> read
     // through the transparent splash while the splash was narrating its own
@@ -1685,7 +1782,7 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
         // would look like the page is still working when it is actually waiting
         // for the operator. Take it away before anything asks for input.
         endSplash();
-        renderLoginGate(content, monthKeyArg, excludeAdmin);
+        renderLoginGate(content, monthKeyArg, { excludeMine, excludeAny });
         return;
     }
 
@@ -1713,8 +1810,12 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
     const activeKey = monthKeyArg || currentMonthKey;
     // Persist the exclude-admin choice (loadView feeds its default); the month is
     // deliberately NOT restored across loads — see below.
-    saveView(activeKey, excludeAdmin);
+    saveView(activeKey, excludeMine, excludeAny);
     const { from, to } = israelMonthRange(activeKey);
+    // The viewer's own operator name (email local part, matching how send() stores
+    // admin_user), for the "Exclude mine" filter. The page is auth-gated, so this
+    // is set whenever the toggle can be.
+    const viewerUser = (getUsername() || '').split('@')[0] || null;
 
     splashStage('months');
     const monthsPromise = _monthsCache
@@ -1727,7 +1828,8 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
     const summaryPromise = supabase.rpc('analytics_summary', {
         from_date: from.toISOString(),
         to_date: to.toISOString(),
-        exclude_admin: excludeAdmin,
+        exclude_admin: excludeAny,                          // "Exclude any user"
+        exclude_user: excludeMine ? viewerUser : null,      // "Exclude mine"
         scope: 'new',
     });
 
@@ -1740,7 +1842,7 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
         // "not really authenticated", so fall back to the same gate. A "function
         // does not exist" error is different — the DB is missing the migration —
         // and must surface verbatim so it can be acted on, not hidden behind login.
-        if (isAuthError(monthsError)) { renderLoginGate(content, monthKeyArg, excludeAdmin); return; }
+        if (isAuthError(monthsError)) { renderLoginGate(content, monthKeyArg, { excludeMine, excludeAny }); return; }
         content.innerHTML = `<div class="admin-msg admin-msg-error">${escapeHtml(monthsError.message)}</div>`;
         return;
     }
@@ -1807,26 +1909,35 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
     select.innerHTML = [...monthOpts, ALL_TIME]
         .map((k) => `<option value="${k}"${k === activeKey ? ' selected' : ''}>${escapeHtml(monthLabel(k))}</option>`)
         .join('');
-    select.addEventListener('change', () => renderAnalyticsPage(select.value, excludeAdmin));
+    const curView = { excludeMine, excludeAny };
+    select.addEventListener('change', () => renderAnalyticsPage(select.value, curView));
     rangeBar.appendChild(select);
 
-    // Default ON. This is the whole point of admin_user: without it every KPI,
-    // chart and top-list on this page counts the operator's own browsing as
-    // audience. The label says "my own" rather than "internal" because the
-    // column can only ever name the person reading this page.
-    // Same neutral pill as every other filter toggle in the app
-    // (mountFilterToggle, js/render/subTabs.js). Note what does NOT carry over
-    // from the Historical Changes one: this toggle defaults ON and persists
-    // (saveView), because the operator's own browsing is not audience and a
-    // page that silently reset to "included" would overstate every KPI on it.
-    // The shared thing is the control, not the policy.
-    mountFilterToggle(rangeBar, {
-        id: 'analytics-exclude-admin',
-        label: 'Exclude my own traffic',
-        title: "Leaves out events tagged with the operator's own admin login",
-        pressed: excludeAdmin,
-        onToggle: (on) => renderAnalyticsPage(activeKey, on),
+    // Two independent exclusion toggles, same neutral pill as every other filter
+    // in the app (mountFilterToggle, js/render/subTabs.js). Both persist (saveView).
+    //   "Exclude mine"     → exclude_user: only THIS viewer's operator rows.
+    //   "Exclude any user" → exclude_admin: EVERY registered operator's rows.
+    // "any user" is the superset, so while it is on "mine" adds nothing — it is
+    // disabled to say so. Defaults: mine ON (hide your own noise), any OFF (other
+    // operators' journeys stay visible — the reason this was split in two).
+    const mineToggle = mountFilterToggle(rangeBar, {
+        id: 'analytics-exclude-mine',
+        label: 'Exclude mine',
+        title: 'Leave out only YOUR own events — the account viewing this page',
+        pressed: excludeMine,
+        onToggle: (on) => renderAnalyticsPage(activeKey, { excludeMine: on, excludeAny }),
     });
+    mountFilterToggle(rangeBar, {
+        id: 'analytics-exclude-any',
+        label: 'Exclude any user',
+        title: "Leave out EVERY registered operator's events — audience only",
+        pressed: excludeAny,
+        onToggle: (on) => renderAnalyticsPage(activeKey, { excludeMine, excludeAny: on }),
+    });
+    if (excludeAny) {
+        mineToggle.button.disabled = true;
+        mineToggle.button.title = 'Already covered by "Exclude any user"';
+    }
     content.appendChild(rangeBar);
 
     // ── Tabs (same chrome as the League Dashboard — mountAppTabs) ──
@@ -1854,7 +1965,7 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
     const mixSection = makeSection('Traffic composition');
     mixSection.innerHTML += `<div id="chart-mix"></div><p class="analytics-mix-note" id="mix-note"></p>`;
     shell.panels.overview.appendChild(mixSection);
-    renderTrafficMix(mixSection, data.traffic_mix, excludeAdmin);
+    renderTrafficMix(mixSection, data.traffic_mix, excludeAny);
 
     // "Traffic over time" — a Pageviews ↔ Sessions toggle over the same daily
     // buckets. Both come from data.timeseries (views + sessions per day); the
@@ -1953,7 +2064,7 @@ export async function renderAnalyticsPage(monthKeyArg = null, excludeAdmin = loa
     // gets instead, since those events can never be linked into a visit.
     // "most recent 200" is in the title because the Sessions KPI counts every
     // visit in range and the two will disagree once traffic passes the cap.
-    const sessionsSection = makeSection('Sessions from Israel (most recent 200)');
+    const sessionsSection = makeSection('Sessions — Israel & signed-in users (most recent 200)');
     sessionsSection.innerHTML += `<div id="sessions-list"></div>`;
     shell.panels.journeys.appendChild(sessionsSection);
     renderSessions(sessionsSection, data.sessions);

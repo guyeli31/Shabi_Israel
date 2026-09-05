@@ -350,17 +350,31 @@ function renderPendingChanges(container) {
             if (text) text.textContent = `${index + 1}/${total}: ${desc}`;
         });
 
+        let failureHtml = null;
         if (result.success) {
             showMsg('publish-msg', `Published ${result.published} change${result.published === 1 ? '' : 's'} successfully!`, 'success');
         } else {
             const errList = result.errors.map(e => `<li>${escHtml(e)}</li>`).join('');
-            showMsg('publish-msg', `Published ${result.published} changes with ${result.errors.length} error(s):<ul>${errList}</ul>`, 'error');
+            failureHtml = `Published ${result.published} changes with ${result.errors.length} error(s):<ul>${errList}</ul>`;
+            showMsg('publish-msg', failureHtml, 'error');
         }
 
         refreshBadge();
 
-        // Re-render after short delay
-        setTimeout(() => renderPendingChanges(container), 1500);
+        // Re-render, then PUT THE FAILURE BACK.
+        //
+        // The re-render rebuilds this whole view, which wipes #publish-msg with
+        // it — so the error list that publishAll went to the trouble of
+        // collecting was on screen for 1.5 seconds and then gone, and a publish
+        // that half-failed ended up looking exactly like one that succeeded.
+        // Since a failed write is also dropped from the queue, that message was
+        // the ONLY notice the admin would ever get. It stays until they navigate
+        // away themselves; the success message still clears, because a clean
+        // publish has nothing to come back to.
+        setTimeout(() => {
+            renderPendingChanges(container);
+            if (failureHtml) showMsg('publish-msg', failureHtml, 'error');
+        }, 1500);
     });
 
     // Preview

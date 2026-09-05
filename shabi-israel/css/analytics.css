@@ -89,6 +89,13 @@
     flex-wrap: wrap;
     gap: var(--space-xs) var(--space-md);
 }
+/* "Exclude mine" is disabled while "Exclude any user" is on (it adds nothing on
+   top of excluding every operator) — dim it and block the pointer to say so.
+   Scoped to this bar so no other pill toggle in the app is affected. */
+.analytics-range-bar .subtab--pill:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
 
 .analytics-range-select {
     /* Caps at 180px but yields on a narrow screen instead of forcing a scroll. */
@@ -278,6 +285,15 @@
     border: 1px solid hsl(0 72% 50% / 0.50);
 }
 
+/* Per-user tint: each registered user gets their OWN hue (--sid-hue, set inline
+   from userHue()), so admins no longer share one red — one user reads as one
+   colour across the chip and their session cards. Same S/L/alpha as the base
+   chip, only the hue varies, so it stays readable in every theme. */
+.analytics-sid--user {
+    background: hsl(var(--sid-hue, 0) 72% 50% / 0.18);
+    border-color: hsl(var(--sid-hue, 0) 72% 50% / 0.55);
+}
+
 /* An ordinary visitor (admin_user null): one shared neutral, no hue. Colour on
    this page means "operator traffic" and nothing else, so the uniformity here
    is itself the signal. */
@@ -399,6 +415,31 @@
 }
 .clog-target { min-width: 0; }   /* may wrap now that it owns its own line */
 
+/* A browser Back/Forward/Refresh row — deliberately NOT styled like a UI click:
+   it is a navigation the browser performed, not a control the user pressed, so it
+   reads as muted chrome (a subtle inset chip) rather than an interaction target. */
+.clog-nav {
+    min-width: 0;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.3em;
+    padding: 0.05em 0.5em;
+    border-radius: var(--radius-sm, 4px);
+    background: var(--color-inset);
+    border: 1px dashed var(--color-border);
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+.clog-nav-glyph { font-style: normal; font-weight: 700; color: var(--color-accent); }
+.clog-nav-to { font-style: normal; color: var(--color-text); }
+
+/* The same direction glyph, as a compact badge in the transitions-log table. */
+.ana-nav-badge {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--color-accent);
+}
+
 /* ── Session card — a native <details>, so expanding needs no JS ─────────── */
 .analytics-session {
     border: 1px solid var(--color-border);
@@ -407,6 +448,9 @@
     margin-bottom: var(--space-sm, 8px);
     overflow: hidden;
 }
+/* A registered user's session card carries their own hue as a left accent, so a
+   scan of the Journeys list groups each user by colour (matches their chip). */
+.analytics-session--user { border-left: 3px solid hsl(var(--sid-hue, 0) 72% 50% / 0.6); }
 .analytics-session-head {
     display: flex;
     align-items: center;

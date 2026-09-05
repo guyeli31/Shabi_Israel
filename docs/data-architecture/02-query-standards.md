@@ -1,6 +1,6 @@
 # 02 — Query Standards (mandatory for all future pages/features)
 
-Status: **binding (Phase 2/3 landed on local Docker).** Rule 1 is enforced by `scripts/check-query-standards.mjs`, which is built and **passing** (scans 83 files under `js/`, 0 violations as of 2026-07-10). The remaining rules are review-checklist items (see rule 13). Their purpose is to stop the pattern that caused this whole effort: a point-fix landing, then the next feature re-introducing the same class of bug because there was no standing rule against it.
+Status: **binding (Phase 2/3 landed on local Docker).** Rule 1 is enforced by `scripts/check-query-standards.mjs`, which is built and **passing** (scans 83 files under `js/`, 0 violations as of 2026-07-10). The remaining rules are review-checklist items (see rule 14). Their purpose is to stop the pattern that caused this whole effort: a point-fix landing, then the next feature re-introducing the same class of bug because there was no standing rule against it.
 
 Not yet wired into CI / a pre-commit hook — the gate script exists and runs on demand (`node scripts/check-query-standards.mjs`); automating it is a separate follow-up.
 
@@ -40,7 +40,14 @@ Not yet wired into CI / a pre-commit hook — the gate script exists and runs on
 
     The contract this buys, and the one to preserve: **any visitor, on any browser, with at most one reload, sees the current database** — and an open tab converges on its own within ~60s (visible-tab poll, suspended while hidden) or immediately on tab-return, with no reload at all.
 
-13. **PR checklist** (attach to any PR touching data reads or adding a page):
+13. **One entity, one definition — a player's roster comes from `players_registry`.** Added 2026-09-04 after a five-season regular was reported to the admin as `Unknown player: fridlich`. A league is an entity (a row in `public.leagues`, able to exist before its first fixture); a **player is not** — a person exists only by appearing in `matches.player_a/player_b`, and `players_metadata` is decoration on an already-existing player, not the roster. With no entity, there was no authoritative answer to "does this name exist", so **five** call sites each derived their own — the Players tab and three pickers counted any non-hidden league, `mail_orphan_reason` counted only RUNNING ones. Five copies of one rule, none of which fails loudly when it drifts: each keeps returning a plausible answer, and the disagreement only surfaces somewhere else entirely, dressed as a data problem.
+    - **The site's player roster comes from `store.js`'s `loadVisiblePlayerNames()`**, backed by the `players_registry` view (`sql/players_registry.sql`, shipped inside `get_site_bundle` — no extra round trip). Do not write another `for (const l of leagues) for (const p of l.allPlayers)` loop to rebuild it.
+    - **Server-side checks use the view directly**, so the database and the browser cannot disagree about who exists (`public.mail_orphan_reason` is the worked example).
+    - **The rule is scope, not habit.** Ask the registry when the question is about the player *in the system* — may this name appear in a cross-league search, does it exist, are they playing now. Do NOT ask it for a question about a *context*: an in-league picker offers that league's roster, a round view offers that round's, and admin autocomplete deliberately also offers staged and pre-registered players who do not exist yet. The test: if the list should look the same on every page, it comes from the registry; if it changes with the page, it does not.
+    - **`last_flag` is the CONTEXT-FREE flag, and only that.** The registry also carries the flag a player LAST played under (newest league in DisplayOrder that is not hidden or archived — the same rule as `js/utils/playerFlags.js`'s `latest()`, verified against it for all 60 players). It is right for a card header, a cross-league search row, an all-time table. It is WRONG for anything belonging to one league or one match: those take that league's own flag (`inLeague(name, leagueId)`). Otherwise a player who changes country has every past match redrawn under the new one — the exact bug `playerFlags.js` was written to fix. Verified live: Moriarty renders `TZ` in April 2026 and `GE` in June 2026, in the same tables (B2/B5/B6). A league ABSENT from DisplayOrder is excluded outright rather than sorted last, because every public page builds its league list from DisplayOrder and would never see it.
+    - Enforced by `scripts/check-players-registry.mjs` — both halves: a hand-rolled roster, and `lastFlag` used outside its allowlist.
+
+14. **PR checklist** (attach to any PR touching data reads or adding a page):
     - [ ] Does every new/changed query have a deterministic `ORDER BY` with a unique tiebreaker, or a proven <1000-row bound? (rule 2)
     - [ ] Does this read go through `store.js`, with no direct `supabase.from()/rpc()` outside the allowed files? (rule 1, 9)
     - [ ] If new data is needed, was it added to the bundle rather than a new query? (rule 3)
@@ -52,3 +59,4 @@ Not yet wired into CI / a pre-commit hook — the gate script exists and runs on
     - [ ] Does the loading screen still never appear on a warm transition? `node scripts/perf/verify-splash-guarantee.mjs` (rule 10)
     - [ ] Any new cache carries an exact invalidation rule, not a TTL guess? (rule 11)
     - [ ] Does a data change still reach the screen with at most one reload, and an open tab without any? (rule 12)
+    - [ ] Is any site-wide player list read from `loadVisiblePlayerNames()` rather than rebuilt from the leagues? `node scripts/check-players-registry.mjs` (rule 13)

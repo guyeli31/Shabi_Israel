@@ -1,0 +1,100 @@
+name: Project Title Race
+
+# Recomputes the Title Race projections for leagues whose match history changed.
+# Spec: docs/data-architecture/05-projection-cache.md
+#
+# WHY A JOB AND NOT THE PAGE
+# The chart needs a Monte Carlo projection per update point — ~0.9 s each, ~80 s
+# for a league. In a browser that is a frozen tab, paid by every visitor, for an
+# answer identical for all of them. Here it is paid once, at full accuracy.
+#
+# HOW IT IS TRIGGERED
+#   1. A trigger on `match_history` queues the affected league
+#      (sql/league_projections.sql), coalesced to one pending entry per league.
+#   2. Something dispatches this workflow — the schedule below, the Run button,
+#      or the database itself via the pg_net path the External Source scheduler
+#      already uses.
+#   3. The script claims the queue and writes the results back.
+#
+# The schedule is the safety net, not the mechanism: if a dispatch is ever lost,
+# the queue is still there and the next tick picks it up. Queue empty = the run
+# exits in seconds, so the cadence costs nothing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      league:
+        description: 'One league id to project. Empty = whatever the database has queued.'
+        required: false
+        default: ''
+        type: string
+      all:
+        description: 'Project every league (initial backfill). Ignores the queue.'
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    # A SAFETY NET, not the mechanism. The database dispatches this workflow the
+    # moment a league's history changes (_dispatch_projection_run in
+    # sql/league_projections.sql), so the normal path is immediate. This exists
+    # only for the case where that dispatch never lands — GitHub unreachable,
+    # the Vault PAT rotated, pg_net down. The queue survives all of those; this
+    # is what eventually drains it. Hourly rather than every few minutes,
+    # because a lost dispatch is rare and a run with an empty queue is pure
+    # waste (~10 s each).
+    - cron: '17 * * * *'
+
+# One projection run at a time. A burst of admin publishes must not start
+# several runs that race to write the same league row — later requests wait for
+# the in-flight one, and only the newest of them survives the wait.
+concurrency:
+  group: project-title-race
+  cancel-in-progress: false
+
+jobs:
+  project:
+    runs-on: ubuntu-latest
+    # A full backfill of every league is the worst case: ~80 s per league of
+    # ~90 points, so a dozen leagues sits comfortably inside this.
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: scripts
+    steps:
+      # Pinned to `development`, deliberately, because this repo's default
+      # branch is NOT where the code lives. `main` is a stale snapshot from
+      # before the shabi-israel/ folder move — it has no scripts/ and no
+      # js/compute/, so a checkout of it here would fail on the first import.
+      #
+      # It matters most for the SCHEDULE: a scheduled run always executes the
+      # workflow from the default branch, so without this pin the cron would
+      # check out `main` and die every 30 minutes. The manual Run button is
+      # unaffected either way (it checks out whichever branch you pick), but
+      # pinning makes both paths run the same code, which is the point.
+      #
+      # If `development` ever becomes the repo's default branch, this can go.
+      - uses: actions/checkout@v4
+        with:
+          ref: development
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Only @supabase/supabase-js is needed; the compute modules are imported
+      # straight from shabi-israel/js/ and have no dependencies of their own.
+      - name: Install dependencies
+        run: npm install --omit=optional
+
+      - name: Project title race
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ "${{ inputs.all }}" = "true" ]; then
+            node project-title-race.js --all
+          elif [ -n "${{ inputs.league }}" ]; then
+            node project-title-race.js --league "${{ inputs.league }}"
+          else
+            node project-title-race.js
+          fi

@@ -711,9 +711,25 @@ table.font-small { font-size: var(--fs-085); }
    the responsive font-small sizing from .edit-card-sm .form-group input.
    (Hand-built FF chrome like F1–F4; the mountFFTable rewire is Phase 8 of
    docs/plans/table-lab-unification.md.) */
-[data-mf-table-id="F6"] th:nth-child(n+2),
-[data-mf-table-id="F6"] td:nth-child(n+2) {
+[data-mf-table-id="F6"] th:nth-child(2),
+[data-mf-table-id="F6"] td:nth-child(2),
+[data-mf-table-id="F6"] th:nth-child(3),
+[data-mf-table-id="F6"] td:nth-child(3) {
     width: 28%;
+}
+/* Column 4 — the add/remove buttons for a medal's EXTRA prize rows. Sized to
+   the button, so widening the table for it doesn't come out of Count/Prize. */
+[data-mf-table-id="F6"] .prize-row-actions {
+    width: 1%;
+    white-space: nowrap;
+    text-align: center;
+}
+/* The extra rows belong to the medal above them: same colour, quieter weight,
+   indented, so the medal's OWN row still reads as the tier's headline. */
+[data-mf-table-id="F6"] .medal-cell.is-extra {
+    font-weight: 400;
+    opacity: 0.75;
+    padding-inline-start: var(--space-md);
 }
 .medal-cell {
     display: inline-flex;
@@ -2452,6 +2468,21 @@ table.font-large { font-size: var(--fs-093); }
 .status-completed {
     background: var(--color-completed-bg);
     color: var(--color-completed);
+}
+/* A third status, admin-only: the league exists as queued work and nowhere
+   else. Deliberately NOT red — it is a draft waiting to be published, not a
+   failure, and it used to render as a red "Failed to load" saying the exact
+   opposite. Amber matches the preview banner's "not yet published" signal.
+   Lives here rather than in components.css because admin.html does not load
+   that file — it carries its own copy of the status-pill set, right above. */
+.status-pending {
+    background: var(--color-pending-bg);
+    color: var(--color-pending);
+}
+/* The row itself stays legible as a draft while scrolling past the published
+   ones, without shouting: a hairline amber rail on the leading edge only. */
+.league-row-pending > td:first-child {
+    box-shadow: inset 3px 0 0 var(--color-pending);
 }
 
 /* ---- Global hover tooltip (mirrors components.css for the admin page, which

@@ -16,6 +16,7 @@
 
 import { colorForValue } from './colorScale.js';
 import { pmTableHtml } from '../../table-lab/formats/pm/mount.js';
+import { resolveTie, needsMatchData, assertTablesFor } from './tiebreaks.js';
 
 // ── Probability lookup table ────────────────────────────────────────
 // Win probability (%) for the better (lower PR) player, indexed by
@@ -214,11 +215,15 @@ function getWinProbabilityRound(prA, prB, mlIdx) {
 }
 
 /**
- * Rank all players (non-REGULAR) from best (index 0) to worst.
- * Primary: winRate | avgPoints | wins. Secondary: meanPR | wins.
+ * Rank all players from best (index 0) to worst, for league types whose policy
+ * needs no tiebreak-H2H tables. Primary: winRate | avgPoints | wins.
+ * Secondary: meanPR | wins. Whoever is still level after both goes through the
+ * SAME shared cascade — a type declaring e.g. ['tbAlphabetical'] is honoured here too,
+ * so "the policy lives in one place" holds on every path, not just the fast one.
  * Returns an array of player indices in rank order.
  */
-function rankAllPlayers(wins, games, points, tiebreakerPR, rankingConfig, n) {
+function rankAllPlayers(wins, games, points, tiebreakerPR, rankingConfig, n, tables = null) {
+    const steps = rankingConfig.tiebreaks || [];
     const primary = rankingConfig.primary;
     const primaryDesc = rankingConfig.primaryDir === 'desc';
     const secondary = rankingConfig.secondary;
@@ -242,56 +247,43 @@ function rankAllPlayers(wins, games, points, tiebreakerPR, rankingConfig, n) {
         const sa = getSecondary(a), sb = getSecondary(b);
         return secondaryAsc ? sa - sb : sb - sa;
     });
-    return indices;
-}
+    if (!steps.length) return indices;
 
-// ── REGULAR ranking + tiebreak ─────────────────────────────────────
-// Primary is WinRate DESC. Players tied on WinRate are resolved by a
-// progressively-narrowing cascade over the *still-tied* subgroup:
-//   (a) most head-to-head wins among the subgroup
-//   (b) best points-difference (Σ game-score diffs) within the subgroup
-//   (c) best points-difference across all matches vs the whole league
-//   (d) alphabetical (deterministic final fallback)
-// pairWins[i*n+j] = # matches i beat j; pairDiff[i*n+j] = Σ(i_score − j_score)
-// over i-vs-j matches; totalDiff[i] = Σ over ALL of i's matches.
-
-function resolveRegularTie(members, level, pairWins, pairDiff, totalDiff, names, n) {
-    if (members.length <= 1) return members;
-    if (level >= 3) {
-        return [...members].sort((a, b) =>
-            names[a] < names[b] ? -1 : names[a] > names[b] ? 1 : 0);
-    }
-
-    const value = (m) => {
-        if (level === 0) { // (a) head-to-head wins within subgroup
-            let s = 0;
-            for (const o of members) if (o !== m) s += pairWins[m * n + o];
-            return s;
-        }
-        if (level === 1) { // (b) points-diff within subgroup
-            let s = 0;
-            for (const o of members) if (o !== m) s += pairDiff[m * n + o];
-            return s;
-        }
-        return totalDiff[m]; // (c) points-diff vs whole league
-    };
-
-    const sorted = [...members].sort((a, b) => value(b) - value(a));
+    assertTablesFor(steps, tables, 'championshipPredictor.js (exact path)');
     const out = [];
     let i = 0;
-    while (i < sorted.length) {
+    while (i < n) {
         let j = i + 1;
-        const vi = value(sorted[i]);
-        while (j < sorted.length && value(sorted[j]) === vi) j++;
-        const sub = sorted.slice(i, j);
-        if (sub.length === 1) out.push(sub[0]);
-        else out.push(...resolveRegularTie(sub, level + 1, pairWins, pairDiff, totalDiff, names, n));
+        const pv = getPrimary(indices[i]), sv = getSecondary(indices[i]);
+        while (j < n && getPrimary(indices[j]) === pv && getSecondary(indices[j]) === sv) j++;
+        if (j - i === 1) out.push(indices[i]);
+        else out.push(...resolveTie(indices.slice(i, j), steps, tables));
         i = j;
     }
     return out;
 }
 
-function rankRegular(wins, games, pairWins, pairDiff, totalDiff, names, n) {
+// ── Tiebreak cascade — POLICY LIVES IN leagueTypes.js ──────────────────
+// This file owns no tiebreak rule. It owns the LOOKUP: the Monte Carlo keeps
+// its tables as flat typed arrays (pairWins[i*n+j], pairDiff[i*n+j],
+// totalDiff[i]) because a 50 000-iteration loop cannot afford Maps of strings,
+// and members are plain indices. Wrapping those in the tiebreaks.js contract
+// lets the shared resolveTie() run the exact same cascade the rendered table
+// runs — at typed-array speed, with zero copy of the rule.
+function makeIndexTables(pairWins, pairDiff, totalDiff, names, n) {
+    return {
+        pairWins:  (a, b) => pairWins[a * n + b],
+        pairDiff:  (a, b) => pairDiff[a * n + b],
+        totalDiff: (a)    => totalDiff[a],
+        name:      (a)    => names[a]
+    };
+}
+
+/**
+ * Rank by WinRate DESC, then hand every still-tied group to the shared cascade.
+ * `steps` is the league type's ranking.tiebreaks, passed straight through.
+ */
+function rankRegular(wins, games, tables, steps, n) {
     const winRate = (i) => (games[i] > 0 ? wins[i] / games[i] : 0);
     const indices = Array.from({ length: n }, (_, i) => i);
     indices.sort((a, b) => winRate(b) - winRate(a));
@@ -304,7 +296,7 @@ function rankRegular(wins, games, pairWins, pairDiff, totalDiff, names, n) {
         while (j < n && winRate(indices[j]) === wr) j++;
         const group = indices.slice(i, j);
         if (group.length === 1) out.push(group[0]);
-        else out.push(...resolveRegularTie(group, 0, pairWins, pairDiff, totalDiff, names, n));
+        else out.push(...resolveTie(group, steps, tables));
         i = j;
     }
     return out;
@@ -334,7 +326,7 @@ function estimateIterations(setup, targetMs = 500) {
 function simulateMonteCarlo(setup, N) {
     const { n, currentWins, currentGames, currentPoints,
             remainingA, remainingB, effectivePR, effectiveSTD, mlIdx,
-            rankingConfig, isUBC, isRegular, names, winMargin,
+            rankingConfig, isUBC, usesPairTables, steps, names, winMargin,
             basePairWins, basePairDiff, baseTotalDiff,
             playedPRSum, finalGames, useLUT, useInterp } = setup;
     const X = remainingA.length;
@@ -353,18 +345,26 @@ function simulateMonteCarlo(setup, N) {
     // Per-run Mean PR tiebreak (PR-based leagues only). prSum starts each
     // iteration at the player's real played-PR sum; drawn PRs are added as
     // remaining matches are simulated, then divided by finalGames.
-    const usesMeanPR = !isRegular && rankingConfig.secondary === 'meanPR';
+    const usesMeanPR = !usesPairTables && rankingConfig.secondary === 'meanPR';
     const prSum = usesMeanPR ? new Float64Array(n) : null;
     const meanPRIter = usesMeanPR ? new Float64Array(n) : null;
 
-    // REGULAR tiebreak bookkeeping: persistent working copies of the base
+    // Tiebreak-H2H bookkeeping: persistent working copies of the base
     // (played-match) tables. Each iteration applies the simulated results, ranks,
     // then undoes them — avoids re-copying the n×n matrices every iteration.
-    const pairWins = isRegular ? Int32Array.from(basePairWins) : null;
-    const pairDiff = isRegular ? Int32Array.from(basePairDiff) : null;
-    const totalDiff = isRegular ? Int32Array.from(baseTotalDiff) : null;
-    const touchedW = isRegular ? new Int32Array(X) : null;
-    const touchedL = isRegular ? new Int32Array(X) : null;
+    const pairWins = usesPairTables ? Int32Array.from(basePairWins) : null;
+    const pairDiff = usesPairTables ? Int32Array.from(basePairDiff) : null;
+    const totalDiff = usesPairTables ? Int32Array.from(baseTotalDiff) : null;
+    const touchedW = usesPairTables ? new Int32Array(X) : null;
+    const touchedL = usesPairTables ? new Int32Array(X) : null;
+
+    // Built ONCE, outside the loop: the lookup wrapper is bound to the working
+    // arrays, which are mutated in place, so the same object serves all N
+    // iterations at zero per-iteration cost.
+    const tables = steps.length
+        ? makeIndexTables(pairWins, pairDiff, totalDiff, names, n)
+        : null;
+    if (tables) assertTablesFor(steps, tables, 'championshipPredictor.js');
 
     // Hoisted outside loop — avoids per-iteration Array allocation + GC pressure
     const indices = Array.from({ length: n }, (_, i) => i);
@@ -372,6 +372,17 @@ function simulateMonteCarlo(setup, N) {
     const primaryDesc = rankingConfig.primaryDir === 'desc';
     const secondary = rankingConfig.secondary;
     const secondaryAsc = rankingConfig.secondaryDir === 'asc';
+
+    // This run's sort keys, materialised once per iteration into hoisted
+    // buffers. The comparator used to recompute both keys on every comparison
+    // (~n log n times) and the tiebreak scan would have recomputed them again;
+    // filling them n times instead serves both and is cheaper than either.
+    const keyP = new Float64Array(n);
+    const keyS = new Float64Array(n);
+    const primaryIsWinRate = primary === 'winRate';
+    const primaryIsAvgPoints = primary === 'avgPoints';
+    const secondaryIsMeanPR = secondary === 'meanPR';
+    const secondaryIsWins = secondary === 'wins';
 
     for (let iter = 0; iter < N; iter++) {
         // Reset to current standings
@@ -412,7 +423,7 @@ function simulateMonteCarlo(setup, N) {
                 else simPoints[b] += 1;
             }
 
-            if (isRegular) {
+            if (usesPairTables) {
                 pairWins[winner * n + loser]++;
                 pairDiff[winner * n + loser] += winMargin;
                 pairDiff[loser * n + winner] -= winMargin;
@@ -425,8 +436,8 @@ function simulateMonteCarlo(setup, N) {
         }
 
         let order;
-        if (isRegular) {
-            order = rankRegular(simWins, simGames, pairWins, pairDiff, totalDiff, names, n);
+        if (usesPairTables) {
+            order = rankRegular(simWins, simGames, tables, steps, n);
         } else {
             // Finalize this run's Mean PR from the played sum + drawn PRs.
             if (usesMeanPR) {
@@ -434,32 +445,45 @@ function simulateMonteCarlo(setup, N) {
                     meanPRIter[i] = finalGames[i] > 0 ? prSum[i] / finalGames[i] : 0;
                 }
             }
-            // Reset indices in-place (avoids Array.from allocation each iteration)
-            for (let i = 0; i < n; i++) indices[i] = i;
+            // Materialise this run's sort keys, then reset indices in-place
+            // (avoids Array.from allocation each iteration)
+            for (let i = 0; i < n; i++) {
+                keyP[i] = primaryIsWinRate ? (simGames[i] > 0 ? simWins[i] / simGames[i] : 0)
+                        : primaryIsAvgPoints ? (simGames[i] > 0 ? simPoints[i] / simGames[i] : 0)
+                        : simWins[i];
+                keyS[i] = secondaryIsMeanPR ? meanPRIter[i] : secondaryIsWins ? simWins[i] : 0;
+                indices[i] = i;
+            }
             indices.sort((a, b) => {
-                let pa, pb;
-                if (primary === 'winRate') {
-                    pa = simGames[a] > 0 ? simWins[a] / simGames[a] : 0;
-                    pb = simGames[b] > 0 ? simWins[b] / simGames[b] : 0;
-                } else if (primary === 'avgPoints') {
-                    pa = simGames[a] > 0 ? simPoints[a] / simGames[a] : 0;
-                    pb = simGames[b] > 0 ? simPoints[b] / simGames[b] : 0;
-                } else {
-                    pa = simWins[a]; pb = simWins[b];
-                }
-                if (pa !== pb) return primaryDesc ? pb - pa : pa - pb;
-                const sa = secondary === 'meanPR' ? meanPRIter[a] : secondary === 'wins' ? simWins[a] : 0;
-                const sb = secondary === 'meanPR' ? meanPRIter[b] : secondary === 'wins' ? simWins[b] : 0;
-                return secondaryAsc ? sa - sb : sb - sa;
+                if (keyP[a] !== keyP[b]) return primaryDesc ? keyP[b] - keyP[a] : keyP[a] - keyP[b];
+                return secondaryAsc ? keyS[a] - keyS[b] : keyS[b] - keyS[a];
             });
             order = indices;
+
+            // A type needing no tiebreak-H2H tables still has a policy (today
+            // ['tbAlphabetical']), and it is applied HERE, so "change the list in
+            // leagueTypes.js and both engines follow" holds for every league
+            // type — not only the one whose policy happens to need tables.
+            // Players separated by the sort skip the cascade entirely; only a
+            // genuinely level run pays for it.
+            const resolved = [];
+            let i = 0;
+            while (i < n) {
+                let j = i + 1;
+                const pv = keyP[order[i]], sv = keyS[order[i]];
+                while (j < n && keyP[order[j]] === pv && keyS[order[j]] === sv) j++;
+                if (j - i === 1) resolved.push(order[i]);
+                else resolved.push(...resolveTie(order.slice(i, j), steps, tables));
+                i = j;
+            }
+            order = resolved;
         }
 
         champWins[order[0]]++;
         for (let r = 0; r < n; r++) finishRankCounts[order[r] * n + r]++;
 
         // Undo this iteration's regular-tiebreak deltas, restoring the base tables
-        if (isRegular) {
+        if (usesPairTables) {
             for (let t = 0; t < tc; t++) {
                 const w = touchedW[t], l = touchedL[t];
                 pairWins[w * n + l]--;
@@ -499,7 +523,13 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
 
     const mlIdx = nearestMatchLengthIdx(matchLength);
     const isUBC = leagueConfig.type === 'ubc';
-    const isRegular = leagueConfig.type === 'regular';
+    // The tiebreak POLICY, read (never redefined) from the league type. Whether
+    // the n×n tiebreak-H2H tables must be built and maintained per iteration
+    // follows from the policy itself, not from a league-type name: add a
+    // pair-based criterion to any type in leagueTypes.js and the Monte Carlo
+    // starts carrying the tables for it, with nothing here to update.
+    const steps = leagueConfig.ranking.tiebreaks || [];
+    const usesPairTables = needsMatchData(steps);
     // Synthesized unplayed-match score: winner = matchLength, loser = ⌈matchLength/2⌉,
     // so the points-difference contribution of one simulated game is winMargin.
     const winMargin = matchLength - Math.ceil(matchLength / 2);
@@ -599,10 +629,10 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
 
     // REGULAR tiebreak base tables, built once from played matches (constant
     // across simulations). pairWins/pairDiff are n×n flat arrays; totalDiff is n.
-    const basePairWins = isRegular ? new Int32Array(n * n) : null;
-    const basePairDiff = isRegular ? new Int32Array(n * n) : null;
-    const baseTotalDiff = isRegular ? new Int32Array(n) : null;
-    if (isRegular) {
+    const basePairWins = usesPairTables ? new Int32Array(n * n) : null;
+    const basePairDiff = usesPairTables ? new Int32Array(n * n) : null;
+    const baseTotalDiff = usesPairTables ? new Int32Array(n) : null;
+    if (usesPairTables) {
         for (const match of playedMatches) {
             const ai = playerIdx.get(match.playerA);
             const bi = playerIdx.get(match.playerB);
@@ -622,7 +652,7 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
     const setup = {
         n, currentWins, currentGames, currentPoints,
         remainingA, remainingB, effectivePR, effectiveSTD, mlIdx,
-        rankingConfig: leagueConfig.ranking, isUBC, isRegular,
+        rankingConfig: leagueConfig.ranking, isUBC, usesPairTables, steps,
         names: players, winMargin, basePairWins, basePairDiff, baseTotalDiff,
         playedPRSum, finalGames, useLUT, useInterp
     };
@@ -644,9 +674,11 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
         method = 'exact';
         champWins = new Float64Array(n);
         finishRankCounts = new Float64Array(n * n);
-        const finalRanks = isRegular
-            ? rankRegular(currentWins, currentGames, basePairWins, basePairDiff, baseTotalDiff, players, n)
-            : rankAllPlayers(currentWins, currentGames, currentPoints, tiebreakerPR, leagueConfig.ranking, n);
+        const finalRanks = usesPairTables
+            ? rankRegular(currentWins, currentGames,
+                          makeIndexTables(basePairWins, basePairDiff, baseTotalDiff, players, n), steps, n)
+            : rankAllPlayers(currentWins, currentGames, currentPoints, tiebreakerPR, leagueConfig.ranking, n,
+                             makeIndexTables(basePairWins, basePairDiff, baseTotalDiff, players, n));
         champWins[finalRanks[0]] = 1;
         for (let r = 0; r < n; r++) finishRankCounts[finalRanks[r] * n + r] = 1;
     }

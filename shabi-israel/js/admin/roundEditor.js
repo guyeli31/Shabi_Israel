@@ -7,24 +7,21 @@
  * Table F (TABLE-DESIGN.md): each match renders as TWO rows (one per player)
  * with PLAYERS, PR, LUCK, SCORE per-row and EDITED + ACTIONS spanning both rows
  * via rowspan="2". Only the leftmost (PLAYERS) column is sticky on horizontal scroll.
+ *
+ * The PR column is league-type driven (`getLeagueConfig(params).showPR`), exactly
+ * like every read-side table: a REGULAR league has no PR at all, so the column is
+ * not rendered, not validated, and not written into the override.
  */
 
-import { loadOverrides, loadLeagueParams, loadLeagueMatchesAll } from '../data/supabaseLoader.js';
-import { addChange, getStagedContent, stageManualOverrides, T } from './stagingStore.js';
+import { loadLeagueParams, loadLeagueMatchesAll } from '../data/supabaseLoader.js';
+import { readOverridesForEdit, stageManualOverrides } from './stagingStore.js';
 import { revealMsg } from './msgScroll.js';
-
-async function loadOverridesWithStaged(leagueId) {
-    const staged = getStagedContent(T.overrides(leagueId));
-    if (staged) {
-        try { return JSON.parse(staged).overrides || []; } catch { return []; }
-    }
-    return loadOverrides(leagueId);
-}
 import { thLabel, flagUrl, getFlagCode } from '../utils/helpers.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { mountCombobox } from '../utils/combobox.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
+import { getLeagueConfig } from '../compute/leagueTypes.js';
 
 export function renderRoundEditor(container, leagueId, refreshBadge) {
     container.innerHTML = `
@@ -47,9 +44,12 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
         const roundCount = Math.max(1, ...matches.map(m => m.round || 1));
         const [params, overrides] = await Promise.all([
             loadLeagueParams(leagueId).catch(() => ({})),
-            loadOverridesWithStaged(leagueId)
+            readOverridesForEdit(leagueId)
         ]);
         const customFlags = params.CustomFlags || {};
+        // Same gate the read-side tables use (leagueTablePreset, playerMatchHistoryPreset):
+        // a REGULAR league tracks no PR, so F3 must not offer a PR cell to fill.
+        const showPR = getLeagueConfig(params).showPR !== false;
         const matchLength = parseInt(params.MatchLength) || 7;
         const scoreOptions = Array.from({ length: matchLength + 1 }, (_, n) =>
             `<option value="${n}">${n}</option>`).join('');
@@ -121,7 +121,7 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
                     <tbody class="${blockClass}" data-rid="${rowId}" data-pa="${esc(m.playerA)}" data-pb="${esc(m.playerB)}">
                         <tr class="match-row-a">
                             <td class="nowrap match-player-cell">${flagA}${esc(m.playerA)}</td>
-                            <td><input type="number" class="inline-edit-input" data-field="prA" step="0.01" value="${prA}"></td>
+                            ${showPR ? `<td><input type="number" class="inline-edit-input" data-field="prA" step="0.01" value="${prA}"></td>` : ''}
                             <td><input type="number" class="inline-edit-input" data-field="luckA" step="0.01" value="${lkA}"></td>
                             <td><select class="inline-edit-input inline-edit-score-select" data-field="scoreA">${scoreSelectA}</select></td>
                             <td class="nowrap match-edited" rowspan="2"><input type="date" class="themed-date match-edited-date" data-rid="${rowId}" value="${editedDateValue}"></td>
@@ -136,7 +136,7 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
                         </tr>
                         <tr class="match-row-b">
                             <td class="nowrap match-player-cell">${flagB}${esc(m.playerB)}</td>
-                            <td><input type="number" class="inline-edit-input" data-field="prB" step="0.01" value="${prB}"></td>
+                            ${showPR ? `<td><input type="number" class="inline-edit-input" data-field="prB" step="0.01" value="${prB}"></td>` : ''}
                             <td><input type="number" class="inline-edit-input" data-field="luckB" step="0.01" value="${lkB}"></td>
                             <td><select class="inline-edit-input inline-edit-score-select" data-field="scoreB">${scoreSelectB}</select></td>
                         </tr>
@@ -153,7 +153,7 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
                         <table class="admin-table font-large admin-round-table">
                             <thead><tr>
                                 <th class="match-player-cell">${thLabel('Players', 'Pl')}</th>
-                                <th>${thLabel('PR', 'PR')}</th>
+                                ${showPR ? `<th>${thLabel('PR', 'PR')}</th>` : ''}
                                 <th>${thLabel('Luck', 'Lk')}</th>
                                 <th>${thLabel('Score', 'Sc')}</th>
                                 <th>${thLabel('Edited', 'Ed')}</th>
@@ -167,7 +167,7 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
 
         container.innerHTML = html || '<p style="color:var(--color-text-muted)">No matches found.</p>';
         container.querySelectorAll('.ff-wrap').forEach(w => attachStickyShadow(w));
-        attachListeners(container, leagueId, refreshBadge, matchLength);
+        attachListeners(container, leagueId, refreshBadge, matchLength, showPR);
         if (root) attachRoundNav(root, container, roundStats);
         if (root) attachBulkTechLoss(root, container, leagueId, matches, matchLength, refreshBadge);
     } catch (err) {
@@ -341,13 +341,7 @@ function attachBulkTechLoss(root, content, leagueId, matches, matchLength, refre
  * single staged manual_overrides.json change.
  */
 async function stageBulkTechLoss(leagueId, player, playerMatches, refreshBadge) {
-    let overrides = [];
-    const staged = getStagedContent(T.overrides(leagueId));
-    if (staged) {
-        try { overrides = JSON.parse(staged).overrides || []; } catch { }
-    } else {
-        try { overrides = await loadOverrides(leagueId); } catch { }
-    }
+    const overrides = await readOverridesForEdit(leagueId);
     const ts = new Date().toISOString();
     for (const m of playerMatches) {
         const winner = m.playerA === player ? m.playerB : m.playerA;
@@ -387,7 +381,23 @@ function applyTechLossToDom(content, player, matchLength) {
     });
 }
 
-function attachListeners(container, leagueId, refreshBadge, matchLength) {
+/**
+ * Value of one editable field, or `null` when the league doesn't have that
+ * column at all (no PR in a REGULAR league). `null` is deliberately distinct
+ * from `''`: absent means "nothing to require", empty means "not filled yet".
+ */
+function fieldVal(block, field) {
+    const el = block.querySelector(`[data-field="${field}"]`);
+    return el ? el.value.trim() : null;
+}
+
+/** Write one editable field, no-op when the league doesn't render that column. */
+function setField(block, field, value) {
+    const el = block.querySelector(`[data-field="${field}"]`);
+    if (el) el.value = value;
+}
+
+function attachListeners(container, leagueId, refreshBadge, matchLength, showPR = true) {
     // Snapshot each match-block's original (last-saved/loaded) state so Revert
     // can restore it. Runs once, before any edits, so the live values are pristine.
     container.querySelectorAll('tbody[data-rid]').forEach(block => {
@@ -427,12 +437,17 @@ function attachListeners(container, leagueId, refreshBadge, matchLength) {
                 override = {
                     type: 'result',
                     playerA, playerB,
-                    scoreA: parseFloat(block.querySelector('[data-field="scoreA"]').value) || 0,
-                    scoreB: parseFloat(block.querySelector('[data-field="scoreB"]').value) || 0,
-                    prA: parseFloat(block.querySelector('[data-field="prA"]').value) || 0,
-                    prB: parseFloat(block.querySelector('[data-field="prB"]').value) || 0,
-                    luckA: parseFloat(block.querySelector('[data-field="luckA"]').value) || 0,
-                    luckB: parseFloat(block.querySelector('[data-field="luckB"]').value) || 0,
+                    scoreA: parseFloat(fieldVal(block, 'scoreA')) || 0,
+                    scoreB: parseFloat(fieldVal(block, 'scoreB')) || 0,
+                    // A league with no PR must not have PR:0 invented for it —
+                    // the keys are omitted entirely, matching the shape
+                    // mapDbOverride() produces for a NULL pr_a/pr_b column.
+                    ...(showPR ? {
+                        prA: parseFloat(fieldVal(block, 'prA')) || 0,
+                        prB: parseFloat(fieldVal(block, 'prB')) || 0,
+                    } : {}),
+                    luckA: parseFloat(fieldVal(block, 'luckA')) || 0,
+                    luckB: parseFloat(fieldVal(block, 'luckB')) || 0,
                     reason: 'Manual entry',
                     timestamp: ts
                 };
@@ -486,12 +501,10 @@ function attachListeners(container, leagueId, refreshBadge, matchLength) {
                 scB = winner === block.dataset.pb ? matchLength : 0;
             }
 
-            block.querySelector('[data-field="prA"]').value = '';
-            block.querySelector('[data-field="luckA"]').value = '';
-            block.querySelector('[data-field="scoreA"]').value = scA;
-            block.querySelector('[data-field="prB"]').value = '';
-            block.querySelector('[data-field="luckB"]').value = '';
-            block.querySelector('[data-field="scoreB"]').value = scB;
+            // setField, not a direct `.value` write: prA/prB don't exist in a
+            // league without PR, and a TA/TB/TD/NP click must not throw there.
+            setField(block, 'prA', ''); setField(block, 'luckA', ''); setField(block, 'scoreA', scA);
+            setField(block, 'prB', ''); setField(block, 'luckB', ''); setField(block, 'scoreB', scB);
 
             block.dataset.pendingType = type;
             if (winner) block.dataset.pendingWinner = winner;
@@ -523,12 +536,20 @@ function attachListeners(container, leagueId, refreshBadge, matchLength) {
 
 }
 
+/**
+ * A `result` override is publishable only once every field the league ACTUALLY
+ * has is filled. Reading each field through `fieldVal` (null when the column was
+ * never rendered) is what makes a no-PR league saveable at all: the old version
+ * required prA/prB unconditionally, so in a REGULAR league — where there is no
+ * PR cell to type into — Save stayed permanently disabled and a manual edit
+ * could never reach Pending Changes.
+ */
 function validateResultFields(block, matchLength) {
-    const prA = block.querySelector('[data-field="prA"]').value.trim();
-    const prB = block.querySelector('[data-field="prB"]').value.trim();
-    const luckA = block.querySelector('[data-field="luckA"]').value.trim();
-    const luckB = block.querySelector('[data-field="luckB"]').value.trim();
-    if (!prA || !prB || !luckA || !luckB) return false;
+    const prA = fieldVal(block, 'prA');
+    const prB = fieldVal(block, 'prB');
+    const luckA = fieldVal(block, 'luckA');
+    const luckB = fieldVal(block, 'luckB');
+    if (prA === '' || prB === '' || luckA === '' || luckB === '') return false;
     const scA = parseInt(block.querySelector('[data-field="scoreA"]').value, 10);
     const scB = parseInt(block.querySelector('[data-field="scoreB"]').value, 10);
     const aMax = scA === matchLength;
@@ -594,13 +615,7 @@ function formatEdited(ts) {
 }
 
 async function stageOverride(leagueId, newOverride, refreshBadge) {
-    let overrides = [];
-    const staged = getStagedContent(T.overrides(leagueId));
-    if (staged) {
-        try { overrides = JSON.parse(staged).overrides || []; } catch { }
-    } else {
-        try { overrides = await loadOverrides(leagueId); } catch { }
-    }
+    const overrides = await readOverridesForEdit(leagueId);
     const key = pairKey(newOverride.playerA, newOverride.playerB);
     const idx = overrides.findIndex(o => pairKey(o.playerA, o.playerB) === key);
     if (idx !== -1) overrides[idx] = newOverride;

@@ -44,6 +44,7 @@ export function readCsvStructure(csvText) {
     const roundSizes = [];
     const matchCounts = [];
     const players = new Set();
+    const pairs = new Set();
     const malformed = [];
     let rounds = 0;
 
@@ -72,7 +73,10 @@ export function readCsvStructure(csvText) {
         roundSizes[rounds - 1] += 1;
         if (a && a !== 'Bye') players.add(a);
         if (b && b !== 'Bye') players.add(b);
-        if (a !== 'Bye' && b !== 'Bye') matchCounts[rounds - 1] += 1;
+        if (a !== 'Bye' && b !== 'Bye') {
+            matchCounts[rounds - 1] += 1;
+            pairs.add([a, b].sort().join('|'));
+        }
     });
 
     const uniformRoundSize = roundSizes.length > 0 && roundSizes.every((n) => n === roundSizes[0]);
@@ -83,9 +87,49 @@ export function readCsvStructure(csvText) {
         rowsPerRound: uniformRoundSize ? roundSizes[0] : null,
         uniformRoundSize,
         players,
+        pairs,
         totalMatches: matchCounts.reduce((s, n) => s + n, 0),
         malformed,
     };
+}
+
+/**
+ * The set of PAIRINGS in a match list, as orientation-independent keys.
+ *
+ * "Dan vs Ron" and "Ron vs Dan" are one fixture, so the key is the two names
+ * sorted. This matters in practice: a league's own round-robin is generated in
+ * one orientation and an imported file may carry the other, and comparing raw
+ * A/B columns would report every match as both added and removed.
+ *
+ * This is the identity of a league's SHAPE — which pairs meet at all — as
+ * distinct from describeLeagueShape below, which counts rounds and rows. Two
+ * files can agree on every count and still describe different tournaments.
+ */
+export function collectPairs(matches) {
+    const out = new Set();
+    for (const m of matches || []) {
+        if (!m.playerA || !m.playerB) continue;
+        if (m.playerA === 'Bye' || m.playerB === 'Bye') continue;
+        out.add([m.playerA, m.playerB].sort().join('|'));
+    }
+    return out;
+}
+
+/** "Dan|Ron" → "Dan vs Ron", for display. */
+export function formatPair(key) {
+    return key.split('|').join(' vs ');
+}
+
+/** Every pairing a full round robin over `names` would contain. */
+export function allPossiblePairs(names) {
+    const list = [...names].sort();
+    const out = new Set();
+    for (let i = 0; i < list.length; i++) {
+        for (let j = i + 1; j < list.length; j++) {
+            out.add([list[i], list[j]].sort().join('|'));
+        }
+    }
+    return out;
 }
 
 /**
@@ -94,6 +138,7 @@ export function readCsvStructure(csvText) {
  *   (i.e. parseCSVAllWithRounds().matches, or the `matches` table).
  */
 export function describeLeagueShape(matches) {
+    const pairs = collectPairs(matches);
     const players = new Set();
     const matchesPerRound = new Map();
     for (const m of matches || []) {
@@ -104,6 +149,7 @@ export function describeLeagueShape(matches) {
     }
     return {
         players,
+        pairs,
         rounds: matchesPerRound.size ? Math.max(...matchesPerRound.keys()) : 0,
         matchesPerRound,
         totalMatches: (matches || []).length,
@@ -150,6 +196,29 @@ export function validateCsvStructure(csvText, expected = null) {
         }
         if (structure.totalMatches !== expected.totalMatches) {
             errors.push(`The CSV has ${structure.totalMatches} match rows; this league has ${expected.totalMatches}.`);
+        }
+        // THE PAIRINGS THEMSELVES. Every check above compares counts and name
+        // sets, and a file can satisfy all of them while describing a different
+        // draw: same players, same rounds, same row count, different opponents.
+        // A league's fixture list is fixed when it is created, so a file that
+        // re-draws it is not this league's data — whoever is importing it.
+        //
+        // Lives HERE, in the shared integrity layer, rather than in the admin's
+        // report: the scheduled External Source sync runs these same two layers
+        // headlessly and writes without anyone watching. A rule that only the
+        // admin screen enforced would be a rule the automated path could quietly
+        // break, which is the failure mode this file exists to prevent.
+        if (expected.pairs) {
+            const addedPairs = [...structure.pairs].filter((p) => !expected.pairs.has(p)).sort();
+            const gonePairs = [...expected.pairs].filter((p) => !structure.pairs.has(p)).sort();
+            const show = (list) => list.slice(0, 6).map((p) => p.split('|').join(' vs ')).join(', ')
+                + (list.length > 6 ? ` … and ${list.length - 6} more` : '');
+            if (addedPairs.length > 0) {
+                errors.push(`${addedPairs.length} pairing(s) in the CSV are not fixtures of this league: ${show(addedPairs)}.`);
+            }
+            if (gonePairs.length > 0) {
+                errors.push(`${gonePairs.length} of this league's fixtures are missing from the CSV: ${show(gonePairs)}.`);
+            }
         }
     }
 

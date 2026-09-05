@@ -21,9 +21,11 @@
  */
 
 import { supabase } from './supabaseClient.js';
-import { mergeHistoryIntoMatches } from '../compute/matchHistory.js';
+import { mergeHistoryIntoMatches, buildMatchTimeline } from '../compute/matchHistory.js';
 import { applyOverrides as applyOverridesPure } from './applyOverrides.js';
 import * as mapper from './bundleMapper.js';
+// URL-flag + localStorage reads only; no admin state reaches the public path.
+import { stagedPlayersMetadata } from '../admin/previewMode.js';
 
 const CACHE_KEY = 'shabi:bundle:v1';
 /**
@@ -524,6 +526,37 @@ export async function loadMatchHistory(leagueId) {
     return { matches };
 }
 
+/**
+ * A league's precomputed Title Race projections, or null when none are stored.
+ *
+ * DELIBERATELY NOT IN THE SITE BUNDLE, and the reason is a quota rather than a
+ * preference. The bundle is fetched on every page and persisted to
+ * localStorage, which has a hard ~5 MB ceiling; the projections are ~50–170 KB
+ * per league and serve exactly one section of one league. Carrying them in the
+ * bundle would spend a large share of that ceiling on data most visits never
+ * look at — and the failure mode of exceeding it is the cache silently refusing
+ * to persist, i.e. every page load in the site becoming a cold load.
+ *
+ * So this is its own request, made only when the Title Race section is actually
+ * on screen (see js/render/dashboardPage.js → renderTitleRace). It lands in page
+ * memory and is gone on refresh. Rule 1 of 02-query-standards still holds: the
+ * query lives here in store.js, not at the call site.
+ *
+ * @returns {Promise<{roster:string[], points:object[], iterations:number}|null>}
+ */
+export async function loadLeagueProjections(leagueId) {
+    const { data, error } = await supabase
+        .from('league_projections')
+        .select('roster, points, iterations, computed_at')
+        .eq('league_id', leagueId)
+        .maybeSingle();
+    // A missing table (the SQL not applied yet) or a missing row are the same
+    // thing to the caller: nothing stored, compute locally. Never an error the
+    // page has to show — the chart has a working fallback either way.
+    if (error || !data) return null;
+    return data;
+}
+
 export function applyOverrides(matches, overrides) {
     return applyOverridesPure(matches, overrides);
 }
@@ -537,7 +570,12 @@ export async function loadLeague(leagueId) {
         loadMatchHistory(leagueId),
     ]);
     const withOverrides = applyOverridesPure(matchData.matches, overrides);
-    const mergedMatches = mergeHistoryIntoMatches(withOverrides, history.matches);
+    // The timeline — history minus the pairings a not_played override erases —
+    // is what every time-aware view replays, and what the live merge folds in.
+    // Merging the RAW history here resurrected a match the admin had just marked
+    // not-played, because the stale history row outranked the override.
+    const timeline = buildMatchTimeline(history, overrides);
+    const mergedMatches = mergeHistoryIntoMatches(withOverrides, timeline);
 
     return {
         id: leagueId,
@@ -547,6 +585,7 @@ export async function loadLeague(leagueId) {
         totalPlayers: matchData.totalPlayers,
         allPlayers: matchData.allPlayers,
         history,
+        timeline,
     };
 }
 
@@ -602,11 +641,56 @@ export async function loadPlayersMetadata() {
     for (const row of bundle.players_metadata) {
         _metaCache[row.id] = mapper.mapPlayerMetaRow(row);
     }
+    // Preview mode (?preview): a staged players_metadata edit has no URL for
+    // previewMode.js's fetch interceptor to shadow — metadata comes from the
+    // bundle, not from disk — so the staged registry is overlaid here instead.
+    // Without it the admin's "Live preview" iframe rendered the published title
+    // while the form beside it showed the edited one. The staged content is the
+    // whole registry, and its entries already use this same camelCase shape.
+    const staged = stagedPlayersMetadata();
+    if (staged) _metaCache = staged;
     return _metaCache;
 }
 
 export function clearPlayersMetadataCache() {
     _metaCache = null;
+}
+
+/**
+ * The player registry (public.players_registry, sql/players_registry.sql) — the
+ * single answer to "who is a player", shared by the Players tab and the mail
+ * queue's diagnostics instead of each deriving its own.
+ *
+ * Returns null on a database that predates sql/players_registry.sql, where the
+ * bundle simply has no `players` key. Callers fall back to deriving the roster
+ * themselves, exactly as they did before — so this can ship ahead of the SQL.
+ */
+export async function loadPlayersRegistry() {
+    const bundle = await ready();
+    if (!Array.isArray(bundle.players)) return null;
+    return bundle.players.map(mapper.mapPlayerRegistryRow);
+}
+
+/**
+ * The set of player names the PUBLIC site may offer — a player who appears in
+ * at least one non-hidden, non-archived league and is not hidden themselves.
+ *
+ * This is the rule every cross-league player search already applied, each with
+ * its own copy of the same nested loop (the sidebar/mobile search index, the
+ * H2H opponent picker, the What-If picker, the Players tab). Four copies of one
+ * rule is four chances to drift, and the same class of drift — one caller
+ * counting running leagues where another counted all of them — is what let the
+ * mail queue call a five-season regular an unknown player.
+ *
+ * Returns null on a database predating sql/players_registry.sql, so each caller
+ * keeps its own derivation as the fallback and this can ship ahead of the SQL.
+ * An in-LEAGUE picker is a different question and must not use this: it offers
+ * that league's roster, not the site's.
+ */
+export async function loadVisiblePlayerNames() {
+    const registry = await loadPlayersRegistry();
+    if (!registry) return null;
+    return new Set(registry.filter((p) => p.visibleLeagues > 0 && !p.hidden).map((p) => p.id));
 }
 
 export function getCachedPlayerMeta(name) {

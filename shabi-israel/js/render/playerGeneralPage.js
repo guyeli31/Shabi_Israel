@@ -22,7 +22,7 @@ import {
     loadAllLeagues,
     loadVisibleLeagues
 } from '../compute/crossLeague.js';
-import { loadPlayersMetadata } from '../data/store.js';
+import { loadPlayersMetadata, loadVisiblePlayerNames } from '../data/store.js';
 import { startSplash, splashStage, endSplash } from '../utils/splash.js';
 import { renderErrorScreen, explainError } from '../utils/errorScreen.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
@@ -952,11 +952,20 @@ function renderMatchup(panel, playerName, allRows) {
     const byOpponentDisplay = (a, b) =>
         displayPlayerName(a, _allMeta[a]).localeCompare(displayPlayerName(b, _allMeta[b]));
     let allOpponents = opponents.map(o => o.opponent).sort(byOpponentDisplay);
-    loadVisibleLeagues().then(leagues => {
+    // The opponent roster is the SITE's roster, so it comes from the one place
+    // that defines it (public.players_registry via store.loadVisiblePlayerNames)
+    // rather than from a fourth private copy of "non-hidden league, non-hidden
+    // player". The loop below is that copy, kept as the fallback for a database
+    // predating sql/players_registry.sql — it computes the identical set.
+    Promise.all([loadVisiblePlayerNames(), loadVisibleLeagues()]).then(([known, leagues]) => {
         const playerSet = new Set();
-        for (const l of leagues) {
-            for (const p of l.allPlayers) {
-                if (p !== playerName && !_allMeta[p]?.hidden) playerSet.add(p);
+        if (known) {
+            for (const p of known) if (p !== playerName) playerSet.add(p);
+        } else {
+            for (const l of leagues) {
+                for (const p of l.allPlayers) {
+                    if (p !== playerName && !_allMeta[p]?.hidden) playerSet.add(p);
+                }
             }
         }
         allOpponents = [...playerSet].sort(byOpponentDisplay);
@@ -1842,12 +1851,18 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
     // Comparison roster — every player in any visible league, sorted by the
     // DISPLAYED name (the dropdown shows those, so a raw-key sort reads as
     // unsorted). Async: until it lands, the add button just has this player.
-    loadAllLeagues().then(leagues => {
+    // Same site-wide roster as the H2H picker above, from the same one source.
+    // The loop is the pre-registry fallback and computes the identical set.
+    Promise.all([loadVisiblePlayerNames(), loadAllLeagues()]).then(([known, leagues]) => {
         const set = new Set();
-        for (const l of leagues) {
-            if (l.params?.Hidden) continue;
-            for (const p of l.allPlayers) {
-                if (!_allMeta[p]?.hidden) set.add(p);
+        if (known) {
+            for (const p of known) set.add(p);
+        } else {
+            for (const l of leagues) {
+                if (l.params?.Hidden) continue;
+                for (const p of l.allPlayers) {
+                    if (!_allMeta[p]?.hidden) set.add(p);
+                }
             }
         }
         allPlayers = [...set].sort((a, b) =>

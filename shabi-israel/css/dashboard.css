@@ -296,6 +296,225 @@
 .snap-nav select { flex: 1 1 auto; min-width: 0; }
 .snap-nav button { flex: 0 0 auto; }
 
+/* The snapshot picker is the canonical search field, not a <select> — a point
+   is a MATCH, and a native option cannot carry two flags and two sets of title
+   badges. `.app-combo-wrap` is the wrapper mountSearchField puts around the
+   input, so it is the flex child here; the field itself fills it. */
+/* The picker asks for the width it actually needs — 430px of field plus 74px of
+   steppers and gaps — and `flex-wrap` on the row does the rest: while that fits
+   beside the "Open full table" link they share a line, and when it does not the
+   picker takes a line of its own. No breakpoint decides this, because the answer
+   depends on what else is in the row, not on how wide the window is.
+   `container-type` makes the picker's OWN width queryable below, which is the
+   measurement that governs its contents — a viewport query answered the wrong
+   question and put a 381px field into a layout that needs 430px. */
+.snap-nav {
+    flex: 1 1 504px;
+    min-width: min(100%, 504px);
+    container-type: inline-size;
+}
+.snap-nav .app-combo-wrap { flex: 1 1 auto; min-width: 0; }
+.snap-nav .snap-select { width: 100%; min-width: 0; }
+
+/* One option row: date, winner, "beats", loser. The identity chips size off the
+   row's own text (1em), per the V2 principles, so the badges track the list
+   font at every width instead of a fixed token. */
+.snap-opt {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+.snap-opt-date {
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.snap-opt-verb {
+    color: var(--color-text-muted);
+    font-style: italic;
+    flex: 0 0 auto;
+}
+.snap-opt-side { display: inline-flex; align-items: center; min-width: 0; }
+
+/* The live state — the newest match — is marked by WEIGHT, not by a pill. A
+   "CURRENT" badge cost 51px, and on the phone's 313px field that was exactly the
+   difference between the row fitting and the date plus a name being truncated.
+   The date drops its muted colour too, so the emphasis reads as one row rather
+   than as a bold name beside a grey date. */
+.snap-opt.is-current { font-weight: 700; }
+.snap-opt.is-current .snap-opt-date { color: var(--color-text); }
+
+/* The picked point, echoed OVER the field — same chip markup as the row, so what
+   you picked still looks like what you picked. Opaque (it hides the input's own
+   text underneath) and pointer-events:none (a click goes through to the input,
+   which focuses it and hides this). Sized in JS off the input's computed font. */
+.snap-display {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0 0.7em;
+    background: var(--color-surface, var(--color-bg));
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    overflow: hidden;
+    white-space: nowrap;
+    pointer-events: none;
+}
+.snap-display .snap-opt { flex-wrap: nowrap; }
+.snap-display .snap-opt-date { flex: 0 0 auto; }
+.snap-display .app-identity-name { overflow: hidden; text-overflow: ellipsis; }
+
+/* Narrow screens: the picker takes the whole control row (the "Open full table"
+   link wraps under it), and inside the field the DATE is what gives way first.
+   Both rules exist because of the same measurement: sharing a 386px row with the
+   link left the field 205px, and the two player NAMES — the only flexible items
+   in it — were squeezed to 0px and 1px. The names are the subject of the row, so
+   they get a floor and the date yields; a shortened date still reads, an erased
+   name does not. */
+/* TWO LINES once the picker itself is narrower than the one-line layout needs:
+   the date above, the match below.
+   Measured, not guessed: across this league's 89 matches the widest pairing in
+   its emphasised (current) form needs a 430px field, and the steppers take 74px
+   more. Below that, one line truncated in three places at once — "7 Jul 2026,
+   16:…", a title badge cut off mid-row, "ilanblu…" — erasing exactly what the
+   row exists to show. When the date and the match cannot share a line, the
+   honest layout is to stop making them compete: the match line then owns the
+   full width and nothing is cut, at the cost of a slightly taller field.
+   Keyed to the PICKER's width, so it holds for a narrow window, a narrow phone
+   and any future column this control is dropped into alike. */
+/* The probe: the same row, laid out on one line with no width limit, so its
+   natural width can be compared with what the field actually has. Not painted —
+   it only ever gets measured. */
+.snap-display--probe {
+    visibility: hidden;
+    inset: auto;
+    top: 0;
+    left: 0;
+    width: max-content;
+    max-width: none;
+    background: none;
+}
+
+/* A row that does NOT fit on one line stacks: date above, match below. The
+   decision is per row (see mountSnapshotPicker), because the rows differ far
+   more than the viewports do — one breakpoint would stack "ys beats Yaniv162",
+   which has room to spare at any width, and still truncate "Hummus NC M2 beats
+   YossiEliezer23", which never fits beside a date. */
+.snap-display.is-stacked {
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 0 0.3em;
+    white-space: normal;
+}
+.snap-display.is-stacked .snap-opt {
+    flex-wrap: wrap;
+    gap: 0 0.3em;
+    row-gap: 0;
+}
+.snap-display.is-stacked .snap-opt-date {
+    flex: 1 1 100%;
+    font-size: 0.88em;
+    line-height: 1.25;
+}
+
+/* Only the HEIGHT stays width-driven: once the picker is narrow enough that some
+   row will stack, the field reserves both lines for every row. Otherwise the
+   control — and everything below it — would change height on each ‹ › step, as
+   long and short rows alternate. */
+@container (max-width: 503px) {
+    .snap-nav .snap-select { min-height: 3.2em; }
+    .snap-display { padding: 0 0.5em; }
+}
+
+/* ── Title Race (B4b) ───────────────────────────────────────────────────────
+   The chart itself reuses .chart-host / .bar-chart-canvas / .chart-info-panel
+   from components.css — only the controls and the legend are new here. */
+/* Show above, Add-a-player below — one control per line at every width, which
+   is what the narrow layout did anyway. Side by side they read as one compound
+   control: a dropdown that filters and a field that searches are two unrelated
+   actions, and a shared row implies they cooperate. */
+.titlerace-controls {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+}
+.titlerace-add { width: 100%; max-width: 320px; min-width: 0; }
+.titlerace-controls .app-combo-wrap { width: 100%; max-width: 320px; min-width: 0; }
+
+.titlerace-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs) var(--space-sm);
+    margin-bottom: var(--space-sm);
+    min-height: 1.6em;
+}
+.tr-legend-empty { color: var(--color-text-muted); font-size: var(--fs-085); }
+
+/* A legend entry is the same identity chip the chart's detail panel and every
+   picker use, prefixed by the line's colour and followed by its remove control —
+   so the thing you added, the line it drew and the row in the panel all read as
+   one object. */
+.tr-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    padding: 0.15em 0.45em;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-inset);
+    font-size: var(--fs-085);
+}
+.tr-swatch {
+    width: 0.75em;
+    height: 0.75em;
+    border-radius: 2px;
+    flex: 0 0 auto;
+}
+.tr-chip-x {
+    border: 0;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: 1.15em;
+    line-height: 1;
+    padding: 0 0.15em;
+}
+.tr-chip-x:hover { color: var(--color-loss); }
+
+/* "beats" inside the detail panel's title — muted and italic, matching the
+   snapshot picker's verb, so the same relation reads the same way twice. */
+.tr-verb {
+    color: var(--color-text-muted);
+    font-style: italic;
+    font-weight: normal;
+}
+
+/* One player per row in the detail panel: swatch, name, value — with the value
+   pushed to the trailing edge so the percentages form a column the eye can read
+   down. Packed inline they ran together and the pairing of name to number had
+   to be worked out rather than seen. */
+.chart-info-panel .tr-odds-head {
+    color: var(--color-text-muted);
+    font-size: var(--fs-085);
+    margin-top: 0.35em;
+}
+.chart-info-panel .tr-odds-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45em;
+}
+.chart-info-panel .tr-odds-name { min-width: 0; }
+.chart-info-panel .tr-odds-val {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
 .round-label {
     font-weight: 600;
     min-width: 130px;

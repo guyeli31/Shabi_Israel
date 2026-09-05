@@ -5,6 +5,8 @@
  * via callbacks.
  */
 
+import { getMedalPlaces } from '../compute/prizeRows.js';
+
 export const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -15,14 +17,15 @@ export function typePillHtml(type) {
 }
 
 /**
- * The "rank / total" cell, medal-tinted from the league's own Gold/Silver/
- * BronzeCount. Shared by C1 and C6.
+ * The "rank / total" cell, medal-tinted from the league's own medal places —
+ * the tier counts PLUS its extra prize rows (see compute/prizeRows.js), so a
+ * league with two gold rows tints two ranks gold here exactly as it does on its
+ * own table. Shared by C1 and C6.
  */
 export function rankCellHtml(league, playerRank, totalPlayers) {
     if (playerRank == null) return '&mdash;';
-    const goldCount   = league.params?.GoldCount   ?? 1;
-    const silverCount = league.params?.SilverCount ?? 1;
-    const bronzeCount = league.params?.BronzeCount ?? 1;
+    const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
+        getMedalPlaces(league.params, { gold: 1, silver: 1, bronze: 1 });
     const rankClass = playerRank <= goldCount                             ? 'rank-cell-gold'
                     : playerRank <= goldCount + silverCount               ? 'rank-cell-silver'
                     : playerRank <= goldCount + silverCount + bronzeCount ? 'rank-cell-bronze'

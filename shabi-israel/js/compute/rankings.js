@@ -1,6 +1,28 @@
 /**
  * rankings.js — Sort players, assign ranks, and determine skill levels.
+ *
+ * ONE DOOR: call rankLeague(). It is the only supported way to turn a league's
+ * matches into a ranked table, and it exists because the two-step form it
+ * replaces —
+ *
+ *     const statsMap = computeAllStats(matches, players);
+ *     const rankings = buildRankings(statsMap, config, matches);   // ← twice!
+ *
+ * — asked every caller to hand the SAME match list to two different functions,
+ * and then quietly produced a plausible-looking wrong answer if they didn't.
+ * A caller could pass it to one and not the other (which is exactly what
+ * crossLeague.js did, misnaming the winner of every REGULAR league that ended
+ * in a tie), or pass two DIFFERENT lists and rank one view of the season by
+ * another view's tiebreaks. Neither mistake is visible at the call site.
+ *
+ * rankLeague() takes the match list once, so there is nothing left to get
+ * wrong. buildRankings() stays exported for tests and now REFUSES to run a
+ * tiebreak-carrying league type without its matches instead of skipping the
+ * tiebreak in silence.
  */
+
+import { computeAllStats } from './stats.js';
+import { resolveTie, needsMatchData, assertTablesFor } from './tiebreaks.js';
 
 /**
  * Level thresholds based on MeanPR.
@@ -29,12 +51,13 @@ export function getLevel(meanPR) {
 }
 
 /**
- * Build head-to-head tables from played matches, for the REGULAR tiebreak.
- *   pairWins.get(a).get(b)  = # matches a beat b
- *   pairDiff.get(a).get(b)  = Σ (a's score − b's score) over a-vs-b matches
- *   totalDiff.get(a)        = Σ (a's score − opponent's score) over ALL a's matches
+ * Match tables for the tiebreak cascade, in THIS runtime's shape: Maps keyed
+ * by player name, wrapped in the lookup contract compute/tiebreaks.js defines.
+ * Members here are ranking ROW OBJECTS, so each lookup reads .player itself —
+ * the rules stay ignorant of what a member is, which is what lets the Monte
+ * Carlo hand them array indices instead and run the very same policy.
  */
-function buildRegularTables(matches) {
+function buildMatchTables(matches) {
     const pairWins = new Map();
     const pairDiff = new Map();
     const totalDiff = new Map();
@@ -63,64 +86,35 @@ function buildRegularTables(matches) {
         totalDiff.set(playerA, (totalDiff.get(playerA) || 0) + diff);
         totalDiff.set(playerB, (totalDiff.get(playerB) || 0) - diff);
     }
-    return { pairWins, pairDiff, totalDiff };
-}
-
-/**
- * Resolve a group of players tied on Win Rate, by the REGULAR cascade,
- * applied to the *still-tied* subgroup at each level:
- *   (a) head-to-head wins among the subgroup
- *   (b) points-difference among the subgroup
- *   (c) points-difference across all league matches
- *   (d) alphabetical (deterministic final fallback)
- * `members` are row objects; returns them in resolved order.
- */
-function resolveRegularTie(members, level, tables) {
-    if (members.length <= 1) return members;
-    if (level >= 3) {
-        return [...members].sort((a, b) => a.player.localeCompare(b.player));
-    }
-    const { pairWins, pairDiff, totalDiff } = tables;
-    const names = members.map(r => r.player);
-
-    const value = (r) => {
-        if (level === 0) {
-            const w = pairWins.get(r.player);
-            let s = 0;
-            for (const o of names) if (o !== r.player) s += (w && w.get(o)) || 0;
-            return s;
-        }
-        if (level === 1) {
-            const d = pairDiff.get(r.player);
-            let s = 0;
-            for (const o of names) if (o !== r.player) s += (d && d.get(o)) || 0;
-            return s;
-        }
-        return totalDiff.get(r.player) || 0;
+    return {
+        pairWins:  (a, b) => pairWins.get(a.player)?.get(b.player) || 0,
+        pairDiff:  (a, b) => pairDiff.get(a.player)?.get(b.player) || 0,
+        totalDiff: (a)    => totalDiff.get(a.player) || 0,
+        name:      (a)    => a.player
     };
-
-    const sorted = [...members].sort((a, b) => value(b) - value(a));
-    const out = [];
-    let i = 0;
-    while (i < sorted.length) {
-        let j = i + 1;
-        const vi = value(sorted[i]);
-        while (j < sorted.length && value(sorted[j]) === vi) j++;
-        const sub = sorted.slice(i, j);
-        if (sub.length === 1) out.push(sub[0]);
-        else out.push(...resolveRegularTie(sub, level + 1, tables));
-        i = j;
-    }
-    return out;
 }
 
 /**
  * Build a ranked table from a stats map.
  * Input: Map<playerName, statsObject> from stats.js
  * Returns: Array of { rank, player, games, wins, losses, winRate, meanPR, level, luck }
- *          sorted by config-driven primary/secondary, with optional H2H tiebreaker.
+ *          sorted by config-driven primary/secondary, then the league type's
+ *          tiebreak cascade (see compute/tiebreaks.js).
  */
 export function buildRankings(statsMap, leagueConfig, matches = null) {
+    // A league type whose ranking is only half-decided by the sort (REGULAR:
+    // everyone tied after Win Rate → Wins is separated by the cascade below)
+    // cannot be ranked from the stats alone. Silently skipping the cascade left
+    // the tied group in Map insertion order — a wrong champion, reported with
+    // total confidence. Missing matches is now a crash, not a different answer.
+    const steps = (leagueConfig && leagueConfig.ranking && leagueConfig.ranking.tiebreaks) || [];
+    if (needsMatchData(steps) && !matches) {
+        throw new Error(
+            `buildRankings: league type "${leagueConfig.type}" resolves ties from the match list, ` +
+            `which was not supplied. Call rankLeague({ matches, allPlayers, config }) instead.`
+        );
+    }
+
     const rows = [];
 
     for (const [player, s] of statsMap) {
@@ -167,17 +161,20 @@ export function buildRankings(statsMap, leagueConfig, matches = null) {
         return sMul * (a[secondary] - b[secondary]);
     });
 
-    // REGULAR tiebreak: players tied on Win Rate (primary) are resolved by the
-    // (a) H2H wins → (b) internal points-diff → (c) total points-diff → alphabetical
-    // cascade, narrowing over the still-tied subgroup at each level.
-    if (ranking.h2hTiebreak && matches) {
-        const tables = buildRegularTables(matches);
+    // Whoever is still tied on the primary gets the league type's tiebreak
+    // cascade — WHICH criteria and in WHICH order is not decided here, it is
+    // read from leagueTypes.js. This block knows only how to find a tied group
+    // and how to look a number up (buildMatchTables); the policy itself is
+    // shared verbatim with the championship predictor.
+    if (steps.length) {
+        const tables = buildMatchTables(matches);
+        assertTablesFor(steps, tables, 'rankings.js');
         let i = 0;
         while (i < rows.length) {
             let j = i + 1;
             while (j < rows.length && rows[j][primary] === rows[i][primary]) j++;
             if (j - i > 1) {
-                const resolved = resolveRegularTie(rows.slice(i, j), 0, tables);
+                const resolved = resolveTie(rows.slice(i, j), steps, tables);
                 rows.splice(i, j - i, ...resolved);
             }
             i = j;
@@ -191,6 +188,27 @@ export function buildRankings(statsMap, leagueConfig, matches = null) {
     });
 
     return rows;
+}
+
+/**
+ * THE one way to rank a league. Takes the match list ONCE and derives both the
+ * stats and the ranked table from it, so the two can never be computed from
+ * different views of the season and the tiebreak can never go missing.
+ *
+ * Every "view" of a league is just a different match list: the live season, a
+ * historical snapshot, a match-length filter, a what-if simulation. Pass that
+ * list here and both halves of the answer stay in step with it.
+ *
+ * @param {object} input
+ *   matches    — the played matches THIS view is about
+ *   allPlayers — full roster (so a 0-game player still gets a row)
+ *   config     — getLeagueConfig(params)
+ * @returns {{ statsMap: Map, rankings: Array }}
+ */
+export function rankLeague({ matches, allPlayers, config }) {
+    const statsMap = computeAllStats(matches, allPlayers);
+    const rankings = buildRankings(statsMap, config, matches);
+    return { statsMap, rankings };
 }
 
 /**

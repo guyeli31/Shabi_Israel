@@ -1036,13 +1036,58 @@ tr.drag-over {
 }
 
 .edit-bar-label {
-    margin-right: auto;
     font-weight: 600;
     font-size: var(--fs-095);
     color: var(--color-text);
 }
 
+/* GHOST — the third tier of the bar's hierarchy: Save is primary (filled),
+   Cancel is secondary (outlined), "Sort completed by date" is ghost (text
+   only, no border, secondary text colour), matching the variant ladder in
+   v2/src/primitives/Button/button.css.
+
+   Variant, not decoration: it is a utility that UNDOES a mode, so it must not
+   read as a third thing the admin is being asked to choose between. It sits on
+   the LEFT beside the label — where the mode it belongs to is described —
+   rather than in the Cancel/Save action group on the right, and it is lighter
+   and smaller (em padding, --fs-080) because a tertiary action that matches its
+   siblings' weight is a tertiary action in name only.
+
+   Its box is em-based per v2, so it scales with its own font rather than
+   holding a px size the siblings happen to share. */
+.edit-bar-ghost {
+    padding: 0.5em 0.9em;
+    font-family: inherit;
+    font-size: var(--fs-080);
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+
+.edit-bar-ghost:hover {
+    background: var(--color-hover);
+    color: var(--color-text);
+}
+
+/* v2's .btn:active — the press reads as a press, not as a colour change. */
+.edit-bar-ghost:active { transform: translateY(1px); }
+
+.edit-bar-ghost:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+/* The auto margin lives on the first ACTION, not on the label: the ghost
+   between them is hidden whenever A1 is in date order, and a margin on a
+   hidden element collapses — which would have let Cancel/Save slide left the
+   moment the button disappeared. */
 .edit-bar-cancel {
+    margin-left: auto;
     padding: 8px 20px;
     font-size: var(--fs-085);
     font-weight: 600;

@@ -3,10 +3,10 @@
  * Uses SheetJS (loaded from CDN in admin.html) for Excel parsing.
  */
 
-import { addChange, getStagedContent, stageManualOverrides, T } from './stagingStore.js';
+import { addChange, readOverridesForEdit, stageManualOverrides, T } from './stagingStore.js';
 import { computeCsvImportReport, renderCsvImportReport, wireCsvImportGate } from './csvValidation.js';
 import { parseCSV, getAllPlayersFromCSV } from '../data/csvParser.js';
-import { loadLeagueParams, loadOverrides } from '../data/supabaseLoader.js';
+import { loadLeagueParams } from '../data/supabaseLoader.js';
 import { mountFFTable } from '../../table-lab/formats/ff/mount.js';
 import { formatNumber } from '../utils/helpers.js';
 import { revealMsg } from './msgScroll.js';
@@ -32,6 +32,9 @@ import { revealMsg } from './msgScroll.js';
  * @param {function} onDone — called after a successful confirm
  * @param {object} [opts]
  * @param {function} [opts.onCompose] — ({csvText, overrides, players}) => void
+ * @param {function} [opts.onReplace] — () => void, compose mode only. Fired when
+ *     a NEW file is accepted, before its preview renders: the caller drops the
+ *     previous import (matches + roster) so the two never coexist.
  * @param {function} [opts.getMatchLength] — () => number, for technical results
  * @param {string}   [opts.heading]
  */
@@ -158,6 +161,20 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone, o
             showMsg('import-msg', 'File is empty.', 'error');
             return;
         }
+
+        // A new file REPLACES the previous import outright, and it does so HERE —
+        // the moment a file is accepted — not at Confirm. Dropping a second file
+        // IS the statement that the first one was wrong, so the first one's
+        // matches and its roster go immediately. Waiting for Confirm left the
+        // half-state this removes: cancel out of the second file's preview and
+        // the FIRST file was silently still the league's data, with its players
+        // still in the roster and nothing on screen saying so. Now a cancel
+        // leaves "nothing imported", which is a state that can be read.
+        //
+        // Compose mode only. In stage mode (Edit League) an import is staged the
+        // moment it is confirmed and there is no caller-side draft to reset.
+        if (composeMode && opts.onReplace) opts.onReplace();
+
         document.getElementById('preview-area').style.display = 'block';
         // Keep the drop zone visible so the compatibility report sits directly
         // beneath it, and the admin can re-drop a different file in place.
@@ -355,7 +372,16 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone, o
             // The technical results travel as overrides exactly as they would
             // here; the caller stages them alongside the league it is creating.
             if (composeMode) {
-                opts.onCompose({
+                // AWAITED. onCompose is async — it resolves each imported name's
+                // flag before it can fill the roster table — and calling it
+                // without awaiting put every one of those steps outside this
+                // try/catch. A failure in there rejected into nothing: the
+                // success message below still printed, the preview still closed,
+                // and the roster silently stayed empty, which is exactly the
+                // shape the bug took. Awaited, the same failure now surfaces as
+                // "Import failed" with the reason, and the success line is only
+                // reached once the roster really has been filled.
+                await opts.onCompose({
                     csvText: csvToStage,
                     overrides: techOverrides,
                     players: [...getAllPlayersFromCSV(csvToStage)],
@@ -393,7 +419,7 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone, o
             if (onDone) setTimeout(onDone, 1000);
         } catch (err) {
             confirmBtn.disabled = false;
-            showMsg('import-msg', `Staging failed: ${err.message}`, 'error');
+            showMsg('import-msg', composeMode ? `Import failed: ${err.message}` : `Staging failed: ${err.message}`, 'error');
         }
     });
 
@@ -441,13 +467,7 @@ function applySkipsToCsv(csvText, skipKeys) {
  * stageOverride does, so an import and a manual edit never clobber each other.
  */
 async function mergeStagedOverrides(leagueId, newOverrides) {
-    let overrides = [];
-    const staged = getStagedContent(T.overrides(leagueId));
-    if (staged) {
-        try { overrides = JSON.parse(staged).overrides || []; } catch { /* corrupt → start clean */ }
-    } else {
-        try { overrides = await loadOverrides(leagueId); } catch { /* none published yet */ }
-    }
+    const overrides = await readOverridesForEdit(leagueId);
     for (const o of newOverrides) {
         const key = pairKey(o.playerA, o.playerB);
         const idx = overrides.findIndex(x => pairKey(x.playerA, x.playerB) === key);

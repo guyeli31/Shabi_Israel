@@ -86,16 +86,39 @@ export function computeMatchHistoryReconcile({ matchRows, overrideRows, historyR
     }));
     const prevByKey = new Map(previous.map((m) => [key(m.playerA, m.playerB), m]));
 
+    // Which pairings an override still speaks for. A stored `manual` row is only
+    // protected while its override is LIVE — see the revert rule below.
+    const liveOverrideKeys = new Set(overrides.map((o) => key(o.playerA, o.playerB)));
+
     // Pass 1 — the CSV/matches side. Keep the stored row (and its date) when the
-    // numbers are unchanged; a manual row always survives the CSV pass untouched.
+    // numbers are unchanged; a manual row survives the CSV pass untouched for as
+    // long as its override exists.
+    //
+    // REVERT: deleting an override has to undo it. The rule used to be "a manual
+    // row always survives", which meant a cancelled override left its values in
+    // match_history forever — and since history OUTRANKS the CSV in the read-side
+    // merge, the cancelled result kept showing on the site. The admin saw the
+    // override disappear from the editor and nothing at all change on the page.
+    // So a manual row whose override is gone is treated as any other CSV row: the
+    // pairing goes back to what the source says, which is exactly "the DB before
+    // the manual change". A pairing the source no longer marks played simply
+    // isn't in csvMatches, so it leaves history entirely via the stale-delete —
+    // a technical result entered on a match nobody played, then cancelled, ends
+    // up not played again, with no update point of its own.
+    //
+    // Its DATE is `now` whenever the values actually move, because the original
+    // recording date was overwritten by the override and is not recoverable.
+    // Unchanged values keep the stored date: nothing about the result changed, so
+    // nothing should move in B5 or in the update-point list.
     const next = [];
     for (const m of csvMatches) {
         const k = key(m.playerA, m.playerB);
         const prev = prevByKey.get(k);
-        if (prev && sameNumericFields(prev, m) && prev.source !== 'manual') {
-            next.push({ ...prev, round: m.round });
-        } else if (prev && prev.source === 'manual') {
-            next.push({ ...prev, round: m.round });
+        const manualHeld = prev && prev.source === 'manual' && liveOverrideKeys.has(k);
+        if (manualHeld) {
+            next.push({ ...prev, round: m.round });          // pass 2 owns this pairing
+        } else if (prev && sameNumericFields(prev, m)) {
+            next.push({ ...prev, round: m.round, source: 'csv' });
         } else {
             next.push({
                 playerA: m.playerA, playerB: m.playerB, scoreA: m.scoreA, scoreB: m.scoreB,

@@ -12,6 +12,7 @@ import { LEVELS } from '../compute/rankings.js';
 import { colorForValue, colorForValueInverted, colorForGames, colorForLevel } from '../compute/colorScale.js';
 import { getFlagCode } from '../utils/helpers.js';
 import { displayPlayerName } from '../utils/nameDisplay.js';
+import { getMedalPlaces } from '../compute/prizeRows.js';
 
 const LEVEL_EDGES = new Set([LEVELS[0].label, LEVELS[LEVELS.length - 1].label]);
 
@@ -52,9 +53,10 @@ function rankBadge(rank, gold, silver, bronze, displayPos) {
  */
 export function buildLeagueTablePreset({ rankings, averages, params, leagueConfig, flagUrl, enrich = {} }) {
     const customFlags = params.CustomFlags || {};
-    const goldCount   = params.GoldCount   ?? 1;
-    const silverCount = params.SilverCount ?? 1;
-    const bronzeCount = params.BronzeCount ?? 3;
+    // Places per tier INCLUDING the tier's extra prize rows — two Gold rows of
+    // one place each are two gold medals, and the badges have to agree with B1.
+    const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
+        getMedalPlaces(params, { gold: 1, silver: 1, bronze: 3 });
 
     const cols = [
         { key: 'rank',   label: '#',      type: 'number', sortable: false, colorFn: null,

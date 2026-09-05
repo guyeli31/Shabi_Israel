@@ -188,6 +188,37 @@ export function overrideKey(o) {
     return [o.playerA, o.playerB].sort().join('|');
 }
 
+/**
+ * The league's current override set as an array the caller OWNS and may mutate
+ * freely — staged content if a change is pending, otherwise the published set.
+ *
+ * The clone is the whole point, and it is load-bearing. `loadOverrides()` is
+ * MEMOISED: it caches the promise, so every caller awaits the very same array
+ * instance. Three call sites used to read it and then edit it in place
+ * (`overrides[idx] = o` / `overrides.push(o)`) — which did two silent kinds of
+ * damage. It wrote unpublished edits straight into the read cache that the
+ * public pages share, and, worse, it made the edit invisible: the caller then
+ * passed that array to `stageManualOverrides()`, which reads its baseline from
+ * the same `loadOverrides()` — i.e. the same, already-mutated array. Diffing it
+ * against itself yielded zero delta, so the "no net change vs published" branch
+ * DELETED the staged change. The admin saw "Saved: A vs B", the row turned
+ * green, and Pending Changes stayed empty (verified in the browser 2026-09-02:
+ * the DB held 27 overrides while the cache held 28).
+ *
+ * Anything that reads overrides in order to CHANGE them goes through here.
+ */
+export async function readOverridesForEdit(leagueId) {
+    const staged = getStagedContent(T.overrides(leagueId));
+    if (staged) {
+        // Already a private array — JSON.parse allocates a fresh one every call.
+        try { return JSON.parse(staged).overrides || []; } catch { return []; }
+    }
+    try {
+        // Shallow per-override copy is enough: an override is a flat record.
+        return (await loadOverrides(leagueId)).map(o => ({ ...o }));
+    } catch { return []; }
+}
+
 function canon(o) {
     return JSON.stringify(Object.keys(o).sort().reduce((a, k) => { a[k] = o[k]; return a; }, {}));
 }
@@ -243,7 +274,12 @@ export async function stageManualOverrides(leagueId, overrides) {
         // each re-stage, flooding Pending Changes.
         baseline = [];
         try {
-            baseline = await loadOverrides(leagueId);
+            // Copied, never the memoised instance itself: the baseline has to
+            // stay a frozen picture of what is PUBLISHED. Aliasing the shared
+            // array meant a caller that had edited it in place handed us a
+            // baseline identical to the staged set — zero delta, change dropped
+            // (see readOverridesForEdit). Both ends of that path are now copies.
+            baseline = (await loadOverrides(leagueId)).map(o => ({ ...o }));
         } catch { /* league has no published overrides → empty baseline */ }
     }
 

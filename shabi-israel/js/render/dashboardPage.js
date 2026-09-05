@@ -7,13 +7,14 @@
  * Plus: prev/next league navigation arrows in the header.
  */
 
-import { loadLeagueParams, loadLeagueOrder, loadOverrides, loadAllLeagueParams, loadLeagueMatchesAll, loadMatchHistory, applyOverrides } from '../data/store.js';
+import { loadLeagueParams, loadLeagueOrder, loadOverrides, loadAllLeagueParams, loadLeagueMatchesAll, loadMatchHistory, applyOverrides, loadLeagueProjections } from '../data/store.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
-import { getMatchesAsOf, getUpdatePoints, mergeHistoryIntoMatches, matchKey, INITIAL_POINT } from '../compute/matchHistory.js';
+import { getMatchesAsOf, getUpdatePoints, buildMatchTimeline, mergeHistoryIntoMatches, matchKey, resultSides, formatAxisDay, INITIAL_POINT } from '../compute/matchHistory.js';
 import { computeAllStats } from '../compute/stats.js';
-import { buildRankings, computeAverages, computeMatchStats } from '../compute/rankings.js';
+import { rankLeague, computeAverages, computeMatchStats } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { elapsedInWindow, durationMode } from '../compute/leagueDuration.js';
+import { buildPrizeRows, formatPrize, getMedalPlaces } from '../compute/prizeRows.js';
 import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagueUrl, leagueUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
 import { exportWhatsAppTableImage, MAX_EXPORT_ROWS, leagueTypeLabel } from '../utils/exportTableImage.js';
 import { colorForValue, colorForValueInverted, colorForConfidence } from '../compute/colorScale.js';
@@ -42,6 +43,8 @@ import { mountAccordionTabs, mountLengthSelector } from './subTabs.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
 import { mountSearchField, mountCombobox, playerIdentityHtml } from '../utils/combobox.js';
 import { primeTitleMeta, titleHtmlFor } from '../utils/playerTitleBadge.js';
+import { mountTopXTimelineChart, colorForIndex } from './topXTimelineChart.js';
+import { projectAt, TIMELINE_ITERATIONS, scheduleFingerprint, pointFingerprints } from '../compute/topXTimeline.js';
 import { createLeagueLuckSource } from '../utils/playerLuckBadge.js';
 
 export async function renderDashboardPage() {
@@ -109,13 +112,20 @@ export async function renderDashboardPage() {
         const allMatchesIncUnplayed = applyOverridesToAll(allMatchesIncUnplayedRaw, overrides);
 
         const leagueConfig = getLeagueConfig(params);
-        const liveMatches = mergeHistoryIntoMatches(playedMatches, history.matches);
+        // ONE timeline drives B5's rows and dates, the Historical (B2) and What-If
+        // (B4) update points, the as-of replay behind both, and the live merge —
+        // so a match is offered as a point exactly when it is shown as a played
+        // match, and a not-played override erases both together.
+        const timeline = buildMatchTimeline(history, overrides, allMatchesIncUnplayed);
+        const liveMatches = mergeHistoryIntoMatches(playedMatches, timeline);
 
         const ctx = {
             leagueId, params, leagueConfig, lastModified,
             allMatchesIncUnplayed, playedMatches, liveMatches, allPlayersSet,
             roundCount,
-            history, playersMeta
+            // `timeline`, not the raw history: nothing downstream should be able
+            // to reach a row the timeline deliberately excludes.
+            timeline, playersMeta
         };
 
         // Summary cards live just under the header (outside the tabs), matching
@@ -156,6 +166,7 @@ export async function renderDashboardPage() {
         renderHistorical(ctx);
         renderPredictor(ctx); // async — fills in after data loads
         renderWhatIfSimulator(ctx);
+        renderTitleRace(ctx); // async — projects the whole timeline in a worker
         renderPlayedMatches(ctx);
         renderRounds(ctx);
         renderRemainingMatches(ctx);
@@ -267,7 +278,7 @@ function standingsPanel() {
             <div class="dash-controls">
                 <div class="snap-nav">
                     <button id="hist-prev" title="Previous snapshot">&lsaquo;</button>
-                    <select id="hist-date" title="Select snapshot date"></select>
+                    <input type="text" id="hist-date" class="app-search-input snap-select" autocomplete="off" title="Select the match to rewind to">
                     <button id="hist-next" title="Next snapshot">&rsaquo;</button>
                 </div>
                 <a id="hist-to-full" class="open-full-btn" href="#" title="Open the full league table for the current state">Open full table &rsaquo;</a>
@@ -343,7 +354,7 @@ function predictorPanel() {
                         <label for="whatif-baseline-select">Run from</label>
                         <div class="snap-nav">
                             <button id="whatif-baseline-prev" type="button" title="Newer snapshot">&lsaquo;</button>
-                            <select id="whatif-baseline-select" title="Historical version to run the simulation from"></select>
+                            <input type="text" id="whatif-baseline-select" class="app-search-input snap-select" autocomplete="off" title="Historical version to run the simulation from">
                             <button id="whatif-baseline-next" type="button" title="Older snapshot">&rsaquo;</button>
                         </div>
                     </div>
@@ -375,7 +386,285 @@ function predictorPanel() {
                     </div>
                 </div>
         </section>
+
+        <section class="app-section app-section--card dash-section" id="titlerace-section">
+            <h2 class="app-section-h2">Title Race</h2>
+            <div id="titlerace-body">
+                <div class="dash-controls titlerace-controls">
+                    <div class="predictor-topx-control">
+                        <label for="titlerace-topx">Show</label>
+                        <select id="titlerace-topx" class="topx-select"></select>
+                    </div>
+                    <input type="text" id="titlerace-player" class="app-search-input titlerace-add" placeholder="Add a player" autocomplete="off">
+                </div>
+                <div id="titlerace-legend" class="titlerace-legend"></div>
+                <div id="titlerace-chart" class="chart-host"></div>
+            </div>
+        </section>
     `;
+}
+
+// ---------- Title Race (B4b) ----------
+/**
+ * Every player's odds of finishing in the top X, at every point of the season.
+ *
+ * The Predictor answers that question for today; this asks it again for every
+ * match ever recorded, so the answer becomes a shape. The X axis IS the update
+ * timeline (one step = one match), which is what lets the panel under the chart
+ * name the match that moved a line — the same timeline the Historical and
+ * What-If pickers offer, so all three agree about what a point in this league is.
+ *
+ * The whole season is ~90 Monte Carlo projections. That runs in a Worker
+ * (js/compute/topXTimelineWorker.js) and streams back oldest-point-first, so the
+ * page stays interactive and the lines grow while it works. A browser that
+ * cannot start the Worker falls back to the same pure module on the main thread,
+ * one point per animation frame — slower and jerkier, never frozen and never
+ * missing.
+ */
+async function renderTitleRace(ctx) {
+    const section = document.getElementById('titlerace-section');
+    const chartHost = document.getElementById('titlerace-chart');
+    const legendHost = document.getElementById('titlerace-legend');
+    const topXSelect = document.getElementById('titlerace-topx');
+    const playerInput = document.getElementById('titlerace-player');
+    if (!section || !chartHost) return;
+
+    // Oldest → newest: a timeline is read left to right.
+    const points = [...getUpdatePoints(ctx.timeline)].reverse();
+    // One point is one match, so a league with none has nothing to plot — and
+    // neither has a finished league any less: the race is over, but how it was
+    // won is exactly what this section is for.
+    if (points.length < 2) { section.remove(); return; }
+
+    const flags = ctx.params.CustomFlags;
+    const identity = (name) => playerIdentityHtml({
+        name: displayPlayerName(name),
+        flagCode: getFlagCode(name, flags),
+        titleHtml: titleHtmlFor(name),
+    });
+
+    // Per-point display data. `dayLabel` is the axis text — date only, no clock:
+    // see the axis renderer for why.
+    const viewPoints = points.map((p) => {
+        const { winner, loser, drawn } = resultSides(p.match);
+        const hi = Math.max(Number(p.match.scoreA), Number(p.match.scoreB));
+        const lo = Math.min(Number(p.match.scoreA), Number(p.match.scoreB));
+        return {
+            value: p.value,
+            dateLabel: p.dateLabel,
+            dayLabel: formatAxisDay(p.match.updatedAt),
+            // Who was on the board at this point — the chart rings the marker on
+            // a player's own line only where they actually played.
+            players: [p.match.playerA, p.match.playerB],
+            scoreLabel: Number.isFinite(hi) && Number.isFinite(lo) ? `${hi} – ${lo}` : '—',
+            resultHtml: `${identity(winner)} <span class="tr-verb">${drawn ? 'draws' : 'beats'}</span> ${identity(loser)}`,
+        };
+    });
+
+    // topXByPoint[i] = { player -> Float32Array of cumulative top-X percentages }
+    const topXByPoint = new Array(points.length).fill(null);
+    let playerCount = 0;
+    let currentX = 1;
+    const plotted = [];   // player names, in the order they were added
+
+    const seriesFor = () => plotted.map((player, i) => ({
+        player,
+        color: colorForIndex(i),
+        identityHtml: identity(player),
+        values: topXByPoint.map((row) => {
+            if (!row || !row[player]) return null;
+            return row[player][Math.min(currentX, row[player].length) - 1];
+        }),
+    }));
+
+    const model = () => ({
+        points: viewPoints,
+        series: seriesFor(),
+        topX: currentX,
+        pending: topXByPoint.filter(r => r == null).length,
+    });
+
+    const chart = mountTopXTimelineChart(chartHost, { model });
+
+    function renderLegend() {
+        if (plotted.length === 0) {
+            legendHost.innerHTML = '<span class="tr-legend-empty">No players plotted — add one to start.</span>';
+            return;
+        }
+        legendHost.innerHTML = plotted.map((p, i) => `
+            <span class="tr-chip" data-player="${escapeHtml(p)}">
+                <span class="tr-swatch" style="background:${colorForIndex(i)}"></span>
+                ${identity(p)}
+                <button class="tr-chip-x" type="button" data-remove="${escapeHtml(p)}" title="Remove ${escapeHtml(displayPlayerName(p))}">&times;</button>
+            </span>`).join('');
+    }
+
+    legendHost.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-remove]');
+        if (!btn) return;
+        const i = plotted.indexOf(btn.dataset.remove);
+        if (i >= 0) {
+            plotted.splice(i, 1);
+            renderLegend();
+            chart.draw();
+            window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `Title race: remove ${btn.dataset.remove}` } }));
+        }
+    });
+
+    // The Show control mirrors the Predictor's, so "Top 3" means the same thing
+    // in both places. Switching it costs nothing: the worker returns the whole
+    // cumulative row per player, so every X is already computed.
+    function fillTopXOptions(n) {
+        topXSelect.innerHTML = '';
+        for (let x = 1; x <= n; x++) {
+            const opt = document.createElement('option');
+            opt.value = x;
+            opt.textContent = x === 1 ? '1st place only' : x === n ? `Top ${x} (any finish)` : `Top ${x}`;
+            topXSelect.appendChild(opt);
+        }
+        topXSelect.value = String(Math.min(currentX, n));
+    }
+    fillTopXOptions(Math.max(1, ctx.allPlayersSet.size - 1));
+    topXSelect.addEventListener('change', () => {
+        currentX = parseInt(topXSelect.value, 10) || 1;
+        chart.draw();
+        window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `Title race: top ${currentX}` } }));
+    });
+
+    // Add-a-player: the canonical search field, same as every other picker.
+    const rosterNames = [...ctx.allPlayersSet].filter(p => p !== 'Bye').sort((a, b) => a.localeCompare(b));
+    primeTitleMeta();
+    mountSearchField(playerInput, {
+        getOptions: () => rosterNames.map(p => ({ value: p, label: displayPlayerName(p) })),
+        labelFor: (v) => displayPlayerName(v),
+        altFor: (v) => alternateName(v),
+        decorate: (v) => ({
+            flagCode: getFlagCode(v, flags),
+            titleHtml: titleHtmlFor(v),
+            // Listed but unpickable once plotted — the row still explains why,
+            // which a silently-missing name would not.
+            disabled: plotted.includes(v),
+            badge: plotted.includes(v) ? { text: 'PLOTTED', kind: 'staged' } : null,
+        }),
+        onPick: (v) => {
+            if (!plotted.includes(v)) {
+                plotted.push(v);
+                renderLegend();
+                chart.draw();
+                window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `Title race: add ${v}` } }));
+            }
+            playerInput.value = '';
+        },
+    });
+
+    // Start plotted with the podium as it stands — the lines most people came
+    // to see — and let the user add or drop from there.
+    const { rankings } = rankLeague({ matches: ctx.liveMatches, allPlayers: ctx.allPlayersSet, config: ctx.leagueConfig });
+    for (const r of rankings.filter(r => r.player !== 'Bye').slice(0, 3)) plotted.push(r.player);
+    renderLegend();
+
+    // ── Stored projections first ────────────────────────────────────────────
+    // The whole league is normally precomputed server-side at full accuracy
+    // (sql/league_projections.sql + scripts/project-title-race.js). Reading it
+    // is one query and no CPU at all, which is the entire point: the fallback
+    // below exists for the gap before a league has been projected, not as the
+    // normal path.
+    //
+    // Staleness is decided PER POINT, by recomputing each point's input
+    // fingerprint here and comparing it with the stored one. That keeps "out of
+    // date" a property of the data rather than a guess about whether a
+    // background job is running — an edit at match 30 of 250 leaves points 1–29
+    // live and flags only what actually changed.
+    await whenVisible(section);
+
+    const scheduleFp = scheduleFingerprint(ctx.allMatchesIncUnplayed);
+    const expectedHashes = pointFingerprints(points.map(p => p.match), scheduleFp);
+    let staleCount = 0;
+
+    const stored = await loadLeagueProjections(ctx.leagueId);
+    if (stored && Array.isArray(stored.points) && stored.points.length) {
+        const byHash = new Map(stored.points.map(sp => [sp.hash, sp]));
+        for (let i = 0; i < points.length; i++) {
+            const sp = byHash.get(expectedHashes[i]);
+            if (!sp) { staleCount++; continue; }   // missing OR superseded
+            const row = {};
+            stored.roster.forEach((player, pos) => {
+                const arr = sp.r[pos];
+                if (arr && arr.length) row[player] = Float32Array.from(arr, v => v / 10);
+            });
+            topXByPoint[i] = row;
+        }
+        if (!playerCount && stored.roster.length) fillTopXOptions(stored.roster.length);
+        chart.draw();
+        // Everything present and current — no local computation at all.
+        if (staleCount === 0) return;
+        console.info(`[title race] ${staleCount}/${points.length} points not yet projected — computing those locally`);
+    }
+
+    const last300Map = await ensureLast300Map(ctx);
+
+    const onPoint = (index, topX, n) => {
+        topXByPoint[index] = topX;
+        if (!playerCount) { playerCount = n; fillTopXOptions(n); }
+        chart.draw();
+    };
+
+    const payload = {
+        timeline: ctx.timeline,
+        allMatchesIncUnplayed: ctx.allMatchesIncUnplayed,
+        allPlayers: [...ctx.allPlayersSet],
+        matchLength: ctx.params.MatchLength || 7,
+        leagueConfig: ctx.leagueConfig,
+        last300Map: [...last300Map.entries()],
+        iterations: TIMELINE_ITERATIONS,
+        points: points.map(p => p.value),
+    };
+
+    try {
+        const worker = new Worker(new URL('../compute/topXTimelineWorker.js', import.meta.url), { type: 'module' });
+        const runId = 1;
+        worker.onmessage = (e) => {
+            const m = e.data;
+            if (!m || m.runId !== runId) return;
+            if (m.type === 'point') onPoint(m.index, m.topX, m.n);
+            else if (m.type === 'done' || m.type === 'error') worker.terminate();
+            if (m.type === 'error') console.error('Title race projection failed:', m.message);
+        };
+        worker.onerror = () => { worker.terminate(); projectOnMainThread(); };
+        worker.postMessage({ type: 'run', runId, ...payload });
+    } catch {
+        projectOnMainThread();
+    }
+
+    // Fallback: one point per animation frame. Each projection is ~90 ms, so
+    // this drops frames — but the page keeps responding between them and the
+    // chart still fills, which a single blocking loop would not.
+    function projectOnMainThread() {
+        let i = 0;
+        const step = () => {
+            if (i >= points.length) return;
+            const point = projectAt({
+                timeline: ctx.timeline,
+                allMatchesIncUnplayed: ctx.allMatchesIncUnplayed,
+                pointValue: points[i].value,
+                allPlayers: ctx.allPlayersSet,
+                matchLength: payload.matchLength,
+                leagueConfig: ctx.leagueConfig,
+                last300Map,
+                iterations: TIMELINE_ITERATIONS,
+            });
+            const topX = {};
+            for (const [player, idx] of Object.entries(point.idxByPlayer)) {
+                const row = new Float32Array(point.n);
+                for (let x = 1; x <= point.n; x++) row[x - 1] = computeTopXPct(point.finishRankCounts, idx, point.n, point.totalWeight, x);
+                topX[player] = row;
+            }
+            onPoint(i, topX, point.n);
+            i++;
+            requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+    }
 }
 
 function matchesPanel() {
@@ -450,8 +739,7 @@ function insightsPanel(showPR) {
 // ---------- F1 ----------
 function renderSummaryCards(ctx) {
     const { params, liveMatches, allPlayersSet, leagueConfig } = ctx;
-    const statsMap = computeAllStats(liveMatches, allPlayersSet);
-    const rankings = buildRankings(statsMap, leagueConfig, liveMatches);
+    const { statsMap, rankings } = rankLeague({ matches: liveMatches, allPlayers: allPlayersSet, config: leagueConfig });
     const averages = computeAverages(rankings, leagueConfig);
     const matchStats = computeMatchStats(rankings, allPlayersSet.size);
 
@@ -592,17 +880,14 @@ function renderPrizes(ctx) {
     section.style.display = '';
 
     const entryFee = params.EntryFee != null ? params.EntryFee : '—';
-    const goldCount = params.GoldCount ?? 1;
-    const silverCount = params.SilverCount ?? 1;
-    const rows = [];
-    if (goldCount) rows.push({ medal: '🥇', tier: 'Gold', count: goldCount, prize: prizes.Gold != null ? `₪${prizes.Gold.toLocaleString()}` : '—' });
-    if (silverCount) rows.push({ medal: '🥈', tier: 'Silver', count: silverCount, prize: prizes.Silver != null ? `₪${prizes.Silver.toLocaleString()}` : '—' });
-    if (params.BronzeCount) rows.push({ medal: '🥉', tier: 'Bronze', count: params.BronzeCount, prize: prizes.Bronze != null ? `₪${prizes.Bronze.toLocaleString()}` : '—' });
+    // A tier can award more than one prize level (see prizeRows.js); those arrive
+    // as further rows under the same medal, in the same four columns.
+    const rows = buildPrizeRows(params);
 
     let html = `<div class="prizes-info"><span class="prizes-entry">Entry Fee: <b>₪${entryFee}</b></span></div>`;
     html += '<div class="prizes-table-wrap"><table class="dash-table prizes-table font-small" data-mf-table-id="B1"><thead><tr><th scope="col"></th><th scope="col">Tier</th><th scope="col">Places</th><th scope="col">Prize</th></tr></thead><tbody>';
     for (const r of rows) {
-        html += `<tr class="prize-row-${r.tier.toLowerCase()}"><td>${r.medal}</td><td>${r.tier}</td><td>${r.count}</td><td>${r.prize}</td></tr>`;
+        html += `<tr class="prize-row-${r.tier.toLowerCase()}${r.isExtra ? ' prize-row-extra' : ''}"><td>${r.icon}</td><td>${r.tier}</td><td>${r.count}</td><td>${formatPrize(r.prize)}</td></tr>`;
     }
     html += '</tbody></table></div>';
     content.innerHTML = html;
@@ -613,22 +898,18 @@ function renderPrizes(ctx) {
 
 // ---------- F2 ----------
 function renderHistorical(ctx) {
-    const { history, lastModified, leagueId } = ctx;
-    const select = document.getElementById('hist-date');
+    const { timeline, lastModified, leagueId } = ctx;
+    const input = document.getElementById('hist-date');
     const prevBtn = document.getElementById('hist-prev');
     const nextBtn = document.getElementById('hist-next');
     const fullLink = document.getElementById('hist-to-full');
 
-    const options = buildSnapshotOptions(history, lastModified, ctx.params);
-
-    select.innerHTML = options.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+    const options = buildSnapshotOptions(timeline, lastModified, ctx.params);
 
     // The "Open full table" button follows the selected snapshot: for Current it
     // opens the live league table; for a historical point it carries ?asof= so
     // table D rebuilds that snapshot, and its label flags the historical state.
-    function syncFullLink() {
-        const value = select.value;
-        const label = options[select.selectedIndex] ? options[select.selectedIndex].label : '';
+    function syncFullLink(value, label) {
         if (value === '__current__') {
             fullLink.href = leagueTableUrl(leagueId);
             fullLink.textContent = 'Open full table ›';
@@ -646,29 +927,19 @@ function renderHistorical(ctx) {
         }
     }
 
-    function update() {
-        const idx = select.selectedIndex;
-        prevBtn.disabled = idx <= 0;
-        nextBtn.disabled = idx >= options.length - 1;
-        syncFullLink();
-        drawHistTable(ctx, select.value);
-    }
-
-    // Log only USER-driven snapshot changes (not the initial update() below).
-    const trackSnapshot = () => {
-        const label = options[select.selectedIndex] ? options[select.selectedIndex].label : '';
-        window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `History view: ${label}` } }));
-    };
-
-    select.addEventListener('change', () => { update(); trackSnapshot(); });
-    prevBtn.addEventListener('click', () => {
-        if (select.selectedIndex > 0) { select.selectedIndex--; update(); trackSnapshot(); }
+    // First paint is silent (mountSnapshotPicker selects index 0 without firing
+    // onChange), so the initial render happens here and only USER-driven changes
+    // are logged.
+    mountSnapshotPicker({
+        input, prevBtn, nextBtn, options, params: ctx.params,
+        onChange: (o) => {
+            syncFullLink(o.value, o.label);
+            drawHistTable(ctx, o.value);
+            window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `History view: ${o.label}` } }));
+        },
     });
-    nextBtn.addEventListener('click', () => {
-        if (select.selectedIndex < options.length - 1) { select.selectedIndex++; update(); trackSnapshot(); }
-    });
-
-    update();
+    syncFullLink(options[0].value, options[0].label);
+    drawHistTable(ctx, options[0].value);
 }
 
 function formatLastModified(s) {
@@ -688,12 +959,33 @@ function formatLastModified(s) {
 // which for a league imported in one go is already the finished league. Without
 // this entry the empty league is simply unreachable, so every league gets it,
 // synthesised, at the bottom of the list where it belongs chronologically.
-function buildSnapshotOptions(history, lastModified, params) {
-    const currentLabel = lastModified
-        ? `Current (${formatLastModified(lastModified)})`
-        : 'Current';
-    const options = [{ value: '__current__', label: currentLabel }];
-    for (const p of getUpdatePoints(history)) options.push({ value: p.value, label: p.label });
+function buildSnapshotOptions(timeline, lastModified, params) {
+    const points = getUpdatePoints(timeline);
+    const options = [];
+
+    // CURRENT IS THE NEWEST MATCH — one row, not two.
+    //
+    // The live state is the state after the last match played, so "Current" and
+    // the newest update point describe the same thing. They used to be listed
+    // separately and read as duplicates, because each carried a different clock:
+    // Current was stamped with the LEAGUE's last-updated (a settings edit moves
+    // it), the point with the match's own recording time. So the newest point IS
+    // the Current row: it keeps the `__current__` value (picking it renders the
+    // live table) and takes the match's own date, like every other row, with a
+    // CURRENT badge as the only thing that sets it apart.
+    //
+    // A league with no history at all still gets a plain Current entry — there is
+    // no match to name.
+    if (points.length) {
+        const newest = points.shift();
+        options.push({ ...newest, value: '__current__', current: true, label: `Current · ${newest.label}` });
+    } else {
+        options.push({ value: '__current__', label: lastModified ? `Current (${formatLastModified(lastModified)})` : 'Current' });
+    }
+
+    // The whole point object travels — `match` and `dateLabel` are what let the
+    // picker render the row as the match it is, not as a bare clock reading.
+    for (const p of points) options.push(p);
     const started = params && params.IssueDate ? formatIssueDate(params.IssueDate) : '';
     options.push({
         value: INITIAL_POINT,
@@ -710,22 +1002,23 @@ function formatIssueDate(d) {
 }
 
 function drawHistTable(ctx, dateValue) {
-    const { history, allPlayersSet, leagueConfig, liveMatches, params } = ctx;
+    const { timeline, allPlayersSet, leagueConfig, liveMatches, params } = ctx;
 
     let matchesForView;
     if (dateValue === '__current__') {
         matchesForView = liveMatches;
     } else {
         // dateValue is now an exact update-point timestamp (see getUpdatePoints)
-        matchesForView = getMatchesAsOf(history, dateValue);
+        matchesForView = getMatchesAsOf(timeline, dateValue);
     }
 
-    const statsMap = computeAllStats(matchesForView, allPlayersSet);
-    const rankings = buildRankings(statsMap, leagueConfig, matchesForView);
+    const { statsMap, rankings } = rankLeague({ matches: matchesForView, allPlayers: allPlayersSet, config: leagueConfig });
 
-    const goldCount = params.GoldCount || 1;
-    const silverCount = params.SilverCount || 1;
-    const bronzeCount = params.BronzeCount || 4;
+    // Places per tier INCLUDING the tier's extra prize rows, so B2 both TINTS
+    // and SIZES itself off the same podium B1 describes — an added prize row
+    // lengthens this table by exactly the places it awards.
+    const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
+        getMedalPlaces(params, { gold: 1, silver: 1, bronze: 4 });
     const medalLimit = goldCount + silverCount + bronzeCount;
     // B2 shows only the medal positions. A player who hasn't played yet as of
     // this snapshot must still appear if the league's ranking criteria place them
@@ -823,8 +1116,9 @@ async function renderPredictor(ctx) {
 
     if (remaining.length === 0) {
         // Season complete — show final standings
-        const statsMap = computeAllStats(ctx.liveMatches, ctx.allPlayersSet);
-        const rankings = buildRankings(statsMap, ctx.leagueConfig, ctx.liveMatches);
+        const { rankings } = rankLeague({
+            matches: ctx.liveMatches, allPlayers: ctx.allPlayersSet, config: ctx.leagueConfig
+        });
         const top = rankings[0];
         moeHost.textContent = '';
         host.innerHTML = `<div style="text-align:center;color:var(--color-text-muted);padding:var(--space-md)">Season complete — ${top ? top.player : 'N/A'} wins the championship.</div>`;
@@ -1186,7 +1480,7 @@ function renderWhatIfSimulator(ctx) {
             const remaining = ctx.allMatchesIncUnplayed.filter(m => !m.played).slice();
             return { value: '__current__', played, remaining, playedByKey: indexByKey(played) };
         }
-        const played = getMatchesAsOf(ctx.history, value); // played as of this point
+        const played = getMatchesAsOf(ctx.timeline, value); // played as of this point
         const playedKeys = new Set(played.map(m => canonKey(m.playerA, m.playerB)));
         // Every scheduled fixture not yet played at this point becomes a remaining
         // (unplayed) match, regardless of whether it has since been played.
@@ -1220,43 +1514,26 @@ function renderWhatIfSimulator(ctx) {
 
     // Populate the picker with the same snapshots as the Historical view; hide
     // the whole row when there's nothing to rewind to (no history yet).
-    const baselineOptions = buildSnapshotOptions(ctx.history, ctx.lastModified, ctx.params);
+    const baselineOptions = buildSnapshotOptions(ctx.timeline, ctx.lastModified, ctx.params);
     if (baselineOptions.length > 1) {
-        baselineSelect.innerHTML = baselineOptions
-            .map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
         baselineRow.hidden = false;
-
-        const syncBaselineNav = () => {
-            const idx = baselineSelect.selectedIndex;
-            baselinePrev.disabled = idx <= 0;
-            baselineNext.disabled = idx >= baselineOptions.length - 1;
-        };
-
-        const onBaselineChange = () => {
-            baseline = computeBaseline(baselineSelect.value);
-            // Keep the user's chosen results, but refresh each staged row's
-            // played-state against the new baseline (badges + rollback warning).
-            for (const s of staged) {
-                const st = deriveBaselineState(s.a, s.b);
-                s.wasPlayed = st.wasPlayed;
-                s.realWinner = st.realWinner;
-            }
-            renderStaged();
-            runSimulation(); // the shown result is stale — recompute from the new baseline
-            syncBaselineNav();
-            const label = baselineOptions[baselineSelect.selectedIndex]
-                ? baselineOptions[baselineSelect.selectedIndex].label : '';
-            window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `What if baseline: ${label}` } }));
-        };
-
-        baselineSelect.addEventListener('change', onBaselineChange);
-        baselinePrev.addEventListener('click', () => {
-            if (baselineSelect.selectedIndex > 0) { baselineSelect.selectedIndex--; onBaselineChange(); }
+        mountSnapshotPicker({
+            input: baselineSelect, prevBtn: baselinePrev, nextBtn: baselineNext,
+            options: baselineOptions, params: ctx.params,
+            onChange: (o) => {
+                baseline = computeBaseline(o.value);
+                // Keep the user's chosen results, but refresh each staged row's
+                // played-state against the new baseline (badges + rollback warning).
+                for (const s of staged) {
+                    const st = deriveBaselineState(s.a, s.b);
+                    s.wasPlayed = st.wasPlayed;
+                    s.realWinner = st.realWinner;
+                }
+                renderStaged();
+                runSimulation(); // the shown result is stale — recompute from the new baseline
+                window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `What if baseline: ${o.label}` } }));
+            },
         });
-        baselineNext.addEventListener('click', () => {
-            if (baselineSelect.selectedIndex < baselineOptions.length - 1) { baselineSelect.selectedIndex++; onBaselineChange(); }
-        });
-        syncBaselineNav();
     }
 
     function findSchedule(a, b) {
@@ -1607,17 +1884,169 @@ function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+/**
+ * The snapshot picker, shared by the Historical view (B2) and What-If's "Run
+ * from" (B4) — the ONE control both use, so a point can never be offered by one
+ * and missing from the other.
+ *
+ * A point is a MATCH, so the row is rendered as one: the date, then the winner
+ * and the loser as full identity chips (flag · name · title badges) via
+ * `playerIdentityHtml`, the same chip the What-If pickers and staged cards use.
+ * That is why this is the canonical search field rather than a `<select>` — a
+ * native option can hold text and nothing else, so a picker that shows who beat
+ * whom cannot be one. The field also filters, which is what makes a hundred-row
+ * list usable: type a name and see only that player's matches.
+ *
+ * The ‹ › buttons keep their old meaning (‹ = newer, the list is newest-first).
+ *
+ * @returns {{ value: () => string, index: () => number, option: () => object }}
+ */
+function mountSnapshotPicker({ input, prevBtn, nextBtn, options, params, onChange }) {
+    const indexOf = new Map(options.map((o, i) => [o.value, i]));
+    let index = 0;
+    // Rows carry title badges; priming is memoised, so calling it from both
+    // pickers costs one load. decorate() runs when the list OPENS, by which time
+    // the fetch that starts here has long landed — but the FIELD paints before
+    // then, and a badge arriving later changes the row's width, so the fit is
+    // measured again once the metadata is in.
+    primeTitleMeta().then(() => paintDisplay());
+
+    const identity = (name) => playerIdentityHtml({
+        name: displayPlayerName(name),
+        flagCode: getFlagCode(name, params.CustomFlags),
+        titleHtml: titleHtmlFor(name),
+    });
+
+    // "Current" and "Initial" carry no match — they stay plain text.
+    const nameHtmlFor = (o) => {
+        if (!o || !o.match) return '';
+        const { winner, loser, drawn } = resultSides(o.match);
+        // The live state is marked by WEIGHT, not by a pill. A "CURRENT" badge
+        // measured 51px, and on a 313px phone field that was the difference
+        // between the whole row fitting and the date plus a player's name being
+        // truncated on 17 of this league's 89 matches. Bold costs nothing.
+        return `<span class="snap-opt${o.current ? ' is-current' : ''}">`
+            + `<span class="snap-opt-date">${escapeHtml(o.dateLabel)}</span>`
+            + `<span class="snap-opt-side">${identity(winner)}</span>`
+            + `<span class="snap-opt-verb">${drawn ? 'draws' : 'beats'}</span>`
+            + `<span class="snap-opt-side">${identity(loser)}</span>`
+            + `</span>`;
+    };
+
+    const combo = mountSearchField(input, {
+        getOptions: () => options.map(o => ({ value: o.value, label: o.label })),
+        labelFor: (v) => (options[indexOf.get(v)] || {}).label || v,
+        decorate: (v) => ({ nameHtml: nameHtmlFor(options[indexOf.get(v)]) }),
+        allowFreeText: false,
+        browseOnOpen: true,
+        onPick: (v) => { if (indexOf.has(v)) select(indexOf.get(v)); },
+    });
+
+    // The FIELD shows what the row showed — flags and title badges included.
+    //
+    // An <input> holds text and nothing else, and the combobox's own identity
+    // chrome has one flag slot and one badge slot: it describes ONE player, and
+    // this field's subject is a match. So the picked row is echoed by an overlay
+    // laid over the field, carrying the identical chip markup. It is
+    // pointer-events:none, so a click still lands on the input underneath and
+    // focuses it; focus hides the overlay and hands the field back to typing,
+    // which is what makes the same control both a display and a search box.
+    //
+    // Its font-size is copied from the input for the reason the identity chrome
+    // documents: the chips size in em, and left alone they would resolve against
+    // the wrapper's inherited size instead of the field's.
+    const display = document.createElement('span');
+    display.className = 'snap-display';
+    display.setAttribute('aria-hidden', 'true');
+    input.parentElement.appendChild(display);
+
+    // Does THIS row fit on one line? Asked per selection, not answered once by a
+    // width threshold — the rows differ enormously ("ys beats Yaniv162" against
+    // "Hummus NC M2 beats YossiEliezer23"), so a single breakpoint is always
+    // wrong for half of them: it stacks short rows that had room to spare and
+    // truncates long ones that never did. The probe renders the same markup with
+    // the one-line rules and no width limit, and its natural width is compared
+    // with what the field actually has.
+    const probe = document.createElement('span');
+    probe.className = 'snap-display snap-display--probe';
+    probe.setAttribute('aria-hidden', 'true');
+    input.parentElement.appendChild(probe);
+
+    function paintDisplay() {
+        const o = options[index];
+        const html = nameHtmlFor(o) || escapeHtml(o.label);
+        const fontSize = getComputedStyle(input).fontSize;
+        display.innerHTML = html;
+        display.style.fontSize = fontSize;
+        probe.style.fontSize = fontSize;
+        probe.innerHTML = html;
+        // clientWidth excludes the border but includes padding, which the probe
+        // also carries — so the two are measured on the same terms.
+        display.classList.toggle('is-stacked', probe.scrollWidth > display.clientWidth);
+        display.hidden = document.activeElement === input;
+    }
+
+    input.addEventListener('focus', () => { display.hidden = true; });
+    input.addEventListener('blur', () => { setTimeout(paintDisplay, 160); });
+
+    // The fit depends on the field's width, so it has to be re-asked whenever
+    // that width can have changed — not only when the selection does. Measured
+    // once at paint time, a window resize left a 309px row inside a 244px field,
+    // truncated instead of stacked, because nothing had asked the question again.
+    // Both signals are needed, and the combobox's identity chrome documents why:
+    // the observer catches an actual width change, while a `resize` with no width
+    // change can still move the clamp()-driven font under it.
+    let queued = false;
+    const remeasure = () => {
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(() => { queued = false; paintDisplay(); });
+    };
+    if (typeof ResizeObserver === 'function') new ResizeObserver(remeasure).observe(input.parentElement);
+    window.addEventListener('resize', remeasure);
+
+    function paint() {
+        // setValue, never `input.value =` — it writes the label AND records the
+        // field's subject, which is what `browseOnOpen` restores on blur. Writing
+        // the text directly left the subject empty, so opening the list and
+        // leaving without picking blanked the field.
+        combo.setValue(options[index].value);
+        paintDisplay();
+        prevBtn.disabled = index <= 0;
+        nextBtn.disabled = index >= options.length - 1;
+    }
+
+    function select(i, opts = {}) {
+        index = i;
+        paint();
+        combo.close();
+        if (!opts.silent) onChange(options[index]);
+    }
+
+    prevBtn.addEventListener('click', () => { if (index > 0) select(index - 1); });
+    nextBtn.addEventListener('click', () => { if (index < options.length - 1) select(index + 1); });
+    select(0, { silent: true });
+
+    return { value: () => options[index].value, index: () => index, option: () => options[index] };
+}
+
+/** matchKey -> the date the pairing's result last changed (B5/B6's Date column). */
+function buildPlayedAtMap(timeline) {
+    const playedAt = new Map();
+    for (const h of timeline) {
+        if (h.updatedAt) playedAt.set(matchKey(h.playerA, h.playerB), h.updatedAt);
+    }
+    return playedAt;
+}
+
 // ---------- F3 ----------
 function renderRounds(ctx) {
-    const { allMatchesIncUnplayed, roundCount, history, leagueId, playersMeta, params, leagueConfig } = ctx;
+    const { allMatchesIncUnplayed, roundCount, timeline, leagueId, playersMeta, params, leagueConfig } = ctx;
     let current = 1;
     let showAll = false;
 
-    // Build a map: matchKey -> updatedAt from history
-    const playedAt = new Map();
-    for (const h of history.matches) {
-        if (h.updatedAt) playedAt.set(matchKey(h.playerA, h.playerB), h.updatedAt);
-    }
+    // matchKey -> updatedAt, off the same timeline the update points come from
+    const playedAt = buildPlayedAtMap(timeline);
 
     const label = document.getElementById('round-label');
     const prev = document.getElementById('round-prev');
@@ -1652,15 +2081,14 @@ function renderRounds(ctx) {
 // Every played match in the league, most-recent-first, capped at 10 with a Show-all toggle.
 // Same MF columns + sticky settings as Rounds (B6); winner name green / loser red.
 function renderPlayedMatches(ctx) {
-    const { liveMatches, allMatchesIncUnplayed, history, leagueId, playersMeta, params, leagueConfig } = ctx;
+    const { liveMatches, allMatchesIncUnplayed, timeline, leagueId, playersMeta, params, leagueConfig } = ctx;
     const host = document.getElementById('played-matches-table');
     if (!host) return;
 
-    // matchKey -> updatedAt, so we can both stamp the Date column and sort chronologically.
-    const playedAt = new Map();
-    for (const h of history.matches) {
-        if (h.updatedAt) playedAt.set(matchKey(h.playerA, h.playerB), h.updatedAt);
-    }
+    // matchKey -> updatedAt, so we can both stamp the Date column and sort
+    // chronologically. Off the timeline, so every date shown here is an update
+    // point the Historical / What-If pickers also offer, and vice versa.
+    const playedAt = buildPlayedAtMap(timeline);
 
     // A match the authoritative set (overrides applied) marks NOT played must never
     // show here — even if a stale history row still carries a date for it. Guard
@@ -1838,8 +2266,7 @@ function buildB6aPanel(panel, remaining, params, playersMeta, lastModified) {
 
 function buildB6bPanel(panel, ctx, remaining, lastModified) {
     const { params, liveMatches, allPlayersSet, leagueConfig } = ctx;
-    const statsMap = computeAllStats(liveMatches, allPlayersSet);
-    const rankings = buildRankings(statsMap, leagueConfig, liveMatches);
+    const { statsMap, rankings } = rankLeague({ matches: liveMatches, allPlayers: allPlayersSet, config: leagueConfig });
     const n = allPlayersSet.size;
     const maxGames = n > 0 ? n - 1 : 0;
     const halfThreshold = maxGames / 2;
@@ -2638,8 +3065,9 @@ function renderPrCorrelationSection(ctx) {
     const generalPanel = document.createElement('div');
     generalPanel.className = 'chart-panel corr-panel corr-panel--general';
     const generalMlIdx = nearestMatchLengthIdx(ctx.params.MatchLength || 7);
-    const generalStatsMap = computeAllStats(liveMatches, ctx.allPlayersSet);
-    const generalRankings = buildRankings(generalStatsMap, ctx.leagueConfig, liveMatches);
+    const { rankings: generalRankings } = rankLeague({
+        matches: liveMatches, allPlayers: ctx.allPlayersSet, config: ctx.leagueConfig
+    });
     const generalMatchStats = computeMatchStats(generalRankings, ctx.allPlayersSet.size);
     generalPanel.innerHTML = `
         <div class="dash-controls corr-controls">

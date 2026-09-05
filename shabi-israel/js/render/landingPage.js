@@ -23,6 +23,7 @@ import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatc
 import { luckConfidenceStats } from '../compute/luckConfidence.js';
 import { getPopup } from '../data/popupContent.js';
 import { getLevel } from '../compute/rankings.js';
+import { leagueTypeRank } from '../compute/leagueTypes.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { pinStickyCols, pinStickyColsAll } from '../utils/stickyCols.js';
@@ -33,8 +34,9 @@ import { buildAnnualLeaderboardPreset } from '../presets/annualLeaderboardPreset
 import { isLoggedIn } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
 import { addChange, getChangeCount, T } from '../admin/stagingStore.js';
+import { landingSettingsPayload } from '../admin/landingSettingsPayload.js';
 import { mountAdminSidebar, refreshBadge as refreshSidebarBadge } from '../admin/render/adminSidebar.js';
-import { loadPlayersMetadata } from '../data/store.js';
+import { loadPlayersMetadata, loadPlayersRegistry } from '../data/store.js';
 import { escapeHtml } from '../utils/sanitize.js';
 import { hasTitles, compareTitlePriority, getTitleDescriptionParts } from '../data/titleConstants.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
@@ -48,6 +50,7 @@ import { langFlagsHtml, wireLangPopup } from '../utils/popupLang.js';
 import { startSplash, splashStage, endSplash } from '../utils/splash.js';
 import { renderErrorScreen, explainError, inlineErrorHtml } from '../utils/errorScreen.js';
 import { spliceQueryParam, hasUrlFlag } from '../utils/queryString.js';
+import { getMedalPlaces } from '../compute/prizeRows.js';
 
 /* ── Helpers ─────────────────────────────────────────── */
 
@@ -68,6 +71,7 @@ const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 let _landingSettings = null;
 /** Players metadata loaded once, shared across renderers. */
 let _playersMeta = {};
+let _playersRegistry = null;
 let _flags = buildPlayerFlagIndex([]);
 /** Completed-leagues league-type filter (mountPillTabs handle), or null when
  *  only one type exists. Edit mode forces it back to ALL — drag-reorder saves
@@ -108,11 +112,17 @@ export async function renderLandingPage() {
         _landingSettings = landingSettings;
         splashStage('settings');
 
-        const [allLeagues, playersMeta] = await Promise.all([
+        // The registry rides in the SAME bundle as the leagues and the metadata
+        // (sql/players_registry.sql adds one key to get_site_bundle), so this
+        // third entry costs no third round trip — ready() resolves once and all
+        // three read from it.
+        const [allLeagues, playersMeta, playersRegistry] = await Promise.all([
             loadAllLeagues().then(r => { splashStage('matches'); return r; }),
-            loadPlayersMetadata().then(r => { splashStage('players'); return r; })
+            loadPlayersMetadata().then(r => { splashStage('players'); return r; }),
+            loadPlayersRegistry()
         ]);
         _playersMeta = playersMeta;
+        _playersRegistry = playersRegistry;
         // Flag resolver for this page's context-free tables (annual leaderboard,
         // all-time). The per-match record cards (A5 and friends) stay bound to
         // their own league — see utils/playerFlags.js for why the two differ.
@@ -222,7 +232,7 @@ export async function renderLandingPage() {
         // Players tab — a single combined SF table (A7): Player / Status /
         // Last Active / Title, sticky Player column. Titled players sort to the
         // top, then alphabetical — "notable" is just a sort key, not a section.
-        renderPlayersTab(shell.panels.players, _playersMeta, leagues);
+        renderPlayersTab(shell.panels.players, _playersMeta, leagues, _playersRegistry);
 
         // Themed footer bar (chess.com-style link row): a clickable
         // "Privacy & Analytics" transparency link (opens the modal only on
@@ -286,8 +296,8 @@ function buildTabsShell() {
 
 /* ── Players tab — single combined SF table (titled players sort first) ── */
 
-function renderPlayersTab(container, allMeta, leagues) {
-    const allRows = computePlayerRows(allMeta, leagues);
+function renderPlayersTab(container, allMeta, leagues, registry) {
+    const allRows = computePlayerRows(allMeta, leagues, registry);
     // One combined table: titled players first, untitled below — each subgroup A→Z.
     const rows = sortPlayerRows(allRows);
 
@@ -372,9 +382,25 @@ function renderPlayersTab(container, allMeta, leagues) {
  */
 const PLAYER_STATUS_LABEL = { active: 'Active', 'this-year': 'This Year', inactive: 'Inactive' };
 
-function computePlayerRows(allMeta, leagues) {
+function computePlayerRows(allMeta, leagues, registry) {
+    // The roster comes from public.players_registry when the database has it
+    // (sql/players_registry.sql) — the SAME list mail_orphan_reason consults, so
+    // "does this name exist" cannot have two answers. A player is an implied
+    // entity here (no players table; a person exists by appearing in a fixture),
+    // and while that definition lived in two places they disagreed: this tab
+    // counted any league, the mail diagnostics counted only running ones, and a
+    // player between seasons was reported to the admin as an unrecognised name.
+    //
+    // `visibleLeagues` is the site's own rule — a hidden league is hidden from
+    // everyone — and metadata-only players stay listed, matching the fallback
+    // below exactly. Null registry = a database predating the view; the original
+    // client-side derivation then still runs.
     const allNames = new Set(Object.keys(allMeta || {}));
-    for (const l of leagues) for (const p of l.allPlayers) allNames.add(p);
+    if (registry) {
+        for (const p of registry) if (p.visibleLeagues > 0) allNames.add(p.id);
+    } else {
+        for (const l of leagues) for (const p of l.allPlayers) allNames.add(p);
+    }
 
     const activeSet = new Set();
     for (const l of leagues) {
@@ -552,6 +578,10 @@ function enterEditMode(settings) {
     _editModeActive = true;
     _editState = {
         displayOrder: [...settings.displayOrder],
+        // Pending value of A1's order mode. Dragging a completed row turns it
+        // on (the drag would otherwise be saved and then discarded by the date
+        // sort on the next load); the edit bar's "Sort by date" turns it off.
+        completedCustomOrder: settings.completedCustomOrder === true,
         dirty: false
     };
 
@@ -615,11 +645,67 @@ function exitEditMode() {
     _editState = null;
 }
 
-function markDirty() {
+/**
+ * Is the pending edit actually different from what is published?
+ *
+ * DERIVED, never latched. This used to be `markDirty()`, a one-way switch: any
+ * action turned Save on and nothing could turn it off, so an edit that undid
+ * itself still offered to save — drag a league and drag it back, or drag one
+ * and then press "Sort completed by date", and Save stayed lit over a queue
+ * with nothing in it. Comparing against `_landingSettings` (which is itself
+ * updated on save) means the button answers the only question it can honestly
+ * answer: does anything here differ from the published state?
+ *
+ * Same two comparisons saveEditChanges() makes, so the button and the save path
+ * cannot disagree about whether there is work to do.
+ */
+function refreshDirty() {
     if (!_editState) return;
-    _editState.dirty = true;
+    _editState.dirty = landingEditIsDirty(_editState, _landingSettings);
     const saveBtn = document.querySelector('.edit-bar-save');
-    if (saveBtn) saveBtn.disabled = false;
+    if (saveBtn) saveBtn.disabled = !_editState.dirty;
+}
+
+/**
+ * `order` with every COMPLETED league put back where the published settings had
+ * it, and the active-league entries left exactly as they are.
+ *
+ * DisplayOrder is one flat list of both kinds (active cards first, then the
+ * completed table — see syncDisplayOrderFromDOM), and "Sort completed by date"
+ * must undo only its own half: an admin who dragged active cards in the same
+ * session did not ask for that work to be thrown away too. Which entries are
+ * completed is read from the rendered A1 rows, the same source the sync uses.
+ *
+ * Anything the published order does not mention (a league staged for creation,
+ * say) keeps its current position — this must never shorten the list, for the
+ * reason syncDisplayOrderFromDOM spells out.
+ */
+function withPublishedCompletedOrder(order) {
+    const completedIds = new Set(
+        [...document.querySelectorAll('.completed-leagues-table tbody tr')]
+            .map(r => r.dataset.leagueId)
+            .filter(Boolean)
+    );
+    const isCompleted = (entry) => completedIds.has(entry.replace(' - ', ' '));
+
+    // The published positions, restricted to entries this list actually holds.
+    const present = new Set(order);
+    const publishedCompleted = (_landingSettings?.displayOrder ?? [])
+        .filter(e => present.has(e) && isCompleted(e));
+
+    // Walk the current list and refill each completed slot in published order,
+    // so the active entries keep their exact indices.
+    const queue = [...publishedCompleted];
+    const leftovers = order.filter(e => isCompleted(e) && !publishedCompleted.includes(e));
+    return order.map(e => (isCompleted(e) ? (queue.shift() ?? leftovers.shift() ?? e) : e));
+}
+
+function landingEditIsDirty(edit, published) {
+    const orderChanged = JSON.stringify(edit.displayOrder) !== JSON.stringify(published.displayOrder);
+    // The order mode changes no title's position, so the order comparison alone
+    // cannot see it.
+    const modeChanged = edit.completedCustomOrder !== (published.completedCustomOrder === true);
+    return orderChanged || modeChanged;
 }
 
 /* ── Drag-and-drop league reorder ─────────────────────── */
@@ -735,8 +821,13 @@ function onDrop(e) {
         tbody.insertBefore(_dragSrcRow, target);
     }
 
+    // A completed row was moved by hand, so A1 must stop re-sorting itself by
+    // date — otherwise this arrangement is written to the database and then
+    // thrown away on the next load, which is what used to happen.
+    if (_editState) _editState.completedCustomOrder = true;
     syncDisplayOrderFromDOM();
-    markDirty();
+    refreshDirty();
+    updateOrderModeBtn();
 }
 
 function onDragEnd() {
@@ -778,7 +869,7 @@ function onCardDrop(e) {
     }
 
     syncDisplayOrderFromDOM();
-    markDirty();
+    refreshDirty();
 }
 
 function onCardDragEnd() {
@@ -845,12 +936,50 @@ function showEditBar() {
     bar.className = 'edit-bar';
     bar.innerHTML = `
         <span class="edit-bar-label">Edit Mode</span>
+        <button type="button" class="edit-bar-ghost edit-bar-order-mode" hidden>Sort completed by date</button>
         <button class="edit-bar-cancel">Cancel</button>
         <button class="edit-bar-save" disabled>Save Changes</button>`;
 
     bar.querySelector('.edit-bar-cancel').addEventListener('click', exitEditMode);
     bar.querySelector('.edit-bar-save').addEventListener('click', saveEditChanges);
+    // The way BACK from a hand-made A1 order. Without it the first drag is a
+    // one-way door: nothing else in the UI can clear completedCustomOrder, and
+    // the admin would have to re-drag every completed league into date order to
+    // undo one move.
+    bar.querySelector('.edit-bar-order-mode').addEventListener('click', () => {
+        if (!_editState || !_editState.completedCustomOrder) return;
+        _editState.completedCustomOrder = false;
+        // Give the completed leagues their PUBLISHED positions back, rather than
+        // stamping the date order into DisplayOrder. Two reasons, and the first
+        // is what makes Save behave: pressing this straight after a drag now
+        // lands on exactly the published state, so Save switches itself back off
+        // instead of offering to save a round trip. The second is that with the
+        // mode off, the completed half of DisplayOrder is dormant — A1 sorts by
+        // date and never reads it — so overwriting it would quietly destroy an
+        // arrangement the admin can still get back by turning the mode on again.
+        // Active-league cards are untouched: this button's scope is A1.
+        _editState.displayOrder = withPublishedCompletedOrder(_editState.displayOrder);
+        refreshDirty();
+        updateOrderModeBtn();
+        // Re-render A1 in date order, then re-attach the drag handles the
+        // re-render just destroyed. Deliberately NO syncDisplayOrderFromDOM()
+        // here — that would read the date order straight back out of the DOM and
+        // undo the restore above.
+        if (_completedRerender) {
+            _completedRerender();
+            removeDragHandles();
+            addDragHandles();
+        }
+    });
     document.body.appendChild(bar);
+    updateOrderModeBtn();
+}
+
+/** Show the reset button only while A1 is in hand-made order — in date order it
+ *  would be a button that does nothing. */
+function updateOrderModeBtn() {
+    const btn = document.querySelector('.edit-bar-order-mode');
+    if (btn) btn.hidden = !(_editState && _editState.completedCustomOrder);
 }
 
 async function saveEditChanges() {
@@ -858,21 +987,21 @@ async function saveEditChanges() {
 
     // Edit mode only reorders leagues now — title/subtitle/logo live in the banner.
     const orig = _landingSettings;
-    const orderChanged = JSON.stringify(_editState.displayOrder) !== JSON.stringify(orig.displayOrder);
 
-    if (!orderChanged) {
+    // Same predicate the Save button enables itself from, so a click that got
+    // through can never queue a write that changes nothing.
+    if (!landingEditIsDirty(_editState, orig)) {
         exitEditMode();
         return;
     }
 
     // Build updated landing_settings.json — preserve title/subtitle/logo as-is,
-    // only the league DisplayOrder changes here.
-    const newSettings = {
-        title: orig.title,
-        subtitle: orig.subtitle,
-        logoPath: orig.logoPath,
-        DisplayOrder: _editState.displayOrder
-    };
+    // only the league order and A1's order mode change here. Built through the
+    // shared payload helper because publish upserts the WHOLE row.
+    const newSettings = landingSettingsPayload(orig, {
+        DisplayOrder:         _editState.displayOrder,
+        CompletedCustomOrder: _editState.completedCustomOrder === true,
+    });
 
     const groupDescription = 'Dashboard updated (order)';
     const groupId = 'dashboard-edit-' + Date.now();
@@ -891,18 +1020,19 @@ async function saveEditChanges() {
         title: newSettings.title,
         subtitle: newSettings.subtitle,
         logoPath: newSettings.logoPath,
-        displayOrder: newSettings.DisplayOrder
+        displayOrder: newSettings.DisplayOrder,
+        completedCustomOrder: newSettings.CompletedCustomOrder,
     };
 
     // Refresh admin sidebar badge
     refreshSidebarBadge();
 
-    // Stay in edit mode after save — reset dirty state and resync editState
+    // Stay in edit mode after save — resync editState against the new published
+    // baseline, then let refreshDirty() derive the button state from it rather
+    // than switching it off by hand (the two could otherwise disagree).
     _editState.displayOrder = [..._landingSettings.displayOrder];
-    _editState.dirty = false;
-
-    const saveBtn = document.querySelector('.edit-bar-save');
-    if (saveBtn) saveBtn.disabled = true;
+    _editState.completedCustomOrder = _landingSettings.completedCustomOrder;
+    refreshDirty();
 
     // Brief "Saved ✓" confirmation in the edit bar
     const label = document.querySelector('.edit-bar-label');
@@ -947,16 +1077,16 @@ function renderInfoCards(container, activePlayers, totalPlayers, totalLeagues, l
 
 /* ── H1 — Active leagues ─────────────────────────────── */
 
-/** Card order within Active Leagues: Doubling → UBC → Regular.
+/** Card order within Active Leagues: Doubling → UBC → Regular — the app-wide
+ *  canonical type order, now read from leagueTypeRank() rather than restated
+ *  here, so H1 and A1 cannot drift apart.
  *  Stable, so DisplayOrder still decides the order inside each type group. */
-const ACTIVE_TYPE_ORDER = { doubling: 0, ubc: 1, regular: 2 };
-
 function sortActiveLeagues(running) {
     return running
         .map((l, i) => ({ l, i }))
         .sort((a, b) => {
-            const ta = ACTIVE_TYPE_ORDER[a.l.leagueType] ?? 9;
-            const tb = ACTIVE_TYPE_ORDER[b.l.leagueType] ?? 9;
+            const ta = leagueTypeRank(a.l.leagueType);
+            const tb = leagueTypeRank(b.l.leagueType);
             return ta !== tb ? ta - tb : a.i - b.i;
         })
         .map(x => x.l);
@@ -1043,6 +1173,54 @@ function setupScrollArrows(section) {
 
 /* ── Completed leagues (compact table) ────────────────── */
 
+/** Re-order + re-render A1 in place. Set by renderCompletedLeagues. */
+let _completedRerender = null;
+
+/** Is A1 currently showing the admin's hand-made order rather than the date sort?
+ *  Edit mode's pending value wins while editing, so a drag takes effect at once
+ *  instead of only after publishing. */
+function completedIsCustomOrder() {
+    if (_editState) return _editState.completedCustomOrder === true;
+    return _landingSettings?.completedCustomOrder === true;
+}
+
+/**
+ * Sort A1's league list IN PLACE.
+ *
+ * Default (completedCustomOrder = false): opening date, newest first; a tie on
+ * the date falls back to the canonical league-type order (Doubling → UBC →
+ * Regular) rather than to whatever order the leagues arrived in.
+ *
+ * Custom (true): DisplayOrder exactly as stored — the admin dragged these rows
+ * and that arrangement is the answer. DisplayOrder holds display TITLES (" - ")
+ * while a league is keyed by its folder id (" "), the same mapping
+ * syncDisplayOrderFromDOM() does in the other direction. A league missing from
+ * DisplayOrder sorts last (it cannot have been placed by hand), and ties inside
+ * either bucket still fall through to the date sort, so the order is total.
+ */
+function sortCompleted(list) {
+    const byDate = (a, b) => {
+        if (a.year !== b.year) return b.year - a.year;
+        if (a.monthIndex !== b.monthIndex) return b.monthIndex - a.monthIndex;
+        if (a.day !== b.day) return b.day - a.day;
+        return leagueTypeRank(a.leagueType) - leagueTypeRank(b.leagueType);
+    };
+
+    if (!completedIsCustomOrder()) {
+        list.sort(byDate);
+        return;
+    }
+
+    const order = (_editState?.displayOrder ?? _landingSettings?.displayOrder ?? []);
+    const rank = new Map();
+    order.forEach((title, i) => rank.set(title.replace(' - ', ' '), i));
+    list.sort((a, b) => {
+        const ra = rank.has(a.id) ? rank.get(a.id) : Number.MAX_SAFE_INTEGER;
+        const rb = rank.has(b.id) ? rank.get(b.id) : Number.MAX_SAFE_INTEGER;
+        return ra !== rb ? ra - rb : byDate(a, b);
+    });
+}
+
 function renderCompletedLeagues(container, completed) {
     const section = document.createElement('div');
     section.className = 'dash-section';
@@ -1063,11 +1241,16 @@ function renderCompletedLeagues(container, completed) {
         }
         return { ...l, year, monthIndex, monthShort, day };
     });
-    withDates.sort((a, b) => {
-        if (a.year !== b.year) return b.year - a.year;
-        if (a.monthIndex !== b.monthIndex) return b.monthIndex - a.monthIndex;
-        return b.day - a.day;
-    });
+    // Row order, by default: opening date, newest first, with the canonical
+    // league-type order (Doubling → UBC → Regular) breaking a tie on the date
+    // rather than leaving it to whatever order the leagues arrived in.
+    //
+    // The admin can override that by DRAGGING rows in edit mode, which is what
+    // completedCustomOrder records — see sortCompleted() and
+    // sql/landing_completed_custom_order.sql. Sorting happens on every render,
+    // not once here, because the flag can flip mid-session (a drag turns it on,
+    // "Sort by date" turns it off) and the table has to follow.
+    sortCompleted(withDates);
 
     // Determine default open state: open if any league is from current year (2026+)
     const currentYear = new Date().getFullYear();
@@ -1084,7 +1267,7 @@ function renderCompletedLeagues(container, completed) {
         </div>`;
 
     const mountPoint = section.querySelector('.completed-leagues-mount');
-    const rows = withDates.map(l => ({
+    const toRow = (l) => ({
         league:          l.title,
         dateStr:         l.params.IssueDate ? `${l.day} ${l.monthShort} ${l.year}` : `${l.monthShort} ${l.year}`,
         leagueType:      l.leagueType,
@@ -1093,10 +1276,23 @@ function renderCompletedLeagues(container, completed) {
         leaderHidden:    !!_playersMeta[l.leader?.player]?.hidden,
         leaderFlagCode:  l.leader ? getFlagCode(l.leader.player, l.params.CustomFlags) : null,
         leaderMeta:      l.leader ? _playersMeta[l.leader.player] : null,
-    }));
+    });
+    let rows = withDates.map(toRow);
+
+    // Re-order and re-render in place — called when completedCustomOrder flips
+    // (a drag turns it on, "Sort by date" turns it off). `withDates` is the one
+    // source array; the display rows are rebuilt from it so the two can never
+    // disagree about the order.
+    _completedRerender = () => {
+        sortCompleted(withDates);
+        rows = withDates.map(toRow);
+        renderTable(activeType);
+    };
 
     // Render (or re-render) the table for one league-type filter. ALL = no filter.
+    let activeType = ALL_TYPES_ID;
     function renderTable(typeId) {
+        activeType = typeId;
         const shown = typeId === ALL_TYPES_ID ? rows : rows.filter(r => r.leagueType === typeId);
         mountPoint.innerHTML = '';
         const preset = buildCompletedLeaguesPreset({ rows: shown, flagUrl, leagueUrl });
@@ -1886,9 +2082,10 @@ function collectLeagueRecords(typeLeagues) {
     const rows = [];
     for (const league of typeLeagues) {
         if (league.params.Running === true) continue;
-        const goldCount   = league.params.GoldCount   ?? 1;
-        const silverCount = league.params.SilverCount ?? 1;
-        const bronzeCount = league.params.BronzeCount ?? 1;
+        // Places per tier INCLUDING that tier's extra prize rows (prizeRows.js),
+        // so a two-gold league tints two ranks gold here as it does on its own page.
+        const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
+            getMedalPlaces(league.params, { gold: 1, silver: 1, bronze: 1 });
         const customFlags = league.params.CustomFlags || {};
 
         const played = league.rankings.filter(r => r.games > 0);
@@ -1922,9 +2119,10 @@ function collectLeagueWinRateRecords(typeLeagues) {
     const rows = [];
     for (const league of typeLeagues) {
         if (league.params.Running === true) continue;
-        const goldCount   = league.params.GoldCount   ?? 1;
-        const silverCount = league.params.SilverCount ?? 1;
-        const bronzeCount = league.params.BronzeCount ?? 1;
+        // Places per tier INCLUDING that tier's extra prize rows (prizeRows.js),
+        // so a two-gold league tints two ranks gold here as it does on its own page.
+        const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
+            getMedalPlaces(league.params, { gold: 1, silver: 1, bronze: 1 });
         const customFlags = league.params.CustomFlags || {};
 
         const played = league.rankings.filter(r => r.games > 0);
@@ -2023,9 +2221,10 @@ function collectLeagueLuckRecords(typeLeagues) {
     const rows = [];
     for (const league of typeLeagues) {
         if (league.params.Running === true) continue;
-        const goldCount   = league.params.GoldCount   ?? 1;
-        const silverCount = league.params.SilverCount ?? 1;
-        const bronzeCount = league.params.BronzeCount ?? 1;
+        // Places per tier INCLUDING that tier's extra prize rows (prizeRows.js),
+        // so a two-gold league tints two ranks gold here as it does on its own page.
+        const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
+            getMedalPlaces(league.params, { gold: 1, silver: 1, bronze: 1 });
         const customFlags = league.params.CustomFlags || {};
         const matchLength = league.params.MatchLength ?? 7;
 
@@ -2063,9 +2262,10 @@ function collectLeagueWorstLuckRecords(typeLeagues) {
     const rows = [];
     for (const league of typeLeagues) {
         if (league.params.Running === true) continue;
-        const goldCount   = league.params.GoldCount   ?? 1;
-        const silverCount = league.params.SilverCount ?? 1;
-        const bronzeCount = league.params.BronzeCount ?? 1;
+        // Places per tier INCLUDING that tier's extra prize rows (prizeRows.js),
+        // so a two-gold league tints two ranks gold here as it does on its own page.
+        const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
+            getMedalPlaces(league.params, { gold: 1, silver: 1, bronze: 1 });
         const customFlags = league.params.CustomFlags || {};
         const matchLength = league.params.MatchLength ?? 7;
 

@@ -3,7 +3,7 @@
  */
 
 import { loadLeagueOrder, loadLeagueParams, loadAllLeagueParams, loadLeagueMatches, loadLeagueMatchesAll, loadLandingSettings } from '../data/supabaseLoader.js';
-import { addChange, getStagedContent, getChanges, hasLeagueChanges, removeLeagueChanges, T } from './stagingStore.js';
+import { addChange, getStagedContent, getChanges, hasLeagueChanges, readOverridesForEdit, removeChange, removeGroup, removeLeagueChanges, stageManualOverrides, T } from './stagingStore.js';
 import { renderRoundEditor } from './roundEditor.js';
 import { renderExcelImporter } from './excelImporter.js';
 import { renderOverridesList } from './overridesList.js';
@@ -18,11 +18,15 @@ import { wireSectionCollapse } from '../render/sectionCollapse.js';
 import { mountAccordionTabs } from '../render/subTabs.js';
 import { filePickerHTML } from './render/formControls.js';
 import { matchesToCsvText } from './csvText.js';
+import { parseCSV, getAllPlayersFromCSV } from '../data/csvParser.js';
 import { KNOWN_FLAGS, ensureFlagCodes, registerFlagCode } from './flagRegistry.js';
 import {
     DURATION_MODES, DURATION_MODE_LABELS, DEFAULT_DURATION_MODE,
     durationMode, durationDays, leagueDateWindow, describeDuration, daysBetween,
 } from '../compute/leagueDuration.js';
+import { MEDAL_TIERS, getExtraPrizeRows, withExtraPrizeRows, countExtraPrizeRows } from '../compute/prizeRows.js';
+import { leagueTypeRank } from '../compute/leagueTypes.js';
+import { landingSettingsPayload } from './landingSettingsPayload.js';
 import { loadPlayersMetadata } from '../data/supabasePlayersMetadata.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
 import { restartSplash, endSplash } from '../utils/splash.js';
@@ -151,14 +155,111 @@ function setLeaguesHash(kind, leagueId, subtab) {
     if (location.hash !== h) history.replaceState(null, '', h);
 }
 
+/** The group id every change belonging to one league's creation carries. */
+const addGroupId = (folderId) => `add-${folderId}`;
+
+/**
+ * The DisplayOrder a publish would write right now, or null when nothing is
+ * staged against landing_settings. Read from the queue rather than from
+ * `loadLandingSettings()`, whose object is the loader's own cached instance.
+ */
+function stagedDisplayOrder() {
+    const raw = getStagedContent(T.landingSettings());
+    if (!raw) return null;
+    try {
+        const ls = JSON.parse(raw);
+        const order = ls.DisplayOrder || ls.displayOrder;
+        return Array.isArray(order) ? order : null;
+    } catch { return null; }
+}
+
+/**
+ * The staged CREATION of `folderId`, or null — the whole draft, ready to be
+ * listed in F1 or poured back into the Add form.
+ *
+ * Deliberately keyed on `type === 'create'`: an UPDATE to league_params is an
+ * edit of a league that already exists and belongs on the Edit screen. Only a
+ * create describes a league the database has never had.
+ */
+function stagedCreateFor(folderId) {
+    const change = getChanges().find(c =>
+        c.type === 'create' && c.target?.kind === 'league_params' && c.target?.leagueId === folderId);
+    if (!change) return null;
+    let params;
+    try { params = JSON.parse(change.content); } catch { return null; }
+    const csvChange = getChanges().find(c =>
+        c.target?.kind === 'leaguedata_csv' && c.target?.leagueId === folderId);
+    const ovChange = getChanges().find(c =>
+        c.target?.kind === 'manual_overrides' && c.target?.leagueId === folderId);
+    let overrides = [];
+    if (ovChange) {
+        try { overrides = JSON.parse(ovChange.content).overrides || []; } catch { /* none */ }
+    }
+    return {
+        id: folderId,
+        params,
+        csvText: csvChange ? csvChange.content : null,
+        overrides,
+        group: change.group || addGroupId(folderId),
+    };
+}
+
+/**
+ * Take one league OUT of the queued landing order.
+ *
+ * Needed because `landing_settings` is a SINGLE shared target while each league
+ * creation is its own group: create two leagues and the second one's write
+ * supersedes the first's, so the one surviving order change ends up tagged with
+ * the LAST group that touched it. Discarding the first league's group therefore
+ * removes its params and CSV but leaves its name sitting in that order — which
+ * publishes as exactly the broken league this whole screen exists to prevent.
+ * The name has to be taken out by hand.
+ *
+ * The change is removed and re-added rather than edited in place, on purpose:
+ * addChange supersedes a target AT ITS OLD INDEX, and publish walks the queue in
+ * order. Re-adding pushes the order change to the END, which is where it has to
+ * run — after the params of every league it names.
+ */
+async function dropFromStagedLandingOrder(folderId) {
+    const raw = getStagedContent(T.landingSettings());
+    if (!raw) return;                     // nothing queued → the published order never had it
+    let ls;
+    try { ls = JSON.parse(raw); } catch { return; }
+    const order = (ls.DisplayOrder || ls.displayOrder || [])
+        .filter(t => t.replace(' - ', ' ') !== folderId);
+
+    const idx = getChanges().findIndex(c => c.target?.kind === 'landing_settings');
+    if (idx !== -1) removeChange(idx);
+
+    // If what remains is the published order verbatim, the change has nothing
+    // left to say — queueing a no-op would show a Pending row for a write that
+    // changes nothing.
+    const published = await loadLeagueOrder();
+    if (order.length === published.length && order.every((t, i) => t === published[i])) return;
+
+    addChange({
+        type: 'update',
+        target: T.landingSettings(),
+        content: JSON.stringify(landingSettingsPayload(ls, { DisplayOrder: order }), null, 2),
+        description: 'Update league order',
+        category: 'landing',
+    });
+}
+
 export async function renderLeagueAdmin(container, refreshBadge, subroute = []) {
     refreshBadgeFn = refreshBadge;
     restartSplash({ stages: 'adminView' });   // shared loading screen — see syncManager.js
     container.innerHTML = '<h1>Leagues</h1>';
 
     try {
-        const displayOrder = await loadLeagueOrder();
+        const publishedOrder = await loadLeagueOrder();
+        // The order the NEXT publish will write, which is the order this screen
+        // should show: a staged landing_settings change already carries it (a
+        // league created but not yet published is in there, at its intended
+        // slot). Falling back to the published order when nothing is staged.
+        const displayOrder = stagedDisplayOrder() || publishedOrder;
         const folderNames = displayOrder.map(title => title.replace(' - ', ' '));
+        const publishedIds = new Set(publishedOrder.map(title => title.replace(' - ', ' ')));
 
         // Restore a deep sub-route from the URL (see setLeaguesHash): the
         // Add-League form, or editing a specific league (optionally with a
@@ -168,6 +269,13 @@ export async function renderLeagueAdmin(container, refreshBadge, subroute = []) 
         if (subroute[0] === 'new') { renderAddLeagueForm(container, displayOrder); return; }
         if (subroute[0] === 'edit' && subroute[1]) {
             const id = decodeURIComponent(subroute[1]);
+            // A league that exists only as a staged creation is edited in the
+            // ADD form, not the Edit-League screen: it has no matches, no
+            // players table and no history for that screen to work on, and its
+            // Save writes settings for a league id the database has never seen.
+            // Reopening the form it was built in is also what the admin means by
+            // "edit" here — go back and change what I typed.
+            if (stagedCreateFor(id)) { renderAddLeagueForm(container, displayOrder, id); return; }
             if (folderNames.includes(id)) { renderEditLeague(container, id, displayOrder, subroute[2]); return; }
         }
 
@@ -181,14 +289,25 @@ export async function renderLeagueAdmin(container, refreshBadge, subroute = []) 
         // did — a missing row hides one row's controls, it does not fail the
         // page.
         const paramsById = new Map(
-            (await loadAllLeagueParams(folderNames).catch(() => []))
+            (await loadAllLeagueParams([...publishedIds]).catch(() => []))
                 .map(({ id, params }) => [id, params]),
         );
-        const leagues = folderNames.map((id, i) => ({
-            id,
-            title: displayOrder[i],
-            params: paramsById.get(id) ?? null,
-        }));
+        // Three states, not two. A league is PUBLISHED (a row came back), PENDING
+        // (no row, but a staged creation describes it — it is queued, not
+        // broken), or genuinely unreadable. They used to render identically, as
+        // one red "Failed to load", which read as a failure for the one case
+        // that is simply work in progress.
+        const leagues = folderNames.map((id, i) => {
+            const published = paramsById.get(id) ?? null;
+            if (published) return { id, title: displayOrder[i], params: published, pending: false };
+            const staged = stagedCreateFor(id);
+            return {
+                id,
+                title: displayOrder[i],
+                params: staged ? staged.params : null,
+                pending: !!staged,
+            };
+        });
 
         renderLeagueList(container, leagues, displayOrder);
     } catch (err) {
@@ -201,29 +320,69 @@ export async function renderLeagueAdmin(container, refreshBadge, subroute = []) 
 // ---- League List ----
 
 function renderLeagueList(container, leagues, displayOrder) {
+    // Default order: league opening date, newest first — same as A1 (Completed
+    // Leagues) on the landing page. NOT DisplayOrder: that is the public
+    // landing-page arrangement, and reading this screen in it meant a newly
+    // opened league could sit anywhere in the list. A tie on the date falls
+    // back to the canonical league-type order (doubling above regular), and a
+    // row with no date at all — a broken publish, or a draft whose date is not
+    // set yet — sorts to the TOP, because that row is the one asking for work.
+    // `displayOrder` is untouched: it is passed on to the edit/add screens and
+    // is still what publishing writes.
+    const sorted = [...leagues].sort((a, b) => {
+        const da = a.params?.IssueDate ? Date.parse(a.params.IssueDate) : NaN;
+        const db = b.params?.IssueDate ? Date.parse(b.params.IssueDate) : NaN;
+        const aBad = Number.isNaN(da), bBad = Number.isNaN(db);
+        if (aBad !== bBad) return aBad ? -1 : 1;
+        if (!aBad && da !== db) return db - da;
+        return leagueTypeRank(a.params?.LeagueType || 'doubling')
+             - leagueTypeRank(b.params?.LeagueType || 'doubling');
+    });
+
     let rows = '';
-    for (const lg of leagues) {
+    const dash = '<span style="color:var(--color-text-muted)">—</span>';
+    for (const lg of sorted) {
+        // No params AND no staged creation: the league is named in the order but
+        // nothing anywhere describes it. That IS a broken league (a publish that
+        // wrote the order and failed on the row), and it is the only case that
+        // still earns red — with a way out, which it never had: the row used to
+        // carry no buttons at all, so a broken entry could not be removed from
+        // this screen.
         if (!lg.params) {
-            rows += `<tr><td>${esc(lg.id)}</td><td colspan="5" style="color:var(--color-loss)">Failed to load</td></tr>`;
+            rows += `
+            <tr>
+                <td>${esc(lg.id)}</td>
+                <td colspan="3" style="color:var(--color-loss)">Listed, but no league data — never finished publishing</td>
+                <td><button class="btn btn-danger btn-sm" data-delete="${lg.id}" data-title="${esc(lg.title)}">Remove</button></td>
+            </tr>`;
             continue;
         }
         const p = lg.params;
         const running = p.Running === true;
         const hidden = p.Hidden === true;
-        const statusPill = running
-            ? '<span class="status-pill status-running">Running</span>'
-            : '<span class="status-pill status-completed">Completed</span>';
+        // A pending league has no published status to report — "Running" would
+        // be a claim about a league the site cannot show anyone yet. Its own
+        // state IS the status, so it takes that column.
+        const statusPill = lg.pending
+            ? '<span class="status-pill status-pending">Pending</span>'
+            : running
+                ? '<span class="status-pill status-running">Running</span>'
+                : '<span class="status-pill status-completed">Completed</span>';
         const hiddenBadge = hidden ? ' <span style="color:var(--color-text-muted);font-size:0.8em">(Hidden)</span>' : '';
-
+        // Type comes from the staged params for a pending league, so it is real
+        // in both states and the pill is drawn the same way. Date is dashed when
+        // absent — for a draft that usually means "not set yet".
         rows += `
-            <tr>
+            <tr${lg.pending ? ' class="league-row-pending"' : ''}>
                 <td>${esc(lg.id)}${hiddenBadge}</td>
                 <td><span class="league-type-pill type-${esc(p.LeagueType || 'doubling')}">${esc(LEAGUE_TYPE_LABELS[p.LeagueType] || LEAGUE_TYPE_LABELS.doubling)}</span></td>
-                <td>${p.IssueDate ? formatAdminDate(p.IssueDate) : '<span style="color:var(--color-text-muted)">—</span>'}</td>
+                <td>${p.IssueDate ? formatAdminDate(p.IssueDate) : dash}</td>
                 <td>${statusPill}</td>
                 <td>
                     <button class="btn btn-primary btn-sm" data-edit="${lg.id}">Edit</button>
-                    <button class="btn btn-danger btn-sm" data-delete="${lg.id}" data-title="${esc(lg.title)}">Delete</button>
+                    <button class="btn btn-danger btn-sm"
+                            data-delete="${lg.id}" data-title="${esc(lg.title)}"
+                            ${lg.pending ? 'data-pending="1"' : ''}>${lg.pending ? 'Discard' : 'Delete'}</button>
                 </td>
             </tr>`;
     }
@@ -250,11 +409,15 @@ function renderLeagueList(container, leagues, displayOrder) {
         renderAddLeagueForm(container, displayOrder);
     });
 
-    // Edit buttons
+    // Edit buttons. The hash is the same in both cases (#leagues/edit/<id>) —
+    // which screen it opens is decided in renderLeagueAdmin by whether the id
+    // has a staged creation, so a refresh on that URL lands where the click did.
     container.querySelectorAll('[data-edit]').forEach(btn => {
         btn.addEventListener('click', () => {
-            setLeaguesHash('edit', btn.dataset.edit);
-            renderEditLeague(container, btn.dataset.edit, displayOrder);
+            const id = btn.dataset.edit;
+            setLeaguesHash('edit', id);
+            if (stagedCreateFor(id)) renderAddLeagueForm(container, displayOrder, id);
+            else renderEditLeague(container, id, displayOrder);
         });
     });
 
@@ -263,6 +426,25 @@ function renderLeagueList(container, leagues, displayOrder) {
         btn.addEventListener('click', () => {
             const id = btn.dataset.delete;
             const title = btn.dataset.title;
+            // A league that was never published has nothing to delete — the only
+            // thing that exists is the queued work. Staging a DELETE for it would
+            // queue the removal of a database row that has never been written,
+            // alongside the creation of that same row. So this drops the queued
+            // creation instead, which also restores the landing order (the order
+            // change is part of the same group).
+            const staged = stagedCreateFor(id);
+            if (staged) {
+                if (!confirm(`Discard the pending creation of "${id}"? Its queued settings, roster, match data and any flag uploaded for it are dropped. Nothing published is affected.`)) return;
+                removeGroup(staged.group);
+                // And out of the queued order, which may live in ANOTHER group
+                // by now — see dropFromStagedLandingOrder.
+                dropFromStagedLandingOrder(id).finally(() => {
+                    if (refreshBadgeFn) refreshBadgeFn();
+                    setLeaguesHash();
+                    renderLeagueAdmin(container, refreshBadgeFn);
+                });
+                return;
+            }
             if (confirm(`Delete league "${id}"? This will remove all league files.`)) {
                 stageDeleteLeague(id, title, displayOrder);
                 setLeaguesHash();
@@ -274,13 +456,22 @@ function renderLeagueList(container, leagues, displayOrder) {
 
 // ---- Add League ----
 
-async function renderAddLeagueForm(container, displayOrder) {
+/**
+ * The Add-League form. Also the EDIT screen for a league that exists only as a
+ * staged creation: pass its folder id as `draftId` and the form opens filled
+ * with the queued draft, saving back over the same queued group instead of
+ * adding a second one.
+ */
+async function renderAddLeagueForm(container, displayOrder, draftId = null) {
+    const draft = draftId ? stagedCreateFor(draftId) : null;
+
     // Local state for the new league
     const state = {
         players: [],          // [{ name, flag, retired }]
         customFlags: {},
         csvText: null,        // set by the importer; overrides round-robin generation
-        importOverrides: []   // technical results decided in the import preview
+        importOverrides: [],  // technical results decided in the import preview
+        uploadedFlags: []     // flag codes uploaded from this form — see wireUploadFlagPanel
     };
 
     // Flag dropdowns are only useful if they offer the codes already in use —
@@ -290,7 +481,7 @@ async function renderAddLeagueForm(container, displayOrder) {
     await Promise.all([ensureFlagCodes(), ensureLeagueIndex().catch(() => {})]);
 
     container.innerHTML = `
-        <h1>Add New League</h1>
+        <h1>${draft ? `Edit Pending League — ${esc(draftId)}` : 'Add New League'}</h1>
         <button class="btn btn-primary btn-back" id="cancel-new-league" style="margin-bottom:var(--space-lg)">&lsaquo; Back to Leagues</button>
         <div id="add-msg"></div>
 
@@ -394,9 +585,10 @@ async function renderAddLeagueForm(container, displayOrder) {
             <div class="admin-card">
                 <h3 class="admin-subhead">Or import a file (CSV / Excel)</h3>
                 <small class="form-hint" style="margin-bottom:var(--space-sm)">
-                    Adds the file's players to the roster AND its results to the new
-                    league — the same import screen Edit League uses, so you can see
-                    every match that was played and decide row by row.
+                    The same import screen Edit League uses: drop a file to see every
+                    match it contains and decide row by row. Nothing moves until you
+                    press <strong>Add these matches</strong> — that is the step that
+                    fills the Roster above and attaches the results to the new league.
                 </small>
                 <div id="f2b-import-mount"></div>
             </div>
@@ -404,15 +596,81 @@ async function renderAddLeagueForm(container, displayOrder) {
           </div>
         </div>
 
+        <div id="create-blockers" class="form-hint" style="margin-bottom:var(--space-sm)"></div>
         <div style="display:flex;gap:var(--space-sm)">
-            <button class="btn btn-success" id="save-new-league">Create League</button>
+            <button class="btn btn-success" id="save-new-league">${draft ? 'Update League' : 'Create League'}</button>
             <button class="btn btn-secondary" id="cancel-new-league-2">Cancel</button>
         </div>`;
+
+    /**
+     * Everything standing between this form and a league, in the admin's words.
+     *
+     * ONE function owns the Create button's `disabled`. Each rule used to switch
+     * it on its own, and the last listener to fire won — so a form failing two
+     * rules could still be armed by whichever one happened to be re-checked
+     * last. Collected here, the button is off while ANY rule fails and the row
+     * beneath it names them all at once.
+     */
+    function createBlockers() {
+        const out = [];
+        // A league IS its fixtures, and a fixture needs two sides. Below two
+        // players there is nothing to generate and nothing to import into — the
+        // league would publish with an empty match table. It cannot be fixed
+        // afterwards either: a published league is not restructured while it
+        // runs, or at its end, so the roster has to be right here.
+        if (state.players.length < 2) {
+            out.push(state.players.length === 0
+                ? 'add at least 2 players to the roster'
+                : 'add at least one more player — a league needs 2');
+        }
+        if (!durationFieldsValid('new')) out.push('set how many days the league runs (at least 1)');
+        return out;
+    }
+
+    /**
+     * The staged flag uploads that belong to this league — as {code, content}
+     * so they can be re-staged under its group.
+     *
+     * Two sources, because a draft can be saved more than once: codes uploaded
+     * in THIS form session (state.uploadedFlags), and codes an earlier save
+     * already folded into the draft's group. The second matters because the
+     * save path drops that group wholesale before re-staging it — without
+     * carrying them out first, editing a pending league would quietly delete
+     * the flags it was created with.
+     */
+    function collectCarriedFlags() {
+        const mine = new Set(state.uploadedFlags);
+        const out = new Map();
+        for (const c of getChanges()) {
+            if (c.target?.kind !== 'flag_asset') continue;
+            const inMyGroup = draft && c.group === draft.group;
+            if (mine.has(c.target.code) || inMyGroup) {
+                out.set(c.target.code, { code: c.target.code, content: c.content });
+            }
+        }
+        return [...out.values()];
+    }
+
+    function refreshCreateGate() {
+        const blockers = createBlockers();
+        const btn = document.getElementById('save-new-league');
+        const note = document.getElementById('create-blockers');
+        if (btn) {
+            btn.disabled = blockers.length > 0;
+            btn.title = blockers.length ? `Before saving: ${blockers.join('; ')}.` : '';
+        }
+        if (note) {
+            note.innerHTML = blockers.length
+                ? `<span style="color:var(--color-loss)">Before saving: ${blockers.map(esc).join(' · ')}.</span>`
+                : '';
+        }
+    }
 
     // F6 (Medals & Prizes) sticky-shadow — the F2b players wrap attaches itself in
     // rerenderPlayers(); here we cover the static F6 wrap rendered in the template.
     const medalsWrap = container.querySelector('[data-mf-table-id="F6"]')?.closest('.ff-wrap');
     if (medalsWrap) attachStickyShadow(medalsWrap);
+    wireMedalsTable(container);
 
     // F2b — the Add-League players table. Identical FF format to F2 (Edit League)
     // via the shared ffPlayersTableHTML builder; data lives in state.players and
@@ -422,6 +680,9 @@ async function renderAddLeagueForm(container, displayOrder) {
         const rows = state.players.map(pl => ({ name: pl.name, flagCode: pl.flag || 'IL', isRetired: !!pl.retired }));
         mount.innerHTML = ffPlayersTableHTML('F2b', rows, 'No players yet');
         attachStickyShadow(mount.querySelector('.ff-wrap'));
+        // Every roster change — add, remove, import, preset, draft load — passes
+        // through here, so this is the one place the gate needs re-checking.
+        refreshCreateGate();
 
         if (state.players.length === 0) return;
 
@@ -471,6 +732,72 @@ async function renderAddLeagueForm(container, displayOrder) {
         });
     }
     rerenderPlayers();
+
+    /**
+     * Pour a staged draft back into this form.
+     *
+     * The roster is RECONSTRUCTED rather than stored: what the queue holds is
+     * what a league is made of — a CSV, a CustomFlags map and a RetiredPlayers
+     * list — so the roster is the union of the names those three mention. That
+     * keeps one source of truth (the staged change set IS the draft; nothing
+     * shadows it), at the cost of one blind spot: a roster of a single player
+     * flying IL and not retired produces a header-only CSV that names nobody,
+     * so that one player cannot be recovered. Two or more players always can —
+     * they generate a round-robin CSV carrying every name.
+     */
+    async function loadDraftIntoForm(d) {
+        const p = d.params || {};
+        document.getElementById('new-league-name').value = d.id;
+        document.getElementById('new-league-type').value = p.LeagueType || 'doubling';
+        if (p.IssueDate) document.getElementById('new-issue-date').value = p.IssueDate;
+        document.getElementById('new-entry-fee').value = p.EntryFee ?? 0;
+        document.getElementById('new-match-length').value = p.MatchLength || 7;
+        document.getElementById('new-gold-count').value = p.GoldCount ?? 1;
+        document.getElementById('new-silver-count').value = p.SilverCount ?? 1;
+        document.getElementById('new-bronze-count').value = p.BronzeCount ?? 4;
+        const prizes = p.Prizes || {};
+        document.getElementById('new-prize-gold').value = prizes.Gold || 0;
+        document.getElementById('new-prize-silver').value = prizes.Silver || 0;
+        document.getElementById('new-prize-bronze').value = prizes.Bronze || 0;
+        applyExtraPrizeRows(container, getExtraPrizeRows(prizes));
+        document.getElementById('new-duration-mode').value = durationMode(p);
+        const days = durationDays(p);
+        if (days) document.getElementById('new-duration-days').value = days;
+        // Both toggles derive from the issue date, so fire their sync AFTER the
+        // date is in — otherwise they settle on the empty-date defaults.
+        document.getElementById('new-issue-date').dispatchEvent(new Event('change'));
+        document.getElementById('new-duration-mode').dispatchEvent(new Event('change'));
+        if (p.IssueDate) document.getElementById('new-in-leaderboard').checked = p.InLeaderboard !== false;
+
+        // Match data: a ManualEntry league's CSV is a generated round-robin, not
+        // an imported file — carrying it as `csvText` would freeze that draw and
+        // re-stage it verbatim. Left null, it is regenerated from the roster on
+        // save, exactly as it was the first time.
+        state.importOverrides = d.overrides || [];
+        state.csvText = (d.csvText && !p.ManualEntry) ? d.csvText : null;
+
+        const flags = p.CustomFlags || {};
+        const retired = new Set(p.RetiredPlayers || []);
+        const names = new Set([...Object.keys(flags), ...retired]);
+        if (d.csvText) for (const n of getAllPlayersFromCSV(d.csvText)) names.add(n);
+        const sorted = [...names].sort();
+        await ensureAcData();
+        const known = new Set(_acPlayerNames);
+        state.players = sorted.map(n => ({
+            name: n,
+            flag: flags[n] || 'IL',
+            retired: retired.has(n),
+            isNew: !known.has(n),
+        }));
+        rerenderPlayers();
+
+        if (state.csvText) {
+            const count = parseCSV(state.csvText).length;
+            setCsvSourceMsg(`Imported file kept from the pending draft: ${sorted.length} player${sorted.length === 1 ? '' : 's'}, `
+                + `${count} played match${count === 1 ? '' : 'es'}.`);
+        }
+        showMsg('add-msg', `Editing the pending creation of "${d.id}". Saving replaces the queued version — it does not add a second one.`, 'info');
+    }
 
     // ── Preset picker — the canonical smart search, leagues only ────────────
     // Same field, same matcher and same result chrome as the site sidebar's
@@ -549,7 +876,9 @@ async function renderAddLeagueForm(container, displayOrder) {
         document.getElementById('new-in-leaderboard'),
         document.getElementById('new-in-leaderboard')?.closest('.form-group')?.querySelector('.leaderboard-hint')
     );
-    wireDurationFields(container, 'new');
+    // Duration edits feed the one gate that owns the Create button (see
+    // refreshCreateGate) rather than switching it themselves.
+    wireDurationFields(container, 'new', refreshCreateGate);
 
     // Preset — clone an existing league's setup into this blank form. A league
     // that runs every month is the same league with a new name and a new set of
@@ -586,6 +915,9 @@ async function renderAddLeagueForm(container, displayOrder) {
             document.getElementById('new-prize-gold').value = prizes.Gold || 0;
             document.getElementById('new-prize-silver').value = prizes.Silver || 0;
             document.getElementById('new-prize-bronze').value = prizes.Bronze || 0;
+            // The preset's extra prize rows are part of "the same league again"
+            // just as much as the medal counts are.
+            applyExtraPrizeRows(container, getExtraPrizeRows(prizes));
             // How long it ran is part of "the same league again" — copied like
             // the fee and the match length. The Issue Date still isn't, so the
             // window lands wherever the new league's own start date puts it.
@@ -627,8 +959,12 @@ async function renderAddLeagueForm(container, displayOrder) {
     });
 
     // Upload Custom Flag panel (shared with F2 in Edit League) — stages the PNG +
-    // registers the code so it appears in every F2b flag dropdown.
-    wireUploadFlagPanel();
+    // registers the code so it appears in every F2b flag dropdown. The codes are
+    // remembered so they can be folded into the league's own change group when
+    // it is created, and dropped with it if it never is.
+    wireUploadFlagPanel(code => {
+        if (!state.uploadedFlags.includes(code)) state.uploadedFlags.push(code);
+    });
 
     // Collapsible section headers — shared mechanism (css/sections.css +
     // sectionCollapse.js), identical to landing / dashboard / player pages.
@@ -647,8 +983,36 @@ async function renderAddLeagueForm(container, displayOrder) {
         });
     });
 
-    // Cancel
-    const cancel = () => { setLeaguesHash(); renderLeagueAdmin(container, refreshBadgeFn); };
+    // Cancel — and take this form's flag uploads with it, unprompted.
+    //
+    // The other half of "discarding the league discards its flag". A flag
+    // uploaded here is queued the instant Upload is pressed (it has to be, so it
+    // can be picked in the roster below), so walking away without creating the
+    // league left it queued with nothing to belong to — the same orphan that
+    // discarding a pending league avoids, reached by a different door.
+    //
+    // No confirmation, deliberately. A flag uploaded inside this form is part of
+    // building THIS league; abandoning the league abandons it, the same way the
+    // roster and the imported file are abandoned without being asked about. An
+    // extra prompt would make the one ancillary thing behave unlike everything
+    // else on the form. Re-uploading is a two-field operation if it is wanted
+    // again.
+    const cancel = () => {
+        const mine = new Set(state.uploadedFlags);
+        if (mine.size > 0) {
+            const changes = getChanges();
+            let dropped = 0;
+            for (let i = changes.length - 1; i >= 0; i--) {
+                if (changes[i].target?.kind === 'flag_asset' && mine.has(changes[i].target.code)) {
+                    removeChange(i);
+                    dropped++;
+                }
+            }
+            if (dropped > 0 && refreshBadgeFn) refreshBadgeFn();
+        }
+        setLeaguesHash();
+        renderLeagueAdmin(container, refreshBadgeFn);
+    };
     document.getElementById('cancel-new-league').addEventListener('click', cancel);
     document.getElementById('cancel-new-league-2').addEventListener('click', cancel);
 
@@ -770,23 +1134,38 @@ async function renderAddLeagueForm(container, displayOrder) {
             {
                 heading: 'Import results & roster',
                 getMatchLength: () => document.getElementById('new-match-length').value,
+                // A dropped file wipes the draft before its own preview is even
+                // drawn (see the onReplace contract in excelImporter.js). The
+                // roster goes with the matches deliberately: the two are one
+                // answer to "who plays and what did they play", and a roster
+                // left over from a file the admin has just replaced names
+                // players the new file may never mention. It is the same pairing
+                // Clear All enforces, applied to the same-window re-drop.
+                onReplace: () => {
+                    state.csvText = null;
+                    state.importOverrides = [];
+                    state.players = [];
+                    rerenderPlayers();
+                    setCsvSourceMsg('New file loaded — the previous import and its roster were cleared. '
+                        + 'Press "Add these matches" to apply this one.');
+                },
                 onCompose: async ({ csvText, overrides, players, played, skipped }) => {
                     state.csvText = csvText;
                     state.importOverrides = overrides;
 
-                    // The file's players join the roster. Flags come from the
-                    // last league each of them played in; a flag the admin has
-                    // already picked in the table wins, so an import never
-                    // undoes manual work.
+                    // The file's players ARE the roster — it was emptied by
+                    // onReplace the moment this file was dropped, so there is
+                    // nothing here to merge with and nothing to preserve. Each
+                    // name arrives under the flag it last played with (see
+                    // resolveDefaultFlags); a name new to the site gets IL.
                     const names = [...players].sort();
                     await ensureAcData();
                     const known = new Set(_acPlayerNames);
-                    const picked = new Map(state.players.map(p => [p.name, p]));
                     const defaults = await resolveDefaultFlags(names);
                     state.players = names.map(n => ({
                         name: n,
-                        flag: picked.get(n)?.flag || defaults.get(n) || 'IL',
-                        retired: picked.get(n)?.retired || false,
+                        flag: defaults.get(n) || 'IL',
+                        retired: false,
                         isNew: !known.has(n)
                     }));
                     rerenderPlayers();
@@ -801,6 +1180,11 @@ async function renderAddLeagueForm(container, displayOrder) {
         );
     }
     mountImporter();
+
+    // Fill the form from the queued draft, once every field it writes to is
+    // wired — the duration and leaderboard toggles are driven by dispatched
+    // change events, which do nothing before their listeners exist.
+    if (draft) await loadDraftIntoForm(draft);
 
     /** Drop the imported file and reset the import UI back to its drop zone. */
     function clearImport({ keepMessage = false } = {}) {
@@ -846,12 +1230,30 @@ async function renderAddLeagueForm(container, displayOrder) {
         // (dash stripped, as stageAddLeague does) case-insensitively against the
         // leagues the admin knows (DisplayOrder is its league list). Without this
         // an upsert would silently overwrite the existing league of that name.
+        //
+        // A draft being re-saved is excluded from the comparison: `displayOrder`
+        // now includes pending leagues (that is what puts them in F1), so
+        // without this a draft could not be saved under its own name — the guard
+        // would report it as colliding with itself.
         const newFolderId = name.replace(' - ', ' ');
-        const existingIds = displayOrder.map(t => t.replace(' - ', ' '));
+        const existingIds = displayOrder
+            .map(t => t.replace(' - ', ' '))
+            .filter(id => !draft || id !== draft.id);
         if (existingIds.some(id => id.toLowerCase() === newFolderId.toLowerCase())) {
             showMsg('add-msg', `A league named "${newFolderId}" already exists. League names must be unique.`, 'error');
             return;
         }
+
+        // Second gate on the same rules the disabled button enforces (see
+        // createBlockers). The button is the one the admin sees; this is the one
+        // that holds if the click arrives anyway — a keyboard activation racing
+        // the input event, or a future caller that skips the form.
+        const blockers = createBlockers();
+        if (blockers.length) {
+            showMsg('add-msg', `Before saving: ${blockers.join('; ')}.`, 'error');
+            return;
+        }
+        const duration = readDurationFields('new');
 
         const options = {
             issueDate: document.getElementById('new-issue-date').value || null,
@@ -861,28 +1263,58 @@ async function renderAddLeagueForm(container, displayOrder) {
             goldCount: parseInt(document.getElementById('new-gold-count').value) || 1,
             silverCount: parseInt(document.getElementById('new-silver-count').value) || 1,
             bronzeCount: parseInt(document.getElementById('new-bronze-count').value) || 4,
-            prizes: {
+            // Extra rows ride inside Prizes (see compute/prizeRows.js); the key is
+            // omitted entirely when the admin added none.
+            prizes: withExtraPrizeRows({
                 Gold: parseInt(document.getElementById('new-prize-gold').value) || 0,
                 Silver: parseInt(document.getElementById('new-prize-silver').value) || 0,
                 Bronze: parseInt(document.getElementById('new-prize-bronze').value) || 0
-            },
-            ...readDurationFields('new'),
+            }, readExtraPrizeRows(container)),
+            ...duration,
             players: state.players,
             csvText: state.csvText,
-            overrides: state.importOverrides
+            overrides: state.importOverrides,
+            // Flags uploaded for THIS league travel with it — read out of the
+            // queue here, BEFORE removeGroup below can drop the ones a previous
+            // save already folded into the draft's group.
+            carryFlags: collectCarriedFlags(),
         };
+
+        // Re-saving a draft REPLACES its queued group outright, and the whole
+        // group goes — not just the params.
+        //
+        // Two reasons it has to be the whole group. A renamed draft is queued
+        // under a group id built from the OLD name, so leaving it would publish
+        // BOTH leagues, the abandoned one included. And even under an unchanged
+        // name, a draft that has since lost its imported file (or its technical
+        // overrides) would keep the old CSV and overrides staged: addChange
+        // supersedes a target it writes again, and never touches one it doesn't.
+        // Dropping the group first makes the queue say exactly what the form
+        // says, with nothing surviving from a version of the draft the admin has
+        // already moved past.
+        //
+        // The order this runs in matters: removeGroup takes out the group's
+        // landing_settings change too, so `publishedBaseOrder` below is read
+        // AFTER it — otherwise the new order would be built on top of an entry
+        // for the draft's own old name.
+        if (draft) removeGroup(draft.group);
+        const publishedBaseOrder = (stagedDisplayOrder() || displayOrder)
+            .filter(t => t.replace(' - ', ' ') !== (draft ? draft.id : null));
 
         // Report a staging failure instead of leaving the form looking like it
         // worked: an exception in here used to reject silently, so the last
         // message on screen ("CSV loaded with N players") read as success while
         // nothing had been staged at all.
         try {
-            await stageAddLeague(name, type, displayOrder, options);
+            await stageAddLeague(name, type, publishedBaseOrder, options);
         } catch (err) {
             showMsg('add-msg', `Could not stage this league: ${err.message}`, 'error');
             return;
         }
-        showMsg('add-msg', `League "${name}" staged. Go to Pending Changes to publish.`, 'success');
+        showMsg('add-msg', draft
+            ? `Pending league updated${name !== draft.id ? ` and renamed to "${name}"` : ''}. It is still one queued creation — publish it from Pending Changes.`
+            : `League "${name}" staged. Go to Pending Changes to publish.`, 'success');
+        if (refreshBadgeFn) refreshBadgeFn();
         setTimeout(() => { setLeaguesHash(); renderLeagueAdmin(container, refreshBadgeFn); }, 1200);
     });
 }
@@ -949,6 +1381,27 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
         }
     }
 
+    // Flags uploaded from the Add form, re-staged INTO this group. addChange
+    // supersedes a target it writes again, so this does not duplicate the queued
+    // upload — it re-labels it as part of this league's creation. From here on,
+    // discarding the league discards the flag with it, which is the whole point:
+    // an ownerless flag left in the queue is a change the admin cannot connect
+    // to anything they remember doing.
+    for (const f of options.carryFlags || []) {
+        addChange({
+            type: 'create',
+            target: T.flagAsset(f.code),
+            content: f.content,
+            binary: true,
+            description: `Upload flag: ${f.code}.png`,
+            category: 'flag-upload',
+            subject: f.code,
+            detail: `${f.code}.png`,
+            group: groupId,
+            groupDescription,
+        });
+    }
+
     // league_params.json — no LeagueTitle: the folder id IS the name, and
     // mapParamsToLeagueRow falls the DB `title` column back to the id.
     const params = {
@@ -972,7 +1425,11 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
     // in the review step even though the form clearly said "calendar month".
     params.DurationMode = options.durationMode || DEFAULT_DURATION_MODE;
     if (params.DurationMode === 'days' && options.durationDays) params.DurationDays = options.durationDays;
-    if (options.prizes && (options.prizes.Gold || options.prizes.Silver || options.prizes.Bronze)) {
+    // Written only when there is something to write — an all-zero prize table is
+    // the default and stays out of the JSON. Extra rows count as "something",
+    // even when every amount in them is 0: the admin explicitly added those rows.
+    if (options.prizes && (options.prizes.Gold || options.prizes.Silver || options.prizes.Bronze
+        || countExtraPrizeRows(options.prizes))) {
         params.Prizes = options.prizes;
     }
     if (retiredPlayers.length > 0) params.RetiredPlayers = retiredPlayers;
@@ -1071,19 +1528,22 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
         }
     } catch { /* best-effort registry registration — never block league creation */ }
 
-    // Update landing_settings.json
+    // Update landing_settings.json.
+    //
+    // READ-ONLY on the settings object. `loadLandingSettings()` hands back the
+    // very object its memo holds, so the `settings.displayOrder = newOrder` this
+    // replaces was writing straight into supabaseLoader's cache — every later
+    // read in the page, F1's league list first among them, then saw a published
+    // order that included a league which exists nowhere but this queue. That is
+    // the whole reason a just-created league showed up in F1 as a red
+    // "Failed to load" and then vanished on the next refresh: the row was never
+    // real, it was the cache talking.
     const newOrder = [name, ...displayOrder];
     const settings = await loadLandingSettings();
-    settings.displayOrder = newOrder;
     addChange({
         type: 'update',
         target: T.landingSettings(),
-        content: JSON.stringify({
-            title: settings.title,
-            subtitle: settings.subtitle,
-            logoPath: settings.logoPath,
-            DisplayOrder: settings.displayOrder
-        }, null, 2),
+        content: JSON.stringify(landingSettingsPayload(settings, { DisplayOrder: newOrder }), null, 2),
         description: `Add "${name}" to landing settings`,
         group: groupId,
         groupDescription
@@ -1116,19 +1576,14 @@ async function stageDeleteLeague(leagueId, title, displayOrder) {
         groupDescription
     });
 
-    // Update order in landing_settings.json
+    // Update order in landing_settings.json. Read-only on `settings` — see the
+    // same note in stageAddLeague: assigning to it writes into the loader's memo.
     const newOrder = displayOrder.filter(t => t !== title);
     const settings = await loadLandingSettings();
-    settings.displayOrder = newOrder;
     addChange({
         type: 'update',
         target: T.landingSettings(),
-        content: JSON.stringify({
-            title: settings.title,
-            subtitle: settings.subtitle,
-            logoPath: settings.logoPath,
-            DisplayOrder: settings.displayOrder
-        }, null, 2),
+        content: JSON.stringify(landingSettingsPayload(settings, { DisplayOrder: newOrder }), null, 2),
         description: `Remove "${title}" from landing settings`,
         group: groupId,
         groupDescription
@@ -1176,15 +1631,19 @@ async function renderEditLeague(container, leagueId, displayOrder, openSubtab) {
  *   - markClean(): re-snapshot the current values as the new baseline and disable
  *     (call after a successful save so a fresh edit is needed to re-enable).
  */
-function wireDirtySave(scope, saveBtn) {
+function wireDirtySave(scope, saveBtn, isValid = () => true) {
     if (!scope || !saveBtn) return { markDirty() {}, markClean() {} };
     const snapshot = () => Array.from(scope.querySelectorAll('input, select, textarea'))
         .map(c => (c.type === 'checkbox' || c.type === 'radio') ? (c.checked ? '1' : '0') : c.value)
         .join('');
     let baseline = snapshot();
     let forcedDirty = false;
+    // `isValid` folds into the SAME disabled flag rather than sitting beside it:
+    // this listener is on the whole section, so it fires AFTER any field-level
+    // listener and would otherwise re-enable a button a validity check had just
+    // switched off. One owner of the flag, no fight over it.
     const refresh = () => {
-        const dirty = forcedDirty || snapshot() !== baseline;
+        const dirty = (forcedDirty || snapshot() !== baseline) && isValid();
         saveBtn.disabled = !dirty;
         saveBtn.classList.toggle('btn-save-ready', dirty);
     };
@@ -1247,6 +1706,9 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     const inLeaderboard = p.InLeaderboard !== false && !!issueDate;
     const entryFee = p.EntryFee ?? 0;
     const prizes = p.Prizes || { Gold: 0, Silver: 0, Bronze: 0 };
+    // Extra prize rows per medal. Each one awards real places, so it lengthens
+    // the podium everywhere (D, B2, the medal tallies) — see compute/prizeRows.js.
+    const extraPrizes = getExtraPrizeRows(prizes);
 
     // External Source sync is now managed on the dedicated Sync page
     // (js/admin/syncManager.js → leagues/sync_settings.json), not per-league here.
@@ -1311,9 +1773,9 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             <div class="form-group">
                 <label>Medals &amp; Prizes</label>
                 ${ffMedalsTableHTML([
-                    { medal: 'Gold',   icon: '&#x1F947;', cls: 'medal-gold',   count: goldCount,   countId: 'edit-gold',   prize: prizes.Gold   || 0, prizeId: 'edit-prize-gold' },
-                    { medal: 'Silver', icon: '&#x1F948;', cls: 'medal-silver', count: silverCount, countId: 'edit-silver', prize: prizes.Silver || 0, prizeId: 'edit-prize-silver' },
-                    { medal: 'Bronze', icon: '&#x1F949;', cls: 'medal-bronze', count: bronzeCount, countId: 'edit-bronze', prize: prizes.Bronze || 0, prizeId: 'edit-prize-bronze' },
+                    { medal: 'Gold',   icon: '&#x1F947;', cls: 'medal-gold',   count: goldCount,   countId: 'edit-gold',   prize: prizes.Gold   || 0, prizeId: 'edit-prize-gold',   extra: extraPrizes.Gold },
+                    { medal: 'Silver', icon: '&#x1F948;', cls: 'medal-silver', count: silverCount, countId: 'edit-silver', prize: prizes.Silver || 0, prizeId: 'edit-prize-silver', extra: extraPrizes.Silver },
+                    { medal: 'Bronze', icon: '&#x1F949;', cls: 'medal-bronze', count: bronzeCount, countId: 'edit-bronze', prize: prizes.Bronze || 0, prizeId: 'edit-prize-bronze', extra: extraPrizes.Bronze },
                 ])}
             </div>
             <div class="add-league-row">
@@ -1383,6 +1845,8 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     // F2 (Players) — sticky-col drop-shadow on horizontal scroll, same as F1/F4 (FF chrome).
     container.querySelectorAll('.ff-wrap').forEach(w => attachStickyShadow(w));
 
+    wireMedalsTable(container);
+
     // Match Results sub-tabs — same pattern as dashboard "Remaining Matches" tabs.
     // Round Editor renders Table F2 for ALL leagues; manual overrides win over CSV.
     setupMatchResultsTabs(leagueId, params, refreshBadgeFn, openSubtab);
@@ -1396,7 +1860,13 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     // their section actually changes — same dormant-until-edited behaviour the
     // Round/CSV editors already use. Re-enabled on any edit, re-disabled on save.
     const settingsSaveBtn = document.getElementById('save-league-settings');
-    const settingsTracker = wireDirtySave(settingsSaveBtn && settingsSaveBtn.closest('.app-section'), settingsSaveBtn);
+    // Save Settings stays off while the duration pair is one the DB would refuse
+    // (see durationFieldsValid) — the same gate Add League puts on Create League.
+    const settingsTracker = wireDirtySave(
+        settingsSaveBtn && settingsSaveBtn.closest('.app-section'),
+        settingsSaveBtn,
+        () => durationFieldsValid('edit'),
+    );
     // Scope to the F2 player table only — the "Custom Flag" upload panel in the same
     // section has its own Upload action and must not arm "Save Player Changes".
     const playersSaveBtn = document.getElementById('save-players');
@@ -1437,6 +1907,14 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     document.getElementById('save-league-settings').addEventListener('click', async () => {
         const newName = document.getElementById('edit-title').value.trim();
         const renaming = !!newName && newName !== leagueId;
+
+        // Second gate on the same rule the disabled button enforces (see
+        // durationFieldsValid). The button is the one the admin sees; this is
+        // the one that holds if a click arrives anyway.
+        if (!durationFieldsValid('edit')) {
+            showMsg('edit-msg', 'Set how many days the league runs (at least 1) before saving.', 'error');
+            return;
+        }
 
         if (renaming) {
             // Uniqueness (case-insensitive) against the leagues the admin knows —
@@ -1484,11 +1962,14 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
         }
         newParams.EntryFee = parseInt(document.getElementById('edit-entry-fee').value) || 0;
         newParams.MatchLength = parseInt(document.getElementById('edit-match-length').value) || 7;
-        newParams.Prizes = {
+        // Extra rows ride inside Prizes (see compute/prizeRows.js) — withExtraPrizeRows
+        // drops the key entirely when there are none, so a league that doesn't use
+        // them keeps exactly the JSON it had.
+        newParams.Prizes = withExtraPrizeRows({
             Gold: parseInt(document.getElementById('edit-prize-gold').value) || 0,
             Silver: parseInt(document.getElementById('edit-prize-silver').value) || 0,
             Bronze: parseInt(document.getElementById('edit-prize-bronze').value) || 0
-        };
+        }, readExtraPrizeRows(container));
 
         // Duration. DurationDays is dropped outside 'days' mode so a count left
         // over from a previous mode can't linger in the params and reappear if
@@ -1539,7 +2020,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                 addChange({
                     type: 'update',
                     target: T.landingSettings(),
-                    content: JSON.stringify({ title: ls.title, subtitle: ls.subtitle, logoPath: ls.logoPath, DisplayOrder: swapped }, null, 2),
+                    content: JSON.stringify(landingSettingsPayload(ls, { DisplayOrder: swapped }), null, 2),
                     description: `Landing order: ${leagueId} → ${newName}`,
                     category: 'landing',
                     subject: newName,
@@ -1569,12 +2050,32 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             : 'Settings staged. Go to Pending Changes to publish.', 'success');
     });
 
-    // Remove player buttons
+    // Remove player buttons.
+    //
+    // Removing a player removes THE PLAYER, matches included. It has to: the
+    // roster of a league is derived from its matches, so a player whose rows
+    // survive is simply back on the table at the next render — which is exactly
+    // what used to happen. `removedPlayers` was collected here and never read by
+    // anything, so the only lasting effect of a removal was that the rebuilt
+    // CustomFlags / RetiredPlayers no longer mentioned the player: their flag
+    // and retired mark were silently dropped and they reappeared flying IL. A
+    // removal that damages the player and then hands them back is worse than one
+    // that refuses.
+    //
+    // The confirm says what actually happens, including the part that reaches
+    // beyond this player: his opponents keep their other results, but every
+    // match against HIM is gone, so their totals move too.
     const removedPlayers = new Set();
     container.querySelectorAll('.player-remove-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const player = btn.dataset.removePlayer;
-            if (!confirm(`Remove "${player}" from this league? CSV match data will remain.`)) return;
+            if (!confirm(
+                `Remove "${player}" from this league?\n\n`
+                + `Every match he played here is deleted, along with any technical result of his. `
+                + `His opponents keep their other games, but their totals change — the matches against him no longer exist.\n\n`
+                + `If he has played in no other league, his player record is removed too.\n\n`
+                + `Nothing is written until you publish.`
+            )) return;
             removedPlayers.add(player);
             const row = btn.closest('tr');
             if (row) row.remove();
@@ -1642,9 +2143,15 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             // Pending row instead of two ("Update players" + "Rename players in CSV").
             const editGroupId = `edit-players-${leagueId}`;
             const editGroupDesc = `Players updated: ${leagueId}`;
-            const editDetail = renames.length > 0
-                ? renames.map(r => `${r.from} → ${r.to}`).join(', ')
-                : null;
+            // The detail line is the ONLY thing separating one player edit from
+            // another in Pending and in Historical — the group collapses to a
+            // single "Players updated" row headlined by this change, so a
+            // removal that is not named here is a removal nobody can see before
+            // publishing it. Removals lead: they are the destructive half.
+            const detailBits = [];
+            if (removedPlayers.size > 0) detailBits.push(`removed ${[...removedPlayers].join(', ')}`);
+            if (renames.length > 0) detailBits.push(renames.map(r => `${r.from} → ${r.to}`).join(', '));
+            const editDetail = detailBits.length > 0 ? detailBits.join(' · ') : null;
 
             addChange({
                 type: 'update',
@@ -1692,9 +2199,88 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                 }
             }
 
+            // ── Removals: the player, his matches, his overrides, and his record
+            //
+            // Staged into the SAME group as the params edit, so Pending shows one
+            // bundle per save rather than four unrelated-looking rows, and
+            // Historical files them under one batch.
+            let removalNote = '';
+            if (removedPlayers.size > 0) {
+                const gone = [...removedPlayers];
+                const isGone = (n) => removedPlayers.has(n);
+                try {
+                    // 1. Matches. Every row he appears on, played or not — an
+                    //    unplayed row is still a fixture that names him, and
+                    //    leaving it would put him straight back on the roster.
+                    const { matches: allMatches } = await loadLeagueMatchesAll(leagueId);
+                    const kept = allMatches.filter(m => !isGone(m.playerA) && !isGone(m.playerB));
+                    const dropped = allMatches.length - kept.length;
+                    addChange({
+                        type: 'update',
+                        target: T.leagueCsv(leagueId),
+                        content: matchesToCsvText(kept),
+                        description: `Remove ${gone.join(', ')} from match data: ${leagueId}`,
+                        category: 'league-data',
+                        subject: leagueId,
+                        detail: `${dropped} match${dropped === 1 ? '' : 'es'} deleted`,
+                        group: editGroupId,
+                        groupDescription: editGroupDesc,
+                    });
+                    removalNote = ` ${dropped} match${dropped === 1 ? '' : 'es'} removed.`;
+
+                    // 2. Technical results for a match that no longer exists are
+                    //    orphans — an override is a verdict ON a pairing.
+                    const overrides = await readOverridesForEdit(leagueId);
+                    const keptOv = overrides.filter(o => !isGone(o.playerA) && !isGone(o.playerB));
+                    if (keptOv.length !== overrides.length) {
+                        await stageManualOverrides(leagueId, keptOv);
+                    }
+
+                    // 3. The player record itself, but ONLY for someone this
+                    //    league was the whole of. The index is built from
+                    //    published matches, so a player whose only other
+                    //    appearance is itself still unpublished counts as
+                    //    league-less here — deliberately: the record can be
+                    //    re-created, and guessing the other way would delete a
+                    //    record that another queued league still needs.
+                    await ensurePlayerIndex();
+                    const orphans = gone.filter(n =>
+                        getPlayerLeagues(n).filter(l => l.leagueId && l.leagueId !== leagueId).length === 0);
+                    if (orphans.length > 0) {
+                        const stagedMeta = getStagedContent(T.playersMetadata());
+                        let metadata = {};
+                        if (stagedMeta) {
+                            try { metadata = JSON.parse(stagedMeta); } catch { metadata = {}; }
+                        } else {
+                            try { metadata = await loadPlayersMetadata(); } catch { metadata = {}; }
+                        }
+                        const present = orphans.filter(n => n in metadata);
+                        if (present.length > 0) {
+                            const next = { ...metadata };
+                            for (const n of present) delete next[n];
+                            addChange({
+                                type: 'update',
+                                target: T.playersMetadata(),
+                                content: JSON.stringify(next, null, 2),
+                                description: `Delete player record: ${present.join(', ')}`,
+                                category: 'player-meta',
+                                subject: present.join(', '),
+                                detail: `Played in no other league`,
+                                group: editGroupId,
+                                groupDescription: editGroupDesc,
+                            });
+                            removalNote += ` Player record deleted for ${present.join(', ')}.`;
+                        }
+                    }
+                } catch (err) {
+                    showMsg('players-msg', `Could not stage the removal: ${err.message}`, 'error');
+                    return;
+                }
+            }
+
             if (refreshBadgeFn) refreshBadgeFn();
             playersTracker.markClean();
-            showMsg('players-msg', 'Player changes staged.', 'success');
+            showMsg('players-msg', `Player changes staged.${removalNote}`, 'success');
         });
     }
 
@@ -1762,30 +2348,128 @@ function ffPlayersTableHTML(tableId, rows, emptyMessage) {
 }
 
 /**
+ * One EXTRA prize row under a medal — same Count/Prize pair as the medal's own
+ * row, but unnamed (read by position within its tier, not by id) so a tier can
+ * hold any number of them. See js/compute/prizeRows.js for what they mean.
+ */
+function ffMedalsExtraRowHTML(tier, count, prize) {
+    const t = MEDAL_TIERS.find(m => m.tier === tier);
+    if (!t) return '';
+    return `
+            <tr data-prize-tier="${tier}" data-prize-row="extra">
+                <td><span class="medal-cell ${t.cls} is-extra"><span class="medal-icon">${t.iconHtml}</span> ${esc(tier)}</span></td>
+                <td><input type="number" class="prize-extra-count" value="${count}" min="1" max="20"></td>
+                <td><input type="number" class="prize-extra-prize" value="${prize}" min="0" step="1"></td>
+                <td class="prize-row-actions"><button type="button" class="btn btn-danger btn-xs prize-row-del" title="Remove this prize row" aria-label="Remove this ${esc(tier)} prize row">&times;</button></td>
+            </tr>`;
+}
+
+/**
  * F6 — Medals & Prizes table. Shared by Edit League and Add New League so both
  * are byte-identical. Uses the unified FF chrome (.ff-wrap + .admin-table
  * .font-large, tagged data-mf-table-id="F6"): a Display cell (medal label+icon)
- * plus two Edit cells (Count, Prize number inputs). Inputs keep stable ids so the
- * Save/Create handlers read them unchanged. Hand-built FF chrome like F1–F4 — the
- * mountFFTable rewire is Phase 8 of docs/plans/table-lab-unification.md.
- * @param {Array<{medal,icon,cls,count,countId,prize,prizeId}>} rows
+ * plus two Edit cells (Count, Prize number inputs). The medal's own row keeps
+ * its stable input ids so the Save/Create handlers read it unchanged; any EXTRA
+ * prize rows under it are unnamed and read by position (readExtraPrizeRows).
+ * The fourth column holds the add/remove buttons. Hand-built FF chrome like
+ * F1–F4 — the mountFFTable rewire is Phase 8 of
+ * docs/plans/table-lab-unification.md.
+ * @param {Array<{medal,icon,cls,count,countId,prize,prizeId,extra}>} rows
+ *        `extra` is that tier's saved extra rows ([{count,prize}], optional).
  */
 function ffMedalsTableHTML(rows) {
     const body = rows.map(r => `
-            <tr>
+            <tr data-prize-tier="${r.medal}" data-prize-row="base">
                 <td><span class="medal-cell ${r.cls}"><span class="medal-icon">${r.icon}</span> ${esc(r.medal)}</span></td>
                 <td><input type="number" id="${r.countId}" value="${r.count}" min="0" max="20"></td>
                 <td><input type="number" id="${r.prizeId}" value="${r.prize}" min="0" step="1"></td>
-            </tr>`).join('');
+                <td class="prize-row-actions"><button type="button" class="btn btn-secondary btn-xs prize-row-add" title="Add another prize row for ${esc(r.medal)}" aria-label="Add another ${esc(r.medal)} prize row">+</button></td>
+            </tr>`
+        + (r.extra || []).map(e => ffMedalsExtraRowHTML(r.medal, e.count, e.prize)).join('')
+    ).join('');
     return `
             <div class="ff-wrap">
                 <table class="admin-table font-large" data-mf-table-id="F6">
                     <thead>
-                        <tr><th scope="col">${thLabel('Medal', 'Medal')}</th><th scope="col">${thLabel('Count', 'Count')}</th><th scope="col">${thLabel('Prize', 'Prize')}</th></tr>
+                        <tr><th scope="col">${thLabel('Medal', 'Medal')}</th><th scope="col">${thLabel('Count', 'Count')}</th><th scope="col">${thLabel('Prize', 'Prize')}</th><th scope="col"></th></tr>
                     </thead>
                     <tbody>${body}</tbody>
                 </table>
             </div>`;
+}
+
+/**
+ * Wire the F6 add/remove buttons. Delegated on the table so rows added at
+ * runtime are live without re-binding, and each new row is inserted directly
+ * below the last row of ITS tier — the table stays in podium order however many
+ * rows a tier grows.
+ * @param {ParentNode} scope — the form container holding one F6 table
+ */
+function wireMedalsTable(scope) {
+    const table = scope.querySelector('[data-mf-table-id="F6"]');
+    if (!table) return;
+    // Adding or removing a row IS an edit, but a click fires neither input nor
+    // change — without this the "Save Settings" dirty-tracker would stay dormant
+    // until the admin also typed into the new row.
+    const notifyEdited = () => table.dispatchEvent(new Event('change', { bubbles: true }));
+    table.addEventListener('click', (e) => {
+        const addBtn = e.target.closest('.prize-row-add');
+        if (addBtn) {
+            const row = addBtn.closest('tr');
+            const tier = row.dataset.prizeTier;
+            let last = row;
+            while (last.nextElementSibling && last.nextElementSibling.dataset.prizeTier === tier) {
+                last = last.nextElementSibling;
+            }
+            last.insertAdjacentHTML('afterend', ffMedalsExtraRowHTML(tier, 1, 0));
+            last.nextElementSibling.querySelector('.prize-extra-count')?.focus();
+            notifyEdited();
+            return;
+        }
+        const delBtn = e.target.closest('.prize-row-del');
+        if (delBtn) { delBtn.closest('tr').remove(); notifyEdited(); }
+    });
+}
+
+/**
+ * Replace the extra prize rows in one F6 table with the given tier→rows map.
+ * Used by the Add-League preset picker, which fills a form that is already on
+ * screen — its base rows are just value assignments, but the extra rows are
+ * whole <tr>s that have to be rebuilt.
+ * @param {ParentNode} scope — the form container holding one F6 table
+ */
+function applyExtraPrizeRows(scope, extra) {
+    const table = scope.querySelector('[data-mf-table-id="F6"]');
+    if (!table) return;
+    table.querySelectorAll('tr[data-prize-row="extra"]').forEach(tr => tr.remove());
+    for (const { tier } of MEDAL_TIERS) {
+        const base = table.querySelector(`tr[data-prize-tier="${tier}"][data-prize-row="base"]`);
+        if (!base) continue;
+        let after = base;
+        for (const r of (extra && extra[tier]) || []) {
+            after.insertAdjacentHTML('afterend', ffMedalsExtraRowHTML(tier, r.count, r.prize));
+            after = after.nextElementSibling;
+        }
+    }
+}
+
+/**
+ * Read the extra prize rows out of one F6 table, as the tier→rows map that
+ * withExtraPrizeRows() expects.
+ * @param {ParentNode} scope — the form container holding one F6 table
+ */
+function readExtraPrizeRows(scope) {
+    const out = {};
+    const table = scope.querySelector('[data-mf-table-id="F6"]');
+    if (!table) return out;
+    for (const tr of table.querySelectorAll('tr[data-prize-row="extra"]')) {
+        const tier = tr.dataset.prizeTier;
+        (out[tier] ||= []).push({
+            count: parseInt(tr.querySelector('.prize-extra-count').value, 10) || 0,
+            prize: parseInt(tr.querySelector('.prize-extra-prize').value, 10) || 0,
+        });
+    }
+    return out;
 }
 
 /* ---- League Duration (Add + Edit) ----
@@ -1827,7 +2511,7 @@ function durationFieldsHTML(prefix, params) {
  * mode rather than only in the one that happens to show a second field. An
  * admin should see the window before saving, not discover it after publishing.
  */
-function wireDurationFields(scope, prefix) {
+function wireDurationFields(scope, prefix, onChange = null) {
     const modeSel = scope.querySelector(`#${prefix}-duration-mode`);
     const daysInput = scope.querySelector(`#${prefix}-duration-days`);
     if (!modeSel || !daysInput) return;
@@ -1838,12 +2522,24 @@ function wireDurationFields(scope, prefix) {
     const sync = () => {
         const mode = modeSel.value;
         daysGroup.hidden = mode !== 'days';
+        // See durationFieldsValid: 'days' with no count is the one pair the DB
+        // refuses. Caught here, in the field the admin is looking at, it is a
+        // hint; caught at publish it is a league that cannot be repaired.
+        //
+        // The save button is NOT touched from here. Both forms have more than
+        // one reason to refuse a save, and two functions writing `disabled`
+        // fight — the one whose listener runs last wins, which on the Edit form
+        // is the section-wide dirty tracker. So this reports the change and lets
+        // each form's single gate decide.
+        const daysInvalid = !durationFieldsValid(prefix);
         const window = leagueDateWindow({
             IssueDate: dateInput ? dateInput.value : null,
             DurationMode: mode,
             DurationDays: daysInput.value,
         });
-        if (mode === 'unlimited') {
+        if (daysInvalid) {
+            hint.textContent = 'Enter how many days the league runs (at least 1).';
+        } else if (mode === 'unlimited') {
             hint.textContent = 'Runs with no end date — the dashboard shows no time progress.';
         } else if (window) {
             // Spell out the LENGTH next to the dates. In calendar-month mode the
@@ -1856,11 +2552,31 @@ function wireDurationFields(scope, prefix) {
         } else {
             hint.textContent = 'Set an Issue Date to see the end date.';
         }
+        if (onChange) onChange();
     };
     modeSel.addEventListener('change', sync);
     daysInput.addEventListener('input', sync);
     if (dateInput) dateInput.addEventListener('change', sync);
     sync();
+}
+
+/**
+ * Is this form's duration pair one the database will accept?
+ *
+ * The ONE combination it refuses: 'days' mode with no count. The
+ * leagues_duration_days_pairing CHECK requires duration_days > 0 in that mode
+ * and NULL in every other, and the `min="1"` on the input is inert — nothing
+ * submits a form here, so an emptied or zeroed field sails through and the
+ * rejection lands at PUBLISH time instead. On Add League that is the worst
+ * possible place for it: the create group has already put the name in the
+ * landing order, the params row is refused, staging is cleared, and what's left
+ * is a league that cannot be repaired from the UI. Both forms therefore gate
+ * their own save button on this.
+ */
+function durationFieldsValid(prefix) {
+    const mode = document.getElementById(`${prefix}-duration-mode`)?.value;
+    if (mode !== 'days') return true;
+    return parseInt(document.getElementById(`${prefix}-duration-days`)?.value, 10) > 0;
 }
 
 /** Read the duration settings out of one of the two forms. */
@@ -1917,7 +2633,16 @@ function wireFlagSelectPreview(scope) {
 }
 
 /** Wire the "Upload Custom Flag" panel: stage the PNG + register the code in KNOWN_FLAGS. */
-function wireUploadFlagPanel() {
+/**
+ * @param {function} [onUploaded] — called with the flag code after it is staged.
+ *   The Add-League form passes one so the flag can RIDE WITH the league it was
+ *   uploaded for (see carryFlags): a flag staged here is a standalone queue item
+ *   with no owner, so abandoning or discarding the league used to leave it
+ *   behind — queued, ownerless, and indistinguishable from a deliberate upload.
+ *   Edit League passes nothing: a flag added there belongs to a league that
+ *   already exists, so it stands on its own exactly as before.
+ */
+function wireUploadFlagPanel(onUploaded = null) {
     const btn = document.getElementById('upload-flag-btn');
     if (!btn) return;
     btn.addEventListener('click', async () => {
@@ -1955,6 +2680,7 @@ function wireUploadFlagPanel() {
 
         // Pickable immediately, in every flag dropdown of this session.
         registerFlagCode(code);
+        if (onUploaded) onUploaded(code);
 
         if (refreshBadgeFn) refreshBadgeFn();
         showMsg('flag-upload-msg', `Flag ${code}.png staged for upload.`, 'success');

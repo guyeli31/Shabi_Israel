@@ -20,6 +20,7 @@
  */
 
 import { getBmabInfo, getChampionshipTooltip } from '../../data/titleConstants.js';
+import { EXTRA_PRIZES_KEY, getExtraPrizeRows, countExtraPrizeRows } from '../../compute/prizeRows.js';
 
 // Friendly labels for the DB columns that surface in an audit diff, per table.
 // Anything not listed falls back to prettifyKey() ("source_league_name" → "Source league").
@@ -55,6 +56,7 @@ const FIELD_LABELS = {
     },
     landing_settings: {
         title: 'Title', subtitle: 'Subtitle', logo_path: 'Logo', display_order: 'League order',
+        completed_custom_order: 'Completed Leagues order',
     },
 };
 
@@ -138,7 +140,7 @@ export function describeFieldChange(table, key, before, after) {
         if (key === 'hidden')               return truthy(after) ? 'League hidden from the site' : 'League made visible';
         if (key === 'custom_flags')         return describeMap(label, before, after);
         if (key === 'retired_players')      return describeStringArray(label, before, after);
-        if (key === 'prizes')               return describeMap(label, before, after);
+        if (key === 'prizes')               return describePrizes(label, before, after);
         if (key === 'external_source_sync') return describeAutoSync(before, after);
     }
     if ((table === 'matches' || table === 'match_history') && key === 'played') {
@@ -146,6 +148,12 @@ export function describeFieldChange(table, key, before, after) {
     }
     if (table === 'landing_settings' && key === 'display_order') {
         return 'League order rearranged';
+    }
+    if (table === 'landing_settings' && key === 'completed_custom_order') {
+        // Reads as what the visitor will see, not as a column flipping value.
+        return truthy(after)
+            ? 'Completed Leagues now use the hand-made order'
+            : 'Completed Leagues sorted by date again';
     }
 
     // Enum-ish scalar with a friendly value label (never quoted — it's a token).
@@ -264,6 +272,31 @@ function describeStringArray(label, before, after) {
     if (added.length) parts.push(`added ${added.join(', ')}`);
     if (removed.length) parts.push(`removed ${removed.join(', ')}`);
     return parts.length ? `${label}: ${parts.join('; ')}` : `${label} updated`;
+}
+
+/**
+ * Prizes is a money map (Gold/Silver/Bronze) that also carries the per-medal
+ * EXTRA prize rows under `Extra` (see js/compute/prizeRows.js). Feeding the
+ * whole thing to describeMap would report the interesting half as an opaque
+ * "changed Extra", so the two are diffed separately and the row count is
+ * spelled out.
+ */
+function describePrizes(label, before, after) {
+    const strip = (v) => {
+        const o = isPlainObject(v) ? { ...v } : {};
+        delete o[EXTRA_PRIZES_KEY];
+        return o;
+    };
+    const nBefore = countExtraPrizeRows(before), nAfter = countExtraPrizeRows(after);
+    const money = JSON.stringify(strip(before)) !== JSON.stringify(strip(after))
+        ? describeMap(label, strip(before), strip(after))
+        : null;
+    const extraChanged = JSON.stringify(getExtraPrizeRows(before)) !== JSON.stringify(getExtraPrizeRows(after));
+    if (!extraChanged) return money || `${label} updated`;
+    const rows = nBefore === nAfter
+        ? `extra prize rows edited (${nAfter})`
+        : `extra prize rows ${nBefore} → ${nAfter}`;
+    return money ? `${money}; ${rows}` : `${label}: ${rows}`;
 }
 
 // Object/map diff: added / changed / removed keys. Scalar values are shown

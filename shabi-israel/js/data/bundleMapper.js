@@ -101,11 +101,47 @@ export function mapPlayerMetaRow(row) {
     };
 }
 
+/**
+ * public.players_registry (sql/players_registry.sql) — the one definition of
+ * who is a player, derived server-side from every league's fixtures plus
+ * players_metadata. It travels in the same get_site_bundle() call as everything
+ * else, so reading it costs no extra round trip.
+ *
+ * The three counts let a caller apply its OWN visibility rule without
+ * re-deriving the roster: `visibleLeagues` is what the public site may show,
+ * `leagues` is the widest sense of "this name exists here" (hidden and archived
+ * included), and `inRunningLeague` says whether they are playing right now.
+ */
+export function mapPlayerRegistryRow(row) {
+    return {
+        id: row.id,
+        leagues: row.leagues_count ?? 0,
+        visibleLeagues: row.visible_leagues_count ?? 0,
+        inRunningLeague: row.in_running_league === true,
+        hasMetadata: row.has_metadata === true,
+        // players_metadata.hidden — a player hidden from the public site
+        // everywhere, independently of any league's own hidden flag.
+        hidden: row.hidden === true,
+        // CONTEXT-FREE flag: the one they LAST played under, resolved through
+        // the newest league in DisplayOrder that is not hidden or archived —
+        // the same rule as js/utils/playerFlags.js's latest(), verified against
+        // it for every player. Use it for the context-free question only; a
+        // per-league or per-match flag still comes from that league's own
+        // CustomFlags (playerFlags.js's inLeague()).
+        lastFlag: row.last_flag || 'IL',
+        lastLeague: row.last_league || undefined,
+    };
+}
+
 export function mapLandingSettingsRow(row) {
     return {
         title: row.title || 'Shabi Israel',
         subtitle: row.subtitle || '',
         logoPath: row.logo_path || 'assets/logo/logo.png',
         displayOrder: row.display_order || [],
+        // A1 row order: the admin dragged completed leagues into a hand-made
+        // arrangement (true) vs. the default date sort (false/absent).
+        // See sql/landing_completed_custom_order.sql.
+        completedCustomOrder: row.completed_custom_order === true,
     };
 }

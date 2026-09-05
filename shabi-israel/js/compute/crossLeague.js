@@ -6,9 +6,9 @@
  */
 
 import { loadLeagueOrder, loadLeaguesBulk, registerMemoInvalidator } from '../data/store.js';
-import { computeAllStats } from './stats.js';
-import { buildRankings, getLevel } from './rankings.js';
+import { rankLeague, getLevel } from './rankings.js';
 import { getLeagueConfig, matchesLeagueType, prWeightFor } from './leagueTypes.js';
+import { getMedalPlaces } from './prizeRows.js';
 
 // Memoized load of every league (per-league stats/rankings computed ON TOP of
 // the store bundle). Reset it when the bundle refreshes so a data change (or a
@@ -42,8 +42,11 @@ export function loadAllLeagues() {
                 const league = byId.get(e.id);
                 const config = getLeagueConfig(league.params);
                 const leagueType = config.type;
-                const statsMap = computeAllStats(league.matches, league.allPlayers);
-                const rankings = buildRankings(statsMap, config);
+                const { statsMap, rankings } = rankLeague({
+                    matches: league.matches,
+                    allPlayers: league.allPlayers,
+                    config
+                });
                 return {
                     id: e.id,
                     title: e.id, // always the full league name (folder id), never the short LeagueTitle
@@ -412,9 +415,10 @@ export async function collectMedalsByType(playerName, leagueType) {
     };
 
     for (const league of typeLeagues) {
-        const goldCount = league.params.GoldCount ?? 1;
-        const silverCount = league.params.SilverCount ?? 1;
-        const bronzeCount = league.params.BronzeCount ?? 1;
+        // Places per tier INCLUDING that tier's extra prize rows — a league
+        // that awards two golds hands out two gold medals here too.
+        const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
+            getMedalPlaces(league.params, { gold: 1, silver: 1, bronze: 1 });
 
         // Only rank players who actually played at least one game
         const played = league.rankings.filter(r => r.games > 0);
@@ -510,9 +514,10 @@ export async function listMedalRanking(leagueType, metric) {
     };
 
     for (const league of typeLeagues) {
-        const goldCount = league.params.GoldCount ?? 1;
-        const silverCount = league.params.SilverCount ?? 1;
-        const bronzeCount = league.params.BronzeCount ?? 1;
+        // Places per tier INCLUDING that tier's extra prize rows — a league
+        // that awards two golds hands out two gold medals here too.
+        const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
+            getMedalPlaces(league.params, { gold: 1, silver: 1, bronze: 1 });
         const played = league.rankings.filter(r => r.games > 0);
         played.forEach((r, i) => {
             const rank = i + 1;

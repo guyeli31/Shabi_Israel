@@ -17,6 +17,7 @@ import { loadLeagueMatchesAll, loadOverrides } from '../data/supabaseLoader.js';
 import {
     validateCsvStructure, describeLeagueShape, collectPlayed,
     findPlayedRegressions, splitRegressions, formatRegressions,
+    collectPairs, allPossiblePairs, formatPair,
 } from '../data/csvIntegrity.js';
 import { matchesToCsvText } from './csvText.js';
 
@@ -145,12 +146,48 @@ export async function computeCsvImportReport(leagueId, newCsvText, opts = {}) {
     const playersMatch = added.length === 0 && dropped.length === 0;
     const regression = !isNewLeague && newPlayed < curPlayed;
 
+    // ── The PAIRINGS, which the checks above never looked at ──────────────────
+    //
+    // Everything else here compares counts and name sets: how many rounds, how
+    // many rows per round, which players. Two files can agree on all of that and
+    // still be different tournaments — same 6 players, same 3 rounds, different
+    // fixtures. So the pair set is compared directly.
+    const newPairs = collectPairs(parseCSVAllWithRounds(newCsvText).matches);
+
+    // A NEW league may be partial on purpose (a group stage, a Swiss draw), so
+    // this is stated and confirmed, never blocked. It is stated because a new
+    // league is the ONLY moment it can be decided: the fixtures are fixed at
+    // creation, and nothing afterwards may add one.
+    const rosterPairs = allPossiblePairs(newPlayers);
+    const missingPairs = isNewLeague
+        ? [...rosterPairs].filter(p => !newPairs.has(p)).sort()
+        : [];
+    const isPartial = isNewLeague && missingPairs.length > 0;
+
+    // An EXISTING league is the opposite case: its shape is settled. An import
+    // fills in results; it may not re-draw the fixture list. A file that adds or
+    // drops a pairing is not this league's, and this is a hard block rather than
+    // an acknowledgeable warning — the only sanctioned way to change a published
+    // league's structure is removing a player, which deletes his matches through
+    // the roster, not through a file.
+    const curPairs = isNewLeague ? new Set() : collectPairs(curAllMatches);
+    const pairsAdded = isNewLeague ? [] : [...newPairs].filter(p => !curPairs.has(p)).sort();
+    const pairsRemoved = isNewLeague ? [] : [...curPairs].filter(p => !newPairs.has(p)).sort();
+    const structureLocked = pairsAdded.length > 0 || pairsRemoved.length > 0;
+
     // Anything the admin must knowingly accept before this reaches Pending Changes.
     const structureMismatch = !isNewLeague && !structure.ok;
-    const needsConfirm = structureMismatch || regressions.length > 0;
+    const needsConfirm = structureMismatch || regressions.length > 0 || isPartial;
 
     return {
         isNewLeague,
+        isPartial,
+        missingPairs,
+        pairCount: newPairs.size,
+        possiblePairCount: rosterPairs.size,
+        pairsAdded,
+        pairsRemoved,
+        structureLocked,
         curPlayerCount: curPlayers.size,
         newPlayerCount: newPlayers.size,
         playersMatch,
@@ -179,6 +216,12 @@ function esc(str) {
     return d.innerHTML;
 }
 
+/** A readable pair list, capped — a badly-wrong file can differ by dozens. */
+function listPairs(keys, cap = 6) {
+    const shown = keys.slice(0, cap).map(formatPair).join(', ');
+    return keys.length > cap ? `${shown} … and ${keys.length - cap} more` : shown;
+}
+
 function row(severity, label, value) {
     const color = severity === 'err' ? 'var(--color-danger, #c0392b)'
         : severity === 'warn' ? 'var(--color-warning, #b8860b)'
@@ -197,6 +240,36 @@ function row(severity, label, value) {
 export function renderCsvImportReport(report) {
     const r = report;
     let body = '';
+
+    // LAYER 0 — the fixture list of a published league is settled. This is the
+    // only BLOCKING finding in the report: everything below it can be accepted
+    // with an acknowledgement, this one cannot be accepted at all.
+    if (r.structureLocked) {
+        body += row('err', "This league's fixtures can't be changed",
+            'a published league keeps the fixture list it was created with — an import may fill in results, not re-draw the draw');
+        if (r.pairsAdded.length) {
+            body += row('err', `${r.pairsAdded.length} pairing${r.pairsAdded.length > 1 ? 's' : ''} in the file ${r.pairsAdded.length > 1 ? 'are' : 'is'} not in this league`,
+                esc(listPairs(r.pairsAdded)));
+        }
+        if (r.pairsRemoved.length) {
+            body += row('err', `${r.pairsRemoved.length} of the league's pairing${r.pairsRemoved.length > 1 ? 's are' : ' is'} missing from the file`,
+                esc(listPairs(r.pairsRemoved)));
+        }
+        body += row('info', 'The only way to change the fixtures',
+            'remove a player from the league — that deletes his matches, and leaves every other pairing intact');
+        body += `<hr style="border:none;border-top:1px solid var(--color-border);margin:.5em 0">`;
+    }
+
+    // A new league MAY be partial — but it is decided here or never.
+    if (r.isPartial) {
+        body += row('warn', `This is a partial league — ${r.pairCount} of ${r.possiblePairCount} possible pairings`,
+            `${r.missingPairs.length} pair${r.missingPairs.length > 1 ? 's' : ''} will never meet: ${esc(listPairs(r.missingPairs))}`);
+        body += row('info', 'This is permanent',
+            'fixtures are fixed when the league is created — no match can be added afterwards');
+        body += `<hr style="border:none;border-top:1px solid var(--color-border);margin:.5em 0">`;
+    } else if (r.isNewLeague && r.possiblePairCount > 0) {
+        body += row('ok', 'Full round robin', `all ${r.possiblePairCount} pairings present`);
+    }
 
     // LAYER 1 — a structural mismatch means the file isn't this league's. Say it
     // first, and spell out every reason: this is the one an admin must not skim.
@@ -266,10 +339,12 @@ export function renderCsvImportReport(report) {
     }
 
     const anyProblem = r.regression || (!r.isNewLeague && !r.playersMatch) || r.typos.length > 0 || (r.shadowed && r.shadowed.length > 0);
-    const headerColor = r.needsConfirm ? 'var(--color-danger, #c0392b)'
+    const headerColor = (r.structureLocked || r.needsConfirm) ? 'var(--color-danger, #c0392b)'
         : anyProblem ? 'var(--color-warning, #b8860b)'
         : 'var(--color-success, #2e7d32)';
-    const headerText = r.needsConfirm ? 'This import can damage the league'
+    const headerText = r.structureLocked ? "This file changes the league's fixtures — it can't be imported"
+        : r.isPartial ? 'This creates a partial league — confirm below'
+        : r.needsConfirm ? 'This import can damage the league'
         : anyProblem ? 'Review before continuing'
         : 'CSV is compatible';
 
@@ -279,13 +354,23 @@ export function renderCsvImportReport(report) {
     // it arms the page's EXISTING "Confirm & Stage" button (see wireCsvImportGate)
     // rather than adding a second, competing action button.
     const what = [
+        r.isPartial
+            ? `leaves ${r.missingPairs.length} pair${r.missingPairs.length > 1 ? 's' : ''} of players who never meet, permanently`
+            : null,
         r.structureMismatch ? "doesn't match the league" : null,
         r.regressions.length
             ? `will erase ${r.regressions.length} already-played result${r.regressions.length > 1 ? 's' : ''}`
             : null,
     ].filter(Boolean).join(' and ');
 
-    const footer = r.needsConfirm
+    // A blocked report gets NO checkbox. The acknowledgement pattern exists for
+    // findings the admin may knowingly accept; offering one here would imply the
+    // fixture lock is negotiable, and it is not.
+    const footer = r.structureLocked
+        ? `<p style="margin:.6em 0 0 0;font-size:.85rem;color:var(--color-danger, #c0392b)">
+               Upload a file matching this league's fixtures, or remove the player whose matches should go.
+           </p>`
+        : r.needsConfirm
         ? `<label class="csv-import-gate">
                <input type="checkbox" id="csv-import-ack">
                <span>I understand this CSV ${esc(what)}, and I want to import it anyway.</span>
@@ -319,6 +404,17 @@ export function renderCsvImportReport(report) {
  */
 export function wireCsvImportGate(reportEl, report, confirmBtn, okLabel = 'Confirm & Stage') {
     if (!confirmBtn) return;
+
+    // Blocked: no checkbox is rendered, so there is nothing to arm the button.
+    // Left disabled with the reason on hover.
+    if (report.structureLocked) {
+        confirmBtn.disabled = true;
+        confirmBtn.classList.remove('btn-success');
+        confirmBtn.classList.add('btn-danger');
+        confirmBtn.textContent = 'Fixtures locked';
+        confirmBtn.title = "This league's fixture list is fixed. Only removing a player can change it.";
+        return;
+    }
 
     if (!report.needsConfirm) {
         confirmBtn.disabled = false;

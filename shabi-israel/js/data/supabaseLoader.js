@@ -186,6 +186,9 @@ export async function loadLandingSettings() {
             subtitle: data.subtitle || '',
             logoPath: data.logo_path || 'assets/logo/logo.png',
             displayOrder: data.display_order || [],
+            // Mirrors mapLandingSettingsRow() in bundleMapper.js — see
+            // sql/landing_completed_custom_order.sql.
+            completedCustomOrder: data.completed_custom_order === true,
         };
     });
 }

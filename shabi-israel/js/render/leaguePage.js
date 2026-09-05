@@ -8,8 +8,7 @@
  */
 
 import { loadLeague, loadLeagueOrder, loadAllLeagueParams } from '../data/store.js';
-import { computeAllStats } from '../compute/stats.js';
-import { buildRankings, computeAverages } from '../compute/rankings.js';
+import { rankLeague, computeAverages } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { getQueryParam, flagUrl, playerLeagueUrl, leagueUrl, leagueTableUrl } from '../utils/helpers.js';
 import { exportWhatsAppTableImage, MAX_EXPORT_ROWS, leagueTypeLabel } from '../utils/exportTableImage.js';
@@ -47,7 +46,7 @@ export async function renderLeaguePage() {
     try {
         // Each promise reports its own stage as it lands, so the splash
         // narrates real progress rather than one opaque Promise.all.
-        const [{ params, matches, lastModified, totalPlayers, allPlayers, history }, playersMeta, leagueOrder] = await Promise.all([
+        const [{ params, matches, lastModified, totalPlayers, allPlayers, timeline }, playersMeta, leagueOrder] = await Promise.all([
             loadLeague(leagueId).then(r => { splashStage('matches'); return r; }),
             loadPlayersMetadata().then(r => { splashStage('players'); return r; }),
             loadLeagueOrder().then(r => { splashStage('settings'); return r; }).catch(() => [])
@@ -68,12 +67,12 @@ export async function renderLeaguePage() {
         // is empty, and dated by the league's own issue date rather than by an
         // update that never happened.
         const isInitial = asof === INITIAL_POINT;
-        const isHistorical = !!asof && (isInitial || (history && history.matches && history.matches.length > 0));
+        const isHistorical = !!asof && (isInitial || (timeline && timeline.length > 0));
         let viewMatches = matches;
         const viewPlayers = allPlayers;
         let effectiveLastModified = lastModified;
         if (isHistorical) {
-            viewMatches = getMatchesAsOf(history, asof);
+            viewMatches = getMatchesAsOf(timeline, asof);
             // Date-only issue dates are UTC midnight; pin them to LOCAL midnight
             // so the header doesn't read "03:00" for a day that has no time.
             effectiveLastModified = isInitial
@@ -112,8 +111,9 @@ export async function renderLeaguePage() {
             allParams,
         });
 
-        const statsMap  = computeAllStats(viewMatches, viewPlayers);
-        const rankings  = buildRankings(statsMap, leagueConfig, viewMatches);
+        const { statsMap, rankings } = rankLeague({
+            matches: viewMatches, allPlayers: viewPlayers, config: leagueConfig
+        });
         const averages  = computeAverages(rankings, leagueConfig);
         // matchStats no longer surfaced in the header — V13 already
         // carries the only timestamp the league-table page needs.

@@ -67,6 +67,40 @@ is tooling, not served content.
 
 v1's read path moved from static CSV/JSON to Supabase (see `js/data/supabaseLoader.js`). A ground-up redesign of the query strategy is proposed in `docs/data-architecture/` — read `docs/data-architecture/README.md` first. Once approved and implemented, all future pages/features touching data reads must follow `docs/data-architecture/02-query-standards.md`.
 
+### There IS a player registry — use it
+
+A league is an entity (`public.leagues`: a row, able to exist before its first
+fixture). **A player is not** — a person exists only by appearing in a match's
+`player_a`/`player_b`, and `players_metadata` is decoration on an
+already-existing player (a handful of rows against the full roster), not the
+roster. `public.players_registry` (`sql/players_registry.sql`) is the missing
+definition, written once and carried inside `get_site_bundle` — so reading it
+costs **no extra round trip**.
+
+- **Browser:** `loadVisiblePlayerNames()` in `js/data/store.js`.
+- **Database:** the view directly (`public.mail_orphan_reason` is the worked
+  example), so the server and the browser cannot disagree about who exists.
+- **Never rebuild it** with `for (const l of leagues) for (const p of l.allPlayers)`.
+
+**Scope, not habit.** Ask the registry when the question is about the player *in
+the system* — may this name appear in a cross-league search, does it exist, are
+they playing now. Do NOT ask it for a *context's* roster: an in-league picker
+offers that league's players, a round view that round's, and admin autocomplete
+deliberately also offers staged and pre-registered players the registry has
+never heard of. **The test: if the list should look identical on every page it
+comes from the registry; if it changes with the page, it does not.**
+
+Why this is a standing rule and not a preference: the definition used to live in
+**five** places, each written separately. They disagreed — the Players tab
+counted any league, the mail-report check counted only running ones — and a
+player of five seasons was reported to the admin as `Unknown player: fridlich`.
+A drifted copy never fails loudly; it returns a plausible list, and the
+disagreement surfaces somewhere else entirely looking like a data problem.
+
+**Verify with `node scripts/check-players-registry.mjs`** — it fails with exit 1
+and lists every offending file:line. Run it after touching anything that builds
+a list of players.
+
 ## Project Overview
 
 Shabi Israel is a Backgammon league statistics web app. It loads CSV match data client-side, computes player statistics (win rate, PR, luck, rankings), and renders interactive HTML pages with sortable tables and color-coded stats.

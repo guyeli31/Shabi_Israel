@@ -20,6 +20,7 @@ import { luckPercentileStats } from '../js/compute/luckPercentile.js';
 import { playerNameLink } from '../js/render/playerNameInteraction.js';
 import { buildAllOpponentsPreset, aggregateOpponents } from '../js/presets/allOpponentsPreset.js';
 import { buildPlayerTotalLuckPreset, collectPlayerLeagueLuck } from '../js/presets/playerTotalLuckPreset.js';
+import { buildPrizeRows, getMedalPlaces } from '../js/compute/prizeRows.js';
 
 // Data comes from Supabase via store.js, so nothing is fetched relative to the
 // page — the lab's one-level-deep location needs no base-path override.
@@ -216,9 +217,8 @@ function buildD(allResults) {
 
     const { league, config, rankings, avgRow } = result;
     const cf          = league.params.CustomFlags || {};
-    const goldCount   = league.params.GoldCount   ?? 1;
-    const silverCount = league.params.SilverCount ?? 1;
-    const bronzeCount = league.params.BronzeCount ?? 3;
+    const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
+        getMedalPlaces(league.params, { gold: 1, silver: 1, bronze: 3 });
 
     const levelEdges = new Set([LEVELS[0].label, LEVELS[LEVELS.length - 1].label]);
 
@@ -434,13 +434,13 @@ function buildE(allResults) {
 function buildB1(runningResult) {
     if (!runningResult) return { data: [], cols: [] };
     const { params } = runningResult.league;
-    const prizes = params.Prizes || {};
     const fmtPrize = v => (v == null || v === 0) ? '—' : `₪${Number(v).toLocaleString()}`;
 
-    const rows = [];
-    if (params.GoldCount)   rows.push({ medal: '🥇', tier: 'Gold',   count: params.GoldCount,   prize: prizes.Gold });
-    if (params.SilverCount) rows.push({ medal: '🥈', tier: 'Silver', count: params.SilverCount, prize: prizes.Silver });
-    if (params.BronzeCount) rows.push({ medal: '🥉', tier: 'Bronze', count: params.BronzeCount, prize: prizes.Bronze });
+    // Same builder the live B1 uses, so a tier's extra prize rows show up here
+    // too instead of the lab quietly rendering a three-row table.
+    const rows = buildPrizeRows(params).map(r => ({
+        medal: r.icon, tier: r.tier, count: r.count, prize: r.prize,
+    }));
 
     const cols = [
         { key: 'medal', label: '',       type: 'string', sortable: false, colorFn: null },
@@ -449,11 +449,12 @@ function buildB1(runningResult) {
         { key: 'prize', label: 'Prize',  type: 'number', sortable: false, colorFn: null, format: fmtPrize },
     ];
 
-    // One row per medal tier — counts are 1/1/1 (or 0 if a tier is absent)
+    // Row tinting counts ROWS, not places — a tier with extra prize rows owns
+    // more than one row, and the tint has to cover all of them.
     const medalCounts = {
-        gold:   params.GoldCount   ? 1 : 0,
-        silver: params.SilverCount ? 1 : 0,
-        bronze: params.BronzeCount ? 1 : 0,
+        gold:   rows.filter(r => r.tier === 'Gold').length,
+        silver: rows.filter(r => r.tier === 'Silver').length,
+        bronze: rows.filter(r => r.tier === 'Bronze').length,
     };
 
     return { data: rows, cols, medalCounts, leagueTitle: params.LeagueTitle || runningResult.league.id };
@@ -466,9 +467,8 @@ function buildB2(runningResult) {
     if (!runningResult) return { data: [], cols: [] };
     const { league, config, rankings } = runningResult;
     const cf          = league.params.CustomFlags || {};
-    const goldCount   = league.params.GoldCount   ?? 1;
-    const silverCount = league.params.SilverCount ?? 1;
-    const bronzeCount = league.params.BronzeCount ?? 4;
+    const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
+        getMedalPlaces(league.params, { gold: 1, silver: 1, bronze: 4 });
     const medalLimit  = goldCount + silverCount + bronzeCount;
     const top         = rankings.filter(r => r.rank <= medalLimit && r.games > 0);
 
@@ -873,6 +873,7 @@ function buildC1(playerData, playerName) {
         const meanPR    = (s.meanPR != null && cfg.showPR) ? s.meanPR.toFixed(2) : '—';
         const running   = e.league.params?.Running === true;
         const typeLabel = TYPE_LABELS[cfg.type] || cfg.type;
+        const medals    = getMedalPlaces(e.league.params, { gold: 1, silver: 1, bronze: 3 });
         return {
             leagueTitle: e.league.title,
             date:        formatIssueDate(e.league.params?.IssueDate),
@@ -881,9 +882,9 @@ function buildC1(playerData, playerName) {
             status:      running ? 'Running' : 'Completed',
             rank:        e.playerRank != null ? `${e.playerRank} / ${e.totalPlayers}` : '—',
             _rank:       e.playerRank,
-            _goldCount:   e.league.params?.GoldCount   ?? 1,
-            _silverCount: e.league.params?.SilverCount ?? 1,
-            _bronzeCount: e.league.params?.BronzeCount ?? 3,
+            _goldCount:   medals.gold,
+            _silverCount: medals.silver,
+            _bronzeCount: medals.bronze,
             gp:          s.games  || 0,
             wins:        s.wins   || 0,
             losses:      s.losses || 0,
@@ -1156,9 +1157,8 @@ function _collectLeagueRecords(typeLeagues) {
     const rows = [];
     for (const league of typeLeagues) {
         if (league.params.Running === true) continue;
-        const goldCount   = league.params.GoldCount   ?? 1;
-        const silverCount = league.params.SilverCount ?? 1;
-        const bronzeCount = league.params.BronzeCount ?? 1;
+        const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
+            getMedalPlaces(league.params, { gold: 1, silver: 1, bronze: 1 });
         const customFlags = league.params.CustomFlags || {};
         const played = league.rankings.filter(r => r.games > 0);
         const totalPlayers = played.length;

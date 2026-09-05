@@ -239,7 +239,7 @@ export const PRESETS = {
         argDocs: {
             stickyCols:  '0 — tiny static table (medal / Tier / Places / Prize). No need to pin anything.',
             medalRows:   'Each tier row gets its medal tint — gold/silver/bronze background.',
-            medalCounts: '1 / 1 / 1 — one row per tier (any tier with count 0 is omitted from the data).',
+            medalCounts: 'How many ROWS each tier occupies, not how many places it awards — a tier with extra prize rows owns more than one row and the tint has to cover all of them. Any tier with count 0 is omitted from the data.',
             mfWidth:     '60% of the max display width (max-width: 1100px). Narrower than full so the prize summary sits as a centred card.',
             showTopN:    'null — prize tiers are always shown in full.',
         },
@@ -489,8 +489,8 @@ export const PRESETS = {
         },
         argDocs: {
             stickyCols:  'Same as A2 — rank and name both pinned. League tables often have many stat columns (Win%, PR, Level, Luck).',
-            medalRows:   'The league\'s podium is highlighted. Counts come from league_params.json (GoldCount / SilverCount / BronzeCount).',
-            medalCounts: 'Read from league_params.json — varies per league. The badge format and row tint both use these counts.',
+            medalRows:   'The league\'s podium is highlighted. Places per tier come from getMedalPlaces() — the league\'s Gold/Silver/BronzeCount plus any extra prize rows configured under that medal.',
+            medalCounts: 'getMedalPlaces(params) — the tier counts on the league plus its extra prize rows. Varies per league; the badge format and row tint both use these counts.',
             summaryRow:  'An Averages row sits at the bottom of the table body — acts as a reference line when you reach the end while comparing players.',
             showTopN:    'null — a league table always shows every player. There is no "top N" concept here.',
         },

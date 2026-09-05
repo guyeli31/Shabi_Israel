@@ -32,6 +32,8 @@
     --color-running-bg: #0f2e22;
     --color-completed: #9ca3af;
     --color-completed-bg: #2f2f3f;
+    --color-pending: #fbbf24;
+    --color-pending-bg: #4a2f12;
 
     --color-player-active: #34d399;
     --color-player-active-bg: #0f2e22;
@@ -98,6 +100,8 @@
     --color-running-bg: #dceede;
     --color-completed: #5c5144;
     --color-completed-bg: #ede7dd;
+    --color-pending: #8a4b12;
+    --color-pending-bg: #f5e8d0;
 
     --color-player-active: #3a6e46;
     --color-player-active-bg: #dceede;
@@ -152,6 +156,8 @@
     --color-running-bg: #d9efc4;
     --color-completed: #5e7548;
     --color-completed-bg: #e3efd5;
+    --color-pending: #8c5119;
+    --color-pending-bg: #f3dfc0;
 
     --color-player-active: #2e6b31;
     --color-player-active-bg: #d9efc4;
@@ -217,6 +223,8 @@
     --color-running-bg: #103a20;
     --color-completed: #9a8a5a;
     --color-completed-bg: #1c2418;
+    --color-pending: #e8a75c;
+    --color-pending-bg: #3e2410;
 
     --color-player-active: #2ecc71;
     --color-player-active-bg: #103a20;
@@ -327,6 +335,8 @@
     --color-running-bg: #0a2a14;
     --color-completed: #c9a84c;
     --color-completed-bg: #2a1a0a;
+    --color-pending: #e0a458;
+    --color-pending-bg: #4a2800;
 
     --color-player-active: #00e676;
     --color-player-active-bg: #0a2a14;
@@ -436,6 +446,8 @@
     --color-running-bg: #e8f5e9;
     --color-completed: #8e24a3;
     --color-completed-bg: #f3e5f5;
+    --color-pending: #b34700;
+    --color-pending-bg: #fbe9e7;
 
     --color-player-active: #007a33;
     --color-player-active-bg: #e8f5e9;
@@ -509,6 +521,8 @@
     --color-running-bg: #11241a;
     --color-completed: #9e9e9e;
     --color-completed-bg: #1f1f1f;
+    --color-pending: #fbbf24;
+    --color-pending-bg: #4a2f12;
 
     --color-player-active: #4caf50;
     --color-player-active-bg: #11241a;

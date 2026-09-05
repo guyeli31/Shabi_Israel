@@ -42,6 +42,10 @@
     --color-running-bg: #d1fae5;
     --color-completed: #4b5563;
     --color-completed-bg: #f3f4f6;
+    /* Admin-only third status: queued, not yet published. Amber, matching the
+       preview-mode banner's "not yet published" signal. */
+    --color-pending: #92400e;
+    --color-pending-bg: #fef3c7;
 
     /* Player presence — independent of league Running/Completed and of the
        medal palette so theme overrides of those tokens never re-tint the

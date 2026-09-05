@@ -143,10 +143,14 @@ function newId() {
     });
 }
 
-// Israel route only. Private-mode fallback (sessionStorage throws) keeps a
-// per-page id in memory — tracking never breaks, it just can't span pages.
-const SESSION_ID = (() => {
-    if (!IS_LOCAL) return null;
+// A per-visit random id kept in sessionStorage (wiped on tab close, so no
+// cross-visit linkage). Created LAZILY — only when a session is actually sent,
+// i.e. for an Israel visitor OR a signed-in user (see send()). An anonymous
+// non-Israel visitor never calls this, so NOTHING is written to their device,
+// preserving the zero-correlation half of the two-route model. Private-mode
+// fallback (sessionStorage throws) keeps a per-page id in memory — tracking
+// never breaks, it just can't span pages.
+function ensureSessionId() {
     try {
         let sid = sessionStorage.getItem('shabi_sid');
         if (!sid) { sid = newId(); sessionStorage.setItem('shabi_sid', sid); }
@@ -154,7 +158,7 @@ const SESSION_ID = (() => {
     } catch {
         return newId();
     }
-})();
+}
 
 // The site OPERATOR's own username, or null for every ordinary visitor. This is
 // deliberately outside the timezone routing above: it identifies whoever is
@@ -277,13 +281,20 @@ function send(event) {
     if (!ENDPOINT) return;  // no-config = silent no-op
     if (SUPPRESSED) return; // automated traffic — see NO_TRACK_KEY above
 
-    // Israel → session-linked; everyone else → zero-correlation + coarse region.
-    const routed = IS_LOCAL
-        ? { ...event, session_id: SESSION_ID }
+    const admin = currentAdminUser();
+    // Session-linked for an Israel visitor OR any signed-in user; everyone else
+    // (an anonymous visitor abroad) stays zero-correlation with only a coarse
+    // region. A signed-in user has IDENTIFIED themselves by logging in, so
+    // correlating THEIR own visit is not the anonymous-visitor tracking the
+    // two-route model refuses — and it lets a registered admin abroad appear as a
+    // Journey, not just as scattered global rows. `admin != null` covers every
+    // registered user regardless of timezone.
+    const routed = (IS_LOCAL || admin != null)
+        ? { ...event, session_id: ensureSessionId() }
         : { ...event, region: coarseRegion(TIMEZONE) };
 
     // Applied to BOTH routes: this labels the operator, not the audience.
-    const enriched = { ...routed, admin_user: currentAdminUser() };
+    const enriched = { ...routed, admin_user: admin };
 
     const body = JSON.stringify(enriched);
 
@@ -305,6 +316,155 @@ function send(event) {
     const { from_page, ...fields } = baseFields();
     send({ ...fields, from_page, event_type: 'pageview' });
 }
+
+// ---- browser navigation: Back / Forward / Refresh ----
+// A Back/Forward/Refresh is not a DOM click the delegated listener can catch, but
+// it IS a deliberate navigation the audience performs, so each is recorded as a
+// click event carrying nav_type ('back'|'forward'|'reload') plus the page it came
+// FROM (from_page) and landed ON (page). That makes it (a) count as an interaction
+// (click_count / clicks log), (b) appear in the session timeline as its own row +
+// time, and (c) show as a from→to row in the page-to-page transitions log — a
+// Refresh as a same-page A→A. The ARRIVAL itself stays an ordinary pageview (fired
+// just above on a real load, or on bfcache restore below), so a Back/Forward visit
+// is counted like any other — this only ADDS the interaction record, never a view.
+//
+// Direction (back vs forward) is derived with NO new identifier: every history
+// entry is stamped with a monotonic index in history.state, and the index we land
+// on is compared to the index we were at — both held in sessionStorage (wiped on
+// tab close, so no cross-visit linkage). PerformanceNavigationTiming distinguishes
+// reload/back_forward/navigate on a full load; the index disambiguates back vs
+// forward and also drives the in-page (tab) case via popstate, where there is no
+// navigation-timing entry at all.
+const NAV_POS_KEY = 'shabi_nav_pos'; // index of the history entry we are AT
+const NAV_MAX_KEY = 'shabi_nav_max'; // highest index handed out so far
+const NAV_CTX_KEY = 'shabi_nav_ctx'; // index -> {page,league,player} (source lookup)
+
+function ssGet(k) { try { return sessionStorage.getItem(k); } catch { return null; } }
+function ssSet(k, v) { try { sessionStorage.setItem(k, v); } catch { /* private mode */ } }
+
+// The CURRENT page's identity, in the same shape stored as a nav source.
+function currentNavCtx() {
+    const params = new URLSearchParams(location.search);
+    const page = pageFromPathname(location.pathname);
+    return { page, league: params.get('league') || null, player: params.get('player') || null };
+}
+
+// 'navigate' | 'reload' | 'back_forward' | 'prerender' | null — the browser's own
+// classification of how THIS document was reached (Navigation Timing Level 2).
+function navTimingType() {
+    try {
+        const e = performance.getEntriesByType('navigation')[0];
+        return e ? e.type : null;
+    } catch { return null; }
+}
+
+function ctxMapGet() { try { return JSON.parse(ssGet(NAV_CTX_KEY) || '{}'); } catch { return {}; } }
+function recordNavCtx(idx) {
+    const m = ctxMapGet();
+    m[idx] = currentNavCtx();
+    // Bound the map — only the recent past is ever looked up as a source.
+    const keys = Object.keys(m).map(Number).sort((a, b) => a - b);
+    while (keys.length > 50) delete m[keys.shift()];
+    try { ssSet(NAV_CTX_KEY, JSON.stringify(m)); } catch { /* ignore */ }
+}
+
+// Ensure the CURRENT history entry carries an analytics index; return it. Merges
+// into whatever state the app already set (never replaces it), so appTabs' own
+// popstate state survives.
+function stampNavIdx() {
+    const st = history.state || {};
+    if (typeof st.__ai === 'number') return st.__ai;
+    const next = parseInt(ssGet(NAV_MAX_KEY) || '-1', 10) + 1;
+    try { history.replaceState({ ...st, __ai: next }, ''); } catch { /* ignore */ }
+    ssSet(NAV_MAX_KEY, String(next));
+    return next;
+}
+
+// Emit the nav click. `src` is the source page ctx (null → fall back to referrer).
+// `alsoPageview` fires the arrival pageview too — needed only on bfcache restore,
+// where the module did NOT re-run and so the top-of-file pageview never fired.
+function sendNav(navType, src, { alsoPageview = false } = {}) {
+    const { from_page, from_league_id, from_player, ...fields } = baseFields();
+    if (alsoPageview) send({ ...fields, from_page, event_type: 'pageview' });
+    const label = navType === 'reload' ? 'Refresh' : navType === 'forward' ? 'Forward' : 'Back';
+    send({
+        ...fields,
+        event_type: 'click',
+        nav_type: navType,
+        click_target: label,
+        from_page: src ? src.page : from_page,
+        from_league_id: src ? src.league : null,
+        from_player: src ? src.player : null,
+    });
+}
+
+// Patch history so EVERY entry — including appTabs' own tab pushes — carries a
+// monotonic index, merged into (never replacing) the app's state. This is what
+// lets popstate tell back from forward across tab navigation without each call
+// site cooperating (the canonical shared fix, not a per-caller change).
+for (const name of ['pushState', 'replaceState']) {
+    const orig = history[name];
+    history[name] = function (state, ...rest) {
+        let s = state;
+        try {
+            if (name === 'pushState') {
+                const next = parseInt(ssGet(NAV_MAX_KEY) || '-1', 10) + 1;
+                s = { ...(state || {}), __ai: next };
+                ssSet(NAV_MAX_KEY, String(next));
+                ssSet(NAV_POS_KEY, String(next)); // a push moves us forward onto it
+            } else if (!state || typeof state.__ai !== 'number') {
+                // replaceState keeps the current entry's index if it has one.
+                const cur = history.state && typeof history.state.__ai === 'number' ? history.state.__ai : null;
+                if (cur !== null) s = { ...(state || {}), __ai: cur };
+            }
+        } catch { /* fall through with original state */ }
+        return orig.call(this, s, ...rest);
+    };
+}
+
+// Full-load classification (fresh load, reload, or a back/forward that reloaded).
+{
+    const destIdx = stampNavIdx();
+    const lastPos = ssGet(NAV_POS_KEY);
+    const lastIdx = lastPos === null ? null : parseInt(lastPos, 10);
+    const t = navTimingType();
+    const map = ctxMapGet();
+    if (t === 'reload') {
+        sendNav('reload', currentNavCtx()); // source == dest (same page)
+    } else if (t === 'back_forward' && lastIdx !== null && destIdx !== lastIdx) {
+        sendNav(destIdx < lastIdx ? 'back' : 'forward', map[lastIdx] || null);
+    }
+    // 'navigate' / first-ever load → no nav event; the pageview above is the record.
+    recordNavCtx(destIdx);
+    ssSet(NAV_POS_KEY, String(destIdx));
+}
+
+// In-page Back/Forward (a tab change via popstate) — no reload, module stays
+// alive, so no navigation-timing entry; the index is the only signal.
+window.addEventListener('popstate', () => {
+    const st = history.state || {};
+    const destIdx = typeof st.__ai === 'number' ? st.__ai : stampNavIdx();
+    const lastIdx = parseInt(ssGet(NAV_POS_KEY) || '-1', 10);
+    if (destIdx !== lastIdx) {
+        sendNav(destIdx < lastIdx ? 'back' : 'forward', ctxMapGet()[lastIdx] || null);
+    }
+    recordNavCtx(destIdx);
+    ssSet(NAV_POS_KEY, String(destIdx));
+});
+
+// bfcache restore (the common mobile Back): the module did NOT re-run, so neither
+// the pageview above nor the full-load block fired — do both here. persisted=false
+// is a normal load, already handled, so it is skipped.
+window.addEventListener('pageshow', (e) => {
+    if (!e.persisted) return;
+    const st = history.state || {};
+    const destIdx = typeof st.__ai === 'number' ? st.__ai : stampNavIdx();
+    const lastIdx = parseInt(ssGet(NAV_POS_KEY) || '-1', 10);
+    const dir = destIdx !== lastIdx ? (destIdx < lastIdx ? 'back' : 'forward') : 'back';
+    sendNav(dir, ctxMapGet()[lastIdx] || null, { alsoPageview: true });
+    recordNavCtx(destIdx);
+    ssSet(NAV_POS_KEY, String(destIdx));
+});
 
 // ---- dwell time ----
 let visibleSince = document.visibilityState === 'visible' ? performance.now() : null;

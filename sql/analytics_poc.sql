@@ -94,6 +94,16 @@ alter table public.analytics_events add column if not exists tab text;
 -- absent) and for all rows predating the banner; NO CHECK, same rationale as tab.
 alter table public.analytics_events add column if not exists moved_banner boolean;
 
+-- Browser-navigation kind, set ONLY on the click events that record a Back /
+-- Forward / Refresh (see js/analytics.js). A Back/Forward/Refresh is not a DOM
+-- click but IS a deliberate navigation, so it is stored as a click carrying this
+-- flag plus a from_page->page pair: it then counts as an interaction, appears in
+-- the session timeline with its own time, and shows in the page-to-page
+-- transitions log (a Refresh as a same-page A->A). Null on every other row.
+-- Closed 3-value set, so a CHECK is appropriate here (unlike the open-ended tab
+-- slug) — a stray value is a bug worth a 400, not silent data.
+alter table public.analytics_events add column if not exists nav_type text;
+
 -- Columns from the very first version of this table. Drop them if an old
 -- deployment still has them; no-op otherwise. (session_id is intentionally
 -- NOT dropped anymore — it is now a live column, see above.)
@@ -139,6 +149,10 @@ alter table public.analytics_events add constraint analytics_events_region_check
 alter table public.analytics_events drop constraint if exists analytics_events_admin_user_check;
 alter table public.analytics_events add constraint analytics_events_admin_user_check check (admin_user is null or length(admin_user) <= 254);
 
+-- nav_type is a closed 3-value set (or null on every non-navigation row).
+alter table public.analytics_events drop constraint if exists analytics_events_nav_type_check;
+alter table public.analytics_events add constraint analytics_events_nav_type_check check (nav_type is null or nav_type in ('back','forward','reload'));
+
 create index if not exists idx_analytics_created_at on public.analytics_events (created_at);
 create index if not exists idx_analytics_page       on public.analytics_events (page);
 create index if not exists idx_analytics_event_type on public.analytics_events (event_type);
@@ -169,13 +183,18 @@ grant usage, select on all sequences in schema public to anon;
 -- BOTH overloads and PostgREST could resolve to the old one — silently ignoring
 -- scope/exclude_admin and serving contaminated data that looks correct.
 drop function if exists public.analytics_summary(timestamptz, timestamptz);
+-- The signature grew (added exclude_user), so the previous 5-arg overload must be
+-- dropped too: create-or-replace cannot change the argument list, and leaving both
+-- would let PostgREST resolve to the OLD one and silently ignore exclude_user.
+drop function if exists public.analytics_summary(timestamptz, timestamptz, boolean, text, boolean);
 
 create or replace function public.analytics_summary(
   from_date        timestamptz,
   to_date          timestamptz,
-  exclude_admin    boolean default false,
+  exclude_admin    boolean default false,  -- "Exclude any user": drop EVERY operator's rows
   scope            text    default 'all',  -- 'all' | 'new' | 'legacy'
-  hide_admin_pages boolean default false   -- legacy-only, see the `ev` CTE
+  hide_admin_pages boolean default false,  -- legacy-only, see the `ev` CTE
+  exclude_user     text    default null    -- "Exclude mine": drop just THIS operator's rows
 )
 returns jsonb
 language sql
@@ -200,8 +219,12 @@ as $$
   ev as (
     select * from evx
     -- admin_user names the operator, never a visitor, so excluding it means
-    -- "show me real audience traffic".
+    -- "show me real audience traffic". Two independent switches:
+    --   exclude_admin ("Exclude any user") drops EVERY operator's rows;
+    --   exclude_user  ("Exclude mine")     drops only rows tagged with THIS viewer.
+    -- When both are set the broader one dominates; either can stand alone.
     where (not exclude_admin or admin_user is null)
+      and (exclude_user is null or admin_user is distinct from exclude_user)
       -- Legacy rows never carried admin_user, but page='admin' PROVES the
       -- operator (admin.html redirects to index when logged out), and
       -- js/analytics.js appends "(Admin Mode)" to sidebar labels only in admin
@@ -408,6 +431,12 @@ as $$
                                   count(*) as n, max(created_at) as last_seen
                            from ev
                            where event_type='pageview' and from_page is not null and page is not null
+                             -- Exclude pageview self-loops (see transitions_log). This panel
+                             -- carries no nav rows, so every self-loop here is the
+                             -- stale-referrer artifact, never a real flow.
+                             and (from_page      is distinct from page
+                                  or from_league_id is distinct from league_id
+                                  or from_player    is distinct from player)
                            group by 1, 2, 3, 4, 5, 6 order by n desc limit 30) t),
 
     -- Chronological, UN-aggregated log of every individual transition (same
@@ -419,17 +448,37 @@ as $$
     -- so far", the same aggregate-over-a-combination idea as `transitions`
     -- above, just shown per-occurrence instead of collapsed to one line).
     -- Capped at 500 rows (most recent) to keep the payload bounded.
+    -- Includes browser Back/Forward/Refresh: those are click rows carrying a
+    -- nav_type plus a from_page->page pair (see js/analytics.js), so a Back reads
+    -- as a real page-to-page transition and a Refresh as a same-page A->A. nav_type
+    -- rides along so the dashboard can badge the direction (↩/↪/⟳) and tell a
+    -- refresh self-loop apart from an ordinary transition. It joins the partition
+    -- key so a navigation's running_count is separate from a pageview transition of
+    -- the same pair (nav_type is null on the pageview rows, so their counts are
+    -- unchanged).
     'transitions_log', (select coalesce(jsonb_agg(t), '[]'::jsonb) from
                           (select created_at, from_page, from_league_id, from_player,
                                   page as to_page, league_id as to_league_id, player as to_player,
-                                  device_type,
+                                  device_type, nav_type,
                                   count(*) over (
-                                    partition by from_page, from_league_id, from_player, page, league_id, player
+                                    partition by from_page, from_league_id, from_player, page, league_id, player, nav_type
                                     order by created_at
                                     rows between unbounded preceding and current row
                                   ) as running_count
                            from ev
-                           where event_type='pageview' and from_page is not null and page is not null
+                           where (event_type='pageview'
+                                  or (event_type='click' and nav_type is not null))
+                             and from_page is not null and page is not null
+                             -- A PAGEVIEW from a page to ITSELF is not a page-to-page
+                             -- transition — it is the browser keeping a stale referrer
+                             -- across a reload, or a same-URL re-entry — so drop it. A NAV
+                             -- self-loop is KEPT on purpose: a Refresh reads as a
+                             -- page→same-page row by request, and an in-tab Back/Forward is
+                             -- a real traversal; their ⟳/↩/↪ badge says what they are.
+                             and (nav_type is not null
+                                  or from_page      is distinct from page
+                                  or from_league_id is distinct from league_id
+                                  or from_player    is distinct from player)
                            order by created_at desc limit 500) t),
 
     -- Chronological log of every click/interaction event: button clicks
@@ -444,7 +493,12 @@ as $$
     'clicks_log',      (select coalesce(jsonb_agg(t), '[]'::jsonb) from
                           (select created_at, page, league_id, player, tab, click_target, device_type,
                                   session_id, region, admin_user,
-                                  moved_banner  -- TEMPORARY (movedNotice.js): 📦 page-mark
+                                  moved_banner, -- TEMPORARY (movedNotice.js): 📦 page-mark
+                                  -- Browser Back/Forward/Refresh clicks carry these:
+                                  -- nav_type drives the distinct ↩/↪/⟳ chip, and from_*
+                                  -- names where the navigation came FROM. Null on every
+                                  -- ordinary click.
+                                  nav_type, from_page, from_league_id, from_player
                            from ev
                            where event_type='click'
                            order by created_at desc limit 500) t),
@@ -468,15 +522,20 @@ as $$
                            from sess s
                            cross join lateral (
                              select coalesce(jsonb_agg(jsonb_build_object(
-                                      'created_at',   x.created_at,
-                                      'event_type',   x.event_type,
-                                      'page',         x.page,
-                                      'league_id',    x.league_id,
-                                      'player',       x.player,
-                                      'tab',          x.tab,
-                                      'moved_banner', x.moved_banner,
-                                      'click_target', x.click_target,
-                                      'duration_ms',  x.duration_ms
+                                      'created_at',     x.created_at,
+                                      'event_type',     x.event_type,
+                                      'page',           x.page,
+                                      'league_id',      x.league_id,
+                                      'player',         x.player,
+                                      'tab',            x.tab,
+                                      'moved_banner',   x.moved_banner,
+                                      'click_target',   x.click_target,
+                                      'duration_ms',    x.duration_ms,
+                                      -- Back/Forward/Refresh rows: their own ↩/↪/⟳ chip + source.
+                                      'nav_type',       x.nav_type,
+                                      'from_page',      x.from_page,
+                                      'from_league_id', x.from_league_id,
+                                      'from_player',    x.from_player
                                     ) order by x.created_at), '[]'::jsonb) as timeline
                              from (select * from ev e
                                    where e.session_id = s.session_id
@@ -489,9 +548,9 @@ as $$
   );
 $$;
 
-revoke all on function public.analytics_summary(timestamptz, timestamptz, boolean, text, boolean) from public;
-revoke execute on function public.analytics_summary(timestamptz, timestamptz, boolean, text, boolean) from anon;
-grant execute on function public.analytics_summary(timestamptz, timestamptz, boolean, text, boolean) to authenticated;
+revoke all on function public.analytics_summary(timestamptz, timestamptz, boolean, text, boolean, text) from public;
+revoke execute on function public.analytics_summary(timestamptz, timestamptz, boolean, text, boolean, text) from anon;
+grant execute on function public.analytics_summary(timestamptz, timestamptz, boolean, text, boolean, text) to authenticated;
 
 -- analytics_summary (the dashboard read) is authenticated-only — anon can
 -- still INSERT into analytics_events (tracking works for every visitor, see

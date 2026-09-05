@@ -206,7 +206,13 @@ function renderList(items) {
         text.className = 'search-sheet-option-text';
         const name = document.createElement('span');
         name.className = 'search-sheet-option-label';
-        name.textContent = item.label;
+        // `nameHtml` is trusted markup the adapter assembled (the snapshot
+        // picker's "A beats B", both identities with their flags and title
+        // badges) — a row whose SUBJECT is more than one player cannot be
+        // expressed as a single escaped name. `label` stays the plain-text form
+        // and is what the filter matches on, so the two never diverge.
+        if (item.nameHtml) name.innerHTML = item.nameHtml;
+        else name.textContent = item.label;
         // Optional title badges (BMAB rank / championship: G0 / WC / NC …),
         // trusted pre-escaped markup from titleConstants.js, inline after the name.
         if (item.titleHtml) name.insertAdjacentHTML('beforeend', item.titleHtml);

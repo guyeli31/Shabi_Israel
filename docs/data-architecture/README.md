@@ -9,6 +9,8 @@ This directory is the complete, self-contained plan for redesigning the Supabase
 3. **[`02-query-standards.md`](02-query-standards.md)** — mandatory rules for all future pages/features, so the same bug classes can't come back. Becomes binding once `01` is approved.
 4. **[`03-csv-parity-plan.md`](03-csv-parity-plan.md)** — spec for a script proving Supabase data matches the frozen pre-cutover CSVs.
 5. **[`04-performance-budget.md`](04-performance-budget.md)** — binding before/after performance standards and the measurement harness spec that will fill in real numbers.
+6. **[`05-projection-cache.md`](05-projection-cache.md)** — **implemented on local Docker; not on cloud.** Move the Title Race chart's Monte Carlo projections out of the visitor's browser (measured: 98 s per league at full accuracy) and into a derived table written by the job that already owns `match_history`. Covers the table, the trigger, the invalidation rule, the per-point fingerprint that makes staleness a property of the data, and the three states a visitor can see.
+7. **[`05b-projection-rollout.md`](05b-projection-rollout.md)** — the operator's page for the above: deploy order, the GitHub Action, and a five-part plan for verifying on the live site that the feature costs nothing it should not (page loads, browser storage, visitor CPU, database size, egress + Actions minutes).
 
 ## Implementation status
 

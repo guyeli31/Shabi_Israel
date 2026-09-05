@@ -36,6 +36,33 @@ export function isPreviewMode() {
 }
 
 /**
+ * The staged players_metadata registry ({[nickname]: meta}), or null when
+ * nothing is staged / the page is not in preview mode.
+ *
+ * Player metadata is read from Supabase, so a staged change to it has no URL
+ * for the fetch interceptor above to shadow — which is why the Players view's
+ * "Live preview" kept rendering the PUBLISHED title, full name and hidden flag
+ * while the form above it already showed the new ones. The staged change
+ * carries the WHOLE registry as its JSON content (see playerManager.js's
+ * savePlayer), so the preview can simply read it instead of fetching.
+ *
+ * Consumed by store.js's loadPlayersMetadata() — the one place every public
+ * page reads metadata from, so the overlay lands on all of them at once.
+ */
+export function stagedPlayersMetadata() {
+    if (!isPreviewMode()) return null;
+    // One change per target (stagingStore's addChange supersedes in place).
+    const change = loadStagedChanges().find(c => c.target?.kind === 'players_metadata');
+    if (!change || change.type === 'delete' || change.content == null) return null;
+    try {
+        const parsed = JSON.parse(change.content);
+        return (parsed && typeof parsed === 'object') ? parsed : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Install the fetch interceptor and preview banner.
  * Call this BEFORE any data-loading code runs.
  */

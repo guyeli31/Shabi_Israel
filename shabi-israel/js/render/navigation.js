@@ -6,7 +6,7 @@
 import { loadLeagueOrder, loadAllLeagueParams, loadLeagueMatches, registerMemoInvalidator } from '../data/store.js';
 import { leagueUrl, playerLeagueUrl, playerUrl, parseLeagueDate, getFlagCode, searchFlagHtml } from '../utils/helpers.js';
 import { buildPlayerFlagIndex } from '../utils/playerFlags.js';
-import { loadPlayersMetadata } from '../data/store.js';
+import { loadPlayersMetadata, loadVisiblePlayerNames } from '../data/store.js';
 import { getInitials } from './playerHeader.js';
 import { primeTitleMeta, titleHtmlFor } from '../utils/playerTitleBadge.js';
 import { isLoggedIn, getUsername } from '../admin/auth.js';
@@ -217,9 +217,19 @@ async function buildPlayerIndex() {
         }
     }
 
+    // Membership is settled by public.players_registry (store.js's
+    // loadVisiblePlayerNames) — the same set the Players tab lists and the H2H
+    // picker offers. The per-league entries above stay local because only this
+    // index needs them; what must not be local is WHO is in the list, which was
+    // being decided here by a private copy of the rule.
+    // Null = a database predating sql/players_registry.sql; the metadata-hidden
+    // check below is then the whole filter, exactly as before.
+    const knownNames = await loadVisiblePlayerNames().catch(() => null);
+
     // Attach fullName + photo from metadata and remove hidden players
     for (const [name, entries] of map) {
         if (meta[name]?.hidden) { map.delete(name); continue; }
+        if (knownNames && !knownNames.has(name)) { map.delete(name); continue; }
         const { fullName, photoPath } = meta[name] || {};
         if (fullName || photoPath) {
             for (const entry of entries) {

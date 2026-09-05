@@ -339,7 +339,14 @@ export const POPUPS = [
                 <p>כששחקנים מסיימים שווים בניקוד הראשי של הליגה, השוויון נשבר בצורה שונה בהתאם לסוג הליגה:</p>
                 <ul>
                     <li>ליגות ${leagueTypePill('doubling')} ו-${leagueTypePill('ubc')}: השחקן עם ה-<b>PR הממוצע</b> הטוב יותר (נמוך יותר) לאורך העונה מדורג גבוה יותר.</li>
-                    <li>ליגות ${leagueTypePill('regular')}: השוויון נשבר קודם לפי התוצאה ה<b>ישירה</b> בין השחקנים המעורבים, אחר כך לפי <b>הפרש הנקודות</b> הכולל, ולבסוף לפי סדר אלפביתי.</li>
+                    <li>ליגות ${leagueTypePill('regular')}: השוויון נשבר בארבעה שלבים, כשכל שלב פועל רק על מי שעדיין שווים אחרי הקודם:
+                        <ol>
+                            <li>התוצאה ה<b>ישירה</b> בין השחקנים השווים — מי ניצח יותר דו קרבות מולם.</li>
+                            <li>אם גם בזה הם שווים (בשוויון משולש, למשל, כל אחד יכול לנצח אחד ולהפסיד אחד), קובע <b>הפרש הנקודות באותם דו קרבות עצמם</b>: ניצחון 5-2 שווה 3+, הפסד 5-4 שווה 1−. מי שניצח בגדול והפסיד בקושי עולה על מי שניצח בקושי והפסיד בגדול.</li>
+                            <li>אם גם עכשיו הם שווים — <b>הפרש הנקודות מכל הדו קרבות</b> שלהם בליגה, מול כל היריבים.</li>
+                            <li>ולבסוף, סדר אלפביתי.</li>
+                        </ol>
+                    </li>
                 </ul>
                 <h4>טווח טעות</h4>
                 <p>מכיוון שהתוצאה מבוססת על סימולציה אקראית, האחוז המוצג של המוביל נושא אי-ודאות קטנה. ה<b>± המוצג</b> הוא טווח ביטחון של 95% — ריצת סימולציות נוספות מצמצמת אותו. הוא משקף רק את האקראיות של הסימולציה עצמה.</p>
@@ -355,7 +362,14 @@ export const POPUPS = [
                 <p>When players finish level on the league's main score, the tie is settled differently depending on the league:</p>
                 <ul>
                     <li>${leagueTypePill('doubling')} &amp; ${leagueTypePill('ubc')} leagues: the player with the better (lower) <b>average PR</b> across the season comes out ahead.</li>
-                    <li>${leagueTypePill('regular')} leagues: the tie is settled first by the <b>head-to-head</b> result between the tied players, then by overall <b>points difference</b>, and finally alphabetically.</li>
+                    <li>${leagueTypePill('regular')} leagues: the tie is settled in four steps, each applied only to whoever is still level after the one before:
+                        <ol>
+                            <li>The <b>direct result</b> between the tied players — who won more of the matches among them.</li>
+                            <li>If that is level too (in a three-way tie each can win one and lose one), the <b>points difference in those same matches</b> decides: winning 5-2 counts +3, losing 5-4 counts −1. Winning big and losing narrowly beats winning narrowly and losing big.</li>
+                            <li>Still level — the <b>points difference across all their league matches</b>, against every opponent.</li>
+                            <li>Finally, alphabetically.</li>
+                        </ol>
+                    </li>
                 </ul>
                 <h4>Margin of Error</h4>
                 <p>Because the result comes from random simulation, the leader's percentage carries a small uncertainty. The <b>± figure</b> shown is a 95% confidence range — run more simulations and it shrinks. It reflects the randomness of the simulation only.</p>

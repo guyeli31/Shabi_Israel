@@ -37,6 +37,12 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
 // ── Data ───────────────────────────────────────────────────────────────────
 
 export async function loadMailState() {
+    // No rescan here on purpose. The queue re-judges itself in the DATABASE
+    // (sql/mail_rescan_pending.sql): triggers on matches / leagues /
+    // manual_overrides sweep it the moment the facts a candidate scan reads
+    // actually change. Sweeping on page load as well would make an admin's
+    // visit a WRITE, and would leave a second mechanism to keep in step with
+    // the first.
     const [pending, log, health] = await Promise.all([
         supabase.rpc('mail_reports_pending'),
         supabase.rpc('mail_reports_log', { p_limit: 200 }),

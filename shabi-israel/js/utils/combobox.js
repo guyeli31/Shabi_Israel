@@ -32,7 +32,15 @@
  *                       name AND matched by the filter, so an option can always
  *                       be found and recognised by either form. Not a styling
  *                       choice and not per-site: every player picker passes it.
- *   decorate(value)   → { flagCode?, badge?:{text,kind}, sublabel?, disabled? }
+ *   decorate(value)   → { flagCode?, badge?:{text,kind}, sublabel?, nameHtml?, disabled? }
+ *                       `nameHtml` is TRUSTED markup that replaces the escaped
+ *                       label inside the name span — for a row whose subject is
+ *                       not one plain name (the snapshot picker's "A beats B",
+ *                       two identities each with flag + title badges). Assemble
+ *                       it from `playerIdentityHtml()` so it reads like every
+ *                       other identity on the site, and keep `labelFor`'s
+ *                       plain-text form correct: that is what the filter matches
+ *                       and what the field shows once picked.
  *                       `disabled: true` keeps the option listed (so the user
  *                       sees WHY it is unavailable — pair it with a badge) but
  *                       makes it unpickable: no click, no Enter, skipped by
@@ -552,16 +560,20 @@ export function mountSearchField(input, opts = {}) {
         return {
             iconHtml: d.iconHtml || '', flagHtml, titleHtml: d.titleHtml || '',
             luckHtml: d.luckHtml || '', badge: d.badge || null, sublabel: alt || d.sublabel || '',
-            disabled: !!d.disabled,
+            nameHtml: d.nameHtml || '', disabled: !!d.disabled,
         };
     }
 
     function optionHtml(o, i) {
-        const { iconHtml, flagHtml, titleHtml, luckHtml, badge, sublabel, disabled } = extrasFor(o);
-        const name = escapeHtml(displayLabel(o));
+        const { iconHtml, flagHtml, titleHtml, luckHtml, badge, sublabel, nameHtml, disabled } = extrasFor(o);
+        // `nameHtml` is trusted markup for a row whose subject is not one plain
+        // name — the snapshot picker's "A beats B", each side carrying its own
+        // flag and title badges. `labelFor` stays the plain-text form (what the
+        // filter matches and what the field shows), so the two cannot drift.
+        const name = nameHtml || escapeHtml(displayLabel(o));
         const off = disabled ? ' is-disabled' : '';
         const aria = disabled ? ' aria-disabled="true"' : '';
-        const rich = !!(iconHtml || flagHtml || titleHtml || luckHtml || badge || sublabel);
+        const rich = !!(iconHtml || flagHtml || titleHtml || luckHtml || badge || sublabel || nameHtml);
         if (!rich) return `<li class="app-combo-option${off}" role="option"${aria} data-idx="${i}">${name}</li>`;
         // Row order is fixed: IDENTITY on the left — flag, primary name with its
         // title badges, then the second name — and INFORMATION on the right —
@@ -666,9 +678,10 @@ export function mountSearchField(input, opts = {}) {
         browseOnOpen,
         suggest(query) {
             return resolveItems(query).then(items => items.slice(0, 200).map(o => {
-                const { iconHtml, flagHtml, titleHtml, luckHtml, badge, sublabel, disabled } = extrasFor(o);
+                const { iconHtml, flagHtml, titleHtml, luckHtml, badge, sublabel, nameHtml, disabled } = extrasFor(o);
                 const item = { label: displayLabel(o), value: o.value, key: o.value };
                 if (disabled) item.disabled = true;
+                if (nameHtml) item.nameHtml = nameHtml;
                 if (iconHtml) item.iconHtml = iconHtml;
                 if (flagHtml) item.flagHtml = flagHtml;
                 if (titleHtml) item.titleHtml = titleHtml;
