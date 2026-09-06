@@ -5,6 +5,7 @@
  */
 
 import { displayPlayerName } from '../utils/nameDisplay.js';
+import { formatMatchStamp } from '../utils/matchTime.js';
 
 const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 
@@ -74,7 +75,7 @@ export function buildMatchupPreset({ rows, playerName, opponent, enrich = {} }) 
             _leagueId:   r.leagueId,
             leagueTitle: r.leagueTitle || r.leagueId,
             leagueType:  r.leagueType,
-            date:        r.updatedAt ? new Date(r.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—',
+            date:        formatMatchStamp(r.updatedAt),
             _timestamp:  r.updatedAt ? new Date(r.updatedAt).getTime() : 0,
             winner:      winnerName,
             _selfWon:    won,

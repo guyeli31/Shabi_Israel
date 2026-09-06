@@ -37,7 +37,7 @@
 
 import { predictChampionship, computeTopXPct } from './championshipPredictor.js';
 import { computeAllStats } from './stats.js';
-import { getMatchesAsOf, matchKey } from './matchHistory.js';
+import { getMatchesAsOf, matchKey, INITIAL_POINT } from './matchHistory.js';
 
 export const TIMELINE_ITERATIONS = 5_000;
 
@@ -133,12 +133,44 @@ function canonMatch(m) {
  * The schedule's contribution. It is an input at EVERY point — the projection
  * runs over the fixtures still unplayed — so adding or removing a fixture
  * invalidates the whole league, and the hash has to say so.
+ *
+ * The league's own SETTINGS belong here too, and were missing:
+ *   - `matchLength` picks a different column of the win-probability table, so a
+ *     league edited from 7 to 11 gets different odds in every simulated match.
+ *   - `leagueType` swaps the whole ranking policy: primary key, secondary key
+ *     and tiebreak cascade.
+ *   - `retiredPlayers` decides which rows become points at all, so it changes
+ *     the very list the stored points are indexed by.
+ *
+ * Those three were the one class of change that produced WRONG stored numbers
+ * looking perfectly fresh; every other edit at least announced itself as stale.
+ *
+ * @param {object[]} allMatchesIncUnplayed
+ * @param {{matchLength?:number, leagueType?:string, retiredPlayers?:Iterable<string>}} [settings]
  */
-export function scheduleFingerprint(allMatchesIncUnplayed) {
+export function scheduleFingerprint(allMatchesIncUnplayed, settings = {}) {
     const keys = (allMatchesIncUnplayed || [])
         .map(m => matchKey(m.playerA, m.playerB))
         .sort();
-    return fnv1a(keys.join('')).toString(16);
+    const retired = [...(settings.retiredPlayers || [])].sort().join(',');
+    const cfg = `ml=${settings.matchLength ?? ''}lt=${settings.leagueType ?? ''}rp=${retired}`;
+    return fnv1a(keys.join('') + cfg).toString(16);
+}
+
+/**
+ * The point list both the chart and the job project, oldest first, with INITIAL
+ * at its head.
+ *
+ * INITIAL is the league before a ball was thrown: every fixture still ahead, so
+ * everyone's odds are their prior strength alone. It is the column that answers
+ * "who was the favourite before it started", and the chart used to begin one
+ * match after it, which is opening the story on page two.
+ *
+ * It carries no match (`match: null`); consumers must handle that, and stating
+ * it in one place is what lets them.
+ */
+export function withInitialPoint(orderedPoints) {
+    return [{ value: INITIAL_POINT, match: null, initial: true }, ...orderedPoints];
 }
 
 /**
@@ -155,7 +187,11 @@ export function pointFingerprints(orderedTimeline, scheduleFp) {
     const out = [];
     let acc = fnv1a(scheduleFp);
     for (const m of orderedTimeline) {
-        acc = fnv1a(canonMatch(m), acc);
+        // A null entry is the INITIAL point (see withInitialPoint): no match has
+        // been played, so its inputs are the seed alone and it folds nothing in.
+        // It must still OCCUPY an index, or every hash after it would line up
+        // against the wrong point.
+        if (m) acc = fnv1a(canonMatch(m), acc);
         out.push(acc.toString(16));
     }
     return out;
@@ -180,14 +216,22 @@ export function pointFingerprints(orderedTimeline, scheduleFp) {
  * @param {object[]} args.allMatchesIncUnplayed
  * @param {Set}      args.allPlayers
  * @param {string[]} [args.previousRoster]
- * @param {number}   [args.depth]        places stored per player (default 10)
- * @param {function} [args.onPoint]      (index, total) — progress, for logging
+ * @param {number}   [args.depth]        places stored per player. Defaults to
+ *   the WHOLE roster, and should stay there: it used to be 10 while the chart's
+ *   Show control offers every place up to the roster size, and the reader
+ *   clamped silently (`Math.min(currentX, row.length)`) - so picking "Top 15"
+ *   drew the Top 10 curve under a label saying 15. Storing the full row costs
+ *   about 2.5x on a table measured in hundreds of KB, which is nothing next to a
+ *   wrong number that looks right.
+ * @param {function} [args.onPoint]      (index, total) - progress, for logging
+ * @param {object}   [args.settings]     {matchLength, leagueType, retiredPlayers}
+ *   for the fingerprint - see scheduleFingerprint.
  * @returns {{roster:string[], points:object[], iterations:number}}
  */
 export function buildLeagueProjection({
     orderedPoints, timeline, allMatchesIncUnplayed, allPlayers,
-    matchLength, leagueConfig, last300Map,
-    previousRoster = [], depth = 10, iterations = 50_000, onPoint = null,
+    matchLength, leagueConfig, last300Map, settings = null,
+    previousRoster = [], previousPoints = [], depth = Infinity, iterations = 50_000, onPoint = null,
 }) {
     const roster = [...previousRoster];
     const seen = new Set(roster);
@@ -195,10 +239,33 @@ export function buildLeagueProjection({
         if (!seen.has(p)) { roster.push(p); seen.add(p); }
     }
 
-    const scheduleFp = scheduleFingerprint(allMatchesIncUnplayed);
+    const scheduleFp = scheduleFingerprint(allMatchesIncUnplayed, settings || {
+        matchLength, leagueType: leagueConfig && leagueConfig.type,
+    });
     const hashes = pointFingerprints(orderedPoints.map(p => p.match), scheduleFp);
 
+    // REUSE, DON'T RECOMPUTE. A point's hash covers every input it has, so a
+    // stored point whose hash still matches is not merely probably current - it
+    // is the same computation, and running it again would only re-roll the dice.
+    //
+    // This is what makes an incremental update cheap. Recording a result on an
+    // EXISTING fixture leaves the schedule seed alone, and the fold means only
+    // the points from that match forward change: publishing match 300 of 300
+    // recomputes one point, not three hundred. Editing an old result is the
+    // expensive case, and honestly so - everything after it really did change.
+    const reusable = new Map();
+    for (const sp of previousPoints || []) {
+        if (sp && sp.hash) reusable.set(sp.hash, sp);
+    }
+    let reused = 0;
+
     const points = orderedPoints.map((p, i) => {
+        const keep = reusable.get(hashes[i]);
+        if (keep && rowsCoverRoster(keep.r, roster.length)) {
+            reused++;
+            if (onPoint) onPoint(i + 1, orderedPoints.length);
+            return keep;
+        }
         const proj = projectAt({
             timeline, allMatchesIncUnplayed, pointValue: p.value, allPlayers,
             matchLength, leagueConfig, last300Map, iterations,
@@ -216,10 +283,25 @@ export function buildLeagueProjection({
             return row;
         });
         if (onPoint) onPoint(i + 1, orderedPoints.length);
-        return { at: p.match.updatedAt, ord: pointOrdinal(p.value), hash: hashes[i], r };
+        // INITIAL has no match, so no timestamp and no ordinal.
+        return {
+            at: p.match ? p.match.updatedAt : null,
+            ord: p.match ? pointOrdinal(p.value) : 0,
+            hash: hashes[i], r,
+        };
     });
 
-    return { roster, points, iterations };
+    return { roster, points, iterations, reused, computed: points.length - reused };
+}
+
+/**
+ * A reused row must still describe the CURRENT roster. The roster is
+ * append-only, so a stored point from before a player joined has a shorter
+ * array - position i would still mean the right player, but the newcomer would
+ * have no entry at all. Recompute those rather than serve a row with a hole.
+ */
+function rowsCoverRoster(r, size) {
+    return Array.isArray(r) && r.length === size;
 }
 
 /** The `#n` suffix of a point value, or 1 when the instant holds one match. */

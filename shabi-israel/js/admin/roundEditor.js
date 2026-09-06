@@ -22,6 +22,7 @@ import { mountCombobox } from '../utils/combobox.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
+import { israelNowForInput, israelInputToISO, isoToIsraelInput } from '../utils/matchTime.js';
 
 export function renderRoundEditor(container, leagueId, refreshBadge) {
     container.innerHTML = `
@@ -115,7 +116,10 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
 
                 const scoreSelectA = scoreOptions.replace(`value="${scA}"`, `value="${scA}" selected`);
                 const scoreSelectB = scoreOptions.replace(`value="${scB}"`, `value="${scB}" selected`);
-                const editedDateValue = editedTs ? String(editedTs).slice(0, 10) : '';
+                // Israel wall-clock, not the admin's own: the league is played on
+                // Israeli evenings, and an admin abroad must read back the same
+                // moment the one in Tel Aviv wrote.
+                const editedDateValue = editedTs ? isoToIsraelInput(editedTs) : '';
 
                 blocks += `
                     <tbody class="${blockClass}" data-rid="${rowId}" data-pa="${esc(m.playerA)}" data-pb="${esc(m.playerB)}">
@@ -124,7 +128,7 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
                             ${showPR ? `<td><input type="number" class="inline-edit-input" data-field="prA" step="0.01" value="${prA}"></td>` : ''}
                             <td><input type="number" class="inline-edit-input" data-field="luckA" step="0.01" value="${lkA}"></td>
                             <td><select class="inline-edit-input inline-edit-score-select" data-field="scoreA">${scoreSelectA}</select></td>
-                            <td class="nowrap match-edited" rowspan="2"><input type="date" class="themed-date match-edited-date" data-rid="${rowId}" value="${editedDateValue}"></td>
+                            <td class="nowrap match-edited" rowspan="2"><input type="datetime-local" class="themed-date match-edited-date" data-rid="${rowId}" value="${editedDateValue}"></td>
                             <td class="nowrap match-actions" rowspan="2">
                                 <button class="btn btn-xs btn-tech" data-tech="a" data-rid="${rowId}" title="Technical win ${esc(m.playerA)}">TA</button>
                                 <button class="btn btn-xs btn-tech" data-tech="b" data-rid="${rowId}" title="Technical win ${esc(m.playerB)}">TB</button>
@@ -360,7 +364,10 @@ async function stageBulkTechLoss(leagueId, player, playerMatches, refreshBadge) 
  * match length, the player 0, PR/Luck cleared, block marked overridden + saved.
  */
 function applyTechLossToDom(content, player, matchLength) {
-    const today = new Date().toISOString().slice(0, 10);
+    // The current moment in ISRAEL. `new Date().toISOString().slice(0, 10)` —
+    // what this used to be — is the UTC date, so an admin working after
+    // midnight Israel time stamped every one of these with YESTERDAY.
+    const today = israelNowForInput();
     content.querySelectorAll('tbody.match-block').forEach(block => {
         const pa = block.dataset.pa, pb = block.dataset.pb;
         if (pa !== player && pb !== player) return;
@@ -422,8 +429,12 @@ function attachListeners(container, leagueId, refreshBadge, matchLength, showPR 
             const playerB = block.dataset.pb;
             const dateInput = block.querySelector('.match-edited-date');
             const pickedDate = dateInput ? dateInput.value : '';
+            // A picked value is Israel wall-clock and is resolved as such. The
+            // old `new Date(`${picked}T00:00:00`)` read it in the BROWSER's zone
+            // AND threw the time away — a match edited at 21:14 was stored as
+            // that day's midnight, which in Israel is the previous day in UTC.
             const ts = pickedDate
-                ? new Date(`${pickedDate}T00:00:00`).toISOString()
+                ? israelInputToISO(pickedDate)
                 : new Date().toISOString();
 
             let override;
@@ -468,11 +479,11 @@ function attachListeners(container, leagueId, refreshBadge, matchLength, showPR 
                     if (el.tagName === 'SELECT') el.value = '0';
                     else el.value = '';
                 });
-                if (dateCell) dateCell.value = ts.slice(0, 10);
+                if (dateCell) dateCell.value = isoToIsraelInput(ts);
             } else {
                 block.classList.remove('match-block-unplayed');
                 block.classList.add('match-block-overridden');
-                if (dateCell) dateCell.value = ts.slice(0, 10);
+                if (dateCell) dateCell.value = isoToIsraelInput(ts);
             }
             // The just-saved state becomes the new "original" — a later edit reverts
             // back to here, not to the pre-save state.

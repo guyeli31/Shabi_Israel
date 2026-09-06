@@ -39,6 +39,7 @@
 
 import { supabase } from './supabaseClient.js';
 import { mergeHistoryIntoMatches } from '../compute/matchHistory.js';
+import { stampFromHistoryRow } from '../utils/matchTime.js';
 
 // ── Version-gated memo ─────────────────────────────────────────────────────
 
@@ -189,6 +190,7 @@ export async function loadLandingSettings() {
             // Mirrors mapLandingSettingsRow() in bundleMapper.js — see
             // sql/landing_completed_custom_order.sql.
             completedCustomOrder: data.completed_custom_order === true,
+            activeCustomOrder: data.active_custom_order === true,
         };
     });
 }
@@ -295,7 +297,10 @@ export async function loadMatchHistory(leagueId) {
                 luckA: row.luck_a,
                 luckB: row.luck_b,
                 round: row.round,
-                updatedAt: row.updated_at,
+                // Same collapse bundleMapper.js applies — both mappers call the
+                // one helper so the admin path and the site bundle cannot
+                // disagree about whether a row carries a day or a moment.
+                updatedAt: stampFromHistoryRow(row),
                 source: row.source,
             })),
         };

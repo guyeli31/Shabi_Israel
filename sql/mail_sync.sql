@@ -274,17 +274,25 @@ begin
      where id = cand.match_id;
 
     -- source='csv' on purpose — see header note.
+    --
+    -- has_exact_time is stated on BOTH halves, never left to the column default.
+    -- The default covers the insert; the DO UPDATE half would otherwise leave a
+    -- pre-existing `false` in place while replacing updated_at with a real
+    -- played_at, and the row would then render as a timezone-less day on a date
+    -- it no longer holds. A mail report always carries a real moment.
+    -- See sql/match_time_precision.sql and js/utils/matchTime.js.
     insert into public.match_history
-        (league_id, player_a, player_b, score_a, score_b, pr_a, pr_b, luck_a, luck_b, round, source, updated_at)
+        (league_id, player_a, player_b, score_a, score_b, pr_a, pr_b, luck_a, luck_b, round, source, updated_at, has_exact_time)
     values
         (p_league_id, f_name_a, f_name_b, f_score_a, f_score_b, f_pr_a, f_pr_b, f_luck_a, f_luck_b,
-         cand.round, 'csv', played_at)
+         cand.round, 'csv', played_at, true)
     on conflict (league_id, player_a, player_b) do update
         set score_a = excluded.score_a, score_b = excluded.score_b,
             pr_a    = excluded.pr_a,    pr_b    = excluded.pr_b,
             luck_a  = excluded.luck_a,  luck_b  = excluded.luck_b,
             round   = excluded.round,   source  = excluded.source,
-            updated_at = excluded.updated_at;
+            updated_at = excluded.updated_at,
+            has_exact_time = excluded.has_exact_time;
 
     update public.leagues set last_updated = now() where id = p_league_id;
 

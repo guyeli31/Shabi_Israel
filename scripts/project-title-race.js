@@ -35,12 +35,16 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { buildMatchTimeline, getUpdatePoints } from '../shabi-israel/js/compute/matchHistory.js';
-import { buildLeagueProjection } from '../shabi-israel/js/compute/topXTimeline.js';
+import { buildLeagueProjection, withInitialPoint } from '../shabi-israel/js/compute/topXTimeline.js';
+import { buildLast300Map } from '../shabi-israel/js/compute/last300.js';
 import { getLeagueConfig } from '../shabi-israel/js/compute/leagueTypes.js';
 import { applyOverrides } from '../shabi-israel/js/data/applyOverrides.js';
 
 const ITERATIONS = 50_000;
-const DEPTH = 10;
+// Every place, not the first ten. The chart's Show control offers each rank up
+// to the roster size, and a shorter row was clamped silently rather than
+// refused - "Top 15" drew the Top 10 curve. See buildLeagueProjection.
+const DEPTH = Infinity;
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -104,42 +108,75 @@ const mapOverride = (o) => ({
 });
 
 /**
- * The Last-300 PR window the simulator draws player strength from.
+ * The Last-300 PR window the simulator draws player strength from — pooled
+ * across every cube-playing league (doubling + UBC), exactly as the browser
+ * does, because it calls the same function the browser calls.
  *
- * Deliberately computed here from every non-REGULAR league rather than imported
- * from js/compute/crossLeague.js: that module is built around the browser's
- * cached site bundle. The RULE it implements is what matters and is reproduced —
- * the most recent 300 rated matches per player, pooled across doubling + UBC.
+ * This used to be re-implemented here, and got the rule WRONG in a way nothing
+ * could catch: it took the last 300 MATCHES, where the window is 300 units of
+ * EXPERIENCE — about 43 matches at 7 points each. Seven times too wide, so every
+ * stored projection was built on a different notion of player strength from the
+ * one the page would have computed. See js/compute/last300.js.
+ *
+ * Only the FETCHING is local: the browser has a cached site bundle, this has
+ * PostgREST. What is assembled is the same shape `buildLast300Map` expects.
  */
-async function buildLast300Map() {
-    const { data: leagues, error: le } = await supabase.from('leagues').select('id, league_type');
+async function loadLast300Map() {
+    const { data: leagueRows, error: le } = await supabase
+        .from('leagues').select('id, league_type, match_length, hidden, archived');
     if (le) throw new Error(`could not read leagues: ${le.message}`);
-    const rated = new Set(leagues.filter(l => (l.league_type || 'doubling') !== 'regular').map(l => l.id));
 
-    const { data: rows, error } = await supabase
-        .from('match_history')
-        .select('league_id, player_a, player_b, pr_a, pr_b, updated_at')
-        .order('updated_at', { ascending: false });
-    if (error) throw new Error(`could not read match_history: ${error.message}`);
+    // Hidden means hidden from everyone — a hidden league must not silently
+    // change a visible league's numbers.
+    const pool = (leagueRows || [])
+        .filter(l => (l.league_type || 'doubling') !== 'regular')
+        .filter(l => !l.hidden && !l.archived);
+    const byId = new Map(pool.map(l => [l.id, l]));
 
-    const byPlayer = new Map();
-    for (const r of rows || []) {
-        if (!rated.has(r.league_id)) continue;
-        for (const [name, pr] of [[r.player_a, r.pr_a], [r.player_b, r.pr_b]]) {
-            if (pr == null) continue;
-            if (!byPlayer.has(name)) byPlayer.set(name, []);
-            const arr = byPlayer.get(name);
-            if (arr.length < 300) arr.push(Number(pr));
-        }
+    const rows = await readAllRows('match_history',
+        'league_id, player_a, player_b, pr_a, pr_b, updated_at');
+
+    // Newest league first — buildLast300Map uses list order as the tiebreak for
+    // matches with no timestamp, and the browser's loadVisibleLeagues is
+    // newest-first.
+    const ordered = [...pool].sort((a, b) => String(b.id).localeCompare(String(a.id)));
+    const matchesByLeague = new Map(ordered.map(l => [l.id, []]));
+    for (const r of rows) {
+        if (!byId.has(r.league_id)) continue;
+        matchesByLeague.get(r.league_id).push({
+            playerA: r.player_a, playerB: r.player_b,
+            prA: r.pr_a, prB: r.pr_b, updatedAt: r.updated_at,
+        });
     }
-    const out = new Map();
-    for (const [name, prs] of byPlayer) {
-        if (prs.length === 0) continue;
-        const mean = prs.reduce((a, b) => a + b, 0) / prs.length;
-        const varc = prs.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, prs.length - 1);
-        out.set(name, { mean, std: Math.sqrt(varc) });
+
+    const leagues = ordered.map(l => ({
+        id: l.id,
+        matches: matchesByLeague.get(l.id) || [],
+        params: { MatchLength: l.match_length || 7 },
+    }));
+
+    // The window is defined over players who have a rated match, which is
+    // exactly this row set — so the names come from it rather than from a
+    // separately-built roster that could disagree with it.
+    const names = new Set();
+    for (const l of leagues) for (const m of l.matches) { names.add(m.playerA); names.add(m.playerB); }
+    names.delete('Bye');
+    return buildLast300Map(names, leagues);
+}
+
+/** PostgREST caps a response; page until the table is exhausted. */
+async function readAllRows(table, columns) {
+    const PAGE = 1000;
+    const out = [];
+    for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+            .from(table).select(columns)
+            .order('league_id').order('player_a').order('player_b')
+            .range(from, from + PAGE - 1);
+        if (error) throw new Error(`could not read ${table}: ${error.message}`);
+        out.push(...(data || []));
+        if (!data || data.length < PAGE) return out;
     }
-    return out;
 }
 
 async function projectLeague(leagueId, last300Map) {
@@ -149,7 +186,7 @@ async function projectLeague(leagueId, last300Map) {
             supabase.from('matches').select('*').eq('league_id', leagueId),
             supabase.from('manual_overrides').select('*').eq('league_id', leagueId),
             supabase.from('match_history').select('*').eq('league_id', leagueId),
-            supabase.from('league_projections').select('roster').eq('league_id', leagueId).maybeSingle(),
+            supabase.from('league_projections').select('roster, points').eq('league_id', leagueId).maybeSingle(),
         ]);
 
     if (!leagueRow) { console.log(`  ! ${leagueId}: no such league, skipping`); return null; }
@@ -158,9 +195,11 @@ async function projectLeague(leagueId, last300Map) {
     const allMatchesIncUnplayed = applyOverridesToAll((matchRows || []).map(mapMatch), overrides);
     const history = { matches: (historyRows || []).map(mapHistory) };
     const timeline = buildMatchTimeline(history, overrides, allMatchesIncUnplayed);
-    const orderedPoints = [...getUpdatePoints(timeline)].reverse();
+    const orderedPoints = withInitialPoint([...getUpdatePoints(timeline, leagueRow.retired_players)].reverse());
 
-    if (orderedPoints.length === 0) {
+    // Length 1 means INITIAL only — a league whose first match has not been
+    // recorded. Nothing to plot, so nothing to store.
+    if (orderedPoints.length <= 1) {
         console.log(`  · ${leagueId}: no update points, nothing to project`);
         return { leagueId, roster: [], points: [], skipped: true };
     }
@@ -179,7 +218,15 @@ async function projectLeague(leagueId, last300Map) {
         matchLength: params.MatchLength,
         leagueConfig: getLeagueConfig(params),
         last300Map,
+        settings: {
+            matchLength: params.MatchLength,
+            leagueType: params.LeagueType,
+            retiredPlayers: leagueRow.retired_players || [],
+        },
         previousRoster: prev?.roster || [],
+        // Everything already computed, keyed by hash inside. Points whose inputs
+        // have not changed are carried over untouched instead of re-simulated.
+        previousPoints: prev?.points || [],
         depth: DEPTH,
         iterations: ITERATIONS,
         onPoint: (i, total) => {
@@ -220,7 +267,17 @@ async function main() {
     if (value('--league')) {
         leagues = [value('--league')];
     } else if (flag('--all')) {
-        const { data } = await supabase.from('leagues').select('id').order('id');
+        // NEWEST LEAGUE FIRST. Each league is written the moment it finishes, so
+        // this is not merely tidy - it decides who waits. A backfill takes the
+        // better part of an hour, and for every minute of it the leagues already
+        // done are serving instantly while the rest still compute in the
+        // visitor's browser. The running season is what people open; it should
+        // not be waiting behind September 2025.
+        //
+        // `issue_date`, not `id`: sorting the names alphabetically puts April
+        // before August before December, which is not a chronology at all.
+        const { data } = await supabase.from('leagues')
+            .select('id').order('issue_date', { ascending: false }).order('id');
         leagues = (data || []).map(r => r.id);
     } else {
         const { data, error } = await supabase.rpc('claim_projection_work', { p_limit: 10 });
@@ -230,9 +287,9 @@ async function main() {
 
     if (leagues.length === 0) { console.log('Nothing queued — done.'); return; }
     console.log(`→ Projecting ${leagues.length} league(s): ${leagues.join(', ')}`);
-    console.log(`  iterations=${ITERATIONS}  depth=${DEPTH}${DRY_RUN ? '  (DRY RUN)' : ''}`);
+    console.log(`  iterations=${ITERATIONS}  depth=${DEPTH === Infinity ? 'full' : DEPTH}${DRY_RUN ? '  (DRY RUN)' : ''}`);
 
-    const last300Map = await buildLast300Map();
+    const last300Map = await loadLast300Map();
     console.log(`  Last-300 PR window: ${last300Map.size} players`);
 
     for (const leagueId of leagues) {
@@ -246,7 +303,8 @@ async function main() {
             computed_at: new Date().toISOString(),
         };
         const bytes = JSON.stringify(payload.points).length;
-        console.log(`  ✓ ${leagueId}: ${res.points.length} points, ${res.roster.length} players, ${Math.round(bytes / 1024)} KB raw, ${res.seconds}s`);
+        console.log(`  ✓ ${leagueId}: ${res.points.length} points (${res.computed} computed, ${res.reused} reused), `
+            + `${res.roster.length} players, ${Math.round(bytes / 1024)} KB raw, ${res.seconds}s`);
         if (DRY_RUN) continue;
         await withRetry(`upsert ${leagueId}`, () =>
             supabase.from('league_projections').upsert(payload, { onConflict: 'league_id' }));

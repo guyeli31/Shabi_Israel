@@ -215,7 +215,7 @@ begin
     select array_agg(distinct league_id) into ids from new_rows;
   end if;
   if ids is not null then
-    perform public.request_projection_refresh(unnest, 'match_history ' || lower(tg_op))
+    perform public.request_projection_refresh(unnest, tg_table_name || ' ' || lower(tg_op))
     from unnest(ids) as unnest;
   end if;
   return null;
@@ -238,6 +238,86 @@ create trigger projections_history_del
   after delete on public.match_history
   referencing old table as old_rows
   for each statement execute function public.projections_on_history_change();
+
+-- The SAME function serves `matches` and `manual_overrides`: both carry a
+-- `league_id`, and both are inputs to every projected point.
+--
+-- They were missing, and the gap was silent in the worst way. `scheduleFingerprint`
+-- folds the fixture list into EVERY point's hash, so adding a round, deleting a
+-- fixture or removing a player invalidates the whole league at once — but nothing
+-- queued it. The page would find every point stale, fall back to computing all of
+-- them locally, and stay that way forever: the hourly cron drains the queue, and
+-- nothing had put the league in it. A permanently slow chart, with correct
+-- numbers, and no error anywhere to say why.
+drop trigger if exists projections_matches_ins on public.matches;
+create trigger projections_matches_ins
+  after insert on public.matches
+  referencing new table as new_rows
+  for each statement execute function public.projections_on_history_change();
+
+drop trigger if exists projections_matches_upd on public.matches;
+create trigger projections_matches_upd
+  after update on public.matches
+  referencing new table as new_rows
+  for each statement execute function public.projections_on_history_change();
+
+drop trigger if exists projections_matches_del on public.matches;
+create trigger projections_matches_del
+  after delete on public.matches
+  referencing old table as old_rows
+  for each statement execute function public.projections_on_history_change();
+
+drop trigger if exists projections_overrides_ins on public.manual_overrides;
+create trigger projections_overrides_ins
+  after insert on public.manual_overrides
+  referencing new table as new_rows
+  for each statement execute function public.projections_on_history_change();
+
+drop trigger if exists projections_overrides_upd on public.manual_overrides;
+create trigger projections_overrides_upd
+  after update on public.manual_overrides
+  referencing new table as new_rows
+  for each statement execute function public.projections_on_history_change();
+
+drop trigger if exists projections_overrides_del on public.manual_overrides;
+create trigger projections_overrides_del
+  after delete on public.manual_overrides
+  referencing old table as old_rows
+  for each statement execute function public.projections_on_history_change();
+
+-- `leagues` needs its own: the key column is `id`, not `league_id`, and only
+-- THREE of its columns matter. Each is folded into the fingerprint seed, so each
+-- changes every point:
+--   match_length     picks a different column of the win-probability table
+--   league_type      swaps the whole ranking and tiebreak policy
+--   retired_players  decides which rows are points at all
+-- A rename of the league title, a prize change or a visibility toggle changes no
+-- projected number, and re-running an hour of Monte Carlo for one of those would
+-- be waste — hence the column list rather than a blanket UPDATE trigger.
+--
+-- INSERT is included even though a brand-new league has no matches and projects
+-- nothing: the run costs seconds, and the alternative is remembering to queue it
+-- later.
+create or replace function public.projections_on_league_change()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform public.request_projection_refresh(new.id, 'leagues ' || lower(tg_op));
+  return null;
+end $$;
+
+drop trigger if exists projections_league_ins on public.leagues;
+create trigger projections_league_ins
+  after insert on public.leagues
+  for each row execute function public.projections_on_league_change();
+
+drop trigger if exists projections_league_upd on public.leagues;
+create trigger projections_league_upd
+  after update of match_length, league_type, retired_players on public.leagues
+  for each row
+  when (old.match_length   is distinct from new.match_length
+     or old.league_type    is distinct from new.league_type
+     or old.retired_players is distinct from new.retired_players)
+  execute function public.projections_on_league_change();
 
 -- ============================================================================
 -- Claiming work
@@ -298,6 +378,15 @@ grant execute on function public.claim_projection_work(int) to service_role;
 --   drop trigger if exists projections_history_ins on public.match_history;
 --   drop trigger if exists projections_history_upd on public.match_history;
 --   drop trigger if exists projections_history_del on public.match_history;
+--   drop trigger if exists projections_matches_ins on public.matches;
+--   drop trigger if exists projections_matches_upd on public.matches;
+--   drop trigger if exists projections_matches_del on public.matches;
+--   drop trigger if exists projections_overrides_ins on public.manual_overrides;
+--   drop trigger if exists projections_overrides_upd on public.manual_overrides;
+--   drop trigger if exists projections_overrides_del on public.manual_overrides;
+--   drop trigger if exists projections_league_ins on public.leagues;
+--   drop trigger if exists projections_league_upd on public.leagues;
+--   drop function if exists public.projections_on_league_change();
 --   drop function if exists public.projections_on_history_change();
 --   drop function if exists public.claim_projection_work(int);
 --   drop function if exists public.request_projection_refresh(text, text);

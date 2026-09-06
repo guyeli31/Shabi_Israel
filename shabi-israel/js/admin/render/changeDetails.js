@@ -57,6 +57,7 @@ const FIELD_LABELS = {
     landing_settings: {
         title: 'Title', subtitle: 'Subtitle', logo_path: 'Logo', display_order: 'League order',
         completed_custom_order: 'Completed Leagues order',
+        active_custom_order: 'Active Leagues order',
     },
 };
 
@@ -154,6 +155,11 @@ export function describeFieldChange(table, key, before, after) {
         return truthy(after)
             ? 'Completed Leagues now use the hand-made order'
             : 'Completed Leagues sorted by date again';
+    }
+    if (table === 'landing_settings' && key === 'active_custom_order') {
+        return truthy(after)
+            ? 'Active Leagues now use the hand-made card order'
+            : 'Active Leagues grouped by type again';
     }
 
     // Enum-ish scalar with a friendly value label (never quoted — it's a token).

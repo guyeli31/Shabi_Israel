@@ -13,6 +13,7 @@ import { loadAllLeagues } from './crossLeague.js';
 import { getMedalPlaces } from './prizeRows.js';
 import { luckConfidenceStats } from './luckConfidence.js';
 import { buildPlayerFlagIndex } from '../utils/playerFlags.js';
+import { last300For } from './last300.js';
 
 const PR_TYPES = new Set(['doubling', 'ubc']); // league types that have PR
 
@@ -36,7 +37,6 @@ export async function buildAllTimeRankings(leagueType) {
 
         const hasPR = PR_TYPES.has(leagueType);
         const isUBC = leagueType === 'ubc';
-        const prWeight = (leagueType === 'regular') ? 5 : 7;
 
         // Flags for an ALL-TIME table are the context-free question, so each
         // player gets the flag they LAST played under (utils/playerFlags.js).
@@ -107,9 +107,14 @@ export async function buildAllTimeRankings(leagueType) {
                 const matchLength = league.params.MatchLength || 7;
                 for (const m of league.matches) {
                     if (m._technical) continue;
+                    // `weight` is the match's own length: the Last-300 window is
+                    // 300 units of EXPERIENCE, so a match from an 11-point league
+                    // fills more of it than one from a 5-point league. Reading it
+                    // per league is what lets one type hold several lengths.
                     if (m.prA != null) {
                         bump(m.playerA).prMatches.push({
                             prSelf: m.prA,
+                            weight: matchLength,
                             updatedAt: m.updatedAt || null,
                             leagueOrderIdx
                         });
@@ -117,6 +122,7 @@ export async function buildAllTimeRankings(leagueType) {
                     if (m.prB != null) {
                         bump(m.playerB).prMatches.push({
                             prSelf: m.prB,
+                            weight: matchLength,
                             updatedAt: m.updatedAt || null,
                             leagueOrderIdx
                         });
@@ -148,26 +154,13 @@ export async function buildAllTimeRankings(leagueType) {
                 totalMatches = t.prMatches.length;
                 totalPR = t.prMatches.reduce((s, m) => s + m.prSelf, 0) / totalMatches;
 
-                // Sort matches by updatedAt DESC, fall back to league order
-                // (display order is newest-first, so smaller idx = newer).
-                const sorted = [...t.prMatches].sort((a, b) => {
-                    const at = a.updatedAt ? new Date(a.updatedAt).getTime() : null;
-                    const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : null;
-                    if (at != null && bt != null) return bt - at;
-                    if (at != null) return -1;
-                    if (bt != null) return 1;
-                    return a.leagueOrderIdx - b.leagueOrderIdx;
-                });
-
-                let wsum = 0, vsum = 0, used = 0;
-                for (const m of sorted) {
-                    vsum += m.prSelf * prWeight;
-                    wsum += prWeight;
-                    used++;
-                    if (wsum >= 300) break;
-                }
-                last300PR = wsum > 0 ? vsum / wsum : totalPR;
-                last300Count = used;
+                // The window is compute/last300.js — the same call the Predictor
+                // and the projection job make. It used to be re-implemented here,
+                // which is how the card and the simulator could have disagreed
+                // about one player's PR without either being "wrong".
+                const w = last300For(t.prMatches);
+                last300PR = w ? w.mean : totalPR;
+                last300Count = w ? w.matches : 0;
             }
 
             let luckPercentile = null, luckGames = 0, luckUnstable = true;

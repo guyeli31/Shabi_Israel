@@ -17,6 +17,8 @@
  * styling when it contains one of the cards.
  */
 
+import { formatMatchStamp, formatMatchDay, isDayOnly } from '../utils/matchTime.js';
+
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -26,37 +28,54 @@ function escapeHtml(s) {
     return div.innerHTML;
 }
 
-/** Format "2026-04-01" → "1 Apr 2026"; "2026-04" → "Apr 2026". */
+/**
+ * Format "2026-04-01" → "1 Apr 2026"; "2026-04" → "Apr 2026".
+ *
+ * A league's opening date is a DAY — the same reading for every viewer, no
+ * timezone conversion (see matchTime.js) and NO CLOCK. A league does not open
+ * at an hour; printing "00:00" beside it states a time nobody set.
+ */
 export function formatStartDate(iso) {
     if (!iso) return '';
     const m = String(iso).match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
     if (!m) return iso;
-    const year = parseInt(m[1], 10);
-    const month = parseInt(m[2], 10);
-    const day = m[3] ? parseInt(m[3], 10) : null;
-    const mn = MONTHS_SHORT[month - 1] || '';
-    return day ? `${day} ${mn} ${year}` : `${mn} ${year}`;
-}
-
-/** Format a Last-Modified header value → "14 Apr 2026, 16:06". */
-export function formatLastUpdated(headerVal) {
-    if (!headerVal) return '';
-    const d = new Date(headerVal);
-    if (isNaN(d)) return headerVal;
-    const date = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    return `${date}, ${time}`;
+    if (!m[3]) return `${MONTHS_SHORT[parseInt(m[2], 10) - 1] || ''} ${parseInt(m[1], 10)}`;
+    return formatMatchDay(String(iso).slice(0, 10), iso);
 }
 
 /**
- * Date-only variant of formatLastUpdated (no time) — used by the WhatsApp
- * image-export subtitles so they read "Last updated 7 Jul 2026".
+ * Format a Last-Modified header value → "14 Apr 2026, 16:06".
+ *
+ * A real instant, so it reads in the viewer's own timezone.
+ *
+ * It also accepts a value carrying NO clock — the league's opening date, which
+ * the historical view passes as the "last updated" of the Initial point. That
+ * one prints as a bare day: a header line reports what is known, and inventing
+ * a "00:00" for a value that never had a time is not reporting.
+ */
+export function formatLastUpdated(headerVal) {
+    if (!headerVal) return '';
+    return isDayOnly(headerVal)
+        ? formatMatchDay(headerVal, headerVal)
+        : formatMatchStamp(headerVal, headerVal);
+}
+
+/**
+ * The WhatsApp image-export subtitles' "Last updated …".
+ *
+ * Was date-only. It now carries the time, like every other reading on the site:
+ * an exported image is read hours or days after it was made, and "7 Jul 2026"
+ * cannot answer the question the subtitle exists for — whether the picture is
+ * newer than the result someone is arguing about.
+ *
+ * The image is rendered from the exporter's own screen, so the clock in it is
+ * the exporter's local time, not the reader's.
  */
 export function formatLastUpdatedDate(headerVal) {
     if (!headerVal) return '';
-    const d = new Date(headerVal);
-    if (isNaN(d)) return headerVal;
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    return isDayOnly(headerVal)
+        ? formatMatchDay(headerVal, headerVal)
+        : formatMatchStamp(headerVal, headerVal);
 }
 
 /**

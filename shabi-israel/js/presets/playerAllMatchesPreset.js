@@ -5,6 +5,8 @@
  * injected via callbacks.
  */
 
+import { formatMatchStamp } from '../utils/matchTime.js';
+
 const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 
 /**
@@ -77,7 +79,7 @@ export function buildPlayerAllMatchesPreset({ rows, enrich = {} }) {
         return {
             _leagueId:   r.leagueId,
             leagueTitle: r.leagueTitle,
-            date:        dateISO ? new Date(dateISO).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—',
+            date:        formatMatchStamp(dateISO),
             _timestamp:  dateISO ? new Date(dateISO).getTime() : 0,
             _dateApprox: r._dateApprox || false,
             leagueType:  r.leagueType,

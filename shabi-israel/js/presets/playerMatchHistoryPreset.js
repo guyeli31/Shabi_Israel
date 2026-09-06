@@ -5,6 +5,7 @@
 
 import { getFlagCode, formatNumber } from '../utils/helpers.js';
 import { displayPlayerName } from '../utils/nameDisplay.js';
+import { formatMatchStamp } from '../utils/matchTime.js';
 
 function pct(n, total) { return ((n / total) * 100).toFixed(1) + '% wins'; }
 
@@ -99,7 +100,7 @@ export function buildPlayerMatchHistoryPreset({ playerMatches, leagueConfig, par
         const prWin       = (!isTechnical && typeof m.prSelf === 'number' && typeof m.prOpp === 'number' && m.prSelf < m.prOpp) ? 1 : 0;
         return {
             opponent:    m.opponent,
-            date:        m.updatedAt ? new Date(m.updatedAt).toLocaleDateString('en-GB') : '—',
+            date:        formatMatchStamp(m.updatedAt),
             _timestamp:  m.updatedAt ? new Date(m.updatedAt).getTime() : 0,
             score:       isTechnical ? '—' : `${m.scoreSelf}-${m.scoreOpp}`,
             pr:          isTechnical ? null : m.prSelf,

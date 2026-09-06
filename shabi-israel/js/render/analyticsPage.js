@@ -30,6 +30,7 @@
  */
 
 import { supabase } from '../data/supabaseClient.js';
+import { computeSummary, audienceKeep } from '../data/analyticsAggregate.js';
 import { loadAllLeagues } from '../data/store.js';
 import { isLoggedIn, login, getUsername } from '../admin/auth.js';
 import { escapeHtml } from '../utils/sanitize.js';
@@ -108,6 +109,11 @@ let _leagueMetaLoaded = false;
  * a round trip per click.
  */
 let _monthsCache = null;
+// Raw events for the CURRENTLY loaded month, fetched once (analytics_events_raw)
+// and reused: the audience checklist filters client-side (computeSummary), so
+// toggling a group re-renders from this cache with no round trip. Keyed by
+// month+scope so a MONTH change refetches but a filter change does not.
+let _rawCache = { key: null, events: null };
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 const typeLabel = (t) => LEAGUE_TYPE_LABELS[t] || (t ? t.charAt(0).toUpperCase() + t.slice(1) : '');
 const leagueDisplay = (leagueId) => {
@@ -249,6 +255,39 @@ function clickTargetHtml(target) {
     // A/B varies, so split on the " — " separator instead. A format that doesn't
     // match falls through to the plain displayTarget below, so this only enriches.
     if (target.startsWith('H2H: vs ')) return `H2H: vs ${playerHtml(target.slice('H2H: vs '.length))}`;
+    // 'What if: add all — 7 matches vs GuyEliyahu' — the player is the tail after
+    // the last ' vs ', so they get the same chip as everywhere else.
+    if (target.startsWith('What if: add all ')) {
+        const i = target.lastIndexOf(' vs ');
+        if (i !== -1) return `${escapeHtml(target.slice(0, i + 4))}${playerHtml(target.slice(i + 4))}`;
+    }
+    // Title Race legend edits name a player at a fixed tail, so they get the same
+    // flag + title chip as the H2H opponent and the What-If picks - otherwise the
+    // one place that says WHICH player entered or left the chart reads as bare
+    // text next to rows that read richly.
+    for (const prefix of ['Title race: add ', 'Title race: remove ']) {
+        if (target.startsWith(prefix)) return `${escapeHtml(prefix)}${playerHtml(target.slice(prefix.length))}`;
+    }
+    // A POINT ON A LEAGUE'S TIMELINE, named by the match that made it - the same
+    // string in three places, because they are three ways of picking the same
+    // thing: the What-If baseline, the Historical snapshot, and a click on the
+    // Title Race chart.
+    //
+    //   'What if baseline: 7 Jul 2026, 16:15 — ys beats Yaniv162'
+    //   'History view: 7 Jul 2026, 16:15 — ys draws Izhako'
+    //   'Title race: point — Nissimb beats fridlich'
+    //
+    // The date stays plain and the two players get their flag + title chip, so a
+    // rewind row reads like every other row that names a player. Labels with no
+    // matchup in them - 'Initial, 1 Jul 2026 — no matches played' - find no
+    // joiner and fall through unchanged, which is the correct outcome: there is
+    // no player there to enrich.
+    for (const prefix of ['What if baseline: ', 'History view: ', 'Title race: point — ',
+                          'Title race: step back — ', 'Title race: step forward — ']) {
+        if (target.startsWith(prefix)) {
+            return `${escapeHtml(prefix)}${timelinePointHtml(target.slice(prefix.length))}`;
+        }
+    }
     if (target.startsWith('Compare: change player: ')) return `Compare: change player: ${playerHtml(target.slice('Compare: change player: '.length))}`;
     if (target.startsWith('What if: player ')) {
         const sep = target.indexOf(' — ');
@@ -270,6 +309,31 @@ function clickTargetHtml(target) {
         }
     }
     return escapeHtml(displayTarget(target));
+}
+
+/**
+ * "<date> — A beats B" → the date plain, both players as identity chips.
+ *
+ * Splits on the LAST ' — ', because the date half never contains one while a
+ * 'Current · ' prefix may sit in front of it. Player nicknames are single tokens
+ * (see the What-If winner/not-played renderer above, which relies on the same
+ * fact), so the first ' beats ' / ' draws ' in the tail is the real joiner.
+ *
+ * Anything that does not match this shape is returned escaped and unchanged, so
+ * this only ever enriches.
+ */
+function timelinePointHtml(text) {
+    const sep = text.lastIndexOf(' — ');
+    const head = sep === -1 ? '' : text.slice(0, sep + 3);
+    const tail = sep === -1 ? text : text.slice(sep + 3);
+    for (const joiner of [' beats ', ' draws ']) {
+        const i = tail.indexOf(joiner);
+        if (i !== -1) {
+            return `${escapeHtml(head)}${playerHtml(tail.slice(0, i))}`
+                 + `${escapeHtml(joiner)}${playerHtml(tail.slice(i + joiner.length))}`;
+        }
+    }
+    return escapeHtml(text);
 }
 
 // The range is a calendar MONTH, not a rolling window. Rolling windows straddle
@@ -876,7 +940,7 @@ function renderClickLog(host, rows, { grouped = false, withSession = false, with
  *  BROWSER's timezone while the Date column renders Asia/Jerusalem, so filter
  *  boundaries only line up with displayed times for an admin sitting in Israel.
  *  `section` must contain the three selectors passed in. */
-function mountFilteredLog(section, { hostSel, fromSel, toSel, rows, columns, emptyWindowText, search, render }) {
+function mountFilteredLog(section, { hostSel, fromSel, toSel, rows, columns, emptyWindowText, search, render, browseCap }) {
     // How each filtered row set is drawn: the transitions log keeps the table
     // (renderLogTable + columns); the clicks logs pass `render` to stack Page over
     // its click(s) instead. Same filtered rows either way, so search/window are
@@ -916,30 +980,45 @@ function mountFilteredLog(section, { hostSel, fromSel, toSel, rows, columns, emp
     let query = '';
     let windowCounts = new Map();
 
+    // The match test: click target (raw + prettified) plus any `matchFields` (page
+    // context, icon glyph) — so a search finds a page / league / player / emoji, not
+    // only the clicks whose target text spells it out. The browser holds every event
+    // for the range, so this runs over the whole corpus — no server round trip and
+    // no waterline hiding older events.
+    const rowMatch = (r, q) => {
+        const raw = String(r[search.field] || '').toLowerCase();
+        const disp = search.labelFor ? String(search.labelFor(r[search.field]) || '').toLowerCase() : raw;
+        if (raw.includes(q) || disp.includes(q)) return true;
+        if (search.matchFields) {
+            for (const f of search.matchFields) if (String(r[f] || '').toLowerCase().includes(q)) return true;
+        }
+        return false;
+    };
+
     // Created once and handed to every renderLogTable call below, so re-drawing
     // on a filter change preserves whatever column the admin sorted by.
     const sort = { key: 'date', dir: 'desc' }; // newest first by default
     const draw = () => {
         const fromTime = fromInput.value ? new Date(fromInput.value).getTime() : -Infinity;
         const toTime = toInput.value ? new Date(toInput.value).getTime() : Infinity;
-        const inWindow = rows.filter((r) => r.date.getTime() >= fromTime && r.date.getTime() <= toTime);
+        const windowed = rows.filter((r) => r.date.getTime() >= fromTime && r.date.getTime() <= toTime);
+        // browse-all counts over the WHOLE windowed corpus (a search reaches all of it).
         if (search) {
             windowCounts = new Map();
-            for (const r of inWindow) {
-                const v = r[search.field];
-                if (v) windowCounts.set(v, (windowCounts.get(v) || 0) + 1);
-            }
+            for (const r of windowed) { const v = r[search.field]; if (v) windowCounts.set(v, (windowCounts.get(v) || 0) + 1); }
         }
         const q = query.trim().toLowerCase();
-        const shown = q
-            ? inWindow.filter((r) => {
-                const raw = String(r[search.field] || '').toLowerCase();
-                const disp = search.labelFor ? String(search.labelFor(r[search.field]) || '').toLowerCase() : raw;
-                return raw.includes(q) || disp.includes(q);
-            })
-            : inWindow;
-        renderRows(host, shown,
-            { emptyText: q ? 'No clicks match this search.' : emptyWindowText, sort });
+        let shown;
+        if (q) {
+            shown = search ? windowed.filter((r) => rowMatch(r, q)) : windowed;
+        } else if (browseCap && windowed.length > browseCap) {
+            // Browse only the most-recent `browseCap` (a search still sees them all),
+            // so a busy month doesn't render thousands of DOM rows up front.
+            shown = [...windowed].sort((a, b) => b.date - a.date).slice(0, browseCap);
+        } else {
+            shown = windowed;
+        }
+        renderRows(host, shown, { emptyText: q ? 'No interactions match this search.' : emptyWindowText, sort });
     };
 
     fromInput.addEventListener('change', draw);
@@ -958,14 +1037,18 @@ function mountFilteredLog(section, { hostSel, fromSel, toSel, rows, columns, emp
                 getOptions: () => [...windowCounts.entries()]
                     .sort((a, b) => b[1] - a[1])
                     .map(([value]) => ({ value, label: search.labelFor ? search.labelFor(value) : value })),
-                // Each option carries its own icon + a count badge — this IS the
-                // "always show the count per click" the browse-all list provides.
+                // Each option carries its own icon + a count badge (the "always show
+                // the count per click" the browse-all list provides). `nameHtml` (when
+                // the search supplies richLabelFor) makes the option render EXACTLY like
+                // the log row's target: player flags + title badges and league type
+                // pills. labelFor stays the plain-text form (what the field shows + what
+                // the filter matches), so display and searchable text cannot drift.
                 decorate: (value) => ({
                     iconHtml: search.iconFor ? (search.iconFor(value) || '') : '',
+                    nameHtml: search.richLabelFor ? (search.richLabelFor(value) || '') : '',
                     badge: { text: String(windowCounts.get(value) || 0), kind: 'count' },
                 }),
-                // Fires on every keystroke (live substring filter) and on a pick
-                // (the full click_target), and with '' when cleared — one hook.
+                // Instant client filter on every keystroke (and on a pick / clear).
                 onChange: (value) => { query = value || ''; draw(); },
                 allowFreeText: true,
             });
@@ -1031,6 +1114,10 @@ const CLICK_TYPE_ICONS = [
     { prefix: 'What if topx: ', icon: '🧪🔝' },      // P(finish in top X) metric
     { prefix: 'What if: player ', icon: '🧪👤' },    // A / B picker
     { prefix: 'What if: add match', icon: '🧪🆚' },  // pair staged
+    // One click that stages a whole player's remaining fixtures. ⚡ for the bulk:
+    // distinct from the single 🆚 so the log can tell "staged one match" from
+    // "staged a season" at a glance - they are very different intents.
+    { prefix: 'What if: add all', icon: '🧪⚡' },
     { prefix: 'What if: winner ', icon: '🧪🏅' },    // forced a winner
     { prefix: 'What if: not played ', icon: '🧪↩️' }, // rolled a result back
     { prefix: 'What if: remove match', icon: '🧪🗑️' },
@@ -1042,6 +1129,25 @@ const CLICK_TYPE_ICONS = [
     // Bare fallback — also what pre-existing 'What if: <n> staged' rows
     // (logged before 'What if: run — ' replaced that format) still resolve to.
     { prefix: 'What if: ', icon: '🧪' },
+    // Title Race (the odds-over-time chart under What If). Its own family emoji
+    // rather than the 🧪 it sits beside: What If asks "what would happen IF",
+    // this one asks "what actually happened" - a race being run, not an
+    // experiment. ORDER, as everywhere here, is startsWith: 'point cleared' must
+    // stay above 'point — ' (both begin 'Title race: point'), and the bare
+    // prefix must stay last or it swallows every one of them.
+    { prefix: 'Title race: point cleared', icon: '🏎️✖️' },
+    { prefix: 'Title race: point — ', icon: '🏎️📍' },
+    // The ‹ › stepper. Direction is the whole point of the control, so it is in
+    // the icon: ⬅️ walked back through the season, ➡️ walked forward. Distinct
+    // from 📍 (a tap straight onto a point) so the log can answer whether the
+    // stepper is used at all - the question the control was built to settle.
+    { prefix: 'Title race: step back', icon: '🏎️⬅️' },
+    { prefix: 'Title race: step forward', icon: '🏎️➡️' },
+    { prefix: 'Title race: add ', icon: '🏎️➕' },
+    { prefix: 'Title race: remove ', icon: '🏎️➖' },
+    { prefix: 'Title race: top ', icon: '🏎️🔝' },
+    { prefix: 'Title race: section ', icon: '🏎️🔽' },
+    { prefix: 'Title race: ', icon: '🏎️' },
     { prefix: 'Export: ', icon: '🖼️' },
     { prefix: 'Expand: ', icon: '↕️' },   // "Show all (N)" table-expanders
     { prefix: 'Language: ', icon: '🌐' }, // EN/HE toggle in "?" popups
@@ -1265,7 +1371,7 @@ const movedMarkHtml = (row) =>
  *
  *  `sessions` is passed in only to colour that column consistently — see
  *  sessionAdminUser below. */
-function renderClicksLog(section, clicksLog, sessions) {
+function renderClicksLog(section, clicksAll, sessions) {
     // A row's OWN admin_user is per-event, so an admin who logs in mid-visit
     // leaves earlier rows null and later ones tagged — which would paint one
     // session id in two different colours in this table, while the card for that
@@ -1279,27 +1385,37 @@ function renderClicksLog(section, clicksLog, sessions) {
     const sessionAdminUser = (c) =>
         (bySession.has(c.session_id) ? bySession.get(c.session_id) : c.admin_user) || null;
 
+    // Maps a raw click row to the log's row shape. Applied to the WHOLE audience
+    // click set — the log browses the recent `browseCap` of them but searches all.
+    const clickRow = (c) => ({
+        date: new Date(c.created_at),
+        page: contextLabel(c.page, c.league_id, c.player, c.tab), // plain text = sort key
+        // Page-identity (head/grouping) + nav destination — nav-aware, so a
+        // Back/Forward heads on the page it was performed ON, not its target.
+        ...clogNavFields(c),
+        moved_banner: c.moved_banner, // 📦 page-mark (TEMPORARY, with movedNotice.js)
+        target: c.click_target || '',
+        // The glyph actually shown on the row: a nav row wears its ↩/↪/⟳, every
+        // other row its type icon. Held on the row so the search can match it (a
+        // query of "📊" finds the Full-table rows).
+        icon: c.nav_type ? (NAV_GLYPH[c.nav_type] || '') : clickIcon(c.click_target || ''),
+        device: c.device_type || 'unknown',
+        // '' rather than null so sorting pools every external row together
+        // instead of comparing null against a string.
+        session: c.session_id || '',
+        region: c.region || '',
+        adminUser: sessionAdminUser(c),
+    });
+
     mountFilteredLog(section, {
         hostSel: '#table-clicks-log',
         fromSel: '#clicks-log-from',
         toSel: '#clicks-log-to',
-        emptyWindowText: 'No clicks in this time window.',
-        rows: (clicksLog || []).map((c) => ({
-            date: new Date(c.created_at),
-            page: contextLabel(c.page, c.league_id, c.player, c.tab), // plain text = sort key
-            // Page-identity (head/grouping) + nav destination — nav-aware, so a
-            // Back/Forward heads on the page it was performed ON, not its target.
-            ...clogNavFields(c),
-            moved_banner: c.moved_banner, // 📦 page-mark (TEMPORARY, with movedNotice.js)
-            target: c.click_target || '',
-            icon: clickIcon(c.click_target || ''),
-            device: c.device_type || 'unknown',
-            // '' rather than null so sorting pools every external row together
-            // instead of comparing null against a string.
-            session: c.session_id || '',
-            region: c.region || '',
-            adminUser: sessionAdminUser(c),
-        })),
+        emptyWindowText: 'No interactions in this time window.',
+        rows: (clicksAll || []).map(clickRow),
+        // The browser holds every click for the range; browse the recent 500 but let
+        // a search reach all of them (no 500-row waterline, no server round trip).
+        browseCap: 500,
         // Stacked: each cross-visitor event as PAGE (with its session chip + device
         // pill, since both vary here) over its one click. Not grouped — consecutive
         // same-page rows are different visitors.
@@ -1311,8 +1427,23 @@ function renderClicksLog(section, clicksLog, sessions) {
         search: {
             inputSel: '#clicks-log-search',
             field: 'target',
+            // Free-text also matches the PAGE context (page › tab, league/player) via
+            // the row's plain-text `page` label, AND the row's own icon glyph — so a
+            // search for a page, tab, league, player, or an emoji ("📊", "⟳") finds
+            // every interaction that shows it, not just the clicks whose target text
+            // names it.
+            matchFields: ['page', 'icon'],
             labelFor: displayTarget,
             iconFor: clickIcon,
+            // The dropdown's own option filter matches the emoji too (its label is
+            // text, so without this a "📊" query would empty the browse-all list even
+            // while the table below fills with matches).
+            altFor: clickIcon,
+            // Rich dropdown label — the SAME markup the log row shows (player flag +
+            // title badges, league type pill), via clickTargetHtml. So a "Player link"
+            // or a "What if: winner — A beats B" option in the browse-all list looks
+            // exactly like its row, not a bare string.
+            richLabelFor: clickTargetHtml,
         },
     });
 }
@@ -1476,7 +1607,7 @@ function renderDwellBuckets(host, dwellBuckets) {
  *  operator's own. Reads traffic_mix, which the RPC computes BEFORE the admin
  *  filter, so the "excluded" count survives its own filter being on. This is the
  *  panel that tells you how much to trust every other number on the page. */
-function renderTrafficMix(section, mix, excludeAny) {
+function renderTrafficMix(section, mix, audience) {
     const host = section.querySelector('#chart-mix');
     const note = section.querySelector('#mix-note');
     if (!mix || !mix.total) {
@@ -1489,15 +1620,17 @@ function renderTrafficMix(section, mix, excludeAny) {
         { route: 'Global (anonymous)', n: mix.global },
     ], { labelKey: 'route', valueKey: 'n' });
 
-    // mix.internal counts EVERY operator's events (all admin_user rows), so this
-    // note tracks the "Exclude any user" switch, not the per-viewer "Exclude mine".
+    // mix.internal counts EVERY operator's events (all admin_user rows) over the
+    // whole range, regardless of the checklist. Operators are fully hidden only when
+    // BOTH "Me" and "Other operators" are unchecked.
     const n = mix.internal;
-    note.textContent = excludeAny
+    const operatorsHidden = !audience.self && !audience.other;
+    note.textContent = operatorsHidden
         ? (n
-            ? `${n} operator event${n === 1 ? '' : 's'} excluded from every number on this page.`
+            ? `${n} operator event${n === 1 ? '' : 's'} hidden — every number here is real audience.`
             : 'No operator browsing recorded in this range — these numbers are all real audience.')
         : (n
-            ? `Includes ${n} operator event${n === 1 ? '' : 's'}. Turn on "Exclude any user" for audience-only numbers.`
+            ? `Includes ${n} operator event${n === 1 ? '' : 's'}. Uncheck "Me" and "Other operators" for audience-only numbers.`
             : 'No operator browsing recorded in this range.');
 }
 
@@ -1737,104 +1870,83 @@ const VIEW_STORE_KEY = 'shabi-analytics-view';
 function loadView() {
     try { return JSON.parse(localStorage.getItem(VIEW_STORE_KEY)) || {}; } catch { return {}; }
 }
-function saveView(monthKeyValue, excludeMine, excludeAny) {
-    try { localStorage.setItem(VIEW_STORE_KEY, JSON.stringify({ month: monthKeyValue, excludeMine, excludeAny })); } catch { /* private mode / quota — persistence is best-effort */ }
+function saveView(monthKeyValue, audience) {
+    try { localStorage.setItem(VIEW_STORE_KEY, JSON.stringify({ month: monthKeyValue, audience })); } catch { /* private mode / quota — persistence is best-effort */ }
 }
 
-// Two independent exclusion switches, persisted across a refresh (loadView):
-//   excludeMine — leave out only THIS viewer's own operator rows. Default ON:
-//                 nobody wants their own testing/browsing counted as audience.
-//   excludeAny  — leave out EVERY registered operator's rows. Default OFF, so
-//                 other operators' journeys are visible by default (the whole
-//                 reason for two toggles instead of the old all-or-nothing one).
-// A control-driven re-render passes an explicit {excludeMine, excludeAny}; a fresh
-// load reads the stored pair. The retired single `excludeAdmin` key is ignored, so
-// everyone lands on the new default rather than inheriting "hide all operators".
+// The audience checklist — three DISJOINT, independently toggleable groups that
+// together cover every row: `self` (this viewer's own operator events), `other`
+// (every OTHER registered operator), `visitor` (anonymous audience, no admin_user).
+// Filtering is entirely client-side (the raw events are fetched once and every
+// number recomputed by computeSummary), so toggling one group only re-derives what
+// the browser already holds — no round trip. Default hides the viewer's own
+// traffic but keeps other operators and visitors — the same view the retired
+// "Exclude mine ON / Exclude any OFF" pair produced. A control-driven re-render
+// passes an explicit {audience}; a fresh load reads the stored one; the retired
+// {excludeMine, excludeAny} shape is ignored, so everyone lands on this default.
+const AUDIENCE_DEFAULT = { self: false, other: true, visitor: true };
+function readAudience(viewArg) {
+    const src = (viewArg && viewArg.audience) || loadView().audience || AUDIENCE_DEFAULT;
+    return { self: !!src.self, other: !!src.other, visitor: !!src.visitor };
+}
 export async function renderAnalyticsPage(monthKeyArg = null, viewArg = null) {
-    const _stored = loadView();
-    const excludeMine = viewArg ? !!viewArg.excludeMine : (_stored.excludeMine ?? true);
-    const excludeAny  = viewArg ? !!viewArg.excludeAny  : (_stored.excludeAny ?? false);
+    const audience = readAudience(viewArg);
     const content = document.getElementById('content');
-    // The page ships an empty header (see analytics.html); a static <h1> read
-    // through the transparent splash while the splash was narrating its own
-    // progress. Written here so it appears with the rest of the content.
+    // The page ships an empty header (see analytics.html); write the title here so
+    // it appears with the content rather than through the transparent splash.
     const title = document.getElementById('page-title');
     if (title) title.textContent = 'Analytics';
 
-    // Bring the loading screen back for a refetch (the month picker and the
-    // exclude-my-own-traffic toggle both land here). Every number on this page
-    // is aggregated in SQL, so neither control can be answered from what the
-    // browser already holds — they are full data reloads, and they get the same
-    // loading screen a navigation gets. A no-op on the first load, where the
-    // splash is already up. Placed above the first splashStage() call so the
-    // stage narration starts from the top rather than mid-list.
-    restartSplash();
-
-    // The RPCs are authenticated-only (see header). A Supabase session lives in
-    // localStorage PER ORIGIN, so being logged in on the live domain does NOT
-    // carry to a 127.0.0.2 / localhost preview — that different origin has no
-    // session and every call comes back "permission denied". Rather than dump
-    // the raw SQL error, gate the page with an inline login; on success we
-    // re-render in place (same origin, so the new session persists for next time).
-    splashStage('access');
-    if (!isLoggedIn()) {
-        // The gate needs a keyboard and a click; a full-screen splash over it
-        // would look like the page is still working when it is actually waiting
-        // for the operator. Take it away before anything asks for input.
-        endSplash();
-        renderLoginGate(content, monthKeyArg, { excludeMine, excludeAny });
-        return;
-    }
-
-    // The previous render is deliberately NOT cleared here. The splash is
-    // translucent, so leaving it underneath keeps the operator anchored in the
-    // page they were reading; content.innerHTML = '' below swaps it once the
-    // data has actually arrived. This line used to install a "Loading
-    // analytics…" placeholder instead, which both blanked the page early and
-    // showed straight through the splash as a second progress message.
-    // ── The two RPCs run TOGETHER, because neither needs the other ──────────
-    // This used to be strictly sequential: await the month list, then await the
-    // summary. It reads as a dependency and is not one — the month the page
-    // opens on is either the caller's explicit choice (monthKeyArg, from the
-    // picker or the admin toggle) or the current calendar month computed from
-    // the clock right here. The month LIST only ever fills the picker's
-    // <option>s. So the second request was waiting on a first it never
-    // consumed, and the page paid one extra full round trip on every load and
-    // on every control change.
-    //
-    // The month list is also stable for the life of the page, so it is fetched
-    // once and reused: a re-render caused by the picker or the exclude-admin
-    // toggle re-runs only the summary.
+    // Which month is shown, and the viewer's own operator name (email local part,
+    // matching how send() stores admin_user) — needed to tell "self" from "other".
+    // The page always OPENS on the current calendar month (Israel time); the month
+    // is deliberately NOT restored across loads (only the audience checklist is).
     const currentMonthKey = new Date()
         .toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }).slice(0, 7); // "YYYY-MM"
     const activeKey = monthKeyArg || currentMonthKey;
-    // Persist the exclude-admin choice (loadView feeds its default); the month is
-    // deliberately NOT restored across loads — see below.
-    saveView(activeKey, excludeMine, excludeAny);
     const { from, to } = israelMonthRange(activeKey);
-    // The viewer's own operator name (email local part, matching how send() stores
-    // admin_user), for the "Exclude mine" filter. The page is auth-gated, so this
-    // is set whenever the toggle can be.
     const viewerUser = (getUsername() || '').split('@')[0] || null;
+    saveView(activeKey, audience);
 
-    splashStage('months');
+    // A filter-only re-render reuses the raw events already in hand: no network and
+    // no loading screen — the whole point of client-side filtering. Only a MONTH
+    // change (or the first load) fetches, and only that shows the splash.
+    const rawKey = `${activeKey}|new`;
+    const quiet = _rawCache.key === rawKey && !!_monthsCache && isLoggedIn();
+    if (!quiet) restartSplash();
+
+    // The RPCs are authenticated-only (see header). A Supabase session lives in
+    // localStorage PER ORIGIN, so being logged in on the live domain does NOT carry
+    // to a 127.0.0.x / localhost preview — that origin has no session and every call
+    // returns "permission denied". Rather than dump the raw SQL error, gate with an
+    // inline login; on success we re-render in place.
+    if (!quiet) splashStage('access');
+    if (!isLoggedIn()) {
+        endSplash(); // don't cover a form that is waiting for the operator
+        renderLoginGate(content, monthKeyArg, { audience });
+        return;
+    }
+
+    // Month list (stable, fetched once) and the RAW events for this month run
+    // together — neither needs the other. The raw rows are UNfiltered by audience on
+    // purpose: the browser filters them (computeSummary) so the audience checklist
+    // needs no round trip. Fetched once per month and reused for every filter change.
+    // Legacy rows are excluded (scope='new') — they live in the History tab.
+    if (!quiet) splashStage('months');
     const monthsPromise = _monthsCache
         ? Promise.resolve(_monthsCache)
         : supabase.rpc('analytics_months').then((r) => { if (!r.error) _monthsCache = r; return r; });
+    const rawPromise = (_rawCache.key === rawKey)
+        ? Promise.resolve({ data: _rawCache.events, error: null })
+        : supabase.rpc('analytics_events_raw', {
+            from_date: from.toISOString(),
+            to_date: to.toISOString(),
+            scope: 'new',
+            result_limit: 20000,
+        }).then((r) => { if (!r.error) _rawCache = { key: rawKey, events: r.data || [] }; return r; });
 
-    // Live tabs are new-format only. Legacy rows predate the route model and
-    // would otherwise drown every panel (they are ~98% of the table today);
-    // they live in the History tab instead.
-    const summaryPromise = supabase.rpc('analytics_summary', {
-        from_date: from.toISOString(),
-        to_date: to.toISOString(),
-        exclude_admin: excludeAny,                          // "Exclude any user"
-        exclude_user: excludeMine ? viewerUser : null,      // "Exclude mine"
-        scope: 'new',
-    });
-
-    const [{ data: months, error: monthsError }, { data, error }] =
-        await Promise.all([monthsPromise, summaryPromise]);
+    const [{ data: months, error: monthsError }, { data: rawEvents, error }] =
+        await Promise.all([monthsPromise, rawPromise]);
 
     if (monthsError) {
         endSplash();
@@ -1842,7 +1954,7 @@ export async function renderAnalyticsPage(monthKeyArg = null, viewArg = null) {
         // "not really authenticated", so fall back to the same gate. A "function
         // does not exist" error is different — the DB is missing the migration —
         // and must surface verbatim so it can be acted on, not hidden behind login.
-        if (isAuthError(monthsError)) { renderLoginGate(content, monthKeyArg, { excludeMine, excludeAny }); return; }
+        if (isAuthError(monthsError)) { renderLoginGate(content, monthKeyArg, { audience }); return; }
         content.innerHTML = `<div class="admin-msg admin-msg-error">${escapeHtml(monthsError.message)}</div>`;
         return;
     }
@@ -1855,12 +1967,17 @@ export async function renderAnalyticsPage(monthKeyArg = null, viewArg = null) {
     // select shows it and its panels say "No data yet".
     const monthRows = months || [];
 
-    splashStage('summary');
+    if (!quiet) splashStage('summary');
     if (error) {
         endSplash();
         content.innerHTML = `<div class="admin-msg admin-msg-error">${escapeHtml(error.message)}</div>`;
         return;
     }
+
+    // Every chart/KPI, computed in the browser from the raw rows for the chosen
+    // audience — the operation the checklist re-runs with no round trip. Matches
+    // the server's analytics_summary key-for-key (scripts/check-analytics-aggregate.mjs).
+    const data = computeSummary(rawEvents || [], { ...audience, viewer: viewerUser });
 
     // League id → {title, type} for the log context labels, plus the player
     // title/flag caches the rich entity render reads. All loaded once (none
@@ -1884,7 +2001,7 @@ export async function renderAnalyticsPage(monthKeyArg = null, viewArg = null) {
         _leagueMetaLoaded = true;
     }
 
-    splashStage('render');
+    if (!quiet) splashStage('render');
     const fetchedAt = new Date();
     content.innerHTML = '';
 
@@ -1909,35 +2026,27 @@ export async function renderAnalyticsPage(monthKeyArg = null, viewArg = null) {
     select.innerHTML = [...monthOpts, ALL_TIME]
         .map((k) => `<option value="${k}"${k === activeKey ? ' selected' : ''}>${escapeHtml(monthLabel(k))}</option>`)
         .join('');
-    const curView = { excludeMine, excludeAny };
+    const curView = { audience };
     select.addEventListener('change', () => renderAnalyticsPage(select.value, curView));
     rangeBar.appendChild(select);
 
-    // Two independent exclusion toggles, same neutral pill as every other filter
-    // in the app (mountFilterToggle, js/render/subTabs.js). Both persist (saveView).
-    //   "Exclude mine"     → exclude_user: only THIS viewer's operator rows.
-    //   "Exclude any user" → exclude_admin: EVERY registered operator's rows.
-    // "any user" is the superset, so while it is on "mine" adds nothing — it is
-    // disabled to say so. Defaults: mine ON (hide your own noise), any OFF (other
-    // operators' journeys stay visible — the reason this was split in two).
-    const mineToggle = mountFilterToggle(rangeBar, {
-        id: 'analytics-exclude-mine',
-        label: 'Exclude mine',
-        title: 'Leave out only YOUR own events — the account viewing this page',
-        pressed: excludeMine,
-        onToggle: (on) => renderAnalyticsPage(activeKey, { excludeMine: on, excludeAny }),
+    // The audience checklist — three DISJOINT groups, each a neutral pill (pressed =
+    // INCLUDED), the same control as every other filter in the app (mountFilterToggle).
+    // Toggling one re-renders from the cached raw events with NO round trip (see
+    // `quiet`). "Visitors" is the real audience; "Me" and "Other operators" are the
+    // two halves of operator traffic, split so the viewer can drop their own noise
+    // without losing other operators' journeys. Persist via saveView(audience).
+    const showLabel = document.createElement('span');
+    showLabel.className = 'analytics-audience-label';
+    showLabel.textContent = 'Show:';
+    rangeBar.appendChild(showLabel);
+    const audiencePill = (id, label, key, title) => mountFilterToggle(rangeBar, {
+        id, label, title, pressed: audience[key],
+        onToggle: (on) => renderAnalyticsPage(activeKey, { audience: { ...audience, [key]: on } }),
     });
-    mountFilterToggle(rangeBar, {
-        id: 'analytics-exclude-any',
-        label: 'Exclude any user',
-        title: "Leave out EVERY registered operator's events — audience only",
-        pressed: excludeAny,
-        onToggle: (on) => renderAnalyticsPage(activeKey, { excludeMine, excludeAny: on }),
-    });
-    if (excludeAny) {
-        mineToggle.button.disabled = true;
-        mineToggle.button.title = 'Already covered by "Exclude any user"';
-    }
+    audiencePill('analytics-aud-visitor', 'Visitors', 'visitor', 'Anonymous audience — real visitors with no operator account');
+    audiencePill('analytics-aud-other', 'Other operators', 'other', "Every OTHER registered operator's events");
+    audiencePill('analytics-aud-self', 'Me', 'self', 'Your own events — the account viewing this page');
     content.appendChild(rangeBar);
 
     // ── Tabs (same chrome as the League Dashboard — mountAppTabs) ──
@@ -1965,7 +2074,7 @@ export async function renderAnalyticsPage(monthKeyArg = null, viewArg = null) {
     const mixSection = makeSection('Traffic composition');
     mixSection.innerHTML += `<div id="chart-mix"></div><p class="analytics-mix-note" id="mix-note"></p>`;
     shell.panels.overview.appendChild(mixSection);
-    renderTrafficMix(mixSection, data.traffic_mix, excludeAny);
+    renderTrafficMix(mixSection, data.traffic_mix, audience);
 
     // "Traffic over time" — a Pageviews ↔ Sessions toggle over the same daily
     // buckets. Both come from data.timeseries (views + sessions per day); the
@@ -2082,8 +2191,8 @@ export async function renderAnalyticsPage(monthKeyArg = null, viewArg = null) {
     clicksLogSection.innerHTML += `
         <div class="analytics-clicks-search">
             <input type="text" id="clicks-log-search" class="analytics-clicks-search-input app-search-input"
-                   placeholder="Search a click… (browse all to see counts)" autocomplete="off"
-                   aria-label="Search clicks by target">
+                   placeholder="Search an interaction, page or icon… (browse all to see counts)" autocomplete="off"
+                   aria-label="Search interactions by text, page, or icon">
         </div>
         <div class="analytics-time-filter">
             <label>From <input type="datetime-local" id="clicks-log-from"></label>
@@ -2091,7 +2200,13 @@ export async function renderAnalyticsPage(monthKeyArg = null, viewArg = null) {
         </div>
         <div id="table-clicks-log"></div>`;
     shell.panels.activity.appendChild(clicksLogSection);
-    renderClicksLog(clicksLogSection, data.clicks_log, data.sessions);
+    // The browser already holds every event for the range, so the clicks log gets
+    // the FULL audience-filtered click set: it browses the recent 500 (browseCap in
+    // renderClicksLog) but SEARCHES all of them — no server round trip, no 500-row
+    // waterline hiding older events. Same audience predicate computeSummary used.
+    const audClicks = rawEvents.filter(audienceKeep({ ...audience, viewer: viewerUser }))
+        .filter((e) => e.event_type === 'click');
+    renderClicksLog(clicksLogSection, audClicks, data.sessions);
 
     const transitionsLogSection = makeSection('All page-to-page transitions');
     transitionsLogSection.innerHTML += `

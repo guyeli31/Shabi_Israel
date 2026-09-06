@@ -8,6 +8,7 @@
 import { loadLeagueOrder, loadLeaguesBulk, registerMemoInvalidator } from '../data/store.js';
 import { rankLeague, getLevel } from './rankings.js';
 import { getLeagueConfig, matchesLeagueType, prWeightFor } from './leagueTypes.js';
+import { buildLast300Map } from './last300.js';
 import { getMedalPlaces } from './prizeRows.js';
 
 // Memoized load of every league (per-league stats/rankings computed ON TOP of
@@ -630,91 +631,43 @@ export function flattenAllMatches(perLeagueData) {
 }
 
 /**
- * Batch-compute Last 300 PR for multiple players in a single pass.
- * Returns Map<playerName, last300PR>.
- * Efficient: loads all visible leagues once (memoized), iterates each league once.
+ * Last 300 PR for ONE league type — the player card's number.
+ *
+ * Per type on purpose: "your PR in doubling" and "your PR in UBC" are two
+ * answers, each with its own all-time ranking beside it, and pooling them would
+ * make each ranking a comparison between people who played different games.
+ *
+ * Returns Map<playerName, {mean, std, weight, matches}>.
  */
 export async function batchLast300PR(playerNames, leagueType) {
     const leagues = await loadVisibleLeagues();
     const typeLeagues = leagues.filter(l => (l.leagueType || 'doubling') === leagueType);
-    const weight = (leagueType === 'regular') ? 5 : 7;
-    return computeLast300Map(playerNames, typeLeagues, weight);
+    return buildLast300Map(playerNames, typeLeagues, leagueLength);
 }
 
 /**
- * Simulator-only Last 300 PR: pools every NON-regular league (doubling + ubc)
- * into a single most-recent-300 window. The championship predictor uses this so
- * that a player's strength reflects all their PR-tracked play, not just the
- * dashboard league's own type. REGULAR leagues log no PR, so they too lean on
- * this combined value. Weight is fixed at 7 (all non-regular types).
- * Returns Map<playerName, {mean, std}>.
+ * Last 300 PR for the SIMULATOR — every cube-playing league pooled into one
+ * window (doubling + UBC).
+ *
+ * Pooled here, unlike the card, because the question is different: the predictor
+ * needs "how strong is this person", and every rated match they have played is
+ * evidence for that regardless of which type it came from. A REGULAR league logs
+ * no PR of its own, so its players lean on this same pooled value.
+ *
+ * Returns Map<playerName, {mean, std, weight, matches}>.
  */
 export async function batchLast300PRForSimulator(playerNames) {
     const leagues = await loadVisibleLeagues();
     const typeLeagues = leagues.filter(l => (l.leagueType || 'doubling') !== 'regular');
-    return computeLast300Map(playerNames, typeLeagues, 7);
+    return buildLast300Map(playerNames, typeLeagues, leagueLength);
 }
 
-/**
- * Shared core: build Last 300 PR {mean, std} per player from a set of leagues.
- * Most-recent matches (by updatedAt DESC) are accumulated at `weight` each until
- * total weight ≥ 300. std is the population std of the PR values in that window.
- */
-function computeLast300Map(playerNames, typeLeagues, weight) {
-    // Build per-player match arrays in one pass over all leagues
-    const playerMatchesMap = new Map();
-    for (const name of playerNames) {
-        playerMatchesMap.set(name, []);
-    }
-
-    for (let li = 0; li < typeLeagues.length; li++) {
-        const league = typeLeagues[li];
-        for (const m of league.matches) {
-            const processPlayer = (name, prSelf) => {
-                const arr = playerMatchesMap.get(name);
-                if (!arr) return;
-                if (m._technical || prSelf == null) return;
-                arr.push({ prSelf, updatedAt: m.updatedAt || null, leagueOrderIdx: li });
-            };
-            processPlayer(m.playerA, m.prA);
-            processPlayer(m.playerB, m.prB);
-        }
-    }
-
-    // Compute Last 300 PR for each player
-    const result = new Map();
-    for (const name of playerNames) {
-        const all = playerMatchesMap.get(name);
-        if (!all || all.length === 0) continue;
-
-        // Sort by updatedAt DESC; missing falls back to league order (newest first)
-        all.sort((a, b) => {
-            const at = a.updatedAt ? new Date(a.updatedAt).getTime() : null;
-            const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : null;
-            if (at != null && bt != null) return bt - at;
-            if (at != null) return -1;
-            if (bt != null) return 1;
-            return a.leagueOrderIdx - b.leagueOrderIdx;
-        });
-
-        let wsum = 0, vsum = 0;
-        const prVals = [];
-        for (const m of all) {
-            vsum += m.prSelf * weight;
-            wsum += weight;
-            prVals.push(m.prSelf);
-            if (wsum >= 300) break;
-        }
-        if (wsum > 0) {
-            const mean = vsum / wsum;
-            let std = 2.0; // default when insufficient data
-            if (prVals.length >= 3) {
-                const avg = prVals.reduce((s, v) => s + v, 0) / prVals.length;
-                const variance = prVals.reduce((s, v) => s + (v - avg) ** 2, 0) / prVals.length;
-                std = Math.sqrt(variance) || 2.0;
-            }
-            result.set(name, { mean, std });
-        }
-    }
-    return result;
+/** Each match's weight is its own league's length — see compute/last300.js. */
+function leagueLength(league) {
+    return league?.params?.MatchLength ?? 7;
 }
+
+/* The window itself lives in compute/last300.js — the single definition every
+   caller reads. It used to be written out here, and copied again in
+   allTimeRankings.js and in the Node projection job; see that file's header for
+   what the copies cost. */

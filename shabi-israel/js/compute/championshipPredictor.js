@@ -538,8 +538,10 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
     const currentWins = new Int32Array(n);
     const currentGames = new Int32Array(n);
     const currentPoints = new Int32Array(n);
+    // The player's Mean PR in THIS league. Not a strength estimate — that is
+    // Last-300's job — but the Mean PR tiebreak's starting sum, and the value
+    // the season-complete path ranks on.
     const leagueMeanPR = new Float64Array(n);
-    const leaguePRStd = new Float64Array(n);
 
     for (let i = 0; i < n; i++) {
         const stats = statsMap.get(players[i]);
@@ -548,7 +550,6 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
             currentGames[i] = stats.games || 0;
             currentPoints[i] = stats.points || 0;
             leagueMeanPR[i] = stats.meanPR || 0;
-            leaguePRStd[i] = stats.prStd || 0;
         }
     }
 
@@ -566,6 +567,17 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
     // Effective PR for win-probability lookup: Last-300 PR represents the
     // player's true strength, so it drives per-match probabilities regardless
     // of current-league form.
+    //
+    // EXACTLY TWO CASES, deliberately. Either the player has rated play, in
+    // which case the window IS the answer — one match means that one match's PR,
+    // never blended with a prior, growing into a moving average once it reaches
+    // 300 units — or they have none at all, and 10.0 stands in.
+    //
+    // A third branch used to sit between them, falling back to the player's PR
+    // in THIS league. It could almost never fire (a rated league is in the
+    // window's own pool, so PR here means an entry there) and it contradicted
+    // the rule: a player's first match would have been averaged against their
+    // league form instead of simply being their PR.
     const effectivePR = new Float64Array(n);
     const effectiveSTD = new Float64Array(n);
     for (let i = 0; i < n; i++) {
@@ -573,9 +585,6 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
         if (entry) {
             effectivePR[i] = entry.mean;
             effectiveSTD[i] = entry.std || DEFAULT_PR_STD;
-        } else if (leagueMeanPR[i] > 0) {
-            effectivePR[i] = leagueMeanPR[i];
-            effectiveSTD[i] = leaguePRStd[i] || DEFAULT_PR_STD;
         } else {
             effectivePR[i] = 10.0;
             effectiveSTD[i] = DEFAULT_PR_STD;

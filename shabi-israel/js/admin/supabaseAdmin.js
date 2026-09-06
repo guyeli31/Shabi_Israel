@@ -334,7 +334,7 @@ export const syncPlayersMetadata = invalidating(async function syncPlayersMetada
 });
 
 /** Update landing_settings (title/subtitle/logo stay pass-through fallback fields; DisplayOrder is the only field any UI actually edits today). */
-export const updateLandingSettings = invalidating(async function updateLandingSettings({ title, subtitle, logoPath, DisplayOrder, CompletedCustomOrder }) {
+export const updateLandingSettings = invalidating(async function updateLandingSettings({ title, subtitle, logoPath, DisplayOrder, CompletedCustomOrder, ActiveCustomOrder }) {
     const { error } = await supabase.from('landing_settings').upsert({
         id: 1,
         title: title || 'Shabi Israel',
@@ -345,6 +345,7 @@ export const updateLandingSettings = invalidating(async function updateLandingSe
         // of the WHOLE row, so the flag has to be written on every save or a
         // plain reorder would reset it. See sql/landing_completed_custom_order.sql.
         completed_custom_order: CompletedCustomOrder === true,
+        active_custom_order: ActiveCustomOrder === true,
     });
     if (error) throw new Error(`updateLandingSettings failed: ${error.message}`);
 });

@@ -66,6 +66,7 @@ import { mountSearchField, playerIdentityHtml } from '../utils/combobox.js';
 import { createAllTimeLuckSource } from '../utils/playerLuckBadge.js';
 import { scrollToClearingTopbar } from '../utils/scrollOffset.js';
 import { buildPlayerFlagIndex } from '../utils/playerFlags.js';
+import { formatMatchStamp } from '../utils/matchTime.js';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
@@ -1102,11 +1103,6 @@ function escapeHtml(s) {
 
 // ---- Match Records (per-player best PR + luck highlights) ----
 
-const MR_MONTH_SHORT = [
-    'Jan','Feb','Mar','Apr','May','Jun',
-    'Jul','Aug','Sep','Oct','Nov','Dec'
-];
-
 function renderPlayerMatchRecords(container, perLeague) {
     // Only PR-tracking league types — every record here is a PR or a luck gap.
     // Read off config.showPR (leagueTypes.js), not a hardcoded doubling/ubc
@@ -1890,12 +1886,11 @@ function countPlayerRatedMatches(perLeague, typeId, rated, lengthFilter = null) 
     return { rated, total };
 }
 
+/**
+ * A match's moment, for the C5 record tables. Same correction as the landing
+ * page's twin of this function — see matchTime.js; the getUTC* reading it
+ * replaces was a day out for any row carrying a real timestamp.
+ */
 function formatShortDate(iso) {
-    if (!iso) return '';
-    const d = new Date(iso);
-    if (isNaN(d)) return '';
-    const day = String(d.getUTCDate()).padStart(2, '0');
-    const mon = MR_MONTH_SHORT[d.getUTCMonth()];
-    const yr  = d.getUTCFullYear();
-    return `${day} ${mon} ${yr}`;
+    return formatMatchStamp(iso, '');
 }

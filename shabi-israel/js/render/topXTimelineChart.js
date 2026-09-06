@@ -43,11 +43,14 @@ export function colorForIndex(i) {
  * @param {object} opts
  * @param {() => object} opts.model  reads { points, series, topX, pending }
  *        points  [{ dateLabel, dayLabel, match, label }]
- *        series  [{ player, color, flagCode, titleHtml, values: (number|null)[] }]
+ *        series  [{ player, color, identityHtml, values: (number|null)[],
+ *                   record: {w,l,d} of Int16Arrays indexed like values, or null }]
  *        topX    the current Show-X, for the panel's wording
  *        pending how many points are still being computed (drawn as a note)
+ * @param {(index:number) => void} [opts.onPick]  a point was pinned (index) or
+ *        released (-1). Click only — hover is deliberately not reported.
  */
-export function mountTopXTimelineChart(host, { model }) {
+export function mountTopXTimelineChart(host, { model, onPick = null }) {
     host.innerHTML = '';
     host.style.position = 'relative';
 
@@ -267,6 +270,28 @@ export function mountTopXTimelineChart(host, { model }) {
         return v >= 10 ? `${v.toFixed(0)}%` : `${v.toFixed(1)}%`;
     }
 
+    /**
+     * The player's record as of this point — what had already happened, beside
+     * the odds for what had not. Drawn in --color-win / --color-loss, which here
+     * genuinely DO mean win and loss (unlike the series colour, which means only
+     * "this line"), so the two numbers separate without a legend.
+     *
+     * The span is emitted even when there is no record: it carries the row's
+     * `margin-left:auto`, so omitting it would collapse the percentage column
+     * for that one row.
+     */
+    function recordHtml(s, active) {
+        const r = s.record;
+        if (!r) return '<span class="tr-odds-rec">—</span>';
+        const w = r.w[active], l = r.l[active], d = r.d[active];
+        // Draws are rare (technical results only), so the D is shown only where
+        // there is one rather than printing "0D" down the whole panel.
+        return `<span class="tr-odds-rec">`
+            + `<b class="tr-rec-w">${w}W</b> <b class="tr-rec-l">${l}L</b>`
+            + (d ? ` <b class="tr-rec-d">${d}D</b>` : '')
+            + `</span>`;
+    }
+
     function renderPanel() {
         const { points, series, topX } = model();
         const active = pinnedIndex >= 0 ? pinnedIndex : hoverIndex;
@@ -293,6 +318,7 @@ export function mountTopXTimelineChart(host, { model }) {
             <div class="cip-row tr-odds-row">
                 <span class="tr-swatch" style="background:${s.color}"></span>
                 <span class="cip-k tr-odds-name">${s.identityHtml}</span>
+                ${recordHtml(s, active)}
                 <span class="cip-v tr-odds-val">${fmtPct(s.values[active])}</span>
             </div>`).join('');
         infoPanel.innerHTML = `
@@ -328,14 +354,43 @@ export function mountTopXTimelineChart(host, { model }) {
         const i = indexAt(e.clientX);
         pinnedIndex = (i === pinnedIndex) ? -1 : i;
         draw();
+        // Reported, unlike hover: a click is a choice about WHICH moment of the
+        // season to look at, and hover fires on every mousemove - hundreds of
+        // events for one drag across the chart.
+        if (onPick) onPick(pinnedIndex);
     });
 
     const onResize = () => draw();
     window.addEventListener('resize', onResize);
     if (typeof ResizeObserver === 'function') new ResizeObserver(() => draw()).observe(host);
 
+    /**
+     * Pin a point from OUTSIDE the canvas - what the ‹ › stepper drives.
+     *
+     * Goes through the same `pinnedIndex` the click handler sets, so a stepped
+     * point and a tapped one are the same state: the rule, the dots and the panel
+     * all follow, and one can be released by tapping the other.
+     *
+     * -1 clears. Out-of-range is clamped rather than rejected, so a caller can
+     * say "one more" without first checking the end.
+     */
+    function setPinned(i) {
+        const count = lastGeom ? lastGeom.count : 0;
+        pinnedIndex = i < 0 ? -1 : Math.min(Math.max(0, i), Math.max(0, count - 1));
+        draw();
+        return pinnedIndex;
+    }
+
+    /** The pinned index, or -1. The stepper reads it to know where "next" is. */
+    function getPinned() {
+        return pinnedIndex;
+    }
+
     draw();
-    return { draw, destroy: () => window.removeEventListener('resize', onResize) };
+    return {
+        draw, setPinned, getPinned,
+        destroy: () => window.removeEventListener('resize', onResize),
+    };
 }
 
 /** The identity chip used both in the legend and in the detail panel. */

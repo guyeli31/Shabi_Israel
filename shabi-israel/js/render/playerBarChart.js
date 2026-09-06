@@ -24,6 +24,7 @@
  * Passing the same range to several charts keeps them on one shared Y scale.
  */
 import { displayPlayerName } from '../utils/nameDisplay.js';
+import { formatMatchStamp } from '../utils/matchTime.js';
 
 export function computeNiceRange(metric, values) {
     if (metric === 'luck') {
@@ -650,9 +651,7 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer,
         // start date for pre-database leagues); single-league callers pass rows
         // that only carry updatedAt.
         const dateISO = m.matchDate ?? m.updatedAt ?? null;
-        const dateStr = dateISO
-            ? new Date(dateISO).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-            : '—';
+        const dateStr = formatMatchStamp(dateISO);
         const prStr   = m.prSelf   != null ? m.prSelf.toFixed(2)   : '—';
         const luckStr = m.luckSelf != null ? m.luckSelf.toFixed(2) : '—';
         return `

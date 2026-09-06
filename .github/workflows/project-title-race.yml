@@ -54,9 +54,16 @@ concurrency:
 jobs:
   project:
     runs-on: ubuntu-latest
-    # A full backfill of every league is the worst case: ~80 s per league of
-    # ~90 points, so a dozen leagues sits comfortably inside this.
-    timeout-minutes: 60
+    # Sized for the FULL BACKFILL, which is the worst case by a wide margin: a
+    # 300-match league is ~176 s measured, the cost grows with the square of the
+    # league's size, and seventeen leagues came to ~39 minutes locally - call it
+    # ~58 on a runner. Against a 60-minute limit that is not headroom, it is a
+    # coin toss, and a backfill that dies at minute 59 has to start over.
+    #
+    # Minutes are unlimited on a public repository, so a generous ceiling costs
+    # nothing; it only stops a long run being killed mid-league. Normal runs are
+    # unaffected - they reuse every unchanged point and finish in seconds.
+    timeout-minutes: 120
     defaults:
       run:
         working-directory: scripts

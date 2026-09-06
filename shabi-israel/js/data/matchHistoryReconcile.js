@@ -199,10 +199,19 @@ export function computeMatchHistoryReconcile({ matchRows, overrideRows, historyR
         return !prev || !sameNumericFields(prev, m) || prev.round !== m.round
             || prev.source !== m.source || prev.updatedAt !== m.updatedAt;
     });
+    // `has_exact_time: true` is stated, never left to the column default.
+    // The default only applies to an INSERT; an upsert that omits the column
+    // leaves an existing value alone — so a pre-Supabase league re-synced today
+    // would take a real, current `updated_at` while keeping the `false` that
+    // says "this is a day, render it without a timezone". The result renders as
+    // the wrong day, everywhere, silently. Every row this function writes
+    // carries a real moment, so every row it writes says so.
+    // See sql/match_time_precision.sql and js/utils/matchTime.js.
     const upsertRows = changed.map((m) => ({
         league_id: leagueId, player_a: m.playerA, player_b: m.playerB,
         score_a: m.scoreA, score_b: m.scoreB, pr_a: m.prA, pr_b: m.prB, luck_a: m.luckA, luck_b: m.luckB,
         round: m.round, source: m.source, updated_at: m.updatedAt,
+        has_exact_time: true,
     }));
 
     return { skipped: false, staleIds, upsertRows };

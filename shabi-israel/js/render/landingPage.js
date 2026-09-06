@@ -51,6 +51,7 @@ import { startSplash, splashStage, endSplash } from '../utils/splash.js';
 import { renderErrorScreen, explainError, inlineErrorHtml } from '../utils/errorScreen.js';
 import { spliceQueryParam, hasUrlFlag } from '../utils/queryString.js';
 import { getMedalPlaces } from '../compute/prizeRows.js';
+import { formatMatchStamp, formatMatchDay } from '../utils/matchTime.js';
 
 /* ── Helpers ─────────────────────────────────────────── */
 
@@ -582,6 +583,10 @@ function enterEditMode(settings) {
         // on (the drag would otherwise be saved and then discarded by the date
         // sort on the next load); the edit bar's "Sort by date" turns it off.
         completedCustomOrder: settings.completedCustomOrder === true,
+        // Same idea for H1's cards: a drag that breaks the type grouping turns
+        // it on, one that restores the grouping turns it off, and the edit bar's
+        // "Group active by type" clears it outright.
+        activeCustomOrder: settings.activeCustomOrder === true,
         dirty: false
     };
 
@@ -667,45 +672,61 @@ function refreshDirty() {
 }
 
 /**
- * `order` with every COMPLETED league put back where the published settings had
- * it, and the active-league entries left exactly as they are.
+ * `order`, with the entries a section OWNS put back where the published settings
+ * had them, and every other entry left at exactly the index it holds now.
  *
- * DisplayOrder is one flat list of both kinds (active cards first, then the
- * completed table — see syncDisplayOrderFromDOM), and "Sort completed by date"
- * must undo only its own half: an admin who dragged active cards in the same
- * session did not ask for that work to be thrown away too. Which entries are
- * completed is read from the rendered A1 rows, the same source the sync uses.
+ * DisplayOrder is one flat list of both kinds — active cards first, then the
+ * completed table (see syncDisplayOrderFromDOM) — and each reset button must
+ * undo only its own half: an admin who rearranged the OTHER section in the same
+ * session did not ask for that work to be thrown away too.
  *
  * Anything the published order does not mention (a league staged for creation,
  * say) keeps its current position — this must never shorten the list, for the
  * reason syncDisplayOrderFromDOM spells out.
+ *
+ * @param {string[]} order   the pending DisplayOrder
+ * @param {(entry: string) => boolean} owns  is this entry the section's to restore?
  */
-function withPublishedCompletedOrder(order) {
-    const completedIds = new Set(
-        [...document.querySelectorAll('.completed-leagues-table tbody tr')]
-            .map(r => r.dataset.leagueId)
-            .filter(Boolean)
-    );
-    const isCompleted = (entry) => completedIds.has(entry.replace(' - ', ' '));
-
+function withPublishedPositions(order, owns) {
     // The published positions, restricted to entries this list actually holds.
     const present = new Set(order);
-    const publishedCompleted = (_landingSettings?.displayOrder ?? [])
-        .filter(e => present.has(e) && isCompleted(e));
+    const published = (_landingSettings?.displayOrder ?? []).filter(e => present.has(e) && owns(e));
 
-    // Walk the current list and refill each completed slot in published order,
-    // so the active entries keep their exact indices.
-    const queue = [...publishedCompleted];
-    const leftovers = order.filter(e => isCompleted(e) && !publishedCompleted.includes(e));
-    return order.map(e => (isCompleted(e) ? (queue.shift() ?? leftovers.shift() ?? e) : e));
+    // Walk the current list and refill each owned slot in published order, so
+    // every entry the section does not own keeps its exact index.
+    const queue = [...published];
+    const leftovers = order.filter(e => owns(e) && !published.includes(e));
+    return order.map(e => (owns(e) ? (queue.shift() ?? leftovers.shift() ?? e) : e));
+}
+
+/** DisplayOrder entries use display TITLES (" - "); a league is keyed by its
+ *  folder id (" "). Same mapping syncDisplayOrderFromDOM does in reverse. */
+const entryId = (entry) => entry.replace(' - ', ' ');
+
+/** Membership read off what is actually RENDERED — the same source the sync
+ *  uses — rather than re-deriving "is this league running" from params. */
+function renderedIds(selector) {
+    return new Set([...document.querySelectorAll(selector)].map(el => el.dataset.leagueId).filter(Boolean));
+}
+
+function withPublishedCompletedOrder(order) {
+    const ids = renderedIds('.completed-leagues-table tbody tr');
+    return withPublishedPositions(order, e => ids.has(entryId(e)));
+}
+
+function withPublishedActiveOrder(order) {
+    const ids = renderedIds('.active-leagues-grid .league-card');
+    return withPublishedPositions(order, e => ids.has(entryId(e)));
 }
 
 function landingEditIsDirty(edit, published) {
     const orderChanged = JSON.stringify(edit.displayOrder) !== JSON.stringify(published.displayOrder);
-    // The order mode changes no title's position, so the order comparison alone
-    // cannot see it.
-    const modeChanged = edit.completedCustomOrder !== (published.completedCustomOrder === true);
-    return orderChanged || modeChanged;
+    // Neither order mode moves a title in DisplayOrder, so the order comparison
+    // alone cannot see them — each needs its own check.
+    const modesChanged =
+        edit.completedCustomOrder !== (published.completedCustomOrder === true) ||
+        edit.activeCustomOrder    !== (published.activeCustomOrder    === true);
+    return orderChanged || modesChanged;
 }
 
 /* ── Drag-and-drop league reorder ─────────────────────── */
@@ -868,8 +889,15 @@ function onCardDrop(e) {
         grid.insertBefore(_dragSrcCard, this);
     }
 
+    // The cards no longer being type-grouped is exactly what "the admin arranged
+    // these by hand" means, so the flag is read off the result rather than being
+    // set by the act of dragging: a drag inside one type group needs no flag
+    // (the grouping sort is stable and already preserves it), and dragging a
+    // card back to where the grouping would put it clears the flag again.
+    if (_editState) _editState.activeCustomOrder = !activeCardsAreTypeGrouped();
     syncDisplayOrderFromDOM();
     refreshDirty();
+    updateOrderModeBtn();
 }
 
 function onCardDragEnd() {
@@ -936,6 +964,7 @@ function showEditBar() {
     bar.className = 'edit-bar';
     bar.innerHTML = `
         <span class="edit-bar-label">Edit Mode</span>
+        <button type="button" class="edit-bar-ghost edit-bar-active-mode" hidden>Group active by type</button>
         <button type="button" class="edit-bar-ghost edit-bar-order-mode" hidden>Sort completed by date</button>
         <button class="edit-bar-cancel">Cancel</button>
         <button class="edit-bar-save" disabled>Save Changes</button>`;
@@ -971,15 +1000,39 @@ function showEditBar() {
             addDragHandles();
         }
     });
+    // H1's equivalent: put the active cards back under the type grouping.
+    // Same shape as the button above, one section over.
+    bar.querySelector('.edit-bar-active-mode').addEventListener('click', () => {
+        if (!_editState || !_editState.activeCustomOrder) return;
+        _editState.activeCustomOrder = false;
+        _editState.displayOrder = withPublishedActiveOrder(_editState.displayOrder);
+        refreshDirty();
+        updateOrderModeBtn();
+        // Reorder the cards in place to the grouping the flag has just restored.
+        // No syncDisplayOrderFromDOM(): that would read the regrouped DOM back
+        // out and undo the restore, the same trap as the A1 button above.
+        reorderActiveCards(activeCardIdsGroupedByType());
+    });
     document.body.appendChild(bar);
     updateOrderModeBtn();
 }
 
-/** Show the reset button only while A1 is in hand-made order — in date order it
- *  would be a button that does nothing. */
+/** The rendered active cards' ids, in canonical type order. Stable, so cards of
+ *  the same type keep their current relative positions. */
+function activeCardIdsGroupedByType() {
+    return [...document.querySelectorAll('.active-leagues-grid .league-card')]
+        .map((c, i) => ({ id: c.dataset.leagueId, r: leagueTypeRank(c.dataset.leagueType), i }))
+        .sort((a, b) => (a.r !== b.r ? a.r - b.r : a.i - b.i))
+        .map(x => x.id);
+}
+
+/** Show each reset button only while its own section is in hand-made order — in
+ *  the default order it would be a button that does nothing. */
 function updateOrderModeBtn() {
-    const btn = document.querySelector('.edit-bar-order-mode');
-    if (btn) btn.hidden = !(_editState && _editState.completedCustomOrder);
+    const completed = document.querySelector('.edit-bar-order-mode');
+    if (completed) completed.hidden = !(_editState && _editState.completedCustomOrder);
+    const active = document.querySelector('.edit-bar-active-mode');
+    if (active) active.hidden = !(_editState && _editState.activeCustomOrder);
 }
 
 async function saveEditChanges() {
@@ -1001,6 +1054,7 @@ async function saveEditChanges() {
     const newSettings = landingSettingsPayload(orig, {
         DisplayOrder:         _editState.displayOrder,
         CompletedCustomOrder: _editState.completedCustomOrder === true,
+        ActiveCustomOrder:    _editState.activeCustomOrder === true,
     });
 
     const groupDescription = 'Dashboard updated (order)';
@@ -1022,6 +1076,7 @@ async function saveEditChanges() {
         logoPath: newSettings.logoPath,
         displayOrder: newSettings.DisplayOrder,
         completedCustomOrder: newSettings.CompletedCustomOrder,
+        activeCustomOrder: newSettings.ActiveCustomOrder,
     };
 
     // Refresh admin sidebar badge
@@ -1032,6 +1087,7 @@ async function saveEditChanges() {
     // than switching it off by hand (the two could otherwise disagree).
     _editState.displayOrder = [..._landingSettings.displayOrder];
     _editState.completedCustomOrder = _landingSettings.completedCustomOrder;
+    _editState.activeCustomOrder = _landingSettings.activeCustomOrder;
     refreshDirty();
 
     // Brief "Saved ✓" confirmation in the edit bar
@@ -1049,10 +1105,10 @@ function renderInfoCards(container, activePlayers, totalPlayers, totalLeagues, l
     const section = document.createElement('div');
     section.className = 'index-info-cards';
 
-    const lastUpdatedStr = lastUpdated
-        ? lastUpdated.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-          + ' ' + lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-        : 'N/A';
+    // A real instant — the viewer's own timezone. Through the shared formatter
+    // so the H4 card cannot separate date from time differently than every
+    // other reading on the site does.
+    const lastUpdatedStr = formatMatchStamp(lastUpdated, 'N/A');
 
     section.innerHTML = `
         <div class="dash-card">
@@ -1077,11 +1133,26 @@ function renderInfoCards(container, activePlayers, totalPlayers, totalLeagues, l
 
 /* ── H1 — Active leagues ─────────────────────────────── */
 
+/** Is H1 showing the admin's hand-arranged card order rather than the type
+ *  grouping? Edit mode's pending value wins while editing. Mirrors
+ *  completedIsCustomOrder() — the two flags are siblings. */
+function activeIsCustomOrder() {
+    if (_editState) return _editState.activeCustomOrder === true;
+    return _landingSettings?.activeCustomOrder === true;
+}
+
 /** Card order within Active Leagues: Doubling → UBC → Regular — the app-wide
- *  canonical type order, now read from leagueTypeRank() rather than restated
- *  here, so H1 and A1 cannot drift apart.
- *  Stable, so DisplayOrder still decides the order inside each type group. */
+ *  canonical type order, read from leagueTypeRank() rather than restated here,
+ *  so H1 and A1 cannot drift apart.
+ *  Stable, so DisplayOrder still decides the order inside each type group.
+ *
+ *  Unless the admin has arranged the cards by hand (activeCustomOrder), in
+ *  which case `running` is already in DisplayOrder and is returned untouched.
+ *  Without that escape a drag ACROSS type groups was saved and then discarded
+ *  by this very sort on the next render — see sql/landing_active_custom_order.sql.
+ *  A drag WITHIN a group always survived, because the sort is stable. */
 function sortActiveLeagues(running) {
+    if (activeIsCustomOrder()) return running;
     return running
         .map((l, i) => ({ l, i }))
         .sort((a, b) => {
@@ -1090,6 +1161,35 @@ function sortActiveLeagues(running) {
             return ta !== tb ? ta - tb : a.i - b.i;
         })
         .map(x => x.l);
+}
+
+/**
+ * Are the rendered cards still in type-grouped order — i.e. could the grouping
+ * itself have produced this arrangement?
+ *
+ * This is what decides activeCustomOrder after a drag, so the flag means
+ * precisely what its name says: it goes on when a drag BREAKS the grouping, and
+ * off again if a later drag restores it. Derived per drop rather than latched,
+ * for the same reason refreshDirty() is derived — a mode you can enter but not
+ * leave is a trap, and here the way out is simply dragging the card back.
+ */
+function activeCardsAreTypeGrouped() {
+    const ranks = [...document.querySelectorAll('.active-leagues-grid .league-card')]
+        .map(c => leagueTypeRank(c.dataset.leagueType));
+    return ranks.every((r, i) => i === 0 || ranks[i - 1] <= r);
+}
+
+/** Reorder the rendered cards in place to `ids`. Moves the existing nodes
+ *  (appendChild relocates), so drag handles, listeners and the context menus
+ *  attached to each card survive — a re-render would have to rebuild them. */
+function reorderActiveCards(ids) {
+    const grid = document.querySelector('.active-leagues-grid');
+    if (!grid) return;
+    const byId = new Map([...grid.querySelectorAll('.league-card')].map(c => [c.dataset.leagueId, c]));
+    for (const id of ids) {
+        const card = byId.get(id);
+        if (card) grid.appendChild(card);
+    }
 }
 
 function renderActiveLeagues(container, runningInput) {
@@ -1111,7 +1211,7 @@ function renderActiveLeagues(container, runningInput) {
         }
 
         cardsHtml += `
-            <div class="league-card" data-league-id="${escapeHtml(l.id)}">
+            <div class="league-card" data-league-id="${escapeHtml(l.id)}" data-league-type="${escapeHtml(l.leagueType)}">
                 <div class="league-card-title">
                     <a href="${leagueUrl(l.id)}">${escapeHtml(l.title)}</a>
                 </div>
@@ -2066,14 +2166,31 @@ function matchRecordRow(rank, r, metricCell, extraCells = '') {
         </tr>`;
 }
 
+/**
+ * A LEAGUE's opening day, for the A6 League Records tables. A row there is a
+ * player's appearance in a whole league, so the date names the league, not a
+ * moment — and a league opens on a DAY. No clock: a "00:00" on every row would
+ * be four columns of noise standing for a time that does not exist.
+ *
+ * Deliberately separate from formatShortDate below, which dates a single MATCH
+ * and does carry a clock. The two tables sit next to each other, so the
+ * difference between them has to be a decision, not an accident.
+ */
+function formatLeagueDay(iso) {
+    return formatMatchDay(iso, '');
+}
+
+/**
+ * A match's moment, for the A5 record tables.
+ *
+ * This used to read the value with getUTC* getters, which is right for a bare
+ * date and a day out for a real timestamp — a match recorded at 00:30 Israel
+ * showed here as the previous day while every other table on the site showed
+ * the right one. matchTime.js draws that distinction from the value instead of
+ * applying one rule to both.
+ */
 function formatShortDate(iso) {
-    if (!iso) return '';
-    const d = new Date(iso);
-    if (isNaN(d)) return '';
-    const day = String(d.getUTCDate()).padStart(2, '0');
-    const mon = MONTH_SHORT[d.getUTCMonth()];
-    const yr  = d.getUTCFullYear();
-    return `${day} ${mon} ${yr}`;
+    return formatMatchStamp(iso, '');
 }
 
 /* ── League Records (A6): top 100 appearances by Mean PR ───── */
@@ -2406,7 +2523,7 @@ function leaguePRRecordRow(rowRank, r) {
             <td>${escapeHtml(r.level)}</td>
             ${leagueRankCell(r)}
             <td><a class="league-link" href="${leagueTableUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
-            <td>${formatShortDate(r.date)}</td>
+            <td>${formatLeagueDay(r.date)}</td>
         </tr>`;
 }
 
@@ -2420,7 +2537,7 @@ function leagueWinRateRecordRow(rowRank, r) {
             <td style="color:${color};font-weight:600;">${formatPercent(r.winRate)}</td>
             ${leagueRankCell(r)}
             <td><a class="league-link" href="${leagueTableUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
-            <td>${formatShortDate(r.date)}</td>
+            <td>${formatLeagueDay(r.date)}</td>
         </tr>`;
 }
 
@@ -2435,6 +2552,6 @@ function leagueLuckRecordRow(rowRank, r) {
             <td style="color:${color};font-weight:600;">${r.percentile}</td>
             ${leagueRankCell(r)}
             <td><a class="league-link" href="${leagueTableUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
-            <td>${formatShortDate(r.date)}</td>
+            <td>${formatLeagueDay(r.date)}</td>
         </tr>`;
 }

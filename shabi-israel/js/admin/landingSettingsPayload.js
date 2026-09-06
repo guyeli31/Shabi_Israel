@@ -31,6 +31,7 @@ export function landingSettingsPayload(settings, overrides = {}) {
         logoPath:             s.logoPath,
         DisplayOrder:         s.DisplayOrder ?? s.displayOrder ?? [],
         CompletedCustomOrder: (s.CompletedCustomOrder ?? s.completedCustomOrder) === true,
+        ActiveCustomOrder:    (s.ActiveCustomOrder    ?? s.activeCustomOrder)    === true,
         ...overrides,
     };
 }

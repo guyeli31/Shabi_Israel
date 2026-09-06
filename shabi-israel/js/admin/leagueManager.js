@@ -30,6 +30,7 @@ import { landingSettingsPayload } from './landingSettingsPayload.js';
 import { loadPlayersMetadata } from '../data/supabasePlayersMetadata.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
 import { restartSplash, endSplash } from '../utils/splash.js';
+import { formatMatchDay } from '../utils/matchTime.js';
 
 /**
  * Per-league CustomFlags plus the recency order of the leagues themselves —
@@ -2695,12 +2696,17 @@ function esc(str) {
     return div.innerHTML;
 }
 
+/**
+ * The F1 Leagues list's Date column — a league's opening day. No clock: a
+ * league opens on a day, not at an hour.
+ *
+ * The `+ 'T00:00:00'` pin it replaces forced LOCAL midnight, which reads the
+ * right day in Israel and the previous one for an admin west of Greenwich. A
+ * day is rendered without a timezone at all (js/utils/matchTime.js).
+ */
 function formatAdminDate(dateStr) {
     if (!dateStr) return '—';
-    try {
-        const d = new Date(dateStr + 'T00:00:00');
-        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    } catch { return dateStr; }
+    return formatMatchDay(String(dateStr).slice(0, 10), dateStr);
 }
 
 function showMsg(elementId, message, type) {

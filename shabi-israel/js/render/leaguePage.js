@@ -73,10 +73,17 @@ export async function renderLeaguePage() {
         let effectiveLastModified = lastModified;
         if (isHistorical) {
             viewMatches = getMatchesAsOf(timeline, asof);
-            // Date-only issue dates are UTC midnight; pin them to LOCAL midnight
-            // so the header doesn't read "03:00" for a day that has no time.
+            // The Initial point is the league's OPENING DAY — a day, not a
+            // moment. It travels as the bare date string, which is exactly how
+            // matchTime.js recognises "render this without a timezone".
+            //
+            // It used to be pinned to LOCAL midnight (`…T00:00:00`) so the
+            // header would not read "03:00" for a day that has no time. That
+            // fixed the clock and broke the date: local midnight in Israel is
+            // the previous evening in UTC, so a viewer west of Greenwich saw
+            // the league open a day early.
             effectiveLastModified = isInitial
-                ? (params.IssueDate ? `${String(params.IssueDate).slice(0, 10)}T00:00:00` : null)
+                ? (params.IssueDate ? String(params.IssueDate).slice(0, 10) : null)
                 : asof;
         }
 

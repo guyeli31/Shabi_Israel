@@ -9,7 +9,7 @@
 
 import { loadLeagueParams, loadLeagueOrder, loadOverrides, loadAllLeagueParams, loadLeagueMatchesAll, loadMatchHistory, applyOverrides, loadLeagueProjections } from '../data/store.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
-import { getMatchesAsOf, getUpdatePoints, buildMatchTimeline, mergeHistoryIntoMatches, matchKey, resultSides, formatAxisDay, INITIAL_POINT } from '../compute/matchHistory.js';
+import { getMatchesAsOf, getUpdatePoints, buildMatchTimeline, mergeHistoryIntoMatches, matchKey, resultSides, describeResult, formatAxisDay, INITIAL_POINT } from '../compute/matchHistory.js';
 import { computeAllStats } from '../compute/stats.js';
 import { rankLeague, computeAverages, computeMatchStats } from '../compute/rankings.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
@@ -44,8 +44,9 @@ import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
 import { mountSearchField, mountCombobox, playerIdentityHtml } from '../utils/combobox.js';
 import { primeTitleMeta, titleHtmlFor } from '../utils/playerTitleBadge.js';
 import { mountTopXTimelineChart, colorForIndex } from './topXTimelineChart.js';
-import { projectAt, TIMELINE_ITERATIONS, scheduleFingerprint, pointFingerprints } from '../compute/topXTimeline.js';
+import { projectAt, TIMELINE_ITERATIONS, scheduleFingerprint, pointFingerprints, withInitialPoint } from '../compute/topXTimeline.js';
 import { createLeagueLuckSource } from '../utils/playerLuckBadge.js';
+import { formatMatchStamp, formatMatchDay } from '../utils/matchTime.js';
 
 export async function renderDashboardPage() {
     const container = document.getElementById('content');
@@ -399,6 +400,16 @@ function predictorPanel() {
                 </div>
                 <div id="titlerace-legend" class="titlerace-legend"></div>
                 <div id="titlerace-chart" class="chart-host"></div>
+                <!-- Step the pinned point one MATCH at a time. The chart answers a
+                     tap anywhere on its width, which on a phone means ~2px per
+                     point on a 300-match league: picking a specific match by
+                     finger is not realistic, and neither is nudging one over.
+                     Same stepper chrome as the Rounds and Run-from controls. -->
+                <div class="dash-controls titlerace-step">
+                    <button id="titlerace-prev" type="button" title="Previous match">&lsaquo;</button>
+                    <span class="round-label" id="titlerace-pos">&nbsp;</span>
+                    <button id="titlerace-next" type="button" title="Next match">&rsaquo;</button>
+                </div>
             </div>
         </section>
     `;
@@ -429,12 +440,37 @@ async function renderTitleRace(ctx) {
     const playerInput = document.getElementById('titlerace-player');
     if (!section || !chartHost) return;
 
+    // Every Title Race control logs through this one helper, exactly as What If
+    // does. Targets share the `Title race: ` family so analyticsPage.js can give
+    // the whole section its 🏎️-paired icons; the specific prefixes MUST stay
+    // listed above the generic entry there.
+    const trackRace = (target) => {
+        window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target } }));
+    };
+
+    // OPEN by default, like the Predictor it sits under.
+    //
+    // It shipped collapsed for one reason: opening it meant ~90 Monte Carlo
+    // projections in the visitor's browser, and hiding that behind a click kept
+    // the cost off everyone who did not ask for it. That reason is gone - the
+    // projections are precomputed and the section now costs one query and no
+    // CPU at all - so the click it used to charge for is just a click.
+    //
+    // The toggle is still logged, in both directions: with the section open,
+    // COLLAPSING it is now the interesting signal (people shutting it away),
+    // where before the signal was anyone opening it.
+    wireSectionCollapse(section, {
+        defaultOpen: true,
+        onToggle: (open) => trackRace(`Title race: section ${open ? 'expanded' : 'collapsed'}`),
+    });
+
     // Oldest → newest: a timeline is read left to right.
-    const points = [...getUpdatePoints(ctx.timeline)].reverse();
-    // One point is one match, so a league with none has nothing to plot — and
-    // neither has a finished league any less: the race is over, but how it was
-    // won is exactly what this section is for.
-    if (points.length < 2) { section.remove(); return; }
+    const points = withInitialPoint([...getUpdatePoints(ctx.timeline, ctx.params.RetiredPlayers)].reverse());
+    // points[0] is always INITIAL, so a league with no played match has length 1
+    // and nothing to plot. A FINISHED league is not less interesting than a
+    // running one: the race is over, but how it was won is what this section is
+    // for.
+    if (points.length < 3) { section.remove(); return; }
 
     const flags = ctx.params.CustomFlags;
     const identity = (name) => playerIdentityHtml({
@@ -445,7 +481,31 @@ async function renderTitleRace(ctx) {
 
     // Per-point display data. `dayLabel` is the axis text — date only, no clock:
     // see the axis renderer for why.
+    // TWO labels from one date, because the axis and the panel answer differently.
+    //
+    // The X AXIS carries no clock - ever, for anything. That is why every point
+    // goes through `formatAxisDay`, and the league's opening date is not an
+    // exception to it: it went through `formatIssueDate` (which delegates to
+    // formatMatchStamp and appends the time) and printed "1 Sept 2026, 00:00"
+    // on an axis whose other labels read "5 Sept".
+    //
+    // The PANEL is the opposite case and keeps the full stamp, exactly as it
+    // does for every match.
+    const startLabel = formatIssueDate(ctx.params.IssueDate) || '';
+    const startAxis = formatAxisDay(ctx.params.IssueDate) || '';
     const viewPoints = points.map((p) => {
+        // INITIAL: the league before anything was played. No match, so no score
+        // and nobody on the board — the panel says what it is instead.
+        if (!p.match) {
+            return {
+                value: p.value,
+                dateLabel: startLabel ? `Initial, ${startLabel}` : 'Initial',
+                dayLabel: startAxis,
+                players: [],
+                scoreLabel: '—',
+                resultHtml: '<span class="tr-verb">Before the first match</span>',
+            };
+        }
         const { winner, loser, drawn } = resultSides(p.match);
         const hi = Math.max(Number(p.match.scoreA), Number(p.match.scoreB));
         const lo = Math.min(Number(p.match.scoreA), Number(p.match.scoreB));
@@ -461,6 +521,17 @@ async function renderTitleRace(ctx) {
         };
     });
 
+    // Everyone's running W–L–D at every point. A straight count over the same
+    // timeline the chart is drawn on — no simulation, so it costs nothing and is
+    // available immediately, including for the points still being projected.
+    //
+    // It answers a different question from the percentage beside it: the odds say
+    // what was still POSSIBLE, the record says what had already HAPPENED. A line
+    // at 12% is a different story when its owner is 9–1 with three games left
+    // than when they are 2–8, and without the record the panel cannot tell them
+    // apart.
+    const records = buildRecordsByPoint(points);
+
     // topXByPoint[i] = { player -> Float32Array of cumulative top-X percentages }
     const topXByPoint = new Array(points.length).fill(null);
     let playerCount = 0;
@@ -471,6 +542,7 @@ async function renderTitleRace(ctx) {
         player,
         color: colorForIndex(i),
         identityHtml: identity(player),
+        record: records.get(player) || null,
         values: topXByPoint.map((row) => {
             if (!row || !row[player]) return null;
             return row[player][Math.min(currentX, row[player].length) - 1];
@@ -484,7 +556,84 @@ async function renderTitleRace(ctx) {
         pending: topXByPoint.filter(r => r == null).length,
     });
 
-    const chart = mountTopXTimelineChart(chartHost, { model });
+    const chart = mountTopXTimelineChart(chartHost, {
+        model,
+        // Which MOMENT of the season someone chose to inspect - the one thing
+        // this section is for, and until now the only interaction it did not
+        // report. The point names the match, which is what makes the row
+        // readable in the analytics table without a lookup.
+        onPick: (i) => {
+            syncStepper();
+            const p = i >= 0 ? viewPoints[i] : null;
+            if (!p) { trackRace('Title race: point cleared'); return; }
+            const m = points[i] && points[i].match;
+            trackRace(`Title race: point — ${m ? describeResult(m) : 'Initial'}`);
+        },
+    });
+
+    // ‹ › — one MATCH per press.
+    //
+    // The canvas already answers a tap, but it maps the whole plot width onto
+    // every point: on a 430px phone a 300-match league gives each point about
+    // 1.3px, so choosing a particular match by finger is not a thing anyone can
+    // do, and nudging one across is worse. These buttons make the axis
+    // navigable by pressing rather than by aiming.
+    const stepPrev = document.getElementById('titlerace-prev');
+    const stepNext = document.getElementById('titlerace-next');
+    const stepPos = document.getElementById('titlerace-pos');
+
+    // Move the stepper INSIDE the chart host, between the canvas and the detail
+    // panel, so it sits directly under the X axis.
+    //
+    // It cannot be authored there: mountTopXTimelineChart clears the host and
+    // appends canvas + panel itself, so anything placed there in the markup is
+    // wiped. Declared after the host and relocated once, here.
+    //
+    // Why it matters: the panel grows with the number of plotted players - five
+    // players is a title line plus five rows - and with the stepper below it the
+    // buttons ended up a screen away from the axis they scrub. The control
+    // belongs against the thing it moves.
+    const chartPanel = chartHost.querySelector('.chart-info-panel');
+    const stepBar = stepPrev.closest('.titlerace-step');
+    if (chartPanel && stepBar) chartHost.insertBefore(stepBar, chartPanel);
+
+    /** Readout + end-stops, from whatever the chart currently has pinned. */
+    function syncStepper() {
+        const i = chart.getPinned();
+        const total = points.length;
+        stepPos.textContent = i < 0 ? 'Tap a point' : `${i + 1} / ${total}`;
+        stepPrev.disabled = i === 0;
+        stepNext.disabled = i >= 0 && i === total - 1;
+    }
+
+    /**
+     * Nothing pinned yet? Start at the NEWEST point rather than at index 0 -
+     * that is the league as it stands, the state every other panel is showing,
+     * so the first press lands somewhere the reader already understands instead
+     * of at the empty INITIAL column.
+     */
+    const step = (delta) => {
+        const cur = chart.getPinned();
+        const next = cur < 0 ? points.length - 1 : cur + delta;
+        const landed = chart.setPinned(next);
+        syncStepper();
+        const m = points[landed] && points[landed].match;
+        // A STEP IS ITS OWN EVENT, and its own DIRECTION.
+        //
+        // Not folded into the tap's `point — ` for two reasons. The stepper was
+        // built on a specific claim - that the axis cannot be navigated by finger
+        // on a phone - and one event for both would make that claim permanently
+        // unmeasurable. And direction is the thing this control is FOR: walking
+        // back through a season and walking forward through it are different
+        // readings, and the icons (⬅️ / ➡️) say which at a glance.
+        //
+        // The match is still named, exactly as the tap names it, so "which
+        // moments get looked at" survives across both.
+        trackRace(`Title race: step ${delta < 0 ? 'back' : 'forward'} — ${m ? describeResult(m) : 'Initial'}`);
+    };
+    stepPrev.addEventListener('click', () => step(-1));
+    stepNext.addEventListener('click', () => step(1));
+    syncStepper();
 
     function renderLegend() {
         if (plotted.length === 0) {
@@ -507,7 +656,7 @@ async function renderTitleRace(ctx) {
             plotted.splice(i, 1);
             renderLegend();
             chart.draw();
-            window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `Title race: remove ${btn.dataset.remove}` } }));
+            trackRace(`Title race: remove ${btn.dataset.remove}`);
         }
     });
 
@@ -528,7 +677,7 @@ async function renderTitleRace(ctx) {
     topXSelect.addEventListener('change', () => {
         currentX = parseInt(topXSelect.value, 10) || 1;
         chart.draw();
-        window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `Title race: top ${currentX}` } }));
+        trackRace(`Title race: top ${currentX}`);
     });
 
     // Add-a-player: the canonical search field, same as every other picker.
@@ -551,17 +700,72 @@ async function renderTitleRace(ctx) {
                 plotted.push(v);
                 renderLegend();
                 chart.draw();
-                window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `Title race: add ${v}` } }));
+                trackRace(`Title race: add ${v}`);
             }
             playerInput.value = '';
         },
     });
 
-    // Start plotted with the podium as it stands — the lines most people came
-    // to see — and let the user add or drop from there.
-    const { rankings } = rankLeague({ matches: ctx.liveMatches, allPlayers: ctx.allPlayersSet, config: ctx.leagueConfig });
-    for (const r of rankings.filter(r => r.player !== 'Bye').slice(0, 3)) plotted.push(r.player);
-    renderLegend();
+    /**
+     * WHO IS PLOTTED BY DEFAULT: everyone who was ever a real contender, up to
+     * five of them.
+     *
+     * "Ever" is the operative word. The podium as it stands today is the END of
+     * the story, and this chart is about the story: the player who sat at 60%
+     * halfway through and collapsed is the most interesting line on it, and
+     * finishing fourth is exactly why picking today's top three would leave him
+     * off. So the test is the PEAK - did this player's chance of winning ever
+     * clear 15%.
+     *
+     * More than five clear it in a long season, and five lines is already the
+     * limit of what the eye can follow, so the survivors are ranked by where
+     * they stand NOW and the weakest are dropped. Fewer than five is fine and
+     * common: two-horse races exist and should look like one.
+     *
+     * @param {number} threshold  percent, 15 = "ever had a 15% chance to win"
+     */
+    function contenders(threshold = 15, max = 5) {
+        const peak = new Map();
+        const latest = new Map();
+        for (const row of topXByPoint) {
+            if (!row) continue;
+            for (const [player, vals] of Object.entries(row)) {
+                const winPct = vals[0];              // index 0 is top-1
+                if (!(winPct >= 0)) continue;
+                peak.set(player, Math.max(peak.get(player) ?? 0, winPct));
+                latest.set(player, winPct);          // last write wins = newest point
+            }
+        }
+        const qualified = [...peak.entries()]
+            .filter(([p, v]) => p !== 'Bye' && v > threshold)
+            .map(([p]) => p)
+            .sort((a, b) => (latest.get(b) ?? 0) - (latest.get(a) ?? 0));
+        return qualified.slice(0, max);
+    }
+
+    /**
+     * The fallback seed: today's podium.
+     *
+     * Used when there are no projections to read yet, because "who was ever a
+     * contender" is not answerable until the numbers exist - and seeding from
+     * the podium and then swapping the lines out once they arrive would be a
+     * chart that rearranges itself under the reader's hand.
+     */
+    function seedFromPodium() {
+        const { rankings } = rankLeague({ matches: ctx.liveMatches, allPlayers: ctx.allPlayersSet, config: ctx.leagueConfig });
+        for (const r of rankings.filter(r => r.player !== 'Bye').slice(0, 3)) plotted.push(r.player);
+    }
+
+    function seedPlotted() {
+        if (plotted.length) return;
+        const picked = contenders();
+        // Nobody ever cleared the bar - a league so lopsided that one player was
+        // never in doubt, or so young that nobody has separated yet. An empty
+        // chart is not an answer, so the current leader carries it alone.
+        if (picked.length) plotted.push(...picked);
+        else seedFromPodium();
+        renderLegend();
+    }
 
     // ── Stored projections first ────────────────────────────────────────────
     // The whole league is normally precomputed server-side at full accuracy
@@ -577,7 +781,7 @@ async function renderTitleRace(ctx) {
     // live and flags only what actually changed.
     await whenVisible(section);
 
-    const scheduleFp = scheduleFingerprint(ctx.allMatchesIncUnplayed);
+    const scheduleFp = scheduleFingerprint(ctx.allMatchesIncUnplayed, fingerprintSettings(ctx));
     const expectedHashes = pointFingerprints(points.map(p => p.match), scheduleFp);
     let staleCount = 0;
 
@@ -595,11 +799,16 @@ async function renderTitleRace(ctx) {
             topXByPoint[i] = row;
         }
         if (!playerCount && stored.roster.length) fillTopXOptions(stored.roster.length);
+        seedPlotted();
         chart.draw();
         // Everything present and current — no local computation at all.
         if (staleCount === 0) return;
         console.info(`[title race] ${staleCount}/${points.length} points not yet projected — computing those locally`);
     }
+
+    // Computing locally: the contender test has nothing to read yet, so the
+    // podium seeds the chart and stays - see seedFromPodium.
+    if (!plotted.length) { seedFromPodium(); renderLegend(); }
 
     const last300Map = await ensureLast300Map(ctx);
 
@@ -665,6 +874,54 @@ async function renderTitleRace(ctx) {
         };
         requestAnimationFrame(step);
     }
+}
+
+/**
+ * Cumulative W–L–D per player, at every point of the timeline.
+ *
+ * @param {object[]} points  getUpdatePoints() reversed — OLDEST FIRST, which is
+ *                           what makes this a single forward pass.
+ * @returns {Map<string, {w:Int16Array, l:Int16Array, d:Int16Array}>}
+ *          index i = that player's record AFTER the match at point i.
+ *
+ * A player is written into the map the first time they appear, so every index
+ * before that stays 0 — correct, because they had played nothing yet. Every
+ * KNOWN player is stamped at every subsequent index, so a lookup is O(1) and a
+ * player who sat out a stretch keeps their record across it rather than
+ * reporting a gap.
+ *
+ * `resultSides` is the same reader the picker and the panel headline use, so a
+ * technical draw counts as a draw here exactly as it reads there.
+ */
+function buildRecordsByPoint(points) {
+    const n = points.length;
+    const out = new Map();
+    const running = new Map();
+    const ensure = (p) => {
+        let r = out.get(p);
+        if (!r) {
+            r = { w: new Int16Array(n), l: new Int16Array(n), d: new Int16Array(n) };
+            out.set(p, r);
+        }
+        return r;
+    };
+    for (let i = 0; i < n; i++) {
+        // INITIAL carries no match: everyone is 0-0, which is what the arrays
+        // already hold at index 0. Stamping the (empty) running map is still
+        // correct and keeps the loop uniform.
+        const m = points[i].match;
+        if (m) {
+            const { winner, loser, drawn } = resultSides(m);
+            for (const p of [winner, loser]) if (!running.has(p)) running.set(p, { w: 0, l: 0, d: 0 });
+            if (drawn) { running.get(winner).d++; running.get(loser).d++; }
+            else { running.get(winner).w++; running.get(loser).l++; }
+        }
+        for (const [p, c] of running) {
+            const r = ensure(p);
+            r.w[i] = c.w; r.l[i] = c.l; r.d[i] = c.d;
+        }
+    }
+    return out;
 }
 
 function matchesPanel() {
@@ -942,10 +1199,9 @@ function renderHistorical(ctx) {
     drawHistTable(ctx, options[0].value);
 }
 
+/** A real instant — reads in the viewer's own timezone. */
 function formatLastModified(s) {
-    const d = new Date(s);
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-        + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    return formatMatchStamp(s);
 }
 
 // Snapshot dropdown options shared by the Historical view (B2) and the What-If
@@ -960,7 +1216,7 @@ function formatLastModified(s) {
 // this entry the empty league is simply unreachable, so every league gets it,
 // synthesised, at the bottom of the list where it belongs chronologically.
 function buildSnapshotOptions(timeline, lastModified, params) {
-    const points = getUpdatePoints(timeline);
+    const points = getUpdatePoints(timeline, params.RetiredPlayers);
     const options = [];
 
     // CURRENT IS THE NEWEST MATCH — one row, not two.
@@ -994,11 +1250,127 @@ function buildSnapshotOptions(timeline, lastModified, params) {
     return options;
 }
 
-/** "1 Jul 2026" — the league's issue date, for the Initial option's label. */
+/**
+ * A stored projection point, rebuilt into the shape `predictChampionship`
+ * returns - `finishRankCounts`, `n`, `totalWeight`, `rankings`, `moe`,
+ * `iterations` - so callers cannot tell the difference and nothing downstream
+ * needed to change.
+ *
+ * The counts are RECONSTRUCTED from the stored cumulative top-X row: entry x is
+ * "finished in the top x", so the count at rank x is the gap between
+ * consecutive entries, scaled by an arbitrary total.
+ *
+ * @param {string} pointValue  '__current__' for the newest point, or a point value
+ * @param {Map} statsMap       the standings AS OF that point (MP/W/L/PR columns)
+ * @returns {object|null} null means "simulate instead" - see the guards inside
+ */
+async function storedPointPrediction(ctx, pointValue, remaining, statsMap = null) {
+    const points = withInitialPoint([...getUpdatePoints(ctx.timeline, ctx.params.RetiredPlayers)].reverse());
+    if (points.length < 2) return null;
+
+    const scheduleFp = scheduleFingerprint(ctx.allMatchesIncUnplayed, fingerprintSettings(ctx));
+    const hashes = pointFingerprints(points.map(p => p.match), scheduleFp);
+
+    const isCurrent = !pointValue || pointValue === '__current__';
+    const idx = isCurrent ? points.length - 1 : points.findIndex(p => p.value === pointValue);
+    if (idx < 0) return null;
+
+    // THE GUARD THAT MATTERS, and it only applies to the live state: the stored
+    // point is built from `match_history`, while the Predictor's table is built
+    // from `matches`. Those are normally 1:1 but are not guaranteed to be -
+    // December 2025 carries 24 history rows for a retired player against 3
+    // fixtures. Where they disagree, the stored numbers are a correct answer to
+    // a DIFFERENT question, and showing them is worse than spending the CPU.
+    //
+    // A PAST point needs no such check: its played set is defined by
+    // getMatchesAsOf, which is the same list the stored point was built from.
+    if (isCurrent) {
+        const asOf = getMatchesAsOf(ctx.timeline, points[idx].value);
+        const played = new Set(ctx.liveMatches.map(m => matchKey(m.playerA, m.playerB)));
+        if (asOf.length !== played.size) return null;
+        for (const m of asOf) if (!played.has(matchKey(m.playerA, m.playerB))) return null;
+    }
+
+    const stored = await loadLeagueProjections(ctx.leagueId);
+    if (!stored || !Array.isArray(stored.points)) return null;
+    const sp = stored.points.find(x => x.hash === hashes[idx]);
+    if (!sp) return null;   // never projected, or superseded by a later edit
+
+    const roster = stored.roster || [];
+    const n = roster.length;
+    if (!n) return null;
+
+    const TOTAL = 1_000_000;   // arbitrary scale; percentages are what was stored
+    const finishRankCounts = new Float64Array(n * n);
+    roster.forEach((player, i) => {
+        const row = sp.r[i];
+        if (!row || !row.length) return;
+        let prev = 0;
+        for (let x = 0; x < Math.min(row.length, n); x++) {
+            const cum = row[x] / 10;                    // stored as pct x10
+            finishRankCounts[i * n + x] = Math.max(0, cum - prev) / 100 * TOTAL;
+            prev = cum;
+        }
+    });
+
+    const stats = statsMap || computeAllStats(ctx.liveMatches, ctx.allPlayersSet);
+    const rankings = roster.map((player, i) => {
+        const st = stats.get(player);
+        const row = sp.r[i];
+        return {
+            player, playerIdx: i,
+            championshipPct: row && row.length ? row[0] / 10 : 0,
+            games: st ? st.games : 0,
+            wins: st ? st.wins : 0,
+            losses: st ? st.losses : 0,
+            meanPR: st ? st.meanPR : null,
+            winRate: st ? st.winRate : null,
+            points: st ? (st.points || 0) : 0,
+            avgPoints: st ? st.avgPoints : null,
+        };
+    }).sort((a, b) => b.championshipPct - a.championshipPct);
+
+    // MoE from the iterations ACTUALLY used, read off the row. A hard-coded
+    // number here would let a league projected under an older setting claim an
+    // accuracy it does not have.
+    const iterations = stored.iterations || 0;
+    const p = (rankings[0] ? rankings[0].championshipPct : 0) / 100;
+    const moe = iterations > 0 ? 1.96 * Math.sqrt(p * (1 - p) / iterations) * 100 : 0;
+
+    return {
+        rankings, moe, iterations,
+        method: (remaining && remaining.length > 0) ? 'montecarlo' : 'exact',
+        finishRankCounts, n, totalWeight: TOTAL,
+    };
+}
+
+/**
+ * The league settings that are an input to EVERY projected point, in the shape
+ * scheduleFingerprint wants. Read from ctx here and from the `leagues` row in
+ * the Node job — both must produce the same three values or every stored point
+ * reads as stale.
+ */
+function fingerprintSettings(ctx) {
+    return {
+        matchLength: ctx.params.MatchLength || 7,
+        leagueType: ctx.leagueConfig && ctx.leagueConfig.type,
+        retiredPlayers: ctx.params.RetiredPlayers || [],
+    };
+}
+
+/**
+ * "1 Jul 2026" — the league's issue date, for the Initial option's label.
+ *
+ * An issue date is a DAY, never a moment: the same reading for every viewer,
+ * and no clock — a league does not open at an hour.
+ *
+ * The `T00:00:00` pin this used to apply was the old way of saying "no time" —
+ * it forced LOCAL midnight so the label would not read "03:00", which held for
+ * a viewer in Israel and slid a day for one west of Greenwich. matchTime.js
+ * renders a day without converting it at all.
+ */
 function formatIssueDate(d) {
-    const dt = new Date(String(d).length <= 10 ? `${d}T00:00:00` : d);
-    if (isNaN(dt)) return '';
-    return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    return formatMatchDay(d, '');
 }
 
 function drawHistTable(ctx, dateValue) {
@@ -1148,15 +1520,27 @@ async function renderPredictor(ctx) {
         // Load Last 300 PR (async — may take a moment). Cached on ctx for reuse by the What-If simulator.
         const last300Map = await ensureLast300Map(ctx);
 
-        const result = predictChampionship({
-            statsMap,
-            remainingMatches: remaining,
-            matchLength,
-            leagueConfig: ctx.leagueConfig,
-            last300Map,
-            allPlayers: ctx.allPlayersSet,
-            playedMatches: ctx.liveMatches
-        });
+        // THE PREDICTOR IS THE LAST POINT OF THE TITLE RACE.
+        //
+        // Both answer the same question - given what has been played, who wins?
+        // - and the newest point on the timeline IS "what has been played". So
+        // the projection job has already computed this table, at full accuracy,
+        // and computing it again in the visitor's browser buys nothing but a
+        // frozen tab and a slightly different random answer.
+        //
+        // Reading it also makes the two AGREE. They are separate Monte Carlo
+        // runs today, so the chart's last column and this table can differ by a
+        // point or two for no reason a reader could ever explain.
+        const result = await storedPointPrediction(ctx, '__current__', remaining, statsMap)
+            || predictChampionship({
+                statsMap,
+                remainingMatches: remaining,
+                matchLength,
+                leagueConfig: ctx.leagueConfig,
+                last300Map,
+                allPlayers: ctx.allPlayersSet,
+                playedMatches: ctx.liveMatches
+            });
 
         // Render MoE
         if (result.method === 'montecarlo' && result.moe > 0) {
@@ -1371,6 +1755,12 @@ function renderWhatIfSimulator(ctx) {
             || (alternateName(p, ctx.playersMeta[p]) || '').toLowerCase() === q) || '';
     };
 
+    // A row in the dropdown that is not a player: "stage every fixture this
+    // player has left". It lives IN the list rather than beside it as a button,
+    // because it belongs to the same decision - the list already shows exactly
+    // these opponents, each tagged NOT PLAYED, and this is "all of those".
+    const ALL_UNPLAYED = '__all_unplayed__';
+
     const pairPicker = (otherInput) => {
         const other = () => (otherInput === inputA ? picked.a : picked.b)
             || resolveTyped(otherInput.value);
@@ -1386,8 +1776,8 @@ function renderWhatIfSimulator(ctx) {
             return !!o && staged.some(s => s.key === canonKey(o, p));
         };
         return {
-            labelFor: displayPlayerName,
-            altFor: (p) => alternateName(p, ctx.playersMeta[p]),
+            labelFor: (p) => (p === ALL_UNPLAYED ? 'Add all not played' : displayPlayerName(p)),
+            altFor: (p) => (p === ALL_UNPLAYED ? '' : alternateName(p, ctx.playersMeta[p])),
             suggest: (query) => {
                 const o = other();
                 const base = (o && opponentsOf.has(o))
@@ -1403,12 +1793,30 @@ function renderWhatIfSimulator(ctx) {
                     : base;
                 // Already-staged pairs sink below everything else — they can't be
                 // picked, so they belong out of the way of the ones that can.
-                return pool
+                const sorted = pool
                     .map(p => ({ p, staged: isStaged(p) ? 1 : 0, played: played(p) ? 1 : 0 }))
                     .sort((x, y) => (x.staged - y.staged) || (x.played - y.played) || byDisplayName(x.p, y.p))
                     .map(e => e.p);
+                // The bulk row leads the list, and only when it would do
+                // something: one side chosen, and at least one fixture of theirs
+                // still unplayed and unstaged. It survives typing 'all' so it is
+                // reachable by keyboard, not only by browsing.
+                const bulk = unplayedOpponents(o);
+                const wantsBulk = !q || 'all'.startsWith(q) || 'all not played'.includes(q);
+                return (bulk.length && wantsBulk) ? [ALL_UNPLAYED, ...sorted] : sorted;
             },
             decorate: (p) => {
+                if (p === ALL_UNPLAYED) {
+                    const n = unplayedOpponents(other()).length;
+                    // No flag and no title: this row is an ACTION, not a person,
+                    // and borrowing a player's chrome would read as one. The
+                    // count carries the same pill the individual rows use for
+                    // NOT PLAYED, so the row says what it will stage.
+                    return {
+                        nameHtml: '<span class="whatif-bulk-name">Add all not played</span>',
+                        badge: { text: `${n} ${n === 1 ? 'MATCH' : 'MATCHES'}`, kind: 'unplayed' },
+                    };
+                }
                 const flagCode = getFlagCode(p, whatifCustomFlags);
                 const titleHtml = titleHtmlFor(p);
                 const o = other();
@@ -1445,6 +1853,7 @@ function renderWhatIfSimulator(ctx) {
             // leaving without picking puts the name back. Owned by the base.
             browseOnOpen: true,
             onPick: (p) => {
+                if (p === ALL_UNPLAYED) { addAllUnplayed(otherOf(side)); input.value = ''; return; }
                 picked[side] = p;
                 // The field shows the name the row showed — the full name when
                 // "Show name as" asks for it. It used to snap back to the
@@ -1583,6 +1992,64 @@ function renderWhatIfSimulator(ctx) {
         // Clearing the text programmatically fires no `input` event, so the
         // fields' identity chrome has to be dropped explicitly — otherwise the
         // previous pair's flags would sit beside two empty fields.
+        comboA.setIdentity('');
+        comboB.setIdentity('');
+        renderStaged();
+    }
+
+    /** The player in the OTHER field, by side. */
+    function otherOf(side) {
+        return side === 'a'
+            ? (picked.b || resolveTyped(inputB.value))
+            : (picked.a || resolveTyped(inputA.value));
+    }
+
+    /**
+     * Everyone `player` still has a scheduled fixture against that has not been
+     * played AT THE CURRENT BASELINE and is not already staged.
+     *
+     * Deliberately the same three tests the individual rows already apply - the
+     * schedule, `deriveBaselineState`, and `staged` - so the bulk row can never
+     * offer a set that differs from the NOT PLAYED rows sitting under it.
+     */
+    function unplayedOpponents(player) {
+        if (!player || !opponentsOf.has(player)) return [];
+        return [...opponentsOf.get(player)]
+            .filter(p => p !== 'Bye' && p !== player)
+            .filter(p => !staged.some(x => x.key === canonKey(player, p)))
+            .filter(p => !deriveBaselineState(player, p).wasPlayed)
+            .sort(byDisplayName);
+    }
+
+    /**
+     * Stage every remaining fixture of one player in a single action.
+     *
+     * Each pair goes through `addOne`, which is the SAME push `addMatch`
+     * performs - so a bulk-staged row is indistinguishable from a hand-staged
+     * one, and every later control (result buttons, rollback, remove) works on it
+     * without knowing how it arrived.
+     *
+     * Logged ONCE, with the count, rather than N times: this was one decision,
+     * and N rows would drown the click log and make "add match" unreadable as a
+     * measure of individual staging.
+     */
+    function addAllUnplayed(player) {
+        const opponents = unplayedOpponents(player);
+        if (!opponents.length) { addErr.textContent = 'Nothing left to add for this player'; return; }
+        addErr.textContent = '';
+        for (const opp of opponents) {
+            const { wasPlayed, realWinner } = deriveBaselineState(player, opp);
+            staged.push({
+                a: player, b: opp, key: canonKey(player, opp),
+                result: realWinner || 'NP',
+                realWinner, wasPlayed,
+            });
+        }
+        trackWhatIf(`What if: add all — ${opponents.length} matches vs ${player}`);
+        inputA.value = '';
+        inputB.value = '';
+        picked.a = '';
+        picked.b = '';
         comboA.setIdentity('');
         comboB.setIdentity('');
         renderStaged();
@@ -1727,14 +2194,29 @@ function renderWhatIfSimulator(ctx) {
             }
 
             const simStatsMap = computeAllStats(simMatches, ctx.allPlayersSet);
-            const last300Map = await ensureLast300Map(ctx);
 
-            const result = predictChampionship({
+            // NOTHING STAGED = A POINT THAT ALREADY EXISTS.
+            //
+            // With no hypothetical results, "What If" is asking for the state at
+            // the chosen baseline - which is a point on the timeline, already
+            // projected and stored. Simulating it again would spend the CPU to
+            // arrive at a slightly different random answer to a question that
+            // has been answered, and the disagreement would be visible: stage a
+            // result, remove it, and the numbers would not return to where they
+            // started.
+            //
+            // A staged result makes a constellation that has never occurred, so
+            // there is nothing to look up and it genuinely must be simulated.
+            const stored = staged.length === 0
+                ? await storedPointPrediction(ctx, baseline.value, simRemaining, simStatsMap)
+                : null;
+
+            const result = stored || predictChampionship({
                 statsMap: simStatsMap,
                 remainingMatches: simRemaining,
                 matchLength,
                 leagueConfig: ctx.leagueConfig,
-                last300Map,
+                last300Map: await ensureLast300Map(ctx),
                 allPlayers: ctx.allPlayersSet,
                 playedMatches: simMatches
             });
@@ -2158,8 +2640,12 @@ function drawMatchTable(host, matches, opts = {}) {
     for (const m of matches) {
         const isPlayed = m.played;
         const updated = playedAt.get(matchKey(m.playerA, m.playerB));
+        // Date AND time, per the site-wide rule (matchTime.js). The year is no
+        // longer abbreviated: a two-digit year next to a clock reads as another
+        // time field ("5 Jul 26, 16:49"), and the column is already wide enough
+        // for the full one now that it carries a clock at all.
         const playedCell = updated
-            ? new Date(updated).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })
+            ? formatMatchStamp(updated)
             : (isPlayed ? '—' : '<span style="color:var(--color-text-muted)">unplayed</span>');
         const rowClass = isPlayed ? '' : 'unplayed-row';
         // Winner name green / loser red — played rows only (no class on ties or unplayed).
@@ -2990,9 +3476,7 @@ function buildExplanationTableHtml(rows, shift, mlIdx) {
 }
 
 function corrMatchInfoHtml(m) {
-    const dateStr = m.updatedAt
-        ? new Date(m.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-        : '—';
+    const dateStr = formatMatchStamp(m.updatedAt);
     if (m.opponent !== undefined) {
         const prStr = m.prSelf != null ? m.prSelf.toFixed(2) : '—';
         const luckStr = m.luckSelf != null ? m.luckSelf.toFixed(2) : '—';

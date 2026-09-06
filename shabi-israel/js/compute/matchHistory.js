@@ -10,7 +10,14 @@
  *
  * Loading lives in js/data/{store,supabaseLoader}.js — the `match_history`
  * table. This module holds only the merge/replay logic that runs on top.
+ *
+ * `updatedAt` is either a full ISO instant or a date-only string, and the two
+ * mean different things — see js/utils/matchTime.js. Every comparison here goes
+ * through `new Date(...).getTime()`, which reads both identically, so the
+ * distinction affects display only and never the replay or the ordering.
  */
+
+import { formatMatchStamp, formatMatchDay, formatMatchAxis } from '../utils/matchTime.js';
 
 export function matchKey(playerA, playerB) {
     return [playerA, playerB].sort().join('|');
@@ -180,11 +187,12 @@ export function getUpdateDates(history) {
  * ONE UPDATE POINT PER PLAYED MATCH, newest first.
  *
  * The invariant this exists to hold: **the number of points equals the number of
- * rows in Played Matches (B5)** — plus the synthetic "Initial" the caller adds.
- * Every match the league counts is a place you can rewind to, and nothing else
- * is. Points used to be grouped by MINUTE, which quietly broke that: a league
- * imported in one go stamps every match with the same instant, so 89 matches
- * offered 3 points. Grouping is gone — a point is a match.
+ * played matches that are not a retired player's** — plus the synthetic "Initial"
+ * the caller adds. Every match the league actually played is a place you can
+ * rewind to, and nothing else is. Points used to be grouped by MINUTE, which
+ * quietly broke that: a league imported in one go stamps every match with the
+ * same instant, so 89 matches offered 3 points. Grouping is gone — a point is a
+ * match.
  *
  * Two matches can still share an instant, so a timestamp alone no longer
  * identifies a point. `value` is the timestamp, plus `#n` (1-based, in the
@@ -201,30 +209,60 @@ export function getUpdateDates(history) {
  * (`edited_at`, stored as local midnight by the Round Editor's date field) — so
  * an edited match moves, in B5 and in this list together.
  *
+ * ── RETIRED PLAYERS ARE NOT POINTS ─────────────────────────────────────────
+ * When a player retires mid-season, every one of their fixtures — the ones they
+ * had already PLAYED as much as the ones still ahead — is rewritten as a
+ * technical loss, all stamped at the league's opening midnight. December 2025 is
+ * the worked example: Yehuda played 3 real matches and had 21 ahead of him, and
+ * `match_history` holds 24 identical 0–1 manual rows dated 1 Dec 00:00.
+ *
+ * Those are one administrative act, not 24 moments. Left in, that league's chart
+ * opens with 24 points on a single instant before a ball was thrown. So a row
+ * involving a retired player yields NO point — the timeline reads as though they
+ * were never in the league, which is what the retirement means.
+ *
+ * It is only the POINT that goes. `getMatchesAsOf` still returns these rows, so
+ * the opponents keep the technical wins and the standings at every point are the
+ * standings the table shows. "Where can I rewind to" and "what was true then"
+ * are different questions and only the first one is answered here.
+ *
+ * The numbering is deliberately NOT renumbered around the skipped rows: `#n`
+ * still counts within the full ordered timeline, because `getMatchesAsOf` slices
+ * that same full list and an already-shared `?asof=…#3` must keep meaning what
+ * it meant.
+ *
+ * Any OTHER override still gets its point, dated by the admin's `edited_at` — a
+ * single technical result is a decision about one match, not a bulk erasure.
+ *
  * @param {object[]} timeline
+ * @param {Iterable<string>} [retiredPlayers]  league_params RetiredPlayers
  * @returns {{value:string,label:string,dateLabel:string,match:object}[]}
  */
-export function getUpdatePoints(timeline) {
+export function getUpdatePoints(timeline, retiredPlayers) {
+    const retired = new Set(retiredPlayers || []);
     const dated = orderTimeline(timeline);
     const countByStamp = new Map();
     for (const m of dated) countByStamp.set(m.updatedAt, (countByStamp.get(m.updatedAt) || 0) + 1);
 
     const seen = new Map();
-    const points = dated.map((m) => {
+    const points = [];
+    for (const m of dated) {
         const n = (seen.get(m.updatedAt) || 0) + 1;
         seen.set(m.updatedAt, n);
+        // Counted above (so `#n` stays aligned with getMatchesAsOf), skipped here.
+        if (retired.has(m.playerA) || retired.has(m.playerB)) continue;
         // Date AND time, always. Matches that share an instant (a league imported
         // in one go) therefore share a clock reading too — that is the truth about
         // them: one moment of recording, arbitrary order within it. The row still
         // tells them apart, because it names the match.
         const dateLabel = formatUpdatePoint(m.updatedAt);
-        return {
+        points.push({
             value: countByStamp.get(m.updatedAt) > 1 ? `${m.updatedAt}#${n}` : m.updatedAt,
             dateLabel,
             label: `${dateLabel} — ${describeResult(m)}`,
             match: m,
-        };
-    });
+        });
+    }
     return points.reverse();
 }
 
@@ -249,16 +287,22 @@ export function resultSides(m) {
     };
 }
 
+/**
+ * The three labels this module hands out are thin re-exports of the site-wide
+ * formatters in js/utils/matchTime.js. They stay named after the timeline
+ * because that is what their callers are reading, but the rendering rule —
+ * a MOMENT follows the viewer's timezone, a DAY follows nobody's — lives in one
+ * place for the whole site, not once per page.
+ */
+
 /** "9 Jul 2026, 17:39" — date + time for an update-point label. */
 export function formatUpdatePoint(ts) {
-    const d = new Date(ts);
-    return formatUpdateDay(ts)
-        + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    return formatMatchStamp(ts);
 }
 
 /** "9 Jul 2026" — the date alone. */
 export function formatUpdateDay(ts) {
-    return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    return formatMatchDay(ts);
 }
 
 /**
@@ -271,5 +315,5 @@ export function formatUpdateDay(ts) {
  * context.
  */
 export function formatAxisDay(ts) {
-    return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    return formatMatchAxis(ts);
 }

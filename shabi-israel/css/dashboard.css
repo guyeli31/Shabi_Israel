@@ -350,15 +350,24 @@
    you picked still looks like what you picked. Opaque (it hides the input's own
    text underneath) and pointer-events:none (a click goes through to the input,
    which focuses it and hides this). Sized in JS off the input's computed font. */
+/* INSET BY THE BORDER WIDTH, and radius matched to the input's.
+   `inset: 0` covers the wrapper's whole box — which is the input's BORDER box,
+   so an opaque overlay paints straight over the 1px border. With a LARGER radius
+   on top of it (--radius-md 10px over the input's --radius-sm 6px) the two
+   curves diverge only at the corners, so the border survived exactly there and
+   nowhere else: a field that reads as four floating corner arcs with no box
+   between them. Sitting on the padding box instead leaves the input's own border
+   untouched — including the accent colour it takes on :focus, which an overlaid
+   border would have had to reimplement and would then have drifted from. */
 .snap-display {
     position: absolute;
-    inset: 0;
+    inset: 1px;
     display: flex;
     align-items: center;
     gap: 0.4em;
     padding: 0 0.7em;
     background: var(--color-surface, var(--color-bg));
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     color: var(--color-text);
     overflow: hidden;
     white-space: nowrap;
@@ -509,8 +518,27 @@
     gap: 0.45em;
 }
 .chart-info-panel .tr-odds-name { min-width: 0; }
-.chart-info-panel .tr-odds-val {
+
+/* Record and odds form TWO columns at the trailing edge. The auto margin lives
+   on the record (the first of the pair) so both stay flush right together; put
+   it on each and the free space would split between them, scattering the
+   records across the middle of the panel. */
+.chart-info-panel .tr-odds-rec {
     margin-left: auto;
+    flex: 0 0 auto;
+    font-size: var(--fs-085);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+.chart-info-panel .tr-rec-w { color: var(--color-win); font-weight: 600; }
+.chart-info-panel .tr-rec-l { color: var(--color-loss); font-weight: 600; }
+.chart-info-panel .tr-rec-d { color: var(--color-text-muted); font-weight: 600; }
+.chart-info-panel .tr-odds-val {
+    margin-left: 0.7em;
+    min-width: 3.4em;
+    text-align: right;
+    flex: 0 0 auto;
     font-variant-numeric: tabular-nums;
     font-weight: 600;
 }
@@ -2221,3 +2249,63 @@
 .site-footer-sep { opacity: 0.5; }
 /* Non-interactive credit (© is the all-rights-reserved mark). */
 .site-footer-credit { user-select: none; }
+
+/* The What-If picker's bulk row ("Add all not played"). An ACTION sitting in a
+   list of people, so it reads in the accent colour rather than as body text —
+   the one visual cue that distinguishes it from the names below it. Everything
+   else about the row is canonical: the same `.app-combo-option` frame, and the
+   same `.sf-badge--unplayed` pill the individual NOT PLAYED rows already wear,
+   here carrying the count it will stage. */
+.whatif-bulk-name {
+    color: var(--color-accent);
+    font-weight: 600;
+}
+
+/* Title Race point stepper. Sits IMMEDIATELY under the X axis, above the detail
+   panel it drives (the DOM move is in renderTitleRace) — the panel grows with
+   the number of plotted players, and below it the buttons drifted away from the
+   axis they scrub.
+
+   Centred rather than left-aligned: the Iron Rule's left-align governs table
+   text, not a symmetric pair of steppers around a readout. Tight margins on
+   both sides so the bar reads as part of the chart rather than as a control
+   block of its own. */
+.titlerace-step {
+    justify-content: center;
+    gap: var(--space-xs);
+    margin-top: 2px;
+    margin-bottom: var(--space-xs);
+}
+/* Deliberately BELOW the 44px both platforms publish as their touch minimum.
+   Sitting hard against the axis, this is the only tap target in that band —
+   nothing adjacent to hit by mistake — and the bar should read as part of the
+   chart, not as a control block competing with it. 28px is still more than 20x
+   the ~1.3px a single point occupies on a phone, and THAT is the comparison
+   that matters: this exists to replace an impossible target, not to be a large
+   one. */
+.titlerace-step button {
+    min-width: 28px;
+    min-height: 28px;
+    padding: 0;
+    font-size: var(--fs-090);
+    line-height: 1;
+}
+.titlerace-step button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+/* The readout is a quiet caption under the axis, not a label competing with it.
+   `min-width` still reserves the widest reading ("300 / 301") so the arrows hold
+   still while stepping instead of shuffling a pixel per digit. */
+.titlerace-step .round-label {
+    min-width: 5em;
+    /* --fs-085, not the smaller --fs-075. The root font on a 427px phone is
+       13.28px, not 16, so the tokens compute far below their nominal rem: 075
+       lands at 8.65px there, which is past reading and into decoration. 085
+       gives 9.8px — still a caption, still legible. Measured, not assumed;
+       picking by token name alone is what hides this. */
+    font-size: var(--fs-085);
+    font-weight: 500;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}

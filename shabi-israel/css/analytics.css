@@ -89,6 +89,18 @@
     flex-wrap: wrap;
     gap: var(--space-xs) var(--space-md);
 }
+/* "Show:" label before the audience checklist pills. Pushed to sit right before
+   the pills (the month select is flex-end); a small muted lead-in, not a control. */
+.analytics-audience-label {
+    margin-left: auto;
+    color: var(--color-text-muted);
+    font-size: var(--fs-085);
+    white-space: nowrap;
+}
+/* On a narrow screen the bar wraps; keep the label from stranding the select. */
+@media (max-width: 40rem) {
+    .analytics-audience-label { margin-left: 0; }
+}
 /* "Exclude mine" is disabled while "Exclude any user" is on (it adds nothing on
    top of excluding every operator) — dim it and block the pointer to say so.
    Scoped to this bar so no other pill toggle in the app is affected. */

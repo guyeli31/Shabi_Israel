@@ -11,6 +11,8 @@
  * rule 9).
  */
 
+import { stampFromHistoryRow } from '../utils/matchTime.js';
+
 export function mapLeagueRow(row) {
     return {
         LeagueTitle: row.title,
@@ -84,7 +86,10 @@ export function mapHistoryRow(row) {
         luckA: row.luck_a,
         luckB: row.luck_b,
         round: row.round,
-        updatedAt: row.updated_at,
+        // A row whose has_exact_time is false carries a DAY, not a moment, and
+        // arrives here as a date-only string so no timezone conversion can move
+        // it (see js/utils/matchTime.js).
+        updatedAt: stampFromHistoryRow(row),
         source: row.source,
     };
 }
@@ -143,5 +148,8 @@ export function mapLandingSettingsRow(row) {
         // arrangement (true) vs. the default date sort (false/absent).
         // See sql/landing_completed_custom_order.sql.
         completedCustomOrder: row.completed_custom_order === true,
+        // H1 card order: hand-arranged (true) vs. grouped by league type
+        // (false/absent). See sql/landing_active_custom_order.sql.
+        activeCustomOrder: row.active_custom_order === true,
     };
 }

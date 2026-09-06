@@ -581,3 +581,109 @@ $$;
 revoke all on function public.analytics_months() from public;
 revoke execute on function public.analytics_months() from anon;
 grant execute on function public.analytics_months() to authenticated;
+
+-- ── Full-history click search ─────────────────────────────────────────────
+-- analytics_summary.clicks_log is capped at the 500 most recent clicks so the
+-- payload stays bounded — which means the dashboard's browse view (and its
+-- client-side filter over that view) cannot see anything older. This RPC backs
+-- the search box: it scans the WHOLE table (within the same range/scope/exclude
+-- filters as the summary) and returns just the matching click rows, capped at
+-- `result_limit`. So the table keeps showing the recent 500, but a typed search
+-- reaches all of history. Measured at ~2ms on 6.5k rows — the event_type index
+-- narrows to clicks and the ILIKE runs over that subset; if the table ever grows
+-- large enough to matter, a pg_trgm GIN index on click_target makes it indexed.
+--
+-- Matches the DB's own text columns (target + page/league/player/tab + the nav
+-- source columns). It cannot match the client-rendered page LABELS ("League
+-- Dashboard") or the derived emoji icons — those aren't stored — so the client
+-- still filters the loaded recent-500 for those and merges the two result sets.
+drop function if exists public.analytics_clicks_search(timestamptz, timestamptz, text, boolean, text, text, int);
+create or replace function public.analytics_clicks_search(
+  from_date     timestamptz,
+  to_date       timestamptz,
+  q             text,
+  exclude_admin boolean default false,
+  exclude_user  text    default null,
+  scope         text    default 'all',
+  result_limit  int     default 500
+)
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+  with ev as (
+    select * from public.analytics_events
+    where event_type = 'click'
+      and created_at >= from_date and created_at < to_date
+      and (scope = 'all'
+        or (scope = 'legacy' and session_id is null and region is null)
+        or (scope = 'new'    and (session_id is not null or region is not null)))
+      and (not exclude_admin or admin_user is null)
+      and (exclude_user is null or admin_user is distinct from exclude_user)
+  )
+  select coalesce(jsonb_agg(t order by t.created_at desc), '[]'::jsonb) from (
+    select created_at, page, league_id, player, tab, click_target, device_type,
+           session_id, region, admin_user, moved_banner,
+           nav_type, from_page, from_league_id, from_player
+    from ev
+    where q is not null and length(btrim(q)) > 0 and (
+         click_target   ilike '%' || q || '%'
+      or page           ilike '%' || q || '%'
+      or league_id      ilike '%' || q || '%'
+      or player         ilike '%' || q || '%'
+      or tab            ilike '%' || q || '%'
+      or from_page      ilike '%' || q || '%'
+      or from_league_id ilike '%' || q || '%'
+      or from_player    ilike '%' || q || '%'
+    )
+    order by created_at desc
+    limit greatest(1, least(coalesce(result_limit, 500), 2000))
+  ) t;
+$$;
+
+revoke all on function public.analytics_clicks_search(timestamptz, timestamptz, text, boolean, text, text, int) from public;
+revoke execute on function public.analytics_clicks_search(timestamptz, timestamptz, text, boolean, text, text, int) from anon;
+grant execute on function public.analytics_clicks_search(timestamptz, timestamptz, text, boolean, text, text, int) to authenticated;
+
+-- ── Raw events for CLIENT-SIDE aggregation ────────────────────────────────
+-- analytics_summary aggregates server-side with the operator filter baked in, so
+-- changing "who counts" (self / other operators / visitors) means re-asking the
+-- server. This RPC instead hands the browser the raw event rows for the range
+-- ONCE, so every chart/KPI can be recomputed in the client for any subset of the
+-- three audiences with NO round trip — the filter only ever removes rows it
+-- already holds. Bucketing/sessionizing then happens in JS (js/data/
+-- analyticsAggregate.js), validated to match this file's analytics_summary output
+-- for the unfiltered case. Only the columns the aggregation reads are returned
+-- (os/browser are not charted), and the set is capped so a pathological range
+-- can't stream an unbounded blob — a single month is far under the cap.
+drop function if exists public.analytics_events_raw(timestamptz, timestamptz, text, int);
+create or replace function public.analytics_events_raw(
+  from_date    timestamptz,
+  to_date      timestamptz,
+  scope        text default 'all',
+  result_limit int  default 20000
+)
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+  select coalesce(jsonb_agg(t order by t.created_at), '[]'::jsonb) from (
+    select created_at, event_type, page, league_id, player, tab,
+           referrer_kind, device_type, region, session_id, admin_user,
+           duration_ms, click_target, moved_banner,
+           nav_type, from_page, from_league_id, from_player
+    from public.analytics_events
+    where created_at >= from_date and created_at < to_date
+      and (scope = 'all'
+        or (scope = 'legacy' and session_id is null and region is null)
+        or (scope = 'new'    and (session_id is not null or region is not null)))
+    order by created_at desc
+    limit greatest(1, least(coalesce(result_limit, 20000), 50000))
+  ) t;
+$$;
+
+revoke all on function public.analytics_events_raw(timestamptz, timestamptz, text, int) from public;
+revoke execute on function public.analytics_events_raw(timestamptz, timestamptz, text, int) from anon;
+grant execute on function public.analytics_events_raw(timestamptz, timestamptz, text, int) to authenticated;

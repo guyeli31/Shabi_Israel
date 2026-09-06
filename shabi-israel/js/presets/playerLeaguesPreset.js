@@ -6,6 +6,7 @@
  */
 
 import { getMedalPlaces } from '../compute/prizeRows.js';
+import { formatMatchDay } from '../utils/matchTime.js';
 
 export const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -34,12 +35,13 @@ export function rankCellHtml(league, playerRank, totalPlayers) {
 }
 
 export function formatLeagueDate(league, parseLeagueDate) {
+    // A league's opening day — the same reading for every viewer, never
+    // converted into one, and with NO CLOCK: a row here is a whole LEAGUE, not
+    // a moment in it (js/utils/matchTime.js).
     const iso = league.params?.IssueDate || league.params?.StartDate;
     if (iso) {
         const d = new Date(iso);
-        if (!isNaN(d)) {
-            return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-        }
+        if (!isNaN(d)) return formatMatchDay(String(iso).slice(0, 10), '');
     }
     if (parseLeagueDate) {
         const parsed = parseLeagueDate(league.id);
