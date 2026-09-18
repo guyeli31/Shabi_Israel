@@ -135,17 +135,34 @@ begin
 
   -- Ask GitHub to run the job NOW. The queue alone would be drained by the
   -- workflow's schedule, but a result published at 14:01 should not wait until
-  -- 14:30 to appear on the chart — the recompute takes ~80 seconds and there is
-  -- no reason for the delay to be measured in tens of minutes.
-  perform public._dispatch_projection_run();
-exception
-  when others then
-    -- The QUEUE ENTRY IS THE CONTRACT; the dispatch is only an accelerator.
-    -- If the Vault secret is missing, pg_net is unavailable (local Docker), or
-    -- GitHub is down, the work stays queued and the schedule picks it up. This
-    -- must never take down the admin's publish, which is the transaction this
-    -- trigger is running inside.
-    raise warning 'projection dispatch failed (work stays queued): %', sqlerrm;
+  -- 15:17 to appear on the chart.
+  --
+  -- ITS OWN BLOCK, and that is not style — it is the whole correctness of this
+  -- function.
+  --
+  -- A plpgsql block carrying an EXCEPTION clause runs inside an implicit
+  -- SUBTRANSACTION, and catching an error rolls back everything that block did.
+  -- With one handler around both statements, a failing dispatch therefore
+  -- DELETED THE QUEUE ROW INSERTED THREE LINES ABOVE IT. The comment promised
+  -- "the work stays queued"; the code guaranteed the opposite, and did it
+  -- silently, because `raise warning` does not stop the rollback.
+  --
+  -- Observed in production: every trigger fired correctly on every published
+  -- match, and the queue was empty seconds later. The projections sat a day
+  -- stale with nothing anywhere reporting a fault.
+  --
+  -- The insert is now OUTSIDE any handler, so nothing downstream of it can undo
+  -- it. THE QUEUE ENTRY IS THE CONTRACT; the dispatch is only an accelerator,
+  -- and an accelerator is allowed to fail.
+  begin
+    perform public._dispatch_projection_run();
+  exception
+    when others then
+      -- Vault secret missing, pg_net unavailable (local Docker), GitHub down.
+      -- The row survives and the schedule drains it. This must never take down
+      -- the admin's publish, which is the transaction the trigger runs inside.
+      raise warning 'projection dispatch failed (work stays queued): %', sqlerrm;
+  end;
 end $$;
 
 /**
@@ -194,6 +211,9 @@ begin
   -- Record the ask (for debouncing only). Deliberately NOT claimed_at: the run
   -- being asked for has not taken the work yet, and marking it here would hide
   -- the work from it.
+  --
+  -- Deliberately WHERE-less: one dispatch starts a job that drains the WHOLE
+  -- queue, so every row queued right now has genuinely been asked for.
   update public.projection_queue set dispatched_at = now();
 end $$;
 

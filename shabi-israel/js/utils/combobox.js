@@ -570,7 +570,20 @@ export function mountSearchField(input, opts = {}) {
         // name — the snapshot picker's "A beats B", each side carrying its own
         // flag and title badges. `labelFor` stays the plain-text form (what the
         // filter matches and what the field shows), so the two cannot drift.
+        // `nameHtml` OWNS THE NAME CELL. A caller that supplies it has assembled
+        // everything that belongs beside the name — the snapshot picker's "A
+        // beats B" with an identity on each side, the What-If picker's name plus
+        // its title badges plus its Last-300 PR — and there is no position left
+        // for the base to append `titleHtml` into that would be right for all of
+        // them. Appending it anyway printed the badges TWICE for a caller that
+        // had already placed them, which is why the choice is stated here rather
+        // than left to each call site to work around.
+        //
+        // `titleHtml` is still read on its own for the FIELD's identity overlay
+        // (paintIdentity), so a picker returning both gets badges in the field
+        // and full control of the row. Neither slot can be dropped for the other.
         const name = nameHtml || escapeHtml(displayLabel(o));
+        const rowTitleHtml = nameHtml ? '' : titleHtml;
         const off = disabled ? ' is-disabled' : '';
         const aria = disabled ? ' aria-disabled="true"' : '';
         const rich = !!(iconHtml || flagHtml || titleHtml || luckHtml || badge || sublabel || nameHtml);
@@ -582,7 +595,7 @@ export function mountSearchField(input, opts = {}) {
         // and the pill are measurements ABOUT them, so they sit outside it and
         // keep their own colours instead of inheriting the name's.
         return `<li class="app-combo-option app-combo-option--flag${off}" role="option"${aria} data-idx="${i}">`
-            + `${iconHtml}${flagHtml}<span class="app-combo-option-name">${name}${titleHtml}</span>`
+            + `${iconHtml}${flagHtml}<span class="app-combo-option-name">${name}${rowTitleHtml}</span>`
             + (sublabel ? `<span class="app-combo-option-sub">${escapeHtml(sublabel)}</span>` : '')
             + luckHtml
             + (badge ? `<span class="sf-badge sf-badge--${escapeHtml(badge.kind)}">${escapeHtml(badge.text)}</span>` : '')
@@ -684,7 +697,10 @@ export function mountSearchField(input, opts = {}) {
                 if (nameHtml) item.nameHtml = nameHtml;
                 if (iconHtml) item.iconHtml = iconHtml;
                 if (flagHtml) item.flagHtml = flagHtml;
-                if (titleHtml) item.titleHtml = titleHtml;
+                // Same ownership rule as optionHtml above: the sheet appends
+                // titleHtml after the name too, so a caller that already placed
+                // its badges inside nameHtml must not have them appended again.
+                if (titleHtml && !nameHtml) item.titleHtml = titleHtml;
                 if (luckHtml) item.luckHtml = luckHtml;
                 if (badge) item.badge = badge;
                 if (sublabel) item.sublabel = sublabel;

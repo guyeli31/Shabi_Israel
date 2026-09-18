@@ -30,11 +30,15 @@ function rateCell(v, row) {
  */
 export function buildPlayerAllMatchesPreset({ rows, enrich = {} }) {
     const cols = [
-        { key: 'leagueTitle', label: 'League', type: 'string', sortable: true, colorFn: null,
-          tdClass: 'league-cell',
-          format: (v, row) => enrich.leagueLink ? enrich.leagueLink(row._leagueId, v) : v },
-        { key: 'leagueType',  label: 'Type',   type: 'string', sortable: true, colorFn: null,
-          format: v => `<span class="league-type-pill type-${v}">${TYPE_LABELS[v] || v}</span>` },
+        // Opponent is the sticky first column: the one thing that identifies a
+        // row while the rest scrolls horizontally. The row goes to
+        // opponentCell, not just the name: this table pools every league the
+        // player ever appeared in, and the opponent's flag is the one they wore
+        // IN THAT LEAGUE. Passing the name alone is what forced the caller to
+        // fall back on a cross-league flag merge.
+        { key: 'opponent',    label: 'Opponent', type: 'string', sortable: true, colorFn: null,
+          tdClass: 'player-cell',
+          format: (v, row) => enrich.opponentCell ? enrich.opponentCell(v, row._leagueId) : v },
         { key: 'result',      label: 'Result', type: 'string', sortable: true, colorFn: null,
           sortKey: row => row.result === 'WIN' ? 2 : row.result === 'LOSS' ? 0 : 1,
           format: (v, row) => {
@@ -44,13 +48,6 @@ export function buildPlayerAllMatchesPreset({ rows, enrich = {} }) {
                         : 'result-draw';
               return `<span class="${cls}">${v}${t}</span>`;
           } },
-        // The row goes to opponentCell, not just the name: this table pools
-        // every league the player ever appeared in, and the opponent's flag is
-        // the one they wore IN THAT LEAGUE. Passing the name alone is what
-        // forced the caller to fall back on a cross-league flag merge.
-        { key: 'opponent',    label: 'Opponent', type: 'string', sortable: true, colorFn: null,
-          tdClass: 'player-cell',
-          format: (v, row) => enrich.opponentCell ? enrich.opponentCell(v, row._leagueId) : v },
         { key: 'score',       label: 'Score',  type: 'string', sortable: false, colorFn: null },
         { key: 'prSelf',      label: 'PR',     type: 'number', sortable: true, colorFn: null,
           sortKey: row => typeof row.prSelf === 'number' ? row.prSelf : null,
@@ -61,6 +58,11 @@ export function buildPlayerAllMatchesPreset({ rows, enrich = {} }) {
         { key: 'luck',        label: 'Luck',   type: 'number', sortable: true, colorFn: null,
           sortKey: row => typeof row.luck === 'number' ? row.luck : null,
           format: (v, row) => rateCell(v, row) },
+        { key: 'leagueTitle', label: 'League', type: 'string', sortable: true, colorFn: null,
+          tdClass: 'league-cell',
+          format: (v, row) => enrich.leagueLink ? enrich.leagueLink(row._leagueId, v) : v },
+        { key: 'leagueType',  label: 'Type',   type: 'string', sortable: true, colorFn: null,
+          format: v => `<span class="league-type-pill type-${v}">${TYPE_LABELS[v] || v}</span>` },
         { key: 'date',        label: 'Date',   type: 'string', sortable: true, colorFn: null,
           sortKey: row => row._timestamp ?? 0,
           format: (v, row) => row._dateApprox

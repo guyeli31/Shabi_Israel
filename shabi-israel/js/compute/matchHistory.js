@@ -107,8 +107,45 @@ export function buildMatchTimeline(history, overrides, allMatches) {
     for (const m of allMatches || []) {
         if (!m.played) dropped.add(matchKey(m.playerA, m.playerB));
     }
-    if (dropped.size === 0) return rows.slice();
-    return rows.filter(m => !dropped.has(matchKey(m.playerA, m.playerB)));
+    const kept = dropped.size === 0
+        ? rows
+        : rows.filter(m => !dropped.has(matchKey(m.playerA, m.playerB)));
+
+    // Stamp each row with its FIXTURE POSITION, the tie-break orderTimeline uses
+    // for rows sharing an instant. Copies, never mutation: `history` comes from
+    // the memoised store and is one shared array handed to every caller.
+    const fixtures = buildFixtureIndex(allMatches);
+    if (!fixtures) return kept.slice();
+    return kept.map(m => ({ ...m, _fixture: fixtures.get(matchKey(m.playerA, m.playerB)) }));
+}
+
+/**
+ * pairing → its position in the league's fixture list, i.e. the row it occupies
+ * in the Rounds table (B6): round ascending, and within a round the order the
+ * fixtures were created.
+ *
+ * THE POSITION IS DERIVED FROM `id`, NOT FROM ARRAY ORDER, and that distinction
+ * is the whole point of this function. The Rounds table renders
+ * `allMatchesIncUnplayed.filter(m => m.round === current)` with no sort of its
+ * own, so what it shows is whatever order the array arrived in — which for the
+ * browser is the site bundle's `order by m.league_id, m.round, m.id`. The Node
+ * projection job reads the same table with NO order by at all and gets whatever
+ * Postgres hands back. Ordering the timeline by array position would therefore
+ * give the browser one sequence and the job another, and the per-point
+ * fingerprints would never match again (see orderTimeline's note). Ranking by
+ * the stored `id` gives both the same answer from the same rows, in any order.
+ *
+ * Returns null when the caller passed no fixtures, or fixtures without ids —
+ * the sort then falls back to round and the player names.
+ */
+function buildFixtureIndex(allMatches) {
+    if (!allMatches || allMatches.length === 0) return null;
+    if (allMatches.some(m => m.id == null)) return null;
+    const index = new Map();
+    [...allMatches]
+        .sort((x, y) => (Number(x.round) - Number(y.round)) || (Number(x.id) - Number(y.id)))
+        .forEach((m, i) => index.set(matchKey(m.playerA, m.playerB), i));
+    return index;
 }
 
 /**
@@ -136,28 +173,69 @@ export function getMatchesAsOf(timeline, pointValue) {
 /**
  * The timeline in chronological order, dateless rows dropped.
  *
- * Rows sharing an instant are ordered by their PAIRING, alphabetically. Nothing
- * in the data says which of them was played first — a league imported in one go
- * stamps every match with the same instant — so the order is arbitrary in
- * meaning, but it must not be arbitrary in FACT.
+ * THE SORT KEY, in full:   (instant, fixture position, round, player A, player B)
  *
- * It was, once, and the bug is worth keeping in view: the tie-break used to be
- * arrival order, which is stable only within one source. The browser reads
- * match_history from the site bundle (ordered by id); a Node job reads it with
- * no ORDER BY and gets whatever Postgres returns. Same rows, same timestamps,
- * different sequence — so the two disagreed about which match point #1 was, the
- * per-point fingerprints computed from that sequence never matched, and every
- * precomputed projection looked stale to the page that was meant to read it.
+ * The instant is the only part that is real evidence. The rest exists because
+ * eleven leagues stamp EVERY match with one instant — the pre-Supabase leagues
+ * were reconstructed from CSV long after they were played, and a whole league
+ * imported in one go carries one clock reading for all 300 results. Those rows
+ * still have to be put in SOME order, and the order is what the chart's X axis,
+ * the picker's row sequence and the `#n` ordinal in a shared URL all mean.
+ *
+ * THE FIXTURE POSITION IS THE ANSWER, because it is the order the league itself
+ * already publishes: the Rounds table (B6) lists round 1 before round 2, and
+ * within round 1 lists its fixtures in a fixed order. A rewind list that
+ * disagreed with that table would be describing a different season. So the
+ * timeline replays the fixtures in exactly the order the league shows them —
+ * see buildFixtureIndex, which derives that position from `matches.id` rather
+ * than from the order an array happened to arrive in.
+ *
+ * `round` and the names follow only as fallbacks, for a row with no fixture at
+ * all: a technical result entered against a pairing nobody ever played has no
+ * `matches` row to take a position from (December 2025's retirement rows are the
+ * worked example). Names are compared LOWERCASED — the rosters mix "Avi" with
+ * "ys", and raw code-unit order puts every capital ahead of every lowercase
+ * letter, which is not what alphabetical means to a reader — with the raw
+ * strings as a final tie-break so two names differing only in case still order
+ * deterministically. Deliberately NOT `localeCompare`: its result depends on the
+ * locale and the ICU build, so the browser and the Node job could disagree.
+ *
+ * ── WHY EVERY TIE-BREAK MUST BE DERIVED FROM THE DATA ──────────────────────
+ * The tie-break used to be arrival order, which is stable only within one
+ * source. The browser reads match_history from the site bundle (ordered by id);
+ * a Node job reads it with no ORDER BY and gets whatever Postgres returns. Same
+ * rows, same timestamps, different sequence — so the two disagreed about which
+ * match point #1 was, the per-point fingerprints computed from that sequence
+ * never matched, and every precomputed projection looked stale to the page that
+ * was meant to read it.
  *
  * Deriving the order from the data itself makes it reproducible anywhere, by
  * anyone, forever — which is what a fingerprint, a `#n` ordinal in a URL, and an
- * as-of replay all quietly depend on.
+ * as-of replay all quietly depend on. Any future tie-break has to clear the same
+ * bar: a random draw, a locale-sensitive collation or a row id would each look
+ * fine locally and break the projection cache in production.
  */
+function cmpName(x, y) {
+    const lx = x.toLowerCase(), ly = y.toLowerCase();
+    if (lx !== ly) return lx < ly ? -1 : 1;
+    return x < y ? -1 : x > y ? 1 : 0;
+}
+
 function orderTimeline(timeline) {
     return timeline
         .filter(m => m.updatedAt)
-        .map(m => ({ m, t: new Date(m.updatedAt).getTime(), k: matchKey(m.playerA, m.playerB) }))
-        .sort((a, b) => (a.t - b.t) || (a.k < b.k ? -1 : a.k > b.k ? 1 : 0))
+        .map(m => ({
+            m,
+            t: new Date(m.updatedAt).getTime(),
+            // No fixture and no round sort LAST within their instant, rather than
+            // colliding with position 0 / round 0 as a bare `Number(null)` would.
+            f: m._fixture == null ? Number.POSITIVE_INFINITY : m._fixture,
+            r: m.round == null ? Number.POSITIVE_INFINITY : Number(m.round),
+            a: m.playerA || '',
+            b: m.playerB || '',
+        }))
+        .sort((x, y) => (x.t - y.t) || (x.f - y.f) || (x.r - y.r)
+            || cmpName(x.a, y.a) || cmpName(x.b, y.b))
         .map(x => x.m);
 }
 

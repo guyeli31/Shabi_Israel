@@ -1036,7 +1036,7 @@
 /* ============================================================
  * F3 — sticky on player-general tables (desktop + mobile)
  *   pg-leagues-table  : col1 = League (sticky, left:0)
- *   pg-matches-table  : col1 = League (sticky, left:0)
+ *   pg-matches-table  : col1 = Opponent (sticky, left:0)
  *   pg-mr-table       : col1 = #,    col2 = Metric  (uses --pg-col1-w only)
  * ============================================================ */
 .achv-table.pg-mr-table       { --pg-col1-w: 36px; }
@@ -1048,7 +1048,8 @@
     font-size: var(--fs-085);
 }
 
-/* Col 1 = League — single sticky col (left:0, no JS offset measurement needed).
+/* Col 1 — single sticky col (left:0, no JS offset measurement needed):
+   League on pg-leagues-table, Opponent on pg-matches-table.
    The :not(.pg-mr-table) defensive guard was removed — pg-mr-table is only ever
    combined with .achv-table, never with .pg-matches-table. Keeping it here bumps
    specificity from (0,2,2) → (0,3,2) and silently beats the z-index:4 corner

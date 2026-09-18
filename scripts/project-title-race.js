@@ -39,6 +39,7 @@ import { buildLeagueProjection, withInitialPoint } from '../shabi-israel/js/comp
 import { buildLast300Map } from '../shabi-israel/js/compute/last300.js';
 import { getLeagueConfig } from '../shabi-israel/js/compute/leagueTypes.js';
 import { applyOverrides } from '../shabi-israel/js/data/applyOverrides.js';
+import { stampFromHistoryRow } from '../shabi-israel/js/utils/matchTime.js';
 
 const ITERATIONS = 50_000;
 // Every place, not the first ten. The chart's Show control offers each rank up
@@ -92,14 +93,25 @@ async function withRetry(label, fn, attempts = 3) {
 }
 
 /** Rows → the shapes the compute modules expect (they are written for the browser). */
+// `id` must travel: buildMatchTimeline ranks the fixtures by it to order the
+// timeline within a shared instant, and the browser carries it for the same
+// reason (js/data/bundleMapper.js → mapMatchRowAll). Drop it here and this job
+// orders eleven leagues differently from the site, and every fingerprint it
+// stores is one the page will reject as stale.
 const mapMatch = (m) => ({
+    id: m.id,
     playerA: m.player_a, playerB: m.player_b, scoreA: m.score_a, scoreB: m.score_b,
     prA: m.pr_a, prB: m.pr_b, luckA: m.luck_a, luckB: m.luck_b, round: m.round, played: m.played,
 });
+// `updatedAt` goes through the SAME reader the browser uses
+// (js/data/bundleMapper.js → mapHistoryRow), so a placeholder date arrives here
+// collapsed to a day exactly as it does on the page. Reading `h.updated_at` raw
+// would leave this job holding a full instant where the site holds a date, and
+// the two would disagree about what a point is called.
 const mapHistory = (h) => ({
     playerA: h.player_a, playerB: h.player_b, scoreA: h.score_a, scoreB: h.score_b,
     prA: h.pr_a, prB: h.pr_b, luckA: h.luck_a, luckB: h.luck_b,
-    round: h.round, updatedAt: h.updated_at, source: h.source,
+    round: h.round, updatedAt: stampFromHistoryRow(h), source: h.source,
 });
 const mapOverride = (o) => ({
     type: o.type, playerA: o.player_a, playerB: o.player_b, winner: o.winner,

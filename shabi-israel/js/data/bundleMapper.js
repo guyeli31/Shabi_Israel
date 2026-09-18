@@ -55,8 +55,15 @@ export function mapMatchRow(row) {
     };
 }
 
+/**
+ * `id` is carried on purpose: it is the league's fixture ORDER within a round
+ * (the Rounds table renders these rows unsorted, so the position is the id's
+ * rank), and js/compute/matchHistory.js sorts the timeline by it. Without it the
+ * position would have to come from this array's order, which the Node
+ * projection job — reading the same table with no ORDER BY — does not share.
+ */
 export function mapMatchRowAll(row) {
-    return { ...mapMatchRow(row), round: row.round, played: row.played };
+    return { ...mapMatchRow(row), id: row.id, round: row.round, played: row.played };
 }
 
 export function mapOverrideRow(row) {

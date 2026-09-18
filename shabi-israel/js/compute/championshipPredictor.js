@@ -146,6 +146,55 @@ export function normalCDF(x) {
 
 const DEFAULT_PR_STD = 2.0;
 
+/** The PR with no rated play behind it. Exported so a UI can say it is the default. */
+export const NO_HISTORY_PR = 10.0;
+
+/**
+ * The Last-300 window entry for a player, tolerant of the two stored shapes.
+ *
+ * `null` means "no rated play at all", which is a different statement from a
+ * mean of zero and drives a different branch in effectivePRFor.
+ */
+export function last300Entry(last300Map, playerName) {
+    if (!last300Map || !last300Map.has(playerName)) return null;
+    const entry = last300Map.get(playerName);
+    if (entry == null) return null;
+    // Backward compat: a plain number → treat as mean-only.
+    if (typeof entry === 'number') return { mean: entry, std: DEFAULT_PR_STD };
+    return entry;
+}
+
+/**
+ * THE strength figure the simulation actually plays with — the one number that
+ * decides every win probability in the model.
+ *
+ * EXACTLY TWO CASES, deliberately. Either the player has rated play, in which
+ * case the window IS the answer — one match means that one match's PR, never
+ * blended with a prior, growing into a moving average once it reaches 300 units
+ * of experience — or they have none at all, and 10.0 stands in.
+ *
+ * A third branch used to sit between them, falling back to the player's PR in
+ * the CURRENT league. It could almost never fire (a rated league is in the
+ * window's own pool, so a PR here means an entry there) and it contradicted the
+ * rule: a player's first match would have been averaged against their league
+ * form instead of simply being their PR.
+ *
+ * Exported because the What-If simulator SHOWS this number next to each player
+ * and next to each staged result's win odds. A screen that recomputed "the PR
+ * we probably use" separately would be a second definition of a player's
+ * strength, free to drift from the one the odds beside it were drawn from —
+ * which is the failure the Last-300 window itself was unified to end (see
+ * js/compute/last300.js). One function, both callers.
+ *
+ * @returns {{pr:number, std:number, fromWindow:boolean}} `fromWindow: false`
+ *   means the figure is the 10.0 stand-in, not a measurement.
+ */
+export function effectivePRFor(last300Map, playerName) {
+    const entry = last300Entry(last300Map, playerName);
+    if (entry) return { pr: entry.mean, std: entry.std || DEFAULT_PR_STD, fromWindow: true };
+    return { pr: NO_HISTORY_PR, std: DEFAULT_PR_STD, fromWindow: false };
+}
+
 // ── Gaussian sampler (Marsaglia polar) ─────────────────────────────
 // Each remaining match draws both players' "PR on the night" from
 // N(last300 mean, last300 std), independently and freshly per iteration.
@@ -553,42 +602,19 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
         }
     }
 
-    // Extract mean and std from last300Map entries.
-    // last300Map values are {mean, std} objects.
-    function getLast300(playerName) {
-        if (!last300Map.has(playerName)) return null;
-        const entry = last300Map.get(playerName);
-        if (entry == null) return null;
-        // Backward compat: plain number → treat as mean-only
-        if (typeof entry === 'number') return { mean: entry, std: DEFAULT_PR_STD };
-        return entry;
-    }
+    const getLast300 = (playerName) => last300Entry(last300Map, playerName);
 
     // Effective PR for win-probability lookup: Last-300 PR represents the
     // player's true strength, so it drives per-match probabilities regardless
-    // of current-league form.
-    //
-    // EXACTLY TWO CASES, deliberately. Either the player has rated play, in
-    // which case the window IS the answer — one match means that one match's PR,
-    // never blended with a prior, growing into a moving average once it reaches
-    // 300 units — or they have none at all, and 10.0 stands in.
-    //
-    // A third branch used to sit between them, falling back to the player's PR
-    // in THIS league. It could almost never fire (a rated league is in the
-    // window's own pool, so PR here means an entry there) and it contradicted
-    // the rule: a player's first match would have been averaged against their
-    // league form instead of simply being their PR.
+    // of current-league form. The rule, and why it has exactly two branches,
+    // lives on effectivePRFor — which the What-If simulator's on-screen figures
+    // read too, so the number shown and the number played with are one thing.
     const effectivePR = new Float64Array(n);
     const effectiveSTD = new Float64Array(n);
     for (let i = 0; i < n; i++) {
-        const entry = getLast300(players[i]);
-        if (entry) {
-            effectivePR[i] = entry.mean;
-            effectiveSTD[i] = entry.std || DEFAULT_PR_STD;
-        } else {
-            effectivePR[i] = 10.0;
-            effectiveSTD[i] = DEFAULT_PR_STD;
-        }
+        const { pr, std } = effectivePRFor(last300Map, players[i]);
+        effectivePR[i] = pr;
+        effectiveSTD[i] = std;
     }
 
     // Tiebreaker PR: weighted avg of league meanPR (played) + last300PR (for remaining)

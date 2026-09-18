@@ -106,7 +106,7 @@ function fmtEdge(v) {
  * happen", unlike the chronological chart where the empty slot preserves the
  * match numbering.
  */
-export function drawPlayerHistogram(host, matches, metric) {
+export function drawPlayerHistogram(host, matches, metric, { onPick = null } = {}) {
     host.innerHTML = '';
     host.style.position = 'relative';
 
@@ -387,10 +387,38 @@ export function drawPlayerHistogram(host, matches, metric) {
         pinnedIndex = (hit !== -1 && pinnedIndex === hit) ? -1 : hit;
         updateInfoPanel();
         drawAll();
+        if (onPick) onPick(pinnedIndex);
     });
+
+    /**
+     * Pin a bin from OUTSIDE the canvas — the ‹ › stepper's entry point. Same
+     * `pinnedIndex` the click handler writes, so a stepped bin and a tapped one
+     * are one state. Bins with no matches draw no bar and answer no tap; they
+     * are excluded by `hasMatches` (the stepper's `isSteppable`), which is also
+     * why the readout can say "3 / 11 bars" instead of "7 / 30 bins".
+     */
+    function setPinned(i) {
+        pinnedIndex = i < 0 ? -1 : Math.min(Math.max(0, i), n - 1);
+        updateInfoPanel();
+        drawAll();
+        return pinnedIndex;
+    }
+    const getPinned = () => pinnedIndex;
+    const hasMatches = (i) => bins[i].matches.length > 0;
+
+    return { draw: drawAll, setPinned, getPinned, hasMatches, binCount: n, bins };
 }
 
-export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer, scaleOverride) {
+/**
+ * @param {object} [opts]
+ *   onPick — a match was pinned (index) or released (-1) BY CLICK. Hover is
+ *            deliberately not reported: it fires on every mousemove, and the
+ *            only caller today is the ‹ › stepper's readout, which has to
+ *            follow a tap but must not chase a cursor across the plot.
+ * @returns {{ draw, setPinned, getPinned, slotCount }} the chart's pin controller
+ *          — what `mountChartStepper()` drives.
+ */
+export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer, scaleOverride, { onPick = null } = {}) {
     host.innerHTML = '';
     host.style.position = 'relative';
 
@@ -763,5 +791,43 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer,
         }
         updateInfoPanel();
         drawAll();
+        if (onPick) onPick(pinnedIndex);
     });
+
+    /**
+     * Pin a match from OUTSIDE the canvas — what the ‹ › stepper drives.
+     *
+     * Goes through the same `pinnedIndex` the click handler sets, so a stepped
+     * match and a tapped one are the same state: the highlight and the detail
+     * panel follow, and one can be released by tapping the other. Pinning a bar
+     * releases any pinned moving-average point, exactly as a click does.
+     *
+     * A slot can be EMPTY (a caller may pass a slot count larger than the match
+     * list — the dashboard does, to keep every player's chart on one X scale).
+     * Which indices are worth stepping to is the STEPPER's question, answered
+     * by the `isSteppable` predicate it is mounted with; this function only
+     * clamps, so there is one owner of that rule across six charts.
+     *
+     * -1 clears. Out-of-range is clamped rather than rejected, so a caller can
+     * say "one more" without first checking the end.
+     */
+    function setPinned(i) {
+        pinnedIndex = i < 0 ? -1 : Math.min(Math.max(0, i), N - 1);
+        pinnedMA = -1;
+        updateInfoPanel();
+        drawAll();
+        return pinnedIndex;
+    }
+
+    /** The pinned match index, or -1. The stepper reads it to know where "next" is. */
+    function getPinned() {
+        return pinnedIndex;
+    }
+
+    /** Does this slot hold a match? The stepper's `isSteppable`. */
+    function hasMatch(i) {
+        return !!slots[i];
+    }
+
+    return { draw: drawAll, setPinned, getPinned, hasMatch, slotCount: N };
 }

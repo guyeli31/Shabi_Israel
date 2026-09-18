@@ -132,7 +132,8 @@ export function drawCorrelationRow(host, points, opts) {
     host.innerHTML = '';
     host.style.position = 'relative';
 
-    const { xMin, xMax, showAxis = false, buildInfoHtml, placeholderText = 'Hover or click a match to see details' } = opts;
+    const { xMin, xMax, showAxis = false, buildInfoHtml, placeholderText = 'Hover or click a match to see details',
+            onPick = null } = opts;
 
     const canvas = document.createElement('canvas');
     canvas.className = 'corr-row-canvas';
@@ -303,7 +304,27 @@ export function drawCorrelationRow(host, points, opts) {
         }
         updateInfoPanel();
         drawRow();
+        if (onPick) onPick(pinnedIndex);
     });
+
+    /**
+     * Pin a dot from OUTSIDE the canvas — the ‹ › stepper's entry point (see
+     * js/render/chartStepper.js). One dot is one MATCH, and the beeswarm only
+     * nudges dots vertically, so index order is the data order the caller
+     * handed in: stepping walks the matches, not the picture.
+     *
+     * Same `pinnedIndex` the click handler writes, so a stepped dot and a
+     * tapped one are one state and either can release the other.
+     */
+    function setPinned(i) {
+        pinnedIndex = i < 0 ? -1 : Math.min(Math.max(0, i), points.length - 1);
+        updateInfoPanel();
+        drawRow();
+        return pinnedIndex;
+    }
+    const getPinned = () => pinnedIndex;
+
+    return { draw: drawRow, setPinned, getPinned, pointCount: points.length };
 }
 
 /**
@@ -320,7 +341,8 @@ export function drawHistogramRow(host, buckets, opts) {
     host.innerHTML = '';
     host.style.position = 'relative';
 
-    const { xMin, xMax, showAxis = false, totalCount = 0, placeholderText = 'Hover a bar to see details', gaussian = null } = opts;
+    const { xMin, xMax, showAxis = false, totalCount = 0, placeholderText = 'Hover a bar to see details', gaussian = null,
+            onPick = null } = opts;
 
     const canvas = document.createElement('canvas');
     canvas.className = 'corr-row-canvas';
@@ -499,7 +521,28 @@ export function drawHistogramRow(host, buckets, opts) {
         pinnedIndex = pinnedIndex === hit ? -1 : hit;
         updateInfoPanel();
         drawRow();
+        if (onPick) onPick(pinnedIndex);
     });
+
+    /**
+     * Pin a bin from OUTSIDE the canvas — the ‹ › stepper's entry point (see
+     * js/render/chartStepper.js). These bins are the narrowest targets on the
+     * site: 198 of them across a 351px phone canvas, measured at 1–2px each,
+     * which is the whole reason the stepper reaches this chart. An EMPTY bin
+     * draws no bar and answers no tap, so `hasCount` tells the stepper to walk
+     * over it — and, because the stepper counts only its stops, the readout
+     * says "12 / 84 bars that exist" rather than "29 / 198 bins that could".
+     */
+    function setPinned(i) {
+        pinnedIndex = i < 0 ? -1 : Math.min(Math.max(0, i), buckets.length - 1);
+        updateInfoPanel();
+        drawRow();
+        return pinnedIndex;
+    }
+    const getPinned = () => pinnedIndex;
+    const hasCount = (i) => (buckets[i] && buckets[i].count > 0) || false;
+
+    return { draw: drawRow, setPinned, getPinned, hasCount, binCount: buckets.length, buckets };
 }
 
 /**
@@ -553,6 +596,7 @@ export function drawMultiHistogramRow(host, series, opts) {
         placeholderText = series.length === 1
             ? 'Hover a bar to see details'
             : 'Hover a PR-gap bin to see details',
+        onPick = null,
     } = opts;
 
     const canvas = document.createElement('canvas');
@@ -787,7 +831,29 @@ export function drawMultiHistogramRow(host, series, opts) {
         pinnedIndex = pinnedIndex === hit ? -1 : hit;
         updateInfoPanel();
         drawRow();
+        if (onPick) onPick(pinnedIndex);
     });
+
+    /**
+     * Pin a bin from OUTSIDE the canvas — the ‹ › stepper's entry point. Bins
+     * here are 2–3px wide on a phone (126 of them across 351px, measured), so
+     * the stepper is the only way to walk the distribution by hand.
+     *
+     * "Empty" is a question about ALL the series at once: the bin is a shared X
+     * slot, and a bin holding only losses is still worth stepping to. It is
+     * skipped only when every series has nothing there — which is also what the
+     * detail panel would otherwise show as a row of zeroes.
+     */
+    function setPinned(i) {
+        pinnedIndex = i < 0 ? -1 : Math.min(Math.max(0, i), binCount - 1);
+        updateInfoPanel();
+        drawRow();
+        return pinnedIndex;
+    }
+    const getPinned = () => pinnedIndex;
+    const hasCount = (i) => series.some(s => s.buckets[i] && s.buckets[i].count > 0);
+
+    return { draw: drawRow, setPinned, getPinned, hasCount, binCount, series };
 }
 
 /**

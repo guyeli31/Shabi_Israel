@@ -687,3 +687,41 @@ $$;
 revoke all on function public.analytics_events_raw(timestamptz, timestamptz, text, int) from public;
 revoke execute on function public.analytics_events_raw(timestamptz, timestamptz, text, int) from anon;
 grant execute on function public.analytics_events_raw(timestamptz, timestamptz, text, int) to authenticated;
+
+-- ── Global session ordinals — a stable 6-digit serial per visit ───────────
+-- The raw session id is a random hex string (held in sessionStorage, wiped on
+-- tab close). It is the correct correlation key but reads as noise in the UI.
+-- This assigns every session a stable ORDINAL by the order it first appeared:
+-- the earliest session ever is 0, the next 1, and so on across ALL history —
+-- so the numbering is retroactive by construction and never renumbers an old
+-- session as new ones arrive (a new session only ever takes the next number).
+--
+-- Returned as a { session_id: ordinal } map. It must be GLOBAL, not per-month:
+-- the dashboard loads raw events one month at a time, so "the first session
+-- ever" can only be known here, where the whole table is in scope. The client
+-- fetches it once, caches it, and zero-pads the ordinal to six digits for
+-- display. Only Israel-route rows carry a session_id (global/legacy rows are
+-- null and excluded by the WHERE) so this covers exactly the sessions the UI
+-- ever labels. Tie-break on session_id keeps the order deterministic when two
+-- sessions share an identical first-seen timestamp.
+create or replace function public.analytics_session_ordinals()
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+  select coalesce(jsonb_object_agg(session_id, ord), '{}'::jsonb) from (
+    select session_id,
+           (row_number() over (order by first_seen asc, session_id asc)) - 1 as ord
+    from (
+      select session_id, min(created_at) as first_seen
+      from public.analytics_events
+      where session_id is not null
+      group by session_id
+    ) s
+  ) t;
+$$;
+
+revoke all on function public.analytics_session_ordinals() from public;
+revoke execute on function public.analytics_session_ordinals() from anon;
+grant execute on function public.analytics_session_ordinals() to authenticated;

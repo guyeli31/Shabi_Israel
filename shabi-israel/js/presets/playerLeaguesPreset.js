@@ -34,6 +34,30 @@ export function rankCellHtml(league, playerRank, totalPlayers) {
     return `<span class="${rankClass}">${playerRank} / ${totalPlayers}</span>`;
 }
 
+/**
+ * The Date column's SORT value — a number, never the formatted string.
+ * "1 Sep 2026" sorts lexically as text, which is why the column read
+ * Apr, Aug, Dec, Feb… in date order. Derived from exactly the same sources
+ * formatLeagueDate() renders from, so the ordering can't disagree with the
+ * label next to it. A league with no date at all sorts last in either
+ * direction by returning null.
+ */
+export function leagueDateSortValue(league, parseLeagueDate) {
+    const iso = league.params?.IssueDate || league.params?.StartDate;
+    if (iso) {
+        const t = Date.parse(String(iso).slice(0, 10));
+        if (!isNaN(t)) return t;
+    }
+    if (parseLeagueDate) {
+        const parsed = parseLeagueDate(league.id);
+        if (parsed.year != null) {
+            const m = parsed.monthIndex >= 0 ? parsed.monthIndex : 0;
+            return Date.UTC(parsed.year, m, 1);
+        }
+    }
+    return null;
+}
+
 export function formatLeagueDate(league, parseLeagueDate) {
     // A league's opening day — the same reading for every viewer, never
     // converted into one, and with NO CLOCK: a row here is a whole LEAGUE, not
@@ -82,7 +106,8 @@ export function buildPlayerLeaguesPreset({ perLeague, parseLeagueDate, enrich = 
           format: v => v === 'Running'
               ? '<span class="status-pill status-running">Running</span>'
               : '<span class="status-pill status-completed">Completed</span>' },
-        { key: 'date',        label: 'Date',   type: 'string', sortable: true, colorFn: null },
+        { key: 'date',        label: 'Date',   type: 'string', sortable: true, colorFn: null,
+          sortKey: row => row._timestamp ?? null },
     ];
 
     const data = perLeague.map(e => {
@@ -101,6 +126,7 @@ export function buildPlayerLeaguesPreset({ perLeague, parseLeagueDate, enrich = 
             _leagueId:     e.league.id,
             leagueTitle:   e.league.title,
             date:          formatLeagueDate(e.league, parseLeagueDate),
+            _timestamp:    leagueDateSortValue(e.league, parseLeagueDate),
             type:          typePillHtml(cfg.type),
             _type:         cfg.type,
             status:        running ? 'Running' : 'Completed',

@@ -60,12 +60,13 @@ if (typeof window !== 'undefined' && !window.__mfTableRegistry__) {
  *                     sessionStorage[`mf-sort-pending-${tableId}`] on mount.
  *                     If a `{ colKey, dir }` entry exists, it's applied as the
  *                     initial sort. The renderer never *writes* to this key —
- *                     callers (e.g. league/player nav arrows) write it just
- *                     before navigating so the next mount picks it up. This
- *                     makes sort handover opt-in *per navigation path*: only
- *                     paths that explicitly stash the sort carry it across.
- *                     Other entries (search, breadcrumb, fresh load) get the
- *                     preset's default sort.
+ *                     js/utils/pageStateHandover.js writes it just before a
+ *                     navigation that stays on the same surface (a league
+ *                     switch) or a re-render that rebuilds the table (a theme
+ *                     change), so the next mount picks it up. Handover is
+ *                     therefore opt-in *per navigation path*: an entry from a
+ *                     different surface (search, breadcrumb, fresh load) gets
+ *                     the preset's default sort.
  *
  * ColDef:
  *   key, label, type, sortable, colorFn, format, tdClass, sortKey, boldExtreme

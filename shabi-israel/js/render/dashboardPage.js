@@ -23,7 +23,7 @@ import { drawCorrelationRow, drawHistogramRow } from './prCorrelationChart.js';
 import { luckConfidenceFromItems } from '../compute/luckConfidence.js';
 import { applyLuckPill } from './luckPill.js';
 import { renderBreadcrumbs } from './navigation.js';
-import { predictChampionship, computeTopXPct, prProbabilityTableHtml, getWinProbability, nearestMatchLengthIdx, matchLengthForIdx } from '../compute/championshipPredictor.js';
+import { predictChampionship, computeTopXPct, prProbabilityTableHtml, getWinProbability, nearestMatchLengthIdx, matchLengthForIdx, effectivePRFor } from '../compute/championshipPredictor.js';
 import { pmTableHtml } from '../../table-lab/formats/pm/mount.js';
 import { getPopup, leagueTypePill } from '../data/popupContent.js';
 import { tableValidationExampleHistogramSvg } from './exampleHistograms.js';
@@ -37,6 +37,7 @@ import { startSplash, splashStage, endSplash } from '../utils/splash.js';
 import { renderErrorScreen, explainError, inlineErrorHtml } from '../utils/errorScreen.js';
 import { buildLeagueHeaderData, renderV16Header, formatLastUpdatedDate } from './leagueHeader.js';
 import { mountAppTabs } from './appTabs.js';
+import { installPageStateHandover } from '../utils/pageStateHandover.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountAccordionTabs, mountLengthSelector } from './subTabs.js';
@@ -44,6 +45,7 @@ import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
 import { mountSearchField, mountCombobox, playerIdentityHtml } from '../utils/combobox.js';
 import { primeTitleMeta, titleHtmlFor } from '../utils/playerTitleBadge.js';
 import { mountTopXTimelineChart, colorForIndex } from './topXTimelineChart.js';
+import { mountChartStepper } from './chartStepper.js';
 import { projectAt, TIMELINE_ITERATIONS, scheduleFingerprint, pointFingerprints, withInitialPoint } from '../compute/topXTimeline.js';
 import { createLeagueLuckSource } from '../utils/playerLuckBadge.js';
 import { formatMatchStamp, formatMatchDay } from '../utils/matchTime.js';
@@ -155,6 +157,12 @@ export async function renderDashboardPage() {
         });
         container.appendChild(shell.root);
 
+        // Stepping to the next league keeps the tab the reader is standing in
+        // (?tab=charts stays ?tab=charts) instead of dropping back to
+        // Standings — see js/utils/pageStateHandover.js. The default tab
+        // carries nothing, so the canonical short URL is unaffected.
+        installPageStateHandover();
+
         // Each render fn still targets the same element IDs — they're now nested
         // inside the right tab panel rather than appended to #content directly.
         shell.panels.standings.innerHTML = standingsPanel();
@@ -239,7 +247,17 @@ function applyOverridesToAll(matches, overrides) {
 
         if (newMatch) {
             if (idx !== -1) {
+                // An override replaces the RESULT, so the row is rebuilt from
+                // scratch rather than merged (a former technical_win must not
+                // keep its `_technical` flag when it becomes a plain result).
+                // The fixture's IDENTITY is not part of the result and has to be
+                // carried across by hand: `round` always was, and `id` must be
+                // too — it is the fixture's position in the Rounds table, which
+                // is what orders the timeline within a shared instant (see
+                // js/compute/matchHistory.js → buildFixtureIndex). Dropped, every
+                // overridden match sorts to the end of its own instant.
                 newMatch.round = result[idx].round;
+                newMatch.id = result[idx].id;
                 result[idx] = newMatch;
             } else {
                 result.push(newMatch);
@@ -399,17 +417,13 @@ function predictorPanel() {
                     <input type="text" id="titlerace-player" class="app-search-input titlerace-add" placeholder="Add a player" autocomplete="off">
                 </div>
                 <div id="titlerace-legend" class="titlerace-legend"></div>
+                <!-- The ‹ N / M › stepper under this chart's axis is NOT authored
+                     here: mountTopXTimelineChart clears the host and appends its
+                     own canvas + panel, so anything placed inside would be wiped
+                     and anything placed after would drift a screen away as the
+                     panel grows. renderTitleRace mounts it (js/render/chartStepper.js)
+                     into the host once the chart exists. -->
                 <div id="titlerace-chart" class="chart-host"></div>
-                <!-- Step the pinned point one MATCH at a time. The chart answers a
-                     tap anywhere on its width, which on a phone means ~2px per
-                     point on a 300-match league: picking a specific match by
-                     finger is not realistic, and neither is nudging one over.
-                     Same stepper chrome as the Rounds and Run-from controls. -->
-                <div class="dash-controls titlerace-step">
-                    <button id="titlerace-prev" type="button" title="Previous match">&lsaquo;</button>
-                    <span class="round-label" id="titlerace-pos">&nbsp;</span>
-                    <button id="titlerace-next" type="button" title="Next match">&rsaquo;</button>
-                </div>
             </div>
         </section>
     `;
@@ -556,6 +570,11 @@ async function renderTitleRace(ctx) {
         pending: topXByPoint.filter(r => r == null).length,
     });
 
+    // Assigned right after the chart exists (it can only be mounted into a host
+    // the chart has already filled), but declared first so the pick handler
+    // below can resync its readout when someone taps the canvas instead.
+    let stepper = null;
+
     const chart = mountTopXTimelineChart(chartHost, {
         model,
         // Which MOMENT of the season someone chose to inspect - the one thing
@@ -563,7 +582,7 @@ async function renderTitleRace(ctx) {
         // report. The point names the match, which is what makes the row
         // readable in the analytics table without a lookup.
         onPick: (i) => {
-            syncStepper();
+            if (stepper) stepper.sync();
             const p = i >= 0 ? viewPoints[i] : null;
             if (!p) { trackRace('Title race: point cleared'); return; }
             const m = points[i] && points[i].match;
@@ -571,69 +590,35 @@ async function renderTitleRace(ctx) {
         },
     });
 
-    // ‹ › — one MATCH per press.
+    // ‹ › — one MATCH per press. The canvas already answers a tap, but it maps
+    // the whole plot width onto every point: on a 430px phone a 300-match league
+    // gives each point about 1.3px, so choosing a particular match by finger is
+    // not a thing anyone can do, and nudging one across is worse.
     //
-    // The canvas already answers a tap, but it maps the whole plot width onto
-    // every point: on a 430px phone a 300-match league gives each point about
-    // 1.3px, so choosing a particular match by finger is not a thing anyone can
-    // do, and nudging one across is worse. These buttons make the axis
-    // navigable by pressing rather than by aiming.
-    const stepPrev = document.getElementById('titlerace-prev');
-    const stepNext = document.getElementById('titlerace-next');
-    const stepPos = document.getElementById('titlerace-pos');
-
-    // Move the stepper INSIDE the chart host, between the canvas and the detail
-    // panel, so it sits directly under the X axis.
+    // The bar itself, its placement inside the host and its per-press tracking
+    // all live in js/render/chartStepper.js — the player page's match-history
+    // chart mounts the same control, and a hand-copied second version of it is
+    // exactly the kind of drift this project keeps paying for.
     //
-    // It cannot be authored there: mountTopXTimelineChart clears the host and
-    // appends canvas + panel itself, so anything placed there in the markup is
-    // wiped. Declared after the host and relocated once, here.
-    //
-    // Why it matters: the panel grows with the number of plotted players - five
-    // players is a title line plus five rows - and with the stepper below it the
-    // buttons ended up a screen away from the axis they scrub. The control
-    // belongs against the thing it moves.
-    const chartPanel = chartHost.querySelector('.chart-info-panel');
-    const stepBar = stepPrev.closest('.titlerace-step');
-    if (chartPanel && stepBar) chartHost.insertBefore(stepBar, chartPanel);
-
-    /** Readout + end-stops, from whatever the chart currently has pinned. */
-    function syncStepper() {
-        const i = chart.getPinned();
-        const total = points.length;
-        stepPos.textContent = i < 0 ? 'Tap a point' : `${i + 1} / ${total}`;
-        stepPrev.disabled = i === 0;
-        stepNext.disabled = i >= 0 && i === total - 1;
-    }
-
-    /**
-     * Nothing pinned yet? Start at the NEWEST point rather than at index 0 -
-     * that is the league as it stands, the state every other panel is showing,
-     * so the first press lands somewhere the reader already understands instead
-     * of at the empty INITIAL column.
-     */
-    const step = (delta) => {
-        const cur = chart.getPinned();
-        const next = cur < 0 ? points.length - 1 : cur + delta;
-        const landed = chart.setPinned(next);
-        syncStepper();
-        const m = points[landed] && points[landed].match;
-        // A STEP IS ITS OWN EVENT, and its own DIRECTION.
-        //
-        // Not folded into the tap's `point — ` for two reasons. The stepper was
-        // built on a specific claim - that the axis cannot be navigated by finger
-        // on a phone - and one event for both would make that claim permanently
-        // unmeasurable. And direction is the thing this control is FOR: walking
-        // back through a season and walking forward through it are different
-        // readings, and the icons (⬅️ / ➡️) say which at a glance.
-        //
-        // The match is still named, exactly as the tap names it, so "which
-        // moments get looked at" survives across both.
-        trackRace(`Title race: step ${delta < 0 ? 'back' : 'forward'} — ${m ? describeResult(m) : 'Initial'}`);
-    };
-    stepPrev.addEventListener('click', () => step(-1));
-    stepNext.addEventListener('click', () => step(1));
-    syncStepper();
+    // A STEP IS ITS OWN EVENT, and its own DIRECTION. Not folded into the tap's
+    // `point — ` for two reasons. The stepper was built on a specific claim -
+    // that the axis cannot be navigated by finger on a phone - and one event for
+    // both would make that claim permanently unmeasurable. And direction is the
+    // thing this control is FOR: walking back through a season and walking
+    // forward through it are different readings, and the icons (⬅️ / ➡️) say
+    // which at a glance. The match is still named, exactly as the tap names it,
+    // so "which moments get looked at" survives across both.
+    stepper = mountChartStepper(chartHost, {
+        controller: chart,
+        total: points.length,
+        prevTitle: 'Previous match',
+        nextTitle: 'Next match',
+        trackPrefix: 'Title race: step',
+        describe: (i) => {
+            const m = points[i] && points[i].match;
+            return m ? describeResult(m) : 'Initial';
+        },
+    });
 
     function renderLegend() {
         if (plotted.length === 0) {
@@ -1723,6 +1708,58 @@ function renderWhatIfSimulator(ctx) {
     // Title badges (G0/WC/NC …) for the pickers — one canonical source, cached.
     primeTitleMeta();
 
+    // ── Every player's strength, on screen, next to every choice about them ──
+    //
+    // The panel asks the user to pick two players and declare a winner, and
+    // until now it asked that with no idea of who is actually favoured — the
+    // odds existed only inside the simulation, after the fact. These three
+    // figures are the model's own inputs, surfaced at the moment of the
+    // decision: each player's Last-300 PR beside their name in the pickers and
+    // on the staged card, and each side's win probability on the button that
+    // declares them the winner.
+    //
+    // All three come from the SAME two functions the engine uses —
+    // effectivePRFor (js/compute/championshipPredictor.js) and
+    // getWinProbability — so the "62%" on a button is the number that match is
+    // simulated with, not an approximation of it.
+    //
+    // The map is memoised and shared with the Championship Predictor, so asking
+    // for it here costs nothing; it just has not necessarily ARRIVED when this
+    // renders. `decorate` runs when a dropdown opens, by which time it has, and
+    // the staged cards repaint when it lands. Until then the figures are simply
+    // absent — never a placeholder number, which would be a lie in the one spot
+    // a user is reading numbers to make a choice.
+    let last300 = null;
+    ensureLast300Map(ctx).then((m) => { last300 = m; renderStaged(); });
+
+    const mlIdx = nearestMatchLengthIdx(ctx.params?.MatchLength ?? 7);
+
+    /** `(8.42)` — the Last-300 PR, or nothing at all until the window loads. */
+    const prTagHtml = (p) => {
+        if (!last300) return '';
+        const { pr, fromWindow } = effectivePRFor(last300, p);
+        const entry = last300.get(p);
+        const detail = fromWindow
+            ? `Last-300 PR ${pr.toFixed(2)}`
+                + (entry && entry.matches ? ` — ${entry.matches} match${entry.matches === 1 ? '' : 'es'}` : '')
+            : `No rated matches — the simulation uses ${pr.toFixed(2)}`;
+        return `<span class="whatif-pr${fromWindow ? '' : ' is-default'}" title="${escapeHtml(detail)}">`
+            + `(${pr.toFixed(2)})</span>`;
+    };
+
+    /**
+     * Each side's chance of winning THIS match, interpolated off the PR table
+     * exactly as the simulation interpolates it. Returns null when the window
+     * has not loaded, so the buttons render bare rather than wrong.
+     */
+    const winOdds = (a, b) => {
+        if (!last300) return null;
+        const pa = effectivePRFor(last300, a).pr;
+        const pb = effectivePRFor(last300, b).pr;
+        const pA = getWinProbability(pa, pb, mlIdx);
+        return { a: pA * 100, b: (1 - pA) * 100 };
+    };
+
     // ── The A/B pair — ONE picker configuration, mounted twice ──────────────
     // "A vs B" is a pair, not a primary field and a secondary one, so neither
     // side gets to be the smarter half. Each picker reads the OTHER field: fill
@@ -1818,24 +1855,34 @@ function renderWhatIfSimulator(ctx) {
                     };
                 }
                 const flagCode = getFlagCode(p, whatifCustomFlags);
+                // BOTH slots, and they are not the same thing:
+                //   nameHtml  → the dropdown ROW. Built here so the PR lands
+                //               after the title badges rather than between them
+                //               and the name; supplying it means the base does
+                //               not append titleHtml again (see optionHtml).
+                //   titleHtml → the FIELD's identity overlay (paintIdentity),
+                //               which reads only this. Drop it and the picked
+                //               player keeps their flag but loses their badges.
+                // nameHtml is trusted markup, hence the explicit escape.
                 const titleHtml = titleHtmlFor(p);
+                const nameHtml = `${escapeHtml(displayPlayerName(p))}${titleHtml}${prTagHtml(p)}`;
                 const o = other();
-                if (!o) return { flagCode, titleHtml };
+                if (!o) return { flagCode, titleHtml, nameHtml };
                 // ADDED out-ranks every result badge: once the match is staged,
                 // its real outcome is no longer the actionable fact about this
                 // opponent — "you already have this one" is. The row stays listed
                 // (so the user can see where it went) but is unpickable.
                 if (isStaged(p)) {
                     return {
-                        flagCode, titleHtml, disabled: true,
+                        flagCode, titleHtml, nameHtml, disabled: true,
                         badge: { text: 'ADDED', kind: 'staged' },
                     };
                 }
                 const st = deriveBaselineState(o, p);
-                if (!st.wasPlayed) return { flagCode, titleHtml, badge: { text: 'NOT PLAYED', kind: 'unplayed' } };
+                if (!st.wasPlayed) return { flagCode, titleHtml, nameHtml, badge: { text: 'NOT PLAYED', kind: 'unplayed' } };
                 const kind = st.realWinner === 'A' ? 'won' : st.realWinner === 'B' ? 'lost' : 'drew';
                 const text = kind === 'won' ? 'WON' : kind === 'lost' ? 'LOST' : 'DREW';
-                return { flagCode, titleHtml, badge: { text, kind } };
+                return { flagCode, titleHtml, nameHtml, badge: { text, kind } };
             },
             // The name STAYS in the field until "Add match" is pressed, so the
             // field keeps the picked player's flag + titles rather than degrading
@@ -2071,7 +2118,7 @@ function renderWhatIfSimulator(ctx) {
             name: displayPlayerName(p),
             flagCode: getFlagCode(p, whatifCustomFlags),
             titleHtml: titleHtmlFor(p),
-        });
+        }) + prTagHtml(p);
         stagedHost.innerHTML = staged.map((s, i) => {
             const playedBadge = s.wasPlayed
                 ? `<span class="whatif-played-badge" title="This match was already played in the real league">PLAYED</span>`
@@ -2079,6 +2126,18 @@ function renderWhatIfSimulator(ctx) {
             const rollback = (s.wasPlayed && s.result === 'NP')
                 ? `<span class="whatif-warn" title="You are rolling back a real result to Not Played in this scenario">&#9888;</span>`
                 : '';
+            // The odds sit ON the button that declares the winner, because that
+            // is the moment they inform: "A wins 62%" is the button saying what
+            // it would be asserting. They are the model's own per-match number
+            // for this pairing at this league's match length, PR difference
+            // interpolated between the table's integer rows.
+            const odds = winOdds(s.a, s.b);
+            const pct = (v) => `<span class="whatif-odds">${v.toFixed(1)}%</span>`;
+            const oddsA = odds ? pct(odds.a) : '';
+            const oddsB = odds ? pct(odds.b) : '';
+            const oddsTitle = (who, v) => (odds
+                ? ` — ${v.toFixed(1)}% chance at ${matchLengthForIdx(mlIdx)} points`
+                : '');
             return `
                 <div class="whatif-row ${s.wasPlayed ? 'was-played' : ''}" data-idx="${i}">
                     <span class="whatif-row-player">${stagedIdentity(s.a)}</span>
@@ -2086,9 +2145,9 @@ function renderWhatIfSimulator(ctx) {
                     <span class="whatif-row-player">${stagedIdentity(s.b)}</span>
                     ${playedBadge}
                     <div class="whatif-result-group" role="radiogroup">
-                        <button type="button" class="whatif-res ${s.result === 'A' ? 'active' : ''}" data-res="A" title="${escapeHtml(s.a)} wins">A wins</button>
+                        <button type="button" class="whatif-res ${s.result === 'A' ? 'active' : ''}" data-res="A" title="${escapeHtml(s.a)} wins${odds ? escapeHtml(oddsTitle(s.a, odds.a)) : ''}">A wins${oddsA}</button>
                         <button type="button" class="whatif-res ${s.result === 'NP' ? 'active' : ''}" data-res="NP" title="Not played">NP</button>
-                        <button type="button" class="whatif-res ${s.result === 'B' ? 'active' : ''}" data-res="B" title="${escapeHtml(s.b)} wins">B wins</button>
+                        <button type="button" class="whatif-res ${s.result === 'B' ? 'active' : ''}" data-res="B" title="${escapeHtml(s.b)} wins${odds ? escapeHtml(oddsTitle(s.b, odds.b)) : ''}">B wins${oddsB}</button>
                     </div>
                     ${rollback}
                     <button type="button" class="whatif-del" title="Remove">&times;</button>
@@ -2716,7 +2775,7 @@ function renderRemainingMatches(ctx) {
 // the "Export Image" button or — when the table exceeds MAX_EXPORT_ROWS —
 // a notice explaining why export is unavailable (a taller table can't fit
 // the fixed WhatsApp frame at a readable font).
-function buildExportControl(rowCount, onExport) {
+function buildExportControl(rowCount, onExport, track) {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:var(--space-sm);';
     if (rowCount > MAX_EXPORT_ROWS) {
@@ -2729,6 +2788,10 @@ function buildExportControl(rowCount, onExport) {
         const btn = document.createElement('button');
         btn.className = 'img-export-btn';
         btn.textContent = 'Export Image';
+        // Analytics: name WHICH image (which Remaining sub-tab, which player), so the
+        // click log says more than the generic "Export: image" the bare class gives.
+        // The data-track branch in js/analytics.js wins over the .img-export-btn one.
+        if (track) btn.dataset.track = track;
         btn.addEventListener('click', onExport);
         row.appendChild(btn);
     }
@@ -2740,7 +2803,7 @@ function buildB6aPanel(panel, remaining, params, playersMeta, lastModified) {
         panel.appendChild(buildExportControl(remaining.length, () => {
             const sourceTable = panel.querySelector('.rem-b6a-wrap table');
             exportRemainingMatchesImage(sourceTable, ctx.leagueId, formatAsOf(lastModified), params.LeagueType || 'doubling');
-        }));
+        }, 'Export: Remaining (all matches)'));
     }
     const wrap = document.createElement('div');
     wrap.className = 'rem-b6a-wrap';
@@ -2771,7 +2834,7 @@ function buildB6bPanel(panel, ctx, remaining, lastModified) {
     panel.appendChild(buildExportControl(playerRemainingData.length, () => {
         const sourceTable = panel.querySelector('.rem-b6b-wrap table');
         exportB6bImage(sourceTable, ctx.leagueId, formatAsOf(lastModified), params.LeagueType || 'doubling');
-    }));
+    }, 'Export: Remaining (report)'));
 
     const wrap = document.createElement('div');
     wrap.className = 'rem-b6b-wrap';
@@ -2870,7 +2933,9 @@ function buildB6cPanel(panel, ctx, remaining, lastModified) {
                 // name, matching the heading and the rows it ships with.
                 exportB6cImage(sourceTable, title, displayPlayerName(player, playersMeta[player]),
                     formatAsOf(lastModified), params.LeagueType || 'doubling');
-            })
+            // The RAW player key (not the display name) so the analytics log can
+            // render its flag + title badges, like every other player reference.
+            }, `Export: Remaining — ${player}`)
         );
     }
 
@@ -3061,7 +3126,27 @@ function renderPlayerSection(ctx) {
             const metric = metricSel.value;
             link.href = playerLeagueUrl(leagueId, player);
             const matches = buildPlayerSeries(liveMatches, player);
-            drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer, sharedScale[metric]);
+            // The same chart the player page's Matches tab draws, so it gets the
+            // same ‹ › stepper. `totalMatchesPerPlayer` keeps every panel on one
+            // X scale, which means a short player's chart ends in EMPTY slots —
+            // `hasMatch` is what stops a press from landing on one.
+            let stepper = null;
+            const chart = drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer, sharedScale[metric], {
+                onPick: () => stepper && stepper.sync(),
+            });
+            stepper = mountChartStepper(host, {
+                controller: chart,
+                total: chart.slotCount,
+                isSteppable: chart.hasMatch,
+                emptyLabel: 'Tap a match',
+                prevTitle: 'Previous match',
+                nextTitle: 'Next match',
+                trackPrefix: 'Compare: step',
+                describe: (i) => {
+                    const m = matches[i];
+                    return m ? `${displayPlayerName(player)} vs ${displayPlayerName(m.opponent)}` : '';
+                },
+            });
         }
 
         // `player` is the entry's own state, not the field's text: the field
@@ -3517,6 +3602,33 @@ function wireSectionLangPopup(sectionId, btnId, popupId, closeId) {
     });
 }
 
+/**
+ * The ‹ N / M › stepper for a PR-gap histogram row — both of the league-level
+ * rows (this league, and all leagues pooled) mount it with identical config, so
+ * the config lives once. Measured reason it is there at all: 198 bins across a
+ * 351px phone canvas is a bar 1–2px wide, the narrowest tap target on the site.
+ *
+ * The caller wires `onPick` back to the returned bar's `sync`, so a tap on the
+ * canvas moves the readout too — the stepper and the canvas write one pin.
+ */
+function mountPrGapStepper(host, row) {
+    return mountChartStepper(host, {
+        controller: row,
+        total: row.binCount,
+        // Most bins in a wide PR-gap domain hold nothing; an empty bin draws no
+        // bar and answers no tap, so it is not a stop and is not counted.
+        isSteppable: row.hasCount,
+        emptyLabel: 'Tap a bar',
+        prevTitle: 'Previous PR-gap bin',
+        nextTitle: 'Next PR-gap bin',
+        trackPrefix: 'PR distribution: step',
+        describe: (i) => {
+            const b = row.buckets[i];
+            return b ? `PR gap ${b.x0} to ${b.x1}` : '';
+        },
+    });
+}
+
 function renderPrCorrelationSection(ctx) {
     // REGULAR leagues record no PR — the two correlation sections aren't in the
     // DOM for them (see insightsPanel), so there's nothing to render.
@@ -3666,13 +3778,17 @@ function renderPrCorrelationSection(ctx) {
             generalGaussianPopup.innerHTML = '';
         }
 
-        drawHistogramRow(generalPanel.querySelector('.corr-host'), buckets, {
+        const host = generalPanel.querySelector('.corr-host');
+        let stepper = null;
+        const row = drawHistogramRow(host, buckets, {
             xMin: localXMin,
             xMax: localXMax,
             showAxis: true,
             totalCount: generalSeries.length,
-            gaussian
+            gaussian,
+            onPick: () => stepper && stepper.sync(),
         });
+        stepper = mountPrGapStepper(host, row);
     }
     redrawGeneral();
 
@@ -3748,11 +3864,29 @@ function renderPrCorrelationSection(ctx) {
                 outcome: m.win ? 1 : 0
             }));
             applyLuckPill(luckPill, luckConfidenceFromItems(items));
-            drawCorrelationRow(host, series.map(m => ({ x: m.advantage, win: m.win, match: m })), {
+            let stepper = null;
+            const row = drawCorrelationRow(host, series.map(m => ({ x: m.advantage, win: m.win, match: m })), {
                 xMin: playerDomain.xMin,
                 xMax: playerDomain.xMax,
                 showAxis: true,
-                buildInfoHtml: (p) => corrMatchInfoHtml(p.match)
+                buildInfoHtml: (p) => corrMatchInfoHtml(p.match),
+                onPick: () => stepper && stepper.sync(),
+            });
+            // One dot is one MATCH here, and the dots sit ~11px apart at their
+            // closest (the beeswarm's own minimum), so a finger covers two or
+            // three of them and the nearest one wins — a miss picks a NEIGHBOUR
+            // rather than nothing, which is the failure the stepper removes.
+            stepper = mountChartStepper(host, {
+                controller: row,
+                total: row.pointCount,
+                emptyLabel: 'Tap a match',
+                prevTitle: 'Previous match',
+                nextTitle: 'Next match',
+                trackPrefix: 'PR vs Result: step',
+                describe: (i) => {
+                    const m = series[i];
+                    return m ? `${displayPlayerName(player)} vs ${displayPlayerName(m.opponent)}` : '';
+                },
             });
         }
 
@@ -3927,13 +4061,16 @@ function renderPrCorrelationSection(ctx) {
                 explanationPopup.innerHTML = '';
             }
 
-            drawHistogramRow(host, buckets, {
+            let stepper = null;
+            const row = drawHistogramRow(host, buckets, {
                 xMin: localXMin,
                 xMax: localXMax,
                 showAxis: true,
                 totalCount: rows.length,
-                gaussian
+                gaussian,
+                onPick: () => stepper && stepper.sync(),
             });
+            stepper = mountPrGapStepper(host, row);
         }
 
         minusBtn.disabled = false;

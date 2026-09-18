@@ -18,6 +18,7 @@ import { startSplash, splashStage, endSplash } from '../utils/splash.js';
 import { renderErrorScreen, explainError } from '../utils/errorScreen.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildPlayerMatchHistoryPreset } from '../presets/playerMatchHistoryPreset.js';
+import { installPageStateHandover, stashMountedSorts } from '../utils/pageStateHandover.js';
 
 export async function renderPlayerPage() {
     const container = document.getElementById('content');
@@ -155,7 +156,14 @@ export async function renderPlayerPage() {
         };
 
         renderTable();
-        window.addEventListener('themechange', renderTable);
+        // A theme switch rebuilds the table from scratch; stash the live sort
+        // first so the user's ordering survives it (mountMFTable consumes the
+        // stash on the very next mount).
+        window.addEventListener('themechange', () => { stashMountedSorts(); renderTable(); });
+
+        // Carry the open tab + every table's sort across a league switch that
+        // stays on this page (nav arrows, sidebar, "Also plays in").
+        installPageStateHandover();
 
         renderAlsoPlaysIn(container, playerName, leagueId);
     } catch (err) {
@@ -192,25 +200,10 @@ function installPlayerLeagueNavArrows({ leagueId, playerName, currentType, playe
     `;
     (header.querySelector('#page-title') || header.querySelector('h1')).insertAdjacentElement('afterend', nav);
 
-    // Sort handover — only nav-arrow clicks carry E's current sort to the
-    // next league. Any other entry (breadcrumb, search, direct URL,
-    // theme re-render) gets the preset default. See mountMFTable's
-    // one-shot pending-sort contract.
-    nav.querySelectorAll('a.nav-arrow:not(.disabled)').forEach(a => {
-        a.addEventListener('click', () => stashPendingSort('E'));
-    });
-}
-
-function stashPendingSort(tableId) {
-    if (typeof sessionStorage === 'undefined') return;
-    const table = document.querySelector(`table[data-mf-table-id="${tableId}"]`);
-    if (!table) return;
-    const colKey = table.dataset.sortColKey;
-    const dir    = table.dataset.sortDir;
-    if (!colKey) return;
-    try {
-        sessionStorage.setItem(`mf-sort-pending-${tableId}`, JSON.stringify({ colKey, dir }));
-    } catch { /* quota / disabled — ignore */ }
+    // Sort handover is no longer wired here: installPageStateHandover()
+    // (called once per render) carries E's sort across EVERY same-surface
+    // league switch — these arrows, the sidebar, "Also plays in" — instead of
+    // only the two links this function happens to build.
 }
 
 function computePlayerStatusDot({ playerName, playerIndex, allParams, currentLeagueId, currentParams, currentLeaguePlayers, currentYear }) {

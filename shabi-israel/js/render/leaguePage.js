@@ -19,6 +19,7 @@ import { startSplash, splashStage, endSplash } from '../utils/splash.js';
 import { renderErrorScreen, explainError } from '../utils/errorScreen.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildLeagueTablePreset } from '../presets/leagueTablePreset.js';
+import { installPageStateHandover, stashMountedSorts } from '../utils/pageStateHandover.js';
 import { buildLeagueHeaderData, renderV13Header, formatLastUpdatedDate } from './leagueHeader.js';
 import { getMatchesAsOf, INITIAL_POINT } from '../compute/matchHistory.js';
 
@@ -161,8 +162,14 @@ export async function renderLeaguePage() {
 
         renderTable();
 
-        // colorScale reads isDarkTheme at render time, so re-render on theme change
-        window.addEventListener('themechange', renderTable);
+        // colorScale reads isDarkTheme at render time, so re-render on theme
+        // change — stashing the live sort first so the rebuild doesn't drop the
+        // user's ordering back to the preset default.
+        window.addEventListener('themechange', () => { stashMountedSorts(); renderTable(); });
+
+        // Carry D's sort across a league switch that stays on this page (the
+        // nav arrows, the sidebar's Leagues flyout, a league link in a table).
+        installPageStateHandover();
 
         // Gate export on the fixed-frame row cap: a table taller than
         // MAX_EXPORT_ROWS can't fit the 4:5 WhatsApp frame at a readable
@@ -177,6 +184,9 @@ export async function renderLeaguePage() {
                 note.textContent = `Image export supports up to ${MAX_EXPORT_ROWS} rows (this table has ${rowCount}).`;
                 exportBtn.replaceWith(note);
             } else {
+                // Analytics: the league is already the page context, so the target
+                // only needs to say it was the ranked table, and whether historical.
+                exportBtn.dataset.track = isHistorical ? 'Export: League table (historical)' : 'Export: League table';
                 exportBtn.addEventListener('click', () => exportLeagueTableImage(title, mountPoint, params.LeagueType || 'doubling', effectiveLastModified, isHistorical));
             }
         }
@@ -211,10 +221,11 @@ function exportLeagueTableImage(title, mountPoint, leagueType, lastModified, isH
 // ---- League nav arrows ----
 //
 // Mirrors the E-page arrows: prev/next within the same LeagueType, ordered by
-// landing DisplayOrder. Clicking an arrow stashes the current sort into
-// sessionStorage under `mf-sort-pending-D` so the next mount restores it.
-// Sort handover is scoped to *these arrows*: any other entry (breadcrumb,
-// search, direct URL, theme re-render) gets the preset's default sort.
+// landing DisplayOrder. Carrying the current sort to the next league is NOT
+// wired here — installPageStateHandover() (js/utils/pageStateHandover.js) does
+// it for every link that switches league without leaving this page, these
+// arrows included. A step to a different surface (breadcrumb, search, direct
+// URL) still gets the preset's default sort.
 
 function installLeagueTableNavArrows({ leagueId, currentType, allParams }) {
     const folders = allParams
@@ -237,20 +248,4 @@ function installLeagueTableNavArrows({ leagueId, currentType, allParams }) {
         <a class="nav-arrow ${next ? '' : 'disabled'}" ${next ? `href="${leagueTableUrl(next)}" title="Next league: ${next}"` : 'title="No next league"'}>&rsaquo;</a>
     `;
     (header.querySelector('#page-title') || header.querySelector('h1')).insertAdjacentElement('afterend', nav);
-
-    nav.querySelectorAll('a.nav-arrow:not(.disabled)').forEach(a => {
-        a.addEventListener('click', () => stashPendingSort('D'));
-    });
-}
-
-function stashPendingSort(tableId) {
-    if (typeof sessionStorage === 'undefined') return;
-    const table = document.querySelector(`table[data-mf-table-id="${tableId}"]`);
-    if (!table) return;
-    const colKey = table.dataset.sortColKey;
-    const dir    = table.dataset.sortDir;
-    if (!colKey) return;
-    try {
-        sessionStorage.setItem(`mf-sort-pending-${tableId}`, JSON.stringify({ colKey, dir }));
-    } catch { /* quota / disabled — ignore */ }
 }

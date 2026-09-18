@@ -40,6 +40,7 @@ import {
     collectPlayerBestOpponentPR
 } from '../compute/matchRecords.js';
 import { drawPlayerBarChart, drawPlayerHistogram } from './playerBarChart.js';
+import { mountChartStepper } from './chartStepper.js';
 import { drawMultiHistogramRow } from './prCorrelationChart.js';
 import { applyLuckPill } from './luckPill.js';
 import { luckConfidenceFromItems } from '../compute/luckConfidence.js';
@@ -743,9 +744,17 @@ function renderMatchHistory(section, playerName, perLeague) {
         return filtered;
     }
 
+    // The ‹ N / M › bar under the chart's X axis, re-mounted on every render
+    // (each render rebuilds the chart from scratch, taking the old bar with it).
+    // Held here only so the canvas click handler can resync its readout.
+    let stepper = null;
+
     function renderAll() {
         const rows = applyFilters();
         renderTable(tableWrap, rows);
+        // Whatever bar the previous render left is gone with the host's
+        // contents; a stale reference would resync a detached element.
+        stepper = null;
 
         // Bar chart — every non-technical played match gets a slot, chronological
         // asc. REGULAR matches are kept (the player did play them, and dropping
@@ -773,9 +782,56 @@ function renderMatchHistory(section, playerName, perLeague) {
             if (sortMode === SORT_VALUE) {
                 // The histogram bins by value, so chronological order is
                 // irrelevant to it — the same rows, read a different way.
-                drawPlayerHistogram(chartHost, chartMatches, metricSel.value);
+                //
+                // It gets the same stepper as the chronological view. The bars
+                // look generous next to a 2px match bar, but measured on a
+                // 430px phone they are ~9px with dead space between them, and
+                // the two views are one chart: a control that appears and
+                // disappears when you switch how the same data is drawn is a
+                // control nobody trusts.
+                const hist = drawPlayerHistogram(chartHost, chartMatches, metricSel.value, {
+                    onPick: () => stepper && stepper.sync(),
+                });
+                stepper = mountChartStepper(chartHost, {
+                    controller: hist,
+                    total: hist.binCount,
+                    isSteppable: hist.hasMatches,
+                    emptyLabel: 'Tap a bar',
+                    prevTitle: 'Previous bin',
+                    nextTitle: 'Next bin',
+                    trackPrefix: 'Match history: step',
+                    describe: (i) => {
+                        const b = hist.bins[i];
+                        const unit = metricSel.value === 'luck' ? 'Luck' : 'PR';
+                        return b ? `${unit} ${b.x0.toFixed(1)}–${b.x1.toFixed(1)} (${b.matches.length})` : '';
+                    },
+                });
             } else {
-                drawPlayerBarChart(chartHost, chartMatches, metricSel.value, Math.max(chartMatches.length, 1));
+                // The stepper is mounted after the chart, and by the chart's own
+                // controller: drawPlayerBarChart() clears the host and appends
+                // canvas + panel itself, so anything placed there beforehand is
+                // wiped. Same reason the Title Race relocates its bar.
+                const chart = drawPlayerBarChart(
+                    chartHost, chartMatches, metricSel.value, Math.max(chartMatches.length, 1),
+                    null,
+                    // A tap on the canvas moves the same pin the ‹ › buttons do,
+                    // so the readout has to follow it or it goes stale the first
+                    // time someone taps instead of presses.
+                    { onPick: () => stepper && stepper.sync() },
+                );
+                stepper = mountChartStepper(chartHost, {
+                    controller: chart,
+                    total: chart.slotCount,
+                    isSteppable: chart.hasMatch,
+                    emptyLabel: 'Tap a match',
+                    prevTitle: 'Previous match',
+                    nextTitle: 'Next match',
+                    trackPrefix: 'Match history: step',
+                    describe: (i) => {
+                        const m = chartMatches[i];
+                        return m ? `#${i + 1} vs ${displayPlayerName(m.opponent)}` : '';
+                    },
+                });
             }
         } else {
             chartHost.innerHTML = `<div class="pg-note">No ${metricSel.value === 'luck' ? 'Luck' : 'PR'} data for current filters.</div>`;
@@ -1747,8 +1803,27 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
             // Every row draws its own axis — the rows are separate cards with a
             // hover panel between them, so a single shared ruler at the bottom
             // would be too far from the rows above to read against.
-            drawMultiHistogramRow(entry.host, series, {
+            // Each charted player is its own row with its own stepper: the rows
+            // share an X domain but not a pinned bin, and a single bar walking
+            // several rows at once would be a different control than the one
+            // every other chart on the site has.
+            let rowStepper = null;
+            const row = drawMultiHistogramRow(entry.host, series, {
                 xMin: lo, xMax: hi, showAxis: true, rowHeight: 152, yMax,
+                onPick: () => rowStepper && rowStepper.sync(),
+            });
+            rowStepper = mountChartStepper(entry.host, {
+                controller: row,
+                total: row.binCount,
+                isSteppable: row.hasCount,
+                emptyLabel: 'Tap a bin',
+                prevTitle: 'Previous PR-gap bin',
+                nextTitle: 'Next PR-gap bin',
+                trackPrefix: 'Total PR: step',
+                describe: (i) => {
+                    const b = row.series[0] && row.series[0].buckets[i];
+                    return b ? `PR gap ${b.x0} to ${b.x1}` : '';
+                },
             });
         });
 

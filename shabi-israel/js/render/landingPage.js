@@ -1666,6 +1666,9 @@ function renderLeaderboards(container, leaderboards) {
                 }
             });
             const exportBtn = panel.querySelector('.img-export-btn');
+            // Analytics: name the leaderboard (which league type), not a bare
+            // "Export: image". data-track wins over the generic .img-export-btn branch.
+            exportBtn.dataset.track = `Export: Annual Leaderboard (${lb.typeName})`;
             exportBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const currentInput = panel.querySelector('.img-export-rows');

@@ -114,6 +114,11 @@ let _monthsCache = null;
 // toggling a group re-renders from this cache with no round trip. Keyed by
 // month+scope so a MONTH change refetches but a filter change does not.
 let _rawCache = { key: null, events: null };
+// Global { session_id → ordinal } map (analytics_session_ordinals). GLOBAL, not
+// per-month: it numbers every session ever by first-seen order, so "the first
+// session ever = 000000" holds regardless of which month is on screen. Fetched
+// once per page load and reused across month/filter changes — it only grows.
+let _sessionOrdinals = null;
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 const typeLabel = (t) => LEAGUE_TYPE_LABELS[t] || (t ? t.charAt(0).toUpperCase() + t.slice(1) : '');
 const leagueDisplay = (leagueId) => {
@@ -288,7 +293,42 @@ function clickTargetHtml(target) {
             return `${escapeHtml(prefix)}${timelinePointHtml(target.slice(prefix.length))}`;
         }
     }
+    // The player page's match-history stepper names the match it landed on as
+    // '#12 vs Hummus'. The tail is an opponent KEY, so it gets the same flag +
+    // title chip every other row that names a player gets; the '#12 vs ' head
+    // stays plain. Same shape as the Title Race step rows above, one player
+    // instead of two.
+    for (const prefix of ['Match history: step back — ', 'Match history: step forward — ']) {
+        if (target.startsWith(prefix)) {
+            const tail = target.slice(prefix.length);
+            const i = tail.lastIndexOf(' vs ');
+            return i === -1
+                ? escapeHtml(target)
+                : `${escapeHtml(prefix + tail.slice(0, i + 4))}${playerHtml(tail.slice(i + 4))}`;
+        }
+    }
+    // The two per-MATCH steppers name both sides ('Avi vs Hummus'), so both get
+    // the chip. Note 'PR vs Result' carries a ' vs ' in the PREFIX itself — the
+    // split runs on the tail only, after the prefix is removed, which is why
+    // these are matched by prefix rather than by searching the whole string.
+    // The PR-gap steppers ('PR distribution: ', 'Total PR: ') name a bin range
+    // and no player, so they fall through and stay plain.
+    for (const prefix of ['Compare: step back — ', 'Compare: step forward — ',
+                          'PR vs Result: step back — ', 'PR vs Result: step forward — ']) {
+        if (target.startsWith(prefix)) {
+            const tail = target.slice(prefix.length);
+            const i = tail.lastIndexOf(' vs ');
+            return i === -1
+                ? escapeHtml(target)
+                : `${escapeHtml(prefix)}${playerHtml(tail.slice(0, i))} vs ${playerHtml(tail.slice(i + 4))}`;
+        }
+    }
     if (target.startsWith('Compare: change player: ')) return `Compare: change player: ${playerHtml(target.slice('Compare: change player: '.length))}`;
+    // "Export: Remaining — <player>" (the Per-Player remaining-matches image) — the
+    // tail is the player key, so give it the same flag + title chip as everywhere
+    // else. The "(all matches)"/"(report)" forms use parentheses, not " — ", so they
+    // never reach here and stay plain.
+    if (target.startsWith('Export: Remaining — ')) return `Export: Remaining — ${playerHtml(target.slice('Export: Remaining — '.length))}`;
     if (target.startsWith('What if: player ')) {
         const sep = target.indexOf(' — ');
         if (sep !== -1) return `${escapeHtml(target.slice(0, sep + 3))}${playerHtml(target.slice(sep + 3))}`;
@@ -308,7 +348,41 @@ function clickTargetHtml(target) {
             }
         }
     }
+    // "What if: run — N staged — A vs B not played; C beats D; …": a semicolon list
+    // of staged matchups, each naming two players. Enrich every player so the run
+    // summary reads like the winner/not-played rows above, not a wall of bare names.
+    // The head ("… N staged — ") stays plain; a tail truncated by the 300-char cap
+    // that no longer parses cleanly falls back to plain text (see stagedMatchupHtml).
+    if (target.startsWith('What if: run — ')) {
+        const marker = ' staged — ';
+        const mi = target.indexOf(marker);
+        if (mi === -1) return escapeHtml(target); // "N staged" with no matchup list
+        const head = target.slice(0, mi + marker.length);
+        const items = target.slice(mi + marker.length).split('; ').map(stagedMatchupHtml).join('; ');
+        return `${escapeHtml(head)}${items}`;
+    }
     return escapeHtml(displayTarget(target));
+}
+
+/** One staged matchup inside a "What if: run" summary — "A beats B", "A draws B",
+ *  or "A vs B not played" — with both players as identity chips. The 300-char cap
+ *  can cut the last item mid-name; an item that no longer parses cleanly stays
+ *  plain rather than enriching a fragment. */
+function stagedMatchupHtml(item) {
+    for (const j of [' beats ', ' draws ']) {
+        const i = item.indexOf(j);
+        if (i !== -1) return `${playerHtml(item.slice(0, i))}${escapeHtml(j)}${playerHtml(item.slice(i + j.length))}`;
+    }
+    const i = item.indexOf(' vs ');
+    if (i !== -1) {
+        const a = item.slice(0, i);
+        const rest = item.slice(i + ' vs '.length); // "B not played" (or a truncated tail)
+        if (/ not played$/.test(rest)) {
+            return `${playerHtml(a)} vs ${playerHtml(rest.slice(0, -' not played'.length))} not played`;
+        }
+        return `${playerHtml(a)} vs ${escapeHtml(rest)}`; // truncated — B incomplete
+    }
+    return escapeHtml(item);
 }
 
 /**
@@ -442,14 +516,25 @@ function userHue(name) {
     return ((h % 360) + 360) % 360;
 }
 
+/** The visible session code: a stable 6-digit ordinal (000000 = the first
+ *  session ever) from the global map, replacing the random 8-char hex fragment
+ *  that used to read as noise. Falls back to the old 8-char short only for a
+ *  session the ordinal map hasn't got yet (e.g. one created between the map's
+ *  fetch and this render) — degradation, never a crash. */
+function sessionCode(sessionId) {
+    const ord = _sessionOrdinals && _sessionOrdinals[sessionId];
+    if (ord === undefined || ord === null) return String(sessionId).slice(0, 8);
+    return String(ord).padStart(6, '0');
+}
+
 function sessionChip(sessionId, adminUser) {
-    const short = escapeHtml(String(sessionId).slice(0, 8));
-    if (!adminUser) return `<span class="analytics-sid analytics-sid--visitor">${short}</span>`;
+    const code = escapeHtml(sessionCode(sessionId));
+    if (!adminUser) return `<span class="analytics-sid analytics-sid--visitor" title="${escapeHtml(String(sessionId))}">${code}</span>`;
     // Label carries the operator's name; title keeps the FULL session id that
-    // the 8-char label drops. Both are escaped like any other text. The chip is
-    // tinted by this user's own hue (--sid-hue), so each registered user is
-    // distinct instead of every admin sharing one red.
-    const label = `${escapeHtml(adminUser)}_${short}`;
+    // the ordinal code stands in for. Both are escaped like any other text. The
+    // chip is tinted by this user's own hue (--sid-hue), so each registered user
+    // is distinct instead of every admin sharing one red.
+    const label = `${escapeHtml(adminUser)}_${code}`;
     return `<span class="analytics-sid analytics-sid--user" style="--sid-hue:${userHue(adminUser)}" title="${escapeHtml(String(sessionId))}">${label}</span>`;
 }
 
@@ -479,8 +564,12 @@ const DEVICE_ICONS = { desktop: '🖥️', mobile: '📱', tablet: '📋', unkno
  *  doubles the visual weight of the least important column. */
 function devicePill(device) {
     const d = device || 'unknown';
-    return `<span class="analytics-device-pill device-${escapeHtml(d)}">`
-         + `<span aria-hidden="true">${DEVICE_ICONS[d] || DEVICE_ICONS.unknown}</span>${escapeHtml(d)}</span>`;
+    // Icon-only: the device label ("desktop") is the least important column and
+    // its text ate a lot of horizontal room in the clicks log. The glyph carries
+    // the meaning (and the medal tint reinforces it); the word survives as a
+    // hover title + aria-label so nothing is lost to the eye that needs it.
+    return `<span class="analytics-device-pill device-${escapeHtml(d)}" title="${escapeHtml(d)}" aria-label="${escapeHtml(d)}">`
+         + `<span aria-hidden="true">${DEVICE_ICONS[d] || DEVICE_ICONS.unknown}</span></span>`;
 }
 
 // The five referrer_kind buckets (js/analytics.js detectReferrer). 'internal'
@@ -1148,6 +1237,22 @@ const CLICK_TYPE_ICONS = [
     { prefix: 'Title race: top ', icon: '🏎️🔝' },
     { prefix: 'Title race: section ', icon: '🏎️🔽' },
     { prefix: 'Title race: ', icon: '🏎️' },
+    // The same ‹ › stepper (the shared mountChartStepper) on the five other
+    // charts that mount it. Each keeps its own family prefix rather than one
+    // generic "chart step": the control was built on the claim that a canvas
+    // axis cannot be navigated by finger, and that claim is settled PER CHART —
+    // a 1px histogram bar and a 9px bin are different bets. The ⬅️/➡️ half is
+    // shared with the Title Race pair, because direction is what it reports.
+    { prefix: 'Match history: step back', icon: '📉⬅️' },     // player page, Matches (both views)
+    { prefix: 'Match history: step forward', icon: '📉➡️' },
+    { prefix: 'Compare: step back', icon: '⚖️⬅️' },           // dashboard, Player match history
+    { prefix: 'Compare: step forward', icon: '⚖️➡️' },
+    { prefix: 'PR vs Result: step back', icon: '🎯⬅️' },      // dashboard, per-player beeswarm
+    { prefix: 'PR vs Result: step forward', icon: '🎯➡️' },
+    { prefix: 'PR distribution: step back', icon: '📊⬅️' },   // dashboard, league PR-gap histograms
+    { prefix: 'PR distribution: step forward', icon: '📊➡️' },
+    { prefix: 'Total PR: step back', icon: '🧮⬅️' },          // player page, Records
+    { prefix: 'Total PR: step forward', icon: '🧮➡️' },
     { prefix: 'Export: ', icon: '🖼️' },
     { prefix: 'Expand: ', icon: '↕️' },   // "Show all (N)" table-expanders
     { prefix: 'Language: ', icon: '🌐' }, // EN/HE toggle in "?" popups
@@ -1936,6 +2041,12 @@ export async function renderAnalyticsPage(monthKeyArg = null, viewArg = null) {
     const monthsPromise = _monthsCache
         ? Promise.resolve(_monthsCache)
         : supabase.rpc('analytics_months').then((r) => { if (!r.error) _monthsCache = r; return r; });
+    // Global session→ordinal map (see _sessionOrdinals). Fetched once and cached;
+    // a failure is non-fatal — sessionCode() then falls back to the 8-char hash,
+    // so the page still renders, just without the tidy serial.
+    const ordinalsPromise = (_sessionOrdinals !== null)
+        ? Promise.resolve({ data: _sessionOrdinals, error: null })
+        : supabase.rpc('analytics_session_ordinals').then((r) => { if (!r.error) _sessionOrdinals = r.data || {}; return r; });
     const rawPromise = (_rawCache.key === rawKey)
         ? Promise.resolve({ data: _rawCache.events, error: null })
         : supabase.rpc('analytics_events_raw', {
@@ -1946,7 +2057,7 @@ export async function renderAnalyticsPage(monthKeyArg = null, viewArg = null) {
         }).then((r) => { if (!r.error) _rawCache = { key: rawKey, events: r.data || [] }; return r; });
 
     const [{ data: months, error: monthsError }, { data: rawEvents, error }] =
-        await Promise.all([monthsPromise, rawPromise]);
+        await Promise.all([monthsPromise, rawPromise, ordinalsPromise]);
 
     if (monthsError) {
         endSplash();

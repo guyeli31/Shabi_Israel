@@ -34,8 +34,20 @@
 --    Historical Changes entry — the same mechanism a manual Publish uses
 --    (sql/audit_batching.sql §5).
 --
--- Run once in the Supabase SQL Editor. Idempotent (create ... if not exists /
--- create or replace).
+-- Run in the Supabase SQL Editor. Idempotent (create ... if not exists /
+-- create or replace), and re-runnable against a fully set-up database — but
+-- NOT ON ITS OWN once it has been. It is the FIRST file of a four-file chain,
+-- each of which redefines mail_reports_pending():
+--
+--    1. sql/mail_sync.sql            (this file)
+--    2. sql/mail_rescan_pending.sql
+--    3. sql/players_registry.sql
+--    4. sql/mail_reason_accuracy.sql  ← must be LAST
+--
+-- Stopping halfway leaves mail_reports_pending() — everything the admin's Mail
+-- tab reads — defined by an earlier file than the one that should own it. Run
+-- all four, in that order, every time you run any of them. See the note above
+-- mail_orphan_reason for what specifically breaks if you do not.
 -- ============================================================================
 
 create extension if not exists pgcrypto with schema extensions;
@@ -472,6 +484,28 @@ $$;
 -- Two to four words wherever the case carries no such fact. The long-form
 -- versions these replaced ran to two full sentences and pushed the cell past
 -- the width of every other column in the table.
+--
+-- ── WHY THE DROP BELOW EXISTS: THIS FILE MUST SURVIVE A RE-RUN ─────────────
+-- sql/mail_reason_accuracy.sql supersedes this function with a five-argument
+-- version whose last two arguments DEFAULT TO NULL. Once that has been applied,
+-- `create or replace` here does not replace anything — it adds a second
+-- overload beside it, and a three-argument call then matches both. The very
+-- next statement in this file, mail_reports_pending(), makes exactly such a
+-- call, so the file dies on itself with
+--   ERROR: function public.mail_orphan_reason(text, text, integer) is not unique
+-- and every statement after that point — including all of the grants and
+-- revokes at the end — is silently skipped.
+--
+-- That made this file runnable only against a database no one had finished
+-- setting up: a cloud already carrying the full chain could not take a re-run
+-- of it at all, which is the one thing a `create or replace` file exists for.
+-- Dropping the superseding overload first leaves exactly one candidate, so the
+-- file completes. The documented order then restores the newer version: run
+-- sql/mail_reason_accuracy.sql LAST, and its own matching drop removes this
+-- three-argument one again. Either file, from any starting state, ends with one
+-- function.
+drop function if exists public.mail_orphan_reason(text, text, int, int, int);
+
 create or replace function public.mail_orphan_reason(
     p_a   text,
     p_b   text,

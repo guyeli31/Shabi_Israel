@@ -1839,6 +1839,37 @@
     border-color: var(--color-accent);
 }
 
+/* Last-300 PR, shown beside a player's name in the What-If pickers and on each
+   staged card. A MEASUREMENT about the player, not part of their name, so it is
+   muted and lighter than the name it follows — it must be readable at a glance
+   while comparing two players, and invisible when you are not.
+   `is-default` is the 10.0 stand-in for a player with no rated play: italic,
+   because the figure is an assumption rather than something measured, and the
+   difference has to survive being read in a hurry. */
+.whatif-pr {
+    margin-left: 0.35em;
+    color: var(--color-text-muted);
+    font-weight: 400;
+    font-size: var(--fs-085);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.whatif-pr.is-default {
+    font-style: italic;
+    opacity: 0.75;
+}
+
+/* Win odds ON the button that declares that side the winner. Inherits the
+   button's colour — including the inverted colour of `.active` — so it never
+   needs a second rule to stay legible once the button is selected. */
+.whatif-odds {
+    margin-left: 0.4em;
+    font-weight: 400;
+    font-size: var(--fs-085);
+    font-variant-numeric: tabular-nums;
+    opacity: 0.8;
+}
+
 .whatif-warn {
     color: var(--color-warning, #f59e0b);
     font-size: var(--fs-100);
@@ -2261,43 +2292,63 @@
     font-weight: 600;
 }
 
-/* Title Race point stepper. Sits IMMEDIATELY under the X axis, above the detail
-   panel it drives (the DOM move is in renderTitleRace) — the panel grows with
-   the number of plotted players, and below it the buttons drifted away from the
-   axis they scrub.
+/* Chart point stepper — the shared ‹ N / M › bar (js/render/chartStepper.js),
+   worn today by the Title Race chart and the player page's match-history chart.
+   Styled once here rather than per chart: it was a hand-copied pair for exactly
+   one release, and this is the file both pages already load.
+
+   Sits IMMEDIATELY under the X axis, above the detail panel it drives (the
+   mount does the placement) — that panel grows with its content, and below it
+   the buttons drifted away from the axis they scrub.
 
    Centred rather than left-aligned: the Iron Rule's left-align governs table
-   text, not a symmetric pair of steppers around a readout. Tight margins on
-   both sides so the bar reads as part of the chart rather than as a control
-   block of its own. */
-.titlerace-step {
+   text, not a symmetric pair of steppers around a readout.
+
+   `margin-top` is NOT decorative. The canvas above answers a tap on its whole
+   width, so a finger that lands a few pixels high does not miss the button —
+   it PINS A POINT instead, which is a different action entirely. The gap is
+   what keeps a near-miss a miss. (On player.html `.pg-section .dash-controls`
+   wins the `gap`/`margin-bottom` here on equal specificity, by load order; both
+   of its values are wider, so the bar is if anything better separated there.) */
+.dash-controls.chart-step {
     justify-content: center;
     gap: var(--space-xs);
-    margin-top: 2px;
+    margin-top: var(--space-sm);
     margin-bottom: var(--space-xs);
+    /* `.chart-panel .dash-controls` reserves 30px on the right so a wrapped
+       control row cannot run under the panel's pinned ✕ button. That
+       reservation is for the row at the TOP of the panel; this bar sits below
+       the canvas, nowhere near the ✕ — and inheriting it shifted the centred
+       group 15px LEFT of the axis it scrubs, which reads as a crooked control
+       rather than as a margin. Same specificity (0,2,0) as that rule and later
+       in this file, so it wins; released explicitly rather than by luck. */
+    padding-right: 0;
 }
-/* Deliberately BELOW the 44px both platforms publish as their touch minimum.
-   Sitting hard against the axis, this is the only tap target in that band —
-   nothing adjacent to hit by mistake — and the bar should read as part of the
-   chart, not as a control block competing with it. 28px is still more than 20x
-   the ~1.3px a single point occupies on a phone, and THAT is the comparison
-   that matters: this exists to replace an impossible target, not to be a large
-   one. */
-.titlerace-step button {
-    min-width: 28px;
-    min-height: 28px;
+/* 40px — up from the 28px this shipped with, and for a measured reason rather
+   than taste. The buttons sit directly under a canvas that treats every pixel
+   of its width as a point, and on a phone that neighbour is millimetres away:
+   a low tap on the arrow lands on the chart and silently re-pins whatever point
+   happens to be under the finger. 28px left too little of the finger's own
+   contact patch (~9mm ≈ 34px) inside the button, so the overshoot was routine.
+   40px is within a couple of pixels of the 44px both platforms publish as their
+   touch minimum, which is the number that describes this situation — a target
+   with something tappable hard against it — and the bar still reads as part of
+   the chart rather than as a control block competing with it. */
+.dash-controls.chart-step button {
+    min-width: 40px;
+    min-height: 40px;
     padding: 0;
-    font-size: var(--fs-090);
+    font-size: var(--fs-100);
     line-height: 1;
 }
-.titlerace-step button:disabled {
+.dash-controls.chart-step button:disabled {
     opacity: 0.4;
     cursor: default;
 }
 /* The readout is a quiet caption under the axis, not a label competing with it.
    `min-width` still reserves the widest reading ("300 / 301") so the arrows hold
    still while stepping instead of shuffling a pixel per digit. */
-.titlerace-step .round-label {
+.dash-controls.chart-step .round-label {
     min-width: 5em;
     /* --fs-085, not the smaller --fs-075. The root font on a 427px phone is
        13.28px, not 16, so the tokens compute far below their nominal rem: 075

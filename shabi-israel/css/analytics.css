@@ -330,8 +330,10 @@
 .analytics-device-pill {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 1px 8px;
+    justify-content: center;
+    /* Icon-only now (the device word moved to title/aria-label), so a tight,
+       roughly-square pill instead of the old text-width padding. */
+    padding: 2px 6px;
     border-radius: 999px;
     border: 1px solid var(--color-border);
     font-size: var(--fs-085);
