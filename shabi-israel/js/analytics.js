@@ -67,9 +67,44 @@ import { mountPromoNotice, promoBannerActive } from './render/promoNotice.js';
 // the column stays empty for the overwhelming majority of rows.
 const MOVED_BANNER = movedBannerActive() || null;
 
-// TEMPORARY (with promoNotice.js). Same shape, same reason, as MOVED_BANNER
-// above: true while the UBC launch announcement is on screen this page, so the
-// dashboard can mark each such page with 🎉.
+const PAGE_BY_FILENAME = {
+    'index.html': 'landing',
+    'league.html': 'league',
+    'league_table.html': 'league_table',
+    'player.html': 'player',
+    'player_league.html': 'player_league',
+    'admin.html': 'admin',
+};
+
+// TEMPORARY (with promoNotice.js).
+//
+// The UBC announcement belongs to the APP, and this file is also loaded by the
+// hub page at the DOMAIN ROOT (golan.me.uk/, see CLAUDE.md § Hosting layout) so
+// that hub traffic is counted. Without this gate the modal rendered there too,
+// and it was wrecked in three separate ways at once, all of them because the
+// hub is a different document in a different folder:
+//
+//   1. the hub links NO stylesheets, so every --space-*, --radius-* and
+//      --color-* the modal is built from was undefined — no padding, square
+//      corners, untheme
+//   2. the config path is relative (as every path inside shabi-israel/ must
+//      be), so it resolved to golan.me.uk/assets/promo/… and 404'd; the modal
+//      silently fell back to DEFAULT_CONFIG and showed the built-in gradient
+//      instead of the chosen photo
+//   3. the flag and language icons 404'd the same way, rendering as broken-image
+//      glyphs
+//
+// The moved-notice banner below is deliberately NOT gated: telling someone who
+// arrived at the old address where the site went is exactly the hub's job.
+//
+// Depth is what separates them — the hub and the app landing page are both
+// index.html (see pageFromPathname). Asking that ONE function rather than
+// re-testing the path here is what keeps the two answers from drifting.
+const IS_APP_PAGE = pageFromPathname(location.pathname) !== 'hub';
+
+// Same shape, same reason, as MOVED_BANNER above: true while the UBC launch
+// announcement is on screen this page, so the dashboard can mark each such page
+// with 🎉.
 //
 // This is a COLUMN and not an event on purpose. The announcement appearing is
 // something the SITE did, not something the visitor did — sending it as a click
@@ -81,9 +116,11 @@ const MOVED_BANNER = movedBannerActive() || null;
 // can be resolved, since analytics is insert-only and the row can never be
 // amended once sent. That is why promoBannerActive() reads its dates from the
 // generated js/render/promoWindow.js instead of the config file it is built
-// from: a fetch would land long after this line. null (not false) so the column
-// stays empty for the overwhelming majority of rows.
-let PROMO_BANNER = promoBannerActive() || null;
+// from: a fetch would land long after this line. It carries the same IS_APP_PAGE
+// gate as the render, or the hub's pageviews would be marked for a notice that
+// never appeared on them. null (not false) so the column stays empty for the
+// overwhelming majority of rows.
+let PROMO_BANNER = (IS_APP_PAGE && promoBannerActive()) || null;
 
 // The announcement can also appear on a page that was ALREADY OPEN when the
 // window opened (promoNotice.js watches the clock so it does not need a reload).
@@ -92,15 +129,6 @@ let PROMO_BANNER = promoBannerActive() || null;
 // The pageview itself has already gone and cannot be amended (insert-only), so
 // that one row stays unmarked; see announceShown() in promoNotice.js.
 window.addEventListener('shabi:promo-shown', () => { PROMO_BANNER = true; });
-
-const PAGE_BY_FILENAME = {
-    'index.html': 'landing',
-    'league.html': 'league',
-    'league_table.html': 'league_table',
-    'player.html': 'player',
-    'player_league.html': 'player_league',
-    'admin.html': 'admin',
-};
 
 const ENDPOINT = SUPABASE_URL ? `${SUPABASE_URL}/rest/v1/analytics_events` : null;
 
@@ -766,4 +794,4 @@ mountMovedNotice();
 // already acknowledged it, and stops rendering entirely past the `endsOn` date
 // in assets/promo/promo-config.json. Removal instructions are at the top of
 // js/render/promoNotice.js.
-mountPromoNotice();
+if (IS_APP_PAGE) mountPromoNotice();
