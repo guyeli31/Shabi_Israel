@@ -38,7 +38,12 @@ import { buildMatchTimeline, getUpdatePoints } from '../shabi-israel/js/compute/
 import { buildLeagueProjection, withInitialPoint } from '../shabi-israel/js/compute/topXTimeline.js';
 import { buildLast300Map } from '../shabi-israel/js/compute/last300.js';
 import { getLeagueConfig } from '../shabi-israel/js/compute/leagueTypes.js';
-import { applyOverrides } from '../shabi-israel/js/data/applyOverrides.js';
+// applyOverridesToAll is SHARED with the browser on purpose. This file used to
+// carry its own copy under a comment claiming it mirrored dashboardPage.js; it
+// did not, and when `cancelled` arrived only the browser's copy learned it —
+// so the job projected a 300-match April while the page read a 253-match one,
+// and every league with a retired player lost its stored projection.
+import { applyOverrides, applyOverridesToAll, isCancelled } from '../shabi-israel/js/data/applyOverrides.js';
 import { stampFromHistoryRow } from '../shabi-israel/js/utils/matchTime.js';
 
 const ITERATIONS = 50_000;
@@ -216,8 +221,17 @@ async function projectLeague(leagueId, last300Map) {
         return { leagueId, roster: [], points: [], skipped: true };
     }
 
+    // A cancelled fixture contributes NOBODY to the roster — the stored
+    // projection must not carry a retired player (docs/RETIREMENT-POLICY.md §3,
+    // "league_projections.roster"). The browser applies the identical skip when
+    // it builds allPlayersSet; the two rosters must match position for position,
+    // because a stored point's percentages are indexed by roster order.
     const allPlayers = new Set();
-    for (const m of allMatchesIncUnplayed) { allPlayers.add(m.playerA); allPlayers.add(m.playerB); }
+    for (const m of allMatchesIncUnplayed) {
+        if (isCancelled(m)) continue;
+        allPlayers.add(m.playerA);
+        allPlayers.add(m.playerB);
+    }
 
     const params = {
         MatchLength: leagueRow.match_length || 7,
@@ -248,29 +262,6 @@ async function projectLeague(leagueId, last300Map) {
         },
     });
     return { leagueId, ...result, seconds: Math.round((Date.now() - t0) / 1000) };
-}
-
-/** Mirrors js/render/dashboardPage.js applyOverridesToAll — overrides on the with-unplayed set. */
-function applyOverridesToAll(matches, overrides) {
-    if (!overrides || overrides.length === 0) return matches;
-    const played = applyOverrides(matches.filter(m => m.played), overrides);
-    const byKey = new Map(played.map(m => [[m.playerA, m.playerB].sort().join('|'), m]));
-    const out = [];
-    const seen = new Set();
-    for (const m of matches) {
-        const k = [m.playerA, m.playerB].sort().join('|');
-        const ov = overrides.find(o => [o.playerA, o.playerB].sort().join('|') === k);
-        if (ov && ov.type === 'not_played') { out.push({ ...m, played: false, scoreA: null, scoreB: null }); seen.add(k); continue; }
-        const merged = byKey.get(k);
-        out.push(merged ? { ...m, ...merged, played: true } : m);
-        seen.add(k);
-    }
-    // A technical result on a fixture that has no matches row at all.
-    for (const m of played) {
-        const k = [m.playerA, m.playerB].sort().join('|');
-        if (!seen.has(k)) out.push({ ...m, played: true, round: m.round || 1 });
-    }
-    return out;
 }
 
 async function main() {

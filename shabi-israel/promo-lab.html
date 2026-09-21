@@ -243,6 +243,10 @@ body {
     color: var(--color-text-muted);
 }
 </style>
+<!-- Vendored, never a CDN (CLAUDE.md § No third-party resources). Loaded here
+     and NOT on any site page: the share images are a campaign artefact made in
+     this lab, so no visitor should pay for the library. -->
+<script src="vendor/html2canvas-pro.min.js"></script>
 </head>
 <body>
 
@@ -352,11 +356,18 @@ body {
             <button class="lab-btn is-active" id="saveBtn" style="flex:1 1 100%">Save to site</button>
             <button class="lab-btn" id="dlBtn">Download JSON</button>
             <button class="lab-btn" id="clearBtn">Clear draft</button>
+            <button class="lab-btn" id="shareBtn" style="flex:1 1 100%">Export share images (EN + HE)</button>
         </div>
         <p class="lab-note" id="saveStatus"></p>
         <p class="lab-note">Writes <code>assets/promo/promo-config.json</code> — the
             committed file the site will read. Chrome asks for the location once,
-            then remembers it.</p>
+            then remembers it. Saving also downloads the two share images below.</p>
+        <p class="lab-note">The share images are the same card at 1080&times;1350
+            (the site's WhatsApp export size), one per language, with the Shabi
+            Israel logo where the language flags are and no &times; or "Got it" —
+            nothing to tap in a chat. The button asks once for a folder (pick
+            <code>assets/promo/</code>) and writes there from then on; saves reuse
+            it silently, or fall back to a download.</p>
     </div>
 
     <p class="lab-note">
@@ -380,7 +391,7 @@ body {
 import {
     VARIANTS, TREATMENTS, BUILT_IN_ART, ART_POSITIONS,
     buildPromoModal, injectPromoStyles,
-    promoWindowOpen, israelToday, resolveManager,
+    promoWindowOpen, israelToday, resolveManager, resolveArt,
     PROMO_CONFIG_PATH, PROMO_STORAGE_KEY, DEFAULT_CONFIG,
 } from './js/render/promoNotice.js';
 // The window js/analytics.js actually stamps `promo_banner` by. It is a
@@ -922,6 +933,18 @@ async function saveToSite() {
             flash(dateChanged
                 ? 'Saved ✓ — dates changed, now run: node scripts/build-promo-window.mjs'
                 : 'Saved to site ✓ — this design is now the committed one.');
+            // Every save re-cuts the campaign images, so the pictures being sent
+            // around can never be of a design that is no longer on the site —
+            // the same drift the config/copy split avoids, one step further out.
+            // Failure is reported but never fails the save: the JSON is already
+            // written, and that is the part the site reads.
+            try {
+                await exportShareImages();
+                flash(`${dateChanged ? 'Saved ✓ — run build-promo-window.mjs. ' : 'Saved to site ✓ '}`
+                    + `Share images re-cut (EN + HE).`);
+            } catch (e) {
+                flash(`Saved ✓ — but the share images failed: ${e.message}`, false);
+            }
             return;
         } catch (e) {
             if (e.name === 'AbortError') { flash('Save cancelled.', false); return; }
@@ -931,6 +954,216 @@ async function saveToSite() {
     downloadJson();
     flash(`Your browser can't write files directly — downloaded instead; put it at ${PROMO_CONFIG_PATH}.`);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SHARE IMAGES — the campaign artefact
+   ══════════════════════════════════════════════════════════════════════════
+
+   A WhatsApp-bound PNG of the announcement, one per language. Same size as
+   every other "Export Image" on the site (1080x1350, the 4:5 portrait that a
+   chat preview shows whole without cropping — js/utils/exportTableImage.js).
+
+   It is built from buildPromoModal(), NOT redrawn: a mockup would start
+   accurate and drift from the live notice the first time either changed, and
+   drift between a campaign image and the thing it advertises is the exact
+   failure this whole lab exists to prevent.
+
+   THREE things differ from the on-screen card, and all three are removals of
+   controls, because a picture has nothing to tap:
+     - the language flags become the Shabi Israel logo (the image is already
+       in one language; what a reader needs is to know whose it is)
+     - the "Got it" button goes
+     - the x goes
+   The contact line stays — it is the campaign's call to action.
+
+   HOW IT IS SIZED. The frame is laid out at CSS 432x540 and rendered with
+   html2canvas scale:2.5, giving exactly 1080x1350. Authoring at the size the
+   design was written for and scaling the RENDER (rather than laying out at
+   1080 and scaling every font up) is what keeps the card identical to the one
+   on a phone: the CSS is full of absolute px sizes that would otherwise all
+   need a second, parallel set of values.
+
+   The card is then stretched to the frame's full inner width. Left at its own
+   max(440px) it sat in the middle of the canvas with a third of the picture as
+   empty background above and below it — fine as a modal over a page, wasteful
+   as a picture whose whole job is to be legible as a chat thumbnail. */
+const SHARE_W = 432, SHARE_H = 540, SHARE_SCALE = 2.5;
+/* Top SAFE AREA, in the frame's CSS px (x2.5 in the output).
+   WhatsApp does not show a shared image whole in the chat bubble: it rounds the
+   corners and shaves the top edge, which ate the upper half of the logo and
+   crowded the eyebrow against nothing. The artwork keeps running to the edge —
+   only the CONTENT is inset, so what WhatsApp trims is photo rather than
+   anything anyone needs to read. 54px = 10% of the frame, comfortably more than
+   the observed crop. */
+const SHARE_SAFE_TOP = 54;
+
+async function buildShareFrame(lang) {
+    // configFromState() is the SAME config the preview is rendered from, so the
+    // image can only ever show the design currently on screen. flags/x are
+    // turned off at the CONFIG level, so buildPromoModal simply never emits
+    // them — cleaner than rendering them and deleting the nodes afterwards.
+    const cfg = { ...configFromState(), flags: false, x: false };
+    const overlay = buildPromoModal(cfg, { lang, manager: _manager });
+    const card = overlay.querySelector('.promo');
+
+    // The card's own responsive rules ask '@container vp', and on the site
+    // that container is .promo-overlay. The frame has to declare one too, or
+    // every breakpoint silently never matches and the image gets the desktop
+    // layout while the phone gets another — see the note on .promo-overlay in
+    // promoNotice.js for the first time that bit this project.
+    const holder = document.createElement('div');
+    holder.style.cssText = 'container-type:inline-size;container-name:vp;'
+        + 'width:100%;display:flex;justify-content:center;';
+    holder.appendChild(card);
+    /* FULL BLEED. The card stops being a card and becomes the picture.
+       On screen the rounded, shadowed, 440px-wide panel is doing a job: it
+       separates the notice from the page underneath it. A shared image has no
+       page underneath — there the same frame only announces "this is a cropped
+       screenshot", and the themed surface around it reads as an accidental
+       white border. So the width cap, the radius, the border and the shadow all
+       go, and the artwork the card already carries becomes the whole canvas.
+       Nothing about the CARD's design changes: this is the same Spotlight
+       layout with its chrome removed, not a second design. */
+    card.style.width = '100%';
+    card.style.height = '100%';
+    card.style.maxHeight = 'none';
+    // The card animates in with translateY(-14px). html2canvas snapshots
+    // whatever is on screen at that instant, so the capture caught the card
+    // still travelling: shifted up, clipped along the top edge and leaving a
+    // 14px strip of page background along the bottom that read as a stray white
+    // border. There is nothing to animate into in a still picture.
+    card.style.animation = 'none';
+    card.style.borderRadius = '0';
+    card.style.border = '0';
+    card.style.boxShadow = 'none';
+    holder.style.height = '100%';
+    // Spotlight pins its copy to the bottom of a min-height box; at full height
+    // that box has to grow with the canvas or the text floats mid-frame with
+    // dead artwork beneath it.
+    const content = card.querySelector('.promo-content');
+    if (content) content.style.minHeight = `calc(100% - ${SHARE_SAFE_TOP}px)`;
+    // Pushes .promo-scroll (all the copy) below the crop. The artwork is
+    // position:absolute inset:0, so it ignores this and stays full-bleed.
+    card.style.paddingTop = SHARE_SAFE_TOP + 'px';
+
+    // "Got it" goes, the contact note stays — so the footer keeps its padding
+    // and the card does not suddenly end flush against its last line.
+    card.querySelector('.promo-cta')?.remove();
+
+    // The logo takes the flags' place: same corner, same offsets.
+    const logo = document.createElement('img');
+    logo.src = 'assets/logo/logo.png';
+    logo.alt = 'Shabi Israel';
+    // Moved down with the copy — it was the first casualty of the crop.
+    logo.style.cssText = `position:absolute;top:${SHARE_SAFE_TOP + 6}px;left:12px;z-index:3;`
+        + 'height:34px;width:auto;border-radius:50%;';
+    card.appendChild(logo);
+
+    const frame = document.createElement('div');
+    const bodyStyle = getComputedStyle(document.body);
+    frame.style.cssText =
+        `position:fixed;left:-10000px;top:0;overflow:hidden;`
+        + `width:${SHARE_W}px;height:${SHARE_H}px;`
+        + `background:${bodyStyle.backgroundColor};`
+        + `font-family:${bodyStyle.fontFamily};`
+        + `display:flex;`;
+
+    frame.appendChild(holder);
+    document.body.appendChild(frame);
+    return { frame, card };
+}
+
+async function exportShareImage(lang) {
+    const { frame } = await buildShareFrame(lang);
+    try {
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        // The artwork is a background-image on a child; give the decode a beat
+        // or html2canvas can snapshot the card before the photo has painted.
+        await new Promise((r) => setTimeout(r, 250));
+        const canvas = await html2canvas(frame, {
+            scale: SHARE_SCALE,
+            backgroundColor: getComputedStyle(document.body).backgroundColor,
+            useCORS: true,
+            width: SHARE_W,
+            height: SHARE_H,
+        });
+        const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+        const name = `shabi-israel-ubc-promo-${lang}.png`;
+        const where = await writeShareImage(name, blob);
+        return { w: canvas.width, h: canvas.height, where };
+    } finally {
+        frame.remove();
+    }
+}
+
+/* WHERE the image lands.
+   Preferred: straight into assets/promo/ beside the artwork it is cut from, via
+   a directory handle the browser remembers (same IndexedDB trick the JSON save
+   uses for its file handle — asked for once, then silent). That is what makes
+   "every save re-cuts the images" actually true of the repo rather than true of
+   whatever folder the browser happens to download into.
+   Fallback: an ordinary download, for a browser without File System Access or a
+   designer who declines the prompt. Never fails the export. */
+async function shareDir({ prompt = false } = {}) {
+    let h = await idbGet('shareDirHandle').catch(() => null);
+    const opts = { mode: 'readwrite' };
+    if (h) {
+        if (await h.queryPermission(opts) === 'granted') return h;
+        if (await h.requestPermission(opts) === 'granted') return h;
+    }
+    if (!prompt || !window.showDirectoryPicker) return null;
+    h = await window.showDirectoryPicker({ id: 'shabi-promo-assets', mode: 'readwrite' });
+    await idbSet('shareDirHandle', h).catch(() => {});
+    return h;
+}
+
+function downloadBlob(name, blob) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+async function writeShareImage(name, blob) {
+    try {
+        const dir = await shareDir();
+        if (dir) {
+            const fh = await dir.getFileHandle(name, { create: true });
+            const w = await fh.createWritable();
+            await w.write(blob);
+            await w.close();
+            return 'folder';
+        }
+    } catch { /* permission revoked, folder moved - fall through */ }
+    downloadBlob(name, blob);
+    return 'download';
+}
+
+/** Both languages, in order. Sequential, not Promise.all: each one appends a
+ *  full card to the document to measure it, and two at once would have them
+ *  fighting over the same fonts-ready and image-decode moment. */
+async function exportShareImages() {
+    const sizes = [];
+    for (const lang of ['en', 'he']) sizes.push(await exportShareImage(lang));
+    return sizes;
+}
+
+document.getElementById('shareBtn').onclick = async () => {
+    // The explicit button is the one place it is fair to ASK for the folder —
+    // a save already owns the user's attention for its own picker, so it uses
+    // whatever was granted before and quietly downloads otherwise.
+    try { await shareDir({ prompt: true }); } catch { /* declined - download */ }
+    flash('Rendering share images…');
+    try {
+        const [a] = await exportShareImages();
+        flash(a.where === 'folder'
+            ? `Share images ✓ — EN + HE, ${a.w}x${a.h}, written to the chosen folder.`
+            : `Share images ✓ — EN + HE, ${a.w}x${a.h}, downloaded (put them in assets/promo/).`);
+    } catch (e) {
+        flash(`Could not render the share images: ${e.message}`, false);
+    }
+};
 
 document.getElementById('saveBtn').onclick = saveToSite;
 document.getElementById('dlBtn').onclick = () => {

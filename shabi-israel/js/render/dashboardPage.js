@@ -8,7 +8,7 @@
  */
 
 import { loadLeagueParams, loadLeagueOrder, loadOverrides, loadAllLeagueParams, loadLeagueMatchesAll, loadMatchHistory, applyOverrides, loadLeagueProjections } from '../data/store.js';
-import { isCancelled, remainingFixtures } from '../data/applyOverrides.js';
+import { isCancelled, remainingFixtures, applyOverridesToAll } from '../data/applyOverrides.js';
 import { CANCELLED_MARK_CLASS, CANCELLED_ROW_CLASS } from './retirementMarks.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { getMatchesAsOf, getUpdatePoints, buildMatchTimeline, mergeHistoryIntoMatches, matchKey, resultSides, describeResult, formatAxisDay, INITIAL_POINT } from '../compute/matchHistory.js';
@@ -214,93 +214,6 @@ export async function renderDashboardPage() {
     } finally {
         endSplash();
     }
-}
-
-/**
- * Apply overrides to the full match list (including unplayed).
- * Unlike applyOverrides(), 'not_played' marks a match as unplayed instead of removing it.
- */
-function applyOverridesToAll(matches, overrides) {
-    if (!overrides || overrides.length === 0) return matches;
-    const result = [...matches];
-    for (const o of overrides) {
-        const key = [o.playerA, o.playerB].sort().join('|');
-        const idx = result.findIndex(m => {
-            const mKey = [m.playerA, m.playerB].sort().join('|');
-            return mKey === key;
-        });
-
-        if (o.type === 'not_played' || o.type === 'cancelled') {
-            if (idx !== -1) {
-                result[idx] = {
-                    ...result[idx],
-                    played: false,
-                    scoreA: null, scoreB: null,
-                    prA: null, prB: null,
-                    luckA: null, luckB: null,
-                    _overridden: true,
-                    // THE DISTINCTION THAT MATTERS. Both clear the result, but
-                    // `not_played` means "still to come" and `cancelled` means
-                    // "never will be" — and four consumers below read bare
-                    // `!played` as the former. Without this flag a retired
-                    // player's 24 fixtures become 24 matches the league is
-                    // still waiting for: listed in B7, simulated by B3, and
-                    // offered as stageable by B4, forever.
-                    // See docs/RETIREMENT-POLICY.md §2.
-                    _cancelled: o.type === 'cancelled' || undefined,
-                };
-            }
-            continue;
-        }
-
-        let newMatch;
-        if (o.type === 'result') {
-            newMatch = {
-                playerA: o.playerA, playerB: o.playerB,
-                scoreA: o.scoreA, scoreB: o.scoreB,
-                prA: o.prA, prB: o.prB,
-                luckA: o.luckA, luckB: o.luckB,
-                played: true, _overridden: true
-            };
-        } else if (o.type === 'technical_win') {
-            const aWins = o.winner === o.playerA;
-            newMatch = {
-                playerA: o.playerA, playerB: o.playerB,
-                scoreA: aWins ? 1 : 0, scoreB: aWins ? 0 : 1,
-                prA: null, prB: null,
-                luckA: null, luckB: null,
-                played: true, _overridden: true, _technical: true
-            };
-        } else if (o.type === 'technical_draw') {
-            newMatch = {
-                playerA: o.playerA, playerB: o.playerB,
-                scoreA: 0, scoreB: 0,
-                prA: null, prB: null,
-                luckA: null, luckB: null,
-                played: true, _overridden: true, _technical: true, _draw: true
-            };
-        }
-
-        if (newMatch) {
-            if (idx !== -1) {
-                // An override replaces the RESULT, so the row is rebuilt from
-                // scratch rather than merged (a former technical_win must not
-                // keep its `_technical` flag when it becomes a plain result).
-                // The fixture's IDENTITY is not part of the result and has to be
-                // carried across by hand: `round` always was, and `id` must be
-                // too — it is the fixture's position in the Rounds table, which
-                // is what orders the timeline within a shared instant (see
-                // js/compute/matchHistory.js → buildFixtureIndex). Dropped, every
-                // overridden match sorts to the end of its own instant.
-                newMatch.round = result[idx].round;
-                newMatch.id = result[idx].id;
-                result[idx] = newMatch;
-            } else {
-                result.push(newMatch);
-            }
-        }
-    }
-    return result;
 }
 
 function installLeagueNavArrows(leagueId, allParams, currentType) {

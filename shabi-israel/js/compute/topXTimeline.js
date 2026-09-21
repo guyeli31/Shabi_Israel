@@ -53,6 +53,15 @@ export function baselineAt(timeline, allMatchesIncUnplayed, pointValue) {
     const played = getMatchesAsOf(timeline, pointValue);
     const playedKeys = new Set(played.map(m => matchKey(m.playerA, m.playerB)));
     const remaining = allMatchesIncUnplayed
+        // A CANCELLED fixture is never a remaining one, at any point. Cancellation
+        // is not dated — a retired player's match did not happen and was not
+        // pending earlier either (docs/RETIREMENT-POLICY.md §4 case 10, §5 rule 4).
+        // Without this the projection simulates a full season for a player who
+        // left, at EVERY point of the timeline, in both runtimes at once: this is
+        // the one baseline the chart, the browser fallback and the Node job all
+        // share. The What-If panel's own computeBaseline already filters here;
+        // this is the same rule, in the place the other two read it from.
+        .filter(m => !isCancelled(m))
         .filter(m => !playedKeys.has(matchKey(m.playerA, m.playerB)))
         .map(m => ({ ...m, played: false, scoreA: null, scoreB: null, prA: null, prB: null, luckA: null, luckB: null }));
     return { played, remaining };

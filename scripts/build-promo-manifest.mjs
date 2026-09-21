@@ -28,6 +28,16 @@ const MANIFEST = join(PROMO_DIR, 'manifest.json');
 
 const IMAGE_EXT = /\.(jpe?g|png|webp|avif|gif)$/i;
 
+// The lab's OWN OUTPUT lives in this folder too: promo-lab.html writes the
+// WhatsApp share images here on every save. They are products of the design,
+// not candidate backgrounds for it, and listing them would offer the designer
+// last save's picture as the artwork for the next one — a loop, and a confusing
+// one, since the thumbnail would look almost right.
+//
+// Matched by name rather than moved to a subfolder so the campaign images stay
+// where they are asked for, next to the artwork they are cut from.
+const EXPORT_NAME = /^shabi-israel-ubc-promo-[a-z]{2}\.png$/i;
+
 let entries;
 try {
     entries = await readdir(PROMO_DIR, { withFileTypes: true });
@@ -40,7 +50,7 @@ try {
 }
 
 const images = entries
-    .filter((e) => e.isFile() && IMAGE_EXT.test(e.name))
+    .filter((e) => e.isFile() && IMAGE_EXT.test(e.name) && !EXPORT_NAME.test(e.name))
     .map((e) => e.name)
     .sort();
 
