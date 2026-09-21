@@ -1663,6 +1663,31 @@ table.font-large { font-size: var(--fs-093); }
     background: var(--color-accent-light);
 }
 
+/* A CANCELLED fixture (a retired player's match). Read-only: every control in
+   the block carries `disabled`, and this only has to make that legible. It
+   borrows the unplayed tint rather than the overridden one, because a cancelled
+   match holds no result to highlight — and it keeps the same sticky-column
+   exemption for the reason documented above (opacity on a sticky cell
+   composites over whatever scrolled underneath it). */
+.admin-table.font-large.admin-round-table tbody.match-block-cancelled td {
+    background: var(--color-inset);
+    color: var(--color-text-muted);
+    opacity: 0.55;
+}
+.admin-table.font-large.admin-round-table tbody.match-block-cancelled td.match-player-cell {
+    opacity: 1;
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+}
+.admin-table.font-large.admin-round-table tbody.match-block-cancelled td.match-player-cell .flag {
+    opacity: 0.55;
+}
+/* The mark is the block's label, not part of the voided content. */
+.admin-table.font-large.admin-round-table tbody.match-block-cancelled .cancelled-mark {
+    opacity: 1;
+    text-decoration: none;
+}
+
 .admin-table.font-large.admin-round-table tbody.match-block-pending td {
     background: var(--color-warning-bg);
 }

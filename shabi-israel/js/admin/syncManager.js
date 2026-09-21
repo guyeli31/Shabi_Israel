@@ -33,6 +33,7 @@ import {
 import { createStageTracker, estimateRunSeconds, fmtDuration } from './syncProgress.js';
 import { loadMailState, mailSectionsHTML, wireMailSections } from './mailSync.js';
 import { restartSplash, endSplash } from '../utils/splash.js';
+import { trackAdmin } from './trackAdmin.js';
 
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 const DEFAULT_PLAN_ID = 'default';
@@ -339,7 +340,7 @@ function sectionActiveLeagues(active, plans, settings) {
                     </table>
                 </div>
                 <div style="margin-top:var(--space-md)">
-                    <button class="btn btn-primary" id="sync-leagues-save" disabled>Save Settings</button>
+                    <button class="btn btn-primary" id="sync-leagues-save" data-selftrack disabled>Save Settings</button>
                 </div>
               </div>
             </div>
@@ -473,6 +474,7 @@ function wireRunNow(container, active) {
         if (ids.length === 0) { runLog.log('Pick at least one league to run.', 'error'); return; }
 
         btn.disabled = true;
+        trackAdmin(`Sync: run now — ${ids.length} league${ids.length === 1 ? '' : 's'} [${ids.join(', ')}]`);
         runLog.log(`Starting sync for ${ids.length} league${ids.length === 1 ? '' : 's'}…`, 'info');
 
         const titleOf = (id) => {
@@ -658,7 +660,7 @@ function planCardHTML(pl, active, settings) {
                     Member leagues: ${memberCount} (edit in Active Leagues)
                 </div>
 
-                <button class="btn btn-primary btn-sm sync-plan-save" type="button" disabled>Save Settings</button>
+                <button class="btn btn-primary btn-sm sync-plan-save" type="button" data-selftrack disabled>Save Settings</button>
 
                 ${lastRunHTML(pl, active)}
               </div>
@@ -942,6 +944,12 @@ function saveAll(container, leagues, msgElId) {
     const settings = rebuildFromDOM(container);
     // Carry the published names through the re-render so the action gate keeps working.
     settings.publishedSourceNames = _publishedSourceNames;
+    // Dispatched, not a button data-track: the analytics click listener is
+    // capture-phase (reads data-track before this runs). The Save buttons carry
+    // data-selftrack so the generic "Action: Save Settings" stands aside.
+    const nSources = Object.values(settings.sourceNames || {}).filter(Boolean).length;
+    const nPlans = (settings.plans || []).length;
+    trackAdmin(`Sync: save settings [${nSources} source name${nSources === 1 ? '' : 's'}; ${nPlans} plan${nPlans === 1 ? '' : 's'}]`);
     addChange({
         type: 'update',
         target: T.syncSettings(),

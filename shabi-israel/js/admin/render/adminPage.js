@@ -11,6 +11,7 @@ import { installSearchOverlay } from '../../render/searchOverlay.js';
 import { buildAdminSidebarHtml, wireAdminSidebar } from './adminSidebarNav.js';
 import { renderHistoricalChanges } from './historicalChanges.js';
 import { renderCategoryLabel } from './changeVocabulary.js';
+import { trackAdmin } from '../trackAdmin.js';
 // Stage keys must match SPLASH_STAGE_SETS.admin.
 import { splashStage, endSplash, restartSplash } from '../../utils/splash.js';
 
@@ -248,11 +249,12 @@ function renderPendingChanges(container) {
         } else {
             cancelAttr = `data-remove="${item.indices[0]}"`;
         }
+        const cancelLabel = String(item.displayText || '').replace(/<[^>]*>/g, '').trim().slice(0, 60);
         listHtml += `
             <li class="pending-item">
                 <span class="pending-item-desc">${item.displayText}</span>
                 <span class="pending-item-time">${time}</span>
-                <button class="btn btn-danger btn-sm" ${cancelAttr}>Cancel</button>
+                <button class="btn btn-danger btn-sm" ${cancelAttr} data-track="Pending: cancel change — ${escHtml(cancelLabel)} (Admin Mode)">Cancel</button>
             </li>`;
     }
 
@@ -264,9 +266,9 @@ function renderPendingChanges(container) {
             <div id="publish-msg"></div>
             <div id="publish-progress"></div>
             <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap">
-                <button class="btn btn-success" id="publish-btn">Publish to Site</button>
-                <button class="btn btn-secondary" id="preview-btn">Preview</button>
-                <button class="btn btn-danger" id="discard-all-btn">Discard All</button>
+                <button class="btn btn-success" id="publish-btn" data-track="Pending: publish (${displayItems.length} change${displayItems.length === 1 ? '' : 's'}) (Admin Mode)">Publish to Site</button>
+                <button class="btn btn-secondary" id="preview-btn" data-track="Pending: preview (Admin Mode)">Preview</button>
+                <button class="btn btn-danger" id="discard-all-btn" data-track="Pending: discard all (Admin Mode)">Discard All</button>
             </div>
         </div>`;
 

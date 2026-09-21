@@ -7,7 +7,7 @@
 
 import { loadLeagueOrder, loadLeaguesBulk, registerMemoInvalidator } from '../data/store.js';
 import { rankLeague, getLevel } from './rankings.js';
-import { getLeagueConfig, matchesLeagueType, prWeightFor } from './leagueTypes.js';
+import { getLeagueConfig, matchesLeagueType, prWeightFor, typeTracksPR } from './leagueTypes.js';
 import { buildLast300Map } from './last300.js';
 import { getMedalPlaces } from './prizeRows.js';
 
@@ -587,11 +587,15 @@ export function flattenAllMatches(perLeagueData) {
     const rows = [];
     perLeagueData.forEach((entry, li) => {
         const leagueDate = entry.league.params?.IssueDate || null;
-        // REGULAR leagues don't track PR (leagueTypes.js → showPR: false). The
-        // source rows may still carry a PR figure from the import, so drop it
+        // REGULAR leagues aren't ranked on PR (leagueTypes.js → showPR: false).
+        // The source rows do still carry a PR figure from the import, so drop it
         // here — otherwise the cross-league views (match history, H2H detail,
         // All Opponents) would print it and fold it into their averages.
-        const tracksPR = entry.league.config?.showPR !== false;
+        //
+        // PR only. The luck columns ride through untouched, because REGULAR
+        // does record luck — the one metric distinction this whole file's
+        // consumers had collapsed into a single "rates" flag.
+        const tracksPR = typeTracksPR(entry.league.leagueType);
         for (const m of entry.playerMatches) {
             const matchDate = m.updatedAt || leagueDate;
             const year = matchDate ? new Date(matchDate).getFullYear() : null;

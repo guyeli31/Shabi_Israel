@@ -10,6 +10,7 @@ import { loadLeagueParams } from '../data/supabaseLoader.js';
 import { mountFFTable } from '../../table-lab/formats/ff/mount.js';
 import { formatNumber } from '../utils/helpers.js';
 import { revealMsg } from './msgScroll.js';
+import { trackAdmin } from './trackAdmin.js';
 
 /**
  * Render the Excel/CSV import UI into a container.
@@ -67,7 +68,7 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone, o
                 <h3 style="margin-bottom:var(--space-sm)">Preview</h3>
                 <div id="preview-host" style="margin-bottom:var(--space-md)"></div>
                 <div style="display:flex;gap:var(--space-sm)">
-                    <button class="btn btn-success" id="confirm-import">${escHtml(confirmLabel)}</button>
+                    <button class="btn btn-success" id="confirm-import" data-selftrack>${escHtml(confirmLabel)}</button>
                     <button class="btn btn-secondary" id="cancel-import">Cancel</button>
                 </div>
             </div>
@@ -127,6 +128,7 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone, o
 
     async function handleFile(file) {
         const name = file.name.toLowerCase();
+        trackAdmin(`CSV import: file chosen — ${leagueId} [${file.name}]`);
 
         try {
             if (name.endsWith('.csv')) {
@@ -409,6 +411,7 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone, o
 
             if (techOverrides.length) await mergeStagedOverrides(leagueId, techOverrides);
 
+            trackAdmin(`CSV import: confirm — ${leagueId} [${detail.join(', ')}${techOverrides.length ? `; ${techOverrides.length} technical` : ''}]`);
             if (refreshBadge) refreshBadge();
             const extra = techOverrides.length
                 ? ` ${techOverrides.length} technical result${techOverrides.length === 1 ? '' : 's'} staged as overrides.`

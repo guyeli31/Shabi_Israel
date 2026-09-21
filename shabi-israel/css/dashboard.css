@@ -2323,6 +2323,41 @@
        rather than as a margin. Same specificity (0,2,0) as that rule and later
        in this file, so it wins; released explicitly rather than by luck. */
     padding-right: 0;
+
+    /* THE WHOLE POINT of this control is repeated presses — walking a season
+       one match at a time is dozens of them — and on a touch device two taps
+       inside the double-tap window are a ZOOM gesture, not two presses. The
+       page then jumps to 2x under the reader's finger, which is not a thing
+       any press asked for and has to be undone by hand.
+       `manipulation` keeps panning and PINCH zoom (so nothing accessible is
+       taken away, and the viewport meta stays scalable — never user-scalable=no)
+       and drops exactly the two gestures a button has no use for: double-tap
+       zoom and the ~300ms click delay that comes with waiting to see whether a
+       second tap arrives. Presses also land sooner, which is the difference
+       between a stepper that feels like a button and one that feels laggy.
+       The five chart CANVASES this bar sits under have carried this same
+       declaration from the start (`canvas.style.touchAction = 'manipulation'`)
+       — the chart was protected and the control beside it was not.
+
+       It is declared on the bar AND on every descendant because `touch-action`
+       is NOT an inherited property, and the gesture is decided by the element
+       the touch actually lands on. Declaring it only on the container reads as
+       correct in the stylesheet and measures as `auto` on the buttons — which
+       is where every press lands. Verified in the browser; it cannot be seen
+       any other way. */
+    touch-action: manipulation;
+
+    /* A fast second tap on a glyph is also a text SELECTION on mobile: the ‹
+       highlights, and iOS raises the selection handles and the magnifier over
+       the control being pressed. The bar holds a symbol and a readout, neither
+       of which anyone selects on purpose. This one DOES inherit. */
+    -webkit-user-select: none;
+    user-select: none;
+}
+/* See the touch-action note above: the buttons and the readout each need their
+   own declaration, so the whole bar answers a rapid press the same way. */
+.dash-controls.chart-step * {
+    touch-action: manipulation;
 }
 /* 40px — up from the 28px this shipped with, and for a measured reason rather
    than taste. The buttons sit directly under a canvas that treats every pixel

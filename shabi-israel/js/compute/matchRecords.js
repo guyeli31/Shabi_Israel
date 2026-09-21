@@ -104,9 +104,16 @@ export function topBestPRMatches(entries, limit = 100) {
  * own metric filter.
  *
  * `leagueType` accepts anything matchesLeagueType() does. Callers that pool
- * types under ALL should pass the ARRAY of types their pills actually offer —
- * the bare ALL token would widen the walk to REGULAR leagues too, which carry
- * luck columns and would smuggle rows into a PR-only section.
+ * types under ALL must pass the ARRAY of types the metric they are collecting
+ * actually applies to — never the bare ALL token, which would widen the walk to
+ * every league in the app.
+ *
+ * That array is per METRIC, not per section: the PR collectors take the
+ * PR-tracking types and the luck collectors the luck-tracking ones, and those
+ * two sets differ (REGULAR records luck, is not ranked on PR — leagueTypes.js
+ * `typeTracksPR` / `typeTracksLuck`). This file stays agnostic and simply
+ * honours the filter it is handed; the caller decides which set it is asking
+ * about.
  */
 function* walkPlayerMatches(perLeague, leagueType) {
     for (const entry of perLeague) {

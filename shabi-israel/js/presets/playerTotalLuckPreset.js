@@ -10,11 +10,30 @@
  * shared red→amber→green value scale.
  *
  * Running leagues are excluded on purpose: a mid-season luck reading would sit
- * next to finished seasons as if it were a settled result. Regular leagues are
- * excluded too — they record no PR, so there is no model to be lucky against.
+ * next to finished seasons as if it were a settled result.
+ *
+ * REGULAR leagues are excluded too, and the reason is NOT the one the rest of
+ * the Records tab uses. **D is not the luck column.** `luckConfidenceStats`
+ * never reads `luckA`/`luckB`; it builds D from `getWinProbability(prA, prB)`,
+ * and that calibration table is valid for DOUBLING-CUBE matches only — a
+ * caveat the site publishes to readers on the table itself
+ * (`prProbabilityTableHtml`, "Doubling-cube matches only"). A Regular league is
+ * precisely a league without the cube, so the model does not describe its
+ * matches.
+ *
+ * So the gate here is `typeTracksPR`, NOT `typeTracksLuck` — the one place in
+ * the Records tab where those two must differ. Its sibling sections (Best Luck
+ * For / Worst Luck Against) gate on luck because they read the per-match luck
+ * figure the analysis engine recorded, which owes nothing to this table.
+ *
+ * Do not "fix" this to match them. That was tried: Regular matches DO carry a
+ * PR in the data, so D computes happily and returns a plausible number — which
+ * is exactly the failure mode. The question is never whether the number can be
+ * produced, it is whether the model was calibrated for these matches.
  */
 
 import { colorForValue } from '../compute/colorScale.js';
+import { typeTracksPR } from '../compute/leagueTypes.js';
 import { luckConfidenceStats } from '../compute/luckConfidence.js';
 import { typePillHtml, rankCellHtml } from './playerLeaguesPreset.js';
 
@@ -31,7 +50,7 @@ export function collectPlayerLeagueLuck(perLeague, playerName) {
     for (const e of perLeague) {
         const league = e.league;
         if (league.params?.Running === true) continue;
-        if (!league.config?.showPR) continue;
+        if (!typeTracksPR(league.leagueType)) continue;   // see header — D needs the cube-calibrated model
 
         const matchLength = league.params?.MatchLength ?? 7;
         const matchRefs = league.matches

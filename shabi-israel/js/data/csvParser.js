@@ -205,7 +205,13 @@ export function getAllPlayers(matches) {
  * If allPlayersSet is provided, uses it to include all league players (even those with no matches).
  * Returns array of: { opponent, scoreSelf, scoreOpp, prSelf, prOpp, luckSelf, luckOpp, played }
  */
-export function getPlayerMatches(matches, playerName, allPlayersSet) {
+/**
+ * @param {Set<string>} [cancelledOpponents] opponents whose fixture against
+ *   this player was CANCELLED (a retirement). They are not "not played yet":
+ *   the row is shown, marked, and counts towards nothing. Without this they
+ *   fall into the unplayed branch below and read as matches still to come.
+ */
+export function getPlayerMatches(matches, playerName, allPlayersSet, cancelledOpponents) {
     const playerList = allPlayersSet ? [...allPlayersSet].sort() : getAllPlayers(matches);
     const opponents = playerList.filter(p => p !== playerName);
     const matchMap = new Map();
@@ -256,7 +262,8 @@ export function getPlayerMatches(matches, playerName, allPlayersSet) {
             prOpp: 0,
             luckSelf: 0,
             luckOpp: 0,
-            played: false
+            played: false,
+            _cancelled: !!(cancelledOpponents && cancelledOpponents.has(opp)),
         };
     });
 }

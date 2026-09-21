@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Promo Lab — UBC league launch modal</title>
+
+<!-- The real site tokens. The modal below must be built from these and NOTHING
+     else, so whatever is chosen here drops into the site unchanged. -->
+<link rel="stylesheet" href="css/variables.css">
+<link rel="stylesheet" href="css/themes.css">
+<link rel="stylesheet" href="css/components.css">
+
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   promo-lab.html — design lab for the "UBC league launches in October"
+   announcement modal.
+
+   TWO parts, kept strictly apart:
+     1. LAB CHROME (.lab-*)   — the control panel and device frame. Throwaway.
+     2. THE MODAL (.promo-*)  — the candidate designs. This is the part that
+                                graduates into the site, so it uses ONLY the
+                                site's own tokens (--color-*, --lt-ubc-*,
+                                --radius-*, --space-*, --header-*) and never a
+                                hardcoded colour.
+
+   Responsive behaviour uses @container, not @media, so the device frames in
+   this lab are an HONEST simulation: a 430px frame really does lay out like a
+   430px phone. (Container queries work identically in production, so the CSS
+   graduates as-is — no media-query rewrite at implementation time.)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+    margin: 0;
+    font-family: var(--font-main);
+    background: var(--color-bg);
+    color: var(--color-text);
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    overflow: hidden;
+}
+
+/* ─────────────────────────── LAB CHROME ─────────────────────────── */
+
+.lab-stage {
+    position: relative;
+    overflow: auto;
+    display: grid;
+    place-items: center;
+    padding: var(--space-lg);
+}
+.lab-stage.is-gallery { place-items: start center; }
+
+/* The device frame. Its width is the ONLY thing the device toggle changes —
+   everything inside reacts through container queries, exactly as a real
+   viewport of that width would. */
+.lab-device {
+    position: relative;
+    flex: none;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    transform-origin: top center;
+}
+.lab-device-label {
+    position: absolute;
+    top: 6px; left: 10px;
+    z-index: 5;
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    pointer-events: none;
+}
+
+/* A stand-in for the page the modal covers, so the backdrop is judged against
+   real-ish content rather than a blank rectangle. */
+.lab-page {
+    position: absolute; inset: 0;
+    padding: 34px 18px 18px;
+    overflow: hidden;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+}
+.lab-page h3 { margin: 0 0 10px; color: var(--color-text); font-size: 17px; }
+.lab-page-row {
+    display: flex; justify-content: space-between; gap: 10px;
+    padding: 7px 10px; margin-bottom: 5px;
+    background: var(--color-inset);
+    border-radius: var(--radius-sm);
+}
+
+/* The modal's own stacking context + the container the modal queries. */
+.lab-viewport {
+    position: absolute; inset: 0;
+    container-type: inline-size;
+    container-name: vp;
+    display: grid;
+    place-items: center;
+    padding: var(--space-md);
+}
+
+/* ─────────────────────────── CONTROL PANEL ─────────────────────────── */
+
+.lab-panel {
+    background: var(--color-surface);
+    border-left: 1px solid var(--color-border);
+    padding: var(--space-md);
+    overflow-y: auto;
+    font-size: 13px;
+}
+.lab-panel h1 {
+    margin: 0 0 2px;
+    font-size: 15px; font-weight: 700;
+}
+.lab-panel .lab-sub {
+    margin: 0 0 var(--space-md);
+    font-size: 11.5px; color: var(--color-text-muted);
+}
+.lab-group { margin-bottom: var(--space-md); }
+.lab-group > label,
+.lab-group-title {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 10.5px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+.lab-btns { display: flex; flex-wrap: wrap; gap: 5px; }
+.lab-btn {
+    flex: 1 1 auto;
+    padding: 6px 9px;
+    font: inherit; font-size: 12px;
+    color: var(--color-text);
+    background: var(--color-inset);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.lab-btn:hover { background: var(--color-hover); }
+.lab-btn.is-active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-on-accent);
+    font-weight: 600;
+}
+.lab-swatches { display: flex; flex-wrap: wrap; gap: 5px; }
+.lab-swatch {
+    width: 26px; height: 26px; padding: 0;
+    border: 2px solid var(--color-border);
+    border-radius: 50%;
+    cursor: pointer;
+}
+.lab-swatch.is-active { border-color: var(--color-accent); transform: scale(1.12); }
+.lab-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.lab-row input[type="range"] { flex: 1; min-width: 0; }
+.lab-row .lab-val {
+    width: 34px; text-align: right;
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--color-text-muted);
+}
+.lab-check { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; cursor: pointer; }
+.lab-note {
+    margin: 6px 0 0;
+    font-size: 11px; line-height: 1.5;
+    color: var(--color-text-muted);
+}
+.lab-drop {
+    display: block;
+    padding: 12px 10px;
+    text-align: center;
+    border: 1.5px dashed var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+    font-size: 11.5px; line-height: 1.5;
+    cursor: pointer;
+}
+.lab-drop:hover, .lab-drop.is-over {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+.lab-thumbs {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 5px; margin-top: 7px;
+}
+.lab-thumb {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    padding: 0;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    cursor: pointer;
+    background-size: cover;
+    background-position: center;
+}
+.lab-thumb.is-active { border-color: var(--color-accent); }
+.lab-thumb-none {
+    display: grid; place-items: center;
+    background: var(--color-inset);
+    font-size: 10px; color: var(--color-text-muted);
+}
+.lab-thumb-x {
+    position: absolute; top: 1px; right: 2px;
+    width: 14px; height: 14px; padding: 0; line-height: 1;
+    font-size: 11px;
+    border: 0; border-radius: 50%;
+    background: rgba(0,0,0,.55); color: #fff;
+    cursor: pointer;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   THE MODAL'S OWN CSS IS NOT HERE.
+   It lives in js/render/promoNotice.js and is injected by injectPromoStyles(),
+   which this lab calls — so the lab previews the EXACT stylesheet the site
+   ships, instead of a second copy that quietly drifts from it.
+
+   One deliberate override follows. The shipping overlay is `position: fixed`
+   (it covers a real page); inside a device frame it must be `absolute`, or it
+   would position against the browser window and the frame would stop meaning
+   anything. This single line is the whole difference between the lab and
+   production.
+   ══════════════════════════════════════════════════════════════════════════ */
+.lab-device .promo-overlay { position: absolute; }
+
+
+/* ─────────────────────── GALLERY (compare mode) ─────────────────────── */
+.lab-gallery {
+    display: flex; flex-wrap: wrap; gap: var(--space-lg);
+    justify-content: center;
+    padding-bottom: var(--space-2xl);
+}
+.lab-gallery-cell { text-align: center; }
+.lab-gallery-cap {
+    margin-top: 7px;
+    font-size: 11.5px; font-weight: 600;
+    letter-spacing: .06em; text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+</style>
+</head>
+<body>
+
+<div class="lab-stage" id="stage">
+    <div class="lab-device" id="device">
+        <span class="lab-device-label" id="deviceLabel"></span>
+        <div class="lab-page" id="labPage"></div>
+        <div class="lab-viewport" id="viewport"></div>
+    </div>
+    <div class="lab-gallery" id="gallery" hidden></div>
+</div>
+
+<aside class="lab-panel">
+    <h1>Promo Lab</h1>
+    <p class="lab-sub">UBC league launch modal — candidate designs</p>
+
+    <div class="lab-group">
+        <span class="lab-group-title">Variant</span>
+        <div class="lab-btns" id="variantBtns"></div>
+    </div>
+
+    <div class="lab-group">
+        <span class="lab-group-title">Device</span>
+        <div class="lab-btns" id="deviceBtns"></div>
+    </div>
+
+    <div class="lab-group">
+        <span class="lab-group-title">Theme</span>
+        <div class="lab-swatches" id="themeBtns"></div>
+    </div>
+
+    <div class="lab-group">
+        <span class="lab-group-title">Language</span>
+        <div class="lab-btns" id="langBtns"></div>
+        <p class="lab-note">Default English, same as every "?" popup. The flags
+            in the modal itself switch it live.</p>
+    </div>
+
+    <div class="lab-group">
+        <span class="lab-group-title">Background image</span>
+        <label class="lab-drop" id="drop">
+            Drop an image here, or click to pick one
+            <input type="file" id="file" accept="image/*" multiple hidden>
+        </label>
+        <div class="lab-thumbs" id="thumbs"></div>
+        <p class="lab-note" id="artNote"></p>
+    </div>
+
+    <div class="lab-group">
+        <span class="lab-group-title">Crop — which part to keep</span>
+        <div class="lab-btns" id="posBtns"></div>
+        <p class="lab-note">The frame is far wider than it is tall, so a portrait
+            photo loses most of its height. This picks which band survives —
+            check it on Phone, where the crop is harshest.</p>
+    </div>
+
+    <div class="lab-group">
+        <span class="lab-group-title">Image treatment</span>
+        <div class="lab-btns" id="treatBtns"></div>
+        <div class="lab-row" style="margin-top:7px">
+            <span style="font-size:11.5px;color:var(--color-text-muted)">Mix</span>
+            <input type="range" id="mix" min="0" max="100" value="50">
+            <span class="lab-val" id="mixVal">50%</span>
+        </div>
+        <p class="lab-note">The tint is a <code>--header-bg → --color-accent</code>
+            ramp, so the photo re-tints with every theme instead of sitting in the
+            page as a foreign object.</p>
+    </div>
+
+    <div class="lab-group">
+        <span class="lab-group-title">Options</span>
+        <label class="lab-check"><input type="checkbox" id="optTop" checked> Anchor near top of screen</label>
+        <label class="lab-check"><input type="checkbox" id="optBackdrop" checked> Dim the page behind</label>
+        <label class="lab-check"><input type="checkbox" id="optX" checked> Show × button</label>
+        <label class="lab-check"><input type="checkbox" id="optFlags" checked> Show language flags</label>
+        <label class="lab-check"><input type="checkbox" id="optCompare"> Compare all images side by side</label>
+        <label class="lab-check"><input type="checkbox" id="optVariants"> Compare all variants side by side</label>
+    </div>
+
+    <div class="lab-group">
+        <span class="lab-group-title">When it runs</span>
+        <div class="lab-row">
+            <span style="font-size:11.5px;color:var(--color-text-muted);width:34px">From</span>
+            <input type="date" id="startsOn" style="flex:1;min-width:0">
+        </div>
+        <div class="lab-row">
+            <span style="font-size:11.5px;color:var(--color-text-muted);width:34px">To</span>
+            <input type="date" id="endsOn" style="flex:1;min-width:0">
+        </div>
+        <p class="lab-note" id="windowNote"></p>
+        <p class="lab-note">Israel wall-clock, both ends inclusive. Past the end
+            date the announcement stops rendering on its own, even if nobody
+            remembers to remove it.</p>
+    </div>
+
+    <div class="lab-group">
+        <span class="lab-group-title">Analytics</span>
+        <p class="lab-note" id="trackEcho">Dismiss the modal to see what gets logged.</p>
+        <p class="lab-note">Every exit is tracked separately — acknowledged, closed,
+            or clicked away — so the dashboard can say whether the announcement
+            actually landed. Nothing is sent from this lab.</p>
+    </div>
+
+    <div class="lab-group" style="border-top:1px solid var(--color-border);padding-top:var(--space-md)">
+        <span class="lab-group-title">Save</span>
+        <div class="lab-btns">
+            <button class="lab-btn is-active" id="saveBtn" style="flex:1 1 100%">Save to site</button>
+            <button class="lab-btn" id="dlBtn">Download JSON</button>
+            <button class="lab-btn" id="clearBtn">Clear draft</button>
+        </div>
+        <p class="lab-note" id="saveStatus"></p>
+        <p class="lab-note">Writes <code>assets/promo/promo-config.json</code> — the
+            committed file the site will read. Chrome asks for the location once,
+            then remembers it.</p>
+    </div>
+
+    <p class="lab-note">
+        Nothing here is wired to the site yet. This page only decides the
+        design; the show-once logic (localStorage + an October date window)
+        is a separate step.
+    </p>
+</aside>
+
+<script type="module">
+/* ══════════════════════════════════════════════════════════════════════════
+   Lab wiring — throwaway. The deliverable is js/render/promoNotice.js, which
+   this page IMPORTS: the variants, the copy, the artwork treatments, the CSS
+   and the modal markup all come from there, so what is judged here is the
+   shipping code itself and not a lookalike that drifts from it.
+
+   What stays local is only what the SITE has no use for: the device frames,
+   the theme switcher, the image picker, and the save buttons.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+import {
+    VARIANTS, TREATMENTS, BUILT_IN_ART, ART_POSITIONS,
+    buildPromoModal, injectPromoStyles,
+    promoWindowOpen, israelToday, resolveManager,
+    PROMO_CONFIG_PATH, PROMO_STORAGE_KEY, DEFAULT_CONFIG,
+} from './js/render/promoNotice.js';
+
+injectPromoStyles();
+
+// 430 is the real phone this project is checked on (see CLAUDE.md § Playwright
+// mobile). 834 = iPad portrait. 1280 = a typical laptop.
+const DEVICES = [
+    { id: 'desktop', label: 'Desktop', w: 1280, h: 760 },
+    { id: 'tablet',  label: 'Tablet',  w: 834,  h: 720 },
+    { id: 'mobile',  label: 'Phone',   w: 430,  h: 739 },
+];
+
+const THEMES = [
+    { id: 'current', label: 'Standard' },
+    { id: 'dark',    label: 'Dark'     },
+    { id: 'beige',   label: 'Beige'    },
+    { id: 'nature',  label: 'Nature'   },
+    { id: 'vegas',   label: 'Las Vegas'},
+    { id: 'casino',  label: 'Casino'   },
+    { id: 'rainbow', label: 'Rainbow'  },
+    { id: 'x22',     label: 'X22'      },
+];
+
+/* Images saved under assets/promo/ are picked up automatically, so a file put
+   there survives a reload — unlike a file-picker choice, which is an in-memory
+   blob URL that dies with the page.
+   Listed in ONE optional manifest rather than probed name-by-name: a browser
+   logs every 404 to the console regardless of how the failure is handled, so
+   guessing five filenames meant five red lines on every load of a clean
+   checkout. One absent manifest is one line. */
+const ART_MANIFEST = 'assets/promo/manifest.json';
+
+const state = {
+    variant: 'spotlight',
+    device: 'desktop',
+    theme: 'current',
+    lang: 'en',
+    art: 'sunset',
+    artPos: 'center',
+    treat: 'tint',
+    mix: 50,
+    top: true, backdrop: true, x: true, flags: true,
+    // Israel wall-clock dates, inclusive. Seeded from the module so the lab and
+    // the site cannot start out disagreeing about the campaign window.
+    startsOn: DEFAULT_CONFIG.startsOn,
+    endsOn: DEFAULT_CONFIG.endsOn,
+    compareArt: false, compareVariants: false,
+};
+
+/** Every background currently available — built-ins, then anything loaded. */
+const loadedArt = []; // { id, label, url, revocable }
+function artList() {
+    return [{ id: 'none', label: 'None' }, ...BUILT_IN_ART, ...loadedArt];
+}
+function artById(id) { return artList().find((a) => a.id === id) || artList()[0]; }
+
+/* The league's professional manager, looked up from the real player data by
+   the module's own resolver. Null until it resolves, which simply means the
+   first paint has no manager line; the load below re-renders once it lands. */
+let _manager = null;
+
+/* ── Building the modal ──────────────────────────────────────────────────
+   The markup is NOT written here. The lab turns its own control state into
+   the same config object the site reads from promo-config.json, and hands it
+   to the shipping builder — so a change to the modal can only ever be made in
+   one place. */
+
+/** The lab's state as a promoNotice config. */
+function configFromState(variantId = state.variant, artId = state.art) {
+    return {
+        ...DEFAULT_CONFIG,
+        variant: variantId,
+        treat: state.treat,
+        mix: state.mix,
+        top: state.top,
+        backdrop: state.backdrop,
+        x: state.x,
+        flags: state.flags,
+        art: artRefFor(artId),
+        artPos: state.artPos,
+    };
+}
+
+/** An entry of artList() as an artwork reference the module understands.
+    `kind:'url'` is the lab-only case: a dragged or picked file lives behind a
+    blob: URL, which renders fine but cannot be SAVED (it dies with the page) —
+    artRef() below is what refuses to write one into the config. */
+function artRefFor(artId) {
+    const a = artById(artId);
+    if (!a || a.id === 'none') return { kind: 'none' };
+    if (BUILT_IN_ART.some((b) => b.id === a.id)) return { kind: 'builtin', id: a.id };
+    if (a.url && a.url.startsWith('assets/promo/')) {
+        return { kind: 'file', name: a.url.slice('assets/promo/'.length) };
+    }
+    return { kind: 'url', url: a.url };
+}
+
+function buildModal(variant, artId) {
+    // Declared before the builder runs so the callbacks below can close over
+    // the very node being built — nothing can fire until it is on the page.
+    let overlay;
+    overlay = buildPromoModal(configFromState(variant, artId), {
+        lang: state.lang,
+        // Resolved once at startup (see the bottom of this file) because
+        // buildPromoModal is synchronous and the lab re-renders on every
+        // control change — a lookup per keystroke would be absurd.
+        manager: _manager,
+        // In the lab a language pick re-renders in place; on the site the same
+        // callback swaps the live modal. Neither writes the dismissal.
+        onLang: (lang) => {
+            echoTrack(`UBC promo: language ${lang}`);
+            state.lang = lang;
+            syncPanel();
+            render();
+        },
+        // The site records the dismissal and is done. The lab instead echoes
+        // what WOULD be logged and puts the modal back, so a designer can try
+        // the next exit path without reloading.
+        onExit: (reason) => {
+            overlay.remove();
+            exitModal(`UBC promo: ${reason}`);
+        },
+    });
+    return overlay;
+}
+
+
+/* ── Analytics readout (lab only) ────────────────────────────────────────
+   js/analytics.js is deliberately NOT loaded here — a design lab must never
+   reach the live dashboard (CLAUDE.md § Automated browsing must never reach
+   the live analytics). So the lab echoes the exact string each control WOULD
+   send, letting the wiring be checked without emitting a single beacon. */
+const TRACK_ICONS = {
+    'UBC promo: got it':      '🎉✅',
+    'UBC promo: closed':      '🎉✖️',
+    'UBC promo: backdrop':    '🎉💨',
+    'UBC promo: language en': '🎉 🇬🇧',
+    'UBC promo: language he': '🎉 🇮🇱',
+};
+
+function echoTrack(target) {
+    const el = document.getElementById('trackEcho');
+    if (!el || !target) return;
+    el.textContent = `${TRACK_ICONS[target] || '🎉'}  ${target}`;
+    el.style.color = 'var(--color-accent)';
+}
+
+/** Dismissal: echo what would be tracked, then restore the modal so the next
+ *  exit path can be tried without touching a control. The lab deliberately
+ *  does NOT call dismissPromo() — writing the real localStorage key here would
+ *  silently switch the announcement off on the actual site, from a design
+ *  tool, on the same origin. */
+function exitModal(target) {
+    echoTrack(target);
+    setTimeout(render, 650);
+}
+
+/* ── Rendering ──────────────────────────────────────────────────────────── */
+
+const stage = document.getElementById('stage');
+const device = document.getElementById('device');
+const viewport = document.getElementById('viewport');
+const gallery = document.getElementById('gallery');
+
+function fakePage() {
+    const rows = ['Guy Eliyahu', 'Marcel Dana', 'Oved Ben Zeev', 'Danny Kondrea', 'Uzi Mutsafy', 'Sagiv Quina'];
+    return `<h3>Shabi Israel — September 2026</h3>` +
+        rows.map((n, i) => `<div class="lab-page-row"><span>${i + 1}. ${n}</span><span>${(0.7 - i * 0.05).toFixed(3)}</span></div>`).join('');
+}
+
+function deviceDef() { return DEVICES.find((d) => d.id === state.device); }
+
+function sizeDevice(el, d, scale) {
+    el.style.width = d.w + 'px';
+    el.style.height = d.h + 'px';
+    el.style.transform = `scale(${scale})`;
+    // A scaled element still reserves its UNSCALED box, which would leave a
+    // huge empty gutter. Collapse the reserved box to the visual size.
+    el.style.marginBottom = `${-(d.h * (1 - scale))}px`;
+    el.style.marginInline = `${-(d.w * (1 - scale)) / 2}px`;
+}
+
+function fitScale(d, avail) {
+    return Math.min(1, (avail.w - 48) / d.w, (avail.h - 48) / d.h);
+}
+
+function render() {
+    document.documentElement.dataset.theme = state.theme;
+    if (state.theme === 'current') delete document.documentElement.dataset.theme;
+
+    const d = deviceDef();
+    const single = !state.compareArt && !state.compareVariants;
+
+    device.hidden = !single;
+    gallery.hidden = single;
+    stage.classList.toggle('is-gallery', !single);
+
+    if (single) {
+        document.getElementById('labPage').innerHTML = fakePage();
+        document.getElementById('deviceLabel').textContent = `${d.label} · ${d.w}×${d.h}`;
+        sizeDevice(device, d, fitScale(d, { w: stage.clientWidth, h: stage.clientHeight }));
+        viewport.replaceChildren(buildModal(state.variant, state.art));
+        return;
+    }
+
+    // Compare mode — one framed copy per image (or per variant).
+    const cells = state.compareVariants
+        ? VARIANTS.map((v) => ({ variant: v.id, art: state.art, cap: v.label }))
+        : artList().filter((a) => a.id !== 'none' || !VARIANTS.find((v) => v.id === state.variant).art)
+                   .map((a) => ({ variant: state.variant, art: a.id, cap: a.label }));
+
+    const cols = Math.max(1, Math.min(cells.length, Math.floor(stage.clientWidth / 460)));
+    const scale = Math.min(1, (stage.clientWidth / cols - 40) / d.w);
+
+    gallery.replaceChildren(...cells.map((c) => {
+        const cell = document.createElement('div');
+        cell.className = 'lab-gallery-cell';
+        const frame = document.createElement('div');
+        frame.className = 'lab-device';
+        const page = document.createElement('div');
+        page.className = 'lab-page';
+        page.innerHTML = fakePage();
+        const vp = document.createElement('div');
+        vp.className = 'lab-viewport';
+        vp.appendChild(buildModal(c.variant, c.art));
+        frame.append(page, vp);
+        sizeDevice(frame, d, scale);
+        const cap = document.createElement('div');
+        cap.className = 'lab-gallery-cap';
+        cap.textContent = c.cap;
+        cell.append(frame, cap);
+        return cell;
+    }));
+}
+
+/* ── Panel wiring ───────────────────────────────────────────────────────── */
+
+function btnRow(host, items, key, after) {
+    host.replaceChildren(...items.map((it) => {
+        const b = document.createElement('button');
+        b.className = 'lab-btn' + (state[key] === it.id ? ' is-active' : '');
+        b.textContent = it.label;
+        b.addEventListener('click', () => { state[key] = it.id; syncPanel(); render(); after?.(); });
+        return b;
+    }));
+}
+
+function syncPanel() {
+    btnRow(document.getElementById('variantBtns'), VARIANTS, 'variant');
+    btnRow(document.getElementById('deviceBtns'), DEVICES, 'device');
+    btnRow(document.getElementById('langBtns'),
+        [{ id: 'en', label: 'English' }, { id: 'he', label: 'עברית' }], 'lang');
+    btnRow(document.getElementById('treatBtns'), TREATMENTS, 'treat');
+    btnRow(document.getElementById('posBtns'), ART_POSITIONS, 'artPos');
+
+    const themeHost = document.getElementById('themeBtns');
+    themeHost.replaceChildren(...THEMES.map((t) => {
+        const b = document.createElement('button');
+        b.className = 'lab-swatch' + (state.theme === t.id ? ' is-active' : '');
+        b.title = t.label;
+        // Read each theme's real accent by probing it on a detached element,
+        // so the swatch can never drift from themes.css.
+        const probe = document.createElement('div');
+        if (t.id !== 'current') probe.dataset.theme = t.id;
+        probe.style.display = 'none';
+        document.body.appendChild(probe);
+        b.style.background = getComputedStyle(probe).getPropertyValue('--color-accent') || '#888';
+        probe.remove();
+        b.addEventListener('click', () => { state.theme = t.id; syncPanel(); render(); });
+        return b;
+    }));
+
+    const thumbs = document.getElementById('thumbs');
+    thumbs.replaceChildren(...artList().map((a) => {
+        const b = document.createElement('button');
+        b.className = 'lab-thumb' + (state.art === a.id ? ' is-active' : '') + (a.id === 'none' ? ' lab-thumb-none' : '');
+        b.title = a.label;
+        if (a.url) b.style.backgroundImage = `url("${a.url}")`;
+        else if (a.css) b.style.background = a.css;
+        else b.textContent = 'None';
+        b.addEventListener('click', () => { state.art = a.id; syncPanel(); render(); });
+        if (a.revocable) {
+            const x = document.createElement('span');
+            x.className = 'lab-thumb-x';
+            x.textContent = '×';
+            x.addEventListener('click', (e) => {
+                e.stopPropagation();
+                URL.revokeObjectURL(a.url);
+                loadedArt.splice(loadedArt.indexOf(a), 1);
+                if (state.art === a.id) state.art = 'sunset';
+                syncPanel(); render();
+            });
+            b.appendChild(x);
+        }
+        return b;
+    }));
+
+    const usesArt = VARIANTS.find((v) => v.id === state.variant).art;
+    document.getElementById('artNote').textContent = usesArt
+        ? `${loadedArt.length} image(s) loaded · built-ins are pure CSS, so they cost nothing to ship`
+        : `Variant ${state.variant} carries no artwork — the image controls do not affect it.`;
+
+    // The slider and the checkboxes are inputs, so they hold their own value —
+    // they must be pushed FROM state on every sync, not just wired once at
+    // startup. Without this, loading a saved config redrew the modal correctly
+    // while the panel went on showing the old numbers, which is the worst kind
+    // of wrong: the controls and the preview disagreeing about the same design.
+    document.getElementById('mix').value = state.mix;
+    document.getElementById('mixVal').textContent = state.mix + '%';
+    for (const [id, key] of OPTION_CHECKS) document.getElementById(id).checked = state[key];
+
+    document.getElementById('startsOn').value = state.startsOn;
+    document.getElementById('endsOn').value = state.endsOn;
+    // Say plainly whether the announcement is live RIGHT NOW, using the module's
+    // own window test rather than a second date comparison written here — the
+    // lab must not be able to disagree with the site about this.
+    const live = promoWindowOpen(state);
+    const note = document.getElementById('windowNote');
+    note.textContent = live
+        ? `Live today (${israelToday()} in Israel)`
+        : `NOT showing today (${israelToday()} in Israel) — outside the window`;
+    note.style.color = live ? 'var(--color-success)' : 'var(--color-warning)';
+}
+
+const OPTION_CHECKS = [['optTop','top'], ['optBackdrop','backdrop'], ['optX','x'],
+                       ['optFlags','flags'], ['optCompare','compareArt'], ['optVariants','compareVariants']];
+
+for (const [id, key] of OPTION_CHECKS) {
+    const el = document.getElementById(id);
+    el.addEventListener('change', () => { state[key] = el.checked; render(); });
+}
+
+document.getElementById('mix').addEventListener('input', (e) => {
+    state.mix = +e.target.value;
+    document.getElementById('mixVal').textContent = state.mix + '%';
+    render();
+});
+
+for (const id of ['startsOn', 'endsOn']) {
+    document.getElementById(id).addEventListener('change', (e) => {
+        state[id] = e.target.value;
+        syncPanel();   // refreshes the live/not-live verdict
+    });
+}
+
+/* ── Loading images: file picker, drag & drop, and assets/promo/ ─────────── */
+
+function addImage(url, label, revocable) {
+    const id = 'img-' + loadedArt.length + '-' + label;
+    loadedArt.push({ id, label, url, revocable });
+    state.art = id;
+    syncPanel();
+    render();
+}
+
+const fileInput = document.getElementById('file');
+const drop = document.getElementById('drop');
+fileInput.addEventListener('change', () => {
+    for (const f of fileInput.files) addImage(URL.createObjectURL(f), f.name.replace(/\.[^.]+$/, ''), true);
+    fileInput.value = '';
+});
+['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => {
+    e.preventDefault(); drop.classList.add('is-over');
+}));
+['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove('is-over')));
+drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    for (const f of e.dataTransfer.files) {
+        if (f.type.startsWith('image/')) addImage(URL.createObjectURL(f), f.name.replace(/\.[^.]+$/, ''), true);
+    }
+});
+
+// Load assets/promo/manifest.json if it exists — a plain array of filenames,
+// e.g. ["ubc-sunset.jpg", "ubc-board.jpg"]. Absent on a clean checkout, which
+// is the normal case and not an error.
+// Exposed as a promise because the saved-config load below must not run until
+// the disk images are registered — otherwise a saved artwork reference naming
+// a file would find nothing and silently fall back to a built-in.
+const manifestReady = fetch(ART_MANIFEST)
+    .then((r) => (r.ok ? r.json() : []))
+    .then((names) => {
+        if (!Array.isArray(names) || !names.length) return;
+        for (const name of names) {
+            loadedArt.push({
+                id: 'disk-' + name,
+                label: name.replace(/\.[^.]+$/, ''),
+                url: 'assets/promo/' + name,
+            });
+        }
+        syncPanel();
+        render();
+    })
+    .catch(() => { /* no manifest — the picker and drag-and-drop still work */ });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SAVING THE CHOSEN DESIGN
+   Same mechanism as the Banner Editor (banner-poc.html): the committed JSON
+   file is the single source of truth — it works across ports, browsers and
+   devices — and localStorage holds only a same-origin draft for instant
+   preview. The file handle is remembered in IndexedDB so Chrome asks for the
+   location once, not on every save.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* What gets saved is the DESIGN plus the DATE WINDOW, never the preview.
+   `theme` and `device` are deliberately excluded: they belong to whoever is
+   looking (the theme is the visitor's own choice, the device is their phone),
+   not to the design. Saving them would freeze one viewer's context into the
+   config and make the modal disagree with the page around it.
+
+   startsOn/endsOn ARE saved, and that is not optional: promoNotice.js reads the
+   window from the config, so a key missing here would be silently replaced by
+   the module's DEFAULT_CONFIG dates on the next save — quietly rescheduling a
+   live announcement from a design tool. */
+const DESIGN_KEYS = ['variant', 'treat', 'mix', 'artPos', 'top', 'backdrop', 'x', 'flags',
+                     'startsOn', 'endsOn'];
+
+/* The artwork is saved by IDENTITY, never by the in-memory id: a built-in as
+   its id, a file under assets/promo/ as its filename — both re-resolvable next
+   session. artRefFor() (above) produces those, and the one case it cannot is
+   `kind:'url'`: a dragged or picked file behind a blob: URL that dies with the
+   page. Saving that would write a reference guaranteed to break on reload, so
+   it is refused with an explanation instead. */
+function artRef() {
+    const ref = artRefFor(state.art);
+    if (ref.kind !== 'url') return ref;
+    return { kind: 'unsaved', label: artById(state.art).label };
+}
+
+/** A saved reference back to an entry of artList(). */
+function resolveArtRef(ref) {
+    if (!ref || ref.kind === 'none') return 'none';
+    if (ref.kind === 'builtin') return BUILT_IN_ART.some((b) => b.id === ref.id) ? ref.id : 'sunset';
+    if (ref.kind === 'file') {
+        const hit = loadedArt.find((a) => a.url === 'assets/promo/' + ref.name);
+        return hit ? hit.id : 'sunset';
+    }
+    return 'sunset';
+}
+
+function serialise() {
+    const design = Object.fromEntries(DESIGN_KEYS.map((k) => [k, state[k]]));
+    return JSON.stringify({
+        // Plain ASCII punctuation on purpose: this note is read in whatever
+        // editor happens to open the file, and one that assumes the system
+        // codepage instead of UTF-8 renders an em dash as garbage.
+        _note: 'Design only. The modal COPY lives in js/render/promoNotice.js, not here - '
+             + 'duplicating it would give the wording two sources that drift apart. '
+             + 'Written by the Promo Lab (promo-lab.html) via "Save to site"; '
+             + 'edit it there rather than by hand.',
+        savedAt: new Date().toISOString(),
+        ...design,
+        art: artRef(),
+    }, null, 2) + '\n';
+}
+
+function applyConfig(cfg) {
+    if (!cfg || typeof cfg !== 'object') return false;
+    for (const k of DESIGN_KEYS) if (k in cfg) state[k] = cfg[k];
+    state.art = resolveArtRef(cfg.art);
+    return true;
+}
+
+const status = document.getElementById('saveStatus');
+const flash = (msg, ok = true) => {
+    status.textContent = msg;
+    status.style.color = ok ? 'var(--color-success)' : 'var(--color-danger)';
+};
+
+/* Tiny IndexedDB kv store, to remember the chosen file across sessions. */
+const idb = () => new Promise((res, rej) => {
+    const r = indexedDB.open('shabi-promo', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+});
+const idbSet = async (k, v) => { const db = await idb(); return new Promise((res, rej) => {
+    const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k);
+    t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); };
+const idbGet = async (k) => { const db = await idb(); return new Promise((res, rej) => {
+    const t = db.transaction('kv', 'readonly'); const rq = t.objectStore('kv').get(k);
+    rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); }); };
+
+// Reuse the previously-granted file, else prompt once for its location.
+async function getFileHandle() {
+    let h = await idbGet('fileHandle').catch(() => null);
+    if (h) {
+        const opts = { mode: 'readwrite' };
+        if (await h.queryPermission(opts) === 'granted') return h;
+        if (await h.requestPermission(opts) === 'granted') return h;
+    }
+    h = await window.showSaveFilePicker({
+        suggestedName: 'promo-config.json',
+        types: [{ description: 'Promo config', accept: { 'application/json': ['.json'] } }],
+    });
+    await idbSet('fileHandle', h).catch(() => {});
+    return h;
+}
+
+function downloadJson() {
+    const blob = new Blob([serialise()], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'promo-config.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+async function saveToSite() {
+    const ref = artRef();
+    if (ref.kind === 'unsaved') {
+        flash(`"${ref.label}" was dropped into this page, so it only exists in memory — `
+            + `save it to assets/promo/ and run build-promo-manifest.mjs first.`, false);
+        return;
+    }
+    const json = serialise();
+    try { localStorage.setItem(PROMO_STORAGE_KEY, json); } catch { /* private mode */ }
+    if (window.showSaveFilePicker) {
+        try {
+            const handle = await getFileHandle();
+            const w = await handle.createWritable();
+            await w.write(json);
+            await w.close();
+            flash('Saved to site ✓ — this design is now the committed one.');
+            return;
+        } catch (e) {
+            if (e.name === 'AbortError') { flash('Save cancelled.', false); return; }
+            // fall through to download if the API failed for another reason
+        }
+    }
+    downloadJson();
+    flash(`Your browser can't write files directly — downloaded instead; put it at ${PROMO_CONFIG_PATH}.`);
+}
+
+document.getElementById('saveBtn').onclick = saveToSite;
+document.getElementById('dlBtn').onclick = () => {
+    downloadJson();
+    flash(`Downloaded — place it at ${PROMO_CONFIG_PATH}.`);
+};
+document.getElementById('clearBtn').onclick = () => {
+    try { localStorage.removeItem(PROMO_STORAGE_KEY); } catch { /* ignore */ }
+    flash('Cleared local draft — the committed promo-config.json wins again.');
+};
+
+/* Seed from the committed file, else a local draft. Runs AFTER the manifest
+   load above has had its chance to register disk images, so an `art` reference
+   naming a file can actually resolve to it. */
+async function loadSavedConfig() {
+    try {
+        const res = await fetch(PROMO_CONFIG_PATH, { cache: 'no-store' });
+        if (res.ok) return { cfg: await res.json(), from: 'promo-config.json' };
+    } catch { /* missing / offline — try the draft below */ }
+    try {
+        const draft = localStorage.getItem(PROMO_STORAGE_KEY);
+        if (draft) return { cfg: JSON.parse(draft), from: 'local draft' };
+    } catch { /* malformed draft */ }
+    return null;
+}
+
+addEventListener('resize', render);
+syncPanel();
+render();
+
+// Await the manifest first so a saved `{kind:'file'}` artwork resolves.
+manifestReady.then(loadSavedConfig).then(async (saved) => {
+    if (saved && applyConfig(saved.cfg)) flash(`Loaded ${saved.from}.`);
+    // The manager is a real player, so his name/flag/title come from the site
+    // data rather than the config — resolve him before the re-render so the
+    // line is present in the very first design the user judges.
+    // Merged over DEFAULT_CONFIG, exactly as loadPromoConfig() does for the
+    // site: the saved file carries only design keys, so the manager lives in
+    // the defaults and a raw `saved.cfg` has no `manager` at all.
+    _manager = await resolveManager({ ...DEFAULT_CONFIG, ...(saved?.cfg || {}) })
+        .catch(() => null);
+    syncPanel();
+    render();
+});
+</script>
+</body>
+</html>

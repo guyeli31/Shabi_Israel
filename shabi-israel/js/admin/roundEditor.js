@@ -23,6 +23,7 @@ import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
 import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { israelNowForInput, israelInputToISO, isoToIsraelInput } from '../utils/matchTime.js';
+import { trackAdmin, diffFields } from './trackAdmin.js';
 
 export function renderRoundEditor(container, leagueId, refreshBadge) {
     container.innerHTML = `
@@ -75,9 +76,17 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
             const playedCount = rMatches.filter(m => {
                 if (m.played) return true;
                 const o = overrideMap.get(pairKey(m.playerA, m.playerB));
-                return o && o.type !== 'not_played';
+                // A cancelled fixture is not a played one — nor an outstanding
+                // one. It leaves the round's "n/m played" arithmetic entirely,
+                // which is why the denominator below uses the round's own total
+                // only after cancelled fixtures have been taken out of it.
+                return o && o.type !== 'not_played' && o.type !== 'cancelled';
             }).length;
-            roundStats.push({ round: r, played: playedCount, total: rMatches.length });
+            const cancelledCount = rMatches.filter(m => {
+                const o = overrideMap.get(pairKey(m.playerA, m.playerB));
+                return o && o.type === 'cancelled';
+            }).length;
+            roundStats.push({ round: r, played: playedCount, total: rMatches.length - cancelledCount });
 
             let blocks = '';
             for (let i = 0; i < rMatches.length; i++) {
@@ -101,6 +110,15 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
                     scB = o.type === 'technical_draw' ? matchLength : (aWins ? 0 : matchLength);
                     blockClass = 'match-block match-block-overridden';
                     editedTs = o.timestamp || null;
+                } else if (o && o.type === 'cancelled') {
+                    // A retired player's fixture. LOCKED: there is no result to
+                    // edit, and letting one be typed here would silently
+                    // un-retire the match behind the policy's back. The only way
+                    // out is removing the override (F4 View Overrides), which is
+                    // the deliberate un-retire path.
+                    // See docs/RETIREMENT-POLICY.md §3.
+                    blockClass = 'match-block match-block-cancelled';
+                    editedTs = o.timestamp || null;
                 } else if (o && o.type === 'not_played') {
                     blockClass = 'match-block match-block-unplayed';
                     editedTs = o.timestamp || null;
@@ -121,28 +139,39 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
                 // moment the one in Tel Aviv wrote.
                 const editedDateValue = editedTs ? isoToIsraelInput(editedTs) : '';
 
+                // A cancelled fixture is read-only throughout: every input and
+                // every action button. `disabled` rather than hidden, so the
+                // match is still visible in its round — the schedule is what
+                // happened to the league, and it happened.
+                const locked = !!(o && o.type === 'cancelled');
+                const lockAttr = locked ? ' disabled' : '';
+                const lockedNote = locked
+                    ? `<span class="cancelled-mark" title="This player retired; the match was cancelled">CANCELLED</span>`
+                    : '';
+
                 blocks += `
-                    <tbody class="${blockClass}" data-rid="${rowId}" data-pa="${esc(m.playerA)}" data-pb="${esc(m.playerB)}">
+                    <tbody class="${blockClass}" data-rid="${rowId}" data-pa="${esc(m.playerA)}" data-pb="${esc(m.playerB)}"${locked ? ' data-cancelled="1"' : ''}>
                         <tr class="match-row-a">
                             <td class="nowrap match-player-cell">${flagA}${esc(m.playerA)}</td>
-                            ${showPR ? `<td><input type="number" class="inline-edit-input" data-field="prA" step="0.01" value="${prA}"></td>` : ''}
-                            <td><input type="number" class="inline-edit-input" data-field="luckA" step="0.01" value="${lkA}"></td>
-                            <td><select class="inline-edit-input inline-edit-score-select" data-field="scoreA">${scoreSelectA}</select></td>
-                            <td class="nowrap match-edited" rowspan="2"><input type="datetime-local" class="themed-date match-edited-date" data-rid="${rowId}" value="${editedDateValue}"></td>
+                            ${showPR ? `<td><input type="number" class="inline-edit-input" data-field="prA" step="0.01" value="${prA}"${lockAttr}></td>` : ''}
+                            <td><input type="number" class="inline-edit-input" data-field="luckA" step="0.01" value="${lkA}"${lockAttr}></td>
+                            <td><select class="inline-edit-input inline-edit-score-select" data-field="scoreA"${lockAttr}>${scoreSelectA}</select></td>
+                            <td class="nowrap match-edited" rowspan="2"><input type="datetime-local" class="themed-date match-edited-date" data-rid="${rowId}" value="${editedDateValue}"${lockAttr}></td>
                             <td class="nowrap match-actions" rowspan="2">
-                                <button class="btn btn-xs btn-tech" data-tech="a" data-rid="${rowId}" title="Technical win ${esc(m.playerA)}">TA</button>
-                                <button class="btn btn-xs btn-tech" data-tech="b" data-rid="${rowId}" title="Technical win ${esc(m.playerB)}">TB</button>
-                                <button class="btn btn-xs btn-tech" data-tech="d" data-rid="${rowId}" title="Technical draw">TD</button>
-                                <button class="btn btn-xs btn-tech" data-tech="np" data-rid="${rowId}" title="Mark as not played">NP</button>
-                                <button class="btn btn-primary btn-xs btn-save-match" data-save="${rowId}" disabled>Save</button>
+                                <button class="btn btn-xs btn-tech" data-tech="a" data-rid="${rowId}" title="Technical win ${esc(m.playerA)}"${lockAttr}>TA</button>
+                                <button class="btn btn-xs btn-tech" data-tech="b" data-rid="${rowId}" title="Technical win ${esc(m.playerB)}"${lockAttr}>TB</button>
+                                <button class="btn btn-xs btn-tech" data-tech="d" data-rid="${rowId}" title="Technical draw"${lockAttr}>TD</button>
+                                <button class="btn btn-xs btn-tech" data-tech="np" data-rid="${rowId}" title="Mark as not played"${lockAttr}>NP</button>
+                                <button class="btn btn-primary btn-xs btn-save-match" data-save="${rowId}" data-selftrack disabled>Save</button>
                                 <button class="btn btn-secondary btn-xs btn-revert-match" data-revert="${rowId}" title="Discard the unsaved change and restore the match to its last saved state" disabled>Revert</button>
+                                ${lockedNote}
                             </td>
                         </tr>
                         <tr class="match-row-b">
                             <td class="nowrap match-player-cell">${flagB}${esc(m.playerB)}</td>
-                            ${showPR ? `<td><input type="number" class="inline-edit-input" data-field="prB" step="0.01" value="${prB}"></td>` : ''}
-                            <td><input type="number" class="inline-edit-input" data-field="luckB" step="0.01" value="${lkB}"></td>
-                            <td><select class="inline-edit-input inline-edit-score-select" data-field="scoreB">${scoreSelectB}</select></td>
+                            ${showPR ? `<td><input type="number" class="inline-edit-input" data-field="prB" step="0.01" value="${prB}"${lockAttr}></td>` : ''}
+                            <td><input type="number" class="inline-edit-input" data-field="luckB" step="0.01" value="${lkB}"${lockAttr}></td>
+                            <td><select class="inline-edit-input inline-edit-score-select" data-field="scoreB"${lockAttr}>${scoreSelectB}</select></td>
                         </tr>
                     </tbody>`;
             }
@@ -151,7 +180,7 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
                 <div class="admin-card round-card" data-round="${r}" style="margin-bottom:var(--space-md)">
                     <h3 style="margin-bottom:var(--space-sm)">
                         Round ${r}
-                        <span style="font-size:0.8rem;color:var(--color-text-muted);font-weight:normal;margin-left:var(--space-sm)">${playedCount}/${rMatches.length} played</span>
+                        <span style="font-size:0.8rem;color:var(--color-text-muted);font-weight:normal;margin-left:var(--space-sm)">${playedCount}/${rMatches.length - cancelledCount} played${cancelledCount ? ` · ${cancelledCount} cancelled` : ''}</span>
                     </h3>
                     <div class="ff-wrap">
                         <table class="admin-table font-large admin-round-table">
@@ -173,7 +202,7 @@ async function loadAndRender(container, leagueId, refreshBadge, root) {
         container.querySelectorAll('.ff-wrap').forEach(w => attachStickyShadow(w));
         attachListeners(container, leagueId, refreshBadge, matchLength, showPR);
         if (root) attachRoundNav(root, container, roundStats);
-        if (root) attachBulkTechLoss(root, container, leagueId, matches, matchLength, refreshBadge);
+        if (root) attachBulkRetire(root, container, leagueId, matches, matchLength, refreshBadge);
     } catch (err) {
         container.innerHTML = `<div class="admin-msg admin-msg-error">${err.message}</div>`;
     }
@@ -259,6 +288,7 @@ function attachRoundNav(root, content, roundStats) {
         pill.addEventListener('click', () => {
             selectedRound = parseInt(pill.dataset.round, 10);
             pillsBar.querySelectorAll('.round-pill').forEach(p => p.classList.toggle('active', p === pill));
+            trackAdmin(`Round editor: round R${selectedRound}`);
             applyFilter();
         });
     });
@@ -282,14 +312,22 @@ function attachRoundNav(root, content, roundStats) {
 }
 
 /**
- * Bulk "technical loss" bar. Appears only once the filter input EXACTLY names a
- * player (the combobox pick sets input.value to the name), sitting between the
- * filter and the round pills. One Save forfeits ALL of that player's matches —
- * every match becomes a technical win for the opponent — staged in a single
- * manual_overrides.json change for review before publishing. Matches involving
- * 'Bye' are skipped (a forfeit against nobody is meaningless).
+ * The RETIRE bar. Appears only once the filter input EXACTLY names a player
+ * (the combobox pick sets input.value to the name), sitting between the filter
+ * and the round pills. One click cancels ALL of that player's matches, staged
+ * in a single manual_overrides.json change for review before publishing.
+ * Matches involving 'Bye' are skipped.
+ *
+ * It used to forfeit them instead — one technical win handed to each opponent.
+ * See stageBulkCancel below for why that was wrong, and
+ * docs/RETIREMENT-POLICY.md for the policy it now implements.
+ *
+ * This writes the MATCHES half of a retirement only. The PERSON half — ticking
+ * Retired in the Players tab (F2), which drives the RETIRED mark in D and E —
+ * is a separate act, deliberately: the two describe different things and are
+ * stored in different places (§1).
  */
-function attachBulkTechLoss(root, content, leagueId, matches, matchLength, refreshBadge) {
+function attachBulkRetire(root, content, leagueId, matches, matchLength, refreshBadge) {
     const input = root.querySelector('#round-filter-input');
     const bar = root.querySelector('#round-bulk-bar');
     if (!input || !bar) return;
@@ -315,22 +353,32 @@ function attachBulkTechLoss(root, content, leagueId, matches, matchLength, refre
         bar.hidden = false;
         bar.innerHTML = `
             <span class="round-bulk-text">
-                Technical loss — forfeit <strong>${esc(player)}</strong>'s
-                ${n} match${n === 1 ? '' : 'es'} to the opponent.
+                Retire — cancel <strong>${esc(player)}</strong>'s
+                ${n} match${n === 1 ? '' : 'es'}. Neither side is awarded anything.
             </span>
-            <button type="button" class="btn btn-primary btn-xs round-bulk-save">Save all ${n}</button>`;
+            <button type="button" class="btn btn-primary btn-xs round-bulk-save" data-selftrack>Cancel all ${n}</button>`;
 
         bar.querySelector('.round-bulk-save').addEventListener('click', async () => {
-            if (!confirm(`Forfeit all ${n} of ${player}'s match${n === 1 ? '' : 'es'} as a technical loss (opponent wins each)?\n\nThis stages ${n} override${n === 1 ? '' : 's'} for review before publishing.`)) return;
+            if (!confirm(
+                `Retire ${player}? All ${n} of their match${n === 1 ? '' : 'es'} will be CANCELLED — ` +
+                `not forfeited.\n\nEach opponent simply loses that fixture: no technical win, ` +
+                `nothing added to their record. Matches ${player} already played are cancelled too.\n\n` +
+                `This stages ${n} override${n === 1 ? '' : 's'} for review before publishing.`
+            )) return;
             const btn = bar.querySelector('.round-bulk-save');
             btn.disabled = true;
             try {
-                await stageBulkTechLoss(leagueId, player, pMatches, refreshBadge);
-                applyTechLossToDom(content, player, matchLength);
-                showMsg(`Staged technical loss for all ${n} of ${player}'s match${n === 1 ? '' : 'es'}.`, 'success');
+                await stageBulkCancel(leagueId, player, pMatches, refreshBadge);
+                applyCancelToDom(content, player);
+                trackAdmin(`Round editor: retire — ${player} [${n} match${n === 1 ? '' : 'es'} cancelled]`);
+                showMsg(
+                    `Cancelled all ${n} of ${player}'s match${n === 1 ? '' : 'es'}. ` +
+                    `Remember to tick Retired for ${player} in the Players tab — the flag drives the RETIRED mark.`,
+                    'success',
+                );
             } catch (err) {
                 btn.disabled = false;
-                showMsg(`Bulk technical loss failed: ${err.message}`, 'error');
+                showMsg(`Retire failed: ${err.message}`, 'error');
             }
         });
     }
@@ -340,16 +388,30 @@ function attachBulkTechLoss(root, content, leagueId, matches, matchLength, refre
 }
 
 /**
- * Stage a technical_win (winner = opponent) for every one of a player's matches,
- * merged into the league's existing staged/published overrides and written as a
- * single staged manual_overrides.json change.
+ * Stage a `cancelled` override for every one of a player's matches — the whole
+ * of what retiring someone writes.
+ *
+ * THIS USED TO STAGE `technical_win` TO THE OPPONENT, and that was the wrong
+ * act: it handed 24 opponents a win each for a match nobody played, and it made
+ * the retirement look like 24 separate results in the history and on the chart.
+ * Cancelling awards nothing to anybody — the fixture simply stops existing.
+ * See docs/RETIREMENT-POLICY.md §2.
+ *
+ * The player's ALREADY-PLAYED matches are cancelled too, deliberately: the
+ * policy is that a retired player's season is withdrawn whole, not truncated at
+ * the point they walked away.
+ *
+ * The `matches` rows are untouched, which is what makes this reversible —
+ * deleting these overrides restores every result from the source.
  */
-async function stageBulkTechLoss(leagueId, player, playerMatches, refreshBadge) {
+async function stageBulkCancel(leagueId, player, playerMatches, refreshBadge) {
     const overrides = await readOverridesForEdit(leagueId);
     const ts = new Date().toISOString();
     for (const m of playerMatches) {
-        const winner = m.playerA === player ? m.playerB : m.playerA;
-        const override = { type: 'technical_win', playerA: m.playerA, playerB: m.playerB, winner, reason: `Technical win: ${winner}`, timestamp: ts };
+        const override = {
+            type: 'cancelled', playerA: m.playerA, playerB: m.playerB,
+            reason: `Cancelled — ${player} retired`, timestamp: ts,
+        };
         const key = pairKey(m.playerA, m.playerB);
         const idx = overrides.findIndex(o => pairKey(o.playerA, o.playerB) === key);
         if (idx !== -1) overrides[idx] = override; else overrides.push(override);
@@ -359,32 +421,34 @@ async function stageBulkTechLoss(leagueId, player, playerMatches, refreshBadge) 
 }
 
 /**
- * Reflect a just-staged bulk technical loss in the already-rendered DOM (across
- * all rounds), mirroring a per-match technical-win Save: opponent gets the full
- * match length, the player 0, PR/Luck cleared, block marked overridden + saved.
+ * Reflect a just-staged retirement in the already-rendered DOM (across all
+ * rounds), so the editor matches what a reload would show without one.
+ *
+ * Every field is CLEARED rather than filled — a cancelled match has no result,
+ * not a 0–7 one — and the whole block is then locked, matching the render path
+ * for a `cancelled` override above.
  */
-function applyTechLossToDom(content, player, matchLength) {
-    // The current moment in ISRAEL. `new Date().toISOString().slice(0, 10)` —
-    // what this used to be — is the UTC date, so an admin working after
-    // midnight Israel time stamped every one of these with YESTERDAY.
+function applyCancelToDom(content, player) {
     const today = israelNowForInput();
     content.querySelectorAll('tbody.match-block').forEach(block => {
         const pa = block.dataset.pa, pb = block.dataset.pb;
         if (pa !== player && pb !== player) return;
-        const winner = pa === player ? pb : pa;
         const set = (sel, v) => { const el = block.querySelector(sel); if (el) el.value = v; };
-        set('[data-field="prA"]', ''); set('[data-field="luckA"]', ''); set('[data-field="scoreA"]', winner === pa ? matchLength : 0);
-        set('[data-field="prB"]', ''); set('[data-field="luckB"]', ''); set('[data-field="scoreB"]', winner === pb ? matchLength : 0);
+        for (const f of ['prA', 'luckA', 'scoreA', 'prB', 'luckB', 'scoreB']) set(`[data-field="${f}"]`, '');
         const dateEl = block.querySelector('.match-edited-date');
         if (dateEl) dateEl.value = today;
-        block.className = 'match-block match-block-overridden';
+        block.className = 'match-block match-block-cancelled';
+        block.dataset.cancelled = '1';
         delete block.dataset.pendingType;
         delete block.dataset.pendingWinner;
         block._orig = snapshotBlock(block);
-        const saveBtn = block.querySelector('[data-save]');
-        if (saveBtn) { saveBtn.disabled = true; saveBtn.classList.remove('btn-save-ready'); }
-        const revertBtn = block.querySelector('[data-revert]');
-        if (revertBtn) revertBtn.disabled = true;
+        // Locked, exactly as a reload would render it.
+        block.querySelectorAll('input, select, button').forEach(el => { el.disabled = true; });
+        const actions = block.querySelector('.match-actions');
+        if (actions && !actions.querySelector('.cancelled-mark')) {
+            actions.insertAdjacentHTML('beforeend',
+                ' <span class="cancelled-mark" title="This player retired; the match was cancelled">CANCELLED</span>');
+        }
     });
 }
 
@@ -414,7 +478,10 @@ function attachListeners(container, leagueId, refreshBadge, matchLength, showPR 
     container.querySelectorAll('[data-revert]').forEach(btn => {
         btn.addEventListener('click', () => {
             const block = container.querySelector(`tbody[data-rid="${btn.dataset.revert}"]`);
-            if (block) revertBlock(block);
+            if (block) {
+                revertBlock(block);
+                trackAdmin(`Round editor: revert — ${block.dataset.pa} vs ${block.dataset.pb}`);
+            }
         });
     });
 
@@ -422,6 +489,11 @@ function attachListeners(container, leagueId, refreshBadge, matchLength, showPR 
         btn.addEventListener('click', async () => {
             const block = container.querySelector(`tbody[data-rid="${btn.dataset.save}"]`);
             if (!block) return;
+
+            // Capture the before/after field state for the Save-time old→new
+            // summary, BEFORE the save replaces block._orig with the new state.
+            const reOrig = block._orig || {};
+            const reNow = snapshotBlock(block);
 
             const pendingType = block.dataset.pendingType;
             const pendingWinner = block.dataset.pendingWinner;
@@ -464,6 +536,20 @@ function attachListeners(container, leagueId, refreshBadge, matchLength, showPR 
                 };
             }
 
+            // Own event: analytics' click listener is capture-phase, so a
+            // data-track set on the button here is read too late. The .btn-save-match
+            // is data-selftrack, so the generic "Action: Save" stands aside.
+            {
+                const reLabels = { prA: 'PR A', luckA: 'Luck A', scoreA: 'score A', prB: 'PR B', luckB: 'Luck B', scoreB: 'score B', date: 'date' };
+                const reBefore = {}, reAfter = {};
+                for (const k of Object.keys(reLabels)) { reBefore[reLabels[k]] = reOrig[k] ?? ''; reAfter[reLabels[k]] = reNow[k] ?? ''; }
+                const reSum = diffFields(reBefore, reAfter);
+                const kind = pendingType === 'technical_draw' ? 'technical draw'
+                    : pendingType === 'technical_win' ? `technical win ${pendingWinner}`
+                    : pendingType === 'not_played' ? 'not played' : 'result';
+                trackAdmin(`Round editor: save ${kind} — ${playerA} vs ${playerB}${reSum ? ` [${reSum}]` : ''}`);
+            }
+
             await stageOverride(leagueId, override, refreshBadge);
             btn.disabled = true;
             btn.classList.remove('btn-save-ready');
@@ -490,6 +576,7 @@ function attachListeners(container, leagueId, refreshBadge, matchLength, showPR 
             block._orig = snapshotBlock(block);
             const revertBtn = block.querySelector('[data-revert]');
             if (revertBtn) revertBtn.disabled = true;
+
             showMsg(`Saved: ${playerA} vs ${playerB}`, 'success');
         });
     });

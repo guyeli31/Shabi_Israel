@@ -23,7 +23,7 @@ import { collectLuckMatches, collectPRMatches, topLuckiestMatches, topBestPRMatc
 import { luckConfidenceStats } from '../compute/luckConfidence.js';
 import { getPopup } from '../data/popupContent.js';
 import { getLevel } from '../compute/rankings.js';
-import { leagueTypeRank } from '../compute/leagueTypes.js';
+import { leagueTypeRank, typeTracksPR, typeTracksLuck } from '../compute/leagueTypes.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { pinStickyCols, pinStickyColsAll } from '../utils/stickyCols.js';
@@ -41,6 +41,8 @@ import { escapeHtml } from '../utils/sanitize.js';
 import { hasTitles, compareTitlePriority, getTitleDescriptionParts } from '../data/titleConstants.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
 import { mountAppTabs } from './appTabs.js';
+// TEMPORARY — delete with js/render/promoNotice.js once the UBC launch has run.
+import { mountComingSoonSection } from './promoNotice.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountPillTabs, ALL_TYPES_ID, ALL_TYPES_TAB } from './subTabs.js';
@@ -221,6 +223,12 @@ export async function renderLandingPage() {
 
         // Route renderers to their tab panel — each renderer keeps its existing signature.
         renderActiveLeagues(shell.panels.leagues, running);
+        // TEMPORARY, with js/render/promoNotice.js — the UBC launch's "Coming
+        // Soon" card, between the active and completed sections. Not awaited:
+        // it fetches the promo config, and no announcement should hold up the
+        // leagues the visitor actually came for. It renders nothing outside the
+        // promo's date window, so removal is this one line.
+        mountComingSoonSection(shell.panels.leagues);
         if (completed.length > 0) renderCompletedLeagues(shell.panels.leagues, completed);
 
         renderLeaderboards(shell.panels.leaders, leaderboards);
@@ -1961,7 +1969,7 @@ function renderLuckPercentileCard(data, leagueType) {
                         <tr>
                             <th scope="col">#</th>
                             <th scope="col">Player</th>
-                            <th scope="col">Games</th>
+                            <th scope="col">MP</th>
                             <th scope="col">Luck %ile</th>
                         </tr>
                     </thead>
@@ -2058,7 +2066,13 @@ function renderPRTables(data) {
 /* ── Match Records (per-match highlights) ───────────── */
 
 function renderMatchRecordsSection(container, allLeagues, presentTypes) {
-    const types = sortPresentTypes(presentTypes).filter(t => t === 'doubling' || t === 'ubc');
+    // A type belongs here if it records EITHER metric. The hardcoded
+    // `doubling || ubc` pair this replaces was a third copy of the "PR and luck
+    // are the same question" mistake: it kept every Regular league out of
+    // site-wide Match Records, luck figures and all. Which of the two tables a
+    // given panel then shows is decided per type, below.
+    const types = sortPresentTypes(presentTypes)
+        .filter(t => typeTracksPR(t) || typeTracksLuck(t));
     if (types.length === 0) return;
 
     const leaguesByType = {};
@@ -2071,8 +2085,8 @@ function renderMatchRecordsSection(container, allLeagues, presentTypes) {
     section.id = 'records-match';
 
     const panelsHtml = types.map((t, i) => {
-        const luck = topLuckiestMatches(collectLuckMatches(leaguesByType[t]));
-        const pr   = topBestPRMatches(collectPRMatches(leaguesByType[t]));
+        const luck = typeTracksLuck(t) ? topLuckiestMatches(collectLuckMatches(leaguesByType[t])) : null;
+        const pr   = typeTracksPR(t)   ? topBestPRMatches(collectPRMatches(leaguesByType[t]))   : null;
         return `
             <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${t}">
                 ${renderMatchRecordsTables(luck, pr)}
@@ -2114,13 +2128,23 @@ function renderMatchRecordsSection(container, allLeagues, presentTypes) {
     pinStickyColsAll(section, '.match-records-table', ['--mr-col1-w', '--mr-col2-w']);
 }
 
+/**
+ * `luckRows` / `prRows` of null = this panel's league type does not record that
+ * metric, so the table is not rendered at all. An EMPTY array still renders,
+ * reading "No data" — the difference is the same one the cross-league match
+ * table draws between "—" and "N/A".
+ *
+ * A luck row's Player PR / Opp PR columns follow the PR table: a type that is
+ * not ranked on PR does not start displaying one inside its luck records.
+ */
 function renderMatchRecordsTables(luckRows, prRows) {
     const notHidden = r => !_playersMeta[r.player]?.hidden && !_playersMeta[r.opponent]?.hidden;
+    const showPR = prRows != null;
     const prCells = r => `<td>${r.prSelf == null ? '—' : formatNumber(r.prSelf)}</td><td>${r.prOpp == null ? '—' : formatNumber(r.prOpp)}</td>`;
-    const luckHtml = luckRows.filter(notHidden).map((r, i) => matchRecordRow(i + 1, r, formatNumber(r.luckGap), prCells(r))).join('');
-    const prHtml   = prRows.filter(notHidden).map((r, i)   => matchRecordRow(i + 1, r, formatNumber(r.pr))).join('');
-    return `
-        <div class="match-records-stack">
+
+    const prCard = prRows == null ? '' : (() => {
+        const prHtml = prRows.filter(notHidden).map((r, i) => matchRecordRow(i + 1, r, formatNumber(r.pr))).join('');
+        return `
             <div class="achv-table-card">
                 <h3>Best PR Matches</h3>
                 <div class="achv-table-wrapper">
@@ -2132,21 +2156,31 @@ function renderMatchRecordsTables(luckRows, prRows) {
                         <tbody>${prHtml || '<tr><td colspan="8">No data</td></tr>'}</tbody>
                     </table>
                 </div>
-            </div>
+            </div>`;
+    })();
+
+    const luckCard = luckRows == null ? '' : (() => {
+        const luckHtml = luckRows.filter(notHidden)
+            .map((r, i) => matchRecordRow(i + 1, r, formatNumber(r.luckGap), showPR ? prCells(r) : ''))
+            .join('');
+        const prHead = showPR ? '<th scope="col">Player PR</th><th scope="col">Opp PR</th>' : '';
+        const cols = showPR ? 10 : 8;
+        return `
             <div class="achv-table-card">
                 <h3>Luckiest Matches</h3>
                 <div class="achv-table-wrapper">
                     <table class="achv-table match-records-table font-small" data-mf-table-id="A5">
                         <thead><tr>
                             <th scope="col">#</th><th scope="col">Player</th><th scope="col">Luck Gap</th><th scope="col">Opponent</th>
-                            <th scope="col">Score</th><th scope="col">Result</th><th scope="col">Player PR</th><th scope="col">Opp PR</th>
-                            <th scope="col">League</th><th scope="col">Date</th>
+                            <th scope="col">Score</th><th scope="col">Result</th>${prHead}<th scope="col">League</th><th scope="col">Date</th>
                         </tr></thead>
-                        <tbody>${luckHtml || '<tr><td colspan="10">No data</td></tr>'}</tbody>
+                        <tbody>${luckHtml || `<tr><td colspan="${cols}">No data</td></tr>`}</tbody>
                     </table>
                 </div>
-            </div>
-        </div>`;
+            </div>`;
+    })();
+
+    return `<div class="match-records-stack">${prCard}${luckCard}</div>`;
 }
 
 function matchRecordRow(rank, r, metricCell, extraCells = '') {
@@ -2272,7 +2306,11 @@ function collectLeagueWinRateRecords(typeLeagues) {
 }
 
 function renderLeagueRecordsSection(container, allLeagues, presentTypes) {
-    const types = sortPresentTypes(presentTypes).filter(t => t === 'doubling' || t === 'ubc');
+    // Every row here IS a Mean PR, so PR-tracking is the right question — but it
+    // has to be ASKED, not spelled out as a type pair that a new PR-tracking
+    // type would silently miss. Behaviour is unchanged: doubling and ubc are
+    // exactly the types `typeTracksPR` admits today.
+    const types = sortPresentTypes(presentTypes).filter(typeTracksPR);
     if (types.length === 0) return;
 
     const leaguesByType = {};

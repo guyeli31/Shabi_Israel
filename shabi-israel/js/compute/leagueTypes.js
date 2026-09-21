@@ -96,6 +96,46 @@ export function matchesLeagueType(leagueType, filter) {
 }
 
 /**
+ * Does this league type record a PR / a luck figure at all?
+ *
+ * **These are two questions, not one.** REGULAR is `showPR: false` but
+ * `showLuck: true`, and its matches do carry both numbers — a Regular league is
+ * simply not RANKED on PR. Every luck-bearing surface asked the PR question
+ * instead, so a Regular-only player's Records tab rendered empty, the
+ * cross-league match table printed "—" over a luck figure the per-league table
+ * was showing at the same moment, and site-wide Match Records skipped four
+ * leagues' worth of matches.
+ *
+ * Type-based, not config-based, on purpose: the flattened row shapes
+ * (`flattenAllMatches` output, the landing's type pills) carry a `leagueType`
+ * and no config, and those are exactly the call sites that had open-coded the
+ * question as `=== 'regular'` or a hardcoded `doubling || ubc` pair.
+ *
+ * **Never open-code either one.** A `leagueType === 'regular'` test or a
+ * literal type pair is a copy of this policy that a new league type will not
+ * update.
+ *
+ * `typeTracksLuck` answers "is a luck FIGURE recorded per match" — the number
+ * the analysis engine wrote into `luckA`/`luckB`. It does NOT license every
+ * luck-named metric. **Luck Confidence (D, compute/luckConfidence.js) is gated
+ * on `typeTracksPR` instead**, because it ignores those columns and derives
+ * everything from the PR win-probability table, which is calibrated for
+ * doubling-cube matches only — the site says so on the published table. The
+ * trap is that REGULAR matches do carry a PR, so D computes and returns a
+ * plausible number for matches the model was never fitted to. Ask which INPUT a
+ * metric reads, not what it is called.
+ */
+function configFor(leagueType) {
+    return CONFIGS[leagueType] || DOUBLING_CONFIG;
+}
+export function typeTracksPR(leagueType) {
+    return configFor(leagueType).showPR !== false;
+}
+export function typeTracksLuck(leagueType) {
+    return configFor(leagueType).showLuck !== false;
+}
+
+/**
  * Match weight for the "last 300 PR" rolling window. Per LEAGUE, not per query:
  * pooling types under ALL mixes 5-point and 7-point leagues in one window, so
  * the weight has to come from the match's own league.

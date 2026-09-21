@@ -23,6 +23,7 @@ import { renderChangeLabel } from './changeVocabulary.js';
 import { describeFieldChange, describeEntitySummary } from './changeDetails.js';
 import { mountFilterToggle } from '../../render/subTabs.js';
 import { restartSplash, endSplash } from '../../utils/splash.js';
+import { trackAdmin } from '../trackAdmin.js';
 
 // Per-table icon + label for the attachment sub-rows shown under "Details".
 const ATTACHMENT_META = {
@@ -409,6 +410,7 @@ function wireBulk(container, data) {
         const ids = Array.from(selected);
         if (ids.length === 0) return;
         if (!confirm(`${verb} ${ids.length} selected change${ids.length === 1 ? '' : 's'}? Each reverts to its previous state.`)) return;
+        trackAdmin(`Historical: bulk ${verb.toLowerCase()} [${ids.length} change${ids.length === 1 ? '' : 's'}]`);
         btn.disabled = true;
         const original = btn.textContent;
         btn.textContent = 'Working...';

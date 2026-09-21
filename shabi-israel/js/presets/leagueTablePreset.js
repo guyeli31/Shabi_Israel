@@ -13,6 +13,7 @@ import { colorForValue, colorForValueInverted, colorForGames, colorForLevel } fr
 import { getFlagCode } from '../utils/helpers.js';
 import { displayPlayerName } from '../utils/nameDisplay.js';
 import { getMedalPlaces } from '../compute/prizeRows.js';
+import { isRetired, RETIRED_ROW_CLASS } from '../render/retirementMarks.js';
 
 const LEVEL_EDGES = new Set([LEVELS[0].label, LEVELS[LEVELS.length - 1].label]);
 
@@ -107,23 +108,51 @@ export function buildLeagueTablePreset({ rankings, averages, params, leagueConfi
         ] : []),
     ];
 
-    const data = rankings.map((row, i) => ({
-        _origRank: row.originalRank ?? row.rank,
-        rank:      i + 1,
-        player:    row.player,
-        gp:        row.games,
-        wins:      row.wins,
-        losses:    row.losses,
-        winRate:   row.winRate,
-        prWins:    row.prWins,
-        points:    row.points,
-        avgPoints: row.avgPoints,
-        meanPR:    row.meanPR,
-        level:     row.level,
-        luck:      row.luck,
-        _unplayed: row.winRate === null,
-        _retired:  (params.RetiredPlayers || []).includes(row.player),
-    }));
+    // D is the one table that still shows a retired player — he was in this
+    // league and the table says so — but he is not IN the competition: every
+    // one of his fixtures is cancelled, so he has nothing to be ranked on.
+    //
+    // He therefore sits BELOW everyone, including players who simply have not
+    // played yet, and carries no rank number at all. Leaving him in the normal
+    // sort would have put him among the 0-game players, where a reader can only
+    // read his position as "last place" — a competitive claim about someone who
+    // never competed. An empty rank cell makes no claim.
+    // See docs/RETIREMENT-POLICY.md §3.
+    const retiredOf = (row) => isRetired(params, row.player);
+    const active = rankings.filter(r => !retiredOf(r));
+    const retired = rankings.filter(retiredOf);
+
+    const data = [
+        ...active.map((row, i) => ({
+            _origRank: row.originalRank ?? row.rank,
+            rank:      i + 1,
+            player:    row.player,
+            gp:        row.games,
+            wins:      row.wins,
+            losses:    row.losses,
+            winRate:   row.winRate,
+            prWins:    row.prWins,
+            points:    row.points,
+            avgPoints: row.avgPoints,
+            meanPR:    row.meanPR,
+            level:     row.level,
+            luck:      row.luck,
+            _unplayed: row.winRate === null,
+            _retired:  false,
+        })),
+        // Every numeric is null on purpose — the mount renders null as "—", and
+        // a dash is the honest reading. A 0 would be a result he achieved.
+        ...retired.map((row) => ({
+            _origRank: null,
+            rank:      '',
+            player:    row.player,
+            gp:        null, wins: null, losses: null, winRate: null,
+            prWins:    null, points: null, avgPoints: null,
+            meanPR:    null, level: '', luck: null,
+            _unplayed: false,
+            _retired:  true,
+        })),
+    ];
 
     const buildSummaryRow = averages
         ? () => ({
@@ -145,7 +174,7 @@ export function buildLeagueTablePreset({ rankings, averages, params, leagueConfi
     const getRowClass = (row) => {
         const parts = [];
         if (row._unplayed) parts.push('unplayed');
-        if (row._retired)  parts.push('retired');
+        if (row._retired)  parts.push('retired', RETIRED_ROW_CLASS);
         return parts.length ? parts.join(' ') : null;
     };
 

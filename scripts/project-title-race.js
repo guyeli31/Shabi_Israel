@@ -207,7 +207,7 @@ async function projectLeague(leagueId, last300Map) {
     const allMatchesIncUnplayed = applyOverridesToAll((matchRows || []).map(mapMatch), overrides);
     const history = { matches: (historyRows || []).map(mapHistory) };
     const timeline = buildMatchTimeline(history, overrides, allMatchesIncUnplayed);
-    const orderedPoints = withInitialPoint([...getUpdatePoints(timeline, leagueRow.retired_players)].reverse());
+    const orderedPoints = withInitialPoint([...getUpdatePoints(timeline)].reverse());
 
     // Length 1 means INITIAL only — a league whose first match has not been
     // recorded. Nothing to plot, so nothing to store.
@@ -233,7 +233,6 @@ async function projectLeague(leagueId, last300Map) {
         settings: {
             matchLength: params.MatchLength,
             leagueType: params.LeagueType,
-            retiredPlayers: leagueRow.retired_players || [],
         },
         previousRoster: prev?.roster || [],
         // Everything already computed, keyed by hash inside. Points whose inputs

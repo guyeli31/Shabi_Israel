@@ -496,6 +496,56 @@ tr.retired {
     vertical-align: middle;
 }
 
+/* ---- Retirement: the two marks ----
+   One visual language, two words. RETIRED describes a PERSON (D's row, the
+   player_league header); CANCELLED describes a MATCH (B6, E, C2). They share
+   the pill geometry above so the state is recognisable across tables, and they
+   never share the word — the whole retirement design rests on the person and
+   the match being separate statements (docs/RETIREMENT-POLICY.md §7).
+   Rendered only from js/render/retirementMarks.js; do not hand-write either
+   class at a call site. */
+.cancelled-mark {
+    display: inline-block;
+    background: var(--color-unplayed-bg);
+    color: var(--color-text-muted);
+    font-size: var(--fs-070);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+/* The row treatment, shared by D's retired player and by every cancelled
+   match row. Muted and struck through: the row is present as a record, not as
+   a result. `tr.retired` above already dims D's row; this adds the rest and is
+   what the match tables borrow. */
+tr.retired-row,
+tr.cancelled-row {
+    color: var(--color-text-muted);
+    background: var(--color-unplayed-bg);
+}
+
+tr.cancelled-row td:not(:has(.cancelled-mark)) {
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+    opacity: 0.75;
+}
+
+/* The mark itself must never be struck through — it is the row's label, not
+   part of the voided content. Stated separately because `:has()` is not
+   universally available and the rule above silently does nothing without it. */
+tr.cancelled-row .cancelled-mark {
+    text-decoration: none;
+    opacity: 1;
+}
+
+tr.retired-row td.player-cell a,
+tr.cancelled-row td.player-cell a {
+    color: var(--color-text-muted);
+}
+
 /* ---- Title abbreviation badges (inline, in tables) ----
    Shared atom (Group B) — the canonical home for `.title-abbr*`, consumed by
    the league/dashboard/player tables and the table/design labs. Player SEARCHES
@@ -652,7 +702,7 @@ tr.retired {
         line-height: 1;
         font-size: var(--fs-060);
     }
-    .retired-mark, .retired-badge {
+    .retired-mark, .retired-badge, .cancelled-mark {
         font-size: var(--fs-065);
         margin-left: 2px;
     }

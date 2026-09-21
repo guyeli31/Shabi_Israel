@@ -11,6 +11,7 @@ import { getQueryParam, flagUrl, getFlagCode, playerLeagueUrl, leagueUrl, league
 import { renderBreadcrumbs, ensurePlayerIndex } from './navigation.js';
 import { loadPlayersMetadata } from '../data/store.js';
 import { getTitleBadgesHtml, getHighestTier, getTitleAbbreviationsHtml } from '../data/titleConstants.js';
+import { isRetired, retiredBadgeHtml } from './retirementMarks.js';
 import { renderV7Header, buildHeaderTitles, formatJoinedShort } from './playerHeader.js';
 import { attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { displayPlayerName } from '../utils/nameDisplay.js';
@@ -38,7 +39,7 @@ export async function renderPlayerPage() {
     try {
         // Each promise reports its own stage as it lands, so the splash
         // narrates real progress rather than one opaque Promise.all.
-        const [{ params, matches, allPlayers }, allMeta, playerIndex, leagueOrder] = await Promise.all([
+        const [{ params, matches, allPlayers, cancelledPairs }, allMeta, playerIndex, leagueOrder] = await Promise.all([
             loadLeague(leagueId).then(r => { splashStage('matches'); return r; }),
             loadPlayersMetadata().then(r => { splashStage('players'); return r; }),
             ensurePlayerIndex(),
@@ -53,8 +54,7 @@ export async function renderPlayerPage() {
         const flagCode = getFlagCode(playerName, params.CustomFlags);
         const meta = allMeta[playerName] || {};
 
-        const retiredPlayers = params.RetiredPlayers || [];
-        const isRetired = retiredPlayers.includes(playerName);
+        const playerRetired = isRetired(params, playerName);
 
         const CURRENT_YEAR = new Date().getFullYear();
         const { dotClass: statusDotClass, dotTitle: statusDotTitle } = computePlayerStatusDot({
@@ -104,7 +104,7 @@ export async function renderPlayerPage() {
             inLeague: true,
             joinedFormatted,
             leagueCount: indexedLeagueIds.size,
-            extraMetaHtml: isRetired ? '<span class="retired-badge">Retired</span>' : '',
+            extraMetaHtml: playerRetired ? retiredBadgeHtml() : '',
         });
 
         const highestTier = getHighestTier(meta);
@@ -127,7 +127,15 @@ export async function renderPlayerPage() {
             playerIndex, allParams
         });
 
-        const playerMatches = getPlayerMatches(matches, playerName, allPlayers);
+        // The opponents whose fixture against this player was cancelled — a
+        // retirement, on either side of the pairing. They get a marked row
+        // rather than falling into "not played yet".
+        const cancelledOpponents = new Set(
+            (cancelledPairs || [])
+                .filter(([a, b]) => a === playerName || b === playerName)
+                .map(([a, b]) => (a === playerName ? b : a))
+        );
+        const playerMatches = getPlayerMatches(matches, playerName, allPlayers, cancelledOpponents);
 
         splashStage('render');
         container.innerHTML = `

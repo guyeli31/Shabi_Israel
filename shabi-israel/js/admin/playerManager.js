@@ -19,6 +19,7 @@ import { loadLeagueMatchesAll, loadLeagueParams, loadOverrides } from '../data/s
 import { matchesToCsvText } from './csvText.js';
 import { KNOWN_FLAGS, ensureFlagCodes, registerFlagCode } from './flagRegistry.js';
 import { restartSplash, endSplash } from '../utils/splash.js';
+import { trackAdmin, diffFields } from './trackAdmin.js';
 
 /** metadata.photoPath is a public asset URL; the staged target names just the file. */
 const photoTarget = (photoPath) => T.playerPhoto(photoPath.replace(/^assets[/]players[/]/, ''));
@@ -238,7 +239,7 @@ function selectPlayer(container, name) {
                     <span class="muted" id="pe-photo-name"></span>
                 </div>
             </div>
-            <button class="btn btn-primary" id="pe-save">Save</button>
+            <button class="btn btn-primary" id="pe-save" data-selftrack>Save</button>
         </div>
 
         <div class="admin-card">
@@ -552,6 +553,19 @@ async function savePlayer(container, name) {
     const existingPhotoPath = _state.metadata[name] && _state.metadata[name].photoPath;
     const oldEntry = _state.metadata[name] || {};
 
+    // Save-time old→new summary, dispatched as its own event (the analytics
+    // click listener is capture-phase, so a button data-track set in this handler
+    // would be read too late). The pe-save button is data-selftrack, so the
+    // generic "Action: Save" stands aside.
+    const finalNameForTrack = renaming ? newName : name;
+    const peHidden = document.getElementById('pe-hidden');
+    const pBefore = { name, 'full name': oldEntry.fullName || '', title: oldEntry.bmabTitle || '',
+        hidden: String(!!oldEntry.hidden), championships: String((oldEntry.championships || []).length) };
+    const pAfter = { name: finalNameForTrack, 'full name': fullName || '', title: bmabTitle || '',
+        hidden: String(!!(peHidden && peHidden.checked)), championships: String(championships.length) };
+    const pSum = diffFields(pBefore, pAfter);
+    trackAdmin(`Edit player: save — ${finalNameForTrack}${pSum ? ` [${pSum}]` : ''}`);
+
     const entry = { ..._state.metadata[name] };
     if (fullName) entry.fullName = fullName; else delete entry.fullName;
     if (bmabTitle) entry.bmabTitle = bmabTitle; else delete entry.bmabTitle;
@@ -828,7 +842,7 @@ async function showNewPlayerForm(container) {
             </div>
 
             <div style="display:flex;gap:var(--space-sm)">
-                <button class="btn btn-success" id="np-save">Create Player</button>
+                <button class="btn btn-success" id="np-save" data-selftrack>Create Player</button>
                 <button class="btn btn-secondary" id="np-cancel">Cancel</button>
             </div>
         </div>
@@ -1079,6 +1093,11 @@ function saveNewPlayer(container, host, form) {
 
     clearPlayersMetadataCache();
     if (refreshBadgeFn) refreshBadgeFn();
+
+    // Own event (capture-phase analytics can't see a data-track set here); the
+    // np-save button is data-selftrack so the generic "Action: Create Player"
+    // stands aside.
+    trackAdmin(`New player: create — ${nickname} [full name: ${entry.fullName || '∅'}; title: ${entry.bmabTitle || '∅'}; championships: ${(entry.championships || []).length}]`);
 
     // Navigate to edit form for the newly created player
     selectPlayer(container, nickname);

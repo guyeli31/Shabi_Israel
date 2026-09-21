@@ -28,7 +28,7 @@ const TEXT = {
         title: 'Privacy & Analytics',
         body: [
             'This site respects your privacy. We do not store IP addresses and we do not use tracking cookies. The site is hosted and operated via third-party hosting and cloud providers used to deliver the content over the web.',
-            "We use your device's local storage solely to save your display preferences and to speed up loading of the league data.",
+            "We use your device's local storage solely to save your display preferences, to remember announcements you have already closed so they are not shown to you again, and to speed up loading of the league data.",
             'To understand how the site is used we collect anonymous statistics: for local visitors, the site uses temporary in-browser memory (cleared the moment you leave the site) to understand the current browsing sequence. For visitors from the rest of the world, general usage data is recorded as individual events without any use of device memory.',
         ],
         close: 'Close',
@@ -37,7 +37,7 @@ const TEXT = {
         title: 'פרטיות ואנליטיקה באתר',
         body: [
             'אתר זה מכבד את פרטיותך. איננו שומרים כתובות IP ואיננו משתמשים בעוגיות מעקב (Cookies). האתר מתארח ומופעל באמצעות ספקי תשתיות אירוח וענן חיצוניים המשמשים להצגת התוכן ברשת.',
-            'אנו משתמשים באחסון המקומי של מכשירך אך ורק כדי לשמור את העדפות התצוגה שלך ולשפר את מהירות הטעינה של נתוני הליגה.',
+            'אנו משתמשים באחסון המקומי של מכשירך אך ורק כדי לשמור את העדפות התצוגה שלך, כדי לזכור הודעות שכבר סגרת כך שלא יוצגו לך שוב, וכדי לשפר את מהירות הטעינה של נתוני הליגה.',
             'כדי להבין את רמת השימוש באתר אנו אוספים סטטיסטיקה אנונימית: עבור מבקרים מקומיים, האתר נעזר בזיכרון זמני בדפדפן (אשר נמחק מיד עם עזיבת האתר) כדי להבין את רצף הגלישה הנוכחי. עבור מבקרים משאר העולם, נרשמים נתוני שימוש כלליים כאירועים בודדים ללא כל שימוש בזיכרון המכשיר.',
         ],
         close: 'סגור',

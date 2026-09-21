@@ -287,37 +287,35 @@ export function getUpdateDates(history) {
  * (`edited_at`, stored as local midnight by the Round Editor's date field) — so
  * an edited match moves, in B5 and in this list together.
  *
- * ── RETIRED PLAYERS ARE NOT POINTS ─────────────────────────────────────────
- * When a player retires mid-season, every one of their fixtures — the ones they
- * had already PLAYED as much as the ones still ahead — is rewritten as a
- * technical loss, all stamped at the league's opening midnight. December 2025 is
- * the worked example: Yehuda played 3 real matches and had 21 ahead of him, and
- * `match_history` holds 24 identical 0–1 manual rows dated 1 Dec 00:00.
+ * ── RETIREMENT NEEDS NO RULE HERE, AND USED TO HAVE A WRONG ONE ────────────
+ * A retired player's fixtures are CANCELLED (`manual_overrides.type =
+ * 'cancelled'`), and a cancelled pairing leaves `match_history` entirely in the
+ * reconcile — so it never reaches this function at all. The retirement is
+ * absent from the timeline as a consequence of the data, not of a filter.
  *
- * Those are one administrative act, not 24 moments. Left in, that league's chart
- * opens with 24 points on a single instant before a ball was thrown. So a row
- * involving a retired player yields NO point — the timeline reads as though they
- * were never in the league, which is what the retirement means.
+ * What stood here instead was a skip by PLAYER NAME, taking `retiredPlayers`
+ * from league_params, and it was wrong in both directions:
  *
- * It is only the POINT that goes. `getMatchesAsOf` still returns these rows, so
- * the opponents keep the technical wins and the standings at every point are the
- * standings the table shows. "Where can I rewind to" and "what was true then"
- * are different questions and only the first one is answered here.
+ *   - It dropped REAL results. July 2026's fridlich retired after playing, and
+ *     24 of that league's update points vanished from the Title Race and the
+ *     Historical view — matches that genuinely moved the table.
+ *   - It put `retiredPlayers` inside `scheduleFingerprint`, so editing the
+ *     retirement list invalidated every cached projection of the league.
  *
- * The numbering is deliberately NOT renumbered around the skipped rows: `#n`
- * still counts within the full ordered timeline, because `getMatchesAsOf` slices
- * that same full list and an already-shared `?asof=…#3` must keep meaning what
- * it meant.
+ * PREREQUISITE: this depends on the retirement migration having run
+ * (sql/retirement_policy.sql). Until a league's retirement is expressed as
+ * `cancelled` overrides rather than `technical_win` rows, its technical results
+ * ARE still in match_history and will each become a point.
+ * See docs/RETIREMENT-POLICY.md §2 and §6.
  *
- * Any OTHER override still gets its point, dated by the admin's `edited_at` — a
- * single technical result is a decision about one match, not a bulk erasure.
+ * Any other override still gets its point, dated by the admin's `edited_at` — a
+ * single technical result is a decision about one match, and a match someone
+ * simply failed to turn up for is still a moment in the season.
  *
  * @param {object[]} timeline
- * @param {Iterable<string>} [retiredPlayers]  league_params RetiredPlayers
  * @returns {{value:string,label:string,dateLabel:string,match:object}[]}
  */
-export function getUpdatePoints(timeline, retiredPlayers) {
-    const retired = new Set(retiredPlayers || []);
+export function getUpdatePoints(timeline) {
     const dated = orderTimeline(timeline);
     const countByStamp = new Map();
     for (const m of dated) countByStamp.set(m.updatedAt, (countByStamp.get(m.updatedAt) || 0) + 1);
@@ -327,8 +325,6 @@ export function getUpdatePoints(timeline, retiredPlayers) {
     for (const m of dated) {
         const n = (seen.get(m.updatedAt) || 0) + 1;
         seen.set(m.updatedAt, n);
-        // Counted above (so `#n` stays aligned with getMatchesAsOf), skipped here.
-        if (retired.has(m.playerA) || retired.has(m.playerB)) continue;
         // Date AND time, always. Matches that share an instant (a league imported
         // in one go) therefore share a clock reading too — that is the truth about
         // them: one moment of recording, arbitrary order within it. The row still

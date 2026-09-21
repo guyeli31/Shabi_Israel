@@ -42,6 +42,11 @@ create table public.matches (
   unique (league_id, round, player_a, player_b)
 );
 
+-- Parked by the trigger in sql/retirement_policy.sql when this pairing's
+-- match_history row is deleted, so undoing a cancellation restores the moment
+-- the result was recorded and not just the result. See docs/RETIREMENT-POLICY.md.
+alter table public.matches add column if not exists history_updated_at timestamptz;
+
 create index idx_matches_league on public.matches (league_id);
 
 create table public.manual_overrides (
@@ -49,7 +54,10 @@ create table public.manual_overrides (
   league_id   text not null references public.leagues(id) on delete cascade,
   player_a    text not null,
   player_b    text not null,
-  type        text not null check (type in ('result','technical_win','technical_draw','not_played')),
+  -- 'cancelled' is a retired player's fixture: no result, no winner, and — the
+  -- distinction that matters — NOT a match still to be played. See
+  -- docs/RETIREMENT-POLICY.md and sql/retirement_policy.sql.
+  type        text not null check (type in ('result','technical_win','technical_draw','not_played','cancelled')),
   winner      text,
   score_a numeric, score_b numeric, pr_a numeric, pr_b numeric, luck_a numeric, luck_b numeric,
   reason      text,

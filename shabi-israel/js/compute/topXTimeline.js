@@ -38,6 +38,7 @@
 import { predictChampionship, computeTopXPct } from './championshipPredictor.js';
 import { computeAllStats } from './stats.js';
 import { getMatchesAsOf, matchKey, INITIAL_POINT } from './matchHistory.js';
+import { isCancelled } from '../data/applyOverrides.js';
 
 export const TIMELINE_ITERATIONS = 5_000;
 
@@ -139,21 +140,29 @@ function canonMatch(m) {
  *     league edited from 7 to 11 gets different odds in every simulated match.
  *   - `leagueType` swaps the whole ranking policy: primary key, secondary key
  *     and tiebreak cascade.
- *   - `retiredPlayers` decides which rows become points at all, so it changes
- *     the very list the stored points are indexed by.
+ * Those were the one class of change that produced WRONG stored numbers looking
+ * perfectly fresh; every other edit at least announced itself as stale.
  *
- * Those three were the one class of change that produced WRONG stored numbers
- * looking perfectly fresh; every other edit at least announced itself as stale.
+ * CANCELLATION IS PART OF THE SCHEDULE, and is marked on the pairing with `!`.
+ * A cancelled fixture keeps its `matches` row, so the bare key list does not
+ * change when a player retires — without the marker, cancelling 24 fixtures
+ * would produce a fingerprint identical to the one before it, and every stored
+ * point of the league would be served against a schedule that no longer exists.
+ *
+ * This replaces a `retiredPlayers` term that used to be folded in here. Naming
+ * the PLAYERS meant any edit to that list — including one that changed no
+ * fixture at all — invalidated every cached projection of the league. Naming
+ * the affected FIXTURES invalidates exactly what moved.
+ * See docs/RETIREMENT-POLICY.md §1.
  *
  * @param {object[]} allMatchesIncUnplayed
- * @param {{matchLength?:number, leagueType?:string, retiredPlayers?:Iterable<string>}} [settings]
+ * @param {{matchLength?:number, leagueType?:string}} [settings]
  */
 export function scheduleFingerprint(allMatchesIncUnplayed, settings = {}) {
     const keys = (allMatchesIncUnplayed || [])
-        .map(m => matchKey(m.playerA, m.playerB))
+        .map(m => matchKey(m.playerA, m.playerB) + (isCancelled(m) ? '!' : ''))
         .sort();
-    const retired = [...(settings.retiredPlayers || [])].sort().join(',');
-    const cfg = `ml=${settings.matchLength ?? ''}lt=${settings.leagueType ?? ''}rp=${retired}`;
+    const cfg = `ml=${settings.matchLength ?? ''}lt=${settings.leagueType ?? ''}`;
     return fnv1a(keys.join('') + cfg).toString(16);
 }
 
@@ -224,7 +233,7 @@ export function pointFingerprints(orderedTimeline, scheduleFp) {
  *   about 2.5x on a table measured in hundreds of KB, which is nothing next to a
  *   wrong number that looks right.
  * @param {function} [args.onPoint]      (index, total) - progress, for logging
- * @param {object}   [args.settings]     {matchLength, leagueType, retiredPlayers}
+ * @param {object}   [args.settings]     {matchLength, leagueType}
  *   for the fingerprint - see scheduleFingerprint.
  * @returns {{roster:string[], points:object[], iterations:number}}
  */

@@ -17,6 +17,7 @@
  */
 
 import { supabase } from '../data/supabaseClient.js';
+import { trackAdmin } from './trackAdmin.js';
 
 let _session = null;
 
@@ -37,8 +38,12 @@ supabase.auth.onAuthStateChange((_event, session) => {
  */
 export async function login(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return false;
+    if (error) { trackAdmin('Login: failed'); return false; }
     _session = data.session;
+    // Success only — never the credentials. The operator's identity is captured
+    // by analytics' own admin_user column once the session exists; the attempted
+    // email/password are NEVER logged (invariant, even under "include old→new").
+    trackAdmin('Login: success');
     return true;
 }
 
@@ -48,6 +53,7 @@ export async function login(email, password) {
  * the background.
  */
 export function logout() {
+    trackAdmin('Logout');
     _session = null;
     supabase.auth.signOut();
 }

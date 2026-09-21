@@ -27,7 +27,7 @@ import { startSplash, splashStage, endSplash } from '../utils/splash.js';
 import { renderErrorScreen, explainError } from '../utils/errorScreen.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
 import { colorForLevel } from '../compute/colorScale.js';
-import { getLeagueConfig } from '../compute/leagueTypes.js';
+import { getLeagueConfig, typeTracksPR, typeTracksLuck } from '../compute/leagueTypes.js';
 import {
     getQueryParam, flagUrl,
     formatNumber, leagueUrl, playerUrl, getLeagueYear, leagueTableUrl, thLabel,
@@ -558,7 +558,7 @@ async function showAchievementType(body, playerName, type) {
             ${tile('🥇', 'Gold', m.goldRank, m.self.gold, '<div class="pg-tile-sub">&nbsp;</div>', 'gold')}
             ${tile('🥈', 'Silver', m.silverRank, m.self.silver, '<div class="pg-tile-sub">&nbsp;</div>', 'silver')}
             ${tile('🥉', 'Bronze', m.bronzeRank, m.self.bronze, '<div class="pg-tile-sub">&nbsp;</div>', 'bronze')}
-            ${tile('🏆', 'Win Rate', m.winRateRank, (m.self.winRate * 100).toFixed(1) + '%', `<div class="pg-tile-sub">${m.self.totalWins}W / ${m.self.totalGames}G</div>`, 'winRate')}
+            ${tile('🏆', 'Win Rate', m.winRateRank, (m.self.winRate * 100).toFixed(1) + '%', `<div class="pg-tile-sub">${m.self.totalWins}W / ${m.self.totalGames}M</div>`, 'winRate')}
             ${tile('📊', 'Avg Rank', m.avgRankRank, isFinite(m.self.avgRank) ? m.self.avgRank.toFixed(1) : '—', `<div class="pg-tile-sub">${m.self.participations} league${m.self.participations === 1 ? '' : 's'}</div>`, 'avgRank')}
         </div>
         <div class="pg-rank-expanded" hidden></div>
@@ -684,7 +684,7 @@ function renderMatchHistory(section, playerName, perLeague) {
 
     controls.appendChild(inlineLbl('Year:'));
     controls.appendChild(yearSel);
-    controls.appendChild(inlineLbl('Games:'));
+    controls.appendChild(inlineLbl('Matches:'));
     controls.appendChild(countSel);
     controls.appendChild(metricCtl);
     controls.appendChild(sortCtl);
@@ -1160,11 +1160,16 @@ function escapeHtml(s) {
 // ---- Match Records (per-player best PR + luck highlights) ----
 
 function renderPlayerMatchRecords(container, perLeague) {
-    // Only PR-tracking league types — every record here is a PR or a luck gap.
-    // Read off config.showPR (leagueTypes.js), not a hardcoded doubling/ubc
-    // pair, so a future PR-tracking type appears here without a second edit.
+    // Two of these four tables are PR records and two are LUCK records, and the
+    // league types that carry each are NOT the same set — REGULAR records luck
+    // but is not ranked on PR (leagueTypes.js). Gating the whole section on
+    // showPR alone left a Regular-only player with an empty Records tab, when
+    // every one of their matches carries the luck figure Best Luck For and
+    // Worst Luck Against are built from.
     const types = [...new Set(
-        perLeague.filter(e => e.league.config?.showPR).map(e => e.league.leagueType)
+        perLeague
+            .filter(e => typeTracksPR(e.league.leagueType) || typeTracksLuck(e.league.leagueType))
+            .map(e => e.league.leagueType)
     )];
     if (types.length === 0) return;
 
@@ -1187,18 +1192,38 @@ function renderPlayerMatchRecords(container, perLeague) {
 }
 
 function showMatchRecordsType(body, perLeague, type) {
-    const bestPR   = collectPlayerBestPR(perLeague, type);
-    const bestLuck = collectPlayerBestLuckFor(perLeague, type);
-    const worstLuck = collectPlayerWorstLuckAgainst(perLeague, type);
-    const bestOppPR = collectPlayerBestOpponentPR(perLeague, type);
+    // The selected pill narrowed to the types that actually record each metric.
+    // ALL arrives here as the section's own type array (resolveTypeFilter), so
+    // pooling Doubling with Regular still asks each collector only for the
+    // leagues that answer its question — the PR tables never see a Regular
+    // league, the luck tables see both.
+    const asTypes  = Array.isArray(type) ? type : [type];
+    const prTypes   = asTypes.filter(typeTracksPR);
+    const luckTypes = asTypes.filter(typeTracksLuck);
 
-    body.innerHTML = `
-        <div class="match-records-stack">
-            ${renderPlayerRecordTable('Best PR', 'PR', bestPR)}
-            ${renderPlayerRecordTable('Best Luck For', 'Luck Gap', bestLuck, { prCols: true })}
-            ${renderPlayerRecordTable('Worst Luck Against', 'Luck Gap', worstLuck, { prCols: true })}
-            ${renderPlayerRecordTable('Best Opponent PR', 'Opp PR', bestOppPR)}
-        </div>`;
+    // Luck rows carry Player PR / Opp PR alongside the gap, but only while
+    // every league in view records a PR — the same policy the cross-league
+    // match table applies per cell. A Regular-only view drops the two columns
+    // rather than printing "—" down both.
+    const luckPrCols = luckTypes.every(typeTracksPR);
+
+    const sections = [];
+    if (prTypes.length) {
+        sections.push(renderPlayerRecordTable('Best PR', 'PR',
+            collectPlayerBestPR(perLeague, prTypes)));
+    }
+    if (luckTypes.length) {
+        sections.push(renderPlayerRecordTable('Best Luck For', 'Luck Gap',
+            collectPlayerBestLuckFor(perLeague, luckTypes), { prCols: luckPrCols }));
+        sections.push(renderPlayerRecordTable('Worst Luck Against', 'Luck Gap',
+            collectPlayerWorstLuckAgainst(perLeague, luckTypes), { prCols: luckPrCols }));
+    }
+    if (prTypes.length) {
+        sections.push(renderPlayerRecordTable('Best Opponent PR', 'Opp PR',
+            collectPlayerBestOpponentPR(perLeague, prTypes)));
+    }
+
+    body.innerHTML = `<div class="match-records-stack">${sections.join('')}</div>`;
 
     body.querySelectorAll('table.pg-mr-table').forEach(t => applyShowTopN(t, 5));
     body.querySelectorAll('.pg-mr-table').forEach(tbl => {

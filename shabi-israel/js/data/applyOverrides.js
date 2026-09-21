@@ -7,6 +7,33 @@
  */
 
 /**
+ * Is this fixture cancelled — a retired player's match, which will never be
+ * played and is not waiting to be?
+ *
+ * THE ONE PLACE THAT ANSWERS THIS. `_cancelled` and `played:false` travel
+ * together (applyOverridesToAll sets both), so every site that filters on bare
+ * `!played` is silently also selecting cancelled fixtures — and four of them
+ * mean "still to come" by it: the Championship Predictor's remaining set, the
+ * What-If baseline (current AND historical), and the Remaining Matches tables.
+ * Left unguarded, a retired player's fixtures are matches the league waits for
+ * forever.
+ *
+ * Exported as one predicate rather than repeated inline, because a rule copied
+ * to four call sites is a rule that will disagree with itself at the fifth.
+ */
+export function isCancelled(m) {
+    return !!(m && m._cancelled);
+}
+
+/**
+ * The fixtures a league still has to play: unplayed, and not cancelled.
+ * Use this instead of `.filter(m => !m.played)` anywhere "remaining" is meant.
+ */
+export function remainingFixtures(matches) {
+    return (matches || []).filter(m => !m.played && !isCancelled(m));
+}
+
+/**
  * Apply manual overrides on top of CSV-parsed matches.
  * Each override replaces or adds a match by playerA+playerB key.
  */
@@ -52,6 +79,14 @@ export function applyOverrides(matches, overrides) {
             };
         } else if (o.type === 'not_played') {
             // Remove match from played matches (treat as unplayed)
+            if (idx !== -1) result.splice(idx, 1);
+            continue;
+        } else if (o.type === 'cancelled') {
+            // A retired player's fixture: the match does not exist. In the
+            // PLAYED list that is the same outcome as not_played — it leaves.
+            // The two only diverge in applyOverridesToAll (dashboardPage.js),
+            // where not_played still means "to be played" and cancelled means
+            // "never will be". See docs/RETIREMENT-POLICY.md §2.
             if (idx !== -1) result.splice(idx, 1);
             continue;
         }

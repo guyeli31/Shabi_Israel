@@ -71,6 +71,10 @@ export function computeMatchHistoryReconcile({ matchRows, overrideRows, historyR
     const csvMatches = matches.map((m) => ({
         playerA: m.player_a, playerB: m.player_b, scoreA: m.score_a, scoreB: m.score_b,
         prA: m.pr_a, prB: m.pr_b, luckA: m.luck_a, luckB: m.luck_b, round: m.round,
+        // The date this pairing's history row carried the last time it existed,
+        // parked on the fixture by the trigger in sql/retirement_policy.sql.
+        // Null for every pairing that has never left history — the normal case.
+        parkedUpdatedAt: m.history_updated_at || null,
     }));
     const overrides = overrideList.map((o) => ({
         type: o.type, playerA: o.player_a, playerB: o.player_b, winner: o.winner,
@@ -120,10 +124,28 @@ export function computeMatchHistoryReconcile({ matchRows, overrideRows, historyR
         } else if (prev && sameNumericFields(prev, m)) {
             next.push({ ...prev, round: m.round, source: 'csv' });
         } else {
+            // A pairing with no stored row is normally brand new, and `now` is
+            // the right date for it. But it is ALSO what a pairing looks like
+            // after a cancellation is undone — the history row was deleted, so
+            // there is nothing to compare against and the result arrives here
+            // looking freshly recorded.
+            //
+            // Dating it `now` restores the RESULT and loses the MOMENT. Measured
+            // on September 2026 (scripts/verify-retirement-cycle.mjs): retiring
+            // a player with 16 played matches and then un-retiring them brought
+            // all 16 scores and PRs back byte-identical, and moved all 16
+            // recording dates from 1–5 September to the moment of the undo. The
+            // Title Race X axis, the Historical view's as-of replay and every
+            // shared `?asof=…#n` link were silently wrong afterwards — and
+            // nothing announced it, because the row COUNT and the schedule
+            // fingerprint both came back identical.
+            //
+            // So the date is parked on the fixture when history loses the row,
+            // and taken back from there when it returns.
             next.push({
                 playerA: m.playerA, playerB: m.playerB, scoreA: m.scoreA, scoreB: m.scoreB,
                 prA: m.prA, prB: m.prB, luckA: m.luckA, luckB: m.luckB, round: m.round,
-                updatedAt: now, source: 'csv',
+                updatedAt: m.parkedUpdatedAt || now, source: 'csv',
             });
         }
     }
@@ -132,11 +154,20 @@ export function computeMatchHistoryReconcile({ matchRows, overrideRows, historyR
     for (const o of overrides) {
         const k = key(o.playerA, o.playerB);
 
-        // not_played: the pairing did NOT happen. It must leave match_history
-        // entirely — otherwise a stale CSV-sourced row survives here and the
-        // read-side merge (mergeHistoryIntoMatches) resurrects the very match the
-        // admin said to erase. Drop it from `next` so the stale-delete removes it.
-        if (o.type === 'not_played') {
+        // not_played / cancelled: the pairing did NOT happen. It must leave
+        // match_history entirely — otherwise a stale CSV-sourced row survives
+        // here and the read-side merge (mergeHistoryIntoMatches) resurrects the
+        // very match the admin said to erase. Drop it from `next` so the
+        // stale-delete removes it.
+        //
+        // `cancelled` (a retired player's fixture) takes the same path for a
+        // reason worth stating: match_history is what the timeline is built
+        // from, so removing the row is what makes a cancelled match cease to be
+        // a moment in the league's history — no date, no update point, absent
+        // from every as-of replay including ones from before the retirement.
+        // That is the whole mechanism; no compute module needs to know a name.
+        // See docs/RETIREMENT-POLICY.md §2.
+        if (o.type === 'not_played' || o.type === 'cancelled') {
             const rmIdx = next.findIndex((x) => key(x.playerA, x.playerB) === k);
             if (rmIdx >= 0) next.splice(rmIdx, 1);
             continue;

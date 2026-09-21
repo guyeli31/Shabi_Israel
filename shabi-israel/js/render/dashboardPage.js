@@ -8,6 +8,8 @@
  */
 
 import { loadLeagueParams, loadLeagueOrder, loadOverrides, loadAllLeagueParams, loadLeagueMatchesAll, loadMatchHistory, applyOverrides, loadLeagueProjections } from '../data/store.js';
+import { isCancelled, remainingFixtures } from '../data/applyOverrides.js';
+import { CANCELLED_MARK_CLASS, CANCELLED_ROW_CLASS } from './retirementMarks.js';
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { getMatchesAsOf, getUpdatePoints, buildMatchTimeline, mergeHistoryIntoMatches, matchKey, resultSides, describeResult, formatAxisDay, INITIAL_POINT } from '../compute/matchHistory.js';
 import { computeAllStats } from '../compute/stats.js';
@@ -105,7 +107,25 @@ export async function renderDashboardPage() {
         const playedMatchesRaw = allMatchesIncUnplayedRaw
             .filter(m => m.played)
             .map(({ playerA, prA, luckA, scoreA, playerB, prB, luckB, scoreB }) => ({ playerA, prA, luckA, scoreA, playerB, prB, luckB, scoreB }));
-        const allPlayersSet = matchesAllData.allPlayers;
+        // THE COMPETITION ROSTER, not the sign-up sheet: everyone with at least
+        // one fixture that has not been cancelled.
+        //
+        // Derived from the fixtures, never from `retired_players` — a player
+        // whose every match is cancelled falls out on his own, which is the
+        // whole point of making cancellation a property of the match
+        // (docs/RETIREMENT-POLICY.md §1). Nothing here has to know a name.
+        //
+        // Every dashboard surface is competition-facing and wants this set:
+        // the rankings, the Predictor, What-If, the charts, the player pickers,
+        // and — the one that was visibly wrong — League Progress, whose
+        // denominator is C(roster, 2). December 2025 read "279 / 300" and could
+        // never reach 100%, because the 21 fixtures of a player who had left
+        // were still being counted as games the league owed. With 24 active
+        // players it is 276 / 276.
+        //
+        // The full sign-up roster stays available as `allPlayers` for the one
+        // place that wants it — index.html's A1 player count, which is derived
+        // separately in store.js and deliberately still says 25.
         const roundCount = Math.max(1, ...allMatchesIncUnplayedRaw.map(m => m.round || 1));
 
         splashStage('ranking');
@@ -113,6 +133,13 @@ export async function renderDashboardPage() {
         // Apply manual overrides (consistency with league table)
         const playedMatches = applyOverrides(playedMatchesRaw, overrides);
         const allMatchesIncUnplayed = applyOverridesToAll(allMatchesIncUnplayedRaw, overrides);
+
+        const allPlayersSet = new Set();
+        for (const m of allMatchesIncUnplayed) {
+            if (isCancelled(m)) continue;
+            allPlayersSet.add(m.playerA);
+            allPlayersSet.add(m.playerB);
+        }
 
         const leagueConfig = getLeagueConfig(params);
         // ONE timeline drives B5's rows and dates, the Historical (B2) and What-If
@@ -203,7 +230,7 @@ function applyOverridesToAll(matches, overrides) {
             return mKey === key;
         });
 
-        if (o.type === 'not_played') {
+        if (o.type === 'not_played' || o.type === 'cancelled') {
             if (idx !== -1) {
                 result[idx] = {
                     ...result[idx],
@@ -211,7 +238,16 @@ function applyOverridesToAll(matches, overrides) {
                     scoreA: null, scoreB: null,
                     prA: null, prB: null,
                     luckA: null, luckB: null,
-                    _overridden: true
+                    _overridden: true,
+                    // THE DISTINCTION THAT MATTERS. Both clear the result, but
+                    // `not_played` means "still to come" and `cancelled` means
+                    // "never will be" — and four consumers below read bare
+                    // `!played` as the former. Without this flag a retired
+                    // player's 24 fixtures become 24 matches the league is
+                    // still waiting for: listed in B7, simulated by B3, and
+                    // offered as stageable by B4, forever.
+                    // See docs/RETIREMENT-POLICY.md §2.
+                    _cancelled: o.type === 'cancelled' || undefined,
                 };
             }
             continue;
@@ -355,7 +391,11 @@ function predictorPanel() {
                 <label for="predictor-topx-input">Show</label>
                 <select id="predictor-topx-input" class="topx-select"></select>
             </div>
-            <div id="predictor-table"><div class="loading">Computing predictions...</div></div>
+            <!-- The first thing this panel does is READ the stored point, so the
+                 placeholder says so. renderChampionshipPredictor upgrades it to
+                 "Computing" only if that read comes back empty — see
+                 PROJECTION_LOADING for why the distinction is load-bearing. -->
+            <div id="predictor-table"><div class="loading">Fetching projection…</div></div>
             <button id="predictor-expand" class="predictor-expand-btn" style="display:none">Show Full Table</button>
         </section>
 
@@ -479,7 +519,7 @@ async function renderTitleRace(ctx) {
     });
 
     // Oldest → newest: a timeline is read left to right.
-    const points = withInitialPoint([...getUpdatePoints(ctx.timeline, ctx.params.RetiredPlayers)].reverse());
+    const points = withInitialPoint([...getUpdatePoints(ctx.timeline)].reverse());
     // points[0] is always INITIAL, so a league with no played match has length 1
     // and nothing to plot. A FINISHED league is not less interesting than a
     // running one: the race is over, but how it was won is what this section is
@@ -947,28 +987,28 @@ function insightsPanel(showPR) {
         <section class="app-section app-section--card dash-section">
             <h2 class="app-section-h2">Player match history</h2>
             <div id="charts-container"></div>
-            <button id="add-chart" class="add-chart-btn" title="Add another chart for comparison" data-track="Compare: add player chart">+ Add chart</button>
+            <button id="add-chart" class="add-chart-btn" title="Add another chart for comparison" data-track="Match history: add chart">+ Add chart</button>
         </section>
         ${showPR ? `
         <section class="app-section app-section--card dash-section" id="pr-corr-section">
             <h2 class="app-section-h2">Player PR difference &harr; Result &harr; Luck
-                <span class="predictor-tooltip" id="pr-corr-info-btn">?</span>
+                <span class="predictor-tooltip" id="pr-corr-info-btn" data-track="PR vs Result: info open">?</span>
             </h2>
-            <div class="predictor-info-popup" id="pr-corr-info-popup" hidden>
-                <button class="predictor-info-close" id="pr-corr-info-close">&times;</button>
+            <div class="predictor-info-popup" id="pr-corr-info-popup" data-analytics-section="PR vs Result" hidden>
+                <button class="predictor-info-close" id="pr-corr-info-close" data-track="PR vs Result: info close">&times;</button>
                 <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
                 ${popupLangBlocks('pr-corr')}
             </div>
             <div id="corr-container"></div>
-            <button id="add-corr-chart" class="add-chart-btn" title="Add another player's correlation row" data-track="Compare: add player chart">+ Add player chart</button>
+            <button id="add-corr-chart" class="add-chart-btn" title="Add another player's correlation row" data-track="PR vs Result: add chart">+ Add player chart</button>
         </section>
 
         <section class="app-section app-section--card dash-section" id="league-corr-section">
             <h2 class="app-section-h2">League PR difference &harr; Result
-                <span class="predictor-tooltip" id="league-corr-info-btn">?</span>
+                <span class="predictor-tooltip" id="league-corr-info-btn" data-track="PR distribution: info open">?</span>
             </h2>
-            <div class="predictor-info-popup" id="league-corr-info-popup" hidden>
-                <button class="predictor-info-close" id="league-corr-info-close">&times;</button>
+            <div class="predictor-info-popup" id="league-corr-info-popup" data-analytics-section="PR distribution" hidden>
+                <button class="predictor-info-close" id="league-corr-info-close" data-track="PR distribution: info close">&times;</button>
                 <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
                 ${popupLangBlocks('league-corr')}
             </div>
@@ -1079,7 +1119,7 @@ function leagueProgressHtml(params, matchStats) {
     const { games, days, behind } = computeLeagueProgress(params, matchStats);
     const state = behind ? 'is-behind' : 'is-on-track';
     const rows = [
-        progressRowHtml('Games', `${games.played} / ${games.total}`, games.pct,
+        progressRowHtml('Matches', `${games.played} / ${games.total}`, games.pct,
             `${games.played} of ${games.total} scheduled matches played`),
     ];
     if (days) {
@@ -1201,7 +1241,7 @@ function formatLastModified(s) {
 // this entry the empty league is simply unreachable, so every league gets it,
 // synthesised, at the bottom of the list where it belongs chronologically.
 function buildSnapshotOptions(timeline, lastModified, params) {
-    const points = getUpdatePoints(timeline, params.RetiredPlayers);
+    const points = getUpdatePoints(timeline);
     const options = [];
 
     // CURRENT IS THE NEWEST MATCH — one row, not two.
@@ -1250,7 +1290,7 @@ function buildSnapshotOptions(timeline, lastModified, params) {
  * @returns {object|null} null means "simulate instead" - see the guards inside
  */
 async function storedPointPrediction(ctx, pointValue, remaining, statsMap = null) {
-    const points = withInitialPoint([...getUpdatePoints(ctx.timeline, ctx.params.RetiredPlayers)].reverse());
+    const points = withInitialPoint([...getUpdatePoints(ctx.timeline)].reverse());
     if (points.length < 2) return null;
 
     const scheduleFp = scheduleFingerprint(ctx.allMatchesIncUnplayed, fingerprintSettings(ctx));
@@ -1339,7 +1379,8 @@ function fingerprintSettings(ctx) {
     return {
         matchLength: ctx.params.MatchLength || 7,
         leagueType: ctx.leagueConfig && ctx.leagueConfig.type,
-        retiredPlayers: ctx.params.RetiredPlayers || [],
+        // No `retiredPlayers`: cancellation is now a property of the fixture and
+        // scheduleFingerprint reads it off the match list itself.
     };
 }
 
@@ -1405,7 +1446,7 @@ function drawHistTable(ctx, dateValue) {
         html += `<tr class="${rankClass(r.rank)}">
             <td data-label="Rank">${r.rank}</td>
             <td class="player-cell" data-label="Player">${rHidden ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`} ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
-            <td data-label="Games">${r.games}</td><td data-label="Wins">${r.wins}</td><td data-label="Losses">${r.losses}</td>`;
+            <td data-label="Matches">${r.games}</td><td data-label="Wins">${r.wins}</td><td data-label="Losses">${r.losses}</td>`;
         if (leagueConfig.showWinRate) html += `<td data-label="Win Rate">${r.winRate != null ? formatPercent(r.winRate) : 'N/A'}</td>`;
         if (leagueConfig.showPRWins) html += `<td data-label="PR Wins">${r.prWins != null ? r.prWins : 'N/A'}</td><td data-label="Avg Points">${r.avgPoints != null ? formatNumber(r.avgPoints) : 'N/A'}</td>`;
         if (leagueConfig.showPR) html += `<td data-label="Mean PR">${r.meanPR != null ? formatNumber(r.meanPR) : 'N/A'}</td>`;
@@ -1420,6 +1461,54 @@ function drawHistTable(ctx, dateValue) {
 }
 
 // ---------- Championship Predictor ----------
+
+/**
+ * The line shown while a projection is being obtained — and WHICH of the two it
+ * is carries information, which is the whole reason they are separate.
+ *
+ * The panel has two entirely different ways of answering: read the point the
+ * projection job already computed, or run 50 000 Monte Carlo seasons here. It
+ * used to announce the second one unconditionally, because the message was
+ * painted BEFORE the choice was made — so "Computing projection…" flashed on
+ * every load, including the overwhelming majority that only ever read a row out
+ * of the database.
+ *
+ * Saying which one is happening is not decoration. Once the message is honest,
+ * COMPUTING appearing on a panel with nothing staged means exactly one thing:
+ * the point is not in the database yet, i.e. the trigger → pg_net → GitHub path
+ * has not delivered. That is a fault with no other symptom — the workflow still
+ * reports success, the hourly schedule still repairs it within the hour, and
+ * the numbers are never wrong, only late. On 18 Sep 2026 it took two hours to
+ * find precisely because nothing on the site said it was happening.
+ *
+ * COMPUTING with staged results is not a fault at all: a constellation that
+ * never occurred has no stored point and cannot have one (the space is 3ⁿ over
+ * the remaining fixtures). There, the word describes the feature.
+ */
+const PROJECTION_LOADING = {
+    fetch: 'Fetching projection…',
+    compute: 'Computing projection…',
+};
+
+function paintProjectionLoading(host, kind) {
+    host.innerHTML = `<div class="loading">${PROJECTION_LOADING[kind]}</div>`;
+}
+
+/**
+ * Hand the message above to the screen before starting work that will not give
+ * the thread back.
+ *
+ * predictChampionship() is a synchronous CPU loop: assigning innerHTML and
+ * calling it on the same tick queues a paint that cannot run until the loop
+ * finishes, so the "Computing" line would appear only once it no longer
+ * applied — the one message that must be visible is the one blocked by the very
+ * thing it describes. Two frames, because the first only guarantees the style
+ * and layout pass; the pixels land on the second.
+ */
+function yieldToPaint() {
+    return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+}
+
 function ensureLast300Map(ctx) {
     if (!ctx._last300MapPromise) {
         // Simulator pools all non-REGULAR leagues (doubling + ubc) into one
@@ -1468,8 +1557,8 @@ async function renderPredictor(ctx) {
     wireLangPopup(section, { btn: infoBtn, popup: infoPopup, close: infoClose });
     wireSectionCollapse(section, { defaultOpen: true, infoBtn });
 
-    // Find remaining (unplayed) matches
-    const remaining = ctx.allMatchesIncUnplayed.filter(m => !m.played);
+    // Find remaining (unplayed) matches — cancelled fixtures are NOT remaining.
+    const remaining = remainingFixtures(ctx.allMatchesIncUnplayed);
 
     if (remaining.length === 0) {
         // Season complete — show final standings
@@ -1495,7 +1584,10 @@ async function renderPredictor(ctx) {
     // being opened, and removes the whole cost from every visit that isn't.
     // Nothing about the simulation itself changes — same iterations, same
     // accuracy — it simply stops running before the page it is not part of.
-    host.innerHTML = '<div class="loading">Computing projection…</div>';
+    // Reading the stored point is what normally happens here, so that is what
+    // the line says. It is upgraded to COMPUTING below, and only if the read
+    // actually comes back empty.
+    paintProjectionLoading(host, 'fetch');
     await whenVisible(section);
 
     try {
@@ -1516,8 +1608,13 @@ async function renderPredictor(ctx) {
         // Reading it also makes the two AGREE. They are separate Monte Carlo
         // runs today, so the chart's last column and this table can differ by a
         // point or two for no reason a reader could ever explain.
-        const result = await storedPointPrediction(ctx, '__current__', remaining, statsMap)
-            || predictChampionship({
+        let result = await storedPointPrediction(ctx, '__current__', remaining, statsMap);
+        if (!result) {
+            // The stored point is missing or superseded, so this visitor pays
+            // for the simulation. Say so, and let it reach the screen first.
+            paintProjectionLoading(host, 'compute');
+            await yieldToPaint();
+            result = predictChampionship({
                 statsMap,
                 remainingMatches: remaining,
                 matchLength,
@@ -1526,6 +1623,7 @@ async function renderPredictor(ctx) {
                 allPlayers: ctx.allPlayersSet,
                 playedMatches: ctx.liveMatches
             });
+        }
 
         // Render MoE
         if (result.method === 'montecarlo' && result.moe > 0) {
@@ -1933,14 +2031,18 @@ function renderWhatIfSimulator(ctx) {
     function computeBaseline(value) {
         if (!value || value === '__current__') {
             const played = [...ctx.liveMatches];
-            const remaining = ctx.allMatchesIncUnplayed.filter(m => !m.played).slice();
+            const remaining = remainingFixtures(ctx.allMatchesIncUnplayed).slice();
             return { value: '__current__', played, remaining, playedByKey: indexByKey(played) };
         }
         const played = getMatchesAsOf(ctx.timeline, value); // played as of this point
         const playedKeys = new Set(played.map(m => canonKey(m.playerA, m.playerB)));
         // Every scheduled fixture not yet played at this point becomes a remaining
         // (unplayed) match, regardless of whether it has since been played.
+        // A CANCELLED fixture never becomes one: cancellation is not dated, so a
+        // retired player's match was never pending at any point on the timeline
+        // either (docs/RETIREMENT-POLICY.md §4, case 10).
         const remaining = ctx.allMatchesIncUnplayed
+            .filter(m => !isCancelled(m))
             .filter(m => !playedKeys.has(canonKey(m.playerA, m.playerB)))
             .map(m => ({ ...m, played: false, scoreA: null, scoreB: null, prA: null, prB: null, luckA: null, luckB: null }));
         return { value, played, remaining, playedByKey: indexByKey(played) };
@@ -2204,8 +2306,12 @@ function renderWhatIfSimulator(ctx) {
                 ? 'CURRENT STATE &mdash; no changes applied yet'
                 : 'SIMULATION &mdash; based on your what-if scenario';
         }
+        // Unlike the Predictor, this panel knows the answer before it acts:
+        // nothing staged is a point that already exists and will be read, a
+        // staged result is a constellation that must be simulated. So the line
+        // is right from the first frame rather than corrected afterwards.
         if (output.hidden) {
-            tableHost.innerHTML = '<div class="loading">Computing projection...</div>';
+            paintProjectionLoading(tableHost, staged.length === 0 ? 'fetch' : 'compute');
             output.hidden = false;
         }
 
@@ -2266,19 +2372,27 @@ function renderWhatIfSimulator(ctx) {
             //
             // A staged result makes a constellation that has never occurred, so
             // there is nothing to look up and it genuinely must be simulated.
-            const stored = staged.length === 0
+            let result = staged.length === 0
                 ? await storedPointPrediction(ctx, baseline.value, simRemaining, simStatsMap)
                 : null;
 
-            const result = stored || predictChampionship({
-                statsMap: simStatsMap,
-                remainingMatches: simRemaining,
-                matchLength,
-                leagueConfig: ctx.leagueConfig,
-                last300Map: await ensureLast300Map(ctx),
-                allPlayers: ctx.allPlayersSet,
-                playedMatches: simMatches
-            });
+            if (!result) {
+                // Either a staged scenario (expected, and the line already says
+                // COMPUTING) or a baseline whose stored point is missing — the
+                // same "not projected yet" signal the Predictor shows. Repainting
+                // is what turns the second case into a visible one.
+                paintProjectionLoading(tableHost, 'compute');
+                await yieldToPaint();
+                result = predictChampionship({
+                    statsMap: simStatsMap,
+                    remainingMatches: simRemaining,
+                    matchLength,
+                    leagueConfig: ctx.leagueConfig,
+                    last300Map: await ensureLast300Map(ctx),
+                    allPlayers: ctx.allPlayersSet,
+                    playedMatches: simMatches
+                });
+            }
 
             output.hidden = false;
             if (result.method === 'montecarlo' && result.moe > 0) {
@@ -2703,10 +2817,18 @@ function drawMatchTable(host, matches, opts = {}) {
         // longer abbreviated: a two-digit year next to a clock reads as another
         // time field ("5 Jul 26, 16:49"), and the column is already wide enough
         // for the full one now that it carries a clock at all.
-        const playedCell = updated
-            ? formatMatchStamp(updated)
-            : (isPlayed ? '—' : '<span style="color:var(--color-text-muted)">unplayed</span>');
-        const rowClass = isPlayed ? '' : 'unplayed-row';
+        // A cancelled fixture is NOT an unplayed one, and must never read as a
+        // match the league is still waiting for — it will never be played. It
+        // carries the mark instead of a date, and borrows D's retired-row
+        // styling so the state is recognisable without a second convention per
+        // table (docs/RETIREMENT-POLICY.md §7).
+        const cancelled = isCancelled(m);
+        const playedCell = cancelled
+            ? `<span class="${CANCELLED_MARK_CLASS}">CANCELLED</span>`
+            : (updated
+                ? formatMatchStamp(updated)
+                : (isPlayed ? '—' : '<span style="color:var(--color-text-muted)">unplayed</span>'));
+        const rowClass = cancelled ? CANCELLED_ROW_CLASS : (isPlayed ? '' : 'unplayed-row');
         // Winner name green / loser red — played rows only (no class on ties or unplayed).
         const resA = isPlayed && m.scoreA > m.scoreB ? ' result-win' : (isPlayed && m.scoreA < m.scoreB ? ' result-loss' : '');
         const resB = isPlayed && m.scoreB > m.scoreA ? ' result-win' : (isPlayed && m.scoreB < m.scoreA ? ' result-loss' : '');
@@ -2739,8 +2861,7 @@ function drawMatchTable(host, matches, opts = {}) {
 // ---------- Remaining Matches (B7a / B7b / B7c) ----------
 function renderRemainingMatches(ctx) {
     const { allMatchesIncUnplayed, params, playersMeta, lastModified } = ctx;
-    const remaining = allMatchesIncUnplayed
-        .filter(m => !m.played)
+    const remaining = remainingFixtures(allMatchesIncUnplayed)
         .slice()
         .sort((a, b) => (a.round - b.round) || a.playerA.localeCompare(b.playerA) || a.playerB.localeCompare(b.playerB));
 
@@ -3109,7 +3230,7 @@ function renderPlayerSection(ctx) {
                     <option value="luck"${showPR ? '' : ' selected'}>Luck</option>
                 </select>
                 <a class="open-full-btn player-card-link" href="#" title="Open full player card">Open player card &rsaquo;</a>
-                <button class="remove-chart" title="Remove this chart" data-track="Compare: remove player chart">&times;</button>
+                <button class="remove-chart" title="Remove this chart" data-track="Match history: remove chart">&times;</button>
             </div>
             <div class="chart-host"></div>
         `;
@@ -3125,6 +3246,11 @@ function renderPlayerSection(ctx) {
             const player = entry.player;
             const metric = metricSel.value;
             link.href = playerLeagueUrl(leagueId, player);
+            // Both carry the CURRENT player so a click names the exact subject
+            // (the ✕ included, which the user explicitly asked to attribute) —
+            // refreshed here because `player` changes under the same panel.
+            link.dataset.track = `Match history: open card — ${player}`;
+            removeBtn.dataset.track = `Match history: remove chart — ${player}`;
             const matches = buildPlayerSeries(liveMatches, player);
             // The same chart the player page's Matches tab draws, so it gets the
             // same ‹ › stepper. `totalMatchesPerPlayer` keeps every panel on one
@@ -3141,10 +3267,12 @@ function renderPlayerSection(ctx) {
                 emptyLabel: 'Tap a match',
                 prevTitle: 'Previous match',
                 nextTitle: 'Next match',
-                trackPrefix: 'Compare: step',
+                trackPrefix: 'Match history: step',
+                // KEYS, not display names, so the log enriches both sides to
+                // flag + title (the same chip every other player reference gets).
                 describe: (i) => {
                     const m = matches[i];
-                    return m ? `${displayPlayerName(player)} vs ${displayPlayerName(m.opponent)}` : '';
+                    return m ? `${player} vs ${m.opponent}` : '';
                 },
             });
         }
@@ -3174,15 +3302,23 @@ function renderPlayerSection(ctx) {
             onPick: (name) => {
                 entry.player = name;
                 playerPick.value = displayPlayerName(name);
-                // Analytics: a picker choice is not a DOM click, so announce it,
-                // naming the chosen player (public league data, as "Player link:").
-                window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `Compare: change player: ${name}` } }));
+                // A picker choice is not a DOM click, so announce it. Section-
+                // scoped ("Match history"), naming the chosen player key so the
+                // log enriches it — no longer the ambiguous "Compare: change
+                // player" the PR-vs-Result section also emitted.
+                window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `Match history: player — ${name}` } }));
                 redrawAll();
             },
         });
         combo.setIdentity(initialPlayer);
 
-        metricSel.addEventListener('change', redrawAll);
+        metricSel.addEventListener('change', () => {
+            // The metric toggle was previously UNtracked. Announce it, scoped and
+            // attributed to this panel's current player.
+            const metricName = metricSel.value === 'pr' ? 'PR' : 'Luck';
+            window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `Match history: metric ${metricName} — ${entry.player}` } }));
+            redrawAll();
+        });
         removeBtn.addEventListener('click', () => {
             if (panels.length > 1) {
                 panel.remove();
@@ -3611,7 +3747,7 @@ function wireSectionLangPopup(sectionId, btnId, popupId, closeId) {
  * The caller wires `onPick` back to the returned bar's `sync`, so a tap on the
  * canvas moves the readout too — the stepper and the canvas write one pin.
  */
-function mountPrGapStepper(host, row) {
+function mountPrGapStepper(host, row, subject) {
     return mountChartStepper(host, {
         controller: row,
         total: row.binCount,
@@ -3622,10 +3758,10 @@ function mountPrGapStepper(host, row) {
         prevTitle: 'Previous PR-gap bin',
         nextTitle: 'Next PR-gap bin',
         trackPrefix: 'PR distribution: step',
-        describe: (i) => {
-            const b = row.buckets[i];
-            return b ? `PR gap ${b.x0} to ${b.x1}` : '';
-        },
+        // Names the ROW, not the bin: the two S3 rows ("this league" / "all-time
+        // Npt") share this prefix, so without the row identity their step events
+        // were indistinguishable. Per the agreed grammar the bin range is dropped.
+        describe: () => subject || '',
     });
 }
 
@@ -3671,15 +3807,15 @@ function renderPrCorrelationSection(ctx) {
                 <label>League &mdash; all matches (${generalMatchStats.playedMatches}/${generalMatchStats.totalMatches})</label>
                 <span class="corr-gaussian-stats"></span>
                 <div class="corr-shift-group">
-                    <button class="corr-gaussian-toggle" type="button" disabled data-track="Chart tool: Gaussian fit" title="Overlays a fitted normal (Gaussian) curve on this histogram, using this data's own mean and standard deviation &mdash; a visual reference only, not a claim that the data is actually normally distributed.">Gaussian fit</button>
-                    <button class="corr-trim-toggle" type="button" disabled data-track="Chart tool: Trim to 99%" title="Zooms the X-axis in to the middle 99% of this league's matches (symmetric around 0), hiding the outlier bins beyond that. Display only &mdash; the Gaussian fit below always uses the full, untrimmed data.">Trim to 99%</button>
+                    <button class="corr-gaussian-toggle" type="button" disabled data-track="PR distribution: Gaussian fit — this league" title="Overlays a fitted normal (Gaussian) curve on this histogram, using this data's own mean and standard deviation &mdash; a visual reference only, not a claim that the data is actually normally distributed.">Gaussian fit</button>
+                    <button class="corr-trim-toggle" type="button" disabled data-track="PR distribution: trim — this league" title="Zooms the X-axis in to the middle 99% of this league's matches (symmetric around 0), hiding the outlier bins beyond that. Display only &mdash; the Gaussian fit below always uses the full, untrimmed data.">Trim to 99%</button>
                     <div class="corr-shift-control" title="Adds this many PR points to every match's PR gap before recomputing the Gaussian fit below &mdash; use it to test whether the distribution's centre is off by a constant amount. 0 = the model's real, unshifted PR gaps.">
-                        <button class="corr-shift-btn" data-dir="-1" aria-label="Decrease PR-gap shift" disabled data-track="Chart tool: PR-gap shift down">&minus;</button>
+                        <button class="corr-shift-btn" data-dir="-1" aria-label="Decrease PR-gap shift" disabled data-track="PR distribution: shift down — this league">&minus;</button>
                         <span class="corr-shift-value">
                             <span class="corr-shift-caption">PR-gap shift</span>
                             <b class="corr-shift-amount">0</b>
                         </span>
-                        <button class="corr-shift-btn" data-dir="1" aria-label="Increase PR-gap shift" disabled data-track="Chart tool: PR-gap shift up">+</button>
+                        <button class="corr-shift-btn" data-dir="1" aria-label="Increase PR-gap shift" disabled data-track="PR distribution: shift up — this league">+</button>
                     </div>
                 </div>
             </div>
@@ -3702,16 +3838,16 @@ function renderPrCorrelationSection(ctx) {
                 <label class="corr-alltime-label">All League Matches &hellip;</label>
                 <span class="corr-gaussian-stats"></span>
                 <div class="corr-shift-group">
-                    <button class="corr-gaussian-toggle" type="button" disabled data-track="Chart tool: Gaussian fit" title="Overlays a fitted normal (Gaussian) curve on this histogram, using this data's own mean and standard deviation &mdash; a visual reference only, not a claim that the data is actually normally distributed.">Gaussian fit</button>
-                    <button class="corr-explanation-toggle" type="button" disabled data-track="Chart tool: Table Validation" title="Compares this row's real data against the win-probability table, gap by gap, with a likelihood check on how surprising each row's result is.">Table Validation</button>
-                    <button class="corr-trim-toggle" type="button" disabled data-track="Chart tool: Trim to 99%" title="Zooms the X-axis in to the middle 99% of all-time matches (symmetric around 0), hiding the outlier bins beyond that. Display only &mdash; the Gaussian fit and Table Validation below always use the full, untrimmed data.">Trim to 99%</button>
+                    <button class="corr-gaussian-toggle" type="button" disabled data-track="PR distribution: Gaussian fit — all-time" title="Overlays a fitted normal (Gaussian) curve on this histogram, using this data's own mean and standard deviation &mdash; a visual reference only, not a claim that the data is actually normally distributed.">Gaussian fit</button>
+                    <button class="corr-explanation-toggle" type="button" disabled data-track="PR distribution: table validation — all-time" title="Compares this row's real data against the win-probability table, gap by gap, with a likelihood check on how surprising each row's result is.">Table Validation</button>
+                    <button class="corr-trim-toggle" type="button" disabled data-track="PR distribution: trim — all-time" title="Zooms the X-axis in to the middle 99% of all-time matches (symmetric around 0), hiding the outlier bins beyond that. Display only &mdash; the Gaussian fit and Table Validation below always use the full, untrimmed data.">Trim to 99%</button>
                     <div class="corr-shift-control" title="Adds this many PR points to every match's PR gap before recomputing the Gaussian fit and Table Validation table below &mdash; use it to test whether the model's calibration point is off by a constant amount. 0 = the model's real, unshifted PR gaps.">
-                        <button class="corr-shift-btn" data-dir="-1" aria-label="Decrease PR-gap shift" disabled data-track="Chart tool: PR-gap shift down">&minus;</button>
+                        <button class="corr-shift-btn" data-dir="-1" aria-label="Decrease PR-gap shift" disabled data-track="PR distribution: shift down — all-time">&minus;</button>
                         <span class="corr-shift-value">
                             <span class="corr-shift-caption">PR-gap shift</span>
                             <b class="corr-shift-amount">0</b>
                         </span>
-                        <button class="corr-shift-btn" data-dir="1" aria-label="Increase PR-gap shift" disabled data-track="Chart tool: PR-gap shift up">+</button>
+                        <button class="corr-shift-btn" data-dir="1" aria-label="Increase PR-gap shift" disabled data-track="PR distribution: shift up — all-time">+</button>
                     </div>
                 </div>
             </div>
@@ -3769,6 +3905,7 @@ function renderPrCorrelationSection(ctx) {
             generalGaussianPopup.hidden = false;
             wireDynamicLangPopup(generalGaussianPopup);
             generalGaussianPopup.querySelector('.corr-gaussian-popup-close').addEventListener('click', () => {
+                window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: 'PR distribution: Gaussian close — this league' } }));
                 generalShowGaussian = false;
                 redrawGeneral();
             });
@@ -3788,7 +3925,7 @@ function renderPrCorrelationSection(ctx) {
             gaussian,
             onPick: () => stepper && stepper.sync(),
         });
-        stepper = mountPrGapStepper(host, row);
+        stepper = mountPrGapStepper(host, row, 'this league');
     }
     redrawGeneral();
 
@@ -3808,7 +3945,7 @@ function renderPrCorrelationSection(ctx) {
                     <label>Player:</label>
                     <input type="text" class="player-pick app-search-input" placeholder="Search player…" autocomplete="off">
                     <span class="corr-games-count"></span>
-                    <button class="remove-chart" title="Remove this chart" data-track="Compare: remove player chart">&times;</button>
+                    <button class="remove-chart" title="Remove this chart" data-track="PR vs Result: remove chart">&times;</button>
                 </div>
                 <span class="corr-metric-pill corr-luck-pill"></span>
             </div>
@@ -3844,9 +3981,10 @@ function renderPrCorrelationSection(ctx) {
             onPick: (name) => {
                 currentPlayer = name;
                 playerPick.value = displayPlayerName(name);
-                // Analytics: a picker choice is not a DOM click, so announce it,
-                // naming the chosen player (public league data, as "Player link:").
-                window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `Compare: change player: ${name}` } }));
+                // A picker choice is not a DOM click, so announce it — scoped to
+                // THIS section ("PR vs Result"), so it is no longer the ambiguous
+                // "Compare: change player" the Match-history section also emitted.
+                window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `PR vs Result: player — ${name}` } }));
                 redraw();
             },
         });
@@ -3856,6 +3994,9 @@ function renderPrCorrelationSection(ctx) {
 
         function redraw() {
             const player = currentPlayer;
+            // The ✕ carries the current player, so removing a row names WHICH
+            // player's row was closed (the user's explicit ask for X clicks).
+            removeBtn.dataset.track = `PR vs Result: remove chart — ${player}`;
             const series = buildPlayerAdvantageSeries(liveMatches, player);
             gamesCount.textContent = `(${series.length}/${players.length - 1} matches)`;
             const mlIdx = nearestMatchLengthIdx(ctx.params.MatchLength || 7);
@@ -3883,9 +4024,11 @@ function renderPrCorrelationSection(ctx) {
                 prevTitle: 'Previous match',
                 nextTitle: 'Next match',
                 trackPrefix: 'PR vs Result: step',
+                // KEYS, so the log enriches both sides (the ' vs ' split runs on
+                // the tail only — the prefix's own ' vs ' is already stripped).
                 describe: (i) => {
                     const m = series[i];
-                    return m ? `${displayPlayerName(player)} vs ${displayPlayerName(m.opponent)}` : '';
+                    return m ? `${player} vs ${m.opponent}` : '';
                 },
             });
         }
@@ -3999,7 +4142,18 @@ function renderPrCorrelationSection(ctx) {
             return Math.min(fullBound, Math.max(1, Math.ceil(vals[idx])));
         }
 
+        // The all-time row's identity carries the pooled match length, which the
+        // length selector can change — so it is recomputed on every redraw and
+        // stamped onto each tool's data-track (and the stepper/closes read it too).
+        const rowId = () => `all-time ${matchLengthForIdx(poolMlIdx)}pt`;
+
         function redrawAllTime() {
+            const rid = rowId();
+            gaussianToggle.dataset.track    = `PR distribution: Gaussian fit — ${rid}`;
+            explanationToggle.dataset.track = `PR distribution: table validation — ${rid}`;
+            trimToggle.dataset.track        = `PR distribution: trim — ${rid}`;
+            minusBtn.dataset.track          = `PR distribution: shift down — ${rid}`;
+            plusBtn.dataset.track           = `PR distribution: shift up — ${rid}`;
             const bound = trimmed ? trimmedBound() : fullBound;
             const localXMin = -bound, localXMax = bound;
             const buckets = buildDensityBuckets(rows, shift, localXMin, localXMax, trimmed);
@@ -4028,6 +4182,7 @@ function renderPrCorrelationSection(ctx) {
                 gaussianPopup.hidden = false;
                 wireDynamicLangPopup(gaussianPopup);
                 gaussianPopup.querySelector('.corr-gaussian-popup-close').addEventListener('click', () => {
+                    window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `PR distribution: Gaussian close — ${rowId()}` } }));
                     showGaussian = false;
                     redrawAllTime();
                 });
@@ -4053,6 +4208,7 @@ function renderPrCorrelationSection(ctx) {
                 explanationPopup.hidden = false;
                 wireDynamicLangPopup(explanationPopup);
                 explanationPopup.querySelector('.corr-explanation-popup-close').addEventListener('click', () => {
+                    window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `PR distribution: table validation close — ${rowId()}` } }));
                     showExplanation = false;
                     redrawAllTime();
                 });
@@ -4070,7 +4226,7 @@ function renderPrCorrelationSection(ctx) {
                 gaussian,
                 onPick: () => stepper && stepper.sync(),
             });
-            stepper = mountPrGapStepper(host, row);
+            stepper = mountPrGapStepper(host, row, rowId());
         }
 
         minusBtn.disabled = false;
@@ -4103,6 +4259,9 @@ function renderPrCorrelationSection(ctx) {
                 includeAll: false,
                 onSelect: (len) => {
                     poolMlIdx = len == null ? generalMlIdx : nearestMatchLengthIdx(len);
+                    // Which length's aggregate is now shown — its own event so the
+                    // pool switch is measurable (there is no "all lengths" here).
+                    window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `PR distribution: length ${matchLengthForIdx(poolMlIdx)}pt` } }));
                     repool();
                     if (applyPoolDomain()) redrawGeneral();
                     redrawAllTime();

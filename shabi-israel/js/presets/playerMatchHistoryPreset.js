@@ -6,6 +6,7 @@
 import { getFlagCode, formatNumber } from '../utils/helpers.js';
 import { displayPlayerName } from '../utils/nameDisplay.js';
 import { formatMatchStamp } from '../utils/matchTime.js';
+import { cancelledMarkHtml, CANCELLED_ROW_CLASS } from '../render/retirementMarks.js';
 
 function pct(n, total) { return ((n / total) * 100).toFixed(1) + '% wins'; }
 
@@ -85,11 +86,18 @@ export function buildPlayerMatchHistoryPreset({ playerMatches, leagueConfig, par
 
     const data = playerMatches.map(m => {
         if (!m.played) {
+            // "Not played" and "cancelled" are different answers: the first is
+            // a fixture still to come, the second one that never will be. Both
+            // count towards nothing (`_unplayed` keeps them out of the summary
+            // row), but the reader is told which is which.
+            // See docs/RETIREMENT-POLICY.md §3.
+            const cancelled = !!m._cancelled;
             return {
                 opponent: m.opponent, date: '', score: '',
                 pr: null, oppPR: null, luck: null,
-                result: 'Not played', matchPoints: null,
-                _unplayed: true, _timestamp: 0,
+                result: cancelled ? cancelledMarkHtml() : 'Not played',
+                matchPoints: null,
+                _unplayed: true, _cancelled: cancelled, _timestamp: 0,
             };
         }
         const isTechnical = m._technical || false;
@@ -115,7 +123,7 @@ export function buildPlayerMatchHistoryPreset({ playerMatches, leagueConfig, par
     const buildSummaryRow = (data) => {
         const played = data.filter(r => !r._unplayed);
         const n = played.length;
-        if (!n) return { opponent: 'AVERAGES', result: '0 games', matchPoints: '0 games' };
+        if (!n) return { opponent: 'AVERAGES', result: '0 matches', matchPoints: '0 matches' };
         const nonTech = played.filter(r => r.pr !== null);
         const nt = nonTech.length;
         const avgPR    = nt ? formatNumber(nonTech.reduce((s, r) => s + r.pr,    0) / nt) : null;
@@ -137,7 +145,8 @@ export function buildPlayerMatchHistoryPreset({ playerMatches, leagueConfig, par
         };
     };
 
-    const getRowClass = (row) => row._unplayed ? 'unplayed' : null;
+    const getRowClass = (row) =>
+        row._cancelled ? `unplayed ${CANCELLED_ROW_CLASS}` : (row._unplayed ? 'unplayed' : null);
 
     return {
         tableId:    'E',

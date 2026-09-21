@@ -27,6 +27,7 @@ import {
 import { MEDAL_TIERS, getExtraPrizeRows, withExtraPrizeRows, countExtraPrizeRows } from '../compute/prizeRows.js';
 import { leagueTypeRank } from '../compute/leagueTypes.js';
 import { landingSettingsPayload } from './landingSettingsPayload.js';
+import { trackAdmin, readFields, fieldList } from './trackAdmin.js';
 import { loadPlayersMetadata } from '../data/supabasePlayersMetadata.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
 import { restartSplash, endSplash } from '../utils/splash.js';
@@ -354,7 +355,7 @@ function renderLeagueList(container, leagues, displayOrder) {
             <tr>
                 <td>${esc(lg.id)}</td>
                 <td colspan="3" style="color:var(--color-loss)">Listed, but no league data — never finished publishing</td>
-                <td><button class="btn btn-danger btn-sm" data-delete="${lg.id}" data-title="${esc(lg.title)}">Remove</button></td>
+                <td><button class="btn btn-danger btn-sm" data-delete="${lg.id}" data-title="${esc(lg.title)}" data-track="Leagues: remove — ${esc(lg.id)} (Admin Mode)">Remove</button></td>
             </tr>`;
             continue;
         }
@@ -380,9 +381,10 @@ function renderLeagueList(container, leagues, displayOrder) {
                 <td>${p.IssueDate ? formatAdminDate(p.IssueDate) : dash}</td>
                 <td>${statusPill}</td>
                 <td>
-                    <button class="btn btn-primary btn-sm" data-edit="${lg.id}">Edit</button>
+                    <button class="btn btn-primary btn-sm" data-edit="${lg.id}" data-track="Leagues: edit — ${esc(lg.id)} (Admin Mode)">Edit</button>
                     <button class="btn btn-danger btn-sm"
                             data-delete="${lg.id}" data-title="${esc(lg.title)}"
+                            data-track="Leagues: ${lg.pending ? 'discard draft' : 'delete'} — ${esc(lg.id)} (Admin Mode)"
                             ${lg.pending ? 'data-pending="1"' : ''}>${lg.pending ? 'Discard' : 'Delete'}</button>
                 </td>
             </tr>`;
@@ -391,7 +393,7 @@ function renderLeagueList(container, leagues, displayOrder) {
     container.innerHTML = `
         <h1>Leagues</h1>
         <div style="margin-bottom:var(--space-md)">
-            <button class="btn btn-success" id="add-league-btn">+ Add League</button>
+            <button class="btn btn-success" id="add-league-btn" data-track="Leagues: add league (Admin Mode)">+ Add League</button>
         </div>
         <div class="ff-wrap">
             <table class="admin-table font-large" data-mf-table-id="F1">
@@ -599,7 +601,7 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
 
         <div id="create-blockers" class="form-hint" style="margin-bottom:var(--space-sm)"></div>
         <div style="display:flex;gap:var(--space-sm)">
-            <button class="btn btn-success" id="save-new-league">${draft ? 'Update League' : 'Create League'}</button>
+            <button class="btn btn-success" id="save-new-league" data-selftrack>${draft ? 'Update League' : 'Create League'}</button>
             <button class="btn btn-secondary" id="cancel-new-league-2">Cancel</button>
         </div>`;
 
@@ -1312,6 +1314,7 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
             showMsg('add-msg', `Could not stage this league: ${err.message}`, 'error');
             return;
         }
+        trackAdmin(`${draft ? 'Edit league: update draft' : 'New league: create'} — ${name} [type: ${type}; match-length: ${options.matchLength}; players: ${state.players.length}]`);
         showMsg('add-msg', draft
             ? `Pending league updated${name !== draft.id ? ` and renamed to "${name}"` : ''}. It is still one queued creation — publish it from Pending Changes.`
             : `League "${name}" staged. Go to Pending Changes to publish.`, 'success');
@@ -1795,7 +1798,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                 </div>
             </div>
             ${durationFieldsHTML('edit', p)}
-            <button class="btn btn-primary" id="save-league-settings">Save Settings</button>
+            <button class="btn btn-primary" id="save-league-settings" data-selftrack>Save Settings</button>
             </div>
             </div>
           </div>
@@ -1824,7 +1827,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             <div id="players-msg"></div>
             ${ffPlayersTableHTML('F2', editPlayerRows)}
             <div style="margin-top:var(--space-md)">
-                <button class="btn btn-primary" id="save-players">Save Player Changes</button>
+                <button class="btn btn-primary" id="save-players" data-selftrack>Save Player Changes</button>
             </div>
             ${uploadFlagPanelHTML()}
             </div>
@@ -1861,6 +1864,18 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
     // their section actually changes — same dormant-until-edited behaviour the
     // Round/CSV editors already use. Re-enabled on any edit, re-disabled on save.
     const settingsSaveBtn = document.getElementById('save-league-settings');
+    // Snapshot the settings fields at OPEN, so Save can report exactly what
+    // changed as old→new (agreed policy: one Save-time summary, not per-field
+    // events). The league NAME field is the id; a rename shows up as name: a→b.
+    const EDIT_LEAGUE_FIELDS = {
+        name: '#edit-title', type: '#edit-type', running: '#edit-status', hidden: '#edit-hidden',
+        'in-leaderboard': '#edit-in-leaderboard', 'issue-date': '#edit-issue-date',
+        'entry-fee': '#edit-entry-fee', 'match-length': '#edit-match-length',
+        gold: '#edit-gold', silver: '#edit-silver', bronze: '#edit-bronze',
+        'prize-gold': '#edit-prize-gold', 'prize-silver': '#edit-prize-silver', 'prize-bronze': '#edit-prize-bronze',
+        'duration-mode': '#edit-duration-mode', 'duration-days': '#edit-duration-days',
+    };
+    const editSettingsBefore = readFields(EDIT_LEAGUE_FIELDS, container);
     // Save Settings stays off while the duration pair is one the DB would refuse
     // (see durationFieldsValid) — the same gate Add League puts on Create League.
     const settingsTracker = wireDirtySave(
@@ -2046,6 +2061,12 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
 
         if (refreshBadgeFn) refreshBadgeFn();
         settingsTracker.markClean();
+        // Dispatched (not a data-track on the button): the analytics click
+        // listener is capture-phase, so it reads a button's data-track BEFORE
+        // this handler could set it — a custom event is the only thing that
+        // carries the click-time field diff. The button is data-selftrack so the
+        // generic "Action: Save Settings" stands aside for this.
+        trackAdmin(`Edit league: save settings — ${targetId}${fieldList(editSettingsBefore, readFields(EDIT_LEAGUE_FIELDS, container))}`);
         showMsg('edit-msg', renaming
             ? `Rename to "${newName}" staged. Publish to apply it everywhere.`
             : 'Settings staged. Go to Pending Changes to publish.', 'success');
@@ -2281,6 +2302,7 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
 
             if (refreshBadgeFn) refreshBadgeFn();
             playersTracker.markClean();
+            trackAdmin(`Edit league: save players — ${leagueId} [${editDetail || 'flags / retired updated'}]`);
             showMsg('players-msg', `Player changes staged.${removalNote}`, 'success');
         });
     }

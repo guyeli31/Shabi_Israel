@@ -80,7 +80,7 @@ const DURATION_MODE = {
     unlimited: 'no time limit',
 };
 const OVERRIDE_TYPE = {
-    result: 'Result', technical_win: 'Technical win',
+    result: 'Result', technical_win: 'Technical win', cancelled: 'Cancelled (retired)',
     technical_draw: 'Technical draw', not_played: 'Not played',
 };
 const SOURCE = { csv: 'CSV', manual: 'Manual' };

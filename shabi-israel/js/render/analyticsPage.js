@@ -302,9 +302,15 @@ function clickTargetHtml(target) {
         if (target.startsWith(prefix)) {
             const tail = target.slice(prefix.length);
             const i = tail.lastIndexOf(' vs ');
-            return i === -1
-                ? escapeHtml(target)
-                : `${escapeHtml(prefix + tail.slice(0, i + 4))}${playerHtml(tail.slice(i + 4))}`;
+            if (i === -1) return escapeHtml(target);
+            const left = tail.slice(0, i);
+            const right = tail.slice(i + 4);
+            // Two shapes share this prefix. The player page names a match INDEX on
+            // the left ('#12 vs Hummus') — keep it plain. The dashboard's Player-
+            // match-history section names a PLAYER on the left ('Guy vs Hummus') —
+            // enrich both. The right side is always an opponent key.
+            const leftHtml = /^#\d+$/.test(left) ? escapeHtml(left) : playerHtml(left);
+            return `${escapeHtml(prefix)}${leftHtml} vs ${playerHtml(right)}`;
         }
     }
     // The two per-MATCH steppers name both sides ('Avi vs Hummus'), so both get
@@ -324,6 +330,18 @@ function clickTargetHtml(target) {
         }
     }
     if (target.startsWith('Compare: change player: ')) return `Compare: change player: ${playerHtml(target.slice('Compare: change player: '.length))}`;
+    // Charts-tab single-player events (Match history / PR vs Result sections). Each
+    // shares the '<prefix> — <playerKey>' shape, so the tail is one player key and
+    // gets the same flag + title chip as every other player reference. ("Compare:"
+    // above is the retired form these replaced, kept so old rows still enrich.)
+    for (const prefix of [
+        'Match history: player — ', 'Match history: metric PR — ',
+        'Match history: metric Luck — ', 'Match history: open card — ',
+        'Match history: remove chart — ', 'PR vs Result: player — ',
+        'PR vs Result: remove chart — ',
+    ]) {
+        if (target.startsWith(prefix)) return `${escapeHtml(prefix)}${playerHtml(target.slice(prefix.length))}`;
+    }
     // "Export: Remaining — <player>" (the Per-Player remaining-matches image) — the
     // tail is the player key, so give it the same flag + title chip as everywhere
     // else. The "(all matches)"/"(report)" forms use parentheses, not " — ", so they
@@ -361,7 +379,54 @@ function clickTargetHtml(target) {
         const items = target.slice(mi + marker.length).split('; ').map(stagedMatchupHtml).join('; ');
         return `${escapeHtml(head)}${items}`;
     }
+    // Admin-mode events (js/admin/trackAdmin.js grammar): enrich the SUBJECT after
+    // " — " so an admin action reads with the same league type-pill / player flag +
+    // title chip as every other row. The "[field: old→new]" tail and the
+    // "(Admin Mode)" suffix stay plain (metadata, not an entity). Nothing here
+    // matches a non-admin string, so it only ever runs on admin rows.
+    if (target.endsWith(ADMIN_SUFFIX)) return adminTargetHtml(target);
     return escapeHtml(displayTarget(target));
+}
+
+const ADMIN_SUFFIX = ' (Admin Mode)';
+// Prefixes whose subject (after " — ") is a LEAGUE id → render with its type pill.
+const ADMIN_LEAGUE_PREFIXES = [
+    'Leagues: edit', 'Leagues: delete', 'Leagues: remove', 'Leagues: discard draft',
+    'Edit league: save settings', 'Edit league: save players', 'Edit league: update draft',
+    'New league: create', 'CSV import: file chosen', 'CSV import: confirm',
+];
+// Prefixes whose subject is ONE player key → flag + title chip.
+const ADMIN_PLAYER_PREFIXES = ['Edit player: save', 'New player: create', 'Round editor: bulk technical loss'];
+
+/** Render an admin-mode click_target with its entity enriched. Splits off the
+ *  "[…]" field-list tail and the "(Admin Mode)" suffix (both kept plain), then
+ *  enriches the subject as a league, a player, or an "A vs B" pair per the prefix. */
+function adminTargetHtml(target) {
+    const body = target.slice(0, -ADMIN_SUFFIX.length);
+    // Peel a trailing " [ … ]" field list (kept plain — it is metadata, and can
+    // itself contain names the log does not try to resolve).
+    let head = body, tail = '';
+    const br = body.indexOf(' [');
+    if (br !== -1 && body.endsWith(']')) { head = body.slice(0, br); tail = body.slice(br); }
+    const dash = head.indexOf(' — ');
+    if (dash === -1) return escapeHtml(body) + escapeHtml(ADMIN_SUFFIX); // no subject to enrich
+    const prefix = head.slice(0, dash);
+    const subject = head.slice(dash + 3);
+
+    let subjectHtml;
+    if (ADMIN_LEAGUE_PREFIXES.includes(prefix)) {
+        subjectHtml = leagueHtml(subject);
+    } else if (prefix.startsWith('Round editor: save ') || prefix === 'Round editor: revert') {
+        // "A vs B" — both sides are player keys.
+        const i = subject.lastIndexOf(' vs ');
+        subjectHtml = i === -1 ? playerHtml(subject)
+            : `${playerHtml(subject.slice(0, i))} vs ${playerHtml(subject.slice(i + 4))}`;
+    } else if (ADMIN_PLAYER_PREFIXES.includes(prefix)) {
+        subjectHtml = playerHtml(subject);
+    } else {
+        subjectHtml = escapeHtml(subject); // unknown subject kind (e.g. "Sync: run now — 1 league") stays plain
+    }
+    return `${escapeHtml(prefix)} — ${subjectHtml}${escapeHtml(tail)}${escapeHtml(ADMIN_SUFFIX)}`;
 }
 
 /** One staged matchup inside a "What if: run" summary — "A beats B", "A draws B",
@@ -1189,6 +1254,19 @@ function renderTransitionsLog(section, transitionsLog) {
 // classification) — purely a display affordance in the "All clicks" table,
 // never stored. "League link: " is a plain content link like any other, so
 // it shares the generic Link icon rather than a distinct one.
+// The two language flags, as the same images popupLang.js's LANG_FLAGS shows on
+// every "?" popup — so a language row in the log carries the exact icon the
+// visitor clicked. Deliberately NOT the 🇬🇧/🇮🇱 emoji: regional-indicator pairs
+// have no flag glyph on Windows, where Chrome falls back to drawing the letters
+// "GB"/"IL", which reads as text sitting in an icon column.
+// Declared ABOVE CLICK_TYPE_ICONS, not next to BRAND_ICON further down, because
+// the array below interpolates it while it is being built — a `const` used
+// before its declaration throws at module load, taking the whole page with it.
+const LANG_FLAG_ICON = {
+    en: '<img src="assets/lang-icons/GB.png" alt="" style="width:14px;height:14px;border-radius:50%;vertical-align:-2px">',
+    he: '<img src="assets/lang-icons/IL.png" alt="" style="width:14px;height:14px;border-radius:50%;vertical-align:-2px">',
+};
+
 const CLICK_TYPE_ICONS = [
     // ── What If (dashboard B4) ────────────────────────────────────────────
     // Every control in the section is 🧪 + one glyph naming the control, so a
@@ -1277,6 +1355,36 @@ const CLICK_TYPE_ICONS = [
     // dismissed must stay above the bare prefix.
     { prefix: 'Moved notice: dismissed', icon: '✅' },
     { prefix: 'Moved notice: ', icon: '📦' },
+    // ── UBC league launch promo (js/render/promoNotice.js) ────────────────
+    // 🎉 + one glyph naming HOW the visitor left the announcement, so the whole
+    // family is recognisable at a glance yet each row still says which control
+    // ended it — the same two-glyph shape as the 🧪 What-If and 🏎️ Title Race
+    // families above. The distinction is the point: "Got it" is an acknowledgement,
+    // the × is a deliberate close, and a backdrop click is neither — it's a
+    // dismissal by clicking away, and reading those three as one number would
+    // hide whether the announcement actually landed.
+    // The language pair carries the site's OWN flag icons rather than 🇬🇧/🇮🇱:
+    // regional-indicator emoji do not render as flags on Windows (Chrome draws
+    // the bare letters "GB"/"IL"), and these are the exact images every "?" popup
+    // language toggle already shows. Same <img> approach as BRAND_ICON.
+    // ORDER MATTERS (startsWith): every specific prefix stays above the bare
+    // 'UBC promo: ' fallback, or that one swallows all of them.
+    // The landing page's "Coming Soon" card — a click on a league that does not
+    // exist yet. Its own glyph because it is not a dismissal at all: it measures
+    // interest in the league, not what someone did with the announcement.
+    // The announcement REACHED this device — one row per browser profile, fired
+    // when the modal is first put on screen, carrying the page it appeared on.
+    // 👀 because it is the only promo row that is not an action by the visitor:
+    // everything else in this family is something they did, this is something
+    // that happened TO them.
+    { prefix: 'UBC promo: shown', icon: '🎉👀' },
+    { prefix: 'UBC promo: coming soon card', icon: '🎉🔜' },
+    { prefix: 'UBC promo: got it', icon: '🎉✅' },
+    { prefix: 'UBC promo: closed', icon: '🎉✖️' },
+    { prefix: 'UBC promo: backdrop', icon: '🎉💨' },
+    { prefix: 'UBC promo: language en', icon: `🎉${LANG_FLAG_ICON.en}` },
+    { prefix: 'UBC promo: language he', icon: `🎉${LANG_FLAG_ICON.he}` },
+    { prefix: 'UBC promo: ', icon: '🎉' },
     { prefix: 'Nav: previous', icon: '⬅️' },
     { prefix: 'Nav: next', icon: '➡️' },
     { prefix: 'Breadcrumb: ', icon: '🧭' }, // proposed — pending approval

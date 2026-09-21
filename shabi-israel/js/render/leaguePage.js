@@ -15,6 +15,7 @@ import { exportWhatsAppTableImage, MAX_EXPORT_ROWS, leagueTypeLabel } from '../u
 import { renderBreadcrumbs } from './navigation.js';
 import { loadPlayersMetadata } from '../data/store.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
+import { isRetired, retiredBadgeHtml } from './retirementMarks.js';
 import { startSplash, splashStage, endSplash } from '../utils/splash.js';
 import { renderErrorScreen, explainError } from '../utils/errorScreen.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
@@ -150,9 +151,11 @@ export async function renderLeaguePage() {
                     }),
                     playerSuffix: (name) => {
                         const titles = getTitleAbbreviationsHtml(playersMeta[name]);
-                        const retired = (params.RetiredPlayers || []).includes(name)
-                            ? ' <span class="retired-mark" title="Retired">&#x1F6AA;</span>'
-                            : '';
+                        // The door emoji is replaced by the shared RETIRED pill:
+                        // the row now carries no numbers at all, so the mark has
+                        // to say what the empty cells mean rather than decorate
+                        // a name. Same component as E and C2 use.
+                        const retired = isRetired(params, name) ? ` ${retiredBadgeHtml()}` : '';
                         return `${titles}${retired}`;
                     },
                 },

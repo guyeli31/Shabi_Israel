@@ -120,6 +120,38 @@ create table if not exists public.projection_queue (
 -- Older installs predate claimed_at.
 alter table public.projection_queue add column if not exists claimed_at timestamptz;
 
+-- ── WHY A FAILED DISPATCH HAS TO LEAVE A MARK ──────────────────────────────
+-- A dispatch that fails used to leave NOTHING to ask a question about:
+--
+--   raise warning       the client of a trigger-driven write is pg_net or
+--                       PostgREST. There is no human on the other end of it.
+--   net._http_response  a ~6 h TTL, so yesterday's failure is already gone.
+--   http_request_queue  net.http_post INSERTs there, but the dispatch runs in
+--                       its own subtransaction — a throw rolls that insert back
+--                       too, so even the ATTEMPT disappears.
+--   the workflow        reports success either way; it was simply never asked.
+--   the schedule        quietly repairs everything within the hour, so nothing
+--                       ever LOOKS broken. Only late.
+--
+-- Observed 18 Sep 2026: four published matches sat queued with dispatched_at
+-- null for up to five hours. Every layer above had swallowed its own error, and
+-- the cause is no longer recoverable — the only reason anyone noticed at all is
+-- that the admin compared two tables by eye and saw them disagree.
+--
+-- So the outcome of the ask is now recorded next to the ask. `last_error` is
+-- written from inside the EXCEPTION handler, which is exactly where it works:
+-- handler statements run AFTER the failed subtransaction has been rolled back,
+-- in the outer transaction, so the note survives while the thing it describes
+-- does not. A successful dispatch clears it, so a stored value always means
+-- "the most recent attempt for this league failed, and here is what it said".
+alter table public.projection_queue add column if not exists last_error    text;
+alter table public.projection_queue add column if not exists last_error_at timestamptz;
+
+comment on column public.projection_queue.last_error is
+  'sqlerrm of the most recent FAILED dispatch attempt for this league, or the '
+  'reason it was skipped. Null once a dispatch succeeds. This is the only '
+  'durable trace a lost dispatch leaves — see sql/league_projections.sql.';
+
 alter table public.projection_queue enable row level security;
 grant all on public.projection_queue to service_role;
 
@@ -162,6 +194,18 @@ begin
       -- The row survives and the schedule drains it. This must never take down
       -- the admin's publish, which is the transaction the trigger runs inside.
       raise warning 'projection dispatch failed (work stays queued): %', sqlerrm;
+      -- ...and leave something to ask about afterwards. Runs in the OUTER
+      -- transaction (the subtransaction above is already rolled back), so this
+      -- note outlives the attempt it describes.
+      --
+      -- Wrapped in turn because the invariant above is absolute: recording a
+      -- failure must not become a second way to fail the admin's publish.
+      begin
+        update public.projection_queue
+           set last_error = sqlerrm, last_error_at = now()
+         where league_id = p_league_id;
+      exception when others then null;
+      end;
   end;
 end $$;
 
@@ -191,9 +235,19 @@ begin
     return;
   end if;
 
+  -- A MISSING SECRET IS A FAILURE, NOT A SKIP, and it used to return as quietly
+  -- as the debounce above it — same `return`, same empty result, and a warning
+  -- into the same void. Read from a SECURITY DEFINER function this select can
+  -- come back empty even while the secret is plainly there to the admin who
+  -- looks, because the two are not the same role. That is an invisible,
+  -- permanent outage of the fast path; it has to say so where it can be read.
   select decrypted_secret into pat from vault.decrypted_secrets where name = 'github_dispatch_pat';
   if pat is null then
     raise warning 'projection dispatch skipped: vault secret "github_dispatch_pat" is not set';
+    update public.projection_queue
+       set last_error = 'vault secret "github_dispatch_pat" did not resolve for '
+                     || 'the dispatcher (function owner: ' || current_user || ')',
+           last_error_at = now();
     return;
   end if;
 
@@ -214,7 +268,14 @@ begin
   --
   -- Deliberately WHERE-less: one dispatch starts a job that drains the WHOLE
   -- queue, so every row queued right now has genuinely been asked for.
-  update public.projection_queue set dispatched_at = now();
+  --
+  -- The same statement clears last_error, so a stored value always describes the
+  -- LATEST attempt rather than accumulating history. "Is the fast path healthy
+  -- right now" is the question this column exists to answer; a log of every
+  -- failure it ever had would answer a different one, and audit_log already
+  -- covers that need for the rows that matter.
+  update public.projection_queue
+     set dispatched_at = now(), last_error = null, last_error_at = null;
 end $$;
 
 revoke all on function public._dispatch_projection_run() from public;

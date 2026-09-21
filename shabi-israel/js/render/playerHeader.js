@@ -27,8 +27,12 @@ function resolveDisplayNames(data) {
     };
 }
 
-const TIER_ICONS = { gold: '♛', silver: '♜', bronze: '♝', white: '♞' };
-const CHAMP_ICON = '♚';
+/* Exported because the UBC promo notice (js/render/promoNotice.js) shows a
+   title chip for the league's professional manager and must use the SAME glyph
+   per tier as the real player header — a second copy would be one rename away
+   from disagreeing with the card it is imitating. */
+export const TIER_ICONS = { gold: '♛', silver: '♜', bronze: '♝', white: '♞' };
+export const CHAMP_ICON = '♚';
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function escapeHtml(s) {

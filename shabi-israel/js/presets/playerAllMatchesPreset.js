@@ -6,18 +6,26 @@
  */
 
 import { formatMatchStamp } from '../utils/matchTime.js';
+import { typeTracksPR, typeTracksLuck } from '../compute/leagueTypes.js';
 
 const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 
 /**
  * PR / Opp PR / Luck cell. This table pools every league type a player has
- * appeared in, so REGULAR rows sit next to doubling/UBC ones. REGULAR leagues
- * record no rates at all — that's a property of the league, not a missing value,
- * so those cells read "—" rather than "N/A" (which here means "this particular
- * match has no number": a technical win, or a gap in the data).
+ * appeared in, so REGULAR rows sit next to doubling/UBC ones.
+ *
+ * `tracked` is per METRIC, not per row: REGULAR records no PR but does record
+ * luck (leagueTypes.js → `typeTracksPR` / `typeTracksLuck`). One `_noRates`
+ * flag used to answer for both, so this table printed "—" over a Regular
+ * match's luck figure while `player_league.html` — reading `showLuck` — showed
+ * that same match's luck at the same moment.
+ *
+ * "—" means the league type records no such number: a property of the league,
+ * not a missing value. "N/A" means this particular MATCH has none — a technical
+ * win, or a gap in the data.
  */
-function rateCell(v, row) {
-    if (row._noRates) return '<span class="na">—</span>';
+function rateCell(v, tracked, row) {
+    if (!tracked) return '<span class="na">—</span>';
     if (row._technical || v == null) return '<span class="na">N/A</span>';
     return v.toFixed(2);
 }
@@ -51,13 +59,13 @@ export function buildPlayerAllMatchesPreset({ rows, enrich = {} }) {
         { key: 'score',       label: 'Score',  type: 'string', sortable: false, colorFn: null },
         { key: 'prSelf',      label: 'PR',     type: 'number', sortable: true, colorFn: null,
           sortKey: row => typeof row.prSelf === 'number' ? row.prSelf : null,
-          format: (v, row) => rateCell(v, row) },
+          format: (v, row) => rateCell(v, !row._noPR, row) },
         { key: 'prOpp',       label: 'Opp PR', type: 'number', sortable: true, colorFn: null,
           sortKey: row => typeof row.prOpp === 'number' ? row.prOpp : null,
-          format: (v, row) => rateCell(v, row) },
+          format: (v, row) => rateCell(v, !row._noPR, row) },
         { key: 'luck',        label: 'Luck',   type: 'number', sortable: true, colorFn: null,
           sortKey: row => typeof row.luck === 'number' ? row.luck : null,
-          format: (v, row) => rateCell(v, row) },
+          format: (v, row) => rateCell(v, !row._noLuck, row) },
         { key: 'leagueTitle', label: 'League', type: 'string', sortable: true, colorFn: null,
           tdClass: 'league-cell',
           format: (v, row) => enrich.leagueLink ? enrich.leagueLink(row._leagueId, v) : v },
@@ -92,7 +100,8 @@ export function buildPlayerAllMatchesPreset({ rows, enrich = {} }) {
             luck:        (r._technical || r.luckSelf == null || r.luckOpp == null) ? null : (r.luckSelf - r.luckOpp),
             result:      r.result,
             _technical:  r._technical || false,
-            _noRates:    r.leagueType === 'regular',
+            _noPR:       !typeTracksPR(r.leagueType),
+            _noLuck:     !typeTracksLuck(r.leagueType),
         };
     });
 

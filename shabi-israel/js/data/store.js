@@ -577,6 +577,14 @@ export async function loadLeague(leagueId) {
     const timeline = buildMatchTimeline(history, overrides);
     const mergedMatches = mergeHistoryIntoMatches(withOverrides, timeline);
 
+    // Cancelled fixtures leave `matches` entirely (applyOverrides drops them),
+    // which is right for every count — but table E and C2 still SHOW them,
+    // marked, and cannot ask a list they are no longer in. So the pairings
+    // travel separately. See docs/RETIREMENT-POLICY.md §3.
+    const cancelledPairs = overrides
+        .filter(o => o.type === 'cancelled')
+        .map(o => [o.playerA, o.playerB]);
+
     return {
         id: leagueId,
         params,
@@ -584,6 +592,7 @@ export async function loadLeague(leagueId) {
         lastModified: params.LastUpdated || null,
         totalPlayers: matchData.totalPlayers,
         allPlayers: matchData.allPlayers,
+        cancelledPairs,
         history,
         timeline,
     };

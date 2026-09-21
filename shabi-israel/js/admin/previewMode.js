@@ -257,7 +257,7 @@ function injectBanner() {
     banner.className = 'preview-banner';
     banner.innerHTML = `
         <span>PREVIEW MODE — Changes not yet published</span>
-        <button class="preview-banner-exit" id="preview-exit-btn">Exit Preview</button>
+        <button class="preview-banner-exit" id="preview-exit-btn" data-track="Preview: exit (Admin Mode)">Exit Preview</button>
     `;
     document.body.prepend(banner);
     document.body.classList.add('preview-active');

@@ -54,6 +54,10 @@ import { isLoggedIn, getUsername } from './admin/auth.js';
 // 2026-08-27. It hangs here only because analytics.js is the one module every
 // shareable page already loads, so the "we moved" banner needs no per-page wiring.
 import { mountMovedNotice, movedBannerActive } from './render/movedNotice.js';
+// TEMPORARY — delete with js/render/promoNotice.js once the UBC launch
+// announcement has run its course (it stops rendering on its own past the
+// `endsOn` date in assets/promo/promo-config.json).
+import { mountPromoNotice } from './render/promoNotice.js';
 
 // TEMPORARY (with movedNotice.js). Resolved ONCE, up front, before the pageview
 // below: true while the "we moved" banner is on screen this page. Stamped onto
@@ -547,7 +551,14 @@ document.addEventListener('click', (e) => {
     // every admin action without touching each call site, the same idea as
     // `.img-export-btn` above. These only exist on admin.html, so they're
     // always "(Admin Mode)".
-    const actionBtn = e.target.closest('.btn-success, .btn-primary');
+    //
+    // EXCEPT a button carrying `data-selftrack`: this whole listener runs in the
+    // CAPTURE phase (see the `, true` on addEventListener below), i.e. BEFORE the
+    // button's own click handler. A Save whose rich label (which fields changed,
+    // old→new) is only known inside that handler therefore dispatches its own
+    // `shabi:interaction` from there (trackAdmin, js/admin/trackAdmin.js); the
+    // marker tells this generic branch to stand back so the two don't both fire.
+    const actionBtn = e.target.closest('.btn-success:not([data-selftrack]), .btn-primary:not([data-selftrack])');
     // Prev/next chronological arrows between leagues (dashboardPage.js/
     // leaguePage.js) or a player's adjacent leagues (playerPage.js) all share
     // this one class — checked before the generic link branch so the
@@ -592,7 +603,16 @@ document.addEventListener('click', (e) => {
     } else if (langFlagEl) {
         // dataset.lang is the stable slug ('en'/'he'); label is a translation-prone
         // fallback only if a flag ever ships without it.
-        clickTarget = `Language: ${langFlagEl.dataset.lang || labelOf(langFlagEl)}`;
+        const lang = langFlagEl.dataset.lang || labelOf(langFlagEl);
+        // A section can opt its own popup's flags into a section-scoped name by
+        // carrying `data-analytics-section` on any ancestor (the Charts tab does
+        // this so a language pick reads "PR vs Result: language he", not a bare
+        // "Language: he" that can't say which popup it came from). No attribute →
+        // the global, page-wide form, unchanged for every other popup on the site.
+        const sec = langFlagEl.closest('[data-analytics-section]');
+        clickTarget = sec
+            ? `${sec.dataset.analyticsSection}: language ${lang}`
+            : `Language: ${lang}`;
     } else if (searchPickEl) {
         // Read the player/league off the result's OWN href (the same params it
         // navigates to), so the log names the entity, not the row's visible text.
@@ -708,3 +728,15 @@ window.addEventListener('shabi:interaction', (e) => {
 // TEMPORARY — remove with js/render/movedNotice.js after 2026-08-27. Tells a
 // visitor who arrived via an old golan.me.uk/ link that the address changed.
 mountMovedNotice();
+
+// TEMPORARY — the UBC league launch announcement. It hangs here for the same
+// reason the moved notice does: this is the one module every shareable page
+// already loads, so a site-wide notice needs no per-page wiring.
+//
+// Deliberately NOT awaited. It fetches its config, and a promotional banner
+// must never sit in front of the page render or delay the pageview beacon
+// below it. It also self-limits: it returns immediately for a visitor who has
+// already acknowledged it, and stops rendering entirely past the `endsOn` date
+// in assets/promo/promo-config.json. Removal instructions are at the top of
+// js/render/promoNotice.js.
+mountPromoNotice();
