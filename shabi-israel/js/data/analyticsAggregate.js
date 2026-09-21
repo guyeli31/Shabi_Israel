@@ -216,7 +216,7 @@ export function computeSummary(events, filter) {
         .map((e) => ({
             created_at: e.created_at, page: e.page, league_id: e.league_id, player: e.player, tab: e.tab,
             click_target: e.click_target, device_type: e.device_type, session_id: e.session_id, region: e.region,
-            admin_user: e.admin_user, moved_banner: e.moved_banner,
+            admin_user: e.admin_user, moved_banner: e.moved_banner, promo_banner: e.promo_banner,
             nav_type: e.nav_type, from_page: e.from_page, from_league_id: e.from_league_id, from_player: e.from_player,
         }));
 
@@ -252,11 +252,17 @@ export function computeSummary(events, filter) {
             entry_league_id: firstPv ? firstPv.league_id : null,
             entry_tab: firstPv ? firstPv.tab : null,
             entry_moved_banner: firstPv ? firstPv.moved_banner : null,
+            // TEMPORARY (promoNotice.js): did the entry pageview carry the UBC
+            // launch announcement? One mark per VISIT — the flag rides every page
+            // until the notice is dismissed, so this, not a count of flagged rows,
+            // is what "the announcement reached this visit" means.
+            entry_promo_banner: firstPv ? firstPv.promo_banner : null,
             exit_page: lastPv ? lastPv.page : null,
             exit_player: lastPv ? lastPv.player : null,
             timeline: list.slice(0, 500).map((e) => ({
                 created_at: e.created_at, event_type: e.event_type, page: e.page, league_id: e.league_id,
-                player: e.player, tab: e.tab, moved_banner: e.moved_banner, click_target: e.click_target,
+                player: e.player, tab: e.tab, moved_banner: e.moved_banner,
+                promo_banner: e.promo_banner, click_target: e.click_target,
                 duration_ms: e.duration_ms, nav_type: e.nav_type, from_page: e.from_page,
                 from_league_id: e.from_league_id, from_player: e.from_player,
             })),

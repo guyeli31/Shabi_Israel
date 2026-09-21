@@ -94,6 +94,23 @@ alter table public.analytics_events add column if not exists tab text;
 -- absent) and for all rows predating the banner; NO CHECK, same rationale as tab.
 alter table public.analytics_events add column if not exists moved_banner boolean;
 
+-- TEMPORARY (remove with js/render/promoNotice.js). True on every event fired
+-- while the UBC launch announcement was on screen — i.e. the visit is inside the
+-- promo's date window and has not dismissed it yet. The dashboard marks each such
+-- page with 🎉.
+--
+-- A COLUMN, not an event. The announcement appearing is something the SITE did,
+-- not an action the visitor took: recording it as a click (which it briefly was,
+-- as "UBC promo: shown") inflated click_count and put a row nobody caused into
+-- both the interactions log and the session timeline. `Moved notice: shown` made
+-- the same mistake and was retired into moved_banner above; this is that fix
+-- applied a second time. The three EXIT clicks (got it / closed / backdrop) stay
+-- events, because those are real actions.
+--
+-- Null for the overwhelming majority of rows (no announcement) and for all rows
+-- predating it; NO CHECK, same rationale as tab.
+alter table public.analytics_events add column if not exists promo_banner boolean;
+
 -- Browser-navigation kind, set ONLY on the click events that record a Back /
 -- Forward / Refresh (see js/analytics.js). A Back/Forward/Refresh is not a DOM
 -- click but IS a deliberate navigation, so it is stored as a click carrying this
@@ -304,6 +321,12 @@ as $$
            -- TEMPORARY (movedNotice.js): did the entry pageview carry the "we moved"
            -- banner? Drives the 📦 on the session route. Null once the banner is gone.
            (array_agg(moved_banner order by created_at) filter (where event_type = 'pageview'))[1] as entry_moved_banner,
+           -- TEMPORARY (promoNotice.js): did the entry pageview carry the UBC launch
+           -- announcement? Drives the 🎉 on the session route, and is the honest unit
+           -- of REACH: the mark rides every page of the visit until the notice is
+           -- dismissed, so counting marked rows would measure navigation, while
+           -- counting sessions whose ENTRY carries it measures visits reached.
+           (array_agg(promo_banner order by created_at) filter (where event_type = 'pageview'))[1] as entry_promo_banner,
            (array_agg(page   order by created_at desc) filter (where event_type = 'pageview'))[1] as exit_page,
            (array_agg(player order by created_at desc) filter (where event_type = 'pageview'))[1] as exit_player
     from ev
@@ -494,6 +517,7 @@ as $$
                           (select created_at, page, league_id, player, tab, click_target, device_type,
                                   session_id, region, admin_user,
                                   moved_banner, -- TEMPORARY (movedNotice.js): 📦 page-mark
+                                  promo_banner, -- TEMPORARY (promoNotice.js): 🎉 page-mark
                                   -- Browser Back/Forward/Refresh clicks carry these:
                                   -- nav_type drives the distinct ↩/↪/⟳ chip, and from_*
                                   -- names where the navigation came FROM. Null on every
@@ -518,6 +542,7 @@ as $$
                                   s.device_type, s.admin_user,
                                   s.entry_referrer, s.entry_page, s.entry_player,
                                   s.entry_league_id, s.entry_tab, s.entry_moved_banner,
+                                  s.entry_promo_banner,
                                   s.exit_page, s.exit_player, tl.timeline
                            from sess s
                            cross join lateral (
@@ -529,6 +554,7 @@ as $$
                                       'player',         x.player,
                                       'tab',            x.tab,
                                       'moved_banner',   x.moved_banner,
+                                      'promo_banner',   x.promo_banner,
                                       'click_target',   x.click_target,
                                       'duration_ms',    x.duration_ms,
                                       -- Back/Forward/Refresh rows: their own ↩/↪/⟳ chip + source.
@@ -624,7 +650,7 @@ as $$
   )
   select coalesce(jsonb_agg(t order by t.created_at desc), '[]'::jsonb) from (
     select created_at, page, league_id, player, tab, click_target, device_type,
-           session_id, region, admin_user, moved_banner,
+           session_id, region, admin_user, moved_banner, promo_banner,
            nav_type, from_page, from_league_id, from_player
     from ev
     where q is not null and length(btrim(q)) > 0 and (
@@ -672,7 +698,7 @@ as $$
   select coalesce(jsonb_agg(t order by t.created_at), '[]'::jsonb) from (
     select created_at, event_type, page, league_id, player, tab,
            referrer_kind, device_type, region, session_id, admin_user,
-           duration_ms, click_target, moved_banner,
+           duration_ms, click_target, moved_banner, promo_banner,
            nav_type, from_page, from_league_id, from_player
     from public.analytics_events
     where created_at >= from_date and created_at < to_date

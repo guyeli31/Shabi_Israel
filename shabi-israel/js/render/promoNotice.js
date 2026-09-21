@@ -34,11 +34,21 @@
  * not the viewer's, so the league's own October is what counts wherever the
  * visitor happens to be.
  *
+ * ── HOW IT IS RECORDED ──────────────────────────────────────────────────────
+ * The announcement APPEARING is a property of the page view, not an action, so
+ * it is the `promo_banner` column (🎉 page-mark in the dashboard) rather than an
+ * event of its own — see promoBannerActive() below. Only the three EXITS and the
+ * language flags are clicks, because those are things the visitor did.
+ *
  * ── HOW TO REMOVE ───────────────────────────────────────────────────────────
- *   1. delete this file and assets/promo/promo-config.json
- *   2. in js/analytics.js: drop the import and the mountPromoNotice() call
- *   3. optional: the 🎉 CLICK_TYPE_ICONS entries in js/render/analyticsPage.js,
- *      promo-lab.html, tools/START_PROMO_LAB.bat, scripts/build-promo-manifest.mjs
+ *   1. delete this file, promoWindow.js, assets/promo/promo-config.json and
+ *      scripts/build-promo-window.mjs
+ *   2. in js/analytics.js: drop both imports, PROMO_BANNER, the promo_banner
+ *      line in baseFields(), and the mountPromoNotice() call
+ *   3. optional: the 🎉 CLICK_TYPE_ICONS entries + promoMarkHtml in
+ *      js/render/analyticsPage.js, the promo_banner column and its projections
+ *      in sql/analytics_poc.sql, promo-lab.html, tools/START_PROMO_LAB.bat,
+ *      scripts/build-promo-manifest.mjs
  */
 
 import { LEAGUE_TIME_ZONE } from '../compute/leagueDuration.js';
@@ -47,21 +57,22 @@ import { flagUrl, getFlagCode } from '../utils/helpers.js';
 import { TIER_COLORS } from '../data/titleConstants.js';
 import { buildHeaderTitles } from './playerHeader.js';
 import { loadPlayersMetadata, loadAllLeagues } from '../data/store.js';
+// GENERATED from assets/promo/promo-config.json by scripts/build-promo-window.mjs.
+// A static import, not a fetch, because js/analytics.js needs the window
+// SYNCHRONOUSLY — see promoBannerActive() below.
+import { PROMO_STARTS_ON, PROMO_ENDS_ON } from './promoWindow.js';
 
 export const PROMO_CONFIG_PATH = 'assets/promo/promo-config.json';
 /** Local draft, written by the lab so a design can be previewed before the
  *  config file is committed. The FILE always wins — same contract as
  *  heroBanner.js's loadBannerConfig. */
 export const PROMO_STORAGE_KEY = 'shabi-promo-config';
-/** "This visitor has acknowledged the announcement." The entire memory. */
+/** "This visitor has acknowledged the announcement." The entire memory.
+ *  Deliberately the ONLY key this notice writes: "was it on screen" is no
+ *  longer remembered per profile, because it is no longer an event to be fired
+ *  once — it is `promo_banner`, stamped on the page's own analytics row (see
+ *  promoBannerActive below). */
 export const PROMO_DISMISSED_KEY = 'shabi-promo-ubc-dismissed';
-/** "The announcement has been PUT ON SCREEN for this browser profile at least
- *  once." Separate from the dismissal key on purpose: that one is written when
- *  someone CLICKS, this one when the modal is DISPLAYED. One key could not tell
- *  "saw it" apart from "acted on it", and the gap between the two numbers is
- *  the whole point — it is how many people the announcement reached but did
- *  not move. */
-export const PROMO_SEEN_KEY = 'shabi-promo-ubc-seen';
 
 /** Every field the modal needs, so a config missing a key still renders. */
 export const DEFAULT_CONFIG = {
@@ -92,11 +103,13 @@ export const DEFAULT_CONFIG = {
        notice: past `endsOn` the section stops rendering with everything else.
        Set to null to drop the section and keep the modal. */
     comingSoon: { title: 'October 2026 UBC', leagueType: 'ubc', artPos: 'lower' },
-    // Israel wall-clock dates, inclusive. Both ends are REQUIRED in practice:
-    // defaults here exist so a truncated config cannot make the notice run
-    // forever (no end) or never (no start).
-    startsOn: '2026-09-20',
-    endsOn: '2026-10-31',
+    // Israel wall-clock dates, inclusive. Taken from the GENERATED
+    // js/render/promoWindow.js rather than written here, so the window the
+    // modal renders by and the window js/analytics.js stamps `promo_banner` by
+    // are the same two strings — see promoBannerActive() below for why
+    // analytics cannot wait for the config fetch.
+    startsOn: PROMO_STARTS_ON,
+    endsOn: PROMO_ENDS_ON,
 };
 
 /** Procedural artwork — pure CSS, so a design can ship with no image at all. */
@@ -145,9 +158,9 @@ export const PROMO_COPY = {
         eyebrow: 'Coming this October',
         title: 'So — who is the best player in the league?',
         lead: 'New in <strong>SHABI ISRAEL</strong> leagues: a league played in the <span class="league-type-pill type-ubc">UBC</span> format',
-        rule: 'In every match, two points are on the table:',
+        rule: 'Every match awards two points:',
         ptWin: 'for winning the match',
-        ptPlay: 'for whoever played better',
+        ptPlay: 'for the better PR',
         managerRole: 'Under the professional management of',
         when: 'The league opens this coming October',
         contact: 'For further details, please contact the league admins',
@@ -162,7 +175,7 @@ export const PROMO_COPY = {
         lead: 'חדש בליגות <strong>SHABI ISRAEL</strong>: ליגה בפורמט <span class="league-type-pill type-ubc">UBC</span>',
         rule: 'בכל דו-קרב מחולקות שתי נקודות:',
         ptWin: 'לזוכה בדו-קרב',
-        ptPlay: 'לשחקן ששיחק טוב יותר',
+        ptPlay: 'לשחקן עם ה-PR הטוב יותר',
         managerRole: 'בניהולו המקצועי של',
         when: 'הליגה תיפתח באוקטובר הקרוב',
         contact: 'לפרטים נוספים יש לפנות למנהלי הליגה',
@@ -204,6 +217,36 @@ export function isPromoDismissed() {
 export function dismissPromo() {
     try { localStorage.setItem(PROMO_DISMISSED_KEY, '1'); }
     catch { /* private mode: it will show again, which is the safe direction */ }
+}
+
+/**
+ * "Is the UBC announcement on screen for this page?" — SYNCHRONOUSLY.
+ *
+ * js/analytics.js calls this once at module load, before the pageview beacon,
+ * and stamps the answer on every event as `promo_banner`. The dashboard then
+ * marks those pages with 🎉. That is the whole recording mechanism: the
+ * announcement is a PROPERTY OF THE PAGE VIEW, not an action the visitor took.
+ * It used to be sent as a `UBC promo: shown` click, which inflated click_count
+ * and put a row the visitor never caused into the interactions log and the
+ * session timeline — the same mistake `Moved notice: shown` made before it
+ * became the 📦 page-mark, and the same fix.
+ *
+ * Synchronous is not a preference, it is the constraint. The pageview is sent
+ * at analytics.js module load and analytics is insert-only, so a row can never
+ * be amended once written: anything learned after the fetch resolves is
+ * learned too late. Hence the two inputs below, both available immediately —
+ * a localStorage read, and the dates as CODE constants out of the generated
+ * promoWindow.js.
+ *
+ * It answers about RENDERING, so it stays true on every page of the visit
+ * until the visitor dismisses the notice — exactly like movedBannerActive().
+ * Reach is therefore "sessions whose entry pageview carries the mark", not a
+ * count of these rows.
+ */
+export function promoBannerActive(now = new Date()) {
+    if (isPromoDismissed()) return false;
+    const today = israelToday(now);
+    return today >= PROMO_STARTS_ON && today <= PROMO_ENDS_ON;
 }
 
 /* ── Config ──────────────────────────────────────────────────────────────── */
@@ -260,7 +303,11 @@ const PROMO_CSS = `
     display: grid;
     place-items: center;
     padding: var(--space-md);
-    background: rgba(0, 0, 0, .55);
+    /* Deliberately light. A heavy scrim makes the announcement read as a new
+       PAGE rather than as a notice over this one, and a visitor who cannot see
+       the site behind the card has no way to tell they are still on it. The
+       card's own shadow does the separating instead. */
+    background: rgba(0, 0, 0, .34);
     /* The overlay is ITSELF the query container the rules below ask about.
        Without this, every '@container vp' rule silently never matches on a real
        page (a named container query with no such ancestor simply never applies)
@@ -280,7 +327,7 @@ const PROMO_CSS = `
 
 .promo {
     position: relative;
-    width: min(560px, 100%);
+    width: min(440px, 100%);
     max-height: 100%;
     /* Column flex + a scrolling child (not overflow on the card itself) so the
        × and the flags, which are absolutely positioned against THIS box, stay
@@ -392,7 +439,20 @@ const PROMO_CSS = `
 .promo-art-scrim { position: absolute; inset: 0; }
 
 /* ── Content ─────────────────────────────────────────────────────────────── */
-.promo-body { padding: var(--space-lg) var(--space-lg) var(--space-md); }
+/* --promo-gutter is a CHROME GUTTER, not a design margin: the flags (absolute,
+   top-left) and the × (absolute, top-right) float over the card, so wherever
+   the body is the TOPMOST content its first line has to start below both of
+   them. One symmetric value rather than a side-specific one, precisely because
+   the content flips and the chrome does not — in English the eyebrow begins at
+   the left and ran straight into the flags, while the identical Hebrew layout
+   began at the right and looked fine. Clearing the taller of the two (the ×
+   ends at 8+30=38px) on both sides is what makes the two languages lay out
+   identically instead of only one of them being checked.
+   The default is the ordinary padding: in the hero/card/marquee variants the
+   artwork or the marquee block sits above the body and takes the overlap
+   itself, so a gutter there would just be a band of empty card. */
+.promo { --promo-gutter: var(--space-lg); }
+.promo-body { padding: var(--promo-gutter) var(--space-lg) var(--space-md); }
 /* RTL applies to the READING CONTENT only — the × stays right, the flags stay
    left, in both languages. */
 .promo[data-lang="he"] .promo-body,
@@ -406,8 +466,8 @@ const PROMO_CSS = `
     color: var(--color-accent);
 }
 .promo-title {
-    margin: 0 0 var(--space-md);
-    font-size: clamp(19px, 3.4cqw + 11px, 27px);
+    margin: 0 0 var(--space-sm);
+    font-size: clamp(18px, 2.6cqw + 10px, 23px);
     font-weight: 800; line-height: 1.25;
     color: var(--color-text);
 }
@@ -425,19 +485,19 @@ const PROMO_CSS = `
     vertical-align: .04em;
 }
 
-.promo-body p { margin: 0 0 .7em; font-size: 14.5px; line-height: 1.65; color: var(--color-text-secondary); }
+.promo-body p { margin: 0 0 .6em; font-size: 13.5px; line-height: 1.55; color: var(--color-text-secondary); }
 .promo-body p:last-child { margin-bottom: 0; }
 .promo-body p strong { color: var(--color-text); font-weight: 700; }
 
 /* The scoring line is the whole proposition — give it a frame, not a bullet. */
 .promo-rule {
-    margin: var(--space-md) 0;
+    margin: var(--space-sm) 0;
     padding: var(--space-sm) var(--space-md);
     background: var(--color-inset);
     border-inline-start: 3px solid var(--lt-ubc-text);
     border-radius: var(--radius-sm);
 }
-.promo-rule p { margin: 0; color: var(--color-text); font-size: 14px; }
+.promo-rule p { margin: 0; color: var(--color-text); font-size: 13px; }
 .promo-rule-pts {
     display: flex; gap: var(--space-md); flex-wrap: wrap;
     margin-top: 7px;
@@ -452,9 +512,9 @@ const PROMO_CSS = `
 .promo-foot {
     display: flex; align-items: center; justify-content: space-between;
     gap: var(--space-md); flex-wrap: wrap;
-    padding: var(--space-md) var(--space-lg) var(--space-lg);
+    padding: var(--space-sm) var(--space-lg) var(--space-md);
 }
-.promo-foot-note { font-size: 12px; color: var(--color-text-muted); max-width: 30ch; }
+.promo-foot-note { font-size: 11.5px; color: var(--color-text-muted); max-width: 30ch; }
 /* Primary action — --color-primary is the themed dark-bg/light-text PAIR from
    variables.css, so "Got it" stays readable on light-accent themes (Vegas,
    Casino, X22) where a naive --color-accent fill would not. */
@@ -493,7 +553,9 @@ const PROMO_CSS = `
    — so its copy runs on the --header-bg/--header-text pair (a designed
    dark-ground/light-text couple in every theme) rather than on --color-text,
    which would vanish on a light theme over a dark photo. */
-.promo[data-variant="spotlight"] { width: min(540px, 100%); border-color: transparent; }
+/* The body IS the topmost content here (the artwork is an absolute background),
+   so it owns the chrome gutter — see --promo-gutter above. */
+.promo[data-variant="spotlight"] { width: min(440px, 100%); border-color: transparent; --promo-gutter: 46px; }
 .promo[data-variant="spotlight"] .promo-art { position: absolute; inset: 0; }
 .promo[data-variant="spotlight"] .promo-art-scrim {
     background:
@@ -504,7 +566,7 @@ const PROMO_CSS = `
 }
 .promo[data-variant="spotlight"] .promo-content {
     position: relative; z-index: 2;
-    min-height: 420px;
+    min-height: 330px;
     display: flex; flex-direction: column; justify-content: flex-end;
 }
 .promo[data-variant="spotlight"] .promo-title,
@@ -526,11 +588,11 @@ const PROMO_CSS = `
     background: var(--header-text); color: var(--header-bg);
 }
 @container vp (max-width: 560px) {
-    .promo[data-variant="spotlight"] .promo-content { min-height: 480px; }
+    .promo[data-variant="spotlight"] .promo-content { min-height: 380px; }
 }
 
 /* ══ VARIANT D — Split ════════════════════════════════════════════════════ */
-.promo[data-variant="split"] { width: min(660px, 100%); }
+.promo[data-variant="split"] { width: min(560px, 100%); --promo-gutter: 46px; }
 .promo[data-variant="split"] .promo-content {
     display: grid;
     grid-template-columns: 38% 1fr;
@@ -677,12 +739,31 @@ ${Object.entries(TIER_COLORS).map(([tier, c]) => (
     position: relative;
     overflow: hidden;
     isolation: isolate;
-    /* Its siblings carry a third "Leader:" line that this card has no data for,
-       so without a floor it sits visibly shorter than every card beside it and
-       letterboxes the artwork. In em, not px, so it tracks the card's own type
-       rather than pinning a measurement taken at one font size. */
-    min-height: 8.05em;
-    justify-content: center;
+}
+/* The title and the meta row are DIRECT children of .league-card here, exactly
+   as they are in a real one (landingPage.js), and carry the same classes — so
+   they inherit that card's padding, gap and type and land on the same
+   baselines. An earlier version wrapped them in a box of its own with its own
+   centring and a min-height floor, which made the card the right height by
+   coincidence while putting every line in a different place than its
+   neighbours.
+   What the card genuinely lacks is the third row: there is no leader, because
+   there are no matches yet. So the row is PRESENT but EMPTY — it reserves the
+   same box, keeping the card exactly as tall as its siblings and the two rows
+   above it at exactly their heights, while showing no "Leader:" label for data
+   that does not exist. aria-hidden, since a screen reader has nothing to read
+   here.
+   Its height is reproduced by CAUSE rather than by a copied number: a real
+   leader row is 21.6px because a 16px flag sits on a 0.9em text line and
+   vertical-align:middle lifts the line box past the text's own 20.3px. So the
+   placeholder carries a zero-width inline box of exactly that flag's height,
+   and both rows end up the same height for the same reason. A px min-height
+   would have been a measurement frozen at one type scale. */
+.promo-soon-leader::before {
+    content: '';
+    display: inline-block;
+    width: 0; height: 16px;
+    vertical-align: middle;
 }
 .promo-soon-art { position: absolute; inset: 0; z-index: 0; }
 .promo-soon-card .promo-art-scrim {
@@ -691,13 +772,9 @@ ${Object.entries(TIER_COLORS).map(([tier, c]) => (
             color-mix(in srgb, var(--header-bg) 45%, transparent) 0%,
             color-mix(in srgb, var(--header-bg) 88%, transparent) 100%);
 }
-.promo-soon-body {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-}
+.promo-soon-card > .league-card-title,
+.promo-soon-card > .league-card-meta,
+.promo-soon-card > .league-card-leader { position: relative; z-index: 1; }
 /* The league name. A button, not a link: there is nothing to navigate to yet,
    and an <a> with no href would still read as a destination to a screen reader
    and still offer "open in new tab" on a right-click. Styled to match the
@@ -1045,18 +1122,17 @@ export async function mountComingSoonSection(container) {
                         <div class="promo-art-hue"></div>
                         <div class="promo-art-scrim"></div>
                     </div>` : ''}
-                    <div class="promo-soon-body">
-                        <div class="league-card-title">
-                            <button type="button" class="promo-soon-link"
-                                    data-tooltip-tap
-                                    title="${escapeHtml(COMING_SOON_FEEDBACK)}"
-                                    data-track="UBC promo: coming soon card">${escapeHtml(soon.title)}</button>
-                        </div>
-                        <div class="league-card-meta">
-                            <span class="league-type-pill ${typeClass}">${escapeHtml(typeLabel)}</span>
-                            <span class="status-pill promo-soon-status">${escapeHtml(COMING_SOON_PILL)}</span>
-                        </div>
+                    <div class="league-card-title">
+                        <button type="button" class="promo-soon-link"
+                                data-tooltip-tap
+                                title="${escapeHtml(COMING_SOON_FEEDBACK)}"
+                                data-track="UBC promo: coming soon card">${escapeHtml(soon.title)}</button>
                     </div>
+                    <div class="league-card-meta">
+                        <span class="league-type-pill ${typeClass}">${escapeHtml(typeLabel)}</span>
+                        <span class="status-pill promo-soon-status">${escapeHtml(COMING_SOON_PILL)}</span>
+                    </div>
+                    <div class="league-card-leader promo-soon-leader" aria-hidden="true"></div>
                 </div>
             </div>
         </div>`;
@@ -1085,59 +1161,37 @@ export async function mountComingSoonSection(container) {
     else container.appendChild(section);
 }
 
-/**
- * Record, ONCE per browser profile, that the announcement was put on screen —
- * and on which page.
- *
- * This is the arrival half of the measurement. Without it the only promo
- * evidence is the exit clicks, and everyone who read the modal and then left
- * via the browser (closed the tab, pressed Back, opened a bookmark) is
- * invisible: no DOM click ever happens, and nothing here hooks page unload. So
- * the exit events alone are a floor of unknown distance from the truth.
- *
- * It is a NEW event rather than a field on the pageview, because the pageview
- * beacon is sent synchronously as analytics.js loads, long before this module's
- * config fetch resolves — and analytics is insert-only, so that row can never
- * be amended. `shabi:interaction` is the documented channel for exactly this:
- * it stamps the event with baseFields(), so `page`, `path`, `league_id` and
- * `tab` come along and the row answers "where was the visitor standing when
- * the announcement appeared".
- *
- * Guarded by its own key so it is one row per profile, not one per page view —
- * the modal re-appears on every page until it is acknowledged, and counting
- * those would measure navigation, not reach.
- */
-function reportFirstDisplay() {
-    try {
-        if (localStorage.getItem(PROMO_SEEN_KEY)) return;
-        localStorage.setItem(PROMO_SEEN_KEY, '1');
-    } catch {
-        /* Private mode: the key cannot be kept, so this fires again on the next
-           page. Over-counting in private windows is the honest failure here —
-           the alternative, staying silent, would under-count real visitors. */
-    }
-    window.dispatchEvent(new CustomEvent('shabi:interaction', {
-        detail: { target: 'UBC promo: shown' },
-    }));
-}
-
 /* ── Site entry point ────────────────────────────────────────────────────── */
 
-/**
- * Show the announcement if this visitor should see it. Called once per page
- * load from js/analytics.js — the one module every shareable page already
- * loads, so the notice needs no per-page wiring (the same hook movedNotice.js
- * uses).
- *
- * Deliberately async and un-awaited by its caller: it fetches a config, and
- * nothing about a promotional banner should sit in front of the page render.
- */
-export async function mountPromoNotice() {
-    // Cheapest checks first — an acknowledged visitor never costs a fetch.
-    if (isPromoDismissed()) return;
+/** True while the modal is on screen, so a re-check never stacks a second one. */
+let _promoMounted = false;
+/** Guards against two overlapping checks each fetching the config. */
+let _promoChecking = false;
 
+/**
+ * Put the announcement on screen if this visitor should see it, right now.
+ * Idempotent and safe to call repeatedly — that is the whole point, since it is
+ * the re-check the watcher below runs.
+ *
+ * Returns true if it mounted on this call.
+ */
+async function tryMountPromo() {
+    // Cheapest checks first — an acknowledged visitor never costs a fetch.
+    if (_promoMounted || _promoChecking || isPromoDismissed()) return false;
+    _promoChecking = true;
+    try {
+        return await mountPromoOverlay();
+    } finally {
+        _promoChecking = false;
+    }
+}
+
+async function mountPromoOverlay() {
     const cfg = await loadPromoConfig();
-    if (!promoWindowOpen(cfg)) return;
+    if (!promoWindowOpen(cfg)) return false;
+    // Re-checked after the await: a dismissal or another mount can land while
+    // the config is in flight.
+    if (_promoMounted || isPromoDismissed()) return false;
 
     injectPromoStyles();
 
@@ -1156,11 +1210,12 @@ export async function mountPromoNotice() {
             overlay.replaceWith(next);
             overlay = next;
         },
-        onExit: () => { dismissPromo(); overlay.remove(); },
+        onExit: () => { dismissPromo(); overlay.remove(); _promoMounted = false; },
     });
     overlay = build(getPopupLang());
     document.body.appendChild(overlay);
-    reportFirstDisplay();
+    _promoMounted = true;
+    announceShown();
 
     // Escape closes it, like every other modal on the site. Capture phase so it
     // is handled BEFORE navigation.js's global Escape → history.back(), which
@@ -1174,7 +1229,108 @@ export async function mountPromoNotice() {
         }));
         dismissPromo();
         overlay.remove();
+        _promoMounted = false;
         document.removeEventListener('keydown', onKey, true);
     };
     document.addEventListener('keydown', onKey, true);
+    return true;
+}
+
+/**
+ * Tell js/analytics.js the announcement is now on screen.
+ *
+ * NOT an analytics event — the display is still a property of the page, never a
+ * click. It exists for the LATE mount only: on an ordinary page load
+ * promoBannerActive() has already answered true and every event of that page is
+ * stamped, but when the notice appears on a page that was opened before the
+ * window opened, that page's own flag was computed false. This flips it, so the
+ * rest of that page's events (its dwell time, any click) carry the 🎉 mark.
+ *
+ * The pageview itself was sent at load and analytics is insert-only, so it
+ * cannot be amended — that one row stays unmarked, and the visit is instead
+ * counted from the first page that carries the mark. A deliberately small,
+ * bounded inaccuracy affecting only visitors who were already mid-visit at the
+ * moment the announcement went live.
+ */
+function announceShown() {
+    window.dispatchEvent(new CustomEvent('shabi:promo-shown'));
+}
+
+/**
+ * Show the announcement, and KEEP WATCHING so it can still appear on a page the
+ * visitor is already sitting on. Called once per page load from js/analytics.js
+ * — the one module every shareable page already loads, so the notice needs no
+ * per-page wiring (the same hook movedNotice.js uses).
+ *
+ * The watching is the point. Without it, a visitor who opened a league page at
+ * 23:55 and left the tab open would see nothing when the window opens at
+ * midnight, and nothing at all until they navigated or reloaded — while the
+ * league tables on that same screen quietly refresh themselves. The site
+ * already promises that what you are looking at stays true without a refresh
+ * (js/data/store.js § onVisibleRevalidate); an announcement that only a reload
+ * can deliver breaks that promise.
+ *
+ * It uses the same THREE triggers, and the same 60s cadence, as that
+ * revalidation — return-to-visible, bfcache restore, and a poll that stands
+ * down entirely while the tab is hidden, so a backgrounded tab costs nothing.
+ * Deliberately a re-check of this module's own cheap config fetch rather than a
+ * store subscription: the thing that changes here is the CLOCK (and the config
+ * file), not the league data, and the two have no reason to be coupled.
+ *
+ * It never navigates. The modal is appended to whatever page is open, exactly
+ * as it would have been on a fresh load there.
+ *
+ * Deliberately async and un-awaited by its caller: it fetches a config, and
+ * nothing about a promotional banner should sit in front of the page render.
+ */
+export async function mountPromoNotice() {
+    const shown = await tryMountPromo();
+    if (!shown) watchForPromo();
+}
+
+const PROMO_POLL_MS = 60_000;   // js/data/store.js § startVisiblePoll uses the same
+let _promoWatching = false;
+
+function watchForPromo() {
+    if (_promoWatching || isPromoDismissed()) return;
+    _promoWatching = true;
+
+    let timer = null;
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+    const start = () => {
+        if (timer) return;
+        timer = setInterval(check, PROMO_POLL_MS);
+    };
+
+    async function check() {
+        // Dismissed in another tab, or the notice is no longer relevant: tear the
+        // whole watcher down rather than keep a timer alive for its own sake.
+        if (isPromoDismissed()) { stop(); _promoWatching = false; return; }
+        const mounted = await tryMountPromo();
+        if (!mounted) return;
+        stop();
+        _promoWatching = false;
+        // The landing page's "Coming Soon" card belongs to the same announcement,
+        // so it must not wait for a reload either.
+        //
+        // Keyed off the Active Leagues GRID, not off a page container: the card
+        // is defined as "the section after Active Leagues", and on any page that
+        // has no such section there is nothing for it to be after. Passing a
+        // generic `main` instead put the card at the bottom of a LEAGUE page,
+        // because mountComingSoonSection falls back to appending when it cannot
+        // find its anchor — a fallback that is right on the landing page (where
+        // the anchor may still be rendering) and wrong everywhere else.
+        const grid = document.querySelector('.active-leagues-grid');
+        if (grid) {
+            const host = grid.closest('.app-tabpanel, main') || document.body;
+            mountComingSoonSection(host).catch(() => { /* card is optional */ });
+        }
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') { start(); check(); } else stop();
+    });
+    window.addEventListener('pageshow', (e) => { if (e.persisted) check(); });
+    window.addEventListener('pagehide', stop);
+    if (document.visibilityState === 'visible') start();
 }

@@ -667,7 +667,12 @@ function sessionRoute(s) {
     if (!s.entry_page) return '';
     // 📦 (TEMPORARY, with movedNotice.js): the visit's entry page carried the "we
     // moved" banner, i.e. this session arrived on a pre-move link.
-    const mark = s.entry_moved_banner ? '📦 ' : '';
+    const mark = (s.entry_moved_banner ? '📦 ' : '')
+               // 🎉 (TEMPORARY, with promoNotice.js): the visit's entry page carried
+               // the UBC launch announcement. This is the honest unit of REACH - one
+               // mark per VISIT, not per marked row, since the notice rides every page
+               // until it is dismissed.
+               + (s.entry_promo_banner ? '🎉 ' : '');
     return `<span class="analytics-session-route" title="Entry page">`
          + `${mark}${contextHtml(s.entry_page, s.entry_league_id, s.entry_player, s.entry_tab)}</span>`;
 }
@@ -1067,7 +1072,7 @@ function renderClickLog(host, rows, { grouped = false, withSession = false, with
         const r = g.head;
         const sess = withSession ? `<span class="clog-sess">${sessionCell(r)}</span>` : '';
         const dev = withDevice ? `<span class="clog-dev">${devicePill(r.device)}</span>` : '';
-        const pageHtml = movedMarkHtml(r) + contextHtml(r.pageType, r.leagueId, r.player, r.tab);
+        const pageHtml = pageMarksHtml(r) + contextHtml(r.pageType, r.leagueId, r.player, r.tab);
         const clicks = g.clicks.map((c) => {
             // A browser Back/Forward/Refresh is not a UI click, so it gets its own
             // chip format (direction glyph + label + where it came FROM) instead of
@@ -1372,11 +1377,10 @@ const CLICK_TYPE_ICONS = [
     // The landing page's "Coming Soon" card — a click on a league that does not
     // exist yet. Its own glyph because it is not a dismissal at all: it measures
     // interest in the league, not what someone did with the announcement.
-    // The announcement REACHED this device — one row per browser profile, fired
-    // when the modal is first put on screen, carrying the page it appeared on.
-    // 👀 because it is the only promo row that is not an action by the visitor:
-    // everything else in this family is something they did, this is something
-    // that happened TO them.
+    // 'UBC promo: shown' is NOT emitted any more — the announcement appearing is
+    // something the site did, not an action, so it is the 🎉 page-mark
+    // (promoMarkHtml) on the page's own row instead of a click of its own. This
+    // entry is kept only so legacy rows written before that change still render.
     { prefix: 'UBC promo: shown', icon: '🎉👀' },
     { prefix: 'UBC promo: coming soon card', icon: '🎉🔜' },
     { prefix: 'UBC promo: got it', icon: '🎉✅' },
@@ -1569,6 +1573,20 @@ function displayTarget(target) {
 const movedMarkHtml = (row) =>
     (row && row.moved_banner) ? '📦 ' : '';
 
+/** TEMPORARY, with js/render/promoNotice.js.
+ *  The same idea as movedMarkHtml above, for the UBC launch announcement: 🎉 on
+ *  the Page cell of any event captured while the notice was on screen. Keyed off
+ *  the `promo_banner` flag the collector stamps on every such event, so it marks
+ *  the whole visit rather than one arrival row — the announcement appearing is
+ *  not an action the visitor took, and it used to be logged as a
+ *  "UBC promo: shown" CLICK, which inflated click_count and put a row nobody
+ *  caused into this very log. The three exit clicks (🎉✅/🎉✖️/🎉💨) stay events. */
+const promoMarkHtml = (row) =>
+    (row && row.promo_banner) ? '🎉 ' : '';
+
+/** Both page-marks, in a stable order, for the one Page cell they share. */
+const pageMarksHtml = (row) => movedMarkHtml(row) + promoMarkHtml(row);
+
 /** Chronological, click-to-sort log of every click/interaction event (Export
  *  Image, Run Simulation with its staged summary, search outcomes, link
  *  clicks). Same shape/behaviour as renderTransitionsLog (device-tinted rows,
@@ -1607,6 +1625,7 @@ function renderClicksLog(section, clicksAll, sessions) {
         // Back/Forward heads on the page it was performed ON, not its target.
         ...clogNavFields(c),
         moved_banner: c.moved_banner, // 📦 page-mark (TEMPORARY, with movedNotice.js)
+        promo_banner: c.promo_banner, // 🎉 page-mark (TEMPORARY, with promoNotice.js)
         target: c.click_target || '',
         // The glyph actually shown on the row: a nav row wears its ↩/↪/⟳, every
         // other row its type icon. Held on the row so the search can match it (a
@@ -1673,6 +1692,7 @@ function timelineRow(e, sessionDevice) {
         // Page-identity (head/grouping) + nav destination — nav-aware (see clogNavFields).
         ...clogNavFields(e),
         moved_banner: e.moved_banner, // 📦 page-mark (TEMPORARY, with movedNotice.js)
+        promo_banner: e.promo_banner, // 🎉 page-mark (TEMPORARY, with promoNotice.js)
         target: e.click_target || '',
         icon: clickIcon(e.click_target || ''),
         device: sessionDevice || 'unknown',
@@ -2002,6 +2022,7 @@ function renderHistory(panel, data, hideMine, onToggle) {
             // Page-identity (head/grouping) + nav destination — nav-aware (see clogNavFields).
             ...clogNavFields(c),
             moved_banner: c.moved_banner, // 📦 page-mark (TEMPORARY, with movedNotice.js)
+            promo_banner: c.promo_banner, // 🎉 page-mark (TEMPORARY, with promoNotice.js)
             target: c.click_target || '',
             icon: clickIcon(c.click_target || ''),
             device: c.device_type || 'unknown',

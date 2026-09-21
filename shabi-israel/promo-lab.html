@@ -383,6 +383,13 @@ import {
     promoWindowOpen, israelToday, resolveManager,
     PROMO_CONFIG_PATH, PROMO_STORAGE_KEY, DEFAULT_CONFIG,
 } from './js/render/promoNotice.js';
+// The window js/analytics.js actually stamps `promo_banner` by. It is a
+// GENERATED constant (scripts/build-promo-window.mjs), because analytics has to
+// know whether the notice is on screen BEFORE the pageview goes out and a config
+// fetch resolves far too late. This page can write promo-config.json but not a JS
+// module, so a date change here needs one command afterwards - saveToSite() says
+// so explicitly rather than leaving the two to drift.
+import { PROMO_STARTS_ON, PROMO_ENDS_ON } from './js/render/promoWindow.js';
 
 injectPromoStyles();
 
@@ -791,10 +798,11 @@ const manifestReady = fetch(ART_MANIFEST)
    not to the design. Saving them would freeze one viewer's context into the
    config and make the modal disagree with the page around it.
 
-   startsOn/endsOn ARE saved, and that is not optional: promoNotice.js reads the
-   window from the config, so a key missing here would be silently replaced by
-   the module's DEFAULT_CONFIG dates on the next save — quietly rescheduling a
-   live announcement from a design tool. */
+   startsOn/endsOn ARE saved, and that is not optional: this file is the source
+   the window is GENERATED from, so a key missing here would be silently replaced
+   by the module's fallback dates on the next save — quietly rescheduling a live
+   announcement from a design tool. Changing them here is only half the change;
+   see the reminder in saveToSite(). */
 const DESIGN_KEYS = ['variant', 'treat', 'mix', 'artPos', 'top', 'backdrop', 'x', 'flags',
                      'startsOn', 'endsOn'];
 
@@ -904,7 +912,16 @@ async function saveToSite() {
             const w = await handle.createWritable();
             await w.write(json);
             await w.close();
-            flash('Saved to site ✓ — this design is now the committed one.');
+            // A date change is only half-applied until promoWindow.js is
+            // regenerated: the modal would already use the new window (it reads
+            // the config) while analytics still stamped `promo_banner` by the old
+            // one, so the 🎉 page-mark and the notice would disagree about which
+            // days the announcement ran. The --check gate fails on this too, but
+            // saying it here is what stops it happening.
+            const dateChanged = state.startsOn !== PROMO_STARTS_ON || state.endsOn !== PROMO_ENDS_ON;
+            flash(dateChanged
+                ? 'Saved ✓ — dates changed, now run: node scripts/build-promo-window.mjs'
+                : 'Saved to site ✓ — this design is now the committed one.');
             return;
         } catch (e) {
             if (e.name === 'AbortError') { flash('Save cancelled.', false); return; }

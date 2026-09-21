@@ -57,7 +57,7 @@ import { mountMovedNotice, movedBannerActive } from './render/movedNotice.js';
 // TEMPORARY — delete with js/render/promoNotice.js once the UBC launch
 // announcement has run its course (it stops rendering on its own past the
 // `endsOn` date in assets/promo/promo-config.json).
-import { mountPromoNotice } from './render/promoNotice.js';
+import { mountPromoNotice, promoBannerActive } from './render/promoNotice.js';
 
 // TEMPORARY (with movedNotice.js). Resolved ONCE, up front, before the pageview
 // below: true while the "we moved" banner is on screen this page. Stamped onto
@@ -66,6 +66,32 @@ import { mountPromoNotice } from './render/promoNotice.js';
 // one-time strip of ?moved before the pageview reads the URL. null (not false) so
 // the column stays empty for the overwhelming majority of rows.
 const MOVED_BANNER = movedBannerActive() || null;
+
+// TEMPORARY (with promoNotice.js). Same shape, same reason, as MOVED_BANNER
+// above: true while the UBC launch announcement is on screen this page, so the
+// dashboard can mark each such page with 🎉.
+//
+// This is a COLUMN and not an event on purpose. The announcement appearing is
+// something the SITE did, not something the visitor did — sending it as a click
+// (which it was, briefly) inflated click_count and dropped a row nobody caused
+// into both the interactions log and the session timeline. `Moved notice:
+// shown` made exactly this mistake and was retired the same way.
+//
+// Resolved here, synchronously, BEFORE the pageview below — the only moment it
+// can be resolved, since analytics is insert-only and the row can never be
+// amended once sent. That is why promoBannerActive() reads its dates from the
+// generated js/render/promoWindow.js instead of the config file it is built
+// from: a fetch would land long after this line. null (not false) so the column
+// stays empty for the overwhelming majority of rows.
+let PROMO_BANNER = promoBannerActive() || null;
+
+// The announcement can also appear on a page that was ALREADY OPEN when the
+// window opened (promoNotice.js watches the clock so it does not need a reload).
+// That page's flag was computed false above, so flip it here: every event the
+// page still has left — its dwell time, any click — is then stamped correctly.
+// The pageview itself has already gone and cannot be amended (insert-only), so
+// that one row stays unmarked; see announceShown() in promoNotice.js.
+window.addEventListener('shabi:promo-shown', () => { PROMO_BANNER = true; });
 
 const PAGE_BY_FILENAME = {
     'index.html': 'landing',
@@ -276,6 +302,7 @@ function baseFields() {
         player: params.get('player') || null,
         tab: currentTab(page, params),
         moved_banner: MOVED_BANNER,
+        promo_banner: PROMO_BANNER,
         ...detectDevice(),
         ...detectReferrer(),
     };
