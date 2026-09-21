@@ -155,6 +155,110 @@ comment on column public.projection_queue.last_error is
 alter table public.projection_queue enable row level security;
 grant all on public.projection_queue to service_role;
 
+-- ── THE HALF OF THE DISPATCH NOBODY WAS READING ────────────────────────────
+-- net.http_post is fire-and-forget. It does not call GitHub; it writes a row to
+-- pg_net's outbox, hands back a request id and returns successfully. Everything
+-- after that happens in a background worker, in another transaction, seconds
+-- later — and lands in net._http_response, which nothing here ever opened.
+--
+-- So `last_error` covers exactly one half of the failure surface: what goes
+-- wrong INSIDE Postgres. A rejection by GitHub — an expired PAT above all, which
+-- is not a risk but a dated certainty — produces a perfectly successful dispatch
+-- with dispatched_at stamped, last_error null, and no workflow run. Precisely the
+-- shape of the fault we spent tonight chasing, and the fix for that one would not
+-- have caught this one.
+--
+-- net._http_response also expires (~6 h), so the evidence deletes itself. One
+-- durable row therefore remembers the last request id, and every later dispatch
+-- reads the verdict on the previous one before issuing its own.
+--
+-- Single-row by construction: `id boolean primary key check (id)` admits exactly
+-- one row, `true`. There is one dispatcher, so there is one state.
+create table if not exists public.projection_dispatch_state (
+  id               boolean primary key default true check (id),
+  last_request_id  bigint,
+  last_dispatch_at timestamptz,
+  last_status      int,          -- HTTP status of the previous dispatch, once known
+  last_status_at   timestamptz,
+  last_status_note text          -- null when the previous dispatch was accepted
+);
+insert into public.projection_dispatch_state (id) values (true) on conflict do nothing;
+
+alter table public.projection_dispatch_state enable row level security;
+grant all on public.projection_dispatch_state to service_role;
+
+/**
+ * Read the verdict on the PREVIOUS dispatch and record it.
+ *
+ * Deliberately not a poller. It runs at the two moments something is already
+ * happening — just before the next dispatch, and when the job finishes a league
+ * (~40 s after the ask, by which time the response has long landed). No cron, no
+ * extra moving part, and the answer is recorded before anyone needs to ask.
+ *
+ * NEVER reads `headers`. The request headers carry the PAT; the response headers
+ * carry nothing worth the risk of a careless `select *` later.
+ */
+create or replace function public.check_last_dispatch_response()
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  st   public.projection_dispatch_state%rowtype;
+  code int;
+  emsg text;
+  body text;
+begin
+  select * into st from public.projection_dispatch_state where id;
+  if st.last_request_id is null then
+    return;
+  end if;
+
+  select r.status_code, r.error_msg, left(r.content, 120)
+    into code, emsg, body
+    from net._http_response r
+   where r.id = st.last_request_id;
+
+  if not found then
+    -- Either still in flight (checked too early) or already expired. Only the
+    -- second is terminal, and only then is the pointer worth dropping: keeping it
+    -- would re-examine a row that can never come back.
+    if st.last_dispatch_at < now() - interval '6 hours' then
+      update public.projection_dispatch_state
+         set last_request_id = null,
+             last_status = null,
+             last_status_note = 'response expired before it was read',
+             last_status_at = now()
+       where id;
+    end if;
+    return;
+  end if;
+
+  if code between 200 and 299 then
+    update public.projection_dispatch_state
+       set last_status = code, last_status_at = now(), last_status_note = null,
+           last_request_id = null          -- verdict in, nothing left to check
+     where id;
+    return;
+  end if;
+
+  -- REJECTED. GitHub accepted the connection and refused the work: a PAT that
+  -- expired or lost its scope (401/403), a renamed workflow file or branch (404).
+  -- The queue rows are still outstanding, so the note goes where the next person
+  -- to look will already be looking.
+  update public.projection_dispatch_state
+     set last_status = code, last_status_at = now(), last_request_id = null,
+         last_status_note = 'GitHub rejected the dispatch: '
+                         || coalesce(code::text, '?') || ' '
+                         || coalesce(emsg, '') || ' ' || coalesce(body, '')
+   where id;
+
+  update public.projection_queue
+     set last_error = 'GitHub rejected the dispatch (' || coalesce(code::text,'?')
+                   || ') - the ask left Postgres and was refused',
+         last_error_at = now()
+   where league_id is not null;
+end $$;
+
+revoke all on function public.check_last_dispatch_response() from public;
+
 create or replace function public.request_projection_refresh(p_league_id text, p_reason text default null)
 returns void language plpgsql security definer set search_path = public as $$
 begin
@@ -222,17 +326,44 @@ end $$;
  * is the branch whose code runs; keep it pointed at the branch that actually
  * holds the scripts.
  */
-create or replace function public._dispatch_projection_run()
+-- The signature gained p_force, and an overload would make the 0-arg call
+-- ambiguous rather than resolving to the default. Drop before create.
+drop function if exists public._dispatch_projection_run();
+
+create or replace function public._dispatch_projection_run(p_force boolean default false)
 returns void language plpgsql security definer set search_path = public as $$
 declare
   pat text;
   recent timestamptz;
   req_id bigint;
 begin
-  -- Debounce: a dispatch in the last 2 minutes covers anything queued since.
-  select max(dispatched_at) into recent from public.projection_queue;
-  if recent is not null and recent > now() - interval '2 minutes' then
-    return;
+  -- Before asking again, find out how the last ask ended. Cheap, and it is the
+  -- only thing standing between "GitHub refuses us" and silence.
+  begin
+    perform public.check_last_dispatch_response();
+  exception when others then null;   -- diagnostics must never block the dispatch
+  end;
+
+  -- ── THE DEBOUNCE, AND THE HOLE IT USED TO LEAVE ──────────────────────────
+  -- A dispatch in the last 2 minutes is assumed to cover anything queued since,
+  -- because the run it started drains the WHOLE queue. That assumption is what
+  -- keeps an admin's five corrections down to one workflow run, and it is sound
+  -- — right up until the run ends.
+  --
+  -- Measured 21 Sep 2026: ask → response 8 s, whole run 38 s. So a match landing
+  -- 40 s after a dispatch is suppressed by a run that is ALREADY OVER. Its queue
+  -- row is real, correct and outstanding, and nothing will ever ask for it. The
+  -- hourly schedule would collect it within the hour — which is exactly how this
+  -- class of fault has stayed invisible here: it never looked broken, only late.
+  --
+  -- p_force is how that window closes. complete_projection_work passes it when a
+  -- run finishes with unclaimed work still queued: at that instant the covering
+  -- assumption is provably false, so the debounce must not apply.
+  if not p_force then
+    select max(dispatched_at) into recent from public.projection_queue;
+    if recent is not null and recent > now() - interval '2 minutes' then
+      return;
+    end if;
   end if;
 
   -- A MISSING SECRET IS A FAILURE, NOT A SKIP, and it used to return as quietly
@@ -247,7 +378,10 @@ begin
     update public.projection_queue
        set last_error = 'vault secret "github_dispatch_pat" did not resolve for '
                      || 'the dispatcher (function owner: ' || current_user || ')',
-           last_error_at = now();
+           last_error_at = now()
+     -- Same reason as the WHERE below: safeupdate rejects a WHERE-less UPDATE,
+     -- and a reporting statement that throws reports nothing.
+     where league_id is not null;
     return;
   end if;
 
@@ -259,15 +393,46 @@ begin
       'Content-Type', 'application/json',
       'User-Agent', 'shabi-israel-projections'   -- GitHub REST 403s a UA-less request
     ),
-    body := jsonb_build_object('ref', 'development')
+    -- `source` is declared in the workflow's own inputs (an undeclared input is
+    -- a 422, not a warning) and exists solely so the run can name its cause.
+    -- Without it every automatic run is displayed as "Manually run by <owner>",
+    -- indistinguishable from a human clicking Run — see the run-name block in
+    -- .github/workflows/project-title-race.yml.
+    body := jsonb_build_object(
+      'ref', 'development',
+      'inputs', jsonb_build_object('source', 'database')
+    )
   ) into req_id;
+
+  -- Remember which request this was, so the NEXT visit here (or the end of the
+  -- run this just started) can read GitHub's verdict on it.
+  update public.projection_dispatch_state
+     set last_request_id = req_id, last_dispatch_at = now()
+   where id;
 
   -- Record the ask (for debouncing only). Deliberately NOT claimed_at: the run
   -- being asked for has not taken the work yet, and marking it here would hide
   -- the work from it.
   --
-  -- Deliberately WHERE-less: one dispatch starts a job that drains the WHOLE
+  -- EVERY row, deliberately: one dispatch starts a job that drains the WHOLE
   -- queue, so every row queued right now has genuinely been asked for.
+  --
+  -- `where league_id is not null` is that "every row", written as a predicate
+  -- because it has to be one. This statement was WHERE-less, and the cloud runs
+  -- the `safeupdate` guard, which rejects a WHERE-less UPDATE outright:
+  --
+  --   ERROR: UPDATE requires a WHERE clause
+  --
+  -- Observed 21 Sep 2026. Three matches landed between 21:11 and 22:15 and not
+  -- one workflow run followed. The throw happened INSIDE Postgres, before
+  -- net.http_post was ever reached — so there was no request in the pg_net
+  -- outbox and no response to inspect either. The queue rows survived (they are
+  -- written outside the handler) and last_error carried the message, which is
+  -- the only reason this took one query instead of a day.
+  --
+  -- `where true` would satisfy the guard too. A column predicate is used instead
+  -- so the intent survives a future reader: all rows, because the job takes all
+  -- rows. league_id is the primary key, so it is never null.
   --
   -- The same statement clears last_error, so a stored value always describes the
   -- LATEST attempt rather than accumulating history. "Is the fast path healthy
@@ -275,10 +440,11 @@ begin
   -- failure it ever had would answer a different one, and audit_log already
   -- covers that need for the rows that matter.
   update public.projection_queue
-     set dispatched_at = now(), last_error = null, last_error_at = null;
+     set dispatched_at = now(), last_error = null, last_error_at = null
+   where league_id is not null;
 end $$;
 
-revoke all on function public._dispatch_projection_run() from public;
+revoke all on function public._dispatch_projection_run(boolean) from public;
 
 comment on function public.request_projection_refresh(text, text) is
   'Mark a league as needing a projection recompute. Idempotent per league — repeated calls coalesce into one pending entry.';
@@ -438,8 +604,50 @@ end $$;
 -- dropping it.
 create or replace function public.complete_projection_work(p_league_id text)
 returns void language plpgsql security definer set search_path = public as $$
+declare
+  stragglers int;
 begin
   delete from public.projection_queue where league_id = p_league_id;
+
+  -- Read GitHub's verdict on the dispatch that started this run. ~40 s have
+  -- passed since the ask, so the response has landed; the job finishing is the
+  -- most reliable clock this mechanism has.
+  begin
+    perform public.check_last_dispatch_response();
+  exception when others then null;
+  end;
+
+  -- ── DRAIN, RATHER THAN LEAVE IT FOR THE HOUR ─────────────────────────────
+  -- Anything queued while this run was executing was suppressed by the 2-minute
+  -- debounce, on the assumption that this run would sweep it up. It is now too
+  -- late for that to be true. Re-arm immediately instead of waiting.
+  --
+  -- `claimed_at is null` is what keeps this from firing on every league of a
+  -- multi-league run: the other leagues this same run already took are claimed,
+  -- so they are not stragglers. Only work no run has touched qualifies — which
+  -- is precisely the work that fell through the window.
+  --
+  -- The forced dispatch stamps dispatched_at on those rows, so the run it starts
+  -- cannot re-trigger this branch and loop.
+  select count(*) into stragglers
+    from public.projection_queue
+   where claimed_at is null;
+
+  if stragglers > 0 then
+    begin
+      perform public._dispatch_projection_run(p_force => true);
+    exception when others then
+      -- Same contract as everywhere else here: the accelerator may fail, the
+      -- work stays queued, and the failure leaves a mark rather than a silence.
+      raise warning 'straggler dispatch failed (work stays queued): %', sqlerrm;
+      begin
+        update public.projection_queue
+           set last_error = sqlerrm, last_error_at = now()
+         where claimed_at is null;
+      exception when others then null;
+      end;
+    end;
+  end if;
 end $$;
 
 grant execute on function public.complete_projection_work(text) to service_role;
@@ -471,5 +679,9 @@ grant execute on function public.claim_projection_work(int) to service_role;
 --   drop function if exists public.projections_on_history_change();
 --   drop function if exists public.claim_projection_work(int);
 --   drop function if exists public.request_projection_refresh(text, text);
+--   drop function if exists public.complete_projection_work(text);
+--   drop function if exists public._dispatch_projection_run(boolean);
+--   drop function if exists public.check_last_dispatch_response();
+--   drop table if exists public.projection_dispatch_state;
 --   drop table if exists public.projection_queue;
 --   drop table if exists public.league_projections;

@@ -721,14 +721,22 @@ async function renderTitleRace(ctx) {
 
     const scheduleFp = scheduleFingerprint(ctx.allMatchesIncUnplayed, fingerprintSettings(ctx));
     const expectedHashes = pointFingerprints(points.map(p => p.match), scheduleFp);
-    let staleCount = 0;
+    // WHICH points are stale, not how many. The count alone was all this kept,
+    // and the whole per-point staleness design above was then thrown away one
+    // line later: the local pass re-projected the ENTIRE league, including every
+    // point it had just proved current. A league one match ahead of the job —
+    // the normal state in the seconds after a result lands — paid ~230 Monte
+    // Carlo runs to learn one new number, and the console said
+    // "1/231 points not yet projected - computing those locally" while computing
+    // all 231.
+    const pending = [];
 
     const stored = await loadLeagueProjections(ctx.leagueId);
     if (stored && Array.isArray(stored.points) && stored.points.length) {
         const byHash = new Map(stored.points.map(sp => [sp.hash, sp]));
         for (let i = 0; i < points.length; i++) {
             const sp = byHash.get(expectedHashes[i]);
-            if (!sp) { staleCount++; continue; }   // missing OR superseded
+            if (!sp) { pending.push(i); continue; }   // missing OR superseded
             const row = {};
             stored.roster.forEach((player, pos) => {
                 const arr = sp.r[pos];
@@ -740,9 +748,14 @@ async function renderTitleRace(ctx) {
         seedPlotted();
         chart.draw();
         // Everything present and current — no local computation at all.
-        if (staleCount === 0) return;
-        console.info(`[title race] ${staleCount}/${points.length} points not yet projected — computing those locally`);
+        if (!pending.length) return;
+        console.info(`[title race] ${pending.length}/${points.length} points not yet projected — computing those locally`);
     }
+
+    // No stored projection at all (a league the job has never reached), so every
+    // point is pending. Reaching here with an empty list can only mean that:
+    // a stored projection with nothing pending returned above.
+    if (!pending.length) for (let i = 0; i < points.length; i++) pending.push(i);
 
     // Computing locally: the contender test has nothing to read yet, so the
     // podium seeds the chart and stays - see seedFromPodium.
@@ -750,8 +763,11 @@ async function renderTitleRace(ctx) {
 
     const last300Map = await ensureLast300Map(ctx);
 
-    const onPoint = (index, topX, n) => {
-        topXByPoint[index] = topX;
+    // `slot` indexes the PENDING list the worker was handed, not the timeline.
+    // Both hosts report their own loop counter, so the translation belongs here,
+    // once, rather than in each of them.
+    const onPoint = (slot, topX, n) => {
+        topXByPoint[pending[slot]] = topX;
         if (!playerCount) { playerCount = n; fillTopXOptions(n); }
         chart.draw();
     };
@@ -764,7 +780,7 @@ async function renderTitleRace(ctx) {
         leagueConfig: ctx.leagueConfig,
         last300Map: [...last300Map.entries()],
         iterations: TIMELINE_ITERATIONS,
-        points: points.map(p => p.value),
+        points: pending.map(i => points[i].value),
     };
 
     try {
@@ -789,11 +805,11 @@ async function renderTitleRace(ctx) {
     function projectOnMainThread() {
         let i = 0;
         const step = () => {
-            if (i >= points.length) return;
+            if (i >= pending.length) return;
             const point = projectAt({
                 timeline: ctx.timeline,
                 allMatchesIncUnplayed: ctx.allMatchesIncUnplayed,
-                pointValue: points[i].value,
+                pointValue: points[pending[i]].value,
                 allPlayers: ctx.allPlayersSet,
                 matchLength: payload.matchLength,
                 leagueConfig: ctx.leagueConfig,
@@ -2339,7 +2355,7 @@ function renderWhatIfSimulator(ctx) {
                 // Not a display control: this changes the METRIC in the last
                 // column (P(finish in top X)) and with it the whole table's
                 // sort order — so the chosen X is what's worth logging.
-                trackWhatIf(`What if topx: ${wiTopXInput.selectedOptions[0]?.textContent || currentX}`);
+                trackWhatIf(`What if top X: ${wiTopXInput.selectedOptions[0]?.textContent || currentX}`);
                 renderTable(expanded);
             };
 

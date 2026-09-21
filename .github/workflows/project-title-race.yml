@@ -1,5 +1,27 @@
 name: Project Title Race
 
+# ── WHY THIS LINE EXISTS ────────────────────────────────────────────────────
+# GitHub labels a run by its event and its actor, and for a dispatch the actor is
+# whoever owns the credential. The database dispatches with the repo owner's PAT,
+# so an automatic run triggered by a match landing is displayed as
+# "Manually run by guyeli31" — character for character what a human clicking Run
+# produces. The runs list therefore cannot answer the one question anyone asks of
+# it: did the timeline change actually trigger a recompute?
+#
+# Misread exactly that way on 21 Sep 2026, in the middle of diagnosing a dead
+# dispatch: two runs were taken for the owner's own clicks when they may well
+# have been the database asking.
+#
+# run-name overrides the label, so each run states its own cause. `inputs` is
+# null for a scheduled run, which is why the schedule is tested first — every
+# later branch may then assume the inputs exist.
+run-name: >-
+  ${{ github.event_name == 'schedule' && 'hourly sweep (safety net)'
+   || inputs.all && 'full backfill - every league'
+   || inputs.league != '' && format('manual - {0}', inputs.league)
+   || inputs.source == 'database' && 'auto - a league timeline changed'
+   || 'manual - whatever is queued' }}
+
 # Recomputes the Title Race projections for leagues whose match history changed.
 # Spec: docs/data-architecture/05-projection-cache.md
 #
@@ -33,6 +55,14 @@ on:
         required: false
         default: false
         type: boolean
+      source:
+        # Set by _dispatch_projection_run in sql/league_projections.sql. Leave it
+        # alone when running by hand — an empty value is what makes the run say
+        # "manual", which is the whole point of the distinction.
+        description: 'Who asked. Filled in automatically by the database; leave empty.'
+        required: false
+        default: ''
+        type: string
   schedule:
     # A SAFETY NET, not the mechanism. The database dispatches this workflow the
     # moment a league's history changes (_dispatch_projection_run in

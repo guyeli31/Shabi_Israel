@@ -987,7 +987,12 @@ async function saveToSite() {
    max(440px) it sat in the middle of the canvas with a third of the picture as
    empty background above and below it — fine as a modal over a page, wasteful
    as a picture whose whole job is to be legible as a chat thumbnail. */
-const SHARE_W = 432, SHARE_H = 540, SHARE_SCALE = 2.5;
+const SHARE_W = 540, SHARE_H = 675, SHARE_SCALE = 2;
+/* Symmetric side margin. The modal inherits --space-lg from the page, which is
+   sized for a 440px panel floating over content; across a full 1080px canvas
+   the same value reads as no margin at all, and RTL copy in particular ran
+   right up to the edge. */
+const SHARE_PAD_X = 52;
 /* Top SAFE AREA, in the frame's CSS px (x2.5 in the output).
    WhatsApp does not show a shared image whole in the chat bubble: it rounds the
    corners and shaves the top edge, which ate the upper half of the logo and
@@ -995,9 +1000,63 @@ const SHARE_W = 432, SHARE_H = 540, SHARE_SCALE = 2.5;
    only the CONTENT is inset, so what WhatsApp trims is photo rather than
    anything anyone needs to read. 54px = 10% of the frame, comfortably more than
    the observed crop. */
-const SHARE_SAFE_TOP = 54;
+const SHARE_SAFE_TOP = 40;
+
+/* The share image's own typography — a POSTER, not the modal.
+   Scoped to .promo-share, so none of it can reach the notice on the site.
+   Why it differs at all: the modal is read at arm's length on a phone that is
+   already showing the page, so it is left/right-aligned, compact, and sized to
+   sit beside content. A picture in a chat is judged as a thumbnail first and
+   has no content beside it — there a centred axis and much larger type are what
+   make it legible before anyone opens it. */
+const SHARE_CSS = `
+/* .promo.promo-share[data-lang] - four classes on purpose, not stylistic
+   flourish. The module's RTL rule is .promo[data-lang="he"] .promo-body,
+   specificity (0,3,0), so a plain .promo-share .promo-body at (0,2,0) loses:
+   the Hebrew poster silently kept its right-aligned copy while the English one
+   centred. Out-specifying it is the fix; relying on the later injection order
+   would be a tie that any future edit could flip.
+   (NO BACKTICKS anywhere in this stylesheet - it is a template literal, and one
+   backtick ends the string mid-rule. This exact bug has now happened three
+   times in this project.) */
+.promo.promo-share[data-lang] .promo-body,
+.promo.promo-share[data-lang] .promo-foot {
+    text-align: center;
+    padding-inline: ${SHARE_PAD_X}px;
+}
+.promo-share .promo-body { padding-top: 0; }
+/* The logo leads the poster, centred, instead of hiding in a corner. */
+.promo-share .promo-logo {
+    display: block;
+    margin: 0 auto 22px;
+    height: 84px; width: auto;
+    border-radius: 50%;
+}
+.promo-share .promo-eyebrow { font-size: 15px; letter-spacing: .2em; margin-bottom: 10px; }
+.promo-share .promo-title { font-size: 31px; line-height: 1.22; margin-bottom: 14px; }
+.promo-share .promo-body p { font-size: 19px; line-height: 1.5; margin-bottom: .55em; }
+.promo-share .promo-rule { margin: 18px 0; padding: 14px 18px; border-inline-start: 0; }
+.promo-share .promo-rule p { font-size: 18px; }
+.promo-share .promo-rule-pts { justify-content: center; gap: 26px; margin-top: 10px; }
+.promo-share .promo-rule-pt { font-size: 18px; }
+.promo-share .promo-rule-pt b { font-size: 21px; }
+/* The manager block is an inline-flex island; centring its paragraph is what
+   actually moves it, not text-align on the island itself. */
+.promo-share p.promo-manager { text-align: center; margin-top: 4px; }
+.promo-share .promo-foot { justify-content: center; padding-top: 14px; }
+.promo-share .promo-foot-note { font-size: 16px; max-width: none; }
+`;
+let _shareCssInjected = false;
+function injectShareCss() {
+    if (_shareCssInjected) return;
+    _shareCssInjected = true;
+    const el = document.createElement('style');
+    el.textContent = SHARE_CSS;
+    document.head.appendChild(el);
+}
 
 async function buildShareFrame(lang) {
+    injectShareCss();
     // configFromState() is the SAME config the preview is rendered from, so the
     // image can only ever show the design currently on screen. flags/x are
     // turned off at the CONFIG level, so buildPromoModal simply never emits
@@ -1024,6 +1083,7 @@ async function buildShareFrame(lang) {
        go, and the artwork the card already carries becomes the whole canvas.
        Nothing about the CARD's design changes: this is the same Spotlight
        layout with its chrome removed, not a second design. */
+    card.classList.add('promo-share');
     card.style.width = '100%';
     card.style.height = '100%';
     card.style.maxHeight = 'none';
@@ -1050,14 +1110,16 @@ async function buildShareFrame(lang) {
     // and the card does not suddenly end flush against its last line.
     card.querySelector('.promo-cta')?.remove();
 
-    // The logo takes the flags' place: same corner, same offsets.
+    /* The logo leads the poster. It used to be absolutely positioned in the
+       corner the language flags had vacated — which is right for a modal, where
+       that corner is chrome, and wrong for a picture, where it reads as a
+       watermark stuck to one edge. Now it is the first thing in the flow,
+       centred above the copy and sized to be recognisable as a thumbnail. */
     const logo = document.createElement('img');
     logo.src = 'assets/logo/logo.png';
     logo.alt = 'Shabi Israel';
-    // Moved down with the copy — it was the first casualty of the crop.
-    logo.style.cssText = `position:absolute;top:${SHARE_SAFE_TOP + 6}px;left:12px;z-index:3;`
-        + 'height:34px;width:auto;border-radius:50%;';
-    card.appendChild(logo);
+    logo.className = 'promo-logo';
+    card.querySelector('.promo-body')?.prepend(logo);
 
     const frame = document.createElement('div');
     const bodyStyle = getComputedStyle(document.body);

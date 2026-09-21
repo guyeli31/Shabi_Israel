@@ -1283,7 +1283,8 @@ const CLICK_TYPE_ICONS = [
     // (the whole panel folding) vs 'What if: table ' (the result list
     // expanding) never share a leading string.
     { prefix: 'What if baseline: ', icon: '🧪🕘' },  // rewind the starting point
-    { prefix: 'What if topx: ', icon: '🧪🔝' },      // P(finish in top X) metric
+    { prefix: 'What if top X: ', icon: '🧪🔝' },     // P(finish in top X) metric
+    { prefix: 'What if topx: ', icon: '🧪🔝' },      // retired spelling — kept so pre-rename rows keep the icon
     { prefix: 'What if: player ', icon: '🧪👤' },    // A / B picker
     { prefix: 'What if: add match', icon: '🧪🆚' },  // pair staged
     // One click that stages a whole player's remaining fixtures. ⚡ for the bulk:
