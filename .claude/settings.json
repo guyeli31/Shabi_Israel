@@ -68,7 +68,9 @@
       "PowerShell([System.TimeZoneInfo]::ConvertTimeFromUtc\\(\\(Get-Date\\).ToUniversalTime\\(\\), [System.TimeZoneInfo]::FindSystemTimeZoneById\\('Israel Standard Time'\\)\\).ToString\\('dd/MM/yyyy HH:mm'\\))",
       "PowerShell(node scripts/check-no-external.js; [System.TimeZoneInfo]::ConvertTimeFromUtc\\(\\(Get-Date\\).ToUniversalTime\\(\\), [System.TimeZoneInfo]::FindSystemTimeZoneById\\('Israel Standard Time'\\)\\).ToString\\('dd/MM/yyyy HH:mm'\\))",
       "PowerShell(Get-FileHash shabi-israel/assets/promo/UBC_champ.jpg, shabi-israel/assets/league-art/ubc.jpg -Algorithm MD5 | Select-Object Hash, Path; [System.TimeZoneInfo]::ConvertTimeFromUtc\\(\\(Get-Date\\).ToUniversalTime\\(\\), [System.TimeZoneInfo]::FindSystemTimeZoneById\\('Israel Standard Time'\\)\\).ToString\\('dd/MM/yyyy HH:mm'\\))",
-      "mcp__playwright__browser_tabs"
+      "mcp__playwright__browser_tabs",
+      "Bash(curl -s \"https://golan.me.uk/shabi-israel/assets/promo/promo-config.json\")",
+      "Bash(curl -s \"https://golan.me.uk/shabi-israel/js/render/promoWindow.js\")"
     ]
   }
 }

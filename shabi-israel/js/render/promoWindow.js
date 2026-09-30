@@ -14,4 +14,4 @@
  */
 
 export const PROMO_STARTS_ON = '2026-09-20';
-export const PROMO_ENDS_ON = '2026-10-01';
+export const PROMO_ENDS_ON = '2026-09-30';
