@@ -148,13 +148,18 @@
     display: flex;
     flex-direction: column;
     gap: clamp(4px, 0.2rem + 0.4vw, 10px);
-    /* Green on schedule, orange once the games fall behind the calendar.
-       --color-warning is deliberately constant across themes (a caution signal
-       is a traffic light, not a palette mood); --color-success follows it. */
+    /* Green on schedule, orange once the games fall behind the calendar, red
+       once they are more than ten points behind (see progressState() in
+       dashboardPage.js). --color-warning is deliberately constant across
+       themes (a caution signal is a traffic light, not a palette mood);
+       --color-success and --color-danger follow it. */
     --dash-prog-tone: var(--color-success);
 }
 .dash-progress.is-behind {
     --dash-prog-tone: var(--color-warning);
+}
+.dash-progress.is-severe {
+    --dash-prog-tone: var(--color-danger);
 }
 
 .dash-prog-head {

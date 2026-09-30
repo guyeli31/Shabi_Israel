@@ -16,7 +16,7 @@
 
 import { colorForValue } from './colorScale.js';
 import { pmTableHtml } from '../../table-lab/formats/pm/mount.js';
-import { resolveTie, needsMatchData, assertTablesFor } from './tiebreaks.js';
+import { resolveTie, needsMatchData, assertTablesFor, rankKey } from './tiebreaks.js';
 
 // ── Probability lookup table ────────────────────────────────────────
 // Win probability (%) for the better (lower PR) player, indexed by
@@ -283,8 +283,10 @@ function rankAllPlayers(wins, games, points, tiebreakerPR, rankingConfig, n, tab
         if (primary === 'avgPoints') return games[i] > 0 ? points[i] / games[i] : 0;
         return wins[i];
     }
+    // Quantised to the precision the site prints, so a pair the table shows as
+    // level is level here too and reaches the same cascade — see rankKey().
     function getSecondary(i) {
-        if (secondary === 'meanPR') return tiebreakerPR[i];
+        if (secondary === 'meanPR') return rankKey(tiebreakerPR[i], rankingConfig.secondaryRound);
         if (secondary === 'wins') return wins[i];
         return 0;
     }
@@ -421,6 +423,10 @@ function simulateMonteCarlo(setup, N) {
     const primaryDesc = rankingConfig.primaryDir === 'desc';
     const secondary = rankingConfig.secondary;
     const secondaryAsc = rankingConfig.secondaryDir === 'asc';
+    // Decimals the secondary is displayed to. Multiplying and rounding inline
+    // rather than calling rankKey() keeps the hot loop free of a call per
+    // player per iteration; `secRound === 0` means compare raw.
+    const secRound = rankingConfig.secondaryRound == null ? 0 : 10 ** rankingConfig.secondaryRound;
 
     // This run's sort keys, materialised once per iteration into hoisted
     // buffers. The comparator used to recompute both keys on every comparison
@@ -500,7 +506,9 @@ function simulateMonteCarlo(setup, N) {
                 keyP[i] = primaryIsWinRate ? (simGames[i] > 0 ? simWins[i] / simGames[i] : 0)
                         : primaryIsAvgPoints ? (simGames[i] > 0 ? simPoints[i] / simGames[i] : 0)
                         : simWins[i];
-                keyS[i] = secondaryIsMeanPR ? meanPRIter[i] : secondaryIsWins ? simWins[i] : 0;
+                keyS[i] = secondaryIsMeanPR
+                    ? (secRound ? Math.round(meanPRIter[i] * secRound) / secRound : meanPRIter[i])
+                    : secondaryIsWins ? simWins[i] : 0;
                 indices[i] = i;
             }
             indices.sort((a, b) => {

@@ -356,7 +356,7 @@ function clickTargetHtml(target) {
     // otherwise the two forms that mention players by name read as bare text while
     // the picker reads richly. Split the tail on the form's own joiner (players are
     // single-token nicknames, so the first occurrence is the real separator).
-    for (const [prefix, joiner] of [['What if: winner — ', ' beats '], ['What if: not played — ', ' vs ']]) {
+    for (const [prefix, joiner] of [['What if: winner — ', ' beats '], ['What if: not played — ', ' vs '], ['What if: add match — ', ' vs ']]) {
         if (target.startsWith(prefix)) {
             const tail = target.slice(prefix.length);
             const i = tail.indexOf(joiner);

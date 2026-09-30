@@ -22,7 +22,7 @@
  */
 
 import { computeAllStats } from './stats.js';
-import { resolveTie, needsMatchData, assertTablesFor } from './tiebreaks.js';
+import { resolveTie, needsMatchData, assertTablesFor, rankKey } from './tiebreaks.js';
 
 /**
  * Level thresholds based on MeanPR.
@@ -139,6 +139,10 @@ export function buildRankings(statsMap, leagueConfig, matches = null) {
         ? leagueConfig.ranking
         : { primary: 'winRate', primaryDir: 'desc', secondary: 'meanPR', secondaryDir: 'asc' };
     const { primary, primaryDir, secondary, secondaryDir } = ranking;
+    // The secondary is compared at the precision it is PRINTED to, so two
+    // players a rounding artefact apart are genuinely level and reach the
+    // cascade — see rankKey() in tiebreaks.js.
+    const secKey = (row) => rankKey(row[secondary], ranking.secondaryRound);
 
     rows.sort((a, b) => {
         const aNull = a[primary] === null;
@@ -158,21 +162,31 @@ export function buildRankings(statsMap, leagueConfig, matches = null) {
         if (aSecNull) return 1;
         if (bSecNull) return -1;
         const sMul = secondaryDir === 'asc' ? 1 : -1;
-        return sMul * (a[secondary] - b[secondary]);
+        return sMul * (secKey(a) - secKey(b));
     });
 
-    // Whoever is still tied on the primary gets the league type's tiebreak
-    // cascade — WHICH criteria and in WHICH order is not decided here, it is
-    // read from leagueTypes.js. This block knows only how to find a tied group
-    // and how to look a number up (buildMatchTables); the policy itself is
+    // Whoever is still tied AFTER primary AND secondary gets the league type's
+    // tiebreak cascade — WHICH criteria and in WHICH order is not decided here,
+    // it is read from leagueTypes.js. This block knows only how to find a tied
+    // group and how to look a number up (buildMatchTables); the policy itself is
     // shared verbatim with the championship predictor.
+    //
+    // THE GROUP IS PRIMARY *AND* SECONDARY. Widening it on the primary alone
+    // handed every player of equal Win Rate to the cascade together, and
+    // 'tbAlphabetical' then re-sorted the whole group by name — silently
+    // discarding the Mean PR order established immediately above. Mean PR was
+    // printed in its column and played no part in the ranking, while the
+    // championship predictor (which has always grouped on both keys) ordered the
+    // same two players the opposite way. One league, two contradicting tables.
     if (steps.length) {
         const tables = buildMatchTables(matches);
         assertTablesFor(steps, tables, 'rankings.js');
         let i = 0;
         while (i < rows.length) {
             let j = i + 1;
-            while (j < rows.length && rows[j][primary] === rows[i][primary]) j++;
+            while (j < rows.length
+                   && rows[j][primary] === rows[i][primary]
+                   && secKey(rows[j]) === secKey(rows[i])) j++;
             if (j - i > 1) {
                 const resolved = resolveTie(rows.slice(i, j), steps, tables);
                 rows.splice(i, j - i, ...resolved);

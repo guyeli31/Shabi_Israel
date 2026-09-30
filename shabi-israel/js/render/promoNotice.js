@@ -43,9 +43,17 @@
  * ── HOW TO REMOVE ───────────────────────────────────────────────────────────
  *   1. delete this file, promoWindow.js, assets/promo/promo-config.json and
  *      scripts/build-promo-window.mjs
- *   2. in js/analytics.js: drop both imports, PROMO_BANNER, the promo_banner
- *      line in baseFields(), and the mountPromoNotice() call
- *   3. optional: the 🎉 CLICK_TYPE_ICONS entries + promoMarkHtml in
+ *   2. in js/analytics.js: drop both imports, IS_APP_PAGE, PROMO_BANNER, the
+ *      promo_banner line in baseFields(), the shabi:promo-shown listener, and
+ *      the mountPromoNotice() call
+ *   3. in js/render/landingPage.js: drop the mountComingSoonSection import and
+ *      its call. Easy to miss, and a missing import is a hard ES-module error
+ *      that takes the WHOLE landing page down, not just the section.
+ *   NOTE: js/render/leagueArt.js is NOT part of this. A UBC league's artwork
+ *      is a property of the league TYPE and outlives any campaign; it merely
+ *      uses the same photograph, and holds its own copy under
+ *      assets/league-art/. Deleting everything here leaves it untouched.
+ *   4. optional: the 🎉 CLICK_TYPE_ICONS entries + promoMarkHtml in
  *      js/render/analyticsPage.js, the promo_banner column and its projections
  *      in sql/analytics_poc.sql, promo-lab.html, tools/START_PROMO_LAB.bat,
  *      scripts/build-promo-manifest.mjs
@@ -766,12 +774,7 @@ ${Object.entries(TIER_COLORS).map(([tier, c]) => (
     vertical-align: middle;
 }
 .promo-soon-art { position: absolute; inset: 0; z-index: 0; }
-.promo-soon-card .promo-art-scrim {
-    background:
-        linear-gradient(to bottom,
-            color-mix(in srgb, var(--header-bg) 45%, transparent) 0%,
-            color-mix(in srgb, var(--header-bg) 88%, transparent) 100%);
-}
+
 .promo-soon-card > .league-card-title,
 .promo-soon-card > .league-card-meta,
 .promo-soon-card > .league-card-leader { position: relative; z-index: 1; }
@@ -1080,13 +1083,41 @@ const COMING_SOON_SECTION_CLASS = 'promo-soon-section';
  * Idempotent — an existing section is replaced, so a landing-page re-render
  * cannot stack two of them.
  */
+/**
+ * The upcoming leagues, as a LIST.
+ *
+ * `comingSoon` may be a single object (the original shape, and what
+ * promo-config.json still holds) or an array. Both are accepted so an existing
+ * config keeps working untouched; everything downstream sees a list.
+ *
+ * Entries with no title are dropped rather than rendered as a nameless card —
+ * that is what makes "no upcoming leagues" an expressible state instead of a
+ * card with a blank heading.
+ */
+export function comingSoonList(cfg) {
+    const raw = cfg && cfg.comingSoon;
+    const arr = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+    return arr.filter((s) => s && typeof s.title === 'string' && s.title.trim());
+}
+
 export async function mountComingSoonSection(container) {
     if (!container) return;
+    // Unconditional, and BEFORE any early return: this is what removes the
+    // section on the render where it stops qualifying — the day the window
+    // closes, or the moment the last upcoming league is taken out of the
+    // config. Without it the heading would survive its own content.
     container.querySelectorAll('.' + COMING_SOON_SECTION_CLASS).forEach((el) => el.remove());
 
     const cfg = await loadPromoConfig();
-    const soon = cfg.comingSoon;
-    if (!soon || !soon.title || !promoWindowOpen(cfg)) return;
+    const upcoming = comingSoonList(cfg);
+    /* THE WHOLE SECTION goes, heading included — never an empty "Coming Soon"
+       with nothing under it. Two ways to reach that:
+         • the announcement's window has closed, so the campaign is over
+         • there are no upcoming leagues left to advertise
+       The first is what ties this section's lifetime to the PROMOTION's: both
+       stop on the same day, from the same date window, with nothing to
+       remember to switch off. */
+    if (!upcoming.length || !promoWindowOpen(cfg)) return;
 
     injectPromoStyles();
 
@@ -1108,15 +1139,10 @@ export async function mountComingSoonSection(container) {
        cut above the subject and 'bottom' showed only the very edge, which is
        what prompted widening this scale from three stops to five.
        Overridable per card via comingSoon.artPos if a future image needs it. */
-    const pos = ART_POSITIONS.find((p) => p.id === soon.artPos) || ART_POS_DEFAULT;
-    const typeClass = `type-${soon.leagueType || 'ubc'}`;
-    const typeLabel = String(soon.leagueType || 'ubc').toUpperCase();
-
-    section.innerHTML = `
-        <h2 class="app-section-h2">${escapeHtml(COMING_SOON_HEADING)}</h2>
-        <div class="active-leagues-wrapper">
-            <div class="active-leagues-grid">
-                <div class="league-card promo-soon-card" data-league-type="${escapeHtml(soon.leagueType || 'ubc')}">
+    const cardsHtml = upcoming.map((soon) => {
+        const type = soon.leagueType || 'ubc';
+        return `
+                <div class="league-card promo-soon-card" data-league-type="${escapeHtml(type)}">
                     ${art ? `<div class="promo-art promo-soon-art">
                         <div class="promo-art-img"></div>
                         <div class="promo-art-hue"></div>
@@ -1129,22 +1155,38 @@ export async function mountComingSoonSection(container) {
                                 data-track="UBC promo: coming soon card">${escapeHtml(soon.title)}</button>
                     </div>
                     <div class="league-card-meta">
-                        <span class="league-type-pill ${typeClass}">${escapeHtml(typeLabel)}</span>
+                        <span class="league-type-pill type-${escapeHtml(type)}">${escapeHtml(String(type).toUpperCase())}</span>
                         <span class="status-pill promo-soon-status">${escapeHtml(COMING_SOON_PILL)}</span>
                     </div>
                     <div class="league-card-leader promo-soon-leader" aria-hidden="true"></div>
-                </div>
-            </div>
+                </div>`;
+    }).join('');
+
+    section.innerHTML = `
+        <h2 class="app-section-h2">${escapeHtml(COMING_SOON_HEADING)}</h2>
+        <div class="active-leagues-wrapper">
+            <div class="active-leagues-grid">${cardsHtml}</div>
         </div>`;
 
+    /* Artwork is set per card, from each card's OWN crop.
+       The crop deliberately does not inherit the modal's: the modal's frame is
+       tall and portrait-ish, a card is a short 240x107 landscape strip, and a
+       setting that frames the photo well in one crops badly in the other —
+       "Bottom" suits the modal but leaves this strip showing only the bottom
+       edge. 'lower' (75%) rather than a stop at either extreme: dead centre cut
+       above the subject and 'bottom' showed only the very edge, which is what
+       prompted widening this scale from three stops to five.
+       Overridable per entry via its own artPos if a future image needs it. */
     if (art) {
-        const card = section.querySelector('.promo-soon-card');
-        card.style.setProperty('--art-fallback', art.fallbackCss);
-        card.style.setProperty('--art-image', art.url ? `url("${art.url}")` : 'none');
-        card.style.setProperty('--art-blend', treat.blend);
-        card.style.setProperty('--art-filter', treat.filter);
-        card.style.setProperty('--art-pos', pos.css);
-        card.style.setProperty('--art-mix', art.url ? (cfg.mix ?? 50) / 100 : 0);
+        section.querySelectorAll('.promo-soon-card').forEach((card, i) => {
+            const pos = ART_POSITIONS.find((p) => p.id === upcoming[i].artPos) || ART_POS_DEFAULT;
+            card.style.setProperty('--art-fallback', art.fallbackCss);
+            card.style.setProperty('--art-image', art.url ? `url("${art.url}")` : 'none');
+            card.style.setProperty('--art-blend', treat.blend);
+            card.style.setProperty('--art-filter', treat.filter);
+            card.style.setProperty('--art-pos', pos.css);
+            card.style.setProperty('--art-mix', art.url ? (cfg.mix ?? 50) / 100 : 0);
+        });
     }
 
     /* Inserted directly after Active Leagues, not appended.

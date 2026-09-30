@@ -109,6 +109,32 @@ export const TIEBREAK_RULES = {
 };
 
 /**
+ * A ranking key at the precision the SITE SHOWS it, so "level" means what a
+ * reader sees rather than what a float holds.
+ *
+ * Mean PR is printed to two decimals and compared at full precision, and those
+ * are not the same question. September 2026 ended with two players on identical
+ * Win% and a PR of 4.91204167 against 4.91233333 — three ten-thousandths apart,
+ * indistinguishable in every table on the site. The float separated them, so the
+ * tiebreak cascade never ran, and the Monte Carlo placed the same one ahead in
+ * all 50 000 iterations: 95.1% to make the top six against 47.0%, from a gap no
+ * column could show. A difference nobody can see is not a difference a ranking
+ * should be decided by; a genuine tie should reach the next criterion.
+ *
+ * Quantising at COMPARISON time (never on the stored value) is what makes the
+ * two runtimes agree: the rendered table and the 50 000-iteration loop ask this
+ * one function whether two players are level.
+ *
+ * @param {number} value  the raw key
+ * @param {number|null} digits  decimals the key is displayed to; null = compare raw
+ */
+export function rankKey(value, digits) {
+    if (digits == null || typeof value !== 'number' || !Number.isFinite(value)) return value;
+    const f = 10 ** digits;
+    return Math.round(value * f) / f;
+}
+
+/**
  * Every league type's policy must END in a total order.
  *
  * A policy that can run out while players are still level does not mean "they

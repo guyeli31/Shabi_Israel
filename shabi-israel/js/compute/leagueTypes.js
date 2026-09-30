@@ -9,6 +9,12 @@
  * Monte Carlo) reads this list; neither hard-codes a rule. Reorder it or extend
  * it here and both follow.
  *
+ * `ranking.secondaryRound` is the other half of the same idea: the number of
+ * decimals the secondary key is DISPLAYED to. Two players level at that
+ * precision are level, full stop, and go on to the cascade — a PR gap of
+ * 0.0003 is not a ranking, it is a rounding artefact no column can show.
+ * Omit it (REGULAR ranks on whole wins) to compare the raw value.
+ *
  * Every list must END in a total order (today: 'tbAlphabetical'), and that is enforced at
  * import — see assertPolicy. A list that can run out while players are still
  * level does not mean "they are equal": it means each engine falls back to its
@@ -30,6 +36,7 @@ const DOUBLING_CONFIG = {
     showWinRate: true,
     showPRWins: false,
     ranking: { primary: 'winRate', primaryDir: 'desc', secondary: 'meanPR', secondaryDir: 'asc',
+               secondaryRound: 2,
                tiebreaks: ['tbAlphabetical'] },
     playerResultMode: 'winloss'
 };
@@ -52,6 +59,7 @@ const UBC_CONFIG = {
     showWinRate: false,
     showPRWins: true,
     ranking: { primary: 'avgPoints', primaryDir: 'desc', secondary: 'meanPR', secondaryDir: 'asc',
+               secondaryRound: 2,
                tiebreaks: ['tbAlphabetical'] },
     playerResultMode: 'points'
 };

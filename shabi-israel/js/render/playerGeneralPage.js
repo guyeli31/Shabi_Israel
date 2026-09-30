@@ -986,6 +986,12 @@ function renderMatchup(panel, playerName, allRows) {
         const link = e.target.closest('.c4-opp-link');
         if (!link) return;
         const name = link.dataset.name;
+        // Analytics: this is an in-place H2H lookup against THIS player, not a
+        // navigation to the opponent's card — so it is announced as "H2H: vs
+        // <opponent>" exactly like the search picker below (dispatch, not a
+        // "Player link:"), naming the opponent so the log enriches it. Mirrors
+        // the onPick at wireH2HPicker.
+        window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `H2H: vs ${name}` } }));
         // setValue, not `input.value = name` — this jump comes from outside the
         // list, so the field's identity chrome has to be repointed with the text
         // or it keeps the PREVIOUS opponent's flag and title badges. It also

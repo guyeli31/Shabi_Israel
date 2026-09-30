@@ -18,6 +18,9 @@
  */
 
 import { formatMatchStamp, formatMatchDay, isDayOnly } from '../utils/matchTime.js';
+/* A league TYPE's own visual identity. NOT the UBC announcement, which merely
+   uses the same photograph and expires on its own date — see leagueArt.js. */
+import { applyLeagueTypeArt, leagueTypeHasArt } from './leagueArt.js';
 
 const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -170,4 +173,13 @@ export function renderV16Header(target, data, opts = {}) {
             </div>
         </div>
     `;
+
+    /* A UBC league's header carries its type's artwork, matching its card on
+       the landing page. 'hero' selects the header's own crop and visible
+       height: a setting that frames a 107px card strip crops a tall band
+       badly. */
+    if (leagueTypeHasArt(data.type)) {
+        const hero = target.querySelector('.lh16-hero');
+        if (hero) applyLeagueTypeArt(hero, data.type, 'hero');
+    }
 }

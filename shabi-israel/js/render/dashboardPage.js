@@ -984,12 +984,17 @@ function renderSummaryCards(ctx) {
    the only question the old "Games Played" count couldn't: is the league on
    time? */
 
-// A league is behind schedule once the calendar has moved this much further
-// than the games have (0.10 = ten percentage points). Below it the two readings
-// are effectively in step (a single missing match on a small league is a few
-// points on its own), so anything inside the band — and anything AHEAD of the
-// calendar — is green.
-const PROGRESS_GAP_TOLERANCE = 0.10;
+// Three tones, by how far the calendar has run ahead of the games:
+//   gap ≤ 0            → green  (on schedule, or ahead of the calendar)
+//   0 < gap ≤ 0.10     → orange (slightly behind)
+//   gap > 0.10         → red    (more than ten percentage points behind)
+const PROGRESS_GAP_SEVERE = 0.10;
+
+function progressState(gap) {
+    if (gap > PROGRESS_GAP_SEVERE) return 'severe';
+    if (gap > 0) return 'behind';
+    return 'on-track';
+}
 
 /**
  * Games + calendar progress for the League Progress card.
@@ -1016,9 +1021,9 @@ function computeLeagueProgress(params, matchStats) {
         : null;
 
     // Behind = the calendar has run further than the games have. Ahead needs no
-    // warning, so the comparison is one-sided.
-    const behind = days ? days.pct - games.pct > PROGRESS_GAP_TOLERANCE : false;
-    return { games, days, behind };
+    // warning, so the comparison is one-sided. No window → nothing to be behind.
+    const state = days ? progressState(days.pct - games.pct) : 'on-track';
+    return { games, days, state };
 }
 
 /**
@@ -1045,8 +1050,7 @@ function progressRowHtml(label, value, pct, title) {
 }
 
 function leagueProgressHtml(params, matchStats) {
-    const { games, days, behind } = computeLeagueProgress(params, matchStats);
-    const state = behind ? 'is-behind' : 'is-on-track';
+    const { games, days, state } = computeLeagueProgress(params, matchStats);
     const rows = [
         progressRowHtml('Matches', `${games.played} / ${games.total}`, games.pct,
             `${games.played} of ${games.total} scheduled matches played`),
@@ -1059,9 +1063,11 @@ function leagueProgressHtml(params, matchStats) {
         const dayInProgress = Math.min(Math.floor(days.elapsed) + 1, days.total);
         const where = `Day ${dayInProgress} of ${days.total}`;
         rows.push(progressRowHtml('Days', `${formatDayCount(days.elapsed)} / ${days.total}`, days.pct,
-            behind
-                ? `${where} — the schedule is behind the calendar`
-                : `${where} — the schedule is keeping up with the calendar`));
+            state === 'severe'
+                ? `${where} — the schedule is well behind the calendar`
+                : state === 'behind'
+                    ? `${where} — the schedule is slightly behind the calendar`
+                    : `${where} — the schedule is keeping up with the calendar`));
     } else if (durationMode(params) === 'unlimited') {
         // Say WHY there's no Days bar. A league that runs open-endedly is never
         // "behind the calendar" — there is no calendar to be behind — and a
@@ -1069,7 +1075,7 @@ function leagueProgressHtml(params, matchStats) {
         // deliberate setting it is.
         rows.push(`<div class="dash-prog-note" title="This league has no end date, so there is no time progress to show">No time limit</div>`);
     }
-    return `<div class="dash-progress ${state}">${rows.join('')}</div>`;
+    return `<div class="dash-progress is-${state}">${rows.join('')}</div>`;
 }
 
 // Measures the rendered width of sticky col-1 and writes --col1-w on the wrapper
@@ -2136,7 +2142,72 @@ function renderWhatIfSimulator(ctx) {
     addBtn.addEventListener('click', addMatch);
     inputB.addEventListener('keydown', (e) => { if (e.key === 'Enter') addMatch(); });
 
+    /**
+     * The scenario's own probability: the product of the per-match odds of the
+     * results the user actually selected — the very numbers printed on the
+     * chosen `A wins` / `B wins` buttons, from the same `winOdds`, so the figure
+     * on Run Simulation can be checked by multiplying what is on screen.
+     *
+     * A match set to Not Played is a fixture being REMOVED from the season, not
+     * an outcome with a likelihood, so it contributes no factor. A scenario made
+     * only of those has no probability at all (rather than 100%, which would
+     * assert something the model never said), and returns null — as does a
+     * scenario whose odds have not loaded yet, matching the buttons, which stay
+     * bare rather than print a placeholder.
+     */
+    const scenarioOdds = () => {
+        let p = 1;
+        let counted = 0;
+        const factors = [];
+        for (const s of staged) {
+            if (s.result === 'NP') continue;
+            const odds = winOdds(s.a, s.b);
+            if (!odds) return null;
+            const side = s.result === 'A' ? odds.a : odds.b;
+            p *= side / 100;
+            factors.push(side);
+            counted++;
+        }
+        if (counted === 0) return null;
+        return { pct: p * 100, counted, skipped: staged.length - counted, factors };
+    };
+
+    /**
+     * Percentages stay readable across the whole range a product reaches: five
+     * coin-flips land near 3%, fifteen near a thousandth of one. Fixed decimals
+     * would collapse the tail to "0.00%" — every unlikely scenario rendered
+     * identically — so below a hundredth of a percent the precision grows to
+     * keep two significant digits.
+     */
+    const fmtScenarioPct = (p) => {
+        if (p >= 1) return `${p.toFixed(1)}%`;
+        if (p >= 0.01) return `${p.toFixed(2)}%`;
+        if (!(p > 0)) return '0%';
+        return `${p.toFixed(Math.min(12, Math.ceil(-Math.log10(p)) + 1))}%`;
+    };
+
+    /**
+     * The Run Simulation label, carrying the scenario's likelihood exactly as
+     * each row's button carries the match's. Also the single place the button's
+     * text is restored after a run, so the figure cannot be lost by a reset.
+     */
+    function paintRunBtn() {
+        const sc = scenarioOdds();
+        if (!sc) {
+            runBtn.textContent = 'Run Simulation';
+            runBtn.removeAttribute('title');
+            return;
+        }
+        runBtn.innerHTML = `Run Simulation<span class="whatif-odds">${escapeHtml(fmtScenarioPct(sc.pct))}</span>`;
+        const chain = sc.factors.map(v => `${v.toFixed(1)}%`).join(' × ');
+        runBtn.title = `Chance of all ${sc.counted} chosen result${sc.counted === 1 ? '' : 's'} happening: ${chain}`
+            + ` at ${matchLengthForIdx(mlIdx)} points`
+            + (sc.skipped ? ` — ${sc.skipped} match${sc.skipped === 1 ? '' : 'es'} set to Not Played, which carry no odds` : '')
+            + (sc.pct > 0 && sc.pct < 50 ? ` (about 1 in ${Math.round(100 / sc.pct).toLocaleString('en-US')})` : '');
+    }
+
     function renderStaged() {
+        paintRunBtn();
         if (staged.length === 0) {
             stagedHost.innerHTML = '<div class="whatif-empty">No matches staged yet. Add one above to start your scenario.</div>';
             return;
@@ -2435,7 +2506,9 @@ function renderWhatIfSimulator(ctx) {
             console.error('What-if simulator error:', err);
         } finally {
             runBtn.disabled = false;
-            runBtn.textContent = 'Run Simulation';
+            // Restores the label WITH the scenario's likelihood — a plain reset
+            // here would silently drop the figure after the first run.
+            paintRunBtn();
         }
     }
 

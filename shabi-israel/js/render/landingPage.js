@@ -43,6 +43,10 @@ import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
 import { mountAppTabs } from './appTabs.js';
 // TEMPORARY — delete with js/render/promoNotice.js once the UBC launch has run.
 import { mountComingSoonSection } from './promoNotice.js';
+/* A league TYPE's own visual identity — deliberately NOT from promoNotice.js.
+   The UBC announcement happens to use the same photograph; the two are
+   otherwise unrelated and have different lifetimes (see leagueArt.js). */
+import { applyLeagueTypeArt, leagueTypeHasArt } from './leagueArt.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
 import { mountPillTabs, ALL_TYPES_ID, ALL_TYPES_TAB } from './subTabs.js';
@@ -1251,6 +1255,17 @@ function renderActiveLeagues(container, runningInput) {
     setupScrollArrows(section);
 
     container.appendChild(section);
+
+    /* A UBC card wears its league type's artwork, so the league looks like
+       itself rather than like a generic card that happens to carry a purple
+       pill. Synchronous — the artwork is a module constant, so it lands in the
+       same frame as the card and never restyles under the reader.
+       applyLeagueTypeArt is a no-op for every type with no artwork. */
+    for (const l of running) {
+        if (!leagueTypeHasArt(l.leagueType)) continue;
+        const card = section.querySelector(`.league-card[data-league-id="${CSS.escape(l.id)}"]`);
+        if (card) applyLeagueTypeArt(card, l.leagueType, 'card');
+    }
 }
 
 function setupScrollArrows(section) {
