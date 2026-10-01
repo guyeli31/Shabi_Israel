@@ -27,7 +27,7 @@ import { startSplash, splashStage, endSplash } from '../utils/splash.js';
 import { renderErrorScreen, explainError } from '../utils/errorScreen.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
 import { colorForLevel } from '../compute/colorScale.js';
-import { getLeagueConfig, typeTracksPR, typeTracksLuck } from '../compute/leagueTypes.js';
+import { getLeagueConfig, typeTracksPR, typeTracksLuck, leagueTypeRank } from '../compute/leagueTypes.js';
 import {
     getQueryParam, flagUrl,
     formatNumber, leagueUrl, playerUrl, getLeagueYear, leagueTableUrl, thLabel,
@@ -322,10 +322,26 @@ function renderHeader(playerName, perLeague, meta = {}) {
 // ---- G3: PR stats ----
 
 async function renderPRStats(section, playerName, perLeague) {
-    const PR_TYPE_ORDER = ['doubling', 'regular', 'ubc'];
-    const typesWithPR = PR_TYPE_ORDER.filter(t =>
-        perLeague.some(e => e.league.config.showPR && e.league.leagueType === t)
-    );
+    // DERIVED, NEVER DECLARED — three questions, three single sources.
+    //
+    // This was a hand-written `['doubling', 'regular', 'ubc']`, which is the
+    // copy-of-the-policy CLAUDE.md bans: it claimed REGULAR tracks PR (wrong,
+    // and harmless only because the showPR test beside it caught the lie), it
+    // was an ALLOWLIST so a future PR-tracking type would silently never appear
+    // here at all, and its order disagreed with leagueTypeRank's canonical
+    // doubling → ubc → regular.
+    //
+    //   who is a candidate  → the types this player has actually played
+    //   who qualifies       → typeTracksPR, the policy itself
+    //   in what order       → leagueTypeRank, the one display order
+    //
+    // `|| 'doubling'` matches how every other reader treats the DB column: a
+    // league row may carry a null league_type, and an unnormalised undefined
+    // would pass typeTracksPR (unknown types fall back to the doubling config)
+    // and then build a pill with no id.
+    const typesWithPR = [...new Set(perLeague.map(e => e.league.leagueType || 'doubling'))]
+        .filter(typeTracksPR)
+        .sort((a, b) => leagueTypeRank(a) - leagueTypeRank(b));
 
     if (typesWithPR.length === 0) {
         section.innerHTML += '<div class="pg-note">No leagues with PR tracking.</div>';

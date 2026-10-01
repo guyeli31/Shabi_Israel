@@ -1901,6 +1901,79 @@
     border-color: var(--color-accent);
 }
 
+/* UBC only — the outcome matrix. Four cells, one per complete outcome, with the
+   row and column margins beside them. Replaces the old "Lower PR: A | B" pair:
+   a UBC match settles two correlated questions, and two button pairs could only
+   show them as if they were independent.
+
+   THE CELLS ARE CONTROLS, THE MARGINS ARE NOT. That distinction is the whole
+   safety property — a clickable margin would be a half-answer — so it is carried
+   by every channel at once: the cells are <button>, bordered and raised; the
+   margins are <span>, borderless, muted and not focusable. */
+.whatif-matrix {
+    display: grid;
+    grid-template-columns: auto repeat(3, minmax(0, 1fr));
+    gap: 2px;
+    align-items: center;
+    margin-left: auto;
+    font-size: var(--fs-078);
+    font-variant-numeric: tabular-nums;
+}
+.whatif-mx-head {
+    color: var(--color-text-muted);
+    font-weight: 600;
+    white-space: nowrap;
+    padding-inline: var(--space-xs);
+    text-align: right;
+}
+/* Row labels hug the cells to their right; column labels sit centred over
+   their column, exactly like the cells and margins beneath them. */
+.whatif-mx-head.is-col { text-align: center; }
+.whatif-mx-head.is-margin { font-weight: 400; font-style: italic; }
+.whatif-mx-corner { display: block; }
+
+.whatif-mx-cell {
+    padding: 3px 10px;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: inherit;
+    font-weight: 600;
+    font-variant-numeric: inherit;
+}
+.whatif-mx-cell:hover { color: var(--color-text); }
+.whatif-mx-cell.active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-bg);
+}
+
+/* Not a control: no border, no hover, no pointer. It reports, it does not ask. */
+.whatif-mx-margin {
+    padding: 3px var(--space-xs);
+    color: var(--color-text-muted);
+    font-weight: 400;
+    font-variant-numeric: inherit;
+    text-align: center;
+    cursor: default;
+}
+
+/* NP lives outside the matrix — a match that never happened is not one of the
+   four outcomes, it is the absence of all four. */
+.whatif-np { border-radius: var(--radius-sm); margin-left: var(--space-xs); }
+
+/* An unanswered row, called out where the eye already is. Run Simulation is
+   disabled while any of these remain, and "disabled" has to point somewhere. */
+.whatif-pending {
+    color: var(--color-warning, #f59e0b);
+    font-size: var(--fs-078);
+    font-weight: 600;
+    white-space: nowrap;
+}
+.whatif-row.is-pending { border-left: 2px solid var(--color-warning, #f59e0b); }
+
 /* Last-300 PR, shown beside a player's name in the What-If pickers and on each
    staged card. A MEASUREMENT about the player, not part of their name, so it is
    muted and lighter than the name it follows — it must be readable at a glance
@@ -1996,7 +2069,6 @@
 .whatif-table thead th {
     white-space: nowrap;
 }
-
 /* The 45deg hatch keeps px stripes intentionally — pure decorative texture
    should not scale with font (would create moiré at fractional pixels). */
 .whatif-pct-bar {

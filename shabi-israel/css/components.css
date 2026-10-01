@@ -1116,3 +1116,9 @@ table.matchup-table a:hover {
     opacity: 1;
     transform: translateY(0);
 }
+
+/* The decimals of Mean PR that actually broke a tie, in the D league table.
+   Dimmed so the column still scans as "4.91" — the tail explains the ranking,
+   it does not compete with the figure everyone reads. A class and not an inline
+   style, because a literal value in markup is what the v2 style gates refuse. */
+.pr-tiebreak-digits { opacity: 0.6; }

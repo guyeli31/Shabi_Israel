@@ -336,18 +336,7 @@ export const POPUPS = [
                 <p>שני דברים קובעים את הסיכויים: <b>גודל הפער ב-PR</b> בין השחקנים, ו<b>אורך הדו קרב</b>. פער גדול יותר מטה את הסיכויים לטובת השחקן החזק, ודו קרבות ארוכים יותר נותנים למועדף יותר מקום להתרחק (המזל מתאזן על פני יותר דו קרבות).</p>
                 ${prTableSection('he')}
                 <h4>שבירת שוויון</h4>
-                <p>כששחקנים מסיימים שווים בניקוד הראשי של הליגה, השוויון נשבר בצורה שונה בהתאם לסוג הליגה:</p>
-                <ul>
-                    <li>ליגות ${leagueTypePill('doubling')} ו-${leagueTypePill('ubc')}: השחקן עם ה-<b>PR הממוצע</b> הטוב יותר (נמוך יותר) לאורך העונה מדורג גבוה יותר.</li>
-                    <li>ליגות ${leagueTypePill('regular')}: השוויון נשבר בארבעה שלבים, כשכל שלב פועל רק על מי שעדיין שווים אחרי הקודם:
-                        <ol>
-                            <li>התוצאה ה<b>ישירה</b> בין השחקנים השווים — מי ניצח יותר דו קרבות מולם.</li>
-                            <li>אם גם בזה הם שווים (בשוויון משולש, למשל, כל אחד יכול לנצח אחד ולהפסיד אחד), קובע <b>הפרש הנקודות באותם דו קרבות עצמם</b>: ניצחון 5-2 שווה 3+, הפסד 5-4 שווה 1−. מי שניצח בגדול והפסיד בקושי עולה על מי שניצח בקושי והפסיד בגדול.</li>
-                            <li>אם גם עכשיו הם שווים — <b>הפרש הנקודות מכל הדו קרבות</b> שלהם בליגה, מול כל היריבים.</li>
-                            <li>ולבסוף, סדר אלפביתי.</li>
-                        </ol>
-                    </li>
-                </ul>
+                <p>כל עונה מדומה מדורגת בדיוק לפי סדר שבירת השוויון של הליגה, שמוצג בסקשן <b>Tiebreakers</b> בלשונית Standings.</p>
                 <h4>טווח טעות</h4>
                 <p>מכיוון שהתוצאה מבוססת על סימולציה אקראית, האחוז המוצג של המוביל נושא אי-ודאות קטנה. ה<b>± המוצג</b> הוא טווח ביטחון של 95% — ריצת סימולציות נוספות מצמצמת אותו. הוא משקף רק את האקראיות של הסימולציה עצמה.</p>
             ` : `
@@ -359,18 +348,7 @@ export const POPUPS = [
                 <p>Two things decide the winner's odds: <b>how big the PR gap is</b> between the players, and <b>how long the match is</b>. A bigger gap favours the stronger player, and longer matches give the favourite more room to pull ahead (luck evens out over more games).</p>
                 ${prTableSection('en')}
                 <h4>Breaking a tie</h4>
-                <p>When players finish level on the league's main score, the tie is settled differently depending on the league:</p>
-                <ul>
-                    <li>${leagueTypePill('doubling')} &amp; ${leagueTypePill('ubc')} leagues: the player with the better (lower) <b>average PR</b> across the season comes out ahead.</li>
-                    <li>${leagueTypePill('regular')} leagues: the tie is settled in four steps, each applied only to whoever is still level after the one before:
-                        <ol>
-                            <li>The <b>direct result</b> between the tied players — who won more of the matches among them.</li>
-                            <li>If that is level too (in a three-way tie each can win one and lose one), the <b>points difference in those same matches</b> decides: winning 5-2 counts +3, losing 5-4 counts −1. Winning big and losing narrowly beats winning narrowly and losing big.</li>
-                            <li>Still level — the <b>points difference across all their league matches</b>, against every opponent.</li>
-                            <li>Finally, alphabetically.</li>
-                        </ol>
-                    </li>
-                </ul>
+                <p>Every imagined season is ranked by exactly the league's tiebreak order, shown in the <b>Tiebreakers</b> section of the Standings tab.</p>
                 <h4>Margin of Error</h4>
                 <p>Because the result comes from random simulation, the leader's percentage carries a small uncertainty. The <b>± figure</b> shown is a 95% confidence range — run more simulations and it shrinks. It reflects the randomness of the simulation only.</p>
             `;
@@ -389,6 +367,7 @@ export const POPUPS = [
                 <ul>
                     <li>דו קרבות ששוחקו כבר נטענים עם התוצאה האמיתית שלהם וניתן לדרוס אותה.</li>
                     <li>דו קרבות שלא שוחקו מתחילים כ-<i>לא שוחק</i> — בחרו מנצח כדי לקבוע את התוצאה.</li>
+                    <li>בליגות ${leagueTypePill('ubc')} יש לבחור לא רק את <b>מנצח הדו קרב</b>, אלא גם את <b>מנצח ה-PR</b> — מי ששיחק ב-PR הנמוך יותר.</li>
                     <li>החיפוש של שחקן B מצטמצם לשחקנים שיש להם דו קרב מתוזמן משותף עם שחקן A.</li>
                     <li><b>הרצה מ־</b> מאפשרת להתחיל את התרחיש מגרסה שמורה קודמת של הליגה במקום מהמצב האחרון.</li>
                 </ul>
@@ -400,6 +379,7 @@ export const POPUPS = [
                 <ul>
                     <li>Already-played matches load with their real result and can be overridden.</li>
                     <li>Unplayed matches start as <i>Not Played</i> — pick a winner to lock the outcome.</li>
+                    <li>In ${leagueTypePill('ubc')} leagues, pick not only the <b>match winner</b> but also the <b>PR winner</b> — whoever played the lower PR.</li>
                     <li>Player B's search narrows to players who share a scheduled match with Player A.</li>
                     <li><b>Run from</b> lets you start the scenario from an earlier saved version of the league instead of the latest state.</li>
                 </ul>

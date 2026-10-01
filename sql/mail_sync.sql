@@ -278,6 +278,22 @@ begin
     returning id into batch;
     perform set_config('app.batch_id', batch::text, true);
 
+    -- Close the report BEFORE touching matches — the order is the fix, not style.
+    -- The UPDATE below fires trg_matches_mail_rescan (sql/mail_rescan_pending.sql),
+    -- which sweeps every report still 'pending_assign'. With this update placed
+    -- after the write, the sweep found THIS report still pending, saw the league
+    -- just written as played, found the one league left — and auto-applied the
+    -- same result to it. Every admin pick between exactly two leagues was written
+    -- into both (repair: sql/repair_mail_double_apply_2026-10-02.sql).
+    update public.match_reports
+       set status = 'applied',
+           league_id = p_league_id,
+           match_id = cand.match_id,
+           auto_applied = coalesce(auto_applied, false),
+           resolved_at = now(),
+           resolved_by = who
+     where id = p_report_id;
+
     update public.matches
        set score_a = f_score_a, score_b = f_score_b,
            pr_a    = f_pr_a,    pr_b    = f_pr_b,
@@ -307,15 +323,6 @@ begin
             has_exact_time = excluded.has_exact_time;
 
     update public.leagues set last_updated = now() where id = p_league_id;
-
-    update public.match_reports
-       set status = 'applied',
-           league_id = p_league_id,
-           match_id = cand.match_id,
-           auto_applied = coalesce(auto_applied, false),
-           resolved_at = now(),
-           resolved_by = who
-     where id = p_report_id;
 
     perform set_config('app.batch_id', '', true);
 

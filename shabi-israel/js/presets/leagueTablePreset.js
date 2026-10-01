@@ -199,7 +199,7 @@ export function buildLeagueTablePreset({ rankings, averages, params, leagueConfi
                   const head = s.slice(0, s.indexOf('.') + 3);
                   const tail = s.slice(s.indexOf('.') + 3);
                   return `<span title="Tied on the main score — this is where Mean PR separates them">`
-                       + `${head}<span style="opacity:.6">${tail}</span></span>`;
+                       + `${head}<span class="pr-tiebreak-digits">${tail}</span></span>`;
               } },
             { key: 'level',  label: 'Level', type: 'string', sortable: true, colorFn: null,
               sortKey: row => row.meanPR,

@@ -142,6 +142,15 @@ export function typeTracksPR(leagueType) {
 export function typeTracksLuck(leagueType) {
     return configFor(leagueType).showLuck !== false;
 }
+/**
+ * Does a match in this league type award a separate point to whoever played
+ * the lower PR (UBC: match point + PR point)? A result entered by hand — the
+ * What-If panel — must then name that player as well as the winner, or the PR
+ * point silently goes to nobody.
+ */
+export function typeAwardsPRPoint(leagueType) {
+    return configFor(leagueType).showPRWins === true;
+}
 
 /**
  * Match weight for the "last 300 PR" rolling window. Per LEAGUE, not per query:

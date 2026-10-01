@@ -14,7 +14,7 @@ import { playerNameLink, attachPlayerNameInteractions } from './playerNameIntera
 import { getMatchesAsOf, getUpdatePoints, buildMatchTimeline, mergeHistoryIntoMatches, matchKey, resultSides, describeResult, formatAxisDay, INITIAL_POINT } from '../compute/matchHistory.js';
 import { computeAllStats } from '../compute/stats.js';
 import { rankLeague, computeAverages, computeMatchStats } from '../compute/rankings.js';
-import { getLeagueConfig, rankingSteps } from '../compute/leagueTypes.js';
+import { getLeagueConfig, rankingSteps, typeTracksPR, typeAwardsPRPoint } from '../compute/leagueTypes.js';
 import { elapsedInWindow, durationMode } from '../compute/leagueDuration.js';
 import { buildPrizeRows, formatPrize, getMedalPlaces } from '../compute/prizeRows.js';
 import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagueUrl, leagueUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
@@ -25,7 +25,7 @@ import { drawCorrelationRow, drawHistogramRow } from './prCorrelationChart.js';
 import { luckConfidenceFromItems } from '../compute/luckConfidence.js';
 import { applyLuckPill } from './luckPill.js';
 import { renderBreadcrumbs } from './navigation.js';
-import { predictChampionship, computeTopXPct, prProbabilityTableHtml, getWinProbability, nearestMatchLengthIdx, matchLengthForIdx, effectivePRFor } from '../compute/championshipPredictor.js';
+import { predictChampionship, computeTopXPct, prProbabilityTableHtml, getWinProbability, nearestMatchLengthIdx, matchLengthForIdx, effectivePRFor, stagedOutcomeOdds } from '../compute/championshipPredictor.js';
 import { pmTableHtml } from '../../table-lab/formats/pm/mount.js';
 import { getPopup, leagueTypePill } from '../data/popupContent.js';
 import { tableValidationExampleHistogramSvg } from './exampleHistograms.js';
@@ -1470,9 +1470,22 @@ function yieldToPaint() {
 
 function ensureLast300Map(ctx) {
     if (!ctx._last300MapPromise) {
-        // Simulator pools all non-REGULAR leagues (doubling + ubc) into one
-        // Last-300 window, regardless of this league's own type.
-        ctx._last300MapPromise = batchLast300PRForSimulator([...ctx.allPlayersSet]);
+        // A league that does not rank on PR does not consult one either: the
+        // predictor gives every unplayed REGULAR match a fair coin, and the
+        // panel prints no PR figures for it. Pooling a window out of OTHER
+        // leagues for this one would be work whose only possible use has been
+        // closed off — so the promise resolves to an empty Map instead.
+        //
+        // Empty Map, never null: every caller hands this straight to
+        // predictChampionship and to effectivePRFor, which already treat an
+        // absent player as "no rated history". A null would make the type of
+        // this value depend on the league, which is how a null-check gets
+        // forgotten in one of the three call sites.
+        ctx._last300MapPromise = typeTracksPR(ctx.leagueConfig && ctx.leagueConfig.type)
+            // Simulator pools all non-REGULAR leagues (doubling + ubc) into one
+            // Last-300 window, regardless of this league's own type.
+            ? batchLast300PRForSimulator([...ctx.allPlayersSet])
+            : Promise.resolve(new Map());
     }
     return ctx._last300MapPromise;
 }
@@ -1789,11 +1802,29 @@ function renderWhatIfSimulator(ctx) {
     let last300 = null;
     ensureLast300Map(ctx).then((m) => { last300 = m; renderStaged(); });
 
+    // ── REGULAR SHOWS NO PR FIGURES AT ALL ─────────────────────────────────
+    // The predictor no longer lets PR decide a REGULAR match (every unplayed one
+    // is a fair coin — see championshipPredictor's note), so a PR beside a name
+    // here, or a win percentage derived from it, would be the panel asserting
+    // exactly what the engine behind it refuses to assume. The pickers, the
+    // staged cards and Run Simulation therefore all go quiet for this type
+    // rather than print a number nothing stands behind.
+    const prInformsOdds = typeTracksPR(ctx.leagueConfig && ctx.leagueConfig.type);
+
+    // ── UBC: A RESULT IS TWO FACTS, NOT ONE ─────────────────────────────────
+    // A UBC match pays a point for the win AND a point for the lower PR, and
+    // those can go to different players. A staged result used to carry only the
+    // winner, and the synthetic match it became has no PR values — so stats.js
+    // scored it as technical and the PR point went to NOBODY: every forced UBC
+    // match was worth 1 point instead of 2. Each staged row in such a league
+    // therefore also names the lower-PR player (`prResult`, 'A' | 'B').
+    const needsPRWinner = typeAwardsPRPoint(ctx.leagueConfig && ctx.leagueConfig.type);
+
     const mlIdx = nearestMatchLengthIdx(ctx.params?.MatchLength ?? 7);
 
     /** `(8.42)` — the Last-300 PR, or nothing at all until the window loads. */
     const prTagHtml = (p) => {
-        if (!last300) return '';
+        if (!prInformsOdds || !last300) return '';
         const { pr, fromWindow } = effectivePRFor(last300, p);
         const entry = last300.get(p);
         const detail = fromWindow
@@ -1809,8 +1840,21 @@ function renderWhatIfSimulator(ctx) {
      * exactly as the simulation interpolates it. Returns null when the window
      * has not loaded, so the buttons render bare rather than wrong.
      */
+    /**
+     * All four outcomes of one staged match, for a league where the PR winner
+     * is a second, scored question (UBC). Returns null — and the matrix renders
+     * bare — until the Last-300 window has arrived, matching how the single-
+     * dimension buttons behave rather than printing a placeholder.
+     */
+    const outcomeOdds = (a, b) => {
+        if (!prInformsOdds || !last300) return null;
+        const pa = effectivePRFor(last300, a);
+        const pb = effectivePRFor(last300, b);
+        return stagedOutcomeOdds(pa.pr, pa.std, pb.pr, pb.std, mlIdx);
+    };
+
     const winOdds = (a, b) => {
-        if (!last300) return null;
+        if (!prInformsOdds || !last300) return null;
         const pa = effectivePRFor(last300, a).pr;
         const pb = effectivePRFor(last300, b).pr;
         const pA = getWinProbability(pa, pb, mlIdx);
@@ -1976,7 +2020,7 @@ function renderWhatIfSimulator(ctx) {
     const comboB = mountSide(inputB, 'b', inputA);
 
     // State: staged matches
-    const staged = []; // { a, b, key, result: 'NP'|'A'|'B', realWinner: 'A'|'B'|null, wasPlayed: bool }
+    const staged = []; // see stagedEntry() — { a, b, key, result: 'NP'|'A'|'B', realWinner, wasPlayed, realPRWinner, prUser }
 
     // Persist the "Show" (Top X) selection across re-runs of the simulation
     let lastTopX = 1;
@@ -2024,7 +2068,64 @@ function renderWhatIfSimulator(ctx) {
             const aWon = bm.scoreA > bm.scoreB;
             realWinner = (aWon === (bm.playerA === a)) ? 'A' : 'B';
         }
-        return { wasPlayed, realWinner };
+        // Who played the lower PR, by the same strict `<` stats.js scores with
+        // (equal PRs award the point to nobody, so they yield null here too).
+        let realPRWinner = null;
+        if (wasPlayed && bm.prA != null && bm.prB != null && bm.prA !== bm.prB) {
+            const aLower = bm.prA < bm.prB;
+            realPRWinner = (aLower === (bm.playerA === a)) ? 'A' : 'B';
+        }
+        return { wasPlayed, realWinner, realPRWinner };
+    }
+
+    /**
+     * One staged row, as both `addMatch` and `addAllUnplayed` push it — a
+     * bulk-staged row must be indistinguishable from a hand-staged one.
+     *
+     * `prUser` (UBC only) is the lower-PR side the user picked, null until they
+     * pick one — read it through `prResultOf`, never directly.
+     */
+    function stagedEntry(a, b) {
+        const { wasPlayed, realWinner, realPRWinner } = deriveBaselineState(a, b);
+        // A PLAYED match arrives carrying what actually happened; an UNPLAYED
+        // one arrives with nothing chosen. The second half changed when the
+        // staged row became a question with a probability attached: defaulting
+        // an unplayed pair to NP meant the row claimed a scenario the user had
+        // not picked, and Run Simulation could run on it. `null` is "you have
+        // not answered yet", which is what lets the panel insist on an answer.
+        return {
+            a, b, key: canonKey(a, b),
+            result: realWinner || null, realWinner, wasPlayed,
+            realPRWinner, prUser: null,
+        };
+    }
+
+    /**
+     * The lower-PR side a staged row stands for ('A' | 'B' | null for NP):
+     * the user's pick, else the real one for a played match, else the chosen
+     * winner. An unplayed match has no fact to start from, so it FOLLOWS the
+     * winner until picked — the common case costs no extra click.
+     */
+    function prResultOf(s) {
+        if (s.result === 'NP') return null;
+        // No longer falls back to the match winner. That fallback silently
+        // completed an answer the user had not given — and the PR winner is a
+        // genuinely separate event, likelier to match the match winner but far
+        // from certain (26.4% of nights the loser of the match drew the better
+        // PR, in the worked example). An unanswered row now stays unanswered.
+        return s.prUser || s.realPRWinner || null;
+    }
+
+    /**
+     * May this row be simulated? A scenario is a complete statement or it is
+     * nothing: a match needs a winner AND, where the PR is scored, a PR winner.
+     * "Not played" is complete on its own — it removes the fixture, and a
+     * fixture that never happens awards no PR point to anybody.
+     */
+    function rowComplete(s) {
+        if (s.result === 'NP') return true;
+        if (!s.result) return false;
+        return !needsPRWinner || !!prResultOf(s);
     }
 
     let baseline = computeBaseline('__current__');
@@ -2045,6 +2146,7 @@ function renderWhatIfSimulator(ctx) {
                     const st = deriveBaselineState(s.a, s.b);
                     s.wasPlayed = st.wasPlayed;
                     s.realWinner = st.realWinner;
+                    s.realPRWinner = st.realPRWinner;
                 }
                 renderStaged();
                 runSimulation(); // the shown result is stale — recompute from the new baseline
@@ -2080,14 +2182,7 @@ function renderWhatIfSimulator(ctx) {
 
         // Played-state + real result are read from the selected baseline (which
         // may be an earlier snapshot), not the always-current schedule.
-        const { wasPlayed, realWinner } = deriveBaselineState(a, b);
-
-        staged.push({
-            a, b, key,
-            result: realWinner || 'NP',
-            realWinner,
-            wasPlayed
-        });
+        staged.push(stagedEntry(a, b));
 
         // Logged only once the pair actually staged — every `return` above is a
         // rejected click that would otherwise record a match that never existed.
@@ -2145,14 +2240,7 @@ function renderWhatIfSimulator(ctx) {
         const opponents = unplayedOpponents(player);
         if (!opponents.length) { addErr.textContent = 'Nothing left to add for this player'; return; }
         addErr.textContent = '';
-        for (const opp of opponents) {
-            const { wasPlayed, realWinner } = deriveBaselineState(player, opp);
-            staged.push({
-                a: player, b: opp, key: canonKey(player, opp),
-                result: realWinner || 'NP',
-                realWinner, wasPlayed,
-            });
-        }
+        for (const opp of opponents) staged.push(stagedEntry(player, opp));
         trackWhatIf(`What if: add all — ${opponents.length} matches vs ${player}`);
         inputA.value = '';
         inputB.value = '';
@@ -2184,10 +2272,23 @@ function renderWhatIfSimulator(ctx) {
         let counted = 0;
         const factors = [];
         for (const s of staged) {
-            if (s.result === 'NP') continue;
-            const odds = winOdds(s.a, s.b);
-            if (!odds) return null;
-            const side = s.result === 'A' ? odds.a : odds.b;
+            if (s.result === 'NP' || !s.result) continue;
+            // UBC: the chosen CELL's joint probability — never the match odds
+            // times the PR odds, which would treat two outcomes of one draw as
+            // independent events and understate every same-player cell.
+            // Matches are independent OF EACH OTHER, so the product across rows
+            // stays a product.
+            let side;
+            if (needsPRWinner) {
+                const o = outcomeOdds(s.a, s.b);
+                const pr = prResultOf(s);
+                if (!o || !pr) return null;
+                side = o[s.result + pr] * 100;
+            } else {
+                const odds = winOdds(s.a, s.b);
+                if (!odds) return null;
+                side = s.result === 'A' ? odds.a : odds.b;
+            }
             p *= side / 100;
             factors.push(side);
             counted++;
@@ -2195,6 +2296,9 @@ function renderWhatIfSimulator(ctx) {
         if (counted === 0) return null;
         return { pct: p * 100, counted, skipped: staged.length - counted, factors };
     };
+
+    /** Rows the user still has to answer — Run Simulation waits for them. */
+    const pendingRows = () => staged.filter(s => !rowComplete(s)).length;
 
     /**
      * Percentages stay readable across the whole range a product reaches: five
@@ -2216,6 +2320,18 @@ function renderWhatIfSimulator(ctx) {
      * text is restored after a run, so the figure cannot be lost by a reset.
      */
     function paintRunBtn() {
+        // A half-answered scenario is not a scenario. Blocking here rather than
+        // guessing a default is the whole reason an unanswered row is `null`:
+        // the panel would otherwise simulate a constellation nobody chose and
+        // print a probability for it.
+        const pending = pendingRows();
+        runBtn.disabled = pending > 0;
+        if (pending > 0) {
+            runBtn.textContent = 'Run Simulation';
+            runBtn.title = `${pending} staged match${pending === 1 ? '' : 'es'} still need an outcome`;
+            return;
+        }
+
         const sc = scenarioOdds();
         if (!sc) {
             runBtn.textContent = 'Run Simulation';
@@ -2224,10 +2340,77 @@ function renderWhatIfSimulator(ctx) {
         }
         runBtn.innerHTML = `Run Simulation<span class="whatif-odds">${escapeHtml(fmtScenarioPct(sc.pct))}</span>`;
         const chain = sc.factors.map(v => `${v.toFixed(1)}%`).join(' × ');
-        runBtn.title = `Chance of all ${sc.counted} chosen result${sc.counted === 1 ? '' : 's'} happening: ${chain}`
+        runBtn.title = `Chance of all ${sc.counted} chosen outcome${sc.counted === 1 ? '' : 's'} happening: ${chain}`
             + ` at ${matchLengthForIdx(mlIdx)} points`
             + (sc.skipped ? ` — ${sc.skipped} match${sc.skipped === 1 ? '' : 'es'} set to Not Played, which carry no odds` : '')
+            + (needsPRWinner ? ' — each figure is one cell of that match\'s outcome table, winner and PR together' : '')
             + (sc.pct > 0 && sc.pct < 50 ? ` (about 1 in ${Math.round(100 / sc.pct).toLocaleString('en-US')})` : '');
+    }
+
+    /**
+     * The "Lower PR" pick for one staged row — UBC only, and absent for a
+     * Not Played row, which awards no points at all. Same segmented-button
+     * chrome as the result group, so it reads as the second half of one answer.
+     */
+    /**
+     * UBC — the four outcomes as a contingency table, not as two button pairs.
+     *
+     * A UBC match settles two scored questions, and they are correlated: the PR
+     * drawn on the night decides the PR point AND drives who wins. Showing them
+     * as two independent rows of buttons forced a choice of which one explains
+     * the other, made the numbers depend on click order, and asked the reader to
+     * multiply two figures that must not be multiplied.
+     *
+     * The matrix removes all three. Every cell is one complete outcome carrying
+     * its own joint probability — the exact number Run Simulation uses, so there
+     * is nothing to combine. The margins give each player's independent odds in
+     * both dimensions, which is what the two button pairs were for. And the
+     * correlation becomes visible rather than explained: 54.3% × 66.2% is 35.9%,
+     * while the cell says 39.8%, and a reader can see the two disagree.
+     *
+     * Picking a cell is picking both answers at once, so "a staged row needs a
+     * winner and a PR winner" stops being a rule the panel has to enforce.
+     *
+     * Margins are NOT buttons — see .whatif-mx-margin. A clickable margin would
+     * be a half-answer, which is the state the matrix exists to make impossible.
+     */
+    function outcomeMatrixHtml(s) {
+        const o = outcomeOdds(s.a, s.b);
+        const chosenPR = prResultOf(s);
+        const cell = (win, pr) => {
+            const key = win + pr;
+            const on = s.result === win && chosenPR === pr;
+            const who = (side) => side === 'A' ? s.a : s.b;
+            const label = o ? `${(o[key] * 100).toFixed(1)}%` : '—';
+            const title = `${who(win)} wins and ${who(pr)} plays the lower PR`
+                + (o ? ` — ${(o[key] * 100).toFixed(1)}% of nights` : '');
+            return `<button type="button" class="whatif-mx-cell${on ? ' active' : ''}" `
+                 + `data-cell="${key}" role="radio" aria-checked="${on}" `
+                 + `title="${escapeHtml(title)}">${label}</button>`;
+        };
+        const margin = (v, title) =>
+            `<span class="whatif-mx-margin" title="${escapeHtml(title)}">${o ? `${(v * 100).toFixed(1)}%` : '—'}</span>`;
+
+        return `
+            <div class="whatif-matrix" role="radiogroup" aria-label="Outcome of this match">
+                <span class="whatif-mx-corner"></span>
+                <span class="whatif-mx-head is-col" title="${escapeHtml(s.a)} played the lower PR">A lower PR</span>
+                <span class="whatif-mx-head is-col" title="${escapeHtml(s.b)} played the lower PR">B lower PR</span>
+                <span class="whatif-mx-head is-col is-margin">wins</span>
+
+                <span class="whatif-mx-head" title="${escapeHtml(s.a)} wins the match">A wins</span>
+                ${cell('A', 'A')}${cell('A', 'B')}
+                ${margin(o ? o.aWins : 0, `${s.a} wins the match, either way the PR falls`)}
+
+                <span class="whatif-mx-head" title="${escapeHtml(s.b)} wins the match">B wins</span>
+                ${cell('B', 'A')}${cell('B', 'B')}
+                ${margin(o ? o.bWins : 0, `${s.b} wins the match, either way the PR falls`)}
+
+                <span class="whatif-mx-head is-margin">lower PR</span>
+                ${margin(o ? o.aPR : 0, `${s.a} plays the lower PR, whoever wins`)}
+                ${margin(o ? o.bPR : 0, `${s.b} plays the lower PR, whoever wins`)}
+                <span class="whatif-mx-corner"></span>
+            </div>`;
     }
 
     function renderStaged() {
@@ -2264,17 +2447,31 @@ function renderWhatIfSimulator(ctx) {
             const oddsTitle = (who, v) => (odds
                 ? ` — ${v.toFixed(1)}% chance at ${matchLengthForIdx(mlIdx)} points`
                 : '');
+            // UBC asks two scored questions per match and gets the matrix; every
+            // other type asks one and keeps the segmented buttons it always had.
+            // NP sits OUTSIDE the matrix in both: a match that never happened is
+            // not one of the four outcomes, it is the absence of all of them.
+            const controls = needsPRWinner
+                ? `${outcomeMatrixHtml(s)}
+                   <button type="button" class="whatif-res whatif-np${s.result === 'NP' ? ' active' : ''}" data-res="NP" title="Not played — the fixture is removed from the season">NP</button>`
+                : `<div class="whatif-result-group" role="radiogroup">
+                        <button type="button" class="whatif-res ${s.result === 'A' ? 'active' : ''}" data-res="A" title="${escapeHtml(s.a)} wins${odds ? escapeHtml(oddsTitle(s.a, odds.a)) : ''}">A wins${oddsA}</button>
+                        <button type="button" class="whatif-res ${s.result === 'NP' ? 'active' : ''}" data-res="NP" title="Not played">NP</button>
+                        <button type="button" class="whatif-res ${s.result === 'B' ? 'active' : ''}" data-res="B" title="${escapeHtml(s.b)} wins${odds ? escapeHtml(oddsTitle(s.b, odds.b)) : ''}">B wins${oddsB}</button>
+                   </div>`;
+            // An unanswered row is marked, not merely left blank: with twenty
+            // rows staged, "Run Simulation is disabled" has to point somewhere.
+            const pending = rowComplete(s)
+                ? ''
+                : `<span class="whatif-pending" title="Pick an outcome for this match before running the simulation">needs a pick</span>`;
             return `
-                <div class="whatif-row ${s.wasPlayed ? 'was-played' : ''}" data-idx="${i}">
+                <div class="whatif-row ${s.wasPlayed ? 'was-played' : ''}${rowComplete(s) ? '' : ' is-pending'}" data-idx="${i}">
                     <span class="whatif-row-player">${stagedIdentity(s.a)}</span>
                     <span class="whatif-vs-small">vs</span>
                     <span class="whatif-row-player">${stagedIdentity(s.b)}</span>
                     ${playedBadge}
-                    <div class="whatif-result-group" role="radiogroup">
-                        <button type="button" class="whatif-res ${s.result === 'A' ? 'active' : ''}" data-res="A" title="${escapeHtml(s.a)} wins${odds ? escapeHtml(oddsTitle(s.a, odds.a)) : ''}">A wins${oddsA}</button>
-                        <button type="button" class="whatif-res ${s.result === 'NP' ? 'active' : ''}" data-res="NP" title="Not played">NP</button>
-                        <button type="button" class="whatif-res ${s.result === 'B' ? 'active' : ''}" data-res="B" title="${escapeHtml(s.b)} wins${odds ? escapeHtml(oddsTitle(s.b, odds.b)) : ''}">B wins${oddsB}</button>
-                    </div>
+                    ${controls}
+                    ${pending}
                     ${rollback}
                     <button type="button" class="whatif-del" title="Remove">&times;</button>
                 </div>
@@ -2283,7 +2480,21 @@ function renderWhatIfSimulator(ctx) {
 
         stagedHost.querySelectorAll('.whatif-row').forEach(row => {
             const idx = Number(row.dataset.idx);
-            row.querySelectorAll('.whatif-res').forEach(btn => {
+            // One cell answers both questions, so one click writes both fields.
+            row.querySelectorAll('.whatif-mx-cell').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const s = staged[idx];
+                    const [win, pr] = btn.dataset.cell.split('');
+                    if (s.result !== win || prResultOf(s) !== pr) {
+                        trackWhatIf(`What if: outcome — ${win === 'A' ? s.a : s.b} beats ${win === 'A' ? s.b : s.a}, `
+                            + `${pr === 'A' ? s.a : s.b} lower PR`);
+                    }
+                    s.result = win;
+                    s.prUser = pr;
+                    renderStaged();
+                });
+            });
+            row.querySelectorAll('.whatif-res[data-res]').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const s = staged[idx];
                     const res = btn.dataset.res;
@@ -2364,20 +2575,45 @@ function renderWhatIfSimulator(ctx) {
                 const sched = findSchedule(s.a, s.b);
                 if (!sched) continue;
 
-                if (s.result === 'NP') {
+                // `!s.result` is an unanswered row. Run Simulation is disabled
+                // while any exists, so this is unreachable from the UI — but the
+                // alternative branch would read "not A" as "B wins" and invent a
+                // result, which is the kind of guess that must not be one line
+                // away from a guard that could be removed.
+                if (s.result === 'NP' || !s.result) {
                     simRemaining.push({ ...sched, played: false, scoreA: null, scoreB: null, prA: null, prB: null, luckA: null, luckB: null });
                 } else {
                     const winnerIsA = s.result === 'A';
+                    // A STAGED WIN IS A TYPICAL WIN, NOT A PERFECT ONE.
+                    //
+                    // This used to record matchLength-0 — a 5-0 whitewash for
+                    // every result the user ticked. In a REGULAR league that is
+                    // not cosmetic: the tiebreak cascade runs on points
+                    // difference, so a hand-staged win pushed +5 into the very
+                    // criterion that decides a tie while a simulated win pushed
+                    // +2, and the same scenario weighed differently depending on
+                    // which half of the engine produced it.
+                    //
+                    // The margin is now the MEAN of the one the simulation draws
+                    // — it draws uniformly over 1..matchLength, so the mean is
+                    // (matchLength+1)/2 — which makes a result you tick and the
+                    // same result drawn by the engine push identical weight into
+                    // the points-difference tiebreak. At five points: 5-2.
+                    const stagedMargin = Math.round((matchLength + 1) / 2);
+                    const loserScore = Math.max(0, matchLength - stagedMargin);
                     simMatches.push({
                         playerA: s.a,
                         playerB: s.b,
-                        scoreA: winnerIsA ? matchLength : 0,
-                        scoreB: winnerIsA ? 0 : matchLength,
+                        scoreA: winnerIsA ? matchLength : loserScore,
+                        scoreB: winnerIsA ? loserScore : matchLength,
                         prA: null, prB: null,
                         luckA: null, luckB: null,
                         played: true,
                         round: sched.round,
-                        _whatif: true
+                        _whatif: true,
+                        // UBC: who earns the PR point (see stats.js). Relative
+                        // to THIS match's playerA/playerB, which are s.a/s.b.
+                        ...(needsPRWinner ? { _prWinner: prResultOf(s) } : {})
                     });
                 }
             }
@@ -2464,17 +2700,12 @@ function renderWhatIfSimulator(ctx) {
                     const flagCode = getFlagCode(r.player, ctx.params.CustomFlags);
                     const pct = getTopXPct(r);
                     const barColor = pct > Math.min(20 * currentX, 80) ? 'var(--tier-high)' : pct > Math.min(5 * currentX, 30) ? 'var(--tier-mid)' : 'var(--tier-low)';
-                    let ubcCols = '';
-                    if (showPRWins) {
-                        ubcCols = `<td>${r.points}</td><td>${r.avgPoints != null ? formatNumber(r.avgPoints) : '—'}</td>`;
-                    }
                     return `<tr>
                         <td>${i + 1}</td>
                         <td class="player-cell">${ctx.playersMeta[r.player]?.hidden ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`} ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
                         <td>${r.games}</td>
                         <td>${r.wins}</td>
-                        <td>${r.losses}</td>
-                        ${ubcCols}
+                        ${showPRWins ? `<td>${r.prWins}</td>` : `<td>${r.losses}</td>`}
                         <td>${showPR ? (r.meanPR != null ? formatNumber(r.meanPR) : '—') : (r.winRate != null ? formatPercent(r.winRate) : '—')}</td>
                         <td class="whatif-pct-cell">
                             <div class="whatif-pct-bar" style="--pct:${Math.min(pct, 100)}%;--bar-color:${barColor}">
@@ -2485,17 +2716,17 @@ function renderWhatIfSimulator(ctx) {
                 }).join('');
 
                 const prHeader = showPR ? 'PR' : 'Win%';
-                let ubcHeaders = '';
-                if (showPRWins) {
-                    ubcHeaders = `<th scope="col">PTS</th><th scope="col">Avg PTS</th>`;
-                }
+                // UBC: a match pays a win point and a PR point, so the two
+                // counts that make up the score replace W/L.
+                const wlHeaders = showPRWins
+                    ? '<th scope="col">W</th><th scope="col" title="PR Wins">PRW</th>'
+                    : '<th scope="col">W</th><th scope="col">L</th>';
                 const pctShortHeader = currentX === 1 ? 'Ch%' : `T${currentX}%`;
                 tableHost.innerHTML = `
                     <div class="whatif-scroll-wrap">
                     <table class="dash-table whatif-table font-small" data-mf-table-id="B4">
                         <thead><tr>
-                            <th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">MP</th><th scope="col">W</th><th scope="col">L</th>
-                            ${ubcHeaders}
+                            <th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">MP</th>${wlHeaders}
                             <th scope="col">${prHeader}</th><th scope="col">${pctShortHeader}</th>
                         </tr></thead>
                         <tbody>${rows}</tbody>

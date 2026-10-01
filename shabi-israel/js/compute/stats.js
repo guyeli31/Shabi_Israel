@@ -88,6 +88,14 @@ function computePlayerStats(matches, playerName) {
         } else {
             // Technical win/loss: award points for match win only, no PR win possible
             points += (matchWin ? 1 : 0);
+            // ...unless the match names its PR winner without carrying PR values:
+            // a What-If result in a PR-point league (UBC). `_prWinner` is 'A' or
+            // 'B' relative to the match's own playerA/playerB. No PR is invented,
+            // so Mean PR and Luck stay untouched.
+            if (m._prWinner && (m._prWinner === 'A') === (m.playerA === playerName)) {
+                prWins++;
+                points += 1;
+            }
         }
     }
 
