@@ -8,7 +8,7 @@ import { renderRoundEditor } from './roundEditor.js';
 import { renderExcelImporter } from './excelImporter.js';
 import { renderOverridesList } from './overridesList.js';
 import { ensurePlayerIndex, ensureLeagueIndex, getPlayerLeagues, getPlayerFlagCode } from '../render/navigation.js';
-import { thLabel } from '../utils/helpers.js';
+import { thLabel, flagUrl } from '../utils/helpers.js';
 import { tabSlug } from '../utils/queryString.js';
 import { mountCombobox } from '../utils/combobox.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
@@ -2330,7 +2330,7 @@ function ffPlayerRowHTML(name, flagCode, isRetired) {
                 </td>
                 <td>
                     <div style="display:flex;align-items:center;gap:6px">
-                        <img class="flag" src="assets/flags/${flagCode}.png" alt="${flagCode}">
+                        <img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">
                         <select class="player-flag-select" data-player="${esc(name)}" style="padding:2px 6px;border:1px solid var(--color-border);border-radius:4px">
                             ${flagOptions}
                             <option value="__custom" ${!isKnown ? 'selected' : ''}>Custom...</option>
@@ -2647,7 +2647,7 @@ function wireFlagSelectPreview(scope) {
             } else {
                 customInput.style.display = 'none';
                 if (preview) {
-                    preview.src = `assets/flags/${this.value}.png`;
+                    preview.src = flagUrl(this.value);
                     preview.alt = this.value;
                 }
             }

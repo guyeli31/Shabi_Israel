@@ -8,6 +8,7 @@
  */
 
 import { hasUrlFlag } from '../utils/queryString.js';
+import { flagUrl } from '../utils/helpers.js';
 
 const STAGING_KEY = 'shabi-admin-staging';
 
@@ -22,7 +23,9 @@ const STAGING_KEY = 'shabi-admin-staging';
  */
 function targetUrl(t) {
     if (!t) return null;
-    if (t.kind === 'flag_asset') return `assets/flags/${t.code}.png`;
+    // Wherever the page will actually request it — a non-built-in flag comes from
+    // the storage bucket, so shadowing the assets/ path would never match.
+    if (t.kind === 'flag_asset') return flagUrl(t.code);
     if (t.kind === 'player_photo') return `assets/players/${t.filename}`;
     return null;
 }
@@ -77,10 +80,13 @@ export function installPreviewInterceptor() {
     for (const change of staged) {
         const url = targetUrl(change.target);
         if (!url) continue;
+        // Keyed exactly as requests are looked up below (absolute → relative), so
+        // an absolute bucket URL and a relative assets/ path both match.
+        const key = normalizePath(urlToRelativePath(new URL(url, window.location.href).href));
         if (change.type === 'delete') {
-            deletedPaths.add(normalizePath(url));
+            deletedPaths.add(key);
         } else if (change.content != null) {
-            pathMap.set(normalizePath(url), { content: change.content, binary: change.binary || false });
+            pathMap.set(key, { content: change.content, binary: change.binary || false });
         }
     }
     if (pathMap.size === 0 && deletedPaths.size === 0) {

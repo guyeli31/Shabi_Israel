@@ -24,9 +24,9 @@ import { supabase } from '../data/supabaseClient.js';
 import { loadLeagueOrder, loadAllLeagueParams } from '../data/supabaseLoader.js';
 import { loadPlayersMetadata } from '../data/supabasePlayersMetadata.js';
 import { getChanges } from './stagingStore.js';
-
-/** PNGs committed under assets/flags/ — the floor, always offered. */
-const BUILTIN_FLAGS = ['BE', 'ES', 'GB', 'GE', 'IL', 'RU', 'TZ', 'UN'];
+// PNGs committed under assets/flags/ — the floor, always offered. Shared with
+// flagUrl(), which serves exactly these same-origin and the rest from the bucket.
+import { BUILTIN_FLAGS } from '../utils/helpers.js';
 
 /** Live, shared list. Import it; don't copy it. */
 export const KNOWN_FLAGS = [...BUILTIN_FLAGS];

@@ -2,6 +2,8 @@
  * helpers.js — Shared utilities for URL params, formatting, and flag paths.
  */
 
+import { SUPABASE_URL, LOCAL_SUPABASE_URL } from '../data/supabaseConfig.js';
+
 export function getQueryParam(name) {
     const params = new URLSearchParams(window.location.search);
     return params.get(name);
@@ -15,8 +17,23 @@ export function formatNumber(value, decimals = 2) {
     return Number(value).toFixed(decimals);
 }
 
+/** PNGs committed under assets/flags/. Any other code lives in the `flags` storage bucket. */
+export const BUILTIN_FLAGS = ['BE', 'ES', 'GB', 'GE', 'IL', 'RU', 'TZ', 'UN'];
+
+const FLAGS_BUCKET_URL = `${['localhost', '127.0.0.1'].includes(location.hostname) ? LOCAL_SUPABASE_URL : SUPABASE_URL}/storage/v1/object/public/flags`;
+
+/**
+ * The one place a flag code becomes an image URL. Built-in flags are served
+ * same-origin; every other code comes from the public `flags` bucket — where both
+ * the admin's Flag Upload and the External Source sync put new flags. (This used
+ * to return the local path for EVERY code, so an uploaded flag was in the bucket
+ * yet rendered as a broken image on every public page.)
+ */
 export function flagUrl(countryCode) {
-    return `assets/flags/${countryCode}.png`;
+    const code = String(countryCode || '').toUpperCase();
+    return BUILTIN_FLAGS.includes(code)
+        ? `assets/flags/${code}.png`
+        : `${FLAGS_BUCKET_URL}/${code}.png`;
 }
 
 /**

@@ -209,7 +209,15 @@ async function buildKnownPlayers() {
 }
 
 function computeCustomFlagsDiff(currentCustomFlags, players) {
+  // The source is authoritative only for players IN its roster. An entry for a
+  // username the roster doesn't list (left the league on the source, renamed, an
+  // admin-added one) is not ours to judge — carry it over untouched rather than
+  // "remove" it on the strength of an absence.
+  const inRoster = new Set(players.map((p) => p.username));
   const desired = {};
+  for (const [u, c] of Object.entries(currentCustomFlags || {})) {
+    if (!inRoster.has(u)) desired[u] = c;
+  }
   for (const p of players) {
     const code = (p.fl || '').toUpperCase();
     if (code && code !== DEFAULT_FLAG) desired[p.username] = code;
@@ -426,7 +434,45 @@ async function clickLeagueByName(page, sourceLeagueName) {
 }
 
 /**
- * Wait for the league's roster (DL) to populate before exporting.
+ * Install `window.__shabiRoster()` on the source page: returns `{ name, list }` for
+ * the page global that holds the league roster, or `{ name: null, list: null }`.
+ *
+ * The roster is FOUND BY SHAPE, not by a hardcoded global name. The source renamed
+ * it once already (DL → AL, ~2026-10; DL became the number 0), and because the
+ * roster is deliberately non-fatal (see exportLeagueTask) the rename failed
+ * silently: every sync "succeeded" while quietly skipping players.json and
+ * new-flag detection. Known names are tried first, then any window array whose
+ * entries carry `username` + `fl` — the roster's defining fields. (The Live
+ * matches list, K1, has p1/p2/flag1/flag2 and no `username`, so it never matches.)
+ *
+ * Idempotent; the page is a single-page app so this survives league switches,
+ * but callers re-install anyway in case a relogin reloaded the document.
+ */
+async function installRosterProbe(page) {
+  await page.evaluate(() => {
+    const KNOWN = ['AL', 'DL'];
+    const isRosterEntry = (p) => p && typeof p === 'object'
+      && typeof p.username === 'string' && p.username.length > 0 && 'fl' in p;
+    const isRoster = (v) => Array.isArray(v) && v.length > 0 && v.some(isRosterEntry);
+    window.__shabiRoster = () => {
+      for (const name of KNOWN) {
+        let v; try { v = window[name]; } catch { continue; }
+        if (isRoster(v)) return { name, list: v };
+      }
+      for (const name of Object.keys(window)) {
+        if (KNOWN.includes(name) || name.startsWith('__')) continue;
+        let v; try { v = window[name]; } catch { continue; }
+        if (isRoster(v)) return { name, list: v };
+      }
+      return { name: null, list: null };
+    };
+  });
+}
+
+/**
+ * Wait for the league's roster to populate before exporting. (Historically the
+ * global DL — the comments below still say DL; the roster is now located by
+ * installRosterProbe(), whatever the source calls it.)
  *
  * This no longer gates on FL[RG] — the source's "rounds played" counter — which was
  * a leftover from an earlier design and measures the wrong thing: the exported CSV
@@ -446,7 +492,11 @@ async function clickLeagueByName(page, sourceLeagueName) {
  *   • the entries actually LOOK like a roster (they carry `username`).
  */
 async function waitForRoster(page, prevFingerprint) {
+  await installRosterProbe(page);
   return await page.evaluate(async (prevFp) => {
+    // The roster array (or null), wherever the source keeps it — see installRosterProbe.
+    const roster = () => window.__shabiRoster().list;
+    const rosterGlobal = () => window.__shabiRoster().name;
     const HARD_TIMEOUT = 15000;
     const SETTLE_MS = 5000;
     const STABLE_MS = 1500;
@@ -462,30 +512,36 @@ async function waitForRoster(page, prevFingerprint) {
     // silently inherit the previous league's — and we'd write its players.json
     // and detect its flags against the wrong roster.
     const fingerprint = () => {
-      if (typeof DL === 'undefined' || !Array.isArray(DL) || DL.length === 0) return '';
-      const first = DL[0] && DL[0].username ? DL[0].username : '?';
-      const last = DL[DL.length - 1] && DL[DL.length - 1].username ? DL[DL.length - 1].username : '?';
-      return `${DL.length}|${first}|${last}`;
+      const R = roster();
+      if (!R) return '';
+      const first = R[0] && R[0].username ? R[0].username : '?';
+      const last = R[R.length - 1] && R[R.length - 1].username ? R[R.length - 1].username : '?';
+      return `${R.length}|${first}|${last}`;
     };
 
     // ONE malformed entry must not discard an otherwise valid roster — the caller
     // filters those out. (Requiring EVERY entry to be named is what rejected a real
     // 21-player roster that had a single nameless row; the previous code instead
-    // sorted it and died on `undefined.localeCompare`.)
-    const rosterShaped = () =>
-      typeof DL !== 'undefined' && Array.isArray(DL) && DL.length > 0
-      && DL.some((p) => p && typeof p.username === 'string' && p.username.length > 0);
+    // sorted it and died on `undefined.localeCompare`.) roster() only returns an
+    // array with at least one named entry, so non-null IS shaped.
+    const rosterShaped = () => roster() !== null;
 
-    // What DL actually holds, for diagnosis when it isn't the roster we expect.
+    // What the roster-ish globals actually hold, for diagnosis when no roster is
+    // found — so the next rename shows up in the log instead of as `null`.
     const sampleDl = () => {
-      if (typeof DL === 'undefined' || !Array.isArray(DL) || DL.length === 0) return null;
-      try {
-        return { keys: Object.keys(DL[0] || {}).slice(0, 15), first: JSON.stringify(DL[0]).slice(0, 240) };
-      } catch { return { keys: null, first: String(DL[0]).slice(0, 120) }; }
+      const R = roster();
+      if (R) {
+        try {
+          return { global: rosterGlobal(), keys: Object.keys(R[0] || {}).slice(0, 15), first: JSON.stringify(R[0]).slice(0, 240) };
+        } catch { return { global: rosterGlobal(), keys: null, first: String(R[0]).slice(0, 120) }; }
+      }
+      const peek = (n) => { try { const v = window[n]; return Array.isArray(v) ? `array(${v.length})` : `${typeof v}:${String(v).slice(0, 40)}`; } catch { return 'unreadable'; } };
+      return { global: null, AL: peek('AL'), DL: peek('DL') };
     };
 
     while (performance.now() - T0 < HARD_TIMEOUT) {
-      const dl = (typeof DL !== 'undefined' && Array.isArray(DL)) ? DL.length : 0;
+      const R = roster();
+      const dl = R ? R.length : 0;
       const shaped = rosterShaped();
       const fp = fingerprint();
       const fresh = !prevFp || fp !== prevFp; // must not be the PREVIOUS league's roster
@@ -501,7 +557,7 @@ async function waitForRoster(page, prevFingerprint) {
       if (shaped && fresh && dlSince !== null
           && performance.now() - dlSince >= SETTLE_MS
           && stableSince !== null && performance.now() - stableSince >= STABLE_MS) {
-        return { ok: true, dl, t, trace, fingerprint: fp, sample: sampleDl() };
+        return { ok: true, dl, t, trace, fingerprint: fp, sample: sampleDl(), global: rosterGlobal() };
       }
       await new Promise((r) => setTimeout(r, 200));
     }
@@ -562,11 +618,13 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
   // between leagues, so in a multi-league run the next league inherits the previous
   // one's roster if its own never loads. Comparing against this proves the roster we
   // read afterwards is really THIS league's.
+  await installRosterProbe(page);
   const prevFingerprint = await page.evaluate(() => {
-    if (typeof DL === 'undefined' || !Array.isArray(DL) || DL.length === 0) return '';
-    const f = DL[0] && DL[0].username ? DL[0].username : '?';
-    const l = DL[DL.length - 1] && DL[DL.length - 1].username ? DL[DL.length - 1].username : '?';
-    return `${DL.length}|${f}|${l}`;
+    const R = window.__shabiRoster().list;
+    if (!R) return '';
+    const f = R[0] && R[0].username ? R[0].username : '?';
+    const l = R[R.length - 1] && R[R.length - 1].username ? R[R.length - 1].username : '?';
+    return `${R.length}|${f}|${l}`;
   });
 
   console.log(`  → Opening league "${sourceLeagueName}" (with pagination)`);
@@ -596,13 +654,14 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
     await logEvent(folder, 'warning',
       "Couldn't read the player list from the source, so new players and flags weren't checked this time. The match results are still being synced normally.");
   } else {
-    console.log(`    DL = ${rosterReady.dl} players — ready after ${rosterReady.t}ms`);
+    console.log(`    Roster (${rosterReady.global}) = ${rosterReady.dl} players — ready after ${rosterReady.t}ms`);
     await logEvent(folder, 'info', `Opened the league — ${rosterReady.dl} players.`);
 
-    console.log('  → Extracting player roster (DL) for players.json');
+    console.log(`  → Extracting player roster (${rosterReady.global}) for players.json`);
     players = await page.evaluate(() => {
-      if (typeof DL === 'undefined' || !Array.isArray(DL)) return null;
-      return DL
+      const R = window.__shabiRoster().list;
+      if (!R) return null;
+      return R
         .filter((p) => p && typeof p.username === 'string' && p.username.length > 0)
         .map((p) => ({ username: p.username, fl: p.fl, cname: p.cname }));
     });
@@ -667,23 +726,57 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
         for (const c of diff.changed) console.log(`    ~ ${c.username}: ${c.from} → ${c.to}`);
         for (const r of diff.removed) console.log(`    - ${r.username}: ${r.from} (now uses default ${DEFAULT_FLAG})`);
 
+        // Kept as a run artifact for the record; the DB write below is what the
+        // site actually reads. (This used to be the ONLY output — "review, then
+        // apply via Admin" — so a new flag never reached the site on its own.)
         const updatedParams = { ...localParams, CustomFlags: diff.desired };
         await writeFile(updatedParamsPath, JSON.stringify(updatedParams, null, 2) + '\n', 'utf8');
         console.log(`  ✓ Updated config written to ${updatedParamsPath}`);
-        console.log(`    (review, then apply via Admin → Leagues → Edit when ready)`);
+
+        const { error: flagsErr } = await supabase
+          .from('leagues').update({ custom_flags: diff.desired }).eq('id', folder);
+        const summary = [
+          ...diff.added.map((a) => `${a.username} → ${a.to}`),
+          ...diff.changed.map((c) => `${c.username} ${c.from} → ${c.to}`),
+          ...diff.removed.map((r) => `${r.username} → ${DEFAULT_FLAG}`),
+        ].join(', ');
+        if (flagsErr) {
+          // Non-fatal, like the rest of the roster work: the results still sync.
+          console.warn(`  ⚠ Could not save flags to the database: ${flagsErr.message}`);
+          await logEvent(folder, 'warning', `Player flags changed on the source (${summary}) but saving them failed — set them via Admin → Leagues → Edit.`);
+        } else {
+          console.log(`  ✓ Flags saved to the database (leagues.custom_flags)`);
+          await logEvent(folder, 'info', `Player flags updated: ${summary}.`);
+        }
       }
     }
 
-    const flagsDir = join(repoRoot, 'assets', 'flags');
-    let existing = new Set();
+    // The app lives in shabi-israel/ (repo root = domain root, see CLAUDE.md §
+    // Hosting layout). The old repo-root path no longer exists, so every flag —
+    // IL included — was reported as "new" and re-downloaded on every sync.
+    const flagsDir = join(repoRoot, 'shabi-israel', 'assets', 'flags');
+    // A flag "exists" if the site can show it: a PNG shipped in the repo, OR one
+    // already in the `flags` storage bucket (flagUrl() in js/utils/helpers.js
+    // serves non-built-in codes from there). Without the bucket half, a flag this
+    // sync uploaded once would be re-fetched and re-uploaded on every run.
+    const inRepo = new Set();
     try {
       const entries = await readdir(flagsDir);
-      existing = new Set(entries.filter((f) => f.endsWith('.png')).map((f) => f.replace(/\.png$/i, '').toUpperCase()));
+      for (const f of entries) if (f.endsWith('.png')) inRepo.add(f.replace(/\.png$/i, '').toUpperCase());
     } catch {
-      console.warn(`    assets/flags/ not readable — assuming empty`);
+      console.warn(`    ${flagsDir} not readable — assuming empty`);
+    }
+    const inBucket = new Set();
+    if (supabase) {
+      const { data: objs, error: listErr } = await supabase.storage.from('flags').list('', { limit: 1000 });
+      if (listErr) console.warn(`    flags bucket not readable (${listErr.message}) — treating it as empty`);
+      for (const o of objs || []) {
+        const m = /^(.+)\.png$/i.exec(o.name || '');
+        if (m) inBucket.add(m[1].toUpperCase());
+      }
     }
     const needed = new Set(players.map((p) => (p.fl || '').toUpperCase()).filter(Boolean));
-    const missing = [...needed].filter((code) => !existing.has(code)).sort();
+    const missing = [...needed].filter((code) => !inRepo.has(code) && !inBucket.has(code)).sort();
 
     const flagUsage = {};
     for (const p of players) {
@@ -700,37 +793,56 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
       .map(([code, info]) => `${code} (${info.cname}) × ${info.users.length}`)
       .join(', ');
     console.log(`    Flags used: ${usageLine}`);
-    console.log(`    Flags in repo (assets/flags/): ${[...existing].sort().join(', ') || '(none)'}`);
+    console.log(`    Flags in repo: ${[...inRepo].sort().join(', ') || '(none)'}`);
+    console.log(`    Flags in bucket: ${[...inBucket].sort().join(', ') || '(none)'}`);
 
     if (missing.length === 0) {
-      console.log('    ✓ No new flags needed — all player flags already in repo');
+      console.log('    ✓ No new flags needed — every player flag already has an image');
     } else {
-      await logEvent(folder, 'info', `${missing.length} new flag(s): ${missing.join(', ')}`);
       console.log(`    ⚠ ${missing.length} new flag(s) detected:`);
       for (const code of missing) {
         const info = flagUsage[code];
         console.log(`      • ${code} (${info.cname}) — used by: ${info.users.join(', ')}`);
       }
 
+      // Fetch + crop + mask (fetch-flag.py), then upload to the public `flags`
+      // bucket — the same place the admin's Flag Upload publishes to. The PNG is
+      // also kept in this run's artifact (new_flags/) for the record.
       console.log('  → Fetching missing flags via fetch-flag.py');
       await mkdir(newFlagsDir, { recursive: true });
       const fetchScript = join(repoRoot, 'scripts', 'fetch-flag.py');
-      let okCount = 0;
+      const added = [];
       const failed = [];
       for (const code of missing) {
+        const label = `${code} (${flagUsage[code].cname})`;
         const res = spawnSync('python', [fetchScript, code, newFlagsDir], { encoding: 'utf8' });
-        if (res.status === 0) {
-          console.log(`    ✓ ${code} (${flagUsage[code].cname}): ${res.stdout.trim()}`);
-          okCount++;
-        } else {
-          console.error(`    ✗ ${code} (${flagUsage[code].cname}) failed: ${res.stderr.trim() || res.stdout.trim()}`);
+        if (res.status !== 0) {
+          console.error(`    ✗ ${label} fetch failed: ${res.stderr.trim() || res.stdout.trim()}`);
           failed.push(code);
+          continue;
+        }
+        const { error: upErr } = supabase
+          ? await supabase.storage.from('flags').upload(
+            `${code}.png`, await readFile(join(newFlagsDir, `${code}.png`)),
+            { contentType: 'image/png', upsert: true },
+          )
+          : { error: { message: 'no Supabase credentials' } };
+        if (upErr) {
+          console.error(`    ✗ ${label} upload failed: ${upErr.message}`);
+          failed.push(code);
+        } else {
+          console.log(`    ✓ ${label}: fetched and uploaded to the flags bucket`);
+          added.push(code);
         }
       }
-      console.log(
-        `  → Flag fetch summary: ${okCount}/${missing.length} downloaded to ${newFlagsDir}` +
-          (failed.length ? ` (failed: ${failed.join(', ')})` : ''),
-      );
+      console.log(`  → Flag summary: ${added.length}/${missing.length} added${failed.length ? ` (failed: ${failed.join(', ')})` : ''}`);
+      if (added.length) {
+        await logEvent(folder, 'info', `New flag image(s) added to the site: ${added.join(', ')}.`);
+      }
+      if (failed.length) {
+        // Non-fatal: the player's flag code is saved either way; only the picture is missing.
+        await logEvent(folder, 'warning', `Couldn't add the flag image for ${failed.join(', ')} automatically — upload it via Admin (Flag Upload). The player's flag code itself is saved.`);
+      }
     }
   }
 

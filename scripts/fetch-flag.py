@@ -23,7 +23,9 @@ from pathlib import Path
 from PIL import Image
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MASK_SOURCE = REPO_ROOT / "assets" / "flags" / "BE.png"
+# The app lives in shabi-israel/ (repo root = domain root); the old repo-root
+# assets/ path no longer exists and made every fetch die on a missing mask.
+MASK_SOURCE = REPO_ROOT / "shabi-israel" / "assets" / "flags" / "BE.png"
 UPSTREAM = "https://raw.githubusercontent.com/msikma/country-flags/master/flags/png/{code}.png"
 SIZE = (1600, 1600)
 

@@ -18,6 +18,7 @@ import { buildPlayerFlagIndex } from '../utils/playerFlags.js';
 import { loadLeagueMatchesAll, loadLeagueParams, loadOverrides } from '../data/supabaseLoader.js';
 import { matchesToCsvText } from './csvText.js';
 import { KNOWN_FLAGS, ensureFlagCodes, registerFlagCode } from './flagRegistry.js';
+import { flagUrl } from '../utils/helpers.js';
 import { restartSplash, endSplash } from '../utils/splash.js';
 import { trackAdmin, diffFields } from './trackAdmin.js';
 
@@ -802,7 +803,7 @@ async function showNewPlayerForm(container) {
             <div class="form-group">
                 <label>Flag</label>
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                    <img id="np-flag-preview" src="assets/flags/IL.png" alt="IL"
+                    <img id="np-flag-preview" src="${flagUrl('IL')}" alt="IL"
                          style="width:32px;height:21px;border:1px solid var(--color-border);border-radius:2px">
                     <select id="np-flag-select">
                         ${flagOptions}
@@ -860,7 +861,7 @@ async function showNewPlayerForm(container) {
             customArea.style.display = 'none';
             form.flagCode = flagSelect.value;
             form.flagData = null;
-            flagPreview.src = `assets/flags/${form.flagCode}.png`;
+            flagPreview.src = flagUrl(form.flagCode);
             flagPreview.alt = form.flagCode;
         }
     });
