@@ -65,6 +65,8 @@ export const TIEBREAK_RULES = {
     // Step 1 — who beat whom, counting only matches between the tied players.
     tbH2hWins: {
         label: 'Tiebreak H2H — wins between the tied players',
+        short: 'Tiebreak H2H wins',
+        hint: 'Wins in the matches between the tied players only',
         kind: 'numeric',
         needs: 'pairWins',
         value: (m, group, t) => {
@@ -81,6 +83,8 @@ export const TIEBREAK_RULES = {
     // won narrowly and lost big, even though both are 1-1.
     tbH2hDiff: {
         label: 'Tiebreak H2H — points difference between the tied players',
+        short: 'Tiebreak H2H points diff',
+        hint: 'Points difference in those same matches',
         kind: 'numeric',
         needs: 'pairDiff',
         value: (m, group, t) => {
@@ -93,12 +97,16 @@ export const TIEBREAK_RULES = {
     // the tied group to the whole league, summing every match's margin.
     tbLeagueDiff: {
         label: 'Points difference across the whole league',
+        short: 'League points diff',
+        hint: 'Points difference across all league matches',
         kind: 'numeric',
         needs: 'totalDiff',
         value: (m, _group, t) => t.totalDiff(m)
     },
     tbAlphabetical: {
         label: 'Alphabetical (deterministic final fallback)',
+        short: 'Alphabetical',
+        hint: 'Player name, A → Z',
         kind: 'name',
         needs: 'name',
         // TOTAL: no two players share a name, so this criterion can never leave
@@ -109,32 +117,14 @@ export const TIEBREAK_RULES = {
 };
 
 /**
- * A ranking key at the precision the SITE SHOWS it, so "level" means what a
- * reader sees rather than what a float holds.
+ * PRECISION — the cascade runs only on players who are level at FULL float
+ * precision. September 2026 ended with two players on identical Win% and a Mean
+ * PR of 4.91204167 against 4.91233333: three ten-thousandths apart, printed
+ * identically as 4.91 in every table on the site. They are NOT tied, the lower
+ * PR ranks ahead, and `tbAlphabetical` is never reached. Comparing at the
+ * displayed two decimals was tried and reversed on 30 Sep 2026 — PR is a
+ * measurement, and the better measurement wins however narrowly.
  *
- * Mean PR is printed to two decimals and compared at full precision, and those
- * are not the same question. September 2026 ended with two players on identical
- * Win% and a PR of 4.91204167 against 4.91233333 — three ten-thousandths apart,
- * indistinguishable in every table on the site. The float separated them, so the
- * tiebreak cascade never ran, and the Monte Carlo placed the same one ahead in
- * all 50 000 iterations: 95.1% to make the top six against 47.0%, from a gap no
- * column could show. A difference nobody can see is not a difference a ranking
- * should be decided by; a genuine tie should reach the next criterion.
- *
- * Quantising at COMPARISON time (never on the stored value) is what makes the
- * two runtimes agree: the rendered table and the 50 000-iteration loop ask this
- * one function whether two players are level.
- *
- * @param {number} value  the raw key
- * @param {number|null} digits  decimals the key is displayed to; null = compare raw
- */
-export function rankKey(value, digits) {
-    if (digits == null || typeof value !== 'number' || !Number.isFinite(value)) return value;
-    const f = 10 ** digits;
-    return Math.round(value * f) / f;
-}
-
-/**
  * Every league type's policy must END in a total order.
  *
  * A policy that can run out while players are still level does not mean "they

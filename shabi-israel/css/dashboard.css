@@ -1585,6 +1585,63 @@
     color: var(--color-bronze-text);
 }
 
+/* ── Tiebreakers ─────────────────────────────────────────
+   The league type's ranking order as a vertical timeline: numbered dots on a
+   connecting line, no boxes. Steps come from rankingSteps(); the design was
+   chosen in tiebreak-lab.html, which renders this exact markup. */
+.tb-tl {
+    list-style: none;
+    margin: 0 auto;
+    padding: 0;
+    max-width: 520px;
+    font-size: var(--fs-090);
+}
+.tb-tl li {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1.75em 1fr;
+    column-gap: 12px;
+    padding-bottom: 14px;
+}
+.tb-tl li:last-child { padding-bottom: 0; }
+/* The connecting line, from under one dot down to the next. */
+.tb-tl li:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: calc(.875em - 1px);
+    top: 1.9em;
+    bottom: 2px;
+    width: 2px;
+    background: var(--color-border);
+}
+.tb-num {
+    width: 1.75em;
+    height: 1.75em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    font-weight: 700;
+    font-size: .9em;
+}
+.tb-eyebrow {
+    display: block;
+    font-size: .68em;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+.tb-label { display: block; }
+.tb-hint {
+    display: block;
+    color: var(--color-text-muted);
+    font-size: var(--fs-082);
+    line-height: 1.35;
+}
+
 /* ── What-If Simulator ──────────────────────────────────
    Collapsible .app-section card (shared chrome); the `?` reuses
    .predictor-tooltip and .predictor-info-popup — shared with every

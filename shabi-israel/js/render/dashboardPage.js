@@ -14,7 +14,7 @@ import { playerNameLink, attachPlayerNameInteractions } from './playerNameIntera
 import { getMatchesAsOf, getUpdatePoints, buildMatchTimeline, mergeHistoryIntoMatches, matchKey, resultSides, describeResult, formatAxisDay, INITIAL_POINT } from '../compute/matchHistory.js';
 import { computeAllStats } from '../compute/stats.js';
 import { rankLeague, computeAverages, computeMatchStats } from '../compute/rankings.js';
-import { getLeagueConfig } from '../compute/leagueTypes.js';
+import { getLeagueConfig, rankingSteps } from '../compute/leagueTypes.js';
 import { elapsedInWindow, durationMode } from '../compute/leagueDuration.js';
 import { buildPrizeRows, formatPrize, getMedalPlaces } from '../compute/prizeRows.js';
 import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagueUrl, leagueUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
@@ -199,6 +199,7 @@ export async function renderDashboardPage() {
 
         renderSummaryCards(ctx);
         renderPrizes(ctx);
+        renderTiebreaks(ctx);
         renderHistorical(ctx);
         renderPredictor(ctx); // async — fills in after data loads
         renderWhatIfSimulator(ctx);
@@ -257,6 +258,11 @@ function standingsPanel() {
         <section class="app-section app-section--card dash-section" id="prizes-section" style="display:none">
             <h2 class="app-section-h2">Prizes &amp; Medals</h2>
             <div id="prizes-content"></div>
+        </section>
+
+        <section class="app-section app-section--card dash-section" id="tiebreak-section">
+            <h2 class="app-section-h2">Tiebreakers</h2>
+            <div id="tiebreak-content"></div>
         </section>
     `;
 }
@@ -1110,6 +1116,24 @@ function renderPrizes(ctx) {
     content.innerHTML = html;
 
     // Prizes & Medals is collapsible, closed by default (shared section collapse).
+    wireSectionCollapse(section, { defaultOpen: false });
+}
+
+// ---------- Tiebreakers ----------
+// The ranking order as a vertical timeline. Every step comes from the league
+// type's `ranking` policy via rankingSteps(), so a league of any type — past,
+// running or created tomorrow — shows exactly the order the table applies.
+// Design chosen in tiebreak-lab.html ("Timeline", no direction marker).
+function renderTiebreaks(ctx) {
+    const section = document.getElementById('tiebreak-section');
+    const content = document.getElementById('tiebreak-content');
+    content.innerHTML = '<ol class="tb-tl">' + rankingSteps(ctx.leagueConfig).map((s, i) =>
+        `<li><span class="tb-num">${i + 1}</span><div>`
+        + `<span class="tb-eyebrow">${i === 0 ? 'Ranked by' : 'If still tied'}</span>`
+        + `<b class="tb-label">${s.label}</b>`
+        + `<span class="tb-hint">${s.hint}</span></div></li>`
+    ).join('') + '</ol>';
+
     wireSectionCollapse(section, { defaultOpen: false });
 }
 

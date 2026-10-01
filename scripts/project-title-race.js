@@ -57,6 +57,27 @@ const flag = (name) => args.includes(name);
 const value = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : null; };
 const DRY_RUN = flag('--dry-run');
 
+// ── --recompute: the escape hatch for a LOGIC change ────────────────────────
+// A point is reused when its fingerprint matches, and that fingerprint covers
+// the point's DATA — the fixture list, the match results, the league's match
+// length and type. It does not cover the CODE that turned that data into a
+// projection, which is the right trade almost always: the job runs on every
+// result and would be unaffordable if every deploy invalidated 4,500 points.
+//
+// It is exactly wrong, though, after the ranking or simulation logic changes.
+// The data is untouched, so every point verifies, and a full `--all` backfill
+// reports "0 computed, 4540 reused" in a minute while rewriting nothing. That
+// is what happened after the Mean PR tiebreak fix on 30 Sep 2026.
+//
+// Why a flag and not a version folded into the fingerprint: the browser checks
+// the same fingerprints, so a version bump would make every stored point read
+// as stale on the live site, and the Title Race chart recomputes stale points
+// LOCALLY — ~295 Monte Carlo runs in a visitor's tab, for every visitor, until
+// the job catches up. Forcing the writer instead keeps the staleness entirely
+// server-side: stored values are rewritten under their existing hashes and the
+// page never knows a thing.
+const RECOMPUTE = flag('--recompute');
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!SUPABASE_URL || !SERVICE_KEY) {
@@ -251,7 +272,9 @@ async function projectLeague(leagueId, last300Map) {
         previousRoster: prev?.roster || [],
         // Everything already computed, keyed by hash inside. Points whose inputs
         // have not changed are carried over untouched instead of re-simulated.
-        previousPoints: prev?.points || [],
+        // --recompute hands over nothing, so every point is simulated again
+        // against the current code (see RECOMPUTE above).
+        previousPoints: RECOMPUTE ? [] : (prev?.points || []),
         depth: DEPTH,
         iterations: ITERATIONS,
         onPoint: (i, total) => {
@@ -290,6 +313,10 @@ async function main() {
     if (leagues.length === 0) { console.log('Nothing queued — done.'); return; }
     console.log(`→ Projecting ${leagues.length} league(s): ${leagues.join(', ')}`);
     console.log(`  iterations=${ITERATIONS}  depth=${DEPTH === Infinity ? 'full' : DEPTH}${DRY_RUN ? '  (DRY RUN)' : ''}`);
+    // Said out loud because the only other evidence is the run taking an hour
+    // instead of a minute, and "0 computed, N reused" is what a silent no-op
+    // looks like in this log.
+    if (RECOMPUTE) console.log('  --recompute: ignoring every cached point, re-simulating from scratch');
 
     const last300Map = await loadLast300Map();
     console.log(`  Last-300 PR window: ${last300Map.size} players`);

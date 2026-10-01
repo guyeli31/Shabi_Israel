@@ -22,7 +22,7 @@
  */
 
 import { computeAllStats } from './stats.js';
-import { resolveTie, needsMatchData, assertTablesFor, rankKey } from './tiebreaks.js';
+import { resolveTie, needsMatchData, assertTablesFor } from './tiebreaks.js';
 
 /**
  * Level thresholds based on MeanPR.
@@ -139,10 +139,6 @@ export function buildRankings(statsMap, leagueConfig, matches = null) {
         ? leagueConfig.ranking
         : { primary: 'winRate', primaryDir: 'desc', secondary: 'meanPR', secondaryDir: 'asc' };
     const { primary, primaryDir, secondary, secondaryDir } = ranking;
-    // The secondary is compared at the precision it is PRINTED to, so two
-    // players a rounding artefact apart are genuinely level and reach the
-    // cascade — see rankKey() in tiebreaks.js.
-    const secKey = (row) => rankKey(row[secondary], ranking.secondaryRound);
 
     rows.sort((a, b) => {
         const aNull = a[primary] === null;
@@ -162,7 +158,7 @@ export function buildRankings(statsMap, leagueConfig, matches = null) {
         if (aSecNull) return 1;
         if (bSecNull) return -1;
         const sMul = secondaryDir === 'asc' ? 1 : -1;
-        return sMul * (secKey(a) - secKey(b));
+        return sMul * (a[secondary] - b[secondary]);
     });
 
     // Whoever is still tied AFTER primary AND secondary gets the league type's
@@ -186,7 +182,7 @@ export function buildRankings(statsMap, leagueConfig, matches = null) {
             let j = i + 1;
             while (j < rows.length
                    && rows[j][primary] === rows[i][primary]
-                   && secKey(rows[j]) === secKey(rows[i])) j++;
+                   && rows[j][secondary] === rows[i][secondary]) j++;
             if (j - i > 1) {
                 const resolved = resolveTie(rows.slice(i, j), steps, tables);
                 rows.splice(i, j - i, ...resolved);

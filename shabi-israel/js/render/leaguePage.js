@@ -13,7 +13,8 @@ import { getLeagueConfig } from '../compute/leagueTypes.js';
 import { getQueryParam, flagUrl, playerLeagueUrl, leagueUrl, leagueTableUrl } from '../utils/helpers.js';
 import { exportWhatsAppTableImage, MAX_EXPORT_ROWS, leagueTypeLabel } from '../utils/exportTableImage.js';
 import { renderBreadcrumbs } from './navigation.js';
-import { loadPlayersMetadata } from '../data/store.js';
+import { loadPlayersMetadata, loadLeagueMatchesAll } from '../data/store.js';
+import { isCancelled } from '../data/applyOverrides.js';
 import { getTitleAbbreviationsHtml } from '../data/titleConstants.js';
 import { isRetired, retiredBadgeHtml } from './retirementMarks.js';
 import { startSplash, splashStage, endSplash } from '../utils/splash.js';
@@ -139,10 +140,33 @@ export async function renderLeaguePage() {
             </div>`;
 
         const mountPoint = document.getElementById('league-table-mount');
+
+        // Who still has a fixture to play. Only used to decide whether a
+        // PR-decided tie may show its deciding decimals (prTiebreakDigits), so
+        // a historical view passes nothing: "remaining" there would mean
+        // remaining AS OF THEN, and a past snapshot's PR is not a final answer
+        // about anybody. Reads the already-loaded bundle — no extra round trip.
+        let hasRemaining;
+        if (!isHistorical) {
+            try {
+                const all = await loadLeagueMatchesAll(leagueId);
+                const open = new Set();
+                for (const m of all.matches) {
+                    if (m.played || isCancelled(m)) continue;
+                    open.add(m.playerA);
+                    open.add(m.playerB);
+                }
+                hasRemaining = (name) => open.has(name);
+            } catch {
+                // Leaving it undefined disables the expansion. The table is
+                // correct either way; only the explanation is withheld.
+            }
+        }
+
         const renderTable = () => {
             const preset = buildLeagueTablePreset({
                 rankings, averages, params, leagueConfig,
-                flagUrl,
+                flagUrl, hasRemaining,
                 enrich: {
                     isHidden: (name) => !!(playersMeta[name] && playersMeta[name].hidden),
                     playerLink: (name) => ({

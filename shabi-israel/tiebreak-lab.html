@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Tiebreak Lab — Tiebreakers section designs</title>
+
+<!-- The real site stylesheets the dashboard uses for a section card. Every
+     candidate below is built from the site tokens ONLY, so the chosen one
+     moves into css/dashboard.css unchanged. -->
+<link rel="stylesheet" href="css/variables.css">
+<link rel="stylesheet" href="css/typography-tokens.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/themes.css">
+<link rel="stylesheet" href="css/sections.css">
+<link rel="stylesheet" href="css/dashboard.css">
+<link rel="stylesheet" href="css/fonts.css">
+
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   tiebreak-lab.html — design lab for the dashboard's Tiebreakers section
+   (Standings tab, under Prizes & Medals).
+
+   TWO parts, kept strictly apart:
+     1. LAB CHROME (.lab-*)  — control panel, device frames. Throwaway.
+     2. CANDIDATES (.tbv-*)  — the designs. Site tokens only, never a
+                               hardcoded colour, so each graduates as-is.
+
+   The steps are NOT written here: they come from rankingSteps() in
+   js/compute/leagueTypes.js — the same call the dashboard makes — so the lab
+   always shows the policy the table actually applies.
+
+   Responsive rules use @container (the frame), not @media, so a 430px frame
+   lays out exactly like a 430px phone.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+    margin: 0;
+    font-family: var(--font-main);
+    background: var(--color-bg);
+    color: var(--color-text);
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    overflow: hidden;
+}
+
+/* ─────────────────────────── LAB CHROME ─────────────────────────── */
+.lab-stage {
+    overflow: auto;
+    padding: var(--space-lg);
+    display: flex; flex-wrap: wrap; gap: var(--space-lg);
+    align-content: flex-start; justify-content: center;
+}
+.lab-cell { flex: none; }
+.lab-cap {
+    margin: 0 0 6px;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+.lab-device {
+    container-type: inline-size;
+    container-name: vp;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: var(--space-md) var(--space-sm);
+}
+.lab-device .app-section { margin-bottom: var(--space-md); }
+.lab-device .app-section:last-child { margin-bottom: 0; }
+
+.lab-panel {
+    background: var(--color-surface);
+    border-left: 1px solid var(--color-border);
+    padding: var(--space-md);
+    overflow-y: auto;
+    font-size: 13px;
+}
+.lab-panel h1 { margin: 0 0 2px; font-size: 15px; font-weight: 700; }
+.lab-sub { margin: 0 0 var(--space-md); font-size: 11.5px; color: var(--color-text-muted); }
+.lab-group { margin-bottom: var(--space-md); }
+.lab-group-title {
+    display: block; margin-bottom: 6px;
+    font-size: 10.5px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+.lab-btns { display: flex; flex-wrap: wrap; gap: 5px; }
+.lab-btn {
+    flex: 1 1 auto;
+    padding: 6px 9px;
+    font: inherit; font-size: 12px;
+    color: var(--color-text);
+    background: var(--color-inset);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer; white-space: nowrap;
+}
+.lab-btn:hover { background: var(--color-hover); }
+.lab-btn.is-active {
+    background: var(--color-accent); border-color: var(--color-accent);
+    color: var(--color-on-accent); font-weight: 600;
+}
+.lab-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.lab-swatch {
+    width: 26px; height: 26px; padding: 0;
+    border: 2px solid var(--color-border); border-radius: 50%;
+    cursor: pointer;
+}
+.lab-swatch.is-active { border-color: var(--color-text); transform: scale(1.12); }
+.lab-check { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; cursor: pointer; }
+.lab-note { margin: 6px 0 0; font-size: 11px; line-height: 1.5; color: var(--color-text-muted); }
+
+/* ══════════════════════════ CANDIDATES (.tbv-*) ══════════════════════════ */
+
+/* Shared bits */
+.tbv-dir { color: var(--color-accent); font-size: .8em; white-space: nowrap; }
+.tbv-dir-word {
+    font-size: .78em; font-weight: 600; white-space: nowrap;
+    color: var(--color-text-muted);
+}
+.tbv-hint { color: var(--color-text-muted); font-size: var(--fs-082); line-height: 1.35; }
+.tbv-num {
+    flex: none;
+    width: 1.75em; height: 1.75em;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    background: var(--color-accent); color: var(--color-on-accent);
+    font-weight: 700; font-size: .9em;
+}
+
+/* B — Pipeline: chips left→right joined by chevrons */
+.tbv-pipe {
+    display: flex; flex-wrap: wrap; align-items: stretch; justify-content: center;
+    gap: 6px;
+    font-size: var(--fs-090);
+}
+.tbv-pipe-step {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 14px 7px 7px;
+    background: var(--color-inset);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+}
+.tbv-pipe-step .tbv-hint { display: block; font-size: var(--fs-082); }
+.tbv-pipe-sep {
+    align-self: center;
+    color: var(--color-text-muted); font-size: 1.3em; line-height: 1;
+}
+@container vp (max-width: 560px) {
+    .tbv-pipe { flex-direction: column; align-items: stretch; }
+    .tbv-pipe-step { border-radius: var(--radius-md); }
+    .tbv-pipe-sep { transform: rotate(90deg); }
+}
+
+/* C — Timeline: SHIPPED. Its CSS is the site's own (.tb-tl in
+   css/dashboard.css) — no copy here, so the lab cannot drift from it. */
+
+/* D — Table: the site's own dash-table */
+.tbv-table-wrap { width: 70%; margin: 0 auto; overflow-x: auto; box-shadow: var(--shadow-sm); }
+.tbv-table td:first-child { width: 2.5em; text-align: center; font-weight: 700; color: var(--color-accent); }
+.tbv-table td:nth-child(3) { white-space: nowrap; }
+@container vp (max-width: 560px) { .tbv-table-wrap { width: 100%; } }
+
+/* E — Funnel: each bar narrower than the last — fewer players reach it */
+.tbv-funnel { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: var(--fs-090); }
+.tbv-funnel-bar {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 2.6em;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    text-align: center;
+}
+.tbv-funnel-bar b { font-weight: 700; }
+.tbv-funnel-bar.is-strong { color: var(--color-on-accent); }
+.tbv-funnel-bar.is-strong .tbv-dir,
+.tbv-funnel-bar.is-strong .tbv-dir-word,
+.tbv-funnel-bar.is-strong .tbv-hint { color: inherit; opacity: .85; }
+
+/* F — Sentence: one line of prose with chips */
+.tbv-sentence {
+    margin: 0 auto; max-width: 720px;
+    font-size: var(--fs-090); line-height: 2.1;
+    text-align: center; color: var(--color-text-secondary);
+}
+.tbv-chip {
+    display: inline-flex; align-items: baseline; gap: 5px;
+    padding: 2px 10px;
+    background: var(--color-accent-light);
+    color: var(--color-text);
+    border-radius: var(--radius-full);
+    white-space: nowrap;
+}
+.tbv-sentence-hints {
+    margin: var(--space-sm) auto 0; padding: 0; list-style: none;
+    max-width: 720px; text-align: center;
+}
+
+/* G — Tiles: a row of cards, big number behind the label */
+.tbv-tiles {
+    display: grid; gap: 8px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    font-size: var(--fs-090);
+}
+.tbv-tile {
+    position: relative; overflow: hidden;
+    padding: 10px 12px 10px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-top: 3px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
+}
+.tbv-tile-n {
+    position: absolute; right: 8px; top: -6px;
+    font-size: 2.6em; font-weight: 800; line-height: 1;
+    color: var(--color-accent); opacity: .14;
+}
+.tbv-tile b { display: block; }
+.tbv-tile .tbv-hint { display: block; margin-top: 3px; }
+</style>
+</head>
+<body>
+
+<main class="lab-stage" id="stage"></main>
+
+<aside class="lab-panel">
+    <h1>Tiebreak Lab</h1>
+    <p class="lab-sub">Tiebreakers section — candidate designs</p>
+
+    <div class="lab-group">
+        <span class="lab-group-title">Design</span>
+        <div class="lab-btns" id="variantBtns"></div>
+        <label class="lab-check" style="margin-top:7px"><input type="checkbox" id="allVariants"> Compare all designs</label>
+    </div>
+
+    <div class="lab-group">
+        <span class="lab-group-title">League type</span>
+        <div class="lab-btns" id="typeBtns"></div>
+        <label class="lab-check" style="margin-top:7px"><input type="checkbox" id="allTypes"> Show all three types</label>
+    </div>
+
+    <div class="lab-group">
+        <span class="lab-group-title">Device</span>
+        <div class="lab-btns" id="deviceBtns"></div>
+    </div>
+
+    <div class="lab-group">
+        <span class="lab-group-title">Theme</span>
+        <div class="lab-swatches" id="themeBtns"></div>
+        <p class="lab-note" id="themeName"></p>
+    </div>
+
+    <div class="lab-group">
+        <span class="lab-group-title">Section title</span>
+        <div class="lab-btns" id="titleBtns"></div>
+    </div>
+
+    <div class="lab-group">
+        <span class="lab-group-title">Direction marker</span>
+        <div class="lab-btns" id="dirBtns"></div>
+    </div>
+
+    <div class="lab-group">
+        <span class="lab-group-title">Details</span>
+        <label class="lab-check"><input type="checkbox" id="hints"> Show the one-line explanation</label>
+        <label class="lab-check"><input type="checkbox" id="context"> Show Prizes &amp; Medals above it</label>
+        <p class="lab-note">The steps come from <code>rankingSteps()</code> — the
+            same call the dashboard makes — so a policy change shows up here too.</p>
+    </div>
+</aside>
+
+<script type="module">
+import { getLeagueConfig, rankingSteps } from './js/compute/leagueTypes.js';
+
+const VARIANTS = [
+    { id: 'stepper',  label: 'Timeline (shipped)' },
+    { id: 'pipeline', label: 'Pipeline' },
+    { id: 'table',    label: 'Table' },
+    { id: 'funnel',   label: 'Funnel' },
+    { id: 'sentence', label: 'Sentence' },
+    { id: 'tiles',    label: 'Tiles' },
+];
+const TYPES = [
+    { id: 'doubling', label: 'Doubling' },
+    { id: 'ubc',      label: 'UBC' },
+    { id: 'regular',  label: 'Regular' },
+];
+const DEVICES = [
+    { id: 'desktop', label: 'Desktop', w: 1000 },
+    { id: 'mobile',  label: 'Phone',   w: 430 },
+];
+const THEMES = [
+    { id: 'current', label: 'Standard' },
+    { id: 'dark',    label: 'Dark' },
+    { id: 'beige',   label: 'Beige' },
+    { id: 'nature',  label: 'Nature' },
+    { id: 'vegas',   label: 'Las Vegas' },
+    { id: 'casino',  label: 'Casino' },
+    { id: 'rainbow', label: 'Rainbow' },
+    { id: 'x22',     label: 'X22' },
+];
+const TITLES = ['Tiebreakers', 'Tiebreak Order', 'How Ties Are Broken', 'שובר שוויון'];
+const DIRS = [
+    { id: 'arrows', label: '▲ ▼' },
+    { id: 'words',  label: 'Words' },
+    { id: 'none',   label: 'None' },
+];
+
+/* Lab state survives a reload (a per-viewer convenience only). */
+const STORE_KEY = 'tiebreak-lab-state';
+const state = Object.assign({
+    variant: 'stepper', allVariants: false,
+    type: 'doubling', allTypes: true,
+    device: 'desktop', theme: 'current',
+    title: TITLES[0], dir: 'none', hints: true, context: false,
+}, (() => { try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch { return {}; } })());
+// A saved state may name a design that has since been retired ('steps').
+if (!VARIANTS.some((v) => v.id === state.variant)) state.variant = 'stepper';
+const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch {} };
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* Direction marker in the chosen style. Alphabetical has dir null. */
+function dirMark(dir, opts, cls = 'tbv-dir') {
+    if (opts.dir === 'none') return '';
+    if (opts.dir === 'words') {
+        const w = dir === 'desc' ? 'higher first' : dir === 'asc' ? 'lower first' : 'A → Z';
+        return `<span class="tbv-dir-word">${w}</span>`;
+    }
+    if (!dir) return '';
+    return dir === 'desc'
+        ? `<span class="${cls}" title="Higher ranks first">▲</span>`
+        : `<span class="${cls}" title="Lower ranks first">▼</span>`;
+}
+const hint = (s, opts, tag = 'span') => opts.hints && s.hint ? `<${tag} class="tbv-hint">${esc(s.hint)}</${tag}>` : '';
+
+const RENDER = {
+    // SHIPPED — the markup renderTiebreaks() in dashboardPage.js emits, styled
+    // by css/dashboard.css. The direction marker and hint toggles are lab-only
+    // extras (the site ships with no marker and the hint shown).
+    stepper(steps, o) {
+        return '<ol class="tb-tl">' + steps.map((s, i) =>
+            `<li><span class="tb-num">${i + 1}</span><div><span class="tb-eyebrow">${i === 0 ? 'Ranked by' : 'If still tied'}</span><b class="tb-label">${esc(s.label)} ${dirMark(s.dir, o)}</b>${o.hints ? `<span class="tb-hint">${esc(s.hint)}</span>` : ''}</div></li>`
+        ).join('') + '</ol>';
+    },
+
+    pipeline(steps, o) {
+        return '<div class="tbv-pipe">' + steps.map((s, i) =>
+            `<div class="tbv-pipe-step"><span class="tbv-num">${i + 1}</span><span><b>${esc(s.label)}</b> ${dirMark(s.dir, o)}${hint(s, o)}</span></div>`
+        ).join('<span class="tbv-pipe-sep" aria-hidden="true">›</span>') + '</div>';
+    },
+
+    table(steps, o) {
+        const dirCell = (d) => o.dir === 'none' ? '' : `<td>${dirMark(d, { ...o, dir: 'words' })}</td>`;
+        return `<div class="tbv-table-wrap"><table class="dash-table tbv-table font-small"><thead><tr><th scope="col">#</th><th scope="col">Criterion</th>${o.dir === 'none' ? '' : '<th scope="col">Better</th>'}${o.hints ? '<th scope="col">Meaning</th>' : ''}</tr></thead><tbody>`
+            + steps.map((s, i) => `<tr><td>${i + 1}</td><td><b>${esc(s.label)}</b></td>${dirCell(s.dir)}${o.hints ? `<td>${esc(s.hint)}</td>` : ''}</tr>`).join('')
+            + '</tbody></table></div>';
+    },
+
+    funnel(steps, o) {
+        const n = steps.length;
+        return '<div class="tbv-funnel">' + steps.map((s, i) => {
+            const t = n === 1 ? 0 : i / (n - 1);
+            const width = Math.round(100 - t * 55);       // 100% → 45%
+            const mix = Math.round(92 - t * 72);           // strong accent → faint
+            const strong = mix >= 55;
+            return `<div class="tbv-funnel-bar${strong ? ' is-strong' : ''}" style="width:${width}%;background:color-mix(in srgb, var(--color-accent) ${mix}%, var(--color-surface))"><span><b>${i + 1}. ${esc(s.label)}</b> ${dirMark(s.dir, o)}</span>${hint(s, o)}</div>`;
+        }).join('') + '</div>';
+    },
+
+    sentence(steps, o) {
+        const chip = (s) => `<span class="tbv-chip"><b>${esc(s.label)}</b>${dirMark(s.dir, o)}</span>`;
+        let h = '<p class="tbv-sentence">Ranked by ' + chip(steps[0]);
+        for (let i = 1; i < steps.length; i++) h += (i === 1 ? ', then ' : ', then ') + chip(steps[i]);
+        h += '.</p>';
+        if (o.hints) {
+            const explained = steps.filter((s) => s.id.startsWith('tb') && s.id !== 'tbAlphabetical');
+            if (explained.length) h += '<ul class="tbv-sentence-hints">' + explained.map((s) => `<li class="tbv-hint"><b>${esc(s.label)}</b> — ${esc(s.hint)}</li>`).join('') + '</ul>';
+        }
+        return h;
+    },
+
+    tiles(steps, o) {
+        return '<div class="tbv-tiles">' + steps.map((s, i) =>
+            `<div class="tbv-tile"><span class="tbv-tile-n" aria-hidden="true">${i + 1}</span><b>${esc(s.label)} ${dirMark(s.dir, o)}</b>${hint(s, o)}</div>`
+        ).join('') + '</div>';
+    },
+};
+
+function sectionHtml(variant, type) {
+    const steps = rankingSteps(getLeagueConfig({ LeagueType: type }));
+    const dirAttr = /[֐-׿]/.test(state.title) ? ' dir="rtl"' : '';
+    const prizes = state.context
+        ? '<section class="app-section app-section--card dash-section is-collapsed"><h2 class="app-section-h2 is-collapsible">Prizes &amp; Medals</h2></section>'
+        : '';
+    return prizes + `<section class="app-section app-section--card dash-section"><h2 class="app-section-h2 is-collapsible"${dirAttr}>${esc(state.title)}</h2><div>${RENDER[variant](steps, state)}</div></section>`;
+}
+
+function render() {
+    document.documentElement.dataset.theme = state.theme;
+    if (state.theme === 'current') delete document.documentElement.dataset.theme;
+
+    const device = DEVICES.find((d) => d.id === state.device);
+    const variants = state.allVariants ? VARIANTS.map((v) => v.id) : [state.variant];
+    const types = state.allTypes ? TYPES : TYPES.filter((t) => t.id === state.type);
+
+    const stage = document.getElementById('stage');
+    stage.innerHTML = variants.flatMap((v) => types.map((t) => {
+        const vLabel = VARIANTS.find((x) => x.id === v).label;
+        return `<div class="lab-cell"><p class="lab-cap">${esc(vLabel)} · ${esc(t.label)}</p><div class="lab-device" style="width:${device.w}px">${sectionHtml(v, t.id)}</div></div>`;
+    })).join('');
+    save();
+}
+
+function btnRow(host, items, key) {
+    host.replaceChildren(...items.map((it) => {
+        const id = typeof it === 'string' ? it : it.id;
+        const b = document.createElement('button');
+        b.className = 'lab-btn' + (state[key] === id ? ' is-active' : '');
+        b.textContent = typeof it === 'string' ? it : it.label;
+        b.addEventListener('click', () => { state[key] = id; syncPanel(); render(); });
+        return b;
+    }));
+}
+
+function syncPanel() {
+    btnRow(document.getElementById('variantBtns'), VARIANTS, 'variant');
+    btnRow(document.getElementById('typeBtns'), TYPES, 'type');
+    btnRow(document.getElementById('deviceBtns'), DEVICES, 'device');
+    btnRow(document.getElementById('titleBtns'), TITLES, 'title');
+    btnRow(document.getElementById('dirBtns'), DIRS, 'dir');
+
+    const themeHost = document.getElementById('themeBtns');
+    themeHost.replaceChildren(...THEMES.map((t) => {
+        const b = document.createElement('button');
+        b.className = 'lab-swatch' + (state.theme === t.id ? ' is-active' : '');
+        b.title = t.label;
+        // Probe each theme's real accent, so a swatch can't drift from themes.css.
+        const probe = document.createElement('div');
+        if (t.id !== 'current') probe.dataset.theme = t.id;
+        probe.style.display = 'none';
+        document.body.appendChild(probe);
+        b.style.background = getComputedStyle(probe).getPropertyValue('--color-accent') || '#888';
+        probe.remove();
+        b.addEventListener('click', () => { state.theme = t.id; syncPanel(); render(); });
+        return b;
+    }));
+    document.getElementById('themeName').textContent = THEMES.find((t) => t.id === state.theme)?.label || '';
+
+    for (const id of ['allVariants', 'allTypes', 'hints', 'context']) {
+        const el = document.getElementById(id);
+        el.checked = !!state[id];
+        el.onchange = () => { state[id] = el.checked; render(); };
+    }
+}
+
+syncPanel();
+render();
+</script>
+</body>
+</html>

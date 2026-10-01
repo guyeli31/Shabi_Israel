@@ -9,11 +9,13 @@
  * Monte Carlo) reads this list; neither hard-codes a rule. Reorder it or extend
  * it here and both follow.
  *
- * `ranking.secondaryRound` is the other half of the same idea: the number of
- * decimals the secondary key is DISPLAYED to. Two players level at that
- * precision are level, full stop, and go on to the cascade — a PR gap of
- * 0.0003 is not a ranking, it is a rounding artefact no column can show.
- * Omit it (REGULAR ranks on whole wins) to compare the raw value.
+ * PRECISION — the secondary key is compared RAW, at full float precision. A
+ * Mean PR gap of 0.0003 decides the ranking even though both players print as
+ * 4.91, and that is deliberate: PR is a measured quantity, the better one is
+ * better, and a ranking that discards the measurement below the display width
+ * would hand a real difference to the alphabet. Rounding to the displayed two
+ * decimals was tried on 30 Sep 2026 and reversed the same night. Do not
+ * reintroduce it; change the DISPLAY precision instead if a tie looks wrong.
  *
  * Every list must END in a total order (today: 'tbAlphabetical'), and that is enforced at
  * import — see assertPolicy. A list that can run out while players are still
@@ -22,7 +24,7 @@
  * crown different champions.
  */
 
-import { assertPolicy } from './tiebreaks.js';
+import { assertPolicy, TIEBREAK_RULES } from './tiebreaks.js';
 
 function resolveType(params) {
     if (params.LeagueType) return params.LeagueType;
@@ -36,7 +38,6 @@ const DOUBLING_CONFIG = {
     showWinRate: true,
     showPRWins: false,
     ranking: { primary: 'winRate', primaryDir: 'desc', secondary: 'meanPR', secondaryDir: 'asc',
-               secondaryRound: 2,
                tiebreaks: ['tbAlphabetical'] },
     playerResultMode: 'winloss'
 };
@@ -59,7 +60,6 @@ const UBC_CONFIG = {
     showWinRate: false,
     showPRWins: true,
     ranking: { primary: 'avgPoints', primaryDir: 'desc', secondary: 'meanPR', secondaryDir: 'asc',
-               secondaryRound: 2,
                tiebreaks: ['tbAlphabetical'] },
     playerResultMode: 'points'
 };
@@ -167,6 +167,43 @@ const TYPE_ORDER = ['doubling', 'ubc', 'regular'];
 export function leagueTypeRank(leagueType) {
     const i = TYPE_ORDER.indexOf(leagueType);
     return i === -1 ? TYPE_ORDER.length : i;
+}
+
+/**
+ * Display labels for the sort keys a `ranking` may name as primary/secondary.
+ * The tiebreak rules carry their own labels in tiebreaks.js.
+ */
+const RANKING_KEY_LABELS = {
+    winRate:   'Win Rate',
+    avgPoints: 'Avg Points',
+    meanPR:    'Mean PR',
+    wins:      'Wins'
+};
+
+/**
+ * The ranking policy of `config` as an ordered, human-readable list of steps —
+ * primary, secondary, then every tiebreak rule. DERIVED from `config.ranking`,
+ * never written out per type, so the Tiebreakers section on the dashboard
+ * (and anything else that explains the order) cannot drift from what the
+ * table and the predictor actually do.
+ *
+ * @returns {Array<{ id: string, label: string, hint: string, dir: 'desc'|'asc'|null }>}
+ */
+export function rankingSteps(config) {
+    const r = config.ranking;
+    const keyStep = (key, dir) => ({
+        id: key,
+        label: RANKING_KEY_LABELS[key] || key,
+        hint: dir === 'asc' ? 'Lower is better' : 'Higher is better',
+        dir
+    });
+    const steps = [keyStep(r.primary, r.primaryDir)];
+    if (r.secondary) steps.push(keyStep(r.secondary, r.secondaryDir));
+    for (const id of r.tiebreaks) {
+        const rule = TIEBREAK_RULES[id];
+        steps.push({ id, label: rule.short || rule.label, hint: rule.hint || '', dir: rule.kind === 'name' ? null : 'desc' });
+    }
+    return steps;
 }
 
 /**

@@ -17,6 +17,7 @@ name: Project Title Race
 # later branch may then assume the inputs exist.
 run-name: >-
   ${{ github.event_name == 'schedule' && 'hourly sweep (safety net)'
+   || inputs.recompute && 'RECOMPUTE - cache ignored, after a logic change'
    || inputs.all && 'full backfill - every league'
    || inputs.league != '' && format('manual - {0}', inputs.league)
    || inputs.source == 'database' && 'auto - a league timeline changed'
@@ -52,6 +53,15 @@ on:
         type: string
       all:
         description: 'Project every league (initial backfill). Ignores the queue.'
+        required: false
+        default: false
+        type: boolean
+      recompute:
+        # Needed after a change to the RANKING or SIMULATION code. A point is
+        # reused when its data fingerprint matches, and code is not in that
+        # fingerprint — so a plain backfill after a logic change reports
+        # "0 computed, N reused" and rewrites nothing. See scripts/project-title-race.js.
+        description: 'Ignore cached points and re-simulate them. Use after a logic change — SLOW (~1h for every league).'
         required: false
         default: false
         type: boolean
@@ -128,10 +138,12 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
+          RECOMPUTE=""
+          if [ "${{ inputs.recompute }}" = "true" ]; then RECOMPUTE="--recompute"; fi
           if [ "${{ inputs.all }}" = "true" ]; then
-            node project-title-race.js --all
+            node project-title-race.js --all $RECOMPUTE
           elif [ -n "${{ inputs.league }}" ]; then
-            node project-title-race.js --league "${{ inputs.league }}"
+            node project-title-race.js --league "${{ inputs.league }}" $RECOMPUTE
           else
-            node project-title-race.js
+            node project-title-race.js $RECOMPUTE
           fi

@@ -29,6 +29,104 @@ function defaultPlayerCell(name, customFlags, flagUrl, enrich) {
     return `${img}${linkOpen.open}${displayPlayerName(name)}${linkOpen.close}${suffixHtml}`;
 }
 
+/**
+ * SHOWING THE TIEBREAK INSTEAD OF ASSERTING IT.
+ *
+ * Mean PR prints to two decimals and is compared raw, so a tie broken by PR can
+ * be invisible: September 2026 showed two players on 58.33% and 4.91 each, one
+ * ranked above the other, and the only honest reading of that table was "the
+ * order here is arbitrary". It was not — 4.91204167 beat 4.91233333.
+ *
+ * Where PR actually decided the order, this opens the column just far enough to
+ * show WHERE, and nowhere else. The result is a table that explains its own
+ * ranking rather than asking to be trusted.
+ *
+ * THE THREE CONDITIONS, all required:
+ *   1. The league ranks on Mean PR as its secondary (doubling, UBC — never
+ *      REGULAR, which has no PR and cascades through head-to-head instead).
+ *   2. The group is level on the PRIMARY key, so PR is what separates them.
+ *   3. NOBODY in the group has a match left. PR moves with every match played,
+ *      so until a player is done, the decimals on display would be a ranking
+ *      that silently rewrites itself — precision implying a finality the data
+ *      does not have. A league mid-season simply shows 4.91, as before.
+ *
+ * A group whose PRs are equal bit-for-bit is left alone too: there the alphabet
+ * decides, and extra zeros would dress up a coin toss as a measurement.
+ *
+ * @param {object[]} active       ranked rows, retired already removed
+ * @param {object}   leagueConfig getLeagueConfig output
+ * @param {(name:string)=>boolean} [hasRemaining] omitted (historical views, the
+ *        lab) disables the feature rather than guessing who is finished
+ * @returns {Map<string,number>} player → decimals, only where > 2
+ */
+const PR_TIEBREAK_MAX_DIGITS = 8;
+function prTiebreakDigits(active, leagueConfig, hasRemaining) {
+    const out = new Map();
+    const ranking = leagueConfig && leagueConfig.ranking;
+    if (!ranking || ranking.secondary !== 'meanPR' || leagueConfig.showPR === false) return out;
+    if (typeof hasRemaining !== 'function') return out;
+
+    const primary = ranking.primary;
+    let i = 0;
+    while (i < active.length) {
+        let j = i + 1;
+        while (j < active.length && active[j][primary] === active[i][primary]) j++;
+        const group = active.slice(i, j);
+        i = j;
+
+        if (group.length < 2) continue;
+        if (group.some(g => typeof g.meanPR !== 'number')) continue;
+
+        // Being level on the primary is not enough to earn extra digits: in a
+        // five-way Win% tie on 4.06 / 4.91 / 4.91 / 8.42 / 11.69, the column
+        // already separates everyone except the 4.91 pair. Opening the whole
+        // group would print 4.0600 and 11.6900 — noise that buries the one
+        // place a reader needs to look. So the unit is the set of players the
+        // PRINTED column cannot tell apart, and each such set opens on its own.
+        const byPrinted = new Map();
+        for (const g of group) {
+            const k = g.meanPR.toFixed(2);
+            if (!byPrinted.has(k)) byPrinted.set(k, []);
+            byPrinted.get(k).push(g);
+        }
+
+        for (const cluster of byPrinted.values()) {
+            if (cluster.length < 2) continue;
+            // "Finished" is asked of the players actually in this contest, not
+            // of the whole Win% group. A fifth player elsewhere in the group
+            // who still has a fixture cannot change the order between two
+            // players who are both done, so he must not suppress their
+            // explanation.
+            if (cluster.some(g => hasRemaining(g.player))) continue;
+            const vals = cluster.map(g => g.meanPR);
+            // Identical to the last bit: PR did not decide this, the alphabet
+            // did, and trailing zeros would dress up a coin toss as a
+            // measurement. (Checked first — with no differing pair to find,
+            // the search below would happily "separate" them at 3 digits.)
+            if (new Set(vals).size === 1) continue;
+
+            // Every pair that genuinely differs must print differently; pairs
+            // that are equal stay equal at any precision and must not drag the
+            // search out to 8 digits on their behalf.
+            const separates = (d) => {
+                for (let a = 0; a < vals.length; a++) {
+                    for (let b = a + 1; b < vals.length; b++) {
+                        if (vals[a] !== vals[b] && vals[a].toFixed(d) === vals[b].toFixed(d)) return false;
+                    }
+                }
+                return true;
+            };
+
+            let digits = PR_TIEBREAK_MAX_DIGITS;
+            for (let d = 3; d < PR_TIEBREAK_MAX_DIGITS; d++) {
+                if (separates(d)) { digits = d; break; }
+            }
+            for (const g of cluster) out.set(g.player, digits);
+        }
+    }
+    return out;
+}
+
 function rankBadge(rank, gold, silver, bronze, displayPos) {
     const show = displayPos !== undefined ? displayPos : rank;
     if (rank <= gold)                        return `<span class="medal medal-gold">${show}</span>`;
@@ -52,7 +150,7 @@ function rankBadge(rank, gold, silver, bronze, displayPos) {
  *                    playerSuffix(name) => html string       (titles, retired mark, etc)
  *                    isHidden(name)     => boolean           (hidden players show "N/A")
  */
-export function buildLeagueTablePreset({ rankings, averages, params, leagueConfig, flagUrl, enrich = {} }) {
+export function buildLeagueTablePreset({ rankings, averages, params, leagueConfig, flagUrl, enrich = {}, hasRemaining }) {
     const customFlags = params.CustomFlags || {};
     // Places per tier INCLUDING the tier's extra prize rows — two Gold rows of
     // one place each are two gold medals, and the badges have to agree with B1.
@@ -91,7 +189,18 @@ export function buildLeagueTablePreset({ rankings, averages, params, leagueConfi
         ...(leagueConfig.showPR ? [
             { key: 'meanPR', label: 'PR', type: 'number', sortable: true,
               colorFn: (v, min, max) => colorForValueInverted(v, min, max), boldExtreme: true,
-              format: v => v.toFixed(2) },
+              // The two decimals everyone reads, plus — only for a group PR
+              // actually separated (see prTiebreakDigits) — the digits that did
+              // the separating, dimmed so the column still scans as 4.91.
+              format: (v, row) => {
+                  const d = row && row._prDigits;
+                  if (!d) return v.toFixed(2);
+                  const s = v.toFixed(d);
+                  const head = s.slice(0, s.indexOf('.') + 3);
+                  const tail = s.slice(s.indexOf('.') + 3);
+                  return `<span title="Tied on the main score — this is where Mean PR separates them">`
+                       + `${head}<span style="opacity:.6">${tail}</span></span>`;
+              } },
             { key: 'level',  label: 'Level', type: 'string', sortable: true, colorFn: null,
               sortKey: row => row.meanPR,
               format: v => {
@@ -122,6 +231,8 @@ export function buildLeagueTablePreset({ rankings, averages, params, leagueConfi
     const active = rankings.filter(r => !retiredOf(r));
     const retired = rankings.filter(retiredOf);
 
+    const prDigits = prTiebreakDigits(active, leagueConfig, hasRemaining);
+
     const data = [
         ...active.map((row, i) => ({
             _origRank: row.originalRank ?? row.rank,
@@ -139,6 +250,7 @@ export function buildLeagueTablePreset({ rankings, averages, params, leagueConfi
             luck:      row.luck,
             _unplayed: row.winRate === null,
             _retired:  false,
+            _prDigits: prDigits.get(row.player),
         })),
         // Every numeric is null on purpose — the mount renders null as "—", and
         // a dash is the honest reading. A 0 would be a result he achieved.
