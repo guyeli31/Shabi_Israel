@@ -1309,6 +1309,7 @@ async function storedPointPrediction(ctx, pointValue, remaining, statsMap = null
             losses: st ? st.losses : 0,
             meanPR: st ? st.meanPR : null,
             winRate: st ? st.winRate : null,
+            prWins: st ? (st.prWins || 0) : 0,
             points: st ? (st.points || 0) : 0,
             avgPoints: st ? st.avgPoints : null,
         };
@@ -1637,17 +1638,12 @@ async function renderPredictor(ctx) {
                 const flagCode = getFlagCode(r.player, ctx.params.CustomFlags);
                 const pct = getTopXPct(r);
                 const barColor = pct > Math.min(20 * currentX, 80) ? 'var(--tier-high)' : pct > Math.min(5 * currentX, 30) ? 'var(--tier-mid)' : 'var(--tier-low)';
-                let ubcCols = '';
-                if (showPRWins) {
-                    ubcCols = `<td>${r.points}</td><td>${r.avgPoints != null ? formatNumber(r.avgPoints) : '—'}</td>`;
-                }
                 return `<tr>
                     <td>${i + 1}</td>
                     <td class="player-cell">${ctx.playersMeta[r.player]?.hidden ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`} ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
                     <td>${r.games}</td>
                     <td>${r.wins}</td>
-                    <td>${r.losses}</td>
-                    ${ubcCols}
+                    ${showPRWins ? `<td>${r.prWins ?? 0}</td>` : `<td>${r.losses}</td>`}
                     <td>${showPR ? (r.meanPR != null ? formatNumber(r.meanPR) : '—') : (r.winRate != null ? formatPercent(r.winRate) : '—')}</td>
                     <td class="predictor-pct-cell">
                         <div class="predictor-pct-bar" style="--pct:${Math.min(pct, 100)}%;--bar-color:${barColor}">
@@ -1658,17 +1654,16 @@ async function renderPredictor(ctx) {
             }).join('');
 
             const prHeader = showPR ? 'PR' : 'Win%';
-            let ubcHeaders = '';
-            if (showPRWins) {
-                ubcHeaders = `<th scope="col">PTS</th><th scope="col">Avg PTS</th>`;
-            }
+            // Same columns as the What-If table (B4): UBC shows W + PRW in place of W/L.
+            const wlHeaders = showPRWins
+                ? '<th scope="col">W</th><th scope="col" title="PR Wins">PRW</th>'
+                : '<th scope="col">W</th><th scope="col">L</th>';
             const pctShortHeader = currentX === 1 ? 'Ch%' : `T${currentX}%`;
             host.innerHTML = `
                 <div class="predictor-scroll-wrap">
                 <table class="dash-table font-small" data-mf-table-id="B3">
                     <thead><tr>
-                        <th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">MP</th><th scope="col">W</th><th scope="col">L</th>
-                        ${ubcHeaders}
+                        <th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">MP</th>${wlHeaders}
                         <th scope="col">${prHeader}</th><th scope="col">${pctShortHeader}</th>
                     </tr></thead>
                     <tbody>${rows}</tbody>
@@ -2705,7 +2700,7 @@ function renderWhatIfSimulator(ctx) {
                         <td class="player-cell">${ctx.playersMeta[r.player]?.hidden ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`} ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
                         <td>${r.games}</td>
                         <td>${r.wins}</td>
-                        ${showPRWins ? `<td>${r.prWins}</td>` : `<td>${r.losses}</td>`}
+                        ${showPRWins ? `<td>${r.prWins ?? 0}</td>` : `<td>${r.losses}</td>`}
                         <td>${showPR ? (r.meanPR != null ? formatNumber(r.meanPR) : '—') : (r.winRate != null ? formatPercent(r.winRate) : '—')}</td>
                         <td class="whatif-pct-cell">
                             <div class="whatif-pct-bar" style="--pct:${Math.min(pct, 100)}%;--bar-color:${barColor}">
