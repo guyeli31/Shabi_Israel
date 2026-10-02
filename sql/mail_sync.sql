@@ -5,8 +5,12 @@
 --   automation (recipient's mailbox)
 --     → submit_match_report(token, payload)          [anon, token-gated]
 --       → mail_resolve_report()                      [scan running leagues]
---         → exactly 1 candidate  → mail_apply_report()  → matches + history
---           0 or >1 candidates   → status pending_assign, admin picks in F8
+--         → exactly 1 eligible candidate → mail_apply_report() → matches + history
+--           0 or >1 eligible             → status pending_assign, admin picks in F8
+--
+--   "Eligible" = a candidate whose league type agrees with the report's source
+--   code (public.mail_source_types), or any candidate when the code is absent
+--   or unmapped. See the note above that table.
 --
 -- Design notes:
 --
@@ -97,8 +101,52 @@ create index if not exists idx_match_reports_status on public.match_reports (sta
 create index if not exists idx_match_reports_league on public.match_reports (league_id);
 create index if not exists idx_match_reports_received on public.match_reports (received_at desc);
 
+-- ----------------------------------------------------------------------------
+-- Source code → league type
+-- ----------------------------------------------------------------------------
+-- The subject line ends "… on Heroes in 325". That trailing number is NOT a
+-- match id (see tools/mail-sync/Code.gs, SUBJECT_RE) — it repeats across
+-- unrelated matches. It identifies the COMPETITION on the source, and each
+-- competition is one kind of league: as observed, 325 = doubling, 326 =
+-- regular, 331 = ubc. The mailbox sends it as payload.source_ref.
+--
+-- That makes it a tie-breaker the candidate scan never had. A pair can hold an
+-- open fixture in two running leagues at once — the same two people in this
+-- month's DOUBLING and this month's REGULAR — and the scan, which knows only
+-- names and length, cannot tell them apart. The code can.
+--
+-- How the rule is applied, and why it is no stronger than this:
+--   * It narrows AUTO-APPLY only. A report auto-applies when exactly one
+--     candidate's league type agrees with its code. A candidate of the wrong
+--     type is still a candidate: F8 lists it (marked) and an admin may apply
+--     it by hand. A mapping can be wrong; when it is, the cost must be a report
+--     waiting for a human, never a result written into the wrong league.
+--   * No code, or a code with no row here, changes nothing — the scan behaves
+--     exactly as it did before this table existed.
+--   * It does not end conflicts. Two running leagues of the SAME type holding
+--     the same open pair (two doubling leagues overlapping) still go to F8.
+--
+-- This is DATA, not code: a new competition on the source is one INSERT, and
+-- public.mail_source_ref_evidence() (below) checks every row against what
+-- admins and the scan have actually done with reports carrying that code.
+-- The seed is inserted with ON CONFLICT DO NOTHING, so re-running this file
+-- never overwrites a mapping someone has since corrected.
+create table if not exists public.mail_source_types (
+    source_ref   text primary key,
+    league_type  text not null check (league_type in ('doubling', 'regular', 'ubc')),
+    note         text,
+    created_at   timestamptz not null default now()
+);
+
+insert into public.mail_source_types (source_ref, league_type, note) values
+    ('325', 'doubling', 'initial mapping, 2026-10-02'),
+    ('326', 'regular',  'initial mapping, 2026-10-02'),
+    ('331', 'ubc',      'initial mapping, 2026-10-02')
+on conflict (source_ref) do nothing;
+
 alter table public.report_tokens enable row level security;
 alter table public.match_reports enable row level security;
+alter table public.mail_source_types enable row level security;
 
 -- No policies at all: anon and authenticated see nothing directly. Reads for
 -- the admin UI go through mail_reports_admin() below; writes go through the
@@ -119,6 +167,12 @@ alter table public.match_reports enable row level security;
 -- `swapped`, which says the report's A/B are reversed relative to the fixture.
 -- Getting that wrong is the override-orientation bug this project already paid
 -- for once; it is resolved here, once, at the source.
+--
+-- `type_ok` is the source-code verdict (see public.mail_source_types): true or
+-- false when the report's code is mapped, NULL when there is no code or no
+-- mapping. It does NOT filter — a wrong-type league is still returned, because
+-- an admin may still apply it by hand. Callers that decide AUTO-apply treat
+-- `type_ok is not false` as eligible.
 -- ============================================================================
 -- ----------------------------------------------------------------------------
 -- Is this pair of scores possible at all?
@@ -152,12 +206,19 @@ as $$
        and least(p_score_a, p_score_b)    < p_length;     -- and only one of them
 $$;
 
+-- The signature gained a parameter and the result a column, so the old
+-- three-argument version goes first. Left in place it would sit beside the new
+-- one, and every three-argument call would then match both overloads (the new
+-- one through its default) and fail as "not unique".
+drop function if exists public.mail_candidate_leagues(text, text, int);
+
 create or replace function public.mail_candidate_leagues(
-    p_player_a text,
-    p_player_b text,
-    p_length   int
+    p_player_a   text,
+    p_player_b   text,
+    p_length     int,
+    p_source_ref text default null
 )
-returns table (league_id text, match_id bigint, round int, swapped boolean)
+returns table (league_id text, match_id bigint, round int, swapped boolean, type_ok boolean)
 language sql
 stable
 security definer
@@ -166,13 +227,18 @@ as $$
     select l.id,
            m.id,
            m.round,
-           (m.player_a = p_player_b) as swapped
+           (m.player_a = p_player_b) as swapped,
+           case when st.league_type is null then null
+                else l.league_type = st.league_type
+           end as type_ok
     from public.leagues l
     join public.matches m
       on m.league_id = l.id
      and m.played = false
      and (   (m.player_a = p_player_a and m.player_b = p_player_b)
           or (m.player_a = p_player_b and m.player_b = p_player_a))
+    left join public.mail_source_types st
+      on st.source_ref = p_source_ref
     where l.running = true
       and l.archived = false
       and (l.match_length is null or p_length is null or l.match_length = p_length)
@@ -368,28 +434,37 @@ begin
                                   'held', 'implausible_score');
     end if;
 
+    -- Every candidate is stored, wrong-type ones included (F8 offers them to the
+    -- admin), but only the ELIGIBLE ones are counted towards auto-apply — those
+    -- whose league type agrees with the source code, or all of them when the
+    -- code is absent or unmapped (type_ok is null). See public.mail_source_types.
     select coalesce(jsonb_agg(jsonb_build_object(
-               'league_id', c.league_id, 'round', c.round)), '[]'::jsonb),
-           count(*)
+               'league_id', c.league_id, 'round', c.round, 'type_ok', c.type_ok)
+               order by c.type_ok desc nulls last, c.league_id), '[]'::jsonb),
+           count(*) filter (where c.type_ok is not false)
       into cands, n
       from public.mail_candidate_leagues(r.payload->>'player_a', r.payload->>'player_b',
-                                         (r.payload->>'match_length')::int) c;
+                                         (r.payload->>'match_length')::int,
+                                         r.payload->>'source_ref') c;
 
     update public.match_reports set candidates = cands where id = p_report_id;
 
     if n = 1 then
         select c.league_id into one
           from public.mail_candidate_leagues(r.payload->>'player_a', r.payload->>'player_b',
-                                             (r.payload->>'match_length')::int) c;
+                                             (r.payload->>'match_length')::int,
+                                             r.payload->>'source_ref') c
+         where c.type_ok is not false;
         update public.match_reports set auto_applied = true where id = p_report_id;
         return public.mail_apply_report(p_report_id, one, 'mail-automation')
                || jsonb_build_object('auto', true);
     end if;
 
-    -- 0 candidates (unknown players / already played / override-covered) and
-    -- >1 candidates both go to the admin. They are the same UI state; the
-    -- candidate list tells the admin which of the two it is.
-    return jsonb_build_object('ok', true, 'auto', false, 'candidates', n);
+    -- 0 eligible (unknown players / already played / override-covered / only a
+    -- wrong-type league) and >1 eligible all go to the admin. The stored
+    -- candidate list, with its type_ok flags, tells the admin which it is.
+    return jsonb_build_object('ok', true, 'auto', false,
+                              'candidates', jsonb_array_length(cands), 'eligible', n);
 end;
 $$;
 
@@ -433,9 +508,14 @@ begin
         return jsonb_build_object('ok', false, 'error', 'invalid_payload', 'missing', 'distinct players');
     end if;
 
-    -- Identity for dedupe: the source's own match id when present (the "in 325"
-    -- of the subject line), otherwise the full content. Two runs over the same
-    -- mailbox therefore cannot double-count a match.
+    -- Identity for dedupe: an `external_id` when a sender supplies one,
+    -- otherwise the full content. Two runs over the same mailbox therefore
+    -- cannot double-count a match.
+    --
+    -- The "in 325" of the subject line is NOT an external_id and must never be
+    -- sent as one: it is the source's COMPETITION code, shared by every match in
+    -- that competition (it arrives as `source_ref` — see public.mail_source_types).
+    -- Keyed on it, every match after the first would be swallowed as a duplicate.
     v_hash := encode(extensions.digest(
         coalesce(p_payload->>'external_id', p_payload::text), 'sha256'), 'hex');
 
@@ -682,6 +762,94 @@ as $$
     from public.match_reports;
 $$;
 
+-- ----------------------------------------------------------------------------
+-- Is the source-code mapping true? — checked against what actually happened
+-- ----------------------------------------------------------------------------
+-- public.mail_source_types is an assumption written down. This reads every
+-- report that carried a code and asks which league TYPE it ended up in, then
+-- compares that with the mapping. One row per code, mapped or merely seen.
+--
+-- The evidence is an applied report's league. Admin picks are independent of
+-- the mapping, and so were all auto-applies made before the mapping existed;
+-- an auto-apply made since can have been DECIDED by the mapping, so it agrees
+-- by construction. `admin_by_type` is therefore listed on its own: it is the
+-- column that can contradict a mapping, and the one to read first.
+--
+-- An unmapped code that keeps landing in one type is the signal to add a row;
+-- `verdict` names the type to add it with. It never adds the row itself — an
+-- inference that writes the rule it was inferred from cannot be checked.
+create or replace function public.mail_source_ref_evidence()
+returns table (
+    source_ref     text,
+    mapped_type    text,
+    applied_by_type jsonb,
+    admin_by_type  jsonb,
+    reports        bigint,
+    pending        bigint,
+    first_seen     timestamptz,
+    last_seen      timestamptz,
+    verdict        text
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+    with seen as (
+        select r.payload->>'source_ref'                          as ref,
+               r.status, r.received_at, l.league_type,
+               r.status = 'applied' and not coalesce(r.auto_applied, false) as by_admin
+          from public.match_reports r
+          left join public.leagues l on l.id = r.league_id
+         where r.payload->>'source_ref' is not null
+    ),
+    per_type as (
+        select ref,
+               jsonb_object_agg(league_type, n)                              as applied,
+               jsonb_object_agg(league_type, n_admin) filter (where n_admin > 0) as admin,
+               count(*)                                                      as n_types
+          from (select ref, league_type,
+                       count(*)                         as n,
+                       count(*) filter (where by_admin) as n_admin
+                  from seen
+                 where status = 'applied' and league_type is not null
+                 group by ref, league_type) t
+         group by ref
+    ),
+    totals as (
+        select ref, count(*) as reports,
+               count(*) filter (where status = 'pending_assign') as pending,
+               min(received_at) as first_seen, max(received_at) as last_seen
+          from seen group by ref
+    )
+    select coalesce(t.ref, st.source_ref),
+           st.league_type,
+           coalesce(p.applied, '{}'::jsonb),
+           coalesce(p.admin,   '{}'::jsonb),
+           coalesce(t.reports, 0),
+           coalesce(t.pending, 0),
+           t.first_seen,
+           t.last_seen,
+           case
+               when st.league_type is null and p.ref is null
+                   then 'unmapped — no applied report yet'
+               when st.league_type is null and p.n_types = 1
+                   then 'unmapped — every applied report is ' ||
+                        (select k from jsonb_object_keys(p.applied) k) || '; add it'
+               when st.league_type is null
+                   then 'unmapped — applied reports split across types'
+               when p.ref is null
+                   then 'mapped — no applied report yet'
+               when p.n_types = 1 and p.applied ? st.league_type
+                   then 'confirmed'
+               else 'CONTRADICTED — applied reports landed in other types'
+           end
+      from totals t
+      left join per_type p on p.ref = t.ref
+      full join public.mail_source_types st on st.source_ref = t.ref
+     order by 1;
+$$;
+
 create or replace function public.mail_discard_report(p_report_id bigint, p_reason text default null)
 returns jsonb
 language plpgsql
@@ -706,7 +874,8 @@ $$;
 revoke all on function public.submit_match_report(text, jsonb)            from public;
 revoke all on function public.mail_apply_report(bigint, text, text)       from public;
 revoke all on function public.mail_resolve_report(bigint)                 from public;
-revoke all on function public.mail_candidate_leagues(text, text, int)     from public;
+revoke all on function public.mail_candidate_leagues(text, text, int, text) from public;
+revoke all on function public.mail_source_ref_evidence()                  from public;
 revoke all on function public.mail_reports_pending()                      from public;
 revoke all on function public.mail_orphan_reason(text, text, int)         from public;
 revoke all on function public.mail_reports_log(int)                       from public;
@@ -721,7 +890,8 @@ revoke all on function public.mail_discard_report(bigint, text)           from p
 grant execute on function public.submit_match_report(text, jsonb) to anon;
 
 grant execute on function public.mail_apply_report(bigint, text, text)   to authenticated;
-grant execute on function public.mail_candidate_leagues(text, text, int) to authenticated;
+grant execute on function public.mail_candidate_leagues(text, text, int, text) to authenticated;
+grant execute on function public.mail_source_ref_evidence()              to authenticated;
 grant execute on function public.mail_reports_pending()                  to authenticated;
 grant execute on function public.mail_orphan_reason(text, text, int)     to authenticated;
 grant execute on function public.mail_reports_log(int)                   to authenticated;

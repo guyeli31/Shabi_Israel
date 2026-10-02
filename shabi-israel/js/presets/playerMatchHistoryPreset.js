@@ -37,7 +37,7 @@ export function buildPlayerMatchHistoryPreset({ playerMatches, leagueConfig, par
           tdClass: 'player-cell',
           format: (v, row) => oppCell(v, row._unplayed ? { italic: true } : {}) },
         ...(leagueConfig.playerResultMode === 'points' ? [
-            { key: 'matchPoints', label: 'Points', type: 'number', sortable: true, colorFn: null,
+            { key: 'matchPoints', label: 'Pts', type: 'number', sortable: true, colorFn: null,
               sortKey: row => typeof row.matchPoints === 'number' ? row.matchPoints : null,
               format: v => {
                   if (typeof v !== 'number') return '';
@@ -132,9 +132,10 @@ export function buildPlayerMatchHistoryPreset({ playerMatches, leagueConfig, par
         const wins     = played.filter(r => r.result === 'WIN').length;
         const totalPts = played.reduce((s, r) => s + (r.matchPoints ?? 0), 0);
         const avgPts   = (totalPts / n).toFixed(2);
+        // The average is written x̄-style (bar over "pts"), as in table D's header.
         const statLine = leagueConfig.playerResultMode === 'points'
-            ? `${n} games<br>${avgPts} avg pts`
-            : `${n} games<br>${pct(wins, n)}`;
+            ? `${n} matches<br>${avgPts} <span class="th-mean" title="Average points per match">pts</span>`
+            : `${n} matches<br>${pct(wins, n)}`;
         return {
             opponent: 'AVERAGES',
             date: '', score: '',

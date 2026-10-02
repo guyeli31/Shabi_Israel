@@ -182,7 +182,8 @@ export function buildLeagueTablePreset({ rankings, averages, params, leagueConfi
               colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true },
             { key: 'points',    label: 'Pts',     type: 'number', sortable: true,
               colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true },
-            { key: 'avgPoints', label: 'Avg Pts', type: 'number', sortable: true,
+            // x̄ notation: a bar over "Pts" reads as the average, at the width of "Pts".
+            { key: 'avgPoints', label: '<span class="th-mean" title="Average points per match">Pts</span>', type: 'number', sortable: true,
               colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true,
               format: v => v.toFixed(2) },
         ] : []),

@@ -244,7 +244,7 @@ function buildD(allResults) {
               colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true },
             { key: 'points',    label: 'Pts',     type: 'number', sortable: true,
               colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true },
-            { key: 'avgPoints', label: 'Avg Pts', type: 'number', sortable: true,
+            { key: 'avgPoints', label: '<span class="th-mean" title="Average points per match">Pts</span>', type: 'number', sortable: true,
               colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true,
               format: v => v.toFixed(2) },
         ] : []),
@@ -323,7 +323,7 @@ function buildE(allResults) {
           format: (v, row) => playerCell(v, cf, row.unplayed ? { italic: true } : {}) },
         // UBC: replace Result with Points (matchWin + prWin); other modes: show WIN/LOSS/DRAW
         ...(config.playerResultMode === 'points' ? [
-            { key: 'matchPoints', label: 'Points', type: 'number', sortable: true, colorFn: null,
+            { key: 'matchPoints', label: 'Pts', type: 'number', sortable: true, colorFn: null,
               sortKey: row => typeof row.matchPoints === 'number' ? row.matchPoints : null,
               format: v => {
                   if (typeof v !== 'number') return '';
@@ -409,8 +409,8 @@ function buildE(allResults) {
         const totalPts = played.reduce((s, r) => s + (r.matchPoints ?? 0), 0);
         const avgPts   = (totalPts / n).toFixed(2);
         const statLine = config.playerResultMode === 'points'
-            ? `${n} games<br>${avgPts} avg pts`
-            : `${n} games<br>${winPct}% wins`;
+            ? `${n} matches<br>${avgPts} <span class="th-mean" title="Average points per match">pts</span>`
+            : `${n} matches<br>${winPct}% wins`;
         return {
             opponent: 'AVERAGES',
             date: '', score: '',

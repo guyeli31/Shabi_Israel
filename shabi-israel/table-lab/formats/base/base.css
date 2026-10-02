@@ -44,6 +44,12 @@ thead th {
     transition: background 0.15s;
 }
 
+/* Mean notation (x̄) in a header: the bar over the label marks an average,
+   so "Pts" with a bar replaces the wider "Avg Pts". */
+.th-mean {
+    text-decoration: overline;
+}
+
 thead th:hover {
     background: var(--header-bg-hover);
 }

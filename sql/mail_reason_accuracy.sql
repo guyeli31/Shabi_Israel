@@ -241,6 +241,10 @@ language sql
 stable
 security definer
 set search_path = public
+-- Source codes (public.mail_source_types, sql/mail_sync.sql): each candidate
+-- carries `type_ok`, eligible ones first. A row whose candidates are ALL of the
+-- wrong type gets a reason too — it has a picker, but nothing in it is what the
+-- source said, and that is the one fact the admin cannot see from the row.
 as $$
     select r.id, r.payload,
            case when public.mail_score_ok((r.payload->>'score_a')::int,
@@ -254,7 +258,11 @@ as $$
                                           (r.payload->>'score_b')::int,
                                           (r.payload->>'match_length')::int)
                      and coalesce(jsonb_array_length(live.cands), 0) > 0
-                then null
+                then case when live.n_eligible = 0
+                          then format('Code %s is %s (fixture: %s)',
+                                      r.payload->>'source_ref', upper(st.league_type),
+                                      live.cand_types)
+                     end
                 else public.mail_orphan_reason(r.payload->>'player_a',
                                                r.payload->>'player_b',
                                                (r.payload->>'match_length')::int,
@@ -262,13 +270,21 @@ as $$
                                                (r.payload->>'score_b')::int)
            end as reason
       from public.match_reports r
+      left join public.mail_source_types st
+        on st.source_ref = r.payload->>'source_ref'
       left join lateral (
           select jsonb_agg(jsonb_build_object('league_id', c.league_id,
-                                              'round', c.round)) as cands
+                                              'round', c.round,
+                                              'type_ok', c.type_ok)
+                           order by c.type_ok desc nulls last, c.league_id) as cands,
+                 count(*) filter (where c.type_ok is not false)            as n_eligible,
+                 string_agg(distinct upper(l.league_type), ' / ')          as cand_types
             from public.mail_candidate_leagues(
                      r.payload->>'player_a',
                      r.payload->>'player_b',
-                     (r.payload->>'match_length')::int) c
+                     (r.payload->>'match_length')::int,
+                     r.payload->>'source_ref') c
+            join public.leagues l on l.id = c.league_id
       ) live on true
      where r.status = 'pending_assign'
      order by r.received_at desc;
@@ -298,6 +314,12 @@ grant execute on function public.mail_reports_pending()                        t
 --                                     — a running league holds BOTH, unplayed,
 --                                       un-overridden, and its fixture list has
 --                                       no row pairing them
+--
+-- And one for a row that DOES have candidates, none of them eligible:
+--   Code 326 is REGULAR (fixture: DOUBLING)
+--                                     — the source code maps to a league type
+--                                       no candidate has; the admin may still
+--                                       apply one by hand
 --
 -- Verify (read-only):
 --   select * from public.mail_reports_pending();

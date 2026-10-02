@@ -18,6 +18,13 @@
 const DOT_RADIUS = 5;
 const MIN_DIST = DOT_RADIUS * 2 + 1.5;
 
+// Horizontal padding shared by EVERY row type in this file. The left side is a
+// gutter for the histograms' "%" scale, so the labels get a column of their own
+// instead of sitting on top of the leftmost bar. Dot-strip rows carry the same
+// (empty) gutter on purpose: rows are stacked over one shared X domain, and the
+// stack only reads if a PR gap sits at the same pixel in every row.
+const PAD_L = 40, PAD_R = 16;
+
 // Tick spacing shared by every row's axis — picks the coarsest interval that
 // still keeps at most 40 gridlines across the current domain.
 function tickStep(xMin, xMax) {
@@ -27,6 +34,50 @@ function tickStep(xMin, xMax) {
         if (Math.ceil(span / iv) <= 40) return iv;
     }
     return 50;
+}
+
+// Y gridlines for every histogram row, chosen against the plot's PIXEL height.
+// The rows are only ~54px tall and each "%" label is 10px, so a step picked
+// from the data range alone (always 5%) stacked nine labels 6px apart into an
+// unreadable smear whenever a small sample put one bin near 45% — any league
+// in its first days, not one league type. `minStep` is the step the caller
+// would prefer when there is room; a coarser one is taken only when that one
+// would crowd. Among the steps that fit, the one whose top sits closest above
+// the data wins, so the bars keep as much of the plot height as possible.
+const Y_GRID_STEPS = [1, 2, 5, 10, 20, 25, 50];
+const MIN_Y_GRID_GAP_PX = 14;
+
+export function yGridScale(maxPct, plotH, minStep = 1) {
+    let best = null;
+    for (const step of Y_GRID_STEPS) {
+        if (step < minStep) continue;
+        const top = Math.max(step, Math.ceil(maxPct / step) * step);
+        if (plotH * step / top < MIN_Y_GRID_GAP_PX) continue;
+        if (!best || top < best.top) best = { step, top };
+    }
+    if (best) return best;
+    const step = Y_GRID_STEPS[Y_GRID_STEPS.length - 1];
+    return { step, top: Math.max(step, Math.ceil(maxPct / step) * step) };
+}
+
+// Y scale for the histogram rows: a gridline across the plot every `gridStep`
+// %, labelled right-aligned in the left gutter (PAD_L), clear of every bar.
+function drawYScale(ctx, { niceMax, gridStep, W, padL, padR, plotTop, plotBottom, C }) {
+    ctx.font = `10px ${C.fontFamily}`;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 1;
+    for (let p = 0; p <= niceMax; p += gridStep) {
+        const y = plotBottom - (p / niceMax) * (plotBottom - plotTop);
+        ctx.strokeStyle = C.grid;
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(W - padR, y);
+        ctx.stroke();
+        ctx.fillStyle = C.label;
+        ctx.fillText(`${p}%`, padL - 6, y);
+    }
+    ctx.textBaseline = 'alphabetic';
 }
 
 function xToPxAt(x, xMin, xMax, plotW, padL) {
@@ -149,7 +200,7 @@ export function drawCorrelationRow(host, points, opts) {
     const ROW_H = 76;
     const AXIS_H = 52;
     const H = showAxis ? ROW_H + AXIS_H : ROW_H;
-    const padL = 16, padR = 16;
+    const padL = PAD_L, padR = PAD_R;
 
     let W = 900;
     let hoverIndex = -1;
@@ -331,10 +382,10 @@ export function drawCorrelationRow(host, points, opts) {
  * Histogram row — same 1-D X domain and axis geometry as drawCorrelationRow
  * (so PR-gap positions still line up vertically across the whole stack),
  * but Y now encodes each fixed-width PR-gap bin's share of all matches (%)
- * as a bar height, instead of colour intensity. Y gridlines at multiples of
- * 5%, scaled to a "nice" max just above the tallest bin; percent labels are
- * drawn INSIDE the plot (not a separate margin column) so padL/padR stay
- * identical to every other row type. buckets: [{ x0, x1, count, pct }]
+ * as a bar height, instead of colour intensity. Y gridlines per yGridScale,
+ * scaled to a "nice" max just above the tallest bin; percent labels sit in the
+ * left gutter (PAD_L), which every row type shares so X stays aligned across
+ * the stack. buckets: [{ x0, x1, count, pct }]
  * sorted by x0 ascending (pct is 0-100, share of `opts.totalCount`).
  */
 export function drawHistogramRow(host, buckets, opts) {
@@ -358,7 +409,7 @@ export function drawHistogramRow(host, buckets, opts) {
     const ROW_H = 76;
     const AXIS_H = 52;
     const H = showAxis ? ROW_H + AXIS_H : ROW_H;
-    const padL = 16, padR = 16;
+    const padL = PAD_L, padR = PAD_R;
     // plotTop leaves room for the topmost gridline's "%" label (drawn just
     // above its line, per the loop below) so it doesn't clip off the top of
     // the canvas.
@@ -374,7 +425,7 @@ export function drawHistogramRow(host, buckets, opts) {
     // the curve never clips off the top of the plot.
     const gaussianPeakPct = gaussian ? normalPdf(gaussian.mean, gaussian.mean, gaussian.std) * 100 : 0;
     const maxPct = Math.max(0, gaussianPeakPct, ...buckets.map(b => b.pct));
-    const niceMax = Math.max(5, Math.ceil(maxPct / 5) * 5);
+    const { step: gridStep, top: niceMax } = yGridScale(maxPct, plotBottom - plotTop, 5);
 
     function themeColors() {
         const cs = getComputedStyle(canvas);
@@ -409,23 +460,7 @@ export function drawHistogramRow(host, buckets, opts) {
         const plotW = W - padL - padR;
         const step = tickStep(xMin, xMax);
 
-        // Y gridlines at multiples of 5%, value labelled inline (no separate
-        // left-margin column, so X stays aligned with every other row type).
-        ctx.font = `10px ${C.fontFamily}`;
-        ctx.textAlign = 'left';
-        for (let p = 0; p <= niceMax; p += 5) {
-            const y = plotBottom - (p / niceMax) * (plotBottom - plotTop);
-            ctx.strokeStyle = C.grid;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(padL, y);
-            ctx.lineTo(W - padR, y);
-            ctx.stroke();
-            if (p > 0) {
-                ctx.fillStyle = C.label;
-                ctx.fillText(`${p}%`, padL + 3, y - 2);
-            }
-        }
+        drawYScale(ctx, { niceMax, gridStep, W, padL, padR, plotTop, plotBottom, C });
 
         lastRects = buckets.map(b => ({
             b,
@@ -613,7 +648,7 @@ export function drawMultiHistogramRow(host, series, opts) {
     const ROW_H = rowHeight;
     const AXIS_H = 52;
     const H = showAxis ? ROW_H + AXIS_H : ROW_H;
-    const padL = 16, padR = 16;
+    const padL = PAD_L, padR = PAD_R;
     const plotTop = 16, plotBottom = ROW_H - 6;
 
     let W = 900;
@@ -639,9 +674,10 @@ export function drawMultiHistogramRow(host, series, opts) {
     const scaleMax = yMax != null ? yMax : maxPct;
     // Gridline spacing follows the range rather than being pinned at 5%: a
     // taller row has room for more lines, and a fit-only view can top out well
-    // under 5%, where a single gridline would leave the curve unreadable.
-    const gridStep = scaleMax <= 4 ? 1 : scaleMax <= 10 ? 2 : 5;
-    const niceMax = Math.max(gridStep, Math.ceil(scaleMax / gridStep) * gridStep);
+    // under 5%, where a single gridline would leave the curve unreadable. That
+    // preference yields to yGridScale when the labels would not fit the height.
+    const preferredStep = scaleMax <= 4 ? 1 : scaleMax <= 10 ? 2 : 5;
+    const { step: gridStep, top: niceMax } = yGridScale(scaleMax, plotBottom - plotTop, preferredStep);
 
     function themeColors() {
         const cs = getComputedStyle(canvas);
@@ -679,21 +715,7 @@ export function drawMultiHistogramRow(host, series, opts) {
         const plotW = W - padL - padR;
         const step = tickStep(xMin, xMax);
 
-        ctx.font = `10px ${C.fontFamily}`;
-        ctx.textAlign = 'left';
-        for (let p = 0; p <= niceMax; p += gridStep) {
-            const y = plotBottom - (p / niceMax) * (plotBottom - plotTop);
-            ctx.strokeStyle = C.grid;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(padL, y);
-            ctx.lineTo(W - padR, y);
-            ctx.stroke();
-            if (p > 0) {
-                ctx.fillStyle = C.label;
-                ctx.fillText(`${p}%`, padL + 3, y - 2);
-            }
-        }
+        drawYScale(ctx, { niceMax, gridStep, W, padL, padR, plotTop, plotBottom, C });
 
         lastRects = [];
         for (let i = 0; i < binCount; i++) {

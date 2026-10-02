@@ -131,19 +131,31 @@ function healthTone(iso) {
  *               match the roster (matching is exact-string), or a pair whose
  *               result is already recorded or override-covered.
  *
- * One sentence cannot serve both: telling an admin to "pick the league" for a
- * row with nothing to pick sends them looking for a dropdown that isn't there.
+ *   WRONG TYPE — open fixtures exist, but none in a league of the type the
+ *               report's source code names (public.mail_source_types). There
+ *               IS a choice, but not the one the source pointed at — check it.
+ *
+ * One sentence cannot serve all three: telling an admin to "pick the league" for
+ * a row with nothing to pick sends them looking for a dropdown that isn't there.
  * So the banner counts each kind and says only what is true of it.
  */
+const candsOf = (r) => (Array.isArray(r.candidates) ? r.candidates : []);
+const isWrongType = (r) => candsOf(r).length > 0 && candsOf(r).every((c) => c.type_ok === false);
+
 function pendingBanner(pending) {
-    const orphans = pending.filter((r) => !(Array.isArray(r.candidates) && r.candidates.length)).length;
-    const ambiguous = pending.length - orphans;
+    const orphans = pending.filter((r) => !candsOf(r).length).length;
+    const wrongType = pending.filter(isWrongType).length;
+    const ambiguous = pending.length - orphans - wrongType;
     const n = (c, one, many) => `${c} ${c === 1 ? one : many}`;
 
     const lines = [];
     if (ambiguous) {
         lines.push(`<b>${n(ambiguous, 'report matches', 'reports match')} more than one running league.</b>
                     Pick the league for each, then Apply.`);
+    }
+    if (wrongType) {
+        lines.push(`<b>${n(wrongType, 'report has', 'reports have')} an open fixture only in a league of another type than its source code.</b>
+                    The row names both. Apply by hand if it is right, or Discard.`);
     }
     if (orphans) {
         lines.push(`<b>${n(orphans, 'report matches', 'reports match')} no open fixture in any running league.</b>
@@ -158,16 +170,20 @@ function sectionPending(pending, customFlags) {
     const rows = pending.map((r) => {
         const p = r.payload || {};
         const [oa, ob] = outcomes(Number(p.score_a), Number(p.score_b));
-        const cands = Array.isArray(r.candidates) ? r.candidates : [];
+        const cands = candsOf(r);
 
         // Zero candidates is a different sentence from "pick one of N", and the
-        // picker must not pretend there is a choice.
+        // picker must not pretend there is a choice. A candidate whose league
+        // type disagrees with the source code is still offered — the mapping can
+        // be wrong — but says so in its own label, and the row's reason (set
+        // only when NO candidate agrees) sits under the picker.
         const picker = cands.length
             ? `<select class="mail-league-pick" data-report="${r.id}"
                        aria-label="Assign ${esc(p.player_a)} vs ${esc(p.player_b)} to a league">
                    <option value="">— pick one of ${cands.length} —</option>
-                   ${cands.map((c) => `<option value="${esc(c.league_id)}">${esc(c.league_id)}</option>`).join('')}
-               </select>`
+                   ${cands.map((c) => `<option value="${esc(c.league_id)}">${esc(c.league_id)}${c.type_ok === false ? ' (type ≠ code)' : ''}</option>`).join('')}
+               </select>
+               ${r.reason ? `<div class="mail-no-cand">${esc(r.reason)}</div>` : ''}`
             : `<span class="mail-no-cand">${esc(r.reason || 'No open fixture in any running league.')}</span>`;
 
         // No candidates → no Apply button at all, not a disabled one. A button
