@@ -6,8 +6,8 @@
  * Scope is deliberately narrow. This belongs ONLY to the two sections whose
  * subject is the luck metric:
  *
- *   • league dashboard — "Player PR difference ↔ Result ↔ Luck"
- *   • player page      — "Total PR difference ↔ Result ↔ Luck"
+ *   • league dashboard — "Player PR difference ↔ Result ↔ Luck Percentile"
+ *   • player page      — "Total PR difference ↔ Result ↔ Luck Percentile"
  *
  * Both stack one chart per player and exist to compare them, so the picker that
  * chooses the next player to stack is the one place where seeing each
@@ -119,19 +119,21 @@ export function createLeagueLuckSource(league) {
  * matching pill, so the number a candidate shows in the picker is the number
  * their Luck bar will show once they are stacked.
  *
- * `leagueType` is null for the "All" pill (every PR type pooled).
+ * `leagueType` is null for the "All" pill (every PR type pooled), one type, or
+ * an array of types when the section's filter has several pills on.
  *
  * @returns source + `ready`, a promise resolving once the leagues are loaded.
  */
 export function createAllTimeLuckSource({ leagueType = null } = {}) {
     const cache = new Map();
     let refs = null;              // name -> [{ m, matchLength }]
+    const types = leagueType == null ? null : [].concat(leagueType);
 
     const ready = loadVisibleLeagues().then(leagues => {
         refs = new Map();
         for (const league of leagues) {
             if (!league.config?.showPR) continue;
-            if (leagueType && league.leagueType !== leagueType) continue;
+            if (types && !types.includes(league.leagueType)) continue;
             const matchLength = league.params?.MatchLength ?? 7;
             for (const m of league.matches) {
                 for (const name of [m.playerA, m.playerB]) {
@@ -154,6 +156,6 @@ export function createAllTimeLuckSource({ leagueType = null } = {}) {
         return entry;
     }
 
-    const label = leagueType ? `${leagueType.toUpperCase()} leagues` : 'all leagues';
+    const label = types ? `${types.map(t => t.toUpperCase()).join(' + ')} leagues` : 'all leagues';
     return { ...makeSource(getEntry, label), ready };
 }

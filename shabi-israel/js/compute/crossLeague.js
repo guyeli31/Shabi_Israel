@@ -146,8 +146,15 @@ export function extractPlayerMatches(matches, playerName) {
 
 /**
  * Aggregate PR stats across leagues of the given league type.
- * Returns { totalPR, totalLevel, last300PR, last300Level, totalMatches }
+ * Returns { totalPR, totalLevel, last300PR, last300Level, totalMatches,
+ *           last300Count, last300Matches }
  * or null if no played non-technical matches exist.
+ *
+ * `last300Matches` is the window ITSELF — a Set of the very `playerMatches`
+ * objects the Last 300 figure was averaged over. It is handed out so a view that
+ * wants to SHOW those matches (the Match History filter) filters by membership
+ * instead of re-deriving the window with a loop of its own; flattenAllMatches()
+ * keeps each row's source object on `_src` for exactly that lookup.
  *
  * "Last 300 PR" = weighted mean of prSelf over most-recent matches accumulated
  * until weight ≥ 300. Weight per match derived from its own league's LeagueType:
@@ -168,7 +175,8 @@ export function aggregatePR(perLeagueData, leagueType) {
                 prSelf: m.prSelf,
                 weight: prWeightFor(entry.league.leagueType),
                 updatedAt: m.updatedAt,
-                leagueOrderIdx: perLeagueData.indexOf(entry)
+                leagueOrderIdx: perLeagueData.indexOf(entry),
+                src: m
             });
         }
     }
@@ -187,10 +195,12 @@ export function aggregatePR(perLeagueData, leagueType) {
     });
 
     let wsum = 0, vsum = 0, used = 0;
+    const last300Matches = new Set();
     for (const m of sorted) {
         vsum += m.prSelf * m.weight;
         wsum += m.weight;
         used++;
+        last300Matches.add(m.src);
         if (wsum >= 300) break;
     }
     const last300PR = wsum > 0 ? vsum / wsum : totalPR;
@@ -201,7 +211,8 @@ export function aggregatePR(perLeagueData, leagueType) {
         last300PR,
         last300Level: getLevel(last300PR),
         totalMatches: all.length,
-        last300Count: used
+        last300Count: used,
+        last300Matches
     };
 }
 
@@ -581,7 +592,10 @@ export async function listMedalRanking(leagueType, metric) {
  *
  * Each row: { leagueId, leagueTitle, leagueType, year, opponent, scoreSelf,
  *             scoreOpp, prSelf, prOpp, luckSelf, luckOpp, _technical, _draw,
- *             updatedAt, matchDate, _dateApprox, result }
+ *             updatedAt, matchDate, _dateApprox, result, _src }
+ *
+ * `_src` is the `playerMatches` object the row was built from — the identity
+ * aggregatePR()'s `last300Matches` is keyed on.
  */
 export function flattenAllMatches(perLeagueData) {
     const rows = [];
@@ -617,7 +631,8 @@ export function flattenAllMatches(perLeagueData) {
                 prOpp:  tracksPR ? m.prOpp  : null,
                 matchDate,
                 _dateApprox: !m.updatedAt && !!leagueDate,
-                result
+                result,
+                _src: m
             });
         }
     });

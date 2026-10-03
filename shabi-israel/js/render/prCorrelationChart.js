@@ -86,7 +86,10 @@ function xToPxAt(x, xMin, xMax, plotW, padL) {
 
 // One shared axis-tick renderer used by every row type (dot-strip and density
 // heatmap alike) so the ruler is pixel-identical wherever it's drawn.
-function drawAxisTicks(ctx, { xMin, xMax, W, padL, padR, axisTop, AXIS_H, plotW, step, C }) {
+// `caption` names the two directions of the axis. It defaults to the PR wording
+// every dashboard row uses; the player page's luck-gap rows pass their own.
+const PR_AXIS_CAPTION = '← PR disadvantage        PR advantage →';
+function drawAxisTicks(ctx, { xMin, xMax, W, padL, padR, axisTop, AXIS_H, plotW, step, C, caption = PR_AXIS_CAPTION }) {
     ctx.strokeStyle = C.axis;
     ctx.beginPath();
     ctx.moveTo(padL, axisTop + 4);
@@ -109,7 +112,7 @@ function drawAxisTicks(ctx, { xMin, xMax, W, padL, padR, axisTop, AXIS_H, plotW,
     }
     ctx.font = `600 11px ${C.fontFamily}`;
     ctx.textAlign = 'center';
-    ctx.fillText('← PR disadvantage        PR advantage →', W / 2, axisTop + AXIS_H - 14);
+    ctx.fillText(caption, W / 2, axisTop + AXIS_H - 14);
 }
 
 function normalPdf(x, mean, std) {
@@ -392,8 +395,10 @@ export function drawHistogramRow(host, buckets, opts) {
     host.innerHTML = '';
     host.style.position = 'relative';
 
+    // gapLabel / axisCaption default to the PR wording; the league luck-gap rows
+    // pass their own (same two options as drawMultiHistogramRow below).
     const { xMin, xMax, showAxis = false, totalCount = 0, placeholderText = 'Hover a bar to see details', gaussian = null,
-            onPick = null } = opts;
+            onPick = null, gapLabel = 'PR gap', axisCaption = PR_AXIS_CAPTION } = opts;
 
     const canvas = document.createElement('canvas');
     canvas.className = 'corr-row-canvas';
@@ -490,7 +495,7 @@ export function drawHistogramRow(host, buckets, opts) {
 
         if (gaussian) drawGaussianOverlay(ctx, gaussian, { xMin, xMax, padL, plotW, plotTop, plotBottom, niceMax, C });
 
-        if (showAxis) drawAxisTicks(ctx, { xMin, xMax, W, padL, padR, axisTop: ROW_H, AXIS_H, plotW, step, C });
+        if (showAxis) drawAxisTicks(ctx, { xMin, xMax, W, padL, padR, axisTop: ROW_H, AXIS_H, plotW, step, C, caption: axisCaption });
     }
 
     function placeholderHtml() {
@@ -501,7 +506,7 @@ export function drawHistogramRow(host, buckets, opts) {
         const pctOfTotal = totalCount > 0 ? (b.count / totalCount * 100) : 0;
         return `
             <div class="cip-row">
-                <div class="cip-title">PR gap ${b.x0} to ${b.x1}</div>
+                <div class="cip-title">${gapLabel} ${b.x0} to ${b.x1}</div>
                 <span class="cip-item"><span class="cip-k">Matches</span><span class="cip-v">${b.count}</span></span>
                 <span class="cip-item"><span class="cip-k">Share</span><span class="cip-v">${pctOfTotal.toFixed(1)}%</span></span>
             </div>
@@ -583,8 +588,9 @@ export function drawHistogramRow(host, buckets, opts) {
 /**
  * Multi-series histogram row — same axis geometry and bin width as
  * drawHistogramRow, but draws SEVERAL distributions over one shared X domain
- * (used by the player page's "Total PR ↔ Result" section: wins / losses / all
- * matches, each toggled independently from a legend).
+ * (used by the player page's "Total PR ↔ Result" and "Total Luck ↔ Result"
+ * sections: wins / losses / all matches, each toggled independently from a
+ * legend).
  *
  * Each series keeps its OWN percentage denominator (its own match count), so
  * two series of very different sizes are still shape-comparable — and so each
@@ -619,6 +625,9 @@ export function drawHistogramRow(host, buckets, opts) {
  * opts.yMax pins the Y scale (in % per bin) instead of self-scaling to this
  *   row's own tallest mark — pass the same value to every row of a stack so
  *   heights are comparable across rows.
+ * opts.gapLabel names the quantity on the X axis in the hover panel ("PR gap",
+ *   the default, or "Luck gap"); opts.axisCaption is the direction line under
+ *   the ruler. Both default to the PR wording.
  */
 export function drawMultiHistogramRow(host, series, opts) {
     host.innerHTML = '';
@@ -626,11 +635,12 @@ export function drawMultiHistogramRow(host, series, opts) {
 
     const {
         xMin, xMax, showAxis = false, rowHeight = 76, yMax = null,
+        gapLabel = 'PR gap', axisCaption = PR_AXIS_CAPTION,
         // Default follows the mark: bars are hoverable objects, a line is not —
         // what you actually hover in line mode is the bin column under it.
         placeholderText = series.length === 1
             ? 'Hover a bar to see details'
-            : 'Hover a PR-gap bin to see details',
+            : `Hover a ${gapLabel.replace(' ', '-')} bin to see details`,
         onPick = null,
     } = opts;
 
@@ -792,7 +802,7 @@ export function drawMultiHistogramRow(host, series, opts) {
             });
         });
 
-        if (showAxis) drawAxisTicks(ctx, { xMin, xMax, W, padL, padR, axisTop: ROW_H, AXIS_H, plotW, step, C });
+        if (showAxis) drawAxisTicks(ctx, { xMin, xMax, W, padL, padR, axisTop: ROW_H, AXIS_H, plotW, step, C, caption: axisCaption });
     }
 
     function binInfoHtml(i) {
@@ -802,7 +812,7 @@ export function drawMultiHistogramRow(host, series, opts) {
             const share = s.total > 0 ? (b.count / s.total * 100) : 0;
             return `<span class="cip-item"><span class="cip-k">${s.label}</span><span class="cip-v">${b.count} (${share.toFixed(1)}%)</span></span>`;
         }).join('');
-        return `<div class="cip-row"><div class="cip-title">PR gap ${ref.x0} to ${ref.x1}</div>${items}</div>`;
+        return `<div class="cip-row"><div class="cip-title">${gapLabel} ${ref.x0} to ${ref.x1}</div>${items}</div>`;
     }
 
     function updateInfoPanel() {

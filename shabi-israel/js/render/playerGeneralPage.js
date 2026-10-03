@@ -40,6 +40,7 @@ import {
     collectPlayerBestOpponentPR
 } from '../compute/matchRecords.js';
 import { drawPlayerBarChart, drawPlayerHistogram } from './playerBarChart.js';
+import { netLuck } from '../compute/netLuck.js';
 import { mountChartStepper } from './chartStepper.js';
 import { drawMultiHistogramRow } from './prCorrelationChart.js';
 import { applyLuckPill } from './luckPill.js';
@@ -49,7 +50,7 @@ import { renderBreadcrumbs } from './navigation.js';
 import { mountAppTabs } from './appTabs.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
-import { mountPillTabs, mountLengthSelector, ALL_TYPES_TAB, ALL_TYPES_ID } from './subTabs.js';
+import { mountPillTabs, mountLeagueTypeFilter, mountLengthSelector, ALL_TYPES_TAB, ALL_TYPES_ID } from './subTabs.js';
 import { langFlagsHtml, wireLangPopup, wireDynamicLangPopup } from '../utils/popupLang.js';
 import { getPopup, playerGaussianSeriesHtml } from '../data/popupContent.js';
 import { getTitleBadgesHtml, getTitleAbbreviationsHtml, getHighestTier } from '../data/titleConstants.js';
@@ -203,11 +204,12 @@ export async function renderPlayerGeneralPage() {
         }
 
         // Tab 5 — Records: three stacked sections, all collapsible and open by
-        // default — Match Records, Total Luck (per completed league), and
-        // Total PR ↔ Result (cross-league PR-gap histogram).
+        // default — Match Records, Total Luck (per completed league), and the
+        // two cross-league gap histograms: Total PR ↔ Result, Total Luck ↔ Result.
         renderPlayerMatchRecords(shell.panels.records, perLeague);
         renderTotalLuckSection(shell.panels.records, playerName, perLeague);
-        renderTotalPrResultSection(shell.panels.records, playerName, perLeague);
+        renderGapResultSection(shell.panels.records, playerName, perLeague, PR_RESULT_SPEC);
+        renderGapResultSection(shell.panels.records, playerName, perLeague, LUCK_RESULT_SPEC);
 
     } catch (err) {
         console.error(err);
@@ -634,6 +636,12 @@ function typeHasPR(type) {
     return getLeagueConfig({ LeagueType: type }).showPR === true;
 }
 
+/**
+ * The Matches select's "the matches behind Last 300 PR" choice — not a count
+ * like its siblings but the set PR Statistics averaged for the type in view.
+ */
+const COUNT_LAST300 = 'last300';
+
 /** Chart X-axis modes: the match timeline, or the metric's own distribution. */
 const SORT_CHRONO = 'chronological';
 const SORT_VALUE = 'value';
@@ -672,7 +680,9 @@ function renderMatchHistory(section, playerName, perLeague) {
     const countSel = document.createElement('select');
     countSel.innerHTML =
         '<option value="all">All</option>' +
-        [5, 10, 20, 50].map(n => `<option value="${n}">Last ${n}</option>`).join('');
+        [5, 10, 20, 50].map(n => `<option value="${n}">Last ${n}</option>`).join('') +
+        `<option value="${COUNT_LAST300}">Last 300 PR</option>`;
+    const last300Option = countSel.querySelector(`option[value="${COUNT_LAST300}"]`);
 
     const metricSel = document.createElement('select');
     metricSel.innerHTML = '<option value="pr">PR</option><option value="luck">Luck</option>';
@@ -731,6 +741,38 @@ function renderMatchHistory(section, playerName, perLeague) {
         metricCtl.hidden = !hasPR;
     }
 
+    /**
+     * The matches the Last 300 PR figure in PR Statistics was averaged over, for
+     * the type pill in view — the window itself, from aggregatePR, so this filter
+     * and that number cannot be built from two different lists. Every match that
+     * entered the window counts, the oldest one included even where it only
+     * tipped the total past 300.
+     *
+     * Pooled over the PR-recording types only, exactly as PR Statistics pools
+     * its own ALL: a REGULAR row can carry a PR from the import, but it is not a
+     * rating the league keeps. Empty when the view records no PR at all.
+     */
+    let last300Window = new Set();
+    function syncLast300Option() {
+        const prTypes = typesInView().filter(typeTracksPR);
+        const agg = prTypes.length ? aggregatePR(perLeague, prTypes) : null;
+        last300Window = agg ? agg.last300Matches : new Set();
+        const has = last300Window.size > 0;
+        // A view with no window cannot stay filtered to one. Read before the
+        // option leaves the select, which resets the value on its own.
+        if (!has && countSel.value === COUNT_LAST300) countSel.value = 'all';
+        // Taken OUT of the select rather than hidden: iOS Safari's native picker
+        // ignores `hidden` on an <option> and would still list a choice that
+        // filters to nothing. A player short of 300 keeps it — whatever they
+        // have played IS their window.
+        if (has) {
+            last300Option.textContent = `Last 300 PR (${last300Window.size})`;
+            if (!last300Option.isConnected) countSel.appendChild(last300Option);
+        } else {
+            last300Option.remove();
+        }
+    }
+
     const chartCard = document.createElement('div');
     chartCard.className = 'chart-panel';
     chartCard.appendChild(controls);
@@ -753,7 +795,9 @@ function renderMatchHistory(section, playerName, perLeague) {
             return true;
         });
         // Apply game count limit (data is already sorted by date desc)
-        if (cv !== 'all') {
+        if (cv === COUNT_LAST300) {
+            filtered = filtered.filter(r => last300Window.has(r._src));
+        } else if (cv !== 'all') {
             const limit = parseInt(cv, 10);
             filtered = filtered.slice(0, limit);
         }
@@ -792,8 +836,8 @@ function renderMatchHistory(section, playerName, perLeague) {
             .map(r => typeHasPR(r.leagueType) ? r : { ...r, prSelf: null, prOpp: null });
         // With nothing rated in view every slot would be blank, so fall back to a
         // note rather than an empty grid (e.g. filtering down to REGULAR only).
-        const metricKey = metricSel.value === 'luck' ? 'luckSelf' : 'prSelf';
-        const ratedCount = chartMatches.filter(r => r[metricKey] != null).length;
+        const rated = metricSel.value === 'luck' ? (r) => netLuck(r) != null : (r) => r.prSelf != null;
+        const ratedCount = chartMatches.filter(rated).length;
         if (chartMatches.length > 0 && ratedCount > 0) {
             if (sortMode === SORT_VALUE) {
                 // The histogram bins by value, so chronological order is
@@ -875,7 +919,15 @@ function renderMatchHistory(section, playerName, perLeague) {
     }
 
     yearSel.addEventListener('change', renderAll);
-    countSel.addEventListener('change', renderAll);
+    countSel.addEventListener('change', () => {
+        // The window is defined over the player's whole history and routinely
+        // reaches past New Year, so the default single-year view would show only
+        // the part of it that fell in that year — a partial window under a label
+        // that names the whole one. Open the year up as the option is chosen;
+        // narrowing it again afterwards is the reader's own, visible choice.
+        if (countSel.value === COUNT_LAST300) yearSel.value = 'all';
+        renderAll();
+    });
     metricSel.addEventListener('change', () => {
         preferredMetric = metricSel.value;
         renderAll();
@@ -909,6 +961,7 @@ function renderMatchHistory(section, playerName, perLeague) {
         onSelect: (id) => {
             typeFilter = id;
             syncMetricControl();
+            syncLast300Option();
             renderAll();
         },
     });
@@ -1414,7 +1467,8 @@ function renderTotalLuckSection(container, playerName, perLeague) {
     section.insertBefore(bar, body);
 }
 
-// ---- Total PR ↔ Result — cross-league PR-gap histogram, split by result ----
+// ---- Total PR ↔ Result / Total Luck ↔ Result — cross-league gap histograms,
+//      split by result. ONE renderer (renderGapResultSection), two specs. ----
 
 // Below this many matches a sample mean/std isn't a meaningful summary — the
 // Gaussian-fit toggle is disabled and says so instead of fitting a curve to
@@ -1457,23 +1511,84 @@ function pgBuildBuckets(values, lo, hi, dropOutOfRange = false) {
 }
 
 /**
- * Every rated, non-technical match of the given league types, as the PR gap
- * from THIS player's point of view (opponent's PR minus their own, so positive
- * = the player played the better match) plus whether they won it. Draws are
- * dropped: a PR gap "vs result" split needs a result to sort the match into.
+ * The two sections are the same chart over a different per-match quantity, so
+ * everything that differs between them is data here and nothing is a second
+ * copy of the renderer:
+ *
+ *   inScope(entry) — does this league belong to the section at all. Drives the
+ *                    "x/y matches" denominator.
+ *   gapOf(match)   — the charted value from THIS player's side, positive = in
+ *                    their favour; null when the match has no such value.
+ *   luckPill       — whether each row carries the Luck Confidence bar. That
+ *                    metric is derived from the PR gap against the result, so
+ *                    it describes the PR rows and has no reading over a
+ *                    distribution of dice luck (nor any value at all for the
+ *                    REGULAR matches that section includes).
+ *   onlyChartedTypes — offer a type pill only where the player has a charted
+ *                    match of that type, so no pill opens an empty chart.
+ *
+ * PR is gated on the league's own `showPR`; Luck on `typeTracksLuck`, which
+ * REGULAR leagues pass — they record a luck figure per side like every other
+ * type, so they are pooled into ALL and get a pill of their own.
  */
-function collectPlayerPrGaps(perLeague, typeId) {
+const PR_RESULT_SPEC = {
+    sectionClass: 'pg-pr-result',
+    idPrefix: 'pg-prres',
+    title: 'Total PR difference ↔ Result ↔ Luck Percentile',
+    popupId: 'player-pr-result',
+    metric: 'pr',
+    gapLabel: 'PR gap',
+    axisCaption: '← PR disadvantage        PR advantage →',
+    trackPrefix: 'Total PR: step',
+    trackSection: 'Total PR',
+    emptyNote: 'No rated matches for this filter.',
+    luckPill: true,
+    inScope: (e) => e.league.config?.showPR === true,
+    gapOf: (m) => {
+        if (m.prSelf == null || m.prOpp == null) return null;
+        if (!(m.prSelf > 0) || !(m.prOpp > 0)) return null;
+        return m.prOpp - m.prSelf;
+    },
+};
+
+const LUCK_RESULT_SPEC = {
+    sectionClass: 'pg-luck-result',
+    idPrefix: 'pg-luckres',
+    title: 'Total Luck difference ↔ Result',
+    popupId: 'player-luck-result',
+    metric: 'luck',
+    gapLabel: 'Luck gap',
+    axisCaption: '← Opponent luckier        Player luckier →',
+    trackPrefix: 'Total Luck: step',
+    trackSection: 'Total Luck',
+    emptyNote: 'No matches with a luck figure for this filter.',
+    luckPill: false,
+    onlyChartedTypes: true,
+    inScope: (e) => typeTracksLuck(e.league.leagueType),
+    gapOf: netLuck,
+};
+
+/**
+ * Every non-technical, decided match of the given league types, as the spec's
+ * gap from THIS player's point of view (positive = in their favour) plus
+ * whether they won it. Draws are dropped: a gap "vs result" split needs a
+ * result to sort the match into.
+ *
+ * `types` is the section filter's selection: an array of league types pooled
+ * together, or null for ALL.
+ */
+function collectPlayerGaps(perLeague, types, spec) {
     const out = [];
     for (const e of perLeague) {
-        if (!e.league.config?.showPR) continue;
-        if (typeId !== ALL_TYPES_ID && e.league.leagueType !== typeId) continue;
+        if (!spec.inScope(e)) continue;
+        if (types && !types.includes(e.league.leagueType)) continue;
         const matchLength = e.league.params?.MatchLength ?? 7;
         for (const m of e.playerMatches) {
             if (m._technical || m._draw) continue;
-            if (m.prSelf == null || m.prOpp == null) continue;
-            if (!(m.prSelf > 0) || !(m.prOpp > 0)) continue;
             if (m.scoreSelf === m.scoreOpp) continue;
-            out.push({ gap: m.prOpp - m.prSelf, win: m.scoreSelf > m.scoreOpp, matchLength });
+            const gap = spec.gapOf(m);
+            if (gap == null) continue;
+            out.push({ gap, win: m.scoreSelf > m.scoreOpp, matchLength, type: e.league.leagueType });
         }
     }
     return out;
@@ -1485,9 +1600,13 @@ function collectPlayerPrGaps(perLeague, typeId) {
  * single source the Explanation-and-Maths lab also renders — so this only wraps
  * it in the two `.popup-lang-*` blocks the live popup chrome expects.
  */
-function buildPgGaussianExplainerHtml(displayName, seriesLabel, values) {
+function buildPgGaussianExplainerHtml(nameHtml, seriesLabel, values, metric) {
     const { mean, std } = pgMeanStd(values);
-    const args = { displayName, seriesLabel, mean, std, games: values.length };
+    const args = {
+        nameHtml, seriesLabel, mean, std, games: values.length, metric,
+        luckier: values.filter(v => v > 0).length,
+        unluckier: values.filter(v => v < 0).length,
+    };
     return `
         <div class="pg-gauss-block">
         <div class="popup-lang-en" data-lang="en">${playerGaussianSeriesHtml('en', args)}</div>
@@ -1496,35 +1615,37 @@ function buildPgGaussianExplainerHtml(displayName, seriesLabel, values) {
     `;
 }
 
-function renderTotalPrResultSection(container, playerName, perLeague) {
-    // Only PR-tracking league types the player actually appears in.
+function renderGapResultSection(container, playerName, perLeague, spec) {
+    const ownRows = collectPlayerGaps(perLeague, null, spec);
+    if (ownRows.length === 0) return;
+    // Only in-scope league types the player actually appears in.
+    const charted = new Set(ownRows.map(r => r.type));
     const presentTypes = [...new Set(
-        perLeague.filter(e => e.league.config?.showPR).map(e => e.league.leagueType)
-    )];
+        perLeague.filter(e => spec.inScope(e)).map(e => e.league.leagueType)
+    )].filter(t => !spec.onlyChartedTypes || charted.has(t));
     if (presentTypes.length === 0) return;
-    if (collectPlayerPrGaps(perLeague, ALL_TYPES_ID).length === 0) return;
 
-    const section = makePgSection('pg-pr-result', 'Total PR difference ↔ Result ↔ Luck', {
+    const section = makePgSection(spec.sectionClass, spec.title, {
         collapsible: true,
-        headerHtml: ' <span class="predictor-tooltip" id="pg-prres-info-btn">?</span>',
+        headerHtml: ` <span class="predictor-tooltip" id="${spec.idPrefix}-info-btn">?</span>`,
     });
     // The "?" popup carries its own flag bar (same shape as the landing page's
     // Luck Percentile card), so both language blocks ship inline and the flags
     // only ever flip which one is visible.
     section.insertAdjacentHTML('beforeend', `
-        <div class="predictor-info-popup" id="pg-prres-info-popup" hidden>
-            <button class="predictor-info-close" id="pg-prres-info-close">&times;</button>
+        <div class="predictor-info-popup" id="${spec.idPrefix}-info-popup" hidden>
+            <button class="predictor-info-close" id="${spec.idPrefix}-info-close">&times;</button>
             <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
-            <div class="popup-lang-en" data-lang="en">${getPopup('player-pr-result').render('en')}</div>
-            <div class="popup-lang-he" data-lang="he">${getPopup('player-pr-result').render('he')}</div>
+            <div class="popup-lang-en" data-lang="en">${getPopup(spec.popupId).render('en')}</div>
+            <div class="popup-lang-he" data-lang="he">${getPopup(spec.popupId).render('he')}</div>
         </div>`);
     container.appendChild(section);
 
-    const infoPopup = section.querySelector('#pg-prres-info-popup');
+    const infoPopup = section.querySelector(`#${spec.idPrefix}-info-popup`);
     wireLangPopup(infoPopup, {
-        btn: section.querySelector('#pg-prres-info-btn'),
+        btn: section.querySelector(`#${spec.idPrefix}-info-btn`),
         popup: infoPopup,
-        close: section.querySelector('#pg-prres-info-close'),
+        close: section.querySelector(`#${spec.idPrefix}-info-close`),
     });
 
     const body = document.createElement('div');
@@ -1561,7 +1682,7 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
     addBtn.className = 'add-chart-btn pg-prres-add';
     addBtn.dataset.track = 'Compare: add player chart';
     addBtn.textContent = '+ Add player chart';
-    addBtn.title = 'Add another player\'s PR-gap distribution below, on the same axis, to compare against';
+    addBtn.title = `Add another player's ${spec.gapLabel.replace(' ', '-')} distribution below, on the same axis, to compare against`;
     body.appendChild(addBtn);
 
     const legendEl   = controls.querySelector('.pg-prres-legend');
@@ -1581,18 +1702,20 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
     // to ±70 and squeeze the real distribution toward the centre), but it is
     // display-only: the fit and the μ/σ readout always use the FULL data.
     let trimmed = false;
-    let typeId = ALL_TYPES_ID;
+    // The type filter's selection: an array of pooled types, or null for ALL.
+    let typeSel = null;
     // null = all match lengths pooled (default); a number narrows to that length.
     // The selector below only appears once the selected type spans >1 length.
     let lengthFilter = null;
 
     // Luck percentile shown beside each candidate in the comparison-row picker.
-    // Keyed to the section's league-type pill, so the number a candidate shows
+    // Keyed to the section's league-type filter, so the number a candidate shows
     // is the number their own Luck bar will read once their chart is stacked —
     // not a career figure that disagrees with the row it produced. (Match
     // length is left pooled: the picker is about who to compare, and rebuilding
     // per length would make the same player show different numbers mid-search.)
-    let prresLuck = createAllTimeLuckSource();
+    // Sections without a Luck bar show no figure in the picker either.
+    let prresLuck = spec.luckPill ? createAllTimeLuckSource() : null;
 
     // One entry per row. entries[0] is ALWAYS this page's player and can be
     // neither re-pointed nor removed — the whole section is their profile, and
@@ -1662,7 +1785,7 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
                     <span class="corr-games-count"></span>
                     ${isMain ? '' : '<button class="remove-chart" type="button" title="Remove this chart" data-track="Compare: remove player chart">&times;</button>'}
                 </div>
-                <span class="corr-metric-pill corr-luck-pill"></span>
+                ${spec.luckPill ? '<span class="corr-metric-pill corr-luck-pill"></span>' : ''}
             </div>
             <div class="chart-host corr-host"></div>
         `;
@@ -1694,7 +1817,7 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
                     : {
                         flagCode: _flags.latest(p),
                         titleHtml: getTitleAbbreviationsHtml(_allMeta[p]),
-                        luckHtml: prresLuck.htmlFor(p),
+                        ...(prresLuck ? { luckHtml: prresLuck.htmlFor(p) } : {}),
                     }),
                 identity: true,
                 // Entering the field browses the full roster; leaving without
@@ -1745,11 +1868,11 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
         // rowsAll = every rated match for the selected type (used to discover
         // which match lengths exist); rows = those narrowed to the chosen length
         // (null = all lengths pooled, the default).
-        entry.rowsAll = collectPlayerPrGaps(entry.perLeague || [], typeId);
+        entry.rowsAll = collectPlayerGaps(entry.perLeague || [], typeSel, spec);
         entry.rows = lengthFilter == null
             ? entry.rowsAll
             : entry.rowsAll.filter(r => r.matchLength === lengthFilter);
-        entry.counts = countPlayerRatedMatches(entry.perLeague || [], typeId, entry.rows.length, lengthFilter);
+        entry.counts = countPlayerRatedMatches(entry.perLeague || [], typeSel, entry.rows.length, lengthFilter, spec);
     }
 
     function redrawAll() {
@@ -1767,8 +1890,8 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
 
         const totalRows = entries.reduce((n, e) => n + e.rows.length, 0);
         countEl.textContent = entries.length === 1
-            ? `PR gap by result (${entries[0].rows.length} match${entries[0].rows.length === 1 ? '' : 'es'})`
-            : `PR gap by result — ${entries.length} players (${totalRows} matches)`;
+            ? `${spec.gapLabel} by result (${entries[0].rows.length} match${entries[0].rows.length === 1 ? '' : 'es'})`
+            : `${spec.gapLabel} by result — ${entries.length} players (${totalRows} matches)`;
 
         // ONE symmetric domain across every row, so a position means the same
         // thing in all of them — that is the whole point of stacking them.
@@ -1832,7 +1955,7 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
             // charted below it: entry.rows is already narrowed to the selected
             // league type and match length, so switching either re-reads the
             // metric rather than leaving a stale number over a changed chart.
-            applyLuckPill(entry.luckPill, luckConfidenceFromItems(entry.rows.map(r => ({
+            if (spec.luckPill) applyLuckPill(entry.luckPill, luckConfidenceFromItems(entry.rows.map(r => ({
                 // The win-probability table is a function of the PR GAP alone,
                 // so (0, gap) is the same lookup the dashboard makes with
                 // (prSelf, prOpp) — and gap here is already prOpp − prSelf.
@@ -1841,7 +1964,7 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
             }))));
             const series = built[i];
             if (!series.length || !entry.rows.length) {
-                entry.host.innerHTML = '<div class="pg-note">No rated matches for this filter.</div>';
+                entry.host.innerHTML = `<div class="pg-note">${spec.emptyNote}</div>`;
                 return;
             }
             // Double the shared 76px row: this section is read for the SHAPE of
@@ -1857,6 +1980,7 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
             let rowStepper = null;
             const row = drawMultiHistogramRow(entry.host, series, {
                 xMin: lo, xMax: hi, showAxis: true, rowHeight: 152, yMax,
+                gapLabel: spec.gapLabel, axisCaption: spec.axisCaption,
                 onPick: () => rowStepper && rowStepper.sync(),
             });
             rowStepper = mountChartStepper(entry.host, {
@@ -1864,12 +1988,12 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
                 total: row.binCount,
                 isSteppable: row.hasCount,
                 emptyLabel: 'Tap a bin',
-                prevTitle: 'Previous PR-gap bin',
-                nextTitle: 'Next PR-gap bin',
-                trackPrefix: 'Total PR: step',
+                prevTitle: `Previous ${spec.gapLabel.replace(' ', '-')} bin`,
+                nextTitle: `Next ${spec.gapLabel.replace(' ', '-')} bin`,
+                trackPrefix: spec.trackPrefix,
                 describe: (i) => {
                     const b = row.series[0] && row.series[0].buckets[i];
-                    return b ? `PR gap ${b.x0} to ${b.x1}` : '';
+                    return b ? `${spec.gapLabel} ${b.x0} to ${b.x1}` : '';
                 },
             });
         });
@@ -1881,16 +2005,25 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
         // the sentence beneath it.
         if (showGaussian) {
             const groups = entries.map(entry => {
-                const name = displayPlayerName(entry.name, _allMeta[entry.name]);
+                // The canonical identity chip (flag · name · title badges) — the
+                // same one the picker and every other player reference renders,
+                // so the player named in the explanation is recognisably the
+                // player charted above it. Hidden players carry neither.
+                const meta = _allMeta[entry.name];
+                const name = playerIdentityHtml({
+                    name: displayPlayerName(entry.name, meta),
+                    flagCode: meta?.hidden ? '' : _flags.latest(entry.name),
+                    titleHtml: meta?.hidden ? '' : getTitleAbbreviationsHtml(meta),
+                });
                 const valuesFor = (s) => entry.rows.filter(s.pick).map(r => r.gap);
                 const stats = active.map(s => {
                     const { mean, std } = pgMeanStd(valuesFor(s));
                     return `<span class="pg-prres-stat" style="color:var(${s.color})">${s.label}: μ = ${mean.toFixed(2)}   σ = ${std.toFixed(2)}</span>`;
                 }).join('');
                 return `<div class="pg-gauss-player">` +
-                    (entries.length > 1 ? `<div class="pg-gauss-player-name">${escapeHtml(name)}</div>` : '') +
+                    (entries.length > 1 ? `<div class="pg-gauss-player-name">${name}</div>` : '') +
                     `<div class="pg-prres-stats">${stats}</div>` +
-                    active.map(s => buildPgGaussianExplainerHtml(name, s.label, valuesFor(s))).join('') +
+                    active.map(s => buildPgGaussianExplainerHtml(name, s.label, valuesFor(s), spec.metric)).join('') +
                     `</div>`;
             }).join('');
             gaussPopup.innerHTML =
@@ -1944,24 +2077,27 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
         });
     }
 
-    function showType(id) {
-        typeId = id;
-        lengthFilter = null;              // a new type may span different lengths
-        prresLuck = createAllTimeLuckSource({ leagueType: id === ALL_TYPES_ID ? null : id });
+    function showTypes(ids) {
+        typeSel = ids;
+        lengthFilter = null;              // a new selection may span different lengths
+        if (spec.luckPill) prresLuck = createAllTimeLuckSource({ leagueType: ids });
         for (const e of entries) recomputeEntry(e);
         rebuildLengthSelector();
         redrawAll();
     }
 
-    // Row 0's chrome must exist before the pill bar mounts: mountPillTabs fires
-    // its initial onSelect synchronously, and that already runs a full redraw.
+    // Row 0's chrome must exist before the pill bar mounts: the filter fires its
+    // initial onChange synchronously, and that already runs a full redraw.
     buildEntryEl(entries[0], 0);
 
-    const { bar } = mountPillTabs(section, {
-        tabs: typeFilterTabs(presentTypes),
-        defaultId: presentTypes.length > 1 ? ALL_TYPES_ID : presentTypes[0],
-        pillClassFor: (t) => 'league-type-pill type-' + t,
-        onSelect: showType,
+    // A FILTER, not a switch: several type pills can be on at once and the
+    // charts pool them; ALL clears the lot. Starts on ALL.
+    const { bar } = mountLeagueTypeFilter(section, {
+        types: presentTypes,
+        trackFor: (id, willBeOn) => id === ALL_TYPES_ID
+            ? `${spec.trackSection}: type all`
+            : `${spec.trackSection}: type ${id} ${willBeOn ? 'on' : 'off'}`,
+        onChange: showTypes,
     });
     section.insertBefore(bar, body);
     section.insertBefore(lengthHost, body);
@@ -1992,16 +2128,16 @@ function renderTotalPrResultSection(container, playerName, perLeague) {
 }
 
 /**
- * How many of a player's matches in the given league scope actually carry a
- * rated PR gap, against how many they played there at all — the "21/24
+ * How many of a player's matches in the given league scope actually carry the
+ * section's gap, against how many they played there at all — the "21/24
  * matches" sample-size readout above each chart. `rated` is passed in rather
  * than recomputed so it can never disagree with the marks being drawn.
  */
-function countPlayerRatedMatches(perLeague, typeId, rated, lengthFilter = null) {
+function countPlayerRatedMatches(perLeague, types, rated, lengthFilter = null, spec) {
     let total = 0;
     for (const e of perLeague) {
-        if (!e.league.config?.showPR) continue;
-        if (typeId !== ALL_TYPES_ID && e.league.leagueType !== typeId) continue;
+        if (!spec.inScope(e)) continue;
+        if (types && !types.includes(e.league.leagueType)) continue;
         if (lengthFilter != null && (e.league.params?.MatchLength ?? 7) !== lengthFilter) continue;
         total += e.playerMatches.length;
     }

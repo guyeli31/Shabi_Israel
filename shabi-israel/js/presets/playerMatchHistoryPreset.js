@@ -6,6 +6,7 @@
 import { getFlagCode, formatNumber } from '../utils/helpers.js';
 import { displayPlayerName } from '../utils/nameDisplay.js';
 import { formatMatchStamp } from '../utils/matchTime.js';
+import { netLuck } from '../compute/netLuck.js';
 import { cancelledMarkHtml, CANCELLED_ROW_CLASS } from '../render/retirementMarks.js';
 
 function pct(n, total) { return ((n / total) * 100).toFixed(1) + '% wins'; }
@@ -113,7 +114,7 @@ export function buildPlayerMatchHistoryPreset({ playerMatches, leagueConfig, par
             score:       isTechnical ? '—' : `${m.scoreSelf}-${m.scoreOpp}`,
             pr:          isTechnical ? null : m.prSelf,
             oppPR:       isTechnical ? null : m.prOpp,
-            luck:        (isTechnical || m.luckSelf == null || m.luckOpp == null) ? null : (m.luckSelf - m.luckOpp),
+            luck:        isTechnical ? null : netLuck(m),
             result,
             matchPoints: matchWin + prWin,
             _technical:  isTechnical,

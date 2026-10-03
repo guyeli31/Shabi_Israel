@@ -16,7 +16,7 @@
 
 import { colorForValue } from './colorScale.js';
 import { pmTableHtml } from '../../table-lab/formats/pm/mount.js';
-import { resolveTie, needsMatchData, assertTablesFor } from './tiebreaks.js';
+import { resolveTie, needsMatchData, tiebreakNeeds, assertTablesFor, assertPolicy } from './tiebreaks.js';
 import { typeTracksPR } from './leagueTypes.js';
 
 // ── Probability lookup table ────────────────────────────────────────
@@ -331,8 +331,8 @@ function getWinProbabilityRound(prA, prB, mlIdx) {
 }
 
 /**
- * Rank all players from best (index 0) to worst, for league types whose policy
- * needs no tiebreak-H2H tables. Primary: winRate | avgPoints | wins.
+ * Rank all players from best (index 0) to worst, for league types whose
+ * SIMULATION needs no tiebreak-H2H tables. Primary: winRate | avgPoints | wins.
  * Secondary: meanPR | wins. Whoever is still level after both goes through the
  * SAME shared cascade — a type declaring e.g. ['tbAlphabetical'] is honoured here too,
  * so "the policy lives in one place" holds on every path, not just the fast one.
@@ -386,11 +386,15 @@ function rankAllPlayers(wins, games, points, tiebreakerPR, rankingConfig, n, tab
 // and members are plain indices. Wrapping those in the tiebreaks.js contract
 // lets the shared resolveTie() run the exact same cascade the rendered table
 // runs — at typed-array speed, with zero copy of the rule.
-function makeIndexTables(pairWins, pairDiff, totalDiff, names, n) {
+// A lookup whose backing array the policy does not need is passed as null and
+// never called — assertTablesFor() checks the policy against the lookups, and a
+// rule only ever calls the one it declared in `needs`.
+function makeIndexTables(pairWins, pairDiff, totalDiff, prWins, names, n) {
     return {
         pairWins:  (a, b) => pairWins[a * n + b],
         pairDiff:  (a, b) => pairDiff[a * n + b],
         totalDiff: (a)    => totalDiff[a],
+        prWins:    (a)    => prWins[a],
         name:      (a)    => names[a]
     };
 }
@@ -444,6 +448,7 @@ function simulateMonteCarlo(setup, N) {
             remainingA, remainingB, effectivePR, effectiveSTD, mlIdx,
             rankingConfig, isUBC, usesPairTables, steps, names, matchLength,
             basePairWins, basePairDiff, baseTotalDiff,
+            currentPRWins, usesPRWins,
             playedPRSum, finalGames, useLUT, useInterp, prDrivesOdds } = setup;
     const X = remainingA.length;
 
@@ -465,6 +470,10 @@ function simulateMonteCarlo(setup, N) {
     const prSum = usesMeanPR ? new Float64Array(n) : null;
     const meanPRIter = usesMeanPR ? new Float64Array(n) : null;
 
+    // Per-run PR wins (only when the policy has a rule that reads them): the
+    // real count so far, plus one per simulated match to the lower drawn PR.
+    const simPRWins = usesPRWins ? new Int32Array(n) : null;
+
     // Tiebreak-H2H bookkeeping: persistent working copies of the base
     // (played-match) tables. Each iteration applies the simulated results, ranks,
     // then undoes them — avoids re-copying the n×n matrices every iteration.
@@ -481,7 +490,7 @@ function simulateMonteCarlo(setup, N) {
     // arrays, which are mutated in place, so the same object serves all N
     // iterations at zero per-iteration cost.
     const tables = steps.length
-        ? makeIndexTables(pairWins, pairDiff, totalDiff, names, n)
+        ? makeIndexTables(pairWins, pairDiff, totalDiff, simPRWins, names, n)
         : null;
     if (tables) assertTablesFor(steps, tables, 'championshipPredictor.js');
 
@@ -512,6 +521,9 @@ function simulateMonteCarlo(setup, N) {
         }
         if (usesMeanPR) {
             for (let i = 0; i < n; i++) prSum[i] = playedPRSum[i];
+        }
+        if (usesPRWins) {
+            for (let i = 0; i < n; i++) simPRWins[i] = currentPRWins[i];
         }
         let tc = 0;
 
@@ -559,6 +571,12 @@ function simulateMonteCarlo(setup, N) {
                 // PR win point — lower drawn PR earns it
                 if (drawA <= drawB) simPoints[a] += 1;
                 else simPoints[b] += 1;
+            }
+            // The PR-wins tiebreak counts the same event the PR point pays for,
+            // decided by the same comparison, so the two can never disagree.
+            if (usesPRWins && prDrivesOdds) {
+                if (drawA <= drawB) simPRWins[a]++;
+                else simPRWins[b]++;
             }
 
             if (usesPairTables) {
@@ -615,12 +633,12 @@ function simulateMonteCarlo(setup, N) {
             });
             order = indices;
 
-            // A type needing no tiebreak-H2H tables still has a policy (today
-            // ['tbAlphabetical']), and it is applied HERE, so "change the list in
-            // leagueTypes.js and both engines follow" holds for every league
-            // type — not only the one whose policy happens to need tables.
-            // Players separated by the sort skip the cascade entirely; only a
-            // genuinely level run pays for it.
+            // A type needing no tiebreak-H2H tables still has a policy, and it
+            // is applied HERE, so "change the list in leagueTypes.js and both
+            // engines follow" holds for every league type — not only the one
+            // whose policy happens to need tables. Players separated by the
+            // sort skip the cascade entirely; only a genuinely level run pays
+            // for it.
             const resolved = [];
             let i = 0;
             while (i < n) {
@@ -683,8 +701,26 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
     // follows from the policy itself, not from a league-type name: add a
     // pair-based criterion to any type in leagueTypes.js and the Monte Carlo
     // starts carrying the tables for it, with nothing here to update.
-    const steps = leagueConfig.ranking.tiebreaks || [];
+    const policy = leagueConfig.ranking.tiebreaks || [];
+    // THE SIMULATION MAY RUN A SHORTER CASCADE THAN THE TABLE.
+    //
+    // `projectionSkips` (leagueTypes.js) names the rules the Monte Carlo leaves
+    // out; a tie that reaches a skipped rule simply moves on to the next one.
+    // DOUBLING and UBC skip tiebreak-H2H: it sits behind Mean PR, a float that
+    // two players essentially never share, so the rule is all but unreachable —
+    // while keeping its n×n tables current costs every simulated match of every
+    // iteration (measured +27% on a 25-player league). The season-complete path
+    // below is not a simulation and costs nothing, so it runs the FULL policy
+    // and always agrees with the rendered table.
+    const skips = leagueConfig.ranking.projectionSkips || [];
+    const steps = skips.length ? policy.filter(id => !skips.includes(id)) : policy;
+    if (skips.length) assertPolicy(steps, `championshipPredictor.js (${leagueConfig.type} projection)`);
     const usesPairTables = needsMatchData(steps);
+    // The season-complete path needs the played-match tables whenever the full
+    // policy does, even if the simulation skips the rules that read them.
+    const policyUsesPairTables = needsMatchData(policy);
+    // Likewise read off the policy: does any rule count PR wins?
+    const usesPRWins = tiebreakNeeds(steps).has('prWins');
     // Synthesized unplayed-match score: winner = matchLength, loser = ⌈matchLength/2⌉,
     // The scoreline of a simulated match is drawn per game inside the loop (the
     // loser's score uniform over 0..matchLength-1), so no constant margin lives
@@ -694,6 +730,7 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
     const currentWins = new Int32Array(n);
     const currentGames = new Int32Array(n);
     const currentPoints = new Int32Array(n);
+    const currentPRWins = new Int32Array(n);
     // The player's Mean PR in THIS league. Not a strength estimate — that is
     // Last-300's job — but the Mean PR tiebreak's starting sum, and the value
     // the season-complete path ranks on.
@@ -705,6 +742,7 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
             currentWins[i] = stats.wins || 0;
             currentGames[i] = stats.games || 0;
             currentPoints[i] = stats.points || 0;
+            currentPRWins[i] = stats.prWins || 0;
             leagueMeanPR[i] = stats.meanPR || 0;
         }
     }
@@ -769,12 +807,16 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
         remainingB[m] = bi;
     }
 
-    // REGULAR tiebreak base tables, built once from played matches (constant
-    // across simulations). pairWins/pairDiff are n×n flat arrays; totalDiff is n.
-    const basePairWins = usesPairTables ? new Int32Array(n * n) : null;
-    const basePairDiff = usesPairTables ? new Int32Array(n * n) : null;
-    const baseTotalDiff = usesPairTables ? new Int32Array(n) : null;
-    if (usesPairTables) {
+    // Tiebreak-H2H base tables, built once from played matches (constant across
+    // simulations). pairWins/pairDiff are n×n flat arrays; totalDiff is n.
+    // Built when the simulation carries them (REGULAR), or when the season is
+    // complete and the FULL policy reads them — never for a simulation that
+    // skips the pair-based rules, which therefore pays nothing for them.
+    const buildBase = usesPairTables || (policyUsesPairTables && X === 0);
+    const basePairWins = buildBase ? new Int32Array(n * n) : null;
+    const basePairDiff = buildBase ? new Int32Array(n * n) : null;
+    const baseTotalDiff = buildBase ? new Int32Array(n) : null;
+    if (buildBase) {
         for (const match of playedMatches) {
             const ai = playerIdx.get(match.playerA);
             const bi = playerIdx.get(match.playerB);
@@ -796,6 +838,7 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
         remainingA, remainingB, effectivePR, effectiveSTD, mlIdx,
         rankingConfig: leagueConfig.ranking, isUBC, usesPairTables, steps,
         names: players, matchLength, basePairWins, basePairDiff, baseTotalDiff,
+        currentPRWins, usesPRWins,
         playedPRSum, finalGames, useLUT, useInterp,
         // Whether the drawn PR decides a match at all — false for REGULAR, where
         // every unplayed match is a fair coin. See the note in simulateMonteCarlo.
@@ -819,11 +862,13 @@ export function predictChampionship({ statsMap, remainingMatches, matchLength, l
         method = 'exact';
         champWins = new Float64Array(n);
         finishRankCounts = new Float64Array(n * n);
+        // Not a simulation: the FULL policy (leagueConfig.ranking.tiebreaks),
+        // including any rule the Monte Carlo skips, so a finished season is
+        // ranked exactly as the rendered table ranks it.
+        const baseTables = makeIndexTables(basePairWins, basePairDiff, baseTotalDiff, currentPRWins, players, n);
         const finalRanks = usesPairTables
-            ? rankRegular(currentWins, currentGames,
-                          makeIndexTables(basePairWins, basePairDiff, baseTotalDiff, players, n), steps, n)
-            : rankAllPlayers(currentWins, currentGames, currentPoints, tiebreakerPR, leagueConfig.ranking, n,
-                             makeIndexTables(basePairWins, basePairDiff, baseTotalDiff, players, n));
+            ? rankRegular(currentWins, currentGames, baseTables, steps, n)
+            : rankAllPlayers(currentWins, currentGames, currentPoints, tiebreakerPR, leagueConfig.ranking, n, baseTables);
         champWins[finalRanks[0]] = 1;
         for (let r = 0; r < n; r++) finishRankCounts[finalRanks[r] * n + r] = 1;
     }

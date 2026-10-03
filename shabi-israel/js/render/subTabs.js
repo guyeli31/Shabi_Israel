@@ -10,6 +10,10 @@
  *     content for the selected tab (called once on mount for the default tab).
  *     Returns { bar, select(id) }.
  *
+ *   mountLeagueTypeFilter(mountEl, { types, selected?, trackFor?, onChange })
+ *     League-type FILTER: several pills on at once, pooled; ALL clears them.
+ *     Renders the canonical league-type pill itself — callers pass type ids.
+ *
  *   mountAccordionTabs(barEl, { tabs, defaultOpenId?, onOpen, onClose })
  *     Expandable rows: zero or one panel open; clicking an open tab closes it.
  *     `tabs`: [{ id, label, panelId? }] (panelId defaults to id; the panel
@@ -28,7 +32,7 @@
  * importing it from the primitive they already use. Styling comes from
  * `.league-type-pill.type-all` (components.css → --lt-all-* tokens).
  */
-import { ALL_TYPES_ID } from '../compute/leagueTypes.js';
+import { ALL_TYPES_ID, leagueTypeLabel } from '../compute/leagueTypes.js';
 export { ALL_TYPES_ID };
 export const ALL_TYPES_LABEL = 'All';
 export const ALL_TYPES_TAB = { id: ALL_TYPES_ID, label: ALL_TYPES_LABEL };
@@ -82,6 +86,86 @@ export function mountPillTabs(mountEl, { tabs, defaultId = null, pillClassFor = 
     const start = defaultId != null ? defaultId : (tabs[0] && tabs[0].id);
     if (start != null) select(start);
     return { bar, select };
+}
+
+/**
+ * League-type FILTER — the site's own league-type pills, but several can be on
+ * at once and the view pools everything selected.
+ *
+ * It renders THE league-type pill and nothing else: the label comes from
+ * leagueTypes.js and the look from `.league-type-pill.type-<id>` (components.css
+ * → the --lt-* tokens), so a caller passes type ids and cannot hand it a
+ * different label or class. Mount it OUTSIDE any `.dash-controls` box — that
+ * rule restyles every <button> inside it (border, square corners, padding) and
+ * the pill stops looking like the pill everywhere else.
+ *
+ *   ALL            → clears every type and is the only pill left on.
+ *   a type         → toggles; turning one on turns ALL off.
+ *   last type off  → falls back to ALL (a filter never selects nothing).
+ *
+ * A filter, not a view switch: the pills carry `aria-pressed` and no tab role
+ * (same reasoning as mountFilterToggle below). That also keeps them out of the
+ * analytics listener's generic `[role="tab"]` branch, which would log a bare
+ * "Tab: Doubling" that names neither the section nor whether the pill went on or
+ * off — so each pill carries its own `data-track`, from `trackFor`.
+ *
+ * @param {HTMLElement} mountEl  appended to
+ * @param {object} opts
+ *   types        {string[]} the league types on offer — WITHOUT ALL, which is
+ *                added here when there is more than one type to choose from
+ *   selected     {string[]|null} initial selection (null/empty = ALL)
+ *   trackFor     (id, willBeOn) => the analytics target of the NEXT click on
+ *                that pill. Written ahead of time because the analytics listener
+ *                runs in the capture phase, before the click handler toggles.
+ *   onChange     (ids|null) called on mount and after every click; null = ALL
+ * @returns {{ bar: HTMLElement, get: () => string[]|null }}
+ */
+export function mountLeagueTypeFilter(mountEl, { types: typeIds, selected = null, trackFor = null, onChange } = {}) {
+    const types = orderPillTabs(typeIds.map(id => ({ id, label: leagueTypeLabel(id) })));
+    const offered = types.length > 1 ? [ALL_TYPES_TAB, ...types] : types;
+    const on = new Set((selected || []).filter(id => types.some(t => t.id === id)));
+    // A single type has nothing to filter between: it is simply on.
+    if (types.length === 1) on.add(types[0].id);
+
+    const bar = document.createElement('div');
+    bar.className = 'subtabs subtabs--pill';
+    bar.setAttribute('role', 'group');
+    bar.setAttribute('aria-label', 'League type filter');
+
+    const isOn = (id) => (id === ALL_TYPES_ID ? on.size === 0 : on.has(id));
+    const current = () => (on.size === 0 ? null : types.filter(t => on.has(t.id)).map(t => t.id));
+
+    const btns = offered.map(t => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'subtab subtab--pill league-type-pill type-' + t.id;
+        b.textContent = t.label;
+        b.addEventListener('click', () => {
+            if (types.length === 1) return;
+            if (t.id === ALL_TYPES_ID) on.clear();
+            else if (on.has(t.id)) on.delete(t.id);
+            else on.add(t.id);
+            paint();
+            if (onChange) onChange(current());
+        });
+        bar.appendChild(b);
+        return { id: t.id, el: b };
+    });
+
+    function paint() {
+        for (const { id, el } of btns) {
+            const active = isOn(id);
+            el.classList.toggle('active', active);
+            el.setAttribute('aria-pressed', active ? 'true' : 'false');
+            // A lone pill does nothing when clicked, so it reports nothing.
+            if (trackFor && types.length > 1) el.dataset.track = trackFor(id, id === ALL_TYPES_ID ? true : !active);
+        }
+    }
+
+    mountEl.appendChild(bar);
+    paint();
+    if (onChange) onChange(current());
+    return { bar, get: current };
 }
 
 /**

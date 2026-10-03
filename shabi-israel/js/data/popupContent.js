@@ -18,7 +18,7 @@
 
 import { prProbabilityTableHtml } from '../compute/championshipPredictor.js';
 import { luckContribCurveSvg, luckPriorCurveSvg, luckPosteriorDSvg, luckExampleRowSvg } from '../render/luckContribCurve.js';
-import { prGapExampleHistogramSvg, tableValidationExampleHistogramSvg, advantageDistributionExampleHistogramSvg } from '../render/exampleHistograms.js';
+import { prGapExampleHistogramSvg, luckGapExampleHistogramSvg, tableValidationExampleHistogramSvg, advantageDistributionExampleHistogramSvg } from '../render/exampleHistograms.js';
 import { LUCK_DIST_CUTS, LUCK_PRIOR_S } from '../compute/luckConfidence.js';
 import { colorForValue, colorForConfidence } from '../compute/colorScale.js';
 import { pmTableHtml } from '../../table-lab/formats/pm/mount.js';
@@ -279,7 +279,8 @@ function esc(s) {
 }
 
 /**
- * The player page's per-series μ/σ explainer (Total PR ↔ Result → Gaussian fit).
+ * The player page's per-series μ/σ explainer (Total PR ↔ Result and Total Luck ↔
+ * Result → Gaussian fit).
  *
  * Unlike the dashboard's `gaussian` popup — whose live copy still sits inline in
  * dashboardPage.js — this one is genuinely single-source: the live page AND the
@@ -290,29 +291,83 @@ function esc(s) {
  * The sign is always "this player vs their opponent" (gap = opponent's PR minus
  * their own), so the sentence follows the series being fitted: in Wins, μ is how
  * much better they played in matches they won.
+ *
+ * `metric` picks which gap the sentence is about — 'pr' (the default) or 'luck'
+ * (gap = their luck minus the opponent's, so a positive μ reads "luckier").
+ *
+ * For luck, Wins and Losses close with a one-line summary that μ and σ do not
+ * give on their own: the share of those matches in which the dice went the same
+ * way as the result — luckier than the opponent in a win, unluckier in a loss.
+ * `luckier` / `unluckier` are the match COUNTS on each side of a zero gap (a gap
+ * of exactly 0 is neither). All gets no such line: it has no result to agree with.
+ *
+ * `nameHtml` is how the player is named in the sentence, as TRUSTED markup — the
+ * live page passes the canonical identity chip (`playerIdentityHtml()`: flag ·
+ * name · title badges), so the player reads here as they do everywhere else on
+ * the site. Without it the plain `displayName` is escaped and used; this module
+ * holds no flag or title data of its own and must not grow a second chip.
  */
-export function playerGaussianSeriesHtml(lang, { displayName, seriesLabel, mean, std, games }) {
+export function playerGaussianSeriesHtml(lang, { displayName, nameHtml = null, seriesLabel, mean, std, games, metric = 'pr', luckier = null, unluckier = null }) {
     const lo = minusFix((mean - std).toFixed(2)), hi = minusFix((mean + std).toFixed(2));
     const abs = Math.abs(mean).toFixed(2);
     const better = mean >= 0;
-    const name = esc(displayName);
+    const luck = metric === 'luck';
+    // The chip is flag · name · titles in that order; pin it LTR so an RTL
+    // sentence cannot mirror it into titles · name · flag.
+    const name = `<span dir="ltr">${nameHtml ?? esc(displayName)}</span>`;
     const label = esc(seriesLabel);
+    const sideCount = !luck ? null : seriesLabel === 'Wins' ? luckier : seriesLabel === 'Losses' ? unluckier : null;
+    const sidePct = sideCount != null && games > 0 ? (sideCount / games * 100).toFixed(1) : null;
+    const won = seriesLabel === 'Wins';
 
     if (lang === 'he') {
-        const dirHe = better ? 'טוב יותר' : 'גרוע יותר';
         const scopeHe = { Wins: 'הדו קרבות שניצח', Losses: 'הדו קרבות שהפסיד', All: 'הדו קרבות שלו' }[seriesLabel] || 'הדו קרבות';
+        const meanHe = luck
+            ? `המזל של ${name} היה ${better ? 'גבוה' : 'נמוך'} בכ-${abs} נקודות מזל משל יריבו באותו דו קרב`
+            : `${name} שיחק בכ-${abs} נקודות PR ${better ? 'טוב יותר' : 'גרוע יותר'} מיריבו באותו דו קרב`;
         return `
             <h4>${label} &mdash; מה &mu; ו-&sigma; אומרים כאן?</h4>
-            <p><b>&mu; (ממוצע) = <span dir="ltr">${minusFix(mean.toFixed(2))}</span></b>: בממוצע, על פני ${games} ${scopeHe}, ${name} שיחק בכ-${abs} נקודות PR ${dirHe} מיריבו באותו דו קרב.</p>
-            <p><b>&sigma; (סטיית תקן) = ${std.toFixed(2)}</b>: בכ-66.7% מ-${games} הדו קרבות הפרש ה-PR היה בין <b><span dir="ltr">${lo}</span></b> ל-<b><span dir="ltr">${hi}</span></b>.</p>
+            <p><b>&mu; (ממוצע) = <span dir="ltr">${minusFix(mean.toFixed(2))}</span></b>: בממוצע, על פני ${games} ${scopeHe}, ${meanHe}.</p>
+            <p><b>&sigma; (סטיית תקן) = ${std.toFixed(2)}</b>: בכ-66.7% מ-${games} הדו קרבות הפרש ה-${luck ? 'מזל' : 'PR'} היה בין <b><span dir="ltr">${lo}</span></b> ל-<b><span dir="ltr">${hi}</span></b>.</p>
+            ${sidePct == null ? '' : `<div class="pg-gauss-summary ${won ? 'is-win' : 'is-loss'}"><b>בסיכום:</b> ב-<b>${sidePct}%</b> מהדו קרבות ששיחק ${won ? 'וניצח, היה לו מזל טוב יותר מיריבו' : 'והפסיד, היה לו ביש מזל ביחס ליריבו'}.</div>`}
         `;
     }
-    const dirEn = better ? 'better' : 'worse';
     const scopeEn = { Wins: 'matches they won', Losses: 'matches they lost', All: 'matches' }[seriesLabel] || 'matches';
+    const meanEn = luck
+        ? `${name} was about ${abs} luck points ${better ? 'luckier' : 'unluckier'} than their opponent that match`
+        : `${name} played about ${abs} PR points ${better ? 'better' : 'worse'} than their opponent that match`;
     return `
         <h4>${label} &mdash; what do &mu; and &sigma; mean here?</h4>
-        <p><b>&mu; (mean) = ${minusFix(mean.toFixed(2))}</b>: on average, across the ${games} ${scopeEn}, ${name} played about ${abs} PR points ${dirEn} than their opponent that match.</p>
-        <p><b>&sigma; (standard deviation) = ${std.toFixed(2)}</b>: in about 66.7% of those ${games} matches the PR gap was between <b>${lo}</b> and <b>${hi}</b>.</p>
+        <p><b>&mu; (mean) = ${minusFix(mean.toFixed(2))}</b>: on average, across the ${games} ${scopeEn}, ${meanEn}.</p>
+        <p><b>&sigma; (standard deviation) = ${std.toFixed(2)}</b>: in about 66.7% of those ${games} matches the ${luck ? 'luck' : 'PR'} gap was between <b>${lo}</b> and <b>${hi}</b>.</p>
+        ${sidePct == null ? '' : `<div class="pg-gauss-summary ${won ? 'is-win' : 'is-loss'}"><b>In short:</b> in <b>${sidePct}%</b> of the matches they played and ${won ? 'won, they were luckier than their opponent' : 'lost, they were unluckier than their opponent'}.</div>`}
+    `;
+}
+
+/**
+ * The league dashboard's μ/σ explainer for a LUCK-gap row (League Luck ↔ Result →
+ * Gaussian fit). Single-source like playerGaussianSeriesHtml above: the live
+ * page and the catalog entry below both call it. The gap is always the winner's
+ * luck minus the loser's, so a positive μ reads "the winner was luckier".
+ *
+ * `luckier` is the COUNT of matches with a gap above zero — the share the boxed
+ * summary states, which μ and σ do not give on their own.
+ */
+export function leagueLuckGaussianHtml(lang, { mean, std, games, luckier }) {
+    const lo = minusFix((mean - std).toFixed(2)), hi = minusFix((mean + std).toFixed(2));
+    const abs = Math.abs(mean).toFixed(2);
+    const up = mean >= 0;
+    const pct = games > 0 ? (luckier / games * 100).toFixed(1) : '0.0';
+    return lang === 'he' ? `
+        <h4>מה בעצם &mu; ו-&sigma; אומרים?</h4>
+        <p><b>&mu; (ממוצע) = <span dir="ltr">${minusFix(mean.toFixed(2))}</span></b>: בממוצע, על פני ${games} הדו קרבות, המזל של המנצח היה ${up ? 'גבוה' : 'נמוך'} בכ-${abs} נקודות מזל משל המפסיד.</p>
+        <p><b>&sigma; (סטיית תקן) = ${std.toFixed(2)}</b>: בכ-66.7% מ-${games} הדו קרבות הפרש המזל מצד המנצח היה בין <b><span dir="ltr">${lo}</span></b> ל-<b><span dir="ltr">${hi}</span></b>.</p>
+        <div class="pg-gauss-summary is-win"><b>בסיכום:</b> ב-<b>${pct}%</b> מהדו קרבות, למנצח היה מזל טוב יותר מלמפסיד.</div>
+    ` : `
+        <h4>What do &mu; and &sigma; actually mean?</h4>
+        <p><b>&mu; (mean) = ${minusFix(mean.toFixed(2))}</b>: on average, across the ${games} matches, the winner was about ${abs} luck points ${up ? 'luckier' : 'unluckier'} than the loser.</p>
+        <p><b>&sigma; (standard deviation) = ${std.toFixed(2)}</b>: in about 66.7% of those ${games} matches the winner-side luck gap was between <b>${lo}</b> and <b>${hi}</b>.</p>
+        <div class="pg-gauss-summary is-win"><b>In short:</b> in <b>${pct}%</b> of the matches, the winner was luckier than the loser.</div>
     `;
 }
 
@@ -391,7 +446,7 @@ export const POPUPS = [
     // ============ 3 · Player PR ↔ Result Correlation (dashboard) ============
     {
         id: 'pr-corr', page: 'dashboard',
-        title: { en: 'Player PR difference ↔ Result ↔ Luck', he: 'שחקן: הפרש PR ↔ תוצאה ↔ מזל' },
+        title: { en: 'Player PR difference ↔ Result ↔ Luck Percentile', he: 'שחקן: הפרש PR ↔ תוצאה ↔ אחוזון מזל' },
         render(lang) {
             return lang === 'he' ? `
                 <p><b>למה זה כאן:</b> האם שחקן ניצח כי שיחק טוב יותר, או כי הקוביות האירו לו פנים? החלק הזה בוחן, לכל שחקן, את הקשר בין איכות המשחק שלו (לפי PR) לבין השאלה אם ניצח — ומזקק מכך ציון מזל יחיד.</p>
@@ -431,7 +486,7 @@ export const POPUPS = [
                 <p>עבור כל דו קרב, מחושב ערך <b>יתרון</b>:</p>
                 <p style="text-align:center"><i>יתרון</i> = <i>PR</i><sub>מפסיד</sub> &minus; <i>PR</i><sub>מנצח</sub></p>
                 <p>יתרון חיובי אומר שלמנצח היה גם ה-PR הטוב יותר (הנמוך יותר) באותו דו קרב &mdash; המועדף ניצח, כפי שהטבלה הייתה חוזה. יתרון שלילי אומר שהייתה הפתעה: למנצח היה ה-PR הגרוע יותר. הדו קרבות מקובצים לאחר מכן ל-bins ברוחב נקודת PR אחת לפי ערך היתרון שלהם, וגובה כל bin הוא חלקם (%) של כלל הדו קרבות שנופלים בו.</p>
-                <p><b>הליגה &mdash; כל הדו קרבות</b> מרכזת את כל הדו קרבות ששוחקו בליגה הזו. <b>כל דו קרבות הליגות</b> מרכזת את כל הדו קרבות ששוחקו אי פעם בכל הליגות מ<b>אותו סוג ליגה ואותו אורך דו קרב</b> (פער PR נתון משמעותי יותר בדו קרב ארוך יותר, כך שערבוב אורכי דו קרב שונים היה מטשטש את ההשוואה). לדו קרבות עם תוצאה טכנית אין PR אמיתי, והם אינם נכללים באף אחת מהשורות.</p>
+                <p><b>הליגה &mdash; כל הדו קרבות</b> מרכזת את כל הדו קרבות ששוחקו בליגה הזו. <b>כל דו קרבות הליגות</b> מרכזת את כל הדו קרבות ששוחקו אי פעם בליגות מ<b>סוגי הליגה המסומנים ומאותו אורך דו קרב</b> (פער PR נתון משמעותי יותר בדו קרב ארוך יותר, כך שערבוב אורכי דו קרב שונים היה מטשטש את ההשוואה). ה-<b>PILLS</b> שמעל הגרף קובעים אילו סוגי ליגה נכללים (${leagueTypePill('doubling')} / ${leagueTypePill('ubc')}): השורה נפתחת על סוג הליגה של הליגה הזו, אפשר להדליק כמה סוגים בו זמנית והם מאוחדים, ו-<b>All</b> מבטל את הבחירה ומאחד את כולם. ליגות ${leagueTypePill('regular')} אינן מופיעות שם &mdash; הן אינן רושמות PR. לדו קרבות עם תוצאה טכנית אין PR אמיתי, והם אינם נכללים באף אחת מהשורות.</p>
                 <h4>איך קוראים את הגרף</h4>
                 <p>הציר האופקי הוא ערך ה<b>יתרון</b> בנקודות PR: ככל שנעים ימינה היתרון חיובי יותר (המנצח שיחק טוב יותר מיריבו &mdash; תוצאה צפויה), וככל שנעים שמאלה הוא שלילי יותר (הפתעה &mdash; המנצח דווקא שיחק גרוע יותר). הציר האנכי הוא <b>שיעור הדו קרבות</b> (%) שנפלו בכל עמודה. שתי השורות חולקות את אותו ציר אופקי, כדי שניתן יהיה להשוות ביניהן.</p>
                 ${advantageDistributionExampleHistogramSvg('he')}
@@ -451,7 +506,7 @@ export const POPUPS = [
                 <p>For every match, an <b>advantage</b> value is computed:</p>
                 <p style="text-align:center"><i>advantage</i> = <i>PR</i><sub>loser</sub> &minus; <i>PR</i><sub>winner</sub></p>
                 <p>A positive advantage means the winner also had the better (lower) PR that match &mdash; the favourite won, as the table would predict. A negative advantage means an upset: the winner had the worse PR. Matches are then grouped into 1-PR-point-wide bins by their advantage value, and each bin's height is the share (%) of all matches falling in it.</p>
-                <p><b>League &mdash; all matches</b> pools every match played in this league. <b>All League Matches</b> pools every match ever played in every league of the <i>same league type and the same match length</i> (a given PR gap matters more over a longer match, so mixing match lengths would blur the comparison). Matches with a technical result carry no real PR and are excluded from both rows.</p>
+                <p><b>League &mdash; all matches</b> pools every match played in this league. <b>All League Matches</b> pools every match ever played in leagues of the <i>selected league types and the same match length</i> (a given PR gap matters more over a longer match, so mixing match lengths would blur the comparison). The <b>pills</b> above the chart set which league types are included (${leagueTypePill('doubling')} / ${leagueTypePill('ubc')}): the row opens on this league's own type, several can be on at once and are pooled, and <b>All</b> clears the selection and pools everything. ${leagueTypePill('regular')} leagues never appear there &mdash; they record no PR. Matches with a technical result carry no real PR and are excluded from both rows.</p>
                 <h4>Reading the graph</h4>
                 <p>The horizontal axis is the <b>advantage</b> value in PR points: further right, the advantage is more positive (the winner outplayed their opponent &mdash; an expected result); further left, more negative (an upset &mdash; the winner actually played worse). The vertical axis is the <b>share of matches</b> (%) falling in each bar. Both rows share the same horizontal axis so they can be compared against each other.</p>
                 ${advantageDistributionExampleHistogramSvg('en')}
@@ -483,14 +538,81 @@ export const POPUPS = [
         },
     },
 
+    // ============ 5a · League Luck ↔ Result (dashboard) ============
+    // The luck-gap twin of the section above it. Present for EVERY league type —
+    // REGULAR leagues record a luck figure per side too — which is why it sits
+    // outside the PR-only block on the page.
+    {
+        id: 'league-luck', page: 'dashboard',
+        title: { en: 'League Luck difference ↔ Result', he: 'ליגה: הפרש מזל ↔ תוצאה' },
+        render(lang) {
+            return lang === 'he' ? `
+                <p><b>למה זה כאן:</b> עד כמה התוצאות בליגה הלכו עם הקוביות? החלק הזה לוקח כל דו קרב ששוחק ושואל בכמה המזל של <b>המנצח</b> היה גבוה (או נמוך) משל <b>המפסיד</b>.</p>
+                <h4>החישוב</h4>
+                <p>לכל דו קרב נרשם ערך <b>Luck</b> לכל אחד משני השחקנים &mdash; עד כמה הקוביות שיצאו לו היו טובות או רעות מהצפוי (גבוה יותר = יותר מזל). לכל דו קרב ששוחק מחושב:</p>
+                <p style="text-align:center"><i>הפרש</i> = <i>Luck</i><sub>מנצח</sub> &minus; <i>Luck</i><sub>מפסיד</sub></p>
+                <p>הפרש <b>חיובי</b> אומר שהקוביות היו לטובת המנצח; הפרש <b>שלילי</b> אומר שהמנצח ניצח <i>למרות</i> שהקוביות היו לטובת יריבו. הדו קרבות מקובצים ל-bins ברוחב נקודת מזל אחת, וגובה כל עמודה הוא חלקם (%) מכלל הדו קרבות בשורה.</p>
+                <p>דו קרבות בעלי תוצאה טכנית, וכן דו קרבות שבהם לא נרשם ערך Luck לשני הצדדים, אינם נכללים.</p>
+                <h4>שתי השורות</h4>
+                <ul>
+                    <li><b>League &mdash; all matches</b>: הדו קרבות של הליגה הזו בלבד.</li>
+                    <li><b>All League Matches</b>: דו קרבות מכלל הליגות. ה-<b>PILLS</b> קובעים אילו סוגי ליגה נכללים (${leagueTypePill('doubling')} / ${leagueTypePill('regular')} / ${leagueTypePill('ubc')}). אפשר להדליק כמה סוגים בו זמנית והם מאוחדים; <b>All</b> מבטל את הבחירה ומאחד את כולם. השורה נפתחת על סוג הליגה של הליגה הזו. כשהסוגים הנבחרים כוללים יותר מאורך דו קרב אחד, מופיע בורר אורך &mdash; בדו קרב ארוך מוטלות יותר קוביות, ולכן הפרשי המזל בו רחבים יותר.</li>
+                </ul>
+                <p>שתי השורות מצוירות על אותה סקאלת X, כך שאותו הפרש נמצא באותו מקום בשתיהן.</p>
+                <h4>הבקרות</h4>
+                <ul>
+                    <li><b>Gaussian fit</b> מציג עקומה נורמלית שהותאמה לממוצע ולסטיית התקן של הנתונים (&mu; ו-&sigma;), ופותח חלונית שמסבירה אותם ומסכמת בכמה אחוזים מהדו קרבות למנצח היה מזל טוב יותר. זו הפניה חזותית בלבד &mdash; לא טענה שהפרשי המזל מתפלגים נורמלית.</li>
+                    <li><b>Trim to 99%</b> מקרב את הציר לאמצע 99% מהדו קרבות ומסתיר את העמודות החריגות. לתצוגה בלבד &mdash; ההתאמה משתמשת תמיד בנתונים המלאים.</li>
+                </ul>
+            ` : `
+                <p><b>Why it's here:</b> how far did the league's results go with the dice? This section takes every played match and asks how much luckier (or unluckier) the <b>winner</b> was than the <b>loser</b>.</p>
+                <h4>The calculation</h4>
+                <p>Every match records a <b>Luck</b> figure for each of the two players &mdash; how much better or worse than expected their dice came out (higher = luckier). For every played match:</p>
+                <p style="text-align:center"><i>gap</i> = <i>Luck</i><sub>winner</sub> &minus; <i>Luck</i><sub>loser</sub></p>
+                <p>A <b>positive</b> gap means the dice favoured the winner; a <b>negative</b> gap means the winner won <i>despite</i> the dice favouring their opponent. Matches are grouped into 1-luck-point-wide bins, and each bar's height is the share (%) of all matches in the row.</p>
+                <p>Matches with a technical result, and matches where a Luck figure wasn't recorded for both sides, are excluded.</p>
+                <h4>The two rows</h4>
+                <ul>
+                    <li><b>League &mdash; all matches</b>: this league's matches only.</li>
+                    <li><b>All League Matches</b>: matches from every league. The <b>pills</b> set which league types are included (${leagueTypePill('doubling')} / ${leagueTypePill('regular')} / ${leagueTypePill('ubc')}). Several can be on at once and are pooled; <b>All</b> clears the selection and pools everything. The row opens on this league's own type. When the selected types span more than one match length, a length selector appears &mdash; a longer match rolls more dice, so its luck gaps spread wider.</li>
+                </ul>
+                <p>Both rows are drawn on the same X scale, so the same gap sits in the same place in each.</p>
+                <h4>The controls</h4>
+                <ul>
+                    <li><b>Gaussian fit</b> overlays a normal curve built from the data's own mean and standard deviation (&mu; and &sigma;), and opens a panel that explains them and sums up in what share of the matches the winner was the luckier player. It's a visual reference only &mdash; not a claim that luck gaps are actually normally distributed.</li>
+                    <li><b>Trim to 99%</b> zooms the X-axis in to the middle 99% of the matches, hiding the outlier bins. Display only &mdash; the fit always uses the full data.</li>
+                </ul>
+            `;
+        },
+    },
+
+    // ============ 5a2 · League luck Gaussian μ/σ explainer (dashboard, dynamic) ============
+    // Data-driven in the app: the live page calls leagueLuckGaussianHtml() — the
+    // SAME function this entry renders — with the row's real numbers.
+    {
+        id: 'league-luck-gaussian', page: 'dashboard', dynamic: true,
+        title: { en: 'What μ and σ mean (League Luck Gaussian fit)', he: 'מה μ ו-σ אומרים (התאמת גאוס, הפרש מזל בליגה)' },
+        render(lang) {
+            const sample = { mean: 2.31, std: 2.90, games: 240, luckier: 194 };
+            const note = lang === 'he'
+                ? `<p class="popup-sample-note">חלונית מבוססת נתונים &mdash; הערכים מחושבים חי לכל שורה. הדוגמה: μ=${sample.mean.toFixed(2)}, σ=${sample.std.toFixed(2)}.</p>`
+                : `<p class="popup-sample-note">Data-driven popup &mdash; values are computed live per row. Sample shown: μ=${sample.mean.toFixed(2)}, σ=${sample.std.toFixed(2)}.</p>`;
+            return note + leagueLuckGaussianHtml(lang, sample);
+        },
+    },
+
     // ============ 5b · Total PR ↔ Result (player page) ============
     {
         id: 'player-pr-result', page: 'player',
         // "Total" (not "Player") tells this apart from the league dashboard's
-        // pr-corr popup, which already owns the title "Player PR difference ↔
-        // Result ↔ Luck" — the two sat side by side under one name in
-        // the Explanation and Maths tool, where every popup is listed together.
-        title: { en: 'Total PR difference ↔ Result ↔ Luck', he: 'סך הכול: הפרש PR ↔ תוצאה ↔ מזל' },
+        // pr-corr popup, which owns the title "Player PR difference ↔ Result ↔
+        // Luck Percentile" — the two sit side by side in the Explanation and Maths tool,
+        // where every popup is listed together. "Luck PERCENTILE", not bare
+        // "Luck": the section directly below it, "Total Luck difference ↔
+        // Result", is the one about dice luck, while the Luck here is the bar
+        // above each chart — the PR-derived Luck Confidence percentile. Named
+        // alike, the two headings read as one chart drawn twice.
+        title: { en: 'Total PR difference ↔ Result ↔ Luck Percentile', he: 'סך הכול: הפרש PR ↔ תוצאה ↔ אחוזון מזל' },
         render(lang) {
             return lang === 'he' ? `
                 <p><b>למה זה כאן:</b> כמה טוב השחקן צריך לשחק כדי לנצח? החלק הזה לוקח את כל הדו קרבות המדורגים שלו, בכל הליגות, ושואל איך <b>הפרש ה-PR</b> באותו דו קרב התחלק בין הדו קרבות שניצח לבין אלה שהפסיד.</p>
@@ -517,7 +639,7 @@ export const POPUPS = [
                 <ul>
                     <li><b>Gaussian fit</b> מציג לכל סדרה מוצגת עקומה נורמלית שהותאמה לממוצע ולסטיית התקן של אותה סדרה (&mu; ו-&sigma;),בתוספת קווים מקווקווים בממוצע ובמרחק &plusmn;1 סטיית תקן. כשמוצגת <b>סדרה אחת</b>, העקומה מצוירת <i>מעל</i> העמודות בכתום, כך שהמודל והנתונים נשארים מובחנים. כשמוצגות <b>כמה סדרות</b>, העקומות <i>מחליפות</i> את קווי הנתונים וכל אחת שומרת על צבע הסדרה שלה &mdash; אחרת היו בגרף שישה קווים כמעט מקבילים בשלושה צבעים. החלונית שנפתחת מציגה את קריאת ה-&mu;/&sigma; עבור כל שחקן מוצג בנפרד וברצף, באותו סדר שבו מופיעים הגרפים. זו הפניה חזותית בלבד &mdash; לא טענה שהפרשי ה-PR מתפלגים נורמלית. הכפתור מנוטרל כשאין מספיק דו קרבות כדי שממוצע/סטיית תקן יהיו משמעותיים.</li>
                     <li><b>Trim to 99%</b> מקרב את הציר לאמצע 99% מהדו קרבות של השחקן ומסתיר את העמודות החריגות. שימושי כשקומץ דו קרבות קיצוניים מותח את הציר עד כדי כך שההתפלגות האמיתית נדחסת אל המרכז. לתצוגה בלבד &mdash; התאמת הגאוס וערכי ה-&mu;/&sigma; משתמשים תמיד בנתונים המלאים.</li>
-                    <li>ה-<b>PILLS</b> שלמעלה מצמצמים את הדו קרבות לסוג ליגה אחד (${leagueTypePill('doubling')} / ${leagueTypePill('ubc')}), או מאחדים את כולם ב-<b>All</b>. ליגות ${leagueTypePill('regular')} אינן נכללות כלל &mdash; הן אינן רושמות PR.</li>
+                    <li>ה-<b>PILLS</b> שלמעלה מצמצמים את הדו קרבות לסוגי הליגה המסומנים (${leagueTypePill('doubling')} / ${leagueTypePill('ubc')}); אפשר להדליק כמה בו זמנית והם מאוחדים, ו-<b>All</b> מבטל את הבחירה ומאחד את כולם. ליגות ${leagueTypePill('regular')} אינן נכללות כלל &mdash; הן אינן רושמות PR.</li>
                     <li><b>+ Add player chart</b> מוסיף מתחת את ההתפלגות של שחקן נוסף, להשוואה.</li>
                     <li>כל הגרפים בערימה מצוירים על <b>אותה סקאלת X ואותה סקאלת Y</b>, עם אותן סדרות ואותה הגדרת התאמה &mdash; ולכן ה-Legend, ה-Gaussian fit וה-Trim יושבים פעם אחת מעל כולם ולא על כל גרף בנפרד. אם כל גרף היה מקבל סקאלה משל עצמו, התפלגות שטוחה והתפלגות מחודדת היו מצוירות באותו גובה, וההשוואה הייתה מטעה ולא מלמדת.</li>
                 </ul>
@@ -550,7 +672,7 @@ export const POPUPS = [
                 <ul>
                     <li><b>Gaussian fit</b> draws, for each displayed series, a normal curve built from that series' own mean and standard deviation (&mu; and &sigma;), plus dashed lines at the mean and at &plusmn;1 standard deviation. With <b>one</b> series the curve is laid <i>over</i> the bars in orange, so model and data stay told apart. With <b>several</b>, the curves <i>replace</i> the data lines and each keeps its series' colour — otherwise the plot would carry six near-parallel strokes in three colours. The panel it opens gives the &mu;/&sigma; reading for every charted player in turn, in the same order as the charts. It's a visual reference only &mdash; not a claim that PR gaps are actually normally distributed. The button is disabled when there aren't enough matches for a mean/standard deviation to be meaningful.</li>
                     <li><b>Trim to 99%</b> zooms the X-axis in to the middle 99% of the player's matches, hiding the outlier bins. Worth reaching for when a handful of blow-out matches stretch the axis so wide that the real distribution is squeezed toward the centre. Display only &mdash; the Gaussian fit and the &mu;/&sigma; figures always use the full, untrimmed data.</li>
-                    <li>The <b>pills</b> above narrow the matches to one league type (${leagueTypePill('doubling')} / ${leagueTypePill('ubc')}), or pool them all under <b>All</b>. ${leagueTypePill('regular')} leagues never appear &mdash; they record no PR.</li>
+                    <li>The <b>pills</b> above narrow the matches to the selected league types (${leagueTypePill('doubling')} / ${leagueTypePill('ubc')}); several can be on at once and are pooled, and <b>All</b> clears the selection and pools everything. ${leagueTypePill('regular')} leagues never appear &mdash; they record no PR.</li>
                     <li><b>+ Add player chart</b> stacks another player's distribution below, to compare against.</li>
                     <li>Every chart in the stack is drawn on the <b>same X and Y scale</b>, with the same series and the same fit setting &mdash; that's why the legend, Gaussian fit and Trim controls sit once above them all rather than on each chart. Left to self-scale, a flat distribution and a sharply peaked one would draw the same height and the comparison would mislead rather than inform.</li>
                 </ul>
@@ -558,6 +680,77 @@ export const POPUPS = [
                 <p>A single bar sits above each chart: the word <b>Luck</b>, a colour scale carrying a marker and a number, and the verdict in words (for example <b>Slightly lucky</b>). The chart shows <i>how well</i> the player played in each match; the bar answers the separate question in <b>one number</b> &mdash; did the results they actually got come out better or worse than that level of play deserved?</p>
                 <p>The bar describes exactly the matches drawn beneath it: it is recomputed when the league type or match length changes, and each chart in the stack carries its own. The matches counted in the heading (<span dir="ltr">x/y matches</span>) are precisely the ones that go into it. It is the very same metric as the <b>Luck Percentile</b> card on the home page and the <b>Total Luck</b> section, on the same scale &mdash; only the set of matches included differs.</p>
                 ${luckConfidenceExplainerHtml('en')}
+            `;
+        },
+    },
+
+    // ============ 5b2 · Total Luck ↔ Result (player page) ============
+    // Same chart as 5b over a different per-match quantity — the dice-luck gap
+    // (js/compute/netLuck.js) instead of the PR gap. No Luck bar above the rows:
+    // that bar is the PR-derived Luck Confidence percentile, which has nothing
+    // to say about a distribution of dice luck.
+    {
+        id: 'player-luck-result', page: 'player',
+        title: { en: 'Total Luck difference ↔ Result', he: 'סך הכול: הפרש מזל ↔ תוצאה' },
+        render(lang) {
+            return lang === 'he' ? `
+                <p><b>למה זה כאן:</b> כמה מהניצחונות של השחקן הגיעו בדו קרבות שבהם הקוביות היו לטובתו, וכמה מההפסדים בדו קרבות שבהם היו נגדו? החלק הזה לוקח את כל הדו קרבות שלו, בכל הליגות, ושואל איך <b>הפרש המזל</b> באותו דו קרב התחלק בין הדו קרבות שניצח לבין אלה שהפסיד.</p>
+                <h4>רקע</h4>
+                <p>לכל דו קרב נרשם ערך <b>Luck</b> לכל אחד משני השחקנים &mdash; עד כמה הקוביות שיצאו לו היו טובות או רעות מהצפוי. <b>גבוה יותר = יותר מזל</b>. שני הערכים אינם משלימים זה את זה: בדו קרב אחד שני השחקנים יכולים לצאת עם ערך חיובי, או שניהם עם ערך שלילי. לכן הערך של השחקן לבדו אינו אומר לטובת מי היו הקוביות &mdash; רק ההפרש בין השניים אומר זאת.</p>
+                <h4>החישוב</h4>
+                <p>לכל דו קרב ששוחק מחושב <b>הפרש מזל</b> מנקודת מבטו של השחקן:</p>
+                <p style="text-align:center"><i>הפרש</i> = <i>Luck</i><sub>שחקן</sub> &minus; <i>Luck</i><sub>יריב</sub></p>
+                <p>הפרש <b>חיובי</b> אומר שהקוביות היו לטובת השחקן באותו דו קרב; הפרש <b>שלילי</b> אומר שהן היו לטובת יריבו. הדו קרבות מקובצים ל-bins ברוחב נקודת מזל אחת, וגובה כל עמודה הוא חלקם (%) מכלל הדו קרבות של סוג הליגה הנבחר.</p>
+                <p>דו קרבות בעלי תוצאה טכנית, וכן דו קרבות שבהם לא נרשם ערך Luck לשני הצדדים, אינם נכללים.</p>
+                <h4>איך קוראים את הגרף</h4>
+                <p>ה-<b>Legend</b> קובע אילו סדרות מוצגות, וניתן להדליק ולכבות כל אחת:</p>
+                <ul>
+                    <li><span style="color:var(--color-win)"><b>Wins</b></span> &mdash; רק הדו קרבות שהשחקן ניצח.</li>
+                    <li><span style="color:var(--color-loss)"><b>Losses</b></span> &mdash; רק הדו קרבות שהפסיד.</li>
+                    <li><b>All</b> &mdash; כל הדו קרבות יחד, ללא קשר לתוצאה: זו התפלגות הפרשי המזל כשלעצמה.</li>
+                </ul>
+                <p>סדרה אחת מצוירת כ<b>עמודות</b>. מרגע שמוצגות שתיים או יותר, הן עוברות ל<b>קווים רציפים</b> &mdash; קו לכל סדרה, בצבע הסדרה, העובר דרך הערך של כל bin.</p>
+                <h4>דוגמה</h4>
+                <p>נניח ששחקן ניצח דו קרב שבו ה-Luck שלו היה <span dir="ltr">+2.0</span> וה-Luck של יריבו <span dir="ltr">&minus;0.6</span>. ההפרש הוא <span dir="ltr">2.0 &minus; (&minus;0.6) = +2.6</span>, ולכן הדו קרב נופל ב-bin <span dir="ltr">[2, 3)</span> של סדרת ה-<b>Wins</b>. אותו שחקן הפסיד דו קרב שבו ה-Luck שלו היה <span dir="ltr">+1.8</span> &mdash; ערך חיובי &mdash; אך ה-Luck של יריבו היה <span dir="ltr">+3.2</span>: ההפרש הוא <span dir="ltr">1.8 &minus; 3.2 = &minus;1.4</span>, כלומר הקוביות היו דווקא לטובת היריב, ולכן הדו קרב נופל ב-bin <span dir="ltr">[&minus;2, &minus;1)</span> של סדרת ה-<b>Losses</b>. ככל שעקומת ה-Wins יושבת ימינה יותר מעקומת ה-Losses, כך התוצאות של השחקן הלכו עם הקוביות; ככל ששתי העקומות חופפות יותר, כך התוצאות היו פחות תלויות במזל.</p>
+                ${luckGapExampleHistogramSvg('he')}
+                <h4>הבקרות</h4>
+                <ul>
+                    <li><b>Gaussian fit</b> מציג לכל סדרה מוצגת עקומה נורמלית שהותאמה לממוצע ולסטיית התקן של אותה סדרה (&mu; ו-&sigma;), בתוספת קווים מקווקווים בממוצע ובמרחק &plusmn;1 סטיית תקן. כשמוצגת <b>סדרה אחת</b>, העקומה מצוירת <i>מעל</i> העמודות בכתום; כשמוצגות <b>כמה סדרות</b>, העקומות <i>מחליפות</i> את קווי הנתונים וכל אחת שומרת על צבע הסדרה שלה. החלונית שנפתחת מציגה את קריאת ה-&mu;/&sigma; עבור כל שחקן מוצג בנפרד, באותו סדר שבו מופיעים הגרפים. זו הפניה חזותית בלבד &mdash; לא טענה שהפרשי המזל מתפלגים נורמלית. הכפתור מנוטרל כשאין מספיק דו קרבות כדי שממוצע/סטיית תקן יהיו משמעותיים.</li>
+                    <li><b>Trim to 99%</b> מקרב את הציר לאמצע 99% מהדו קרבות ומסתיר את העמודות החריגות. לתצוגה בלבד &mdash; התאמת הגאוס וערכי ה-&mu;/&sigma; משתמשים תמיד בנתונים המלאים.</li>
+                    <li>ה-<b>PILLS</b> שלמעלה מצמצמים את הדו קרבות לסוגי הליגה המסומנים (${leagueTypePill('doubling')} / ${leagueTypePill('regular')} / ${leagueTypePill('ubc')}); אפשר להדליק כמה בו זמנית והם מאוחדים, ו-<b>All</b> מבטל את הבחירה ומאחד את כולם. מוצגים רק סוגי הליגה שבהם לשחקן יש דו קרבות עם ערך Luck. בשונה מהחלק של הפרש ה-PR, ליגות ${leagueTypePill('regular')} <b>כן נכללות</b> כאן &mdash; גם בהן נרשם ערך Luck לכל דו קרב.</li>
+                    <li>כשסוג הליגה הנבחר כולל יותר מאורך דו קרב אחד, מופיע בורר אורך. הוא שימושי כאן במיוחד: בדו קרב ארוך מוטלות יותר קוביות, ולכן הפרשי המזל בו רחבים יותר.</li>
+                    <li><b>+ Add player chart</b> מוסיף מתחת את ההתפלגות של שחקן נוסף, להשוואה.</li>
+                    <li>כל הגרפים בערימה מצוירים על <b>אותה סקאלת X ואותה סקאלת Y</b>, עם אותן סדרות ואותה הגדרת התאמה &mdash; ולכן ה-Legend, ה-Gaussian fit וה-Trim יושבים פעם אחת מעל כולם ולא על כל גרף בנפרד.</li>
+                </ul>
+            ` : `
+                <p><b>Why it's here:</b> how many of this player's wins came in matches where the dice were on their side, and how many of their losses in matches where the dice were against them? This section takes every match they've played, across all leagues, and asks how the <b>luck gap</b> in each match splits between the ones they won and the ones they lost.</p>
+                <h4>Background</h4>
+                <p>Every match records a <b>Luck</b> figure for each of the two players &mdash; how much better or worse than expected their dice came out. <b>Higher = luckier</b>. The two figures don't mirror each other: both players of one match can come out positive, or both negative. So a player's own figure doesn't say who the dice favoured &mdash; only the difference between the two does.</p>
+                <h4>The calculation</h4>
+                <p>For every played match a <b>luck gap</b> is computed from this player's point of view:</p>
+                <p style="text-align:center"><i>gap</i> = <i>Luck</i><sub>player</sub> &minus; <i>Luck</i><sub>opponent</sub></p>
+                <p>A <b>positive</b> gap means the dice favoured the player in that match; a <b>negative</b> gap means they favoured the opponent. Matches are grouped into 1-luck-point-wide bins, and each bar's height is the share (%) of all matches of the selected league type.</p>
+                <p>Matches with a technical result, and matches where a Luck figure wasn't recorded for both sides, are excluded.</p>
+                <h4>Reading the graph</h4>
+                <p>The <b>legend</b> controls which series are drawn, and each can be switched on and off:</p>
+                <ul>
+                    <li><span style="color:var(--color-win)"><b>Wins</b></span> &mdash; only the matches the player won.</li>
+                    <li><span style="color:var(--color-loss)"><b>Losses</b></span> &mdash; only the matches they lost.</li>
+                    <li><b>All</b> &mdash; every match together, regardless of result: the distribution of luck gaps in its own right.</li>
+                </ul>
+                <p>A single series is drawn as <b>bars</b>. As soon as two or more are shown they switch to <b>continuous lines</b> — one per series, in the series' colour, tracing each bin's value.</p>
+                <h4>An example</h4>
+                <p>Say the player wins a match where their Luck was <span dir="ltr">+2.0</span> and the opponent's was <span dir="ltr">&minus;0.6</span>. The gap is <span dir="ltr">2.0 &minus; (&minus;0.6) = +2.6</span>, so that match lands in the <span dir="ltr">[2, 3)</span> bin of the <b>Wins</b> series. The same player loses a match where their Luck was <span dir="ltr">+1.8</span> &mdash; a positive figure &mdash; but the opponent's was <span dir="ltr">+3.2</span>: the gap is <span dir="ltr">1.8 &minus; 3.2 = &minus;1.4</span>, meaning the dice actually favoured the opponent, so that match lands in the <span dir="ltr">[&minus;2, &minus;1)</span> bin of the <b>Losses</b> series. The further the Wins curve sits to the right of the Losses curve, the more the player's results went with the dice; the more the two overlap, the less the results depended on luck.</p>
+                ${luckGapExampleHistogramSvg('en')}
+                <h4>The controls</h4>
+                <ul>
+                    <li><b>Gaussian fit</b> draws, for each displayed series, a normal curve built from that series' own mean and standard deviation (&mu; and &sigma;), plus dashed lines at the mean and at &plusmn;1 standard deviation. With <b>one</b> series the curve is laid <i>over</i> the bars in orange; with <b>several</b>, the curves <i>replace</i> the data lines and each keeps its series' colour. The panel it opens gives the &mu;/&sigma; reading for every charted player in turn, in the same order as the charts. It's a visual reference only &mdash; not a claim that luck gaps are actually normally distributed. The button is disabled when there aren't enough matches for a mean/standard deviation to be meaningful.</li>
+                    <li><b>Trim to 99%</b> zooms the X-axis in to the middle 99% of the matches, hiding the outlier bins. Display only &mdash; the Gaussian fit and the &mu;/&sigma; figures always use the full, untrimmed data.</li>
+                    <li>The <b>pills</b> above narrow the matches to the selected league types (${leagueTypePill('doubling')} / ${leagueTypePill('regular')} / ${leagueTypePill('ubc')}); several can be on at once and are pooled, and <b>All</b> clears the selection and pools everything. Only the league types in which the player has matches with a Luck figure are offered. Unlike the PR-gap section, ${leagueTypePill('regular')} leagues <b>are included</b> here &mdash; they record a Luck figure for every match too.</li>
+                    <li>When the selected league type spans more than one match length, a length selector appears. It matters more than usual here: a longer match rolls more dice, so its luck gaps spread wider.</li>
+                    <li><b>+ Add player chart</b> stacks another player's distribution below, to compare against.</li>
+                    <li>Every chart in the stack is drawn on the <b>same X and Y scale</b>, with the same series and the same fit setting &mdash; that's why the legend, Gaussian fit and Trim controls sit once above them all rather than on each chart.</li>
+                </ul>
             `;
         },
     },
@@ -574,12 +767,17 @@ export const POPUPS = [
                 { seriesLabel: 'Wins',   mean: 3.21, std: 5.80, games: 18 },
                 { seriesLabel: 'Losses', mean: 0.10, std: 8.41, games: 12 },
             ];
+            const luckSample = [
+                { seriesLabel: 'Wins',   mean: 1.84,  std: 3.10, games: 18, luckier: 13, unluckier: 5 },
+                { seriesLabel: 'Losses', mean: -2.05, std: 3.42, games: 12, luckier: 3,  unluckier: 9 },
+            ];
             const note = lang === 'he'
-                ? `<p class="popup-sample-note">חלונית מבוססת נתונים &mdash; מוצג בלוק אחד לכל סדרה מוצגת, עם הממוצע וסטיית התקן שלה, בצבע הסדרה. הדוגמה: שחקן בשם Moriarty עם הסדרות Wins ו-Losses.</p>`
-                : `<p class="popup-sample-note">Data-driven popup &mdash; one block per displayed series, with that series' own mean and standard deviation, in the series' colour. Sample shown: a player named Moriarty with the Wins and Losses series.</p>`;
-            return note + sample.map(s =>
-                `<div class="pg-gauss-block">${playerGaussianSeriesHtml(lang, { displayName: 'Moriarty', ...s })}</div>`
+                ? `<p class="popup-sample-note">חלונית מבוססת נתונים &mdash; מוצג בלוק אחד לכל סדרה מוצגת, עם הממוצע וסטיית התקן שלה, בצבע הסדרה. הדוגמה: שחקן בשם Moriarty עם הסדרות Wins ו-Losses &mdash; תחילה כפי שהיא נראית ב-Total PR difference ↔ Result ↔ Luck Percentile, ואחריה כפי שהיא נראית ב-Total Luck difference ↔ Result.</p>`
+                : `<p class="popup-sample-note">Data-driven popup &mdash; one block per displayed series, with that series' own mean and standard deviation, in the series' colour. Sample shown: a player named Moriarty with the Wins and Losses series &mdash; first as it reads in Total PR difference ↔ Result ↔ Luck Percentile, then as it reads in Total Luck difference ↔ Result.</p>`;
+            const blocks = (rows, metric) => rows.map(s =>
+                `<div class="pg-gauss-block">${playerGaussianSeriesHtml(lang, { displayName: 'Moriarty', metric, ...s })}</div>`
             ).join('');
+            return note + blocks(sample, 'pr') + blocks(luckSample, 'luck');
         },
     },
 
@@ -590,7 +788,7 @@ export const POPUPS = [
         id: 'gaussian', page: 'dashboard', dynamic: true,
         title: { en: 'What μ and σ mean (Gaussian fit)', he: 'מה μ ו-σ אומרים (התאמת גאוס)' },
         render(lang) {
-            const mean = 2.14, std = 3.80, games = 240;
+            const mean = 2.14, std = 3.80, games = 240, betterPct = '71.3';
             const lo = minusFix((mean - std).toFixed(2)), hi = minusFix((mean + std).toFixed(2));
             const abs = Math.abs(mean).toFixed(2);
             const dirHe = mean >= 0 ? 'טוב יותר' : 'גרוע יותר';
@@ -600,11 +798,13 @@ export const POPUPS = [
                 <h4>מה בעצם &mu; ו-&sigma; אומרים?</h4>
                 <p><b>&mu; (ממוצע) = <span dir="ltr">${minusFix(mean.toFixed(2))}</span></b>: בממוצע, על פני ${games} הדו קרבות, למנצח היה PR ${dirHe} בכ-${abs} נקודות מהמפסיד.</p>
                 <p><b>&sigma; (סטיית תקן) = ${std.toFixed(2)}</b>: בכ-66.7% מ-${games} הדו קרבות פער ה-PR מצד המנצח היה בין <b><span dir="ltr">${lo}</span></b> ל-<b><span dir="ltr">${hi}</span></b>.</p>
+                <div class="pg-gauss-summary is-win"><b>בסיכום:</b> ב-<b>${betterPct}%</b> מהדו קרבות, למנצח היה PR טוב יותר מלמפסיד.</div>
             ` : `
                 <p class="popup-sample-note">Data-driven popup — values are computed live per row. Sample shown: μ=${mean.toFixed(2)}, σ=${std.toFixed(2)}.</p>
                 <h4>What do &mu; and &sigma; actually mean?</h4>
                 <p><b>&mu; (mean) = ${minusFix(mean.toFixed(2))}</b>: on average, across the ${games} matches, the winner's PR was about ${abs} points ${dirEn} than the loser's.</p>
                 <p><b>&sigma; (standard deviation) = ${std.toFixed(2)}</b>: in about 66.7% of those ${games} matches the winner-side PR gap was between <b>${lo}</b> and <b>${hi}</b>.</p>
+                <div class="pg-gauss-summary is-win"><b>In short:</b> in <b>${betterPct}%</b> of the matches, the winner played a better PR than the loser.</div>
             `;
         },
     },

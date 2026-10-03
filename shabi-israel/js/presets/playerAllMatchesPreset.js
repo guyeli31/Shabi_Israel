@@ -6,6 +6,7 @@
  */
 
 import { formatMatchStamp } from '../utils/matchTime.js';
+import { netLuck } from '../compute/netLuck.js';
 import { typeTracksPR, typeTracksLuck } from '../compute/leagueTypes.js';
 
 const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
@@ -97,7 +98,7 @@ export function buildPlayerAllMatchesPreset({ rows, enrich = {} }) {
             score,
             prSelf:      r._technical ? null : r.prSelf,
             prOpp:       r._technical ? null : r.prOpp,
-            luck:        (r._technical || r.luckSelf == null || r.luckOpp == null) ? null : (r.luckSelf - r.luckOpp),
+            luck:        r._technical ? null : netLuck(r),
             result:      r.result,
             _technical:  r._technical || false,
             _noPR:       !typeTracksPR(r.leagueType),

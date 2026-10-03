@@ -4,7 +4,9 @@
  * Each bar slot = one expected match (X axis length = totalMatchesPerPlayer).
  * Played matches are placed in chronological order; remaining slots are empty.
  * Bar color: green=win, red=loss, gray=draw/technical.
- * Bar height: PR or Luck (selectable).
+ * Bar height: PR or Luck (selectable). Luck is NET — the player's own luck minus
+ *   the opponent's (compute/netLuck.js) — so a bar above 0 means the dice favoured
+ *   this player in that match, not merely that their own figure was positive.
  * Overlay: simple moving average (window grows from 1), stops at last played match.
  *
  * Interaction:
@@ -25,6 +27,7 @@
  */
 import { displayPlayerName } from '../utils/nameDisplay.js';
 import { formatMatchStamp } from '../utils/matchTime.js';
+import { netLuck } from '../compute/netLuck.js';
 
 export function computeNiceRange(metric, values) {
     if (metric === 'luck') {
@@ -125,7 +128,7 @@ export function drawPlayerHistogram(host, matches, metric, { onPick = null } = {
     const H = 320;
     const padL = 55, padR = 20, padT = 20, padB = 50;
 
-    const valueOf = (m) => (metric === 'luck' ? m.luckSelf : m.prSelf);
+    const valueOf = (m) => (metric === 'luck' ? netLuck(m) : m.prSelf);
     const rated = matches.filter(m => m && valueOf(m) != null);
     const values = rated.map(valueOf);
     const { lo, width, n } = computeHistogramBins(values, metric);
@@ -473,7 +476,7 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer,
      */
     function metricValue(m) {
         if (!m) return null;
-        const v = metric === 'luck' ? m.luckSelf : m.prSelf;
+        const v = metric === 'luck' ? netLuck(m) : m.prSelf;
         return v == null ? null : v;
     }
 
@@ -681,7 +684,8 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer,
         const dateISO = m.matchDate ?? m.updatedAt ?? null;
         const dateStr = formatMatchStamp(dateISO);
         const prStr   = m.prSelf   != null ? m.prSelf.toFixed(2)   : '—';
-        const luckStr = m.luckSelf != null ? m.luckSelf.toFixed(2) : '—';
+        const luck    = netLuck(m);
+        const luckStr = luck != null ? luck.toFixed(2) : '—';
         return `
             <div class="cip-row cip-title">#${idx + 1} vs <b>${displayPlayerName(m.opponent)}</b></div>
             <div class="cip-row">

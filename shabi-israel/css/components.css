@@ -1122,3 +1122,18 @@ table.matchup-table a:hover {
    it does not compete with the figure everyone reads. A class and not an inline
    style, because a literal value in markup is what the v2 style gates refuse. */
 .pr-tiebreak-digits { opacity: 0.6; }
+
+/* The one-line takeaway that closes a Gaussian-fit explainer (player page: one
+   per series; league dashboard: the luck-gap rows). A box of its own, with an
+   edge in the series' colour: as a plain paragraph it was swallowed by the μ/σ
+   sentences above it, and it is the line a reader actually came for. */
+.pg-gauss-summary {
+    margin-top: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--color-border);
+    border-inline-start: 4px solid var(--color-text-muted);
+    border-radius: 6px;
+    background: var(--color-hover);
+}
+.pg-gauss-summary.is-win  { border-inline-start-color: var(--color-win); }
+.pg-gauss-summary.is-loss { border-inline-start-color: var(--color-loss); }

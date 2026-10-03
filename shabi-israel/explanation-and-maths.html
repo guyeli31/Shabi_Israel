@@ -110,6 +110,12 @@
   /* .pg-gauss-block — one per fitted series in the player page's Gaussian popup.
      Mirror of the rule in css/player-general.css (this tool loads no project CSS). */
   .pg-gauss-block + .pg-gauss-block{border-top:1px solid var(--rule);margin-top:14px;padding-top:14px}
+  /* .pg-gauss-summary — the boxed takeaway closing a series' explainer. Mirror of
+     the rule in css/player-general.css. */
+  .pg-gauss-summary{margin-top:10px;padding:8px 12px;border:1px solid var(--rule);
+    border-inline-start:4px solid var(--ink-faint);border-radius:6px;background:var(--panel)}
+  .pg-gauss-summary.is-win{border-inline-start-color:var(--color-win,#2e9e5b)}
+  .pg-gauss-summary.is-loss{border-inline-start-color:var(--color-loss,#d64545)}
   /* League-type pill — mirror of components.css .league-type-pill + the --lt-*
      tokens from variables.css (this tool loads no project CSS). Popups name a
      league category with the same themed pill the live pages use. */
@@ -827,7 +833,7 @@ const SHARED_BY = {
     ['Best Luck',       'Records ▸ League Records'],
     ['Worst Luck',      'Records ▸ League Records'],
     ['Total Luck',      'Player page ▸ Records'],
-    ['Total PR difference ↔ Result ↔ Luck', 'Player page ▸ Records — the Luck bar above each chart'],
+    ['Total PR difference ↔ Result ↔ Luck Percentile', 'Player page ▸ Records — the Luck bar above each chart'],
   ],
   // Same explainer again, this time as the closing section of a popup that is
   // mostly about something else — the chart. Listed from the other side too,

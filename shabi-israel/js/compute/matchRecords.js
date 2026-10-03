@@ -6,6 +6,7 @@
  */
 
 import { matchesLeagueType } from './leagueTypes.js';
+import { netLuck } from './netLuck.js';
 
 /**
  * Collect one entry per non-technical match where both luck values exist.
@@ -162,8 +163,8 @@ export function collectPlayerBestOpponentPR(perLeague, leagueType, limit = 100) 
 export function collectPlayerBestLuckFor(perLeague, leagueType, limit = 100) {
     const out = [];
     for (const { m, league } of walkPlayerMatches(perLeague, leagueType)) {
-        if (m.luckSelf == null || m.luckOpp == null) continue;
-        const gap = m.luckSelf - m.luckOpp;
+        const gap = netLuck(m);
+        if (gap == null) continue;
         if (gap <= 0) continue;
         out.push({ metric: gap, ...playerRowBase(m, league) });
     }
@@ -173,8 +174,8 @@ export function collectPlayerBestLuckFor(perLeague, leagueType, limit = 100) {
 export function collectPlayerWorstLuckAgainst(perLeague, leagueType, limit = 100) {
     const out = [];
     for (const { m, league } of walkPlayerMatches(perLeague, leagueType)) {
-        if (m.luckSelf == null || m.luckOpp == null) continue;
-        const gap = m.luckSelf - m.luckOpp;
+        const gap = netLuck(m);
+        if (gap == null) continue;
         if (gap >= 0) continue;
         out.push({ metric: Math.abs(gap), _signed: gap, ...playerRowBase(m, league) });
     }

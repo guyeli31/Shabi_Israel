@@ -20,19 +20,22 @@ function bar(x, y, w, h, fill, op) {
 }
 
 /**
- * Player page · "Total PR ↔ Result": where the two worked-example matches land.
- * A neutral grey histogram of one player's matches, with the won match's bin
- * ([2, 3), gap +2.5) tinted green and the lost match's bin ([3, 4), gap +3.0)
- * tinted red — the same two matches the example paragraph describes in words.
+ * Player page · "Total PR ↔ Result" and "Total Luck ↔ Result": where the two
+ * worked-example matches land. A neutral grey histogram of one player's matches,
+ * with the won match's bin tinted green and the lost match's bin tinted red —
+ * the same two matches the example paragraph describes in words.
+ *
+ * One figure, two callers: only the bin heights, the two highlighted bins, the
+ * axis name and the caption differ, so those are the arguments.
  */
-export function prGapExampleHistogramSvg(lang) {
+function gapExampleHistogramSvg(lang, { counts, winBin, lossBin, xlab, capHe, capEn }) {
     const he = lang === 'he';
     const W = 340, H = 176, L = 34, R = 330, T = 16, B = 140;
     const GMIN = -4, GMAX = 4, nbins = GMAX - GMIN;   // 8 bins, width 1
     const bw = (R - L) / nbins;
     const xForG = g => L + (g - GMIN) * bw;            // left edge of gap value g
-    const counts = [1, 2, 4, 7, 9, 8, 6, 3];          // schematic per-bin counts
-    const WIN_BIN = 6, LOSS_BIN = 7;                  // [2,3) and [3,4)
+    const WIN_BIN = winBin, LOSS_BIN = lossBin;
+    const binLabel = i => `[${GMIN + i}, ${GMIN + i + 1})`.replace(/-/g, '−');
     const YMAX = 10;
     const yFor = c => B - (c / YMAX) * (B - T);
 
@@ -43,7 +46,7 @@ export function prGapExampleHistogramSvg(lang) {
         const fill = i === WIN_BIN ? WIN : i === LOSS_BIN ? LOSS : 'currentColor';
         bars += bar(x, y, w, h, fill, hl ? 0.92 : 0.15);
         if (hl) {
-            const cx = x + w / 2, lbl = i === WIN_BIN ? '[2, 3)' : '[3, 4)';
+            const cx = x + w / 2, lbl = binLabel(i);
             labels += `<text x="${cx.toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle" font-size="9.5" font-weight="700" fill="${fill}">${lbl}</text>`;
         }
     }
@@ -56,12 +59,8 @@ export function prGapExampleHistogramSvg(lang) {
     }
     const x0 = xForG(0).toFixed(1);
     const zero = `<line x1="${x0}" x2="${x0}" y1="${T}" y2="${B}" stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="3 3"/>`;
-    // Axis labels are ALWAYS English, matching the shared luck-metric figures.
-    const xlab = 'PR gap';
-
-    const cap = he
-        ? `העמודות האפורות הן כלל דו קרבות השחקן. התא הירוק <span dir="ltr">[2,&nbsp;3)</span> הוא הדו קרב שנוצח (הפרש <span dir="ltr">+2.5</span>), והתא האדום <span dir="ltr">[3,&nbsp;4)</span> הוא הדו קרב שהופסד (הפרש <span dir="ltr">+3.0</span>).`
-        : `The grey bars are all of the player's matches. The green bin [2,&nbsp;3) holds the won match (gap +2.5) and the red bin [3,&nbsp;4) the lost match (gap +3.0).`;
+    // Axis labels (`xlab`) are ALWAYS English, matching the shared luck-metric figures.
+    const cap = he ? capHe : capEn;
 
     return `
         <figure class="pm-figure" style="margin:14px 0">
@@ -75,6 +74,28 @@ export function prGapExampleHistogramSvg(lang) {
             </svg>
             <figcaption class="pm-caption">${cap}</figcaption>
         </figure>`;
+}
+
+/** The PR-gap example: won at +2.5 → [2, 3), lost at +3.0 → [3, 4). */
+export function prGapExampleHistogramSvg(lang) {
+    return gapExampleHistogramSvg(lang, {
+        counts: [1, 2, 4, 7, 9, 8, 6, 3],             // schematic per-bin counts
+        winBin: 6, lossBin: 7,
+        xlab: 'PR gap',
+        capHe: `העמודות האפורות הן כלל דו קרבות השחקן. התא הירוק <span dir="ltr">[2,&nbsp;3)</span> הוא הדו קרב שנוצח (הפרש <span dir="ltr">+2.5</span>), והתא האדום <span dir="ltr">[3,&nbsp;4)</span> הוא הדו קרב שהופסד (הפרש <span dir="ltr">+3.0</span>).`,
+        capEn: `The grey bars are all of the player's matches. The green bin [2,&nbsp;3) holds the won match (gap +2.5) and the red bin [3,&nbsp;4) the lost match (gap +3.0).`,
+    });
+}
+
+/** The luck-gap example: won at +2.6 → [2, 3), lost at −1.4 → [−2, −1). */
+export function luckGapExampleHistogramSvg(lang) {
+    return gapExampleHistogramSvg(lang, {
+        counts: [2, 4, 7, 9, 9, 7, 4, 2],             // schematic, centred on 0
+        winBin: 6, lossBin: 2,
+        xlab: 'Luck gap',
+        capHe: `העמודות האפורות הן כלל דו קרבות השחקן. התא הירוק <span dir="ltr">[2,&nbsp;3)</span> הוא הדו קרב שנוצח (הפרש <span dir="ltr">+2.6</span>), והתא האדום <span dir="ltr">[&minus;2,&nbsp;&minus;1)</span> הוא הדו קרב שהופסד (הפרש <span dir="ltr">&minus;1.4</span>).`,
+        capEn: `The grey bars are all of the player's matches. The green bin [2,&nbsp;3) holds the won match (gap +2.6) and the red bin [&minus;2,&nbsp;&minus;1) the lost match (gap &minus;1.4).`,
+    });
 }
 
 /**

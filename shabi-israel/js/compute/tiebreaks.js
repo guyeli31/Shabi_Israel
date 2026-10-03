@@ -43,7 +43,13 @@
  *   pairWins(a, b)  → # matches a beat b
  *   pairDiff(a, b)  → Σ (a's score − b's score) over a-vs-b matches
  *   totalDiff(a)    → Σ (a's score − opponent's score) over ALL of a's matches
+ *   prWins(a)       → # of a's matches in which a played the lower PR
  *   name(a)         → display name, for the deterministic final fallback
+ *
+ * `hidden: true` marks a rule that RANKS but is not SHOWN: rankingSteps()
+ * (leagueTypes.js) leaves it out of every explanation of the order. Today that
+ * is only `tbAlphabetical` — a last resort that must exist so the order is
+ * always total, but is not a criterion anyone competes on.
  */
 
 /**
@@ -103,12 +109,25 @@ export const TIEBREAK_RULES = {
         needs: 'totalDiff',
         value: (m, _group, t) => t.totalDiff(m)
     },
+    // League-wide count of matches a player won on PR (played the lower PR) —
+    // the same figure as the PR Wins column and the UBC PR point, so it counts
+    // by the same strict `<` stats.js scores with.
+    tbPRWins: {
+        label: 'PR wins — matches played at the lower PR',
+        short: 'PR wins',
+        hint: 'Matches played at the lower PR, across the league',
+        kind: 'numeric',
+        needs: 'prWins',
+        value: (m, _group, t) => t.prWins(m)
+    },
     tbAlphabetical: {
         label: 'Alphabetical (deterministic final fallback)',
         short: 'Alphabetical',
         hint: 'Player name, A → Z',
         kind: 'name',
         needs: 'name',
+        // Ranks, never shown — see `hidden` in the contract above.
+        hidden: true,
         // TOTAL: no two players share a name, so this criterion can never leave
         // two members level. A policy that ends here always yields ONE order.
         total: true,
@@ -155,10 +174,15 @@ export function tiebreakNeeds(steps) {
     return needs;
 }
 
-/** True when the policy needs match data (i.e. anything beyond the name). */
+/**
+ * True when the policy needs the MATCH LIST — i.e. a pair-based lookup
+ * (pairWins / pairDiff / totalDiff). `name` and `prWins` are per-player
+ * figures every runtime already holds from the stats, so they need no matches.
+ */
 export function needsMatchData(steps) {
     const needs = tiebreakNeeds(steps);
     needs.delete('name');
+    needs.delete('prWins');
     return needs.size > 0;
 }
 

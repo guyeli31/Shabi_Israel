@@ -22,6 +22,15 @@
  * level does not mean "they are equal": it means each engine falls back to its
  * own storage order, which is precisely how the table and the predictor come to
  * crown different champions.
+ *
+ * `ranking.projectionSkips` — rules the championship Monte Carlo leaves out of
+ * its cascade (a tie that reaches one moves on to the next). This is the ONE
+ * sanctioned difference between the engines, and it is deliberate: DOUBLING and
+ * UBC skip tiebreak-H2H because it sits behind Mean PR — a float two players
+ * essentially never share — so it is all but unreachable, while keeping its
+ * n×n tables current cost +27% on every simulated season. The rendered table,
+ * and the predictor once a season is complete, always run the full list.
+ * REGULAR skips nothing: its ties (Win Rate, Wins) are common.
  */
 
 import { assertPolicy, TIEBREAK_RULES } from './tiebreaks.js';
@@ -38,7 +47,8 @@ const DOUBLING_CONFIG = {
     showWinRate: true,
     showPRWins: false,
     ranking: { primary: 'winRate', primaryDir: 'desc', secondary: 'meanPR', secondaryDir: 'asc',
-               tiebreaks: ['tbAlphabetical'] },
+               tiebreaks: ['tbH2hWins', 'tbAlphabetical'],
+               projectionSkips: ['tbH2hWins'] },
     playerResultMode: 'winloss'
 };
 
@@ -60,7 +70,8 @@ const UBC_CONFIG = {
     showWinRate: false,
     showPRWins: true,
     ranking: { primary: 'avgPoints', primaryDir: 'desc', secondary: 'meanPR', secondaryDir: 'asc',
-               tiebreaks: ['tbAlphabetical'] },
+               tiebreaks: ['tbH2hWins', 'tbPRWins', 'tbAlphabetical'],
+               projectionSkips: ['tbH2hWins'] },
     playerResultMode: 'points'
 };
 
@@ -83,6 +94,17 @@ for (const [id, cfg] of Object.entries(CONFIGS)) assertPolicy(cfg.ranking.tiebre
  * `subTabs.js` re-exports it for the pill bars.
  */
 export const ALL_TYPES_ID = 'all';
+
+/**
+ * A league type's display name — the text inside its pill. Defined here, beside
+ * the types themselves, so a component that renders a type pill takes its label
+ * from the same place it takes the type (the pill's COLOUR already has one home:
+ * `.league-type-pill.type-<id>` in components.css → the --lt-* tokens).
+ */
+export const LEAGUE_TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
+export function leagueTypeLabel(leagueType) {
+    return LEAGUE_TYPE_LABELS[leagueType] || String(leagueType).toUpperCase();
+}
 
 /**
  * Does a league of `leagueType` pass the filter `filter`?
@@ -191,7 +213,8 @@ const RANKING_KEY_LABELS = {
 
 /**
  * The ranking policy of `config` as an ordered, human-readable list of steps —
- * primary, secondary, then every tiebreak rule. DERIVED from `config.ranking`,
+ * primary, secondary, then every VISIBLE tiebreak rule (a `hidden` rule still
+ * ranks; it is just not part of the explanation). DERIVED from `config.ranking`,
  * never written out per type, so the Tiebreakers section on the dashboard
  * (and anything else that explains the order) cannot drift from what the
  * table and the predictor actually do.
@@ -210,6 +233,8 @@ export function rankingSteps(config) {
     if (r.secondary) steps.push(keyStep(r.secondary, r.secondaryDir));
     for (const id of r.tiebreaks) {
         const rule = TIEBREAK_RULES[id];
+        // A rule that ranks but is not shown (the alphabetical last resort).
+        if (rule.hidden) continue;
         steps.push({ id, label: rule.short || rule.label, hint: rule.hint || '', dir: rule.kind === 'name' ? null : 'desc' });
     }
     return steps;

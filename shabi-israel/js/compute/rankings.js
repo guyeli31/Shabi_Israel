@@ -90,6 +90,8 @@ function buildMatchTables(matches) {
         pairWins:  (a, b) => pairWins.get(a.player)?.get(b.player) || 0,
         pairDiff:  (a, b) => pairDiff.get(a.player)?.get(b.player) || 0,
         totalDiff: (a)    => totalDiff.get(a.player) || 0,
+        // Already on the row (stats.js counted it) — no second pass over matches.
+        prWins:    (a)    => a.prWins || 0,
         name:      (a)    => a.player
     };
 }

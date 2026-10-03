@@ -317,7 +317,7 @@ function clickTargetHtml(target) {
     // the chip. Note 'PR vs Result' carries a ' vs ' in the PREFIX itself — the
     // split runs on the tail only, after the prefix is removed, which is why
     // these are matched by prefix rather than by searching the whole string.
-    // The PR-gap steppers ('PR distribution: ', 'Total PR: ') name a bin range
+    // The gap steppers ('PR distribution: ', 'Total PR: ', 'Total Luck: ') name a bin range
     // and no player, so they fall through and stay plain.
     for (const prefix of ['Compare: step back — ', 'Compare: step forward — ',
                           'PR vs Result: step back — ', 'PR vs Result: step forward — ']) {
@@ -1335,8 +1335,26 @@ const CLICK_TYPE_ICONS = [
     { prefix: 'PR vs Result: step forward', icon: '🎯➡️' },
     { prefix: 'PR distribution: step back', icon: '📊⬅️' },   // dashboard, league PR-gap histograms
     { prefix: 'PR distribution: step forward', icon: '📊➡️' },
+    { prefix: 'PR distribution: type', icon: '📊🏷️' },        // its league-type filter pills
     { prefix: 'Total PR: step back', icon: '🧮⬅️' },          // player page, Records
     { prefix: 'Total PR: step forward', icon: '🧮➡️' },
+    { prefix: 'Total Luck: step back', icon: '🍀⬅️' },        // player page, Records
+    { prefix: 'Total Luck: step forward', icon: '🍀➡️' },
+    // League Luck ↔ Result (dashboard, Charts) — the luck twin of 'PR
+    // distribution', so it keeps that family's 📊 and adds the clover. Its
+    // type/length filters and chart tools get their own second glyph; the
+    // bare-prefix entry last catches anything else in the family.
+    { prefix: 'Luck distribution: step back', icon: '🍀📊⬅️' },
+    { prefix: 'Luck distribution: step forward', icon: '🍀📊➡️' },
+    { prefix: 'Luck distribution: type', icon: '🍀📊🏷️' },
+    { prefix: 'Luck distribution: length', icon: '🍀📊📏' },
+    { prefix: 'Luck distribution: info', icon: '🍀📊ℹ️' },
+    { prefix: 'Luck distribution: language', icon: '🍀📊🌐' },
+    { prefix: 'Luck distribution: ', icon: '🍀📊∑' },   // Gaussian fit / close, trim
+    // The player page's two gap sections: their league-type FILTER pills (several
+    // on at once), named per section — unlike the generic "Tab: Doubling".
+    { prefix: 'Total PR: type', icon: '🧮🏷️' },
+    { prefix: 'Total Luck: type', icon: '🍀🏷️' },
     { prefix: 'Export: ', icon: '🖼️' },
     { prefix: 'Expand: ', icon: '↕️' },   // "Show all (N)" table-expanders
     { prefix: 'Language: ', icon: '🌐' }, // EN/HE toggle in "?" popups

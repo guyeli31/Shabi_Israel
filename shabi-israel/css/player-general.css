@@ -1168,7 +1168,7 @@
 .show-more-btn:hover { background: var(--color-hover); }
 
 /* ============================================================
- * RECORDS TAB — Total Luck (C6) + Total PR ↔ Result
+ * RECORDS TAB — Total Luck (C6) + Total PR ↔ Result + Total Luck ↔ Result
  * ============================================================ */
 
 /* The league-type filter above C1 (Leagues tab) and above the Match History
@@ -1205,7 +1205,8 @@
     gap: var(--space-xs);
 }
 
-/* Total PR ↔ Result — the chart panels reuse the dashboard's .corr-* chrome
+/* Total PR ↔ Result and Total Luck ↔ Result (one renderer, so one set of
+   .pg-prres-* classes) — the chart panels reuse the dashboard's .corr-* chrome
    (dashboard.css); only the legend and the per-series μ/σ readout are new. */
 .pg-prres-panel .corr-controls-top,
 .pg-prres-controls .corr-controls-top {
@@ -1319,6 +1320,8 @@
     margin-top: var(--space-sm);
     padding-top: var(--space-sm);
 }
+/* (.pg-gauss-summary — the boxed takeaway under a series' explainer — lives in
+   components.css: the league dashboard's luck section uses it too.) */
 /* …and one group per charted player, in the same order as the charts. The
    between-player rule is heavier than the between-series one above, so the
    two levels of grouping stay legible at a glance. */

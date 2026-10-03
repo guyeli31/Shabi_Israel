@@ -14,20 +14,21 @@ import { playerNameLink, attachPlayerNameInteractions } from './playerNameIntera
 import { getMatchesAsOf, getUpdatePoints, buildMatchTimeline, mergeHistoryIntoMatches, matchKey, resultSides, describeResult, formatAxisDay, INITIAL_POINT } from '../compute/matchHistory.js';
 import { computeAllStats } from '../compute/stats.js';
 import { rankLeague, computeAverages, computeMatchStats } from '../compute/rankings.js';
-import { getLeagueConfig, rankingSteps, typeTracksPR, typeAwardsPRPoint } from '../compute/leagueTypes.js';
+import { getLeagueConfig, rankingSteps, typeTracksPR, typeTracksLuck, typeAwardsPRPoint, ALL_TYPES_ID } from '../compute/leagueTypes.js';
 import { elapsedInWindow, durationMode } from '../compute/leagueDuration.js';
 import { buildPrizeRows, formatPrize, getMedalPlaces } from '../compute/prizeRows.js';
 import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagueUrl, leagueUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
 import { exportWhatsAppTableImage, MAX_EXPORT_ROWS, leagueTypeLabel } from '../utils/exportTableImage.js';
 import { colorForValue, colorForValueInverted, colorForConfidence } from '../compute/colorScale.js';
 import { drawPlayerBarChart, computeNiceRange } from './playerBarChart.js';
+import { netLuck } from '../compute/netLuck.js';
 import { drawCorrelationRow, drawHistogramRow } from './prCorrelationChart.js';
 import { luckConfidenceFromItems } from '../compute/luckConfidence.js';
 import { applyLuckPill } from './luckPill.js';
 import { renderBreadcrumbs } from './navigation.js';
 import { predictChampionship, computeTopXPct, prProbabilityTableHtml, getWinProbability, nearestMatchLengthIdx, matchLengthForIdx, effectivePRFor, stagedOutcomeOdds } from '../compute/championshipPredictor.js';
 import { pmTableHtml } from '../../table-lab/formats/pm/mount.js';
-import { getPopup, leagueTypePill } from '../data/popupContent.js';
+import { getPopup, leagueTypePill, leagueLuckGaussianHtml } from '../data/popupContent.js';
 import { tableValidationExampleHistogramSvg } from './exampleHistograms.js';
 import { batchLast300PRForSimulator, loadVisibleLeagues } from '../compute/crossLeague.js';
 import { loadPlayersMetadata } from '../data/store.js';
@@ -42,7 +43,7 @@ import { mountAppTabs } from './appTabs.js';
 import { installPageStateHandover } from '../utils/pageStateHandover.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
-import { mountAccordionTabs, mountLengthSelector } from './subTabs.js';
+import { mountAccordionTabs, mountLengthSelector, mountLeagueTypeFilter } from './subTabs.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
 import { mountSearchField, mountCombobox, playerIdentityHtml } from '../utils/combobox.js';
 import { primeTitleMeta, titleHtmlFor } from '../utils/playerTitleBadge.js';
@@ -195,7 +196,7 @@ export async function renderDashboardPage() {
         shell.panels.standings.innerHTML = standingsPanel();
         shell.panels.matches.innerHTML   = matchesPanel();
         shell.panels.predictor.innerHTML = predictorPanel();
-        shell.panels.charts.innerHTML    = insightsPanel(leagueConfig.showPR);
+        shell.panels.charts.innerHTML    = insightsPanel(leagueConfig.showPR, typeTracksLuck(leagueConfig.type));
 
         renderSummaryCards(ctx);
         renderPrizes(ctx);
@@ -209,6 +210,7 @@ export async function renderDashboardPage() {
         renderRemainingMatches(ctx);
         renderPlayerSection(ctx);
         renderPrCorrelationSection(ctx);
+        renderLeagueLuckSection(ctx);
     } catch (err) {
         console.error(err);
         renderErrorScreen(container, { ...explainError(err, { leagueId }), error: err });
@@ -917,7 +919,7 @@ function matchesPanel() {
 
 // showPR gates the two PR-based correlation sections: REGULAR leagues record no
 // PR, so only the Player-match-history charts (Luck metric) are shown for them.
-function insightsPanel(showPR) {
+function insightsPanel(showPR, showLuck) {
     return `
         <section class="app-section app-section--card dash-section">
             <h2 class="app-section-h2">Player match history</h2>
@@ -926,7 +928,7 @@ function insightsPanel(showPR) {
         </section>
         ${showPR ? `
         <section class="app-section app-section--card dash-section" id="pr-corr-section">
-            <h2 class="app-section-h2">Player PR difference &harr; Result &harr; Luck
+            <h2 class="app-section-h2">Player PR difference &harr; Result &harr; Luck Percentile
                 <span class="predictor-tooltip" id="pr-corr-info-btn" data-track="PR vs Result: info open">?</span>
             </h2>
             <div class="predictor-info-popup" id="pr-corr-info-popup" data-analytics-section="PR vs Result" hidden>
@@ -948,6 +950,19 @@ function insightsPanel(showPR) {
                 ${popupLangBlocks('league-corr')}
             </div>
             <div id="corr-league-container">
+        </section>
+        ` : ''}
+        ${showLuck ? `
+        <section class="app-section app-section--card dash-section" id="league-luck-section">
+            <h2 class="app-section-h2">League Luck difference &harr; Result
+                <span class="predictor-tooltip" id="league-luck-info-btn" data-track="Luck distribution: info open">?</span>
+            </h2>
+            <div class="predictor-info-popup" id="league-luck-info-popup" data-analytics-section="Luck distribution" hidden>
+                <button class="predictor-info-close" id="league-luck-info-close" data-track="Luck distribution: info close">&times;</button>
+                <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
+                ${popupLangBlocks('league-luck')}
+            </div>
+            <div id="luck-league-container"></div>
         </section>
         ` : ''}
     `;
@@ -1394,7 +1409,7 @@ function drawHistTable(ctx, dateValue) {
 
     let html = `<table class="dash-table font-large" data-mf-table-id="B2"><thead><tr><th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">MP</th><th scope="col">W</th><th scope="col">L</th>`;
     if (leagueConfig.showWinRate) html += `<th scope="col">Win%</th>`;
-    if (leagueConfig.showPRWins) html += `<th scope="col">PRW</th><th scope="col">Avg PTS</th>`;
+    if (leagueConfig.showPRWins) html += `<th scope="col">PRW</th><th scope="col"><span class="th-mean" title="Average points per match">Pts</span></th>`;
     if (leagueConfig.showPR) html += `<th scope="col">PR</th>`;
     html += '</tr></thead><tbody>';
     if (top.length === 0) {
@@ -3456,7 +3471,7 @@ function renderPlayerSection(ctx) {
             const metric = p.metricSel.value;
             const bucket = byMetric[metric];
             for (const m of buildPlayerSeries(liveMatches, p.player)) {
-                const v = metric === 'luck' ? m.luckSelf : m.prSelf;
+                const v = metric === 'luck' ? netLuck(m) : m.prSelf;
                 if (v != null) bucket.push(v);
             }
         }
@@ -3601,6 +3616,7 @@ function buildPlayerSeries(liveMatches, player) {
                 scoreOpp: isA ? m.scoreB : m.scoreA,
                 prSelf: isA ? m.prA : m.prB,
                 luckSelf: isA ? m.luckA : m.luckB,
+                luckOpp: isA ? m.luckB : m.luckA,
                 updatedAt: m.updatedAt || null
             };
         })
@@ -3628,6 +3644,7 @@ function buildPlayerAdvantageSeries(liveMatches, player) {
                 prSelf: isA ? m.prA : m.prB,
                 prOpp: isA ? m.prB : m.prA,
                 luckSelf: isA ? m.luckA : m.luckB,
+                luckOpp: isA ? m.luckB : m.luckA,
                 updatedAt: m.updatedAt || null
             };
         })
@@ -3639,6 +3656,27 @@ function buildPlayerAdvantageSeries(liveMatches, player) {
             if (!b.updatedAt) return -1;
             return new Date(a.updatedAt) - new Date(b.updatedAt);
         });
+}
+
+/**
+ * One entry per decided league match that carries a luck figure for both sides:
+ * `advantage` = the winner's luck minus the loser's (compute/netLuck.js read from
+ * the winner's side), so positive = the dice favoured the winner. Named
+ * `advantage` like the PR series so buildDensityBuckets() bins either.
+ */
+function buildLuckGapSeries(matches) {
+    const out = [];
+    for (const m of matches) {
+        if (m._technical) continue;
+        if (m.scoreA == null || m.scoreB == null || m.scoreA === m.scoreB) continue;
+        const aWon = m.scoreA > m.scoreB;
+        const gap = netLuck(aWon
+            ? { luckSelf: m.luckA, luckOpp: m.luckB }
+            : { luckSelf: m.luckB, luckOpp: m.luckA });
+        if (gap == null) continue;
+        out.push({ advantage: gap });
+    }
+    return out;
 }
 
 /** One entry per league match: x = PR of the loser minus PR of the winner (no colour). */
@@ -3752,6 +3790,9 @@ function buildGaussianExplainerHtml(values) {
     const loBand = mfix((mean - std).toFixed(2));
     const hiBand = mfix((mean + std).toFixed(2));
     const abs = Math.abs(mean).toFixed(2);
+    // The boxed takeaway μ and σ do not give on their own: in what share of the
+    // matches the winner was the one who played the better PR (a gap above 0).
+    const betterPct = games > 0 ? (values.filter(v => v > 0).length / games * 100).toFixed(1) : '0.0';
 
     return `
         <button class="predictor-info-close corr-gaussian-popup-close" aria-label="Close">&times;</button>
@@ -3760,11 +3801,13 @@ function buildGaussianExplainerHtml(values) {
         <h4>What do &mu; and &sigma; actually mean?</h4>
         <p><b>&mu; (mean) = ${mfix(mean.toFixed(2))}</b>: on average, across the ${games} matches, the winner's PR was about ${abs} points ${meanDir} than the loser's.</p>
         <p><b>&sigma; (standard deviation) = ${std.toFixed(2)}</b>: in about 66.7% of those ${games} matches the winner-side PR gap was between <b>${loBand}</b> and <b>${hiBand}</b>.</p>
+        <div class="pg-gauss-summary is-win"><b>In short:</b> in <b>${betterPct}%</b> of the matches, the winner played a better PR than the loser.</div>
         </div>
         <div class="popup-lang-he" data-lang="he">
         <h4>מה בעצם &mu; ו-&sigma; אומרים?</h4>
         <p><b>&mu; (ממוצע) = <span dir="ltr">${mfix(mean.toFixed(2))}</span></b>: בממוצע, על פני ${games} הדו קרבות, למנצח היה PR ${meanDirHe} בכ-${abs} נקודות מהמפסיד.</p>
         <p><b>&sigma; (סטיית תקן) = ${std.toFixed(2)}</b>: בכ-66.7% מ-${games} הדו קרבות פער ה-PR מצד המנצח היה בין <b><span dir="ltr">${loBand}</span></b> ל-<b><span dir="ltr">${hiBand}</span></b>.</p>
+        <div class="pg-gauss-summary is-win"><b>בסיכום:</b> ב-<b>${betterPct}%</b> מהדו קרבות, למנצח היה PR טוב יותר מלמפסיד.</div>
         </div>
     `;
 }
@@ -3952,7 +3995,8 @@ function corrMatchInfoHtml(m) {
     const dateStr = formatMatchStamp(m.updatedAt);
     if (m.opponent !== undefined) {
         const prStr = m.prSelf != null ? m.prSelf.toFixed(2) : '—';
-        const luckStr = m.luckSelf != null ? m.luckSelf.toFixed(2) : '—';
+        const luck = netLuck(m);
+        const luckStr = luck != null ? luck.toFixed(2) : '—';
         return `
             <div class="cip-row cip-title">${m.win ? 'Won' : 'Lost'} vs <b>${displayPlayerName(m.opponent)}</b></div>
             <div class="cip-row">
@@ -4313,32 +4357,40 @@ function renderPrCorrelationSection(ctx) {
     let shift = 0;
     loadVisibleLeagues().then(leagues => {
         const leagueType = ctx.leagueConfig.type;
-        // Same league type AND same match length (column in the PR
-        // Win-Probability Table) — pooling different match lengths together
-        // would mix matches whose win-probability model is genuinely
-        // different (a bigger PR gap matters more over a longer match), so
-        // it wouldn't be one consistent population to compare against a
-        // single table column the way the Model-validation popup does.
-        const sameTypeLeagues = leagues.filter(l => l.leagueType === leagueType);
-        // Distinct match-length columns present among same-type leagues. Each is
-        // a genuinely different win-probability model, so the aggregate is read
-        // one length at a time — never pooled across lengths, since it is compared
-        // against a single table column. The selector below appears only when
-        // there is more than one to choose between.
-        const lenIdxSet = new Set(sameTypeLeagues.map(l => nearestMatchLengthIdx(l.params.MatchLength || 7)));
+        // One entry per PR-recording league that has anything to chart. Which of
+        // them are pooled is the type filter's choice (below): it opens on THIS
+        // league's own type, and its pills are only the PR-recording types that
+        // actually have rated matches — REGULAR never appears, it records no PR.
+        const sources = leagues
+            .filter(l => typeTracksPR(l.leagueType))
+            .map(l => ({
+                type: l.leagueType,
+                mlIdx: nearestMatchLengthIdx(l.params.MatchLength || 7),
+                series: buildGeneralAdvantageSeries(l.matches),
+            }))
+            .filter(src => src.series.length > 0);
+        const poolTypes = [...new Set(sources.map(src => src.type))];
+        // Array of pooled league types, or null for ALL (every PR-recording type).
+        let typeSel = poolTypes.includes(leagueType) ? [leagueType] : null;
+        const selectedSources = () => sources.filter(src => !typeSel || typeSel.includes(src.type));
+        // Distinct match-length columns present among the selected leagues. Each
+        // is a genuinely different win-probability model (a bigger PR gap matters
+        // more over a longer match), so the aggregate is read one length at a
+        // time — never pooled across lengths, since it is compared against a
+        // single table column the way the Model-validation popup does. The
+        // selector below appears only when there is more than one to choose.
+        const lenIdxSet = () => new Set(selectedSources().map(src => src.mlIdx));
         let poolMlIdx = generalMlIdx;   // default: this league's own length
 
         let typeLeagues = [];
         let rows = [];
         function repool() {
-            typeLeagues = sameTypeLeagues.filter(l =>
-                nearestMatchLengthIdx(l.params.MatchLength || 7) === poolMlIdx);
-            rows = [];
-            for (const league of typeLeagues) {
-                for (const m of buildGeneralAdvantageSeries(league.matches)) {
-                    rows.push({ ...m, mlIdx: poolMlIdx });
-                }
-            }
+            // A type selection that has no league of the current length cannot
+            // keep it: fall back to this league's own length, else the first.
+            const lens = lenIdxSet();
+            if (!lens.has(poolMlIdx)) poolMlIdx = lens.has(generalMlIdx) ? generalMlIdx : [...lens][0];
+            typeLeagues = selectedSources().filter(src => src.mlIdx === poolMlIdx);
+            rows = typeLeagues.flatMap(src => src.series.map(m => ({ ...m, mlIdx: poolMlIdx })));
         }
         repool();
 
@@ -4348,7 +4400,6 @@ function renderPrCorrelationSection(ctx) {
             return;
         }
 
-        const showLenInLabel = lenIdxSet.size > 1;
         let fullBound = domain.xMax;
         // Re-fit the shared domain to the current pool (only ever expands it, so
         // the current-league row above stays aligned) and refresh the label.
@@ -4360,7 +4411,7 @@ function renderPrCorrelationSection(ctx) {
             const grew = expanded > domain.xMax;
             if (grew) { domain.xMin = -expanded; domain.xMax = expanded; }
             fullBound = domain.xMax;
-            const lenTxt = showLenInLabel ? ` — ${matchLengthForIdx(poolMlIdx)} pt` : '';
+            const lenTxt = lenIdxSet().size > 1 ? ` — ${matchLengthForIdx(poolMlIdx)} pt` : '';
             labelEl.textContent = `All League Matches${lenTxt} (${rows.length} matches, ${typeLeagues.length} league${typeLeagues.length === 1 ? '' : 's'})`;
             return grew;
         }
@@ -4394,10 +4445,17 @@ function renderPrCorrelationSection(ctx) {
             return Math.min(fullBound, Math.max(1, Math.ceil(vals[idx])));
         }
 
-        // The all-time row's identity carries the pooled match length, which the
-        // length selector can change — so it is recomputed on every redraw and
-        // stamped onto each tool's data-track (and the stepper/closes read it too).
-        const rowId = () => `all-time ${matchLengthForIdx(poolMlIdx)}pt`;
+        // The all-time row's identity carries the pooled league types and match
+        // length, which the two filters can change — so it is recomputed on every
+        // redraw and stamped onto each tool's data-track (and the stepper/closes
+        // read it too). The types are named only when the pool is NOT simply this
+        // league's own type, so the row's long-standing "all-time 7pt" identity
+        // is unchanged for the default view.
+        const rowId = () => {
+            const own = typeSel && typeSel.length === 1 && typeSel[0] === leagueType;
+            const typeTxt = own ? '' : `${typeSel ? typeSel.join('+') : 'all'} `;
+            return `all-time ${typeTxt}${matchLengthForIdx(poolMlIdx)}pt`;
+        };
 
         function redrawAllTime() {
             const rid = rowId();
@@ -4497,19 +4555,33 @@ function renderPrCorrelationSection(ctx) {
             redrawGeneral();
         }
 
+        // The two filters sit BETWEEN the controls box and the chart, not inside
+        // the box: `.dash-controls button` restyles every button in it, and the
+        // league-type pills must look like the league-type pills everywhere else.
+        const typeHost = document.createElement('div');
+        typeHost.className = 'corr-type-select';
+        const lenHost = document.createElement('div');
+        lenHost.className = 'corr-length-select';
+        allTimePanel.querySelector('.corr-controls').after(typeHost, lenHost);
+
         // Match-length selector — switch which single length's aggregate is
         // shown (default: this league's own length). No "All lengths" option:
         // this row is validated against one table column, so pooling lengths
-        // would be meaningless here. Shown only when >1 length exists.
-        if (lenIdxSet.size > 1) {
-            const lenHost = document.createElement('div');
-            lenHost.className = 'corr-length-select';
-            allTimePanel.querySelector('.corr-controls').appendChild(lenHost);
+        // would be meaningless here. Shown only when >1 length exists, and
+        // rebuilt for each type selection, since that decides which lengths do.
+        function rebuildLengths() {
+            lenHost.innerHTML = '';
+            const lens = lenIdxSet();
+            if (lens.size < 2) return;
+            let mounted = false;
             mountLengthSelector(lenHost, {
-                lengths: [...lenIdxSet].map(i => matchLengthForIdx(i)),
-                defaultLen: matchLengthForIdx(generalMlIdx),
+                lengths: [...lens].map(i => matchLengthForIdx(i)),
+                defaultLen: matchLengthForIdx(poolMlIdx),
                 includeAll: false,
                 onSelect: (len) => {
+                    // The selector announces its default on mount; that is the
+                    // pool already on screen, not a choice anyone made.
+                    if (!mounted) return;
                     poolMlIdx = len == null ? generalMlIdx : nearestMatchLengthIdx(len);
                     // Which length's aggregate is now shown — its own event so the
                     // pool switch is measurable (there is no "all lengths" here).
@@ -4519,6 +4591,261 @@ function renderPrCorrelationSection(ctx) {
                     redrawAllTime();
                 },
             });
+            mounted = true;
         }
+
+        // League-type filter — the same control as the luck section below it:
+        // several types on at once, pooled; ALL clears them.
+        mountLeagueTypeFilter(typeHost, {
+            types: poolTypes,
+            selected: typeSel,
+            trackFor: (id, willBeOn) => id === ALL_TYPES_ID
+                ? 'PR distribution: type all'
+                : `PR distribution: type ${id} ${willBeOn ? 'on' : 'off'}`,
+            onChange: (ids) => {
+                typeSel = ids;
+                repool();
+                rebuildLengths();
+                if (applyPoolDomain()) redrawGeneral();
+                redrawAllTime();
+            },
+        });
+    });
+}
+
+// ---------- League Luck difference ↔ Result ----------
+
+const LUCK_AXIS_CAPTION = '← Loser luckier        Winner luckier →';
+const GAUSSIAN_TITLE = 'Overlays a fitted normal (Gaussian) curve on this histogram, using this data\'s own mean and standard deviation — a visual reference only, not a claim that the data is actually normally distributed.';
+
+/**
+ * The luck-gap twin of "League PR difference ↔ Result": this league's matches
+ * on top, every league's below, on one shared X domain. Rendered for EVERY
+ * league type — REGULAR leagues record a luck figure per side too — so it lives
+ * outside the PR-only block (see insightsPanel).
+ *
+ * Both rows are the same chart over a different set of matches, so they are
+ * built by ONE row factory (mountRow) rather than written twice. There is no
+ * shift control and no Table Validation here: both belong to the PR
+ * win-probability model, which has nothing to say about dice luck.
+ *
+ * The lower row is filtered, not fixed: league-type pills (several on at once,
+ * pooled; ALL clears them) and, when the selection spans more than one match
+ * length, a length selector. It opens on THIS league's own type — the
+ * population the row above it belongs to.
+ */
+function renderLeagueLuckSection(ctx) {
+    const container = document.getElementById('luck-league-container');
+    if (!container) return;
+    wireSectionLangPopup('league-luck-section', 'league-luck-info-btn', 'league-luck-info-popup', 'league-luck-info-close');
+
+    const TRACK = 'Luck distribution';
+    const boundOf = (rows) => Math.max(1, Math.ceil(rows.reduce((mx, r) => Math.max(mx, Math.abs(r.advantage)), 0)));
+    // One symmetric domain for both rows, re-fitted whenever the pool changes.
+    let sharedBound = 1;
+    const rowsOnPage = [];
+
+    /**
+     * One histogram row. `getRows` and `getId` are read on every redraw, so the
+     * all-time row can swap its pool (and its analytics identity) underneath.
+     */
+    function mountRow({ labelHtml, getRows, getId }) {
+        const panel = document.createElement('div');
+        panel.className = 'chart-panel corr-panel corr-panel--general';
+        panel.innerHTML = `
+            <div class="dash-controls corr-controls">
+                <div class="corr-controls-top">
+                    <label class="corr-luck-label">${labelHtml}</label>
+                    <span class="corr-gaussian-stats"></span>
+                    <div class="corr-shift-group">
+                        <button class="corr-gaussian-toggle" type="button" title="${GAUSSIAN_TITLE}">Gaussian fit</button>
+                        <button class="corr-trim-toggle" type="button" title="Zooms the X-axis in to the middle 99% of this row's matches (symmetric around 0), hiding the outlier bins beyond that. Display only &mdash; the Gaussian fit always uses the full, untrimmed data.">Trim to 99%</button>
+                    </div>
+                </div>
+            </div>
+            <div class="predictor-info-popup corr-gaussian-popup" hidden></div>
+            <div class="chart-host corr-host"></div>
+        `;
+        container.appendChild(panel);
+
+        const gaussBtn = panel.querySelector('.corr-gaussian-toggle');
+        const trimBtn = panel.querySelector('.corr-trim-toggle');
+        const statsEl = panel.querySelector('.corr-gaussian-stats');
+        const popup = panel.querySelector('.corr-gaussian-popup');
+        const host = panel.querySelector('.corr-host');
+        let showGaussian = false, trimmed = false;
+
+        function redraw() {
+            const rows = getRows();
+            const id = getId();
+            gaussBtn.dataset.track = `${TRACK}: Gaussian fit — ${id}`;
+            trimBtn.dataset.track = `${TRACK}: trim — ${id}`;
+
+            const enough = rows.length >= MIN_GAUSSIAN_N;
+            gaussBtn.disabled = !enough;
+            gaussBtn.textContent = enough ? 'Gaussian fit' : 'Gaussian fit (not enough data)';
+            gaussBtn.title = enough ? GAUSSIAN_TITLE : `Needs at least ${MIN_GAUSSIAN_N} matches before a mean/standard deviation is meaningful.`;
+            if (!enough) showGaussian = false;
+            gaussBtn.classList.toggle('is-active', showGaussian);
+
+            trimBtn.disabled = rows.length === 0;
+            trimBtn.textContent = trimmed ? 'Show full range' : 'Trim to 99%';
+            trimBtn.classList.toggle('is-active', trimmed);
+
+            if (!rows.length) {
+                statsEl.textContent = '';
+                popup.hidden = true;
+                popup.innerHTML = '';
+                host.innerHTML = '<span class="chart-info-placeholder">No matches with a luck figure for this filter.</span>';
+                return;
+            }
+
+            let bound = sharedBound;
+            if (trimmed) {
+                const vals = rows.map(r => Math.abs(r.advantage)).sort((a, b) => a - b);
+                const idx = Math.min(vals.length - 1, Math.floor(0.99 * vals.length));
+                bound = Math.min(sharedBound, Math.max(1, Math.ceil(vals[idx])));
+            }
+            const buckets = buildDensityBuckets(rows, 0, -bound, bound, trimmed);
+
+            let gaussian = null;
+            if (showGaussian) {
+                const values = rows.map(r => r.advantage);
+                gaussian = meanStd(values);
+                statsEl.textContent = `μ = ${gaussian.mean.toFixed(2)}   σ = ${gaussian.std.toFixed(2)}`;
+                const args = { ...gaussian, games: values.length, luckier: values.filter(v => v > 0).length };
+                popup.innerHTML = `
+                    <button class="predictor-info-close corr-gaussian-popup-close" aria-label="Close">&times;</button>
+                    <div class="popup-lang-flags-bar">${langFlagsHtml()}</div>
+                    <div class="popup-lang-en" data-lang="en">${leagueLuckGaussianHtml('en', args)}</div>
+                    <div class="popup-lang-he" data-lang="he">${leagueLuckGaussianHtml('he', args)}</div>`;
+                popup.hidden = false;
+                wireDynamicLangPopup(popup);
+                popup.querySelector('.corr-gaussian-popup-close').addEventListener('click', () => {
+                    window.dispatchEvent(new CustomEvent('shabi:interaction', { detail: { target: `${TRACK}: Gaussian close — ${getId()}` } }));
+                    showGaussian = false;
+                    redraw();
+                });
+            } else {
+                statsEl.textContent = '';
+                popup.hidden = true;
+                popup.innerHTML = '';
+            }
+
+            let stepper = null;
+            const row = drawHistogramRow(host, buckets, {
+                xMin: -bound, xMax: bound, showAxis: true,
+                totalCount: rows.length, gaussian,
+                gapLabel: 'Luck gap', axisCaption: LUCK_AXIS_CAPTION,
+                onPick: () => stepper && stepper.sync(),
+            });
+            stepper = mountChartStepper(host, {
+                controller: row,
+                total: row.binCount,
+                isSteppable: row.hasCount,
+                emptyLabel: 'Tap a bar',
+                prevTitle: 'Previous Luck-gap bin',
+                nextTitle: 'Next Luck-gap bin',
+                trackPrefix: `${TRACK}: step`,
+                // Names the ROW, like the PR-gap stepper above — the two rows
+                // share this prefix.
+                describe: () => id,
+            });
+        }
+
+        gaussBtn.addEventListener('click', () => { showGaussian = !showGaussian; redraw(); });
+        trimBtn.addEventListener('click', () => { trimmed = !trimmed; redraw(); });
+        const api = { panel, redraw, labelEl: panel.querySelector('.corr-luck-label') };
+        rowsOnPage.push(api);
+        return api;
+    }
+
+    // ---- Row 1: this league ----
+    const leagueRows = buildLuckGapSeries(ctx.liveMatches);
+    const { rankings } = rankLeague({ matches: ctx.liveMatches, allPlayers: ctx.allPlayersSet, config: ctx.leagueConfig });
+    const stats = computeMatchStats(rankings, ctx.allPlayersSet.size);
+    sharedBound = boundOf(leagueRows);
+    const leagueRow = mountRow({
+        labelHtml: `League &mdash; all matches (${stats.playedMatches}/${stats.totalMatches})`,
+        getRows: () => leagueRows,
+        getId: () => 'this league',
+    });
+    leagueRow.redraw();
+
+    // ---- Row 2: every league, filtered by type + match length ----
+    let pool = [];
+    let typeSel = null;       // array of pooled league types, or null for ALL
+    let lengthSel = null;     // one match length, or null for all lengths
+    const allTimeId = () =>
+        `all-time ${typeSel ? typeSel.join('+') : 'all'} ${lengthSel == null ? 'all lengths' : lengthSel + 'pt'}`;
+    const allTimeRow = mountRow({
+        labelHtml: 'All League Matches &hellip;',
+        getRows: () => pool,
+        getId: allTimeId,
+    });
+    allTimeRow.redraw();
+
+    loadVisibleLeagues().then(leagues => {
+        // One entry per league that has anything to chart.
+        const sources = leagues
+            .filter(l => typeTracksLuck(l.leagueType))
+            .map(l => ({ type: l.leagueType, length: l.params?.MatchLength ?? 7, rows: buildLuckGapSeries(l.matches) }))
+            .filter(src => src.rows.length > 0);
+        if (!sources.length) {
+            allTimeRow.labelEl.textContent = 'All League Matches — no data yet';
+            return;
+        }
+        const types = [...new Set(sources.map(src => src.type))];
+        const inTypes = (src) => !typeSel || typeSel.includes(src.type);
+
+        // The two filters sit BETWEEN the controls box and the chart, not inside
+        // the box: `.dash-controls button` restyles every button in it, and the
+        // league-type pills must look like the league-type pills everywhere else.
+        const typeHost = document.createElement('div');
+        typeHost.className = 'corr-type-select';
+        const lenHost = document.createElement('div');
+        lenHost.className = 'corr-length-select';
+        allTimeRow.panel.querySelector('.corr-controls').after(typeHost, lenHost);
+
+        function repool() {
+            const used = sources.filter(src => inTypes(src) && (lengthSel == null || src.length === lengthSel));
+            pool = used.flatMap(src => src.rows);
+            allTimeRow.labelEl.textContent =
+                `All League Matches (${pool.length} match${pool.length === 1 ? '' : 'es'}, ${used.length} league${used.length === 1 ? '' : 's'})`;
+            // Re-fit the shared domain to what is on screen now, then redraw BOTH
+            // rows so a gap keeps one position across them.
+            sharedBound = Math.max(boundOf(leagueRows), boundOf(pool));
+            for (const r of rowsOnPage) r.redraw();
+        }
+
+        // The length pills are rebuilt for each type selection: which lengths
+        // exist depends on which types are pooled. They are tabs to the generic
+        // analytics listener ("Tab: 5 pt"), so each carries its own data-track,
+        // which wins over that branch and names the section.
+        function rebuildLengths() {
+            lenHost.innerHTML = '';
+            lengthSel = null;
+            mountLengthSelector(lenHost, {
+                lengths: sources.filter(inTypes).map(src => src.length),
+                onSelect: (len) => { lengthSel = len; repool(); },
+            });
+            lenHost.querySelectorAll('[role="tab"]').forEach(b => {
+                const n = parseInt(b.textContent, 10);
+                b.dataset.track = `${TRACK}: length ${Number.isFinite(n) ? n + 'pt' : 'all'}`;
+            });
+        }
+
+        mountLeagueTypeFilter(typeHost, {
+            types,
+            selected: types.includes(ctx.leagueConfig.type) ? [ctx.leagueConfig.type] : null,
+            trackFor: (id, willBeOn) => id === ALL_TYPES_ID
+                ? `${TRACK}: type all`
+                : `${TRACK}: type ${id} ${willBeOn ? 'on' : 'off'}`,
+            onChange: (ids) => {
+                typeSel = ids;
+                rebuildLengths();
+                repool();
+            },
+        });
     });
 }
