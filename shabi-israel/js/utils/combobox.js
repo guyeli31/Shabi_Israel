@@ -198,6 +198,41 @@ function onViewportResize(wrap, relayout) {
     });
 }
 
+/* ── Identity re-sync when the page comes back ───────────────────────────
+   The `.value` interceptor in mountSearchField sees every write a SCRIPT makes.
+   It cannot see a write the BROWSER makes, and there is one: restoring a page
+   on Back, WebKit resets every `autocomplete="off"` input to its default value
+   — natively, with no `input` event and without going through the property
+   setter. Everything else on the restored page is exactly as it was left, so
+   the field came back EMPTY with the picked player's flag and title badges
+   still painted over the placeholder, above a panel still showing that player.
+   Every search field here is `autocomplete="off"`, and every browser on iOS is
+   WebKit.
+
+   The subject is still what the page is showing, so the text is what gets put
+   back — the same direction `browseOnOpen` restores on blur. One window
+   listener for every mounted field, same registry shape as the resize one. */
+const identitySubjects = new Set();
+let identityPageShowBound = false;
+
+function onPageRestore(wrap, resync) {
+    identitySubjects.add({ wrap, resync });
+    if (identityPageShowBound) return;
+    identityPageShowBound = true;
+    window.addEventListener('pageshow', () => {
+        const run = () => {
+            for (const entry of identitySubjects) {
+                if (!entry.wrap.isConnected) identitySubjects.delete(entry);
+                else entry.resync();
+            }
+        };
+        run();
+        // Again next frame: the reset is part of the restore itself, and its
+        // order against `pageshow` is not something to lean on.
+        requestAnimationFrame(run);
+    });
+}
+
 function escapeHtml(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -499,6 +534,18 @@ export function mountSearchField(input, opts = {}) {
                 },
             });
         }
+    }
+
+    // The one write the interceptor above cannot see — see onPageRestore. A
+    // focused field is left alone: `browseOnOpen` empties it on purpose there.
+    if (identity) {
+        onPageRestore(wrap, () => {
+            if (!subject || document.activeElement === input) return;
+            const expected = labelFor ? labelFor(subject) : subject;
+            if (input.value === expected) return;
+            writeText(expected);
+            paintIdentity(subject);
+        });
     }
 
     const dropdown = document.createElement('ul');

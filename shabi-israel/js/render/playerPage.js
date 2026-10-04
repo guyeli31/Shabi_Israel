@@ -139,7 +139,8 @@ export async function renderPlayerPage() {
 
         splashStage('render');
         container.innerHTML = `
-            <div class="dash-controls">
+            <div class="dash-controls dash-controls--stacked">
+                <a class="open-full-btn" href="${playerUrl(playerName)}" title="Open full player card">Open player card &rsaquo;</a>
                 <a class="open-full-btn" href="${leagueTableUrl(leagueId)}" title="Back to the full league table">&lsaquo; Back to full table</a>
             </div>
             <div class="table-wrapper">

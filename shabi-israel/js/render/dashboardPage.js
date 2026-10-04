@@ -14,7 +14,7 @@ import { playerNameLink, attachPlayerNameInteractions } from './playerNameIntera
 import { getMatchesAsOf, getUpdatePoints, buildMatchTimeline, mergeHistoryIntoMatches, matchKey, resultSides, describeResult, formatAxisDay, INITIAL_POINT } from '../compute/matchHistory.js';
 import { computeAllStats } from '../compute/stats.js';
 import { rankLeague, computeAverages, computeMatchStats } from '../compute/rankings.js';
-import { getLeagueConfig, rankingSteps, typeTracksPR, typeTracksLuck, typeAwardsPRPoint, ALL_TYPES_ID } from '../compute/leagueTypes.js';
+import { getLeagueConfig, rankingSteps, typeTracksPR, typeTracksLuck, typeAwardsPRPoint, prPointClass, ALL_TYPES_ID } from '../compute/leagueTypes.js';
 import { elapsedInWindow, durationMode } from '../compute/leagueDuration.js';
 import { buildPrizeRows, formatPrize, getMedalPlaces } from '../compute/prizeRows.js';
 import { getQueryParam, formatPercent, formatNumber, leagueTableUrl, playerLeagueUrl, leagueUrl, flagUrl, getFlagCode, thLabel } from '../utils/helpers.js';
@@ -3067,6 +3067,7 @@ function renderPlayedMatches(ctx) {
 function drawMatchTable(host, matches, opts = {}) {
     const { playedAt, leagueId, playersMeta = {}, customFlags = {}, leagueConfig = null, tableId = 'B6' } = opts;
     const showPR = leagueConfig ? leagueConfig.showPR : true;
+    const prIsPoint = !!(leagueConfig && leagueConfig.showPRWins);
     const colCount = showPR ? 8 : 6;
     let html = `<div class="rounds-scroll-wrap"><table class="dash-table font-small" data-mf-table-id="${tableId}"><thead><tr>`
         + `<th scope="col" class="player-col">Player A</th>`
@@ -3099,6 +3100,15 @@ function drawMatchTable(host, matches, opts = {}) {
         // Winner name green / loser red — played rows only (no class on ties or unplayed).
         const resA = isPlayed && m.scoreA > m.scoreB ? ' result-win' : (isPlayed && m.scoreA < m.scoreB ? ' result-loss' : '');
         const resB = isPlayed && m.scoreB > m.scoreA ? ' result-win' : (isPlayed && m.scoreB < m.scoreA ? ' result-loss' : '');
+        // UBC: the lower PR earns a point of its own, so the PR pair is a
+        // result too — the point-earner green + bold, the other red. No class
+        // on a tie, a missing PR (technical result) or any other league type.
+        const prAttr = (pr, other) => {
+            const cls = prPointClass(prIsPoint && isPlayed, pr, other);
+            return cls ? ` class="${cls}"` : '';
+        };
+        const prClsA = prAttr(m.prA, m.prB);
+        const prClsB = prAttr(m.prB, m.prA);
         const flagA = getFlagCode(m.playerA, customFlags);
         const flagB = getFlagCode(m.playerB, customFlags);
         const hiddenA = !!(playersMeta[m.playerA] && playersMeta[m.playerA].hidden);
@@ -3107,7 +3117,7 @@ function drawMatchTable(host, matches, opts = {}) {
             + `<td class="player-cell${resA}">${hiddenA ? '' : `<img class="flag" src="${flagUrl(flagA)}" alt="${flagA}">`} ${playerNameLink(m.playerA, playersMeta[m.playerA])}</td>`
             + `<td class="player-cell${resB}">${hiddenB ? '' : `<img class="flag" src="${flagUrl(flagB)}" alt="${flagB}">`} ${playerNameLink(m.playerB, playersMeta[m.playerB])}</td>`
             + `<td>${isPlayed ? m.scoreA + ' - ' + m.scoreB : '—'}</td>`
-            + (showPR ? `<td>${isPlayed && m.prA != null ? formatNumber(m.prA) : '—'}</td><td>${isPlayed && m.prB != null ? formatNumber(m.prB) : '—'}</td>` : '')
+            + (showPR ? `<td${prClsA}>${isPlayed && m.prA != null ? formatNumber(m.prA) : '—'}</td><td${prClsB}>${isPlayed && m.prB != null ? formatNumber(m.prB) : '—'}</td>` : '')
             + `<td>${isPlayed && m.luckA != null ? formatNumber(m.luckA) : '—'}</td>`
             + `<td>${isPlayed && m.luckB != null ? formatNumber(m.luckB) : '—'}</td>`
             + `<td>${playedCell}</td></tr>`;

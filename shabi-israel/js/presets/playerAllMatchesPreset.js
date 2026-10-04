@@ -7,7 +7,7 @@
 
 import { formatMatchStamp } from '../utils/matchTime.js';
 import { netLuck } from '../compute/netLuck.js';
-import { typeTracksPR, typeTracksLuck } from '../compute/leagueTypes.js';
+import { typeTracksPR, typeTracksLuck, typeAwardsPRPoint, prPointClass } from '../compute/leagueTypes.js';
 
 const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 
@@ -29,6 +29,16 @@ function rateCell(v, tracked, row) {
     if (!tracked) return '<span class="na">—</span>';
     if (row._technical || v == null) return '<span class="na">N/A</span>';
     return v.toFixed(2);
+}
+
+/**
+ * A PR cell. In a UBC row the lower PR earned a point, so the pair is coloured
+ * as a result (leagueTypes.js → `prPointClass`); every other row is plain.
+ */
+function prCell(v, other, row) {
+    const text = rateCell(v, !row._noPR, row);
+    const cls = prPointClass(typeAwardsPRPoint(row.leagueType), v, other);
+    return cls ? `<span class="${cls}">${text}</span>` : text;
 }
 
 /**
@@ -60,10 +70,10 @@ export function buildPlayerAllMatchesPreset({ rows, enrich = {} }) {
         { key: 'score',       label: 'Score',  type: 'string', sortable: false, colorFn: null },
         { key: 'prSelf',      label: 'PR',     type: 'number', sortable: true, colorFn: null,
           sortKey: row => typeof row.prSelf === 'number' ? row.prSelf : null,
-          format: (v, row) => rateCell(v, !row._noPR, row) },
+          format: (v, row) => prCell(v, row.prOpp, row) },
         { key: 'prOpp',       label: 'Opp PR', type: 'number', sortable: true, colorFn: null,
           sortKey: row => typeof row.prOpp === 'number' ? row.prOpp : null,
-          format: (v, row) => rateCell(v, !row._noPR, row) },
+          format: (v, row) => prCell(v, row.prSelf, row) },
         { key: 'luck',        label: 'Luck',   type: 'number', sortable: true, colorFn: null,
           sortKey: row => typeof row.luck === 'number' ? row.luck : null,
           format: (v, row) => rateCell(v, !row._noLuck, row) },

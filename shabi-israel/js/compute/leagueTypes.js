@@ -173,6 +173,17 @@ export function typeTracksLuck(leagueType) {
 export function typeAwardsPRPoint(leagueType) {
     return configFor(leagueType).showPRWins === true;
 }
+/**
+ * CSS class for one side's PR figure in a match row. Where the lower PR earns a
+ * point (`awardsPRPoint` — UBC) the pair is a result in itself: the earner is
+ * `pr-point` (green, bold), the other `pr-no-point` (red). Empty on a tie, a
+ * missing PR (technical result) or a league type with no PR point.
+ * The two classes are styled once, in table-lab/formats/base/base.css.
+ */
+export function prPointClass(awardsPRPoint, pr, otherPr) {
+    if (!awardsPRPoint || typeof pr !== 'number' || typeof otherPr !== 'number' || pr === otherPr) return '';
+    return pr < otherPr ? 'pr-point' : 'pr-no-point';
+}
 
 /**
  * Match weight for the "last 300 PR" rolling window. Per LEAGUE, not per query:

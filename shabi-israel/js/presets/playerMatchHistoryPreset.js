@@ -7,6 +7,7 @@ import { getFlagCode, formatNumber } from '../utils/helpers.js';
 import { displayPlayerName } from '../utils/nameDisplay.js';
 import { formatMatchStamp } from '../utils/matchTime.js';
 import { netLuck } from '../compute/netLuck.js';
+import { prPointClass } from '../compute/leagueTypes.js';
 import { cancelledMarkHtml, CANCELLED_ROW_CLASS } from '../render/retirementMarks.js';
 
 function pct(n, total) { return ((n / total) * 100).toFixed(1) + '% wins'; }
@@ -32,6 +33,16 @@ export function buildPlayerMatchHistoryPreset({ playerMatches, leagueConfig, par
         const text = opts.italic ? `<i style="color:var(--color-text-muted)">${shown}</i>` : shown;
         return `${img}${link.open}${text}${link.close}${suffix}`;
     }
+
+    // The lower PR of the pair is bold. Where it also earns a point (UBC) the
+    // pair is coloured as a result instead — leagueTypes.js → `prPointClass`.
+    const prCell = (v, other) => {
+        if (typeof v !== 'number') return '—';
+        const text = v.toFixed(2);
+        const cls = prPointClass(leagueConfig.showPRWins === true, v, other);
+        if (cls) return `<span class="${cls}">${text}</span>`;
+        return (typeof other === 'number' && v < other) ? `<b>${text}</b>` : text;
+    };
 
     const cols = [
         { key: 'opponent', label: 'Opponent', type: 'string', sortable: true, colorFn: null,
@@ -62,16 +73,10 @@ export function buildPlayerMatchHistoryPreset({ playerMatches, leagueConfig, par
         ...(leagueConfig.showPR ? [
             { key: 'pr', label: 'PR', type: 'number', sortable: true, colorFn: null,
               sortKey: row => typeof row.pr === 'number' ? row.pr : null,
-              format: (v, row) => {
-                  if (typeof v !== 'number') return '—';
-                  return (typeof row.oppPR === 'number' && v < row.oppPR) ? `<b>${v.toFixed(2)}</b>` : v.toFixed(2);
-              } },
+              format: (v, row) => prCell(v, row.oppPR) },
             { key: 'oppPR', label: 'Opp PR', type: 'number', sortable: true, colorFn: null,
               sortKey: row => typeof row.oppPR === 'number' ? row.oppPR : null,
-              format: (v, row) => {
-                  if (typeof v !== 'number') return '—';
-                  return (typeof row.pr === 'number' && v < row.pr) ? `<b>${v.toFixed(2)}</b>` : v.toFixed(2);
-              } },
+              format: (v, row) => prCell(v, row.pr) },
         ] : []),
         ...(leagueConfig.showLuck !== false ? [
             { key: 'luck', label: 'Luck', type: 'number', sortable: true, colorFn: null,

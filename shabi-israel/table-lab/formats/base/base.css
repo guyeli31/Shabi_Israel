@@ -50,6 +50,15 @@ thead th {
     text-decoration: overline;
 }
 
+/* UBC only: the lower PR of a match earns a point, so it reads as a win
+   (same token + weight as .result-win); the higher PR is red, regular weight.
+   The class comes from prPointClass() in js/compute/leagueTypes.js and sits on
+   the <td> (dashboard B5/B6) or on a <span> inside it (MF presets C2/E). */
+tbody td.pr-point,
+tbody td .pr-point { color: var(--color-win); font-weight: 700; }
+tbody td.pr-no-point,
+tbody td .pr-no-point { color: var(--color-loss); }
+
 thead th:hover {
     background: var(--header-bg-hover);
 }

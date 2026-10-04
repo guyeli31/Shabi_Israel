@@ -249,6 +249,17 @@
     flex-wrap: wrap;
 }
 
+/* Buttons one directly above the other instead of side by side (table E's
+   "Open player card" over "Back to full table"). align-items does the
+   right-alignment here — in a column, .open-full-btn's margin-left: auto
+   still pushes each one to the right edge on its own. */
+.dash-controls--stacked {
+    flex-direction: column;
+    align-items: flex-end;
+    flex-wrap: nowrap;
+    gap: var(--space-xs);
+}
+
 .dash-controls label {
     color: var(--color-text-secondary);
     font-size: var(--fs-085);
@@ -2234,7 +2245,6 @@
 .rounds-scroll-wrap td.player-cell.result-win .player-name-link { color: var(--color-win); }
 .rounds-scroll-wrap td.player-cell.result-loss,
 .rounds-scroll-wrap td.player-cell.result-loss .player-name-link { color: var(--color-loss); }
-
 /* B5/B6 sticky col-2 boundary drop-shadow — Google-style, appears only on scroll */
 .rounds-scroll-wrap.is-scrolled-x thead th:nth-child(2) {
     box-shadow: inset 0 -1px 0 var(--color-border), 6px 0 8px -4px rgba(0, 0, 0, 0.18);
