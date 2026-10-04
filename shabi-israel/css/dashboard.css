@@ -249,17 +249,6 @@
     flex-wrap: wrap;
 }
 
-/* Buttons one directly above the other instead of side by side (table E's
-   "Open player card" over "Back to full table"). align-items does the
-   right-alignment here — in a column, .open-full-btn's margin-left: auto
-   still pushes each one to the right edge on its own. */
-.dash-controls--stacked {
-    flex-direction: column;
-    align-items: flex-end;
-    flex-wrap: nowrap;
-    gap: var(--space-xs);
-}
-
 .dash-controls label {
     color: var(--color-text-secondary);
     font-size: var(--fs-085);
@@ -1101,6 +1090,34 @@
 
 .open-full-btn:hover {
     background: var(--color-text);
+}
+
+/* Button stack — buttons one directly above the other, ALL the same width
+   whatever their text (table E's "Open player card" over "Back to full
+   table"). The exception to "a button is as wide as its label": stacked
+   buttons with ragged left edges read as two unrelated controls.
+
+   The width is not a number. The single column is `max-content`, i.e. as wide
+   as the longest label, and grid items stretch to their column by default — so
+   the shorter button grows to match and a label change needs no edit here.
+   This is v2's `Button.--block` (fill the container, label centred) inside a
+   container that is sized by its widest child instead of by the page.
+
+   `margin-left: 0` is load-bearing: .open-full-btn's `auto` margin is what
+   pushes a lone button right in a flex row, but on a grid item an auto margin
+   cancels the stretch and each button would shrink back to its own text. The
+   stack does the right-alignment itself (justify-content). */
+.btn-stack {
+    display: grid;
+    grid-template-columns: max-content;
+    justify-content: end;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-md);
+}
+
+.btn-stack > .open-full-btn {
+    margin-left: 0;
+    text-align: center;
 }
 
 /* Player name link — disabled (general card placeholder) */

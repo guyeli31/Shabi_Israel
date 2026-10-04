@@ -1429,6 +1429,11 @@ const CLICK_TYPE_ICONS = [
     // the league TABLE, so it gets the table glyph, distinct from a plain league
     // link (🔗) which from the landing goes to the league DASHBOARD instead.
     { prefix: 'Full table: ', icon: '📊' },
+    // Table E's two buttons (playerPage.js) are logged by their own NAME, not by
+    // where they lead — the pageview that follows already records that. Each
+    // wears the icon of the page it opens, so the pair reads apart at a glance.
+    { prefix: 'Button: Open player card', icon: PAGE_ICON_HTML.player },
+    { prefix: 'Button: Back to full table', icon: PAGE_ICON_HTML.league_table },
     { prefix: 'Player link: ', icon: '🔗' },
     { prefix: 'League link: ', icon: '🔗' },
     { prefix: 'Link: ', icon: '🔗' },

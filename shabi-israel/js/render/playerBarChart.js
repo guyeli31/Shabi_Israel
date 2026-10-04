@@ -643,14 +643,20 @@ export function drawPlayerBarChart(host, matches, metric, totalMatchesPerPlayer,
             }
         }
 
-        // X-axis tick marks with adaptive spacing
-        const xIntervals = [1, 2, 5, 10, 20, 50, 100];
-        let xStep = 1;
+        // X-axis tick marks with adaptive spacing. The step is chosen against
+        // the plot's PIXEL width, not only the match count: "at most 15 labels"
+        // is a desktop answer, and on a 270px phone plot it put fourteen
+        // three-digit numbers 19px apart — each one wider than its slot, so
+        // "100120140" ran together. The widest label (the last one) plus a gap
+        // is the least distance two ticks may sit apart.
+        ctx.font = `11px ${C.fontFamily}`;
+        const minTickGap = ctx.measureText(String(N)).width + 8;
+        const xIntervals = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+        let xStep = xIntervals[xIntervals.length - 1];
         for (const iv of xIntervals) {
-            if (Math.ceil(N / iv) <= 15) { xStep = iv; break; }
+            if (Math.ceil(N / iv) <= 15 && step * iv >= minTickGap) { xStep = iv; break; }
         }
         ctx.fillStyle = C.label;
-        ctx.font = `11px ${C.fontFamily}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
         for (let i = xStep; i <= N; i += xStep) {
