@@ -232,8 +232,10 @@ function buildD(allResults) {
           colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true },
         { key: 'wins',   label: 'W',      type: 'number', sortable: true,
           colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true },
-        { key: 'losses', label: 'L',      type: 'number', sortable: true,
-          colorFn: (v, min, max) => colorForValueInverted(v, min, max), boldExtreme: true },
+        ...(config.showPRWins ? [] : [
+            { key: 'losses', label: 'L',      type: 'number', sortable: true,
+              colorFn: (v, min, max) => colorForValueInverted(v, min, max), boldExtreme: true },
+        ]),
         ...(config.showWinRate ? [
             { key: 'winRate', label: 'Win%', type: 'number', sortable: true,
               colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true,
@@ -478,7 +480,9 @@ function buildB2(runningResult) {
           tdClass: 'player-cell', format: v => playerCell(v, cf) },
         { key: 'gp',     label: 'MP',     type: 'number', sortable: false, colorFn: null },
         { key: 'wins',   label: 'W',      type: 'number', sortable: false, colorFn: null },
-        { key: 'losses', label: 'L',      type: 'number', sortable: false, colorFn: null },
+        ...(config.showPRWins ? [] : [
+            { key: 'losses', label: 'L',      type: 'number', sortable: false, colorFn: null },
+        ]),
         ...(config.showWinRate ? [
             { key: 'winRate', label: 'Win%', type: 'number', sortable: false, colorFn: null,
               format: v => v != null ? formatPercent2(v) : '—' },

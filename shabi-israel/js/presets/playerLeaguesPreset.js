@@ -7,6 +7,7 @@
 
 import { getMedalPlaces } from '../compute/prizeRows.js';
 import { formatMatchDay } from '../utils/matchTime.js';
+import { isRetired, retiredBadgeHtml, RETIRED_ROW_CLASS } from '../render/retirementMarks.js';
 
 export const TYPE_LABELS = { doubling: 'Doubling', regular: 'Regular', ubc: 'UBC' };
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -78,15 +79,17 @@ export function formatLeagueDate(league, parseLeagueDate) {
 /**
  * @param {object} input
  *   perLeague        — loadPlayerAcrossLeagues() output
+ *   playerName       — whose leagues these are (for the RETIRED mark)
  *   parseLeagueDate  — utils/helpers.parseLeagueDate (for fallback date string)
  *   enrich           — { leagueLink(id, title) => html string (full <a>…</a>) }
  */
-export function buildPlayerLeaguesPreset({ perLeague, parseLeagueDate, enrich = {} }) {
+export function buildPlayerLeaguesPreset({ perLeague, playerName, parseLeagueDate, enrich = {} }) {
     const cols = [
         { key: 'leagueTitle', label: 'League', type: 'string', sortable: true, colorFn: null,
           tdClass: 'league-cell',
           sortKey: row => row.leagueTitle,
-          format: (v, row) => enrich.leagueLink ? enrich.leagueLink(row._leagueId, v) : v },
+          format: (v, row) => (enrich.leagueLink ? enrich.leagueLink(row._leagueId, v) : v)
+              + (row._retired ? ` ${retiredBadgeHtml()}` : '') },
         { key: 'type',        label: 'Type',   type: 'string', sortable: true, colorFn: null,
           sortKey: row => row._type,
           format: v => v },
@@ -99,7 +102,7 @@ export function buildPlayerLeaguesPreset({ perLeague, parseLeagueDate, enrich = 
         { key: 'losses',      label: 'L',      type: 'number', sortable: true, colorFn: null },
         { key: 'primary',     label: 'Primary',type: 'string', sortable: true, colorFn: null,
           sortKey: row => row._primary ?? -Infinity,
-          format: (v, row) => `<span title="${row._primaryLabel}">${v}</span>` },
+          format: (v, row) => row._retired ? '—' : `<span title="${row._primaryLabel}">${v}</span>` },
         { key: 'pr',          label: 'PR',     type: 'string', sortable: true, colorFn: null,
           sortKey: row => row._pr ?? Infinity },
         { key: 'status',      label: 'Status', type: 'string', sortable: true, colorFn: null,
@@ -121,6 +124,32 @@ export function buildPlayerLeaguesPreset({ perLeague, parseLeagueDate, enrich = 
         const meanPR    = (s.meanPR != null && cfg.showPR) ? s.meanPR.toFixed(2) : '—';
         const running   = e.league.params?.Running === true;
         const rankCell = rankCellHtml(e.league, e.playerRank, e.totalPlayers);
+
+        // A league he retired from still gets its row — he was in it — but
+        // every one of his fixtures there is cancelled, so the row has nothing
+        // to report: no rank, and a dash in every stat column. The league's
+        // own facts (type, status, date) stay. Mirrors D's grey row.
+        // See docs/RETIREMENT-POLICY.md §3.
+        if (isRetired(e.league.params, playerName)) {
+            return {
+                _leagueId:     e.league.id,
+                leagueTitle:   e.league.title,
+                date:          formatLeagueDate(e.league, parseLeagueDate),
+                _timestamp:    leagueDateSortValue(e.league, parseLeagueDate),
+                type:          typePillHtml(cfg.type),
+                _type:         cfg.type,
+                status:        running ? 'Running' : 'Completed',
+                rank:          '—',
+                _rank:         null,
+                gp: null, wins: null, losses: null,
+                primary:       '—',
+                _primary:      null,
+                _primaryLabel: primaryLabel,
+                pr:            '—',
+                _pr:           null,
+                _retired:      true,
+            };
+        }
 
         return {
             _leagueId:     e.league.id,
@@ -151,5 +180,6 @@ export function buildPlayerLeaguesPreset({ perLeague, parseLeagueDate, enrich = 
         stickyCols: 1,
         medalRows:  false,
         showTopN:   null,
+        getRowClass: (row) => row._retired ? RETIRED_ROW_CLASS : null,
     };
 }

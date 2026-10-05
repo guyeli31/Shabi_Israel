@@ -170,8 +170,12 @@ export function buildLeagueTablePreset({ rankings, averages, params, leagueConfi
           colorFn: (v, _min, _max) => colorForGames(v), boldExtreme: true },
         { key: 'wins',   label: 'W',  type: 'number', sortable: true,
           colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true },
-        { key: 'losses', label: 'L',  type: 'number', sortable: true,
-          colorFn: (v, min, max) => colorForValueInverted(v, min, max), boldExtreme: true },
+        // UBC has no L column: a loss can still earn the PR point, so W + PRW
+        // (what Pts is made of) tell the story and L adds nothing to it.
+        ...(leagueConfig.showPRWins ? [] : [
+            { key: 'losses', label: 'L',  type: 'number', sortable: true,
+              colorFn: (v, min, max) => colorForValueInverted(v, min, max), boldExtreme: true },
+        ]),
         ...(leagueConfig.showWinRate ? [
             { key: 'winRate', label: 'Win%', type: 'number', sortable: true,
               colorFn: (v, min, max) => colorForValue(v, min, max), boldExtreme: true,

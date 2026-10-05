@@ -1407,7 +1407,10 @@ function drawHistTable(ctx, dateValue) {
         return '';
     }
 
-    let html = `<table class="dash-table font-large" data-mf-table-id="B2"><thead><tr><th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">MP</th><th scope="col">W</th><th scope="col">L</th>`;
+    let html = `<table class="dash-table font-large" data-mf-table-id="B2"><thead><tr><th scope="col">#</th><th scope="col" class="player-col">Player</th><th scope="col">MP</th><th scope="col">W</th>`;
+    // UBC has no L column (same rule as table D — see leagueTablePreset.js).
+    const showLosses = !leagueConfig.showPRWins;
+    if (showLosses) html += `<th scope="col">L</th>`;
     if (leagueConfig.showWinRate) html += `<th scope="col">Win%</th>`;
     if (leagueConfig.showPRWins) html += `<th scope="col">PRW</th><th scope="col"><span class="th-mean" title="Average points per match">Pts</span></th>`;
     if (leagueConfig.showPR) html += `<th scope="col">PR</th>`;
@@ -1421,7 +1424,8 @@ function drawHistTable(ctx, dateValue) {
         html += `<tr class="${rankClass(r.rank)}">
             <td data-label="Rank">${r.rank}</td>
             <td class="player-cell" data-label="Player">${rHidden ? '' : `<img class="flag" src="${flagUrl(flagCode)}" alt="${flagCode}">`} ${playerNameLink(r.player, ctx.playersMeta[r.player])}</td>
-            <td data-label="Matches">${r.games}</td><td data-label="Wins">${r.wins}</td><td data-label="Losses">${r.losses}</td>`;
+            <td data-label="Matches">${r.games}</td><td data-label="Wins">${r.wins}</td>`;
+        if (showLosses) html += `<td data-label="Losses">${r.losses}</td>`;
         if (leagueConfig.showWinRate) html += `<td data-label="Win Rate">${r.winRate != null ? formatPercent(r.winRate) : 'N/A'}</td>`;
         if (leagueConfig.showPRWins) html += `<td data-label="PR Wins">${r.prWins != null ? r.prWins : 'N/A'}</td><td data-label="Avg Points">${r.avgPoints != null ? formatNumber(r.avgPoints) : 'N/A'}</td>`;
         if (leagueConfig.showPR) html += `<td data-label="Mean PR">${r.meanPR != null ? formatNumber(r.meanPR) : 'N/A'}</td>`;

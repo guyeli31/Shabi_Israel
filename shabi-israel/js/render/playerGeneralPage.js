@@ -58,6 +58,7 @@ import { renderV12Header, buildHeaderTitles, formatJoinedShort } from './playerH
 import { playerNameLink, attachPlayerNameInteractions } from './playerNameInteraction.js';
 import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildPlayerLeaguesPreset } from '../presets/playerLeaguesPreset.js';
+import { isRetired } from './retirementMarks.js';
 import { buildPlayerTotalLuckPreset, collectPlayerLeagueLuck } from '../presets/playerTotalLuckPreset.js';
 import { buildPlayerAllMatchesPreset } from '../presets/playerAllMatchesPreset.js';
 import { buildMatchupPreset } from '../presets/matchupPreset.js';
@@ -184,7 +185,7 @@ export async function renderPlayerGeneralPage() {
         // Tab 2 — Leagues (G4): single section with a league-type filter, always open.
         const leaguesSection = makePgSection('pg-leagues', 'Leagues');
         shell.panels.leagues.appendChild(leaguesSection);
-        renderLeaguesTable(leaguesSection, perLeague);
+        renderLeaguesTable(leaguesSection, perLeague, playerName);
 
         // Tab 3 — Matches (G5): Match History (chart + table), open + collapsible.
         const matchesSection = makePgSection('pg-matches', 'Match History', { collapsible: true });
@@ -250,7 +251,11 @@ function renderHeader(playerName, perLeague, meta = {}) {
     if (!title) return;
 
     // ── Status dot (Active / This year / Inactive) ──
-    const inRunning = perLeague.some(e => e.league.params?.Running === true);
+    // A running league he retired from does not make him active: he is on its
+    // roster and nothing more. The header said "Active" for a player whose only
+    // league was one he had walked out of.
+    const inRunning = perLeague.some(e =>
+        e.league.params?.Running === true && !isRetired(e.league.params, playerName));
     let playedThisYear = false;
     for (const e of perLeague) {
         for (const m of e.playerMatches) {
@@ -586,7 +591,7 @@ async function showAchievementType(body, playerName, type) {
 
 // ---- G4: League history table ----
 
-function renderLeaguesTable(section, perLeague) {
+function renderLeaguesTable(section, perLeague, playerName) {
     if (perLeague.length === 0) {
         section.innerHTML += '<div class="pg-note">No data</div>';
         return;
@@ -600,6 +605,7 @@ function renderLeaguesTable(section, perLeague) {
             : perLeague.filter(e => e.league.leagueType === typeId);
         mountMFTable(mountPoint, buildPlayerLeaguesPreset({
             perLeague: shown,
+            playerName,
             parseLeagueDate,
             enrich: {
                 leagueLink: (id, title) => `<a href="${leagueUrl(id)}">${escapeHtml(title)}</a>`,

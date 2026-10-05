@@ -47,6 +47,28 @@ match_history        the pairing is REMOVED (the same path `not_played` takes in
                      nothing, so it is not a moment in the league's history.
 ```
 
+### One act in the admin
+
+The two writes are stored apart, but the admin never performs them apart. Both
+entry points — the **Retired** tick in Edit League ▸ Players, and the **Retire**
+bar in the Round Editor — go through `js/admin/retirementStaging.js`, which
+stages the flag and the `cancelled` overrides into the same publish. Un-ticking
+Retired stages the inverse.
+
+They used to be two independent edits joined by a reminder message. October
+2026 UBC was published with the flag alone: the player wore `RETIRED` in D
+while his 14 fixtures were still listed as matches to be played. Saving the
+Players tab reconciles **every** retired player of the league, so a league left
+in that state is completed by its next save.
+
+The database enforces the same thing for every other path
+(`sql/retirement_flag_sync.sql`): a trigger on `leagues.retired_players` writes
+the `cancelled` overrides when a name is added and removes them when it leaves,
+in the same transaction. The flag alone is therefore always enough — a
+hand-run `UPDATE`, the sync job or a future client cannot produce half a
+retirement. Computations still read only `cancelled` (§1); the trigger only
+guarantees it is never missing.
+
 ### The invariant this preserves
 
 ```

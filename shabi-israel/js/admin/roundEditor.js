@@ -15,6 +15,7 @@
 
 import { loadLeagueParams, loadLeagueMatchesAll } from '../data/supabaseLoader.js';
 import { readOverridesForEdit, stageManualOverrides } from './stagingStore.js';
+import { fixturesOf, syncRetirementOverrides, stageRetiredFlag } from './retirementStaging.js';
 import { revealMsg } from './msgScroll.js';
 import { thLabel, flagUrl, getFlagCode } from '../utils/helpers.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
@@ -322,10 +323,12 @@ function attachRoundNav(root, content, roundStats) {
  * See stageBulkCancel below for why that was wrong, and
  * docs/RETIREMENT-POLICY.md for the policy it now implements.
  *
- * This writes the MATCHES half of a retirement only. The PERSON half — ticking
- * Retired in the Players tab (F2), which drives the RETIRED mark in D and E —
- * is a separate act, deliberately: the two describe different things and are
- * stored in different places (§1).
+ * It writes BOTH halves of the retirement — the cancelled matches and the
+ * player's Retired flag — through js/admin/retirementStaging.js, the same
+ * module the Players tab's Retired tick goes through. They are stored in
+ * different places and mean different things (§1), but they are one act: when
+ * this bar wrote only the matches and that tick only the flag, a league could
+ * be published with half a retirement.
  */
 function attachBulkRetire(root, content, leagueId, matches, matchLength, refreshBadge) {
     const input = root.querySelector('#round-filter-input');
@@ -339,15 +342,9 @@ function attachBulkRetire(root, content, leagueId, matches, matchLength, refresh
         canonical.set(m.playerB.toLowerCase(), m.playerB);
     }
 
-    function playerMatchesFor(player) {
-        return matches.filter(m =>
-            (m.playerA === player || m.playerB === player) &&
-            m.playerA !== 'Bye' && m.playerB !== 'Bye');
-    }
-
     function sync() {
         const player = canonical.get(input.value.trim().toLowerCase());
-        const pMatches = player ? playerMatchesFor(player) : [];
+        const pMatches = player ? fixturesOf(matches, player) : [];
         if (!player || pMatches.length === 0) { bar.hidden = true; bar.innerHTML = ''; return; }
         const n = pMatches.length;
         bar.hidden = false;
@@ -372,8 +369,8 @@ function attachBulkRetire(root, content, leagueId, matches, matchLength, refresh
                 applyCancelToDom(content, player);
                 trackAdmin(`Round editor: retire — ${player} [${n} match${n === 1 ? '' : 'es'} cancelled]`);
                 showMsg(
-                    `Cancelled all ${n} of ${player}'s match${n === 1 ? '' : 'es'}. ` +
-                    `Remember to tick Retired for ${player} in the Players tab — the flag drives the RETIRED mark.`,
+                    `Cancelled all ${n} of ${player}'s match${n === 1 ? '' : 'es'} and marked ${player} as Retired. ` +
+                    `Go to Pending Changes to publish.`,
                     'success',
                 );
             } catch (err) {
@@ -388,8 +385,8 @@ function attachBulkRetire(root, content, leagueId, matches, matchLength, refresh
 }
 
 /**
- * Stage a `cancelled` override for every one of a player's matches — the whole
- * of what retiring someone writes.
+ * Stage a retirement: a `cancelled` override for every one of the player's
+ * matches, and his Retired flag with them.
  *
  * THIS USED TO STAGE `technical_win` TO THE OPPONENT, and that was the wrong
  * act: it handed 24 opponents a win each for a match nobody played, and it made
@@ -405,18 +402,8 @@ function attachBulkRetire(root, content, leagueId, matches, matchLength, refresh
  * deleting these overrides restores every result from the source.
  */
 async function stageBulkCancel(leagueId, player, playerMatches, refreshBadge) {
-    const overrides = await readOverridesForEdit(leagueId);
-    const ts = new Date().toISOString();
-    for (const m of playerMatches) {
-        const override = {
-            type: 'cancelled', playerA: m.playerA, playerB: m.playerB,
-            reason: `Cancelled — ${player} retired`, timestamp: ts,
-        };
-        const key = pairKey(m.playerA, m.playerB);
-        const idx = overrides.findIndex(o => pairKey(o.playerA, o.playerB) === key);
-        if (idx !== -1) overrides[idx] = override; else overrides.push(override);
-    }
-    await stageManualOverrides(leagueId, overrides);
+    await syncRetirementOverrides(leagueId, playerMatches, { retired: [player] });
+    await stageRetiredFlag(leagueId, player);
     if (refreshBadge) refreshBadge();
 }
 

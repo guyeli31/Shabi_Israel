@@ -5,6 +5,7 @@
 import { loadLeagueOrder, loadLeagueParams, loadAllLeagueParams, loadLeagueMatches, loadLeagueMatchesAll, loadLandingSettings } from '../data/supabaseLoader.js';
 import { addChange, getStagedContent, getChanges, hasLeagueChanges, readOverridesForEdit, removeChange, removeGroup, removeLeagueChanges, stageManualOverrides, T } from './stagingStore.js';
 import { renderRoundEditor } from './roundEditor.js';
+import { fixturesOf, syncRetirementOverrides } from './retirementStaging.js';
 import { renderExcelImporter } from './excelImporter.js';
 import { renderOverridesList } from './overridesList.js';
 import { ensurePlayerIndex, ensureLeagueIndex, getPlayerLeagues, getPlayerFlagCode } from '../render/navigation.js';
@@ -2160,6 +2161,42 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                 delete updatedParams.RetiredPlayers;
             }
 
+            // ── Retirement is the flag AND the matches, staged together ──
+            //
+            // Ticking Retired used to write the flag alone; the matches were
+            // cancelled by a separate button in the Round Editor that nothing
+            // here mentioned. Saving just the tick published a player marked
+            // RETIRED whose fixtures every table still listed as matches to be
+            // played. See js/admin/retirementStaging.js.
+            //
+            // Asked BEFORE anything is staged, so declining leaves no half-save.
+            const finalName = (n) => { const r = renames.find(x => x.from === n); return r ? r.to : n; };
+            const wasRetired = (playerBaseParams.RetiredPlayers || []).map(finalName);
+            const nowRetired = newRetired.filter(n => !wasRetired.includes(n));
+            const unretired = wasRetired.filter(n => !newRetired.includes(n) && !removedPlayers.has(n));
+            let leagueFixtures = [];
+            if (newRetired.length > 0 || unretired.length > 0) {
+                try {
+                    leagueFixtures = (await loadLeagueMatchesAll(leagueId)).matches
+                        .filter(m => !removedPlayers.has(m.playerA) && !removedPlayers.has(m.playerB));
+                } catch (err) {
+                    showMsg('players-msg', `Could not read the league's matches: ${err.message}`, 'error');
+                    return;
+                }
+            }
+            if (nowRetired.length > 0 || unretired.length > 0) {
+                const named = leagueFixtures.map(m => ({ ...m, playerA: finalName(m.playerA), playerB: finalName(m.playerB) }));
+                const lines = [
+                    ...nowRetired.map(n => {
+                        const c = fixturesOf(named, n).length;
+                        return `Retire ${n}: all ${c} of their match${c === 1 ? '' : 'es'} will be CANCELLED — `
+                            + `not forfeited, and including any already played. No opponent is awarded anything.`;
+                    }),
+                    ...unretired.map(n => `Un-retire ${n}: their cancelled matches are restored.`),
+                ];
+                if (!confirm(`${lines.join('\n\n')}\n\nNothing is written until you publish.`)) return;
+            }
+
 
             // One group so the params + CSV-rename side-effect collapse to a single
             // Pending row instead of two ("Update players" + "Rename players in CSV").
@@ -2173,6 +2210,8 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
             const detailBits = [];
             if (removedPlayers.size > 0) detailBits.push(`removed ${[...removedPlayers].join(', ')}`);
             if (renames.length > 0) detailBits.push(renames.map(r => `${r.from} → ${r.to}`).join(', '));
+            if (nowRetired.length > 0) detailBits.push(`retired ${nowRetired.join(', ')}`);
+            if (unretired.length > 0) detailBits.push(`un-retired ${unretired.join(', ')}`);
             const editDetail = detailBits.length > 0 ? detailBits.join(' · ') : null;
 
             addChange({
@@ -2300,10 +2339,27 @@ function renderEditLeagueForm(container, leagueId, params, players, displayOrder
                 }
             }
 
+            // After the removals, so a removed player's overrides are already
+            // gone from the staged set this builds on. Run for EVERY retired
+            // player, not only the newly ticked: a league saved before the two
+            // halves were joined is completed by its next save.
+            let retireNote = '';
+            if (newRetired.length > 0 || unretired.length > 0) {
+                try {
+                    const { cancelled, restored } = await syncRetirementOverrides(
+                        leagueId, leagueFixtures, { retired: newRetired, unretired, nameOf: finalName });
+                    if (cancelled) retireNote += ` ${cancelled} match${cancelled === 1 ? '' : 'es'} cancelled.`;
+                    if (restored) retireNote += ` ${restored} match${restored === 1 ? '' : 'es'} restored.`;
+                } catch (err) {
+                    showMsg('players-msg', `Could not stage the cancelled matches: ${err.message}`, 'error');
+                    return;
+                }
+            }
+
             if (refreshBadgeFn) refreshBadgeFn();
             playersTracker.markClean();
-            trackAdmin(`Edit league: save players — ${leagueId} [${editDetail || 'flags / retired updated'}]`);
-            showMsg('players-msg', `Player changes staged.${removalNote}`, 'success');
+            trackAdmin(`Edit league: save players — ${leagueId} [${editDetail || 'flags updated'}]`);
+            showMsg('players-msg', `Player changes staged.${removalNote}${retireNote}`, 'success');
         });
     }
 
