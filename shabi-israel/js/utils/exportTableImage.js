@@ -178,6 +178,10 @@ const WA_FS_BASE_REM = 0.85;
  * @param {string}           args.filename     base filename (no .png)
  * @param {string}           [args.title]      heading line (bold)
  * @param {string}           [args.subtitle]   muted line under the title
+ * @param {string}           [args.subtitleHtml] TRUSTED markup used instead of
+ *                                             `subtitle` when the line carries
+ *                                             a player identity (flag + title
+ *                                             badges) — B7c. Caller escapes.
  * @param {string}           [args.leagueType] 'doubling'|'regular'|'ubc' —
  *                                             renders the coloured type pill
  *                                             to the right of the title
@@ -189,7 +193,7 @@ const WA_FS_BASE_REM = 0.85;
  *   text (nothing is ever clipped or wrapped) and the resulting narrower
  *   table is centred in the frame.
  */
-export async function exportWhatsAppTableImage({ sourceTable, filename, title, subtitle, leagueType, shrinkToContent = false }) {
+export async function exportWhatsAppTableImage({ sourceTable, filename, title, subtitle, subtitleHtml, leagueType, shrinkToContent = false }) {
     if (typeof html2canvas === 'undefined') {
         alert('html2canvas library not loaded.');
         return;
@@ -231,7 +235,20 @@ export async function exportWhatsAppTableImage({ sourceTable, filename, title, s
         }
         header.appendChild(titleRow);
     }
-    if (subtitle) {
+    if (subtitleHtml) {
+        // Markup subtitle: a flex row so a flag / title badge centres on the
+        // text line. No blanket opacity here — it would wash out the flag and
+        // the badge colours; the caller mutes its own plain-text parts.
+        const s = document.createElement('div');
+        s.style.cssText = `font-size:${WA_SUB_FONT}px;line-height:1.2;`
+            + `display:flex;align-items:center;justify-content:center;gap:0.35em;white-space:nowrap;`;
+        s.innerHTML = subtitleHtml;
+        // The identity chip's name span clips for its ellipsis; in a fixed
+        // frame there is nothing to truncate, and the clip would eat the badge.
+        s.querySelectorAll('.app-identity-name').forEach(n => { n.style.overflow = 'visible'; });
+        normaliseTitleBadgesForExport(s);
+        header.appendChild(s);
+    } else if (subtitle) {
         const s = document.createElement('div');
         s.style.cssText = `font-size:${WA_SUB_FONT}px;opacity:0.75;line-height:1.2;`;
         s.textContent = subtitle;

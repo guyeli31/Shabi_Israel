@@ -742,17 +742,18 @@ async function renderTitleRace(ctx) {
     const stored = await loadLeagueProjections(ctx.leagueId);
     if (stored && Array.isArray(stored.points) && stored.points.length) {
         const byHash = new Map(stored.points.map(sp => [sp.hash, sp]));
+        const active = activeRoster(stored, ctx);
         for (let i = 0; i < points.length; i++) {
             const sp = byHash.get(expectedHashes[i]);
             if (!sp) { pending.push(i); continue; }   // missing OR superseded
             const row = {};
-            stored.roster.forEach((player, pos) => {
+            active.forEach(({ player, pos }) => {
                 const arr = sp.r[pos];
                 if (arr && arr.length) row[player] = Float32Array.from(arr, v => v / 10);
             });
             topXByPoint[i] = row;
         }
-        if (!playerCount && stored.roster.length) fillTopXOptions(stored.roster.length);
+        if (!playerCount && active.length) fillTopXOptions(active.length);
         seedPlotted();
         chart.draw();
         // Everything present and current — no local computation at all.
@@ -1295,14 +1296,15 @@ async function storedPointPrediction(ctx, pointValue, remaining, statsMap = null
     const sp = stored.points.find(x => x.hash === hashes[idx]);
     if (!sp) return null;   // never projected, or superseded by a later edit
 
-    const roster = stored.roster || [];
+    const active = activeRoster(stored, ctx);
+    const roster = active.map(e => e.player);
     const n = roster.length;
     if (!n) return null;
 
     const TOTAL = 1_000_000;   // arbitrary scale; percentages are what was stored
     const finishRankCounts = new Float64Array(n * n);
-    roster.forEach((player, i) => {
-        const row = sp.r[i];
+    active.forEach(({ pos }, i) => {
+        const row = sp.r[pos];
         if (!row || !row.length) return;
         let prev = 0;
         for (let x = 0; x < Math.min(row.length, n); x++) {
@@ -1313,9 +1315,9 @@ async function storedPointPrediction(ctx, pointValue, remaining, statsMap = null
     });
 
     const stats = statsMap || computeAllStats(ctx.liveMatches, ctx.allPlayersSet);
-    const rankings = roster.map((player, i) => {
+    const rankings = active.map(({ player, pos }, i) => {
         const st = stats.get(player);
-        const row = sp.r[i];
+        const row = sp.r[pos];
         return {
             player, playerIdx: i,
             championshipPct: row && row.length ? row[0] / 10 : 0,
@@ -1342,6 +1344,28 @@ async function storedPointPrediction(ctx, pointValue, remaining, statsMap = null
         method: (remaining && remaining.length > 0) ? 'montecarlo' : 'exact',
         finishRankCounts, n, totalWeight: TOTAL,
     };
+}
+
+/**
+ * The stored roster, minus anyone no longer in the competition, each with the
+ * POSITION his rows are stored under.
+ *
+ * `league_projections.roster` is append-only by design (buildLeagueProjection):
+ * position i must mean the same player for the life of the league, so a player
+ * who retires mid-season KEEPS his slot — with an empty row in every point
+ * computed since. Reading the roster as "the players" therefore put a retired
+ * player back in the Predictor's and What-If's tables as a 0-game, 0% row, in
+ * exactly the one case the migration never exercised: a retirement in a league
+ * that already had stored projections. (The five migrated leagues had theirs
+ * deleted and rebuilt, so their rosters never carried the name.)
+ *
+ * The competition roster is ctx.allPlayersSet — everyone with a fixture that is
+ * not cancelled — and this is the one place the stored list is narrowed to it.
+ */
+function activeRoster(stored, ctx) {
+    return (stored.roster || [])
+        .map((player, pos) => ({ player, pos }))
+        .filter(e => ctx.allPlayersSet.has(e.player));
 }
 
 /**
@@ -1769,6 +1793,11 @@ function renderWhatIfSimulator(ctx) {
     const opponentsOf = new Map();
     for (const m of ctx.allMatchesIncUnplayed) {
         if (!m.playerA || !m.playerB) continue;
+        // A cancelled fixture is not on the schedule: a retired player is not
+        // selectable and no match of his can be staged
+        // (docs/RETIREMENT-POLICY.md §3, B4). Without this skip he was offered
+        // in both pickers, opponents and all.
+        if (isCancelled(m)) continue;
         const k = canonKey(m.playerA, m.playerB);
         if (!scheduleByKey.has(k)) scheduleByKey.set(k, m);
         if (!opponentsOf.has(m.playerA)) opponentsOf.set(m.playerA, new Set());
@@ -3331,9 +3360,16 @@ function buildB6cPanel(panel, ctx, remaining, lastModified) {
         result.querySelector('.rem-b6c-export-row').appendChild(
             buildExportControl(opponents.length, () => {
                 const sourceTable = result.querySelector('.rem-b6c-wrap table');
-                // The exported image's subtitle names the player too — display
-                // name, matching the heading and the rows it ships with.
-                exportB6cImage(sourceTable, title, displayPlayerName(player, playersMeta[player]),
+                // The exported image's subtitle names the player too — the
+                // same identity chip (flag + name + title badges) as the
+                // heading above, so the image matches the page it came from.
+                const shownName = displayPlayerName(player, playersMeta[player]);
+                exportB6cImage(sourceTable, title, shownName,
+                    playerIdentityHtml({
+                        name: shownName,
+                        flagCode: getFlagCode(player, params.CustomFlags),
+                        titleHtml: getTitleAbbreviationsHtml(playersMeta[player]),
+                    }),
                     formatAsOf(lastModified), params.LeagueType || 'doubling');
             // The RAW player key (not the display name) so the analytics log can
             // render its flag + title badges, like every other player reference.
@@ -3445,12 +3481,15 @@ function exportB6bImage(sourceTable, title, asOf, leagueType) {
     return exportWhatsAppTableImage({ sourceTable, title, subtitle, leagueType, shrinkToContent: true, filename: `${title}_${leagueTypeLabel(leagueType)}_Remaining_Report` });
 }
 
-function exportB6cImage(sourceTable, title, player, asOf, leagueType) {
+// `identityHtml` is the same playerIdentityHtml() chip as the on-page heading,
+// so the image names the player with their flag and title badges too.
+function exportB6cImage(sourceTable, title, player, identityHtml, asOf, leagueType) {
     if (!sourceTable) return;
     const count = sourceTable.querySelectorAll('tbody tr').length;
     const matchesWord = count === 1 ? 'match' : 'matches';
-    const subtitle = `${player} \u2014 ${count} remaining ${matchesWord}${asOf ? ' \u2014 ' + asOf : ''}`;
-    return exportWhatsAppTableImage({ sourceTable, title, subtitle, leagueType, shrinkToContent: true, filename: `${title}_${leagueTypeLabel(leagueType)}_${player}_Remaining` });
+    const rest = `\u2014 ${count} remaining ${matchesWord}${asOf ? ' \u2014 ' + asOf : ''}`;
+    const subtitleHtml = `${identityHtml}<span style="opacity:0.75">${escapeHtml(rest)}</span>`;
+    return exportWhatsAppTableImage({ sourceTable, title, subtitleHtml, leagueType, shrinkToContent: true, filename: `${title}_${leagueTypeLabel(leagueType)}_${player}_Remaining` });
 }
 
 // ---------- F4 ----------

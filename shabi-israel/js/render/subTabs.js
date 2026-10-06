@@ -32,7 +32,7 @@
  * importing it from the primitive they already use. Styling comes from
  * `.league-type-pill.type-all` (components.css → --lt-all-* tokens).
  */
-import { ALL_TYPES_ID, leagueTypeLabel } from '../compute/leagueTypes.js';
+import { ALL_TYPES_ID, leagueTypeLabel, leagueTypeRank } from '../compute/leagueTypes.js';
 export { ALL_TYPES_ID };
 export const ALL_TYPES_LABEL = 'All';
 export const ALL_TYPES_TAB = { id: ALL_TYPES_ID, label: ALL_TYPES_LABEL };
@@ -43,13 +43,14 @@ export const ALL_TYPES_TAB = { id: ALL_TYPES_ID, label: ALL_TYPES_LABEL };
  * at each call site — callers may hand us tabs in data order, count order, etc.
  * ALL always sits leftmost. Tabs whose id isn't a known league type keep their
  * given order, after the known ones (Array.sort is stable).
+ *
+ * The order itself is leagueTypeRank's — Doubling → UBC → Regular — and is READ
+ * from there, not restated. This used to be a list of its own (doubling,
+ * regular, ubc), so the pills disagreed with every card and table the same
+ * page ordered by leagueTypeRank.
  */
-const PILL_TYPE_ORDER = [ALL_TYPES_ID, 'doubling', 'regular', 'ubc'];
 function orderPillTabs(tabs) {
-    const rank = (id) => {
-        const i = PILL_TYPE_ORDER.indexOf(id);
-        return i === -1 ? Number.MAX_SAFE_INTEGER : i;
-    };
+    const rank = (id) => (id === ALL_TYPES_ID ? -1 : leagueTypeRank(id));
     return [...tabs].sort((a, b) => rank(a.id) - rank(b.id));
 }
 
@@ -102,6 +103,8 @@ export function mountPillTabs(mountEl, { tabs, defaultId = null, pillClassFor = 
  *   ALL            → clears every type and is the only pill left on.
  *   a type         → toggles; turning one on turns ALL off.
  *   last type off  → falls back to ALL (a filter never selects nothing).
+ *   every type on  → collapses to ALL: it IS "no filter", and one state must
+ *                    not have two looks (all pills lit vs. only ALL lit).
  *
  * A filter, not a view switch: the pills carry `aria-pressed` and no tab role
  * (same reasoning as mountFilterToggle below). That also keeps them out of the
@@ -124,6 +127,9 @@ export function mountLeagueTypeFilter(mountEl, { types: typeIds, selected = null
     const types = orderPillTabs(typeIds.map(id => ({ id, label: leagueTypeLabel(id) })));
     const offered = types.length > 1 ? [ALL_TYPES_TAB, ...types] : types;
     const on = new Set((selected || []).filter(id => types.some(t => t.id === id)));
+    // Every type on is ALL (see above) — on a click and in the initial selection.
+    const collapseFull = () => { if (types.length > 1 && on.size === types.length) on.clear(); };
+    collapseFull();
     // A single type has nothing to filter between: it is simply on.
     if (types.length === 1) on.add(types[0].id);
 
@@ -145,6 +151,7 @@ export function mountLeagueTypeFilter(mountEl, { types: typeIds, selected = null
             if (t.id === ALL_TYPES_ID) on.clear();
             else if (on.has(t.id)) on.delete(t.id);
             else on.add(t.id);
+            collapseFull();
             paint();
             if (onChange) onChange(current());
         });

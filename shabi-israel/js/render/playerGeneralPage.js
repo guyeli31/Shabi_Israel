@@ -104,6 +104,23 @@ function resolveTypeFilter(id, types) {
     return id === ALL_TYPES_ID ? types : id;
 }
 
+/**
+ * The Records tab's league-type FILTER — the same control, on the same rules,
+ * as the landing page's Records sections: several pills on at once, pooled;
+ * ALL clears them; every type on collapses to ALL. Every section of the tab
+ * offers every league type THIS PLAYER has played, so the bars read identically
+ * down the tab. What a selection shows is each section's own business — a
+ * PR-based view simply has nothing for a Regular-only selection, and says so.
+ */
+function playerLeagueTypes(perLeague) {
+    return [...new Set(perLeague.map(e => e.league.leagueType || 'doubling'))];
+}
+function recordsTypeTrack(trackSection) {
+    return (id, willBeOn) => id === ALL_TYPES_ID
+        ? `${trackSection}: type all`
+        : `${trackSection}: type ${id} ${willBeOn ? 'on' : 'off'}`;
+}
+
 let _allMeta = {};
 // Flag resolver — see utils/playerFlags.js. `.latest(name)` for context-free
 // places (header, opponent aggregates, all-time tables, search fields),
@@ -1247,12 +1264,8 @@ function renderPlayerMatchRecords(container, perLeague) {
     // showPR alone left a Regular-only player with an empty Records tab, when
     // every one of their matches carries the luck figure Best Luck For and
     // Worst Luck Against are built from.
-    const types = [...new Set(
-        perLeague
-            .filter(e => typeTracksPR(e.league.leagueType) || typeTracksLuck(e.league.leagueType))
-            .map(e => e.league.leagueType)
-    )];
-    if (types.length === 0) return;
+    const types = playerLeagueTypes(perLeague);
+    if (!types.some(t => typeTracksPR(t) || typeTracksLuck(t))) return;
 
     const section = makePgSection('pg-match-records', 'Match Records', { collapsible: true });
     container.appendChild(section);
@@ -1260,11 +1273,12 @@ function renderPlayerMatchRecords(container, perLeague) {
     const body = document.createElement('div');
     body.className = 'pg-tabs-body';
     section.appendChild(body);
-    const { bar } = mountPillTabs(section, {
-        tabs: typeFilterTabs(types),
-        defaultId: types.length > 1 ? ALL_TYPES_ID : types[0],
-        pillClassFor: (t) => 'league-type-pill type-' + t,
-        onSelect: (t) => showMatchRecordsType(body, perLeague, resolveTypeFilter(t, types)),
+    // ALL reaches the renderer as the player's own type list, never as a bare
+    // token: the collectors would read that as every league in the app.
+    const { bar } = mountLeagueTypeFilter(section, {
+        types,
+        trackFor: recordsTypeTrack('Match Records'),
+        onChange: (ids) => showMatchRecordsType(body, perLeague, ids || types),
     });
     section.insertBefore(bar, body);
     // No `resize` listener here: pinStickyCol1's ResizeObserver already covers
@@ -1273,8 +1287,8 @@ function renderPlayerMatchRecords(container, perLeague) {
 }
 
 function showMatchRecordsType(body, perLeague, type) {
-    // The selected pill narrowed to the types that actually record each metric.
-    // ALL arrives here as the section's own type array (resolveTypeFilter), so
+    // The selection narrowed to the types that actually record each metric.
+    // ALL arrives here as the section's own type array, so
     // pooling Doubling with Regular still asks each collector only for the
     // leagues that answer its question — the PR tables never see a Regular
     // league, the luck tables see both.
@@ -1409,9 +1423,10 @@ function playerMatchRecordRow(rank, r, prCols = false) {
 
 /**
  * "Total Luck": the player's Luck Confidence percentile in every COMPLETED
- * league they finished, in the same MF shape as C1 (Leagues). Pills narrow to
- * one PR-tracking league type; ALL pools them. Regular leagues never appear —
- * they record no PR, so there is no model to be lucky against.
+ * league they finished, in the same MF shape as C1 (Leagues). The pills are the
+ * tab's shared league-type filter, so Regular has one too — but no Regular
+ * league ever contributes a row: Luck Confidence is derived from the PR
+ * win-probability table, which is fitted to doubling-cube matches only.
  */
 function renderTotalLuckSection(container, playerName, perLeague) {
     const rows = collectPlayerLeagueLuck(perLeague, playerName);
@@ -1449,10 +1464,10 @@ function renderTotalLuckSection(container, playerName, perLeague) {
     mountPoint.className = 'pg-leagues-table-wrapper';
     body.appendChild(mountPoint);
 
-    function showType(typeId) {
-        const shown = typeId === ALL_TYPES_ID ? rows : rows.filter(r => r._type === typeId);
+    function showTypes(ids) {
+        const shown = ids ? rows.filter(r => ids.includes(r._type)) : rows;
         if (shown.length === 0) {
-            mountPoint.innerHTML = '<div class="pg-note">No completed leagues of this type.</div>';
+            mountPoint.innerHTML = '<div class="pg-note">No data for this selection.</div>';
             return;
         }
         mountMFTable(mountPoint, buildPlayerTotalLuckPreset({
@@ -1463,12 +1478,10 @@ function renderTotalLuckSection(container, playerName, perLeague) {
         }));
     }
 
-    const presentTypes = [...new Set(rows.map(r => r._type))];
-    const { bar } = mountPillTabs(section, {
-        tabs: typeFilterTabs(presentTypes),
-        defaultId: presentTypes.length > 1 ? ALL_TYPES_ID : presentTypes[0],
-        pillClassFor: (t) => 'league-type-pill type-' + t,
-        onSelect: showType,
+    const { bar } = mountLeagueTypeFilter(section, {
+        types: playerLeagueTypes(perLeague),
+        trackFor: recordsTypeTrack('Total Luck (leagues)'),
+        onChange: showTypes,
     });
     section.insertBefore(bar, body);
 }
@@ -1530,12 +1543,15 @@ function pgBuildBuckets(values, lo, hi, dropOutOfRange = false) {
  *                    it describes the PR rows and has no reading over a
  *                    distribution of dice luck (nor any value at all for the
  *                    REGULAR matches that section includes).
- *   onlyChartedTypes — offer a type pill only where the player has a charted
- *                    match of that type, so no pill opens an empty chart.
  *
  * PR is gated on the league's own `showPR`; Luck on `typeTracksLuck`, which
  * REGULAR leagues pass — they record a luck figure per side like every other
- * type, so they are pooled into ALL and get a pill of their own.
+ * type, so they are pooled into ALL.
+ *
+ * The PILLS are not per spec: both sections offer every league type the player
+ * has played (playerLeagueTypes), like the rest of the Records tab. A selection
+ * with nothing in scope — the PR section with only Regular on — charts nothing
+ * and shows the spec's `emptyNote`.
  */
 const PR_RESULT_SPEC = {
     sectionClass: 'pg-pr-result',
@@ -1569,7 +1585,6 @@ const LUCK_RESULT_SPEC = {
     trackSection: 'Total Luck',
     emptyNote: 'No matches with a luck figure for this filter.',
     luckPill: false,
-    onlyChartedTypes: true,
     inScope: (e) => typeTracksLuck(e.league.leagueType),
     gapOf: netLuck,
 };
@@ -1624,12 +1639,7 @@ function buildPgGaussianExplainerHtml(nameHtml, seriesLabel, values, metric) {
 function renderGapResultSection(container, playerName, perLeague, spec) {
     const ownRows = collectPlayerGaps(perLeague, null, spec);
     if (ownRows.length === 0) return;
-    // Only in-scope league types the player actually appears in.
-    const charted = new Set(ownRows.map(r => r.type));
-    const presentTypes = [...new Set(
-        perLeague.filter(e => spec.inScope(e)).map(e => e.league.leagueType)
-    )].filter(t => !spec.onlyChartedTypes || charted.has(t));
-    if (presentTypes.length === 0) return;
+    const presentTypes = playerLeagueTypes(perLeague);
 
     const section = makePgSection(spec.sectionClass, spec.title, {
         collapsible: true,

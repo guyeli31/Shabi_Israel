@@ -14,29 +14,35 @@ import { getMedalPlaces } from './prizeRows.js';
 import { luckConfidenceStats } from './luckConfidence.js';
 import { buildPlayerFlagIndex } from '../utils/playerFlags.js';
 import { last300For } from './last300.js';
+import { matchesLeagueType, typeTracksPR, typeAwardsPRPoint } from './leagueTypes.js';
 
-const PR_TYPES = new Set(['doubling', 'ubc']); // league types that have PR
-
-// Memoize per league type so repeat calls are cheap.
+// Memoize per type filter so repeat calls are cheap.
 const cache = new Map();
 
 /**
- * Build all-time rankings for one league type.
+ * Build all-time rankings for one league type — or for several pooled.
  * Running leagues contribute match-level stats (wins/games, luck percentile)
  * but do not contribute to placement-based metrics (medals, avg rank) since
  * placements aren't final yet.
+ *
+ * `leagueType` is a single type id or an ARRAY of them (a pill bar's ALL,
+ * expanded by the caller to the types it actually offers). Whether a league
+ * feeds the PR / luck-percentile / PR-win tallies is asked of that LEAGUE's own
+ * type, so a pooled build never lets a non-PR league into a PR table.
  */
 export async function buildAllTimeRankings(leagueType) {
-    if (cache.has(leagueType)) return cache.get(leagueType);
+    const types = Array.isArray(leagueType) ? leagueType : [leagueType];
+    const cacheKey = [...types].sort().join('|');
+    if (cache.has(cacheKey)) return cache.get(cacheKey);
 
     const promise = (async () => {
         const allLeagues = await loadAllLeagues();
         const typeLeagues = allLeagues.filter(
-            l => l.leagueType === leagueType && !l.params.Hidden
+            l => matchesLeagueType(l.leagueType, types) && !l.params.Hidden
         );
 
-        const hasPR = PR_TYPES.has(leagueType);
-        const isUBC = leagueType === 'ubc';
+        const hasPR = types.some(typeTracksPR);
+        const awardsPRPoint = types.some(typeAwardsPRPoint);
 
         // Flags for an ALL-TIME table are the context-free question, so each
         // player gets the flag they LAST played under (utils/playerFlags.js).
@@ -103,7 +109,8 @@ export async function buildAllTimeRankings(leagueType) {
             });
 
             // PR matches: walk raw matches once, push prSelf entries per side.
-            if (hasPR) {
+            if (typeTracksPR(league.leagueType)) {
+                const isUBC = typeAwardsPRPoint(league.leagueType);
                 const matchLength = league.params.MatchLength || 7;
                 for (const m of league.matches) {
                     if (m._technical) continue;
@@ -206,7 +213,7 @@ export async function buildAllTimeRankings(leagueType) {
             totalPR:   hasPR ? rankPR(players, 'totalPR')   : null,
             last300PR: hasPR ? rankPR(players, 'last300PR') : null,
             luckPercentile: hasPR ? rankLuckPercentile(players) : null,
-            prWinRate: isUBC ? rankPrWinRate(players) : null
+            prWinRate: awardsPRPoint ? rankPrWinRate(players) : null
         };
 
         return {

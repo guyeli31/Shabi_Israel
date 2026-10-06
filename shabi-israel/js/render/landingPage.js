@@ -49,7 +49,7 @@ import { mountComingSoonSection } from './promoNotice.js';
 import { applyLeagueTypeArt, leagueTypeHasArt } from './leagueArt.js';
 import { TAB_ICONS } from './tabIcons.js';
 import { wireSectionCollapse } from './sectionCollapse.js';
-import { mountPillTabs, ALL_TYPES_ID, ALL_TYPES_TAB } from './subTabs.js';
+import { mountPillTabs, mountLeagueTypeFilter, ALL_TYPES_ID, ALL_TYPES_TAB } from './subTabs.js';
 import { mountSearchField } from '../utils/combobox.js';
 import { scrollToClearingTopbarSettled } from '../utils/scrollOffset.js';
 import { langFlagsHtml, wireLangPopup } from '../utils/popupLang.js';
@@ -1771,7 +1771,6 @@ function applyShowTopN(tableEl, defaultN = 5) {
 
 /* ── Achievements (all-time per league type) ─────────── */
 
-const TYPE_ORDER = ['doubling', 'regular', 'ubc'];
 // Gold/Silver/Bronze are no longer separate cards — they're merged into the
 // single MEDALS table (mountMedalsTable). The remaining metrics stay as their
 // own SF cards.
@@ -1782,12 +1781,34 @@ const ACHIEVEMENT_METRICS = [
 ];
 
 function sortPresentTypes(types) {
-    return [...types].sort((a, b) => {
-        const ai = TYPE_ORDER.indexOf(a);
-        const bi = TYPE_ORDER.indexOf(b);
-        return (ai < 0 ? 9 : ai) - (bi < 0 ? 9 : bi);
+    return [...types].sort((a, b) => leagueTypeRank(a) - leagueTypeRank(b));
+}
+
+/**
+ * The league-type FILTER every Records section carries — the same control as
+ * the "All League Matches" rows: several pills on at once, pooled; ALL clears
+ * them. Every section offers every type the site has, so the four bars read
+ * identically; what a selection SHOWS is each table's own business — a table
+ * pools only the selected types that answer its question (a PR table never
+ * sees a Regular league) and is left out when none of them does.
+ *
+ * `render(selected)` always receives a non-empty array: ALL arrives as the
+ * full type list, never as a bare token that would mean "every league in the
+ * app" to the compute layer.
+ */
+function mountRecordsTypeFilter(section, types, trackSection, render) {
+    mountLeagueTypeFilter(section.querySelector('.achv-tabs'), {
+        types,
+        trackFor: (id, willBeOn) => id === ALL_TYPES_ID
+            ? `${trackSection}: type all`
+            : `${trackSection}: type ${id} ${willBeOn ? 'on' : 'off'}`,
+        onChange: (ids) => render(ids || types),
     });
 }
+
+/* A selection none of the section's tables applies to (PR Leaders with only
+   Regular on). */
+const RECORDS_EMPTY_HTML = '<div class="achv-tables-loading">No data for this selection.</div>';
 
 function renderAchievementsSection(container, presentTypes) {
     const types = sortPresentTypes(presentTypes);
@@ -1797,43 +1818,31 @@ function renderAchievementsSection(container, presentTypes) {
     section.className = 'dash-section achievements-section';
     section.id = 'records-achievements';
 
-    const panelsHtml = types.map((t, i) => `
-        <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${t}">
-            <div class="achv-tables-loading">Loading…</div>
-        </div>
-    `).join('');
-
     section.innerHTML = `
         <div class="app-section app-section--card">
             <h2 class="app-section-h2">Achievements</h2>
             <div class="collapsible-body">
                 <div class="achv-tabs"></div>
-                <div class="achv-panels">${panelsHtml}</div>
+                <div class="achv-panels"><div class="achv-panel"></div></div>
             </div>
         </div>`;
 
     // Collapsible toggle (shared)
     wireSectionCollapse(section.querySelector('.app-section'), { defaultOpen: true });
 
-    // League-type switcher (shared pill sub-tabs) — show the matching panel.
-    mountPillTabs(section.querySelector('.achv-tabs'), {
-        tabs: types.map(t => ({ id: t, label: TYPE_LABELS[t] || t })),
-        pillClassFor: (t) => 'league-type-pill type-' + t,
-        onSelect: (t) => section.querySelectorAll('.achv-panel').forEach(p => {
-            p.classList.toggle('hidden', p.dataset.type !== t);
-        }),
-    });
-
-    container.appendChild(section);
-
-    // Populate panels lazily — fire all in parallel.
-    types.forEach(async (t) => {
-        const panel = section.querySelector(`.achv-panel[data-type="${t}"]`);
+    const panel = section.querySelector('.achv-panel');
+    // The build is async and a second pill can be clicked before the first
+    // selection lands: only the latest request may paint.
+    let request = 0;
+    async function render(selected) {
+        const mine = ++request;
+        panel.innerHTML = '<div class="achv-tables-loading">Loading…</div>';
         try {
-            const data = await buildAllTimeRankings(t);
-            panel.innerHTML = renderAchievementTables(data, t);
+            const data = await buildAllTimeRankings(selected);
+            if (mine !== request) return;
+            panel.innerHTML = renderAchievementTables(data, 'achv');
             panel.querySelectorAll('.achv-table').forEach(tbl => applyShowTopN(tbl));
-            wireLuckInfoPopup(panel, t);
+            wireLuckInfoPopup(panel, 'achv');
 
             // Prepend the merged Medals table (SF, 2 sticky cols). Mounted after
             // the old applyShowTopN loop so it isn't double-processed — mountSFTable
@@ -1846,10 +1855,14 @@ function renderAchievementsSection(container, presentTypes) {
                 if (card) grid.insertBefore(card, grid.firstChild);
             }
         } catch (err) {
+            if (mine !== request) return;
             console.error(err);
             panel.innerHTML = inlineErrorHtml("This achievements table couldn't be loaded", err);
         }
-    });
+    }
+
+    mountRecordsTypeFilter(section, types, 'Achievements', render);
+    container.appendChild(section);
 }
 
 function wireLuckInfoPopup(panel, leagueType) {
@@ -1922,7 +1935,7 @@ function mountMedalsTable(mount, data) {
     table.classList.add('sf-sticky-2');
 }
 
-function renderAchievementTables(data, leagueType) {
+function renderAchievementTables(data, idKey) {
     const coreCards = ACHIEVEMENT_METRICS
         .filter(m => data.rankings[m.key] != null)
         .map(m => {
@@ -1948,10 +1961,13 @@ function renderAchievementTables(data, leagueType) {
     }).join('');
 
     const luckCard = data.rankings.luckPercentile
-        ? renderLuckPercentileCard(data, leagueType)
+        ? renderLuckPercentileCard(data, idKey)
         : '';
 
-    return `<div class="achv-tables-grid type-${leagueType}">${coreCards}${luckCard}</div>`;
+    // A third metric card (Avg PR Win) narrows the row to thirds — see
+    // `.achv-tables-grid.has-pr-win` in index-dashboard.css.
+    const gridClass = data.rankings.prWinRate != null ? " has-pr-win" : "";
+    return `<div class="achv-tables-grid${gridClass}">${coreCards}${luckCard}</div>`;
 }
 
 function renderLuckPercentileCard(data, leagueType) {
@@ -2002,45 +2018,37 @@ const PR_METRICS = [
 ];
 
 function renderPRLeadersSection(container, presentTypes) {
-    // Only league types with PR (doubling, ubc).
-    const types = sortPresentTypes(presentTypes).filter(t => t === 'doubling' || t === 'ubc');
-    if (types.length === 0) return;
+    const types = sortPresentTypes(presentTypes);
+    // Nothing on the site tracks PR → no section at all.
+    if (!types.some(typeTracksPR)) return;
 
     const section = document.createElement('div');
     section.className = 'dash-section pr-leaders-section';
     section.id = 'records-pr';
-
-    const panelsHtml = types.map((t, i) => `
-        <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${t}">
-            <div class="achv-tables-loading">Loading…</div>
-        </div>
-    `).join('');
 
     section.innerHTML = `
         <div class="app-section app-section--card">
             <h2 class="app-section-h2">PR Leaders</h2>
             <div class="collapsible-body">
                 <div class="achv-tabs"></div>
-                <div class="achv-panels">${panelsHtml}</div>
+                <div class="achv-panels"><div class="achv-panel"></div></div>
             </div>
         </div>`;
 
     wireSectionCollapse(section.querySelector('.app-section'), { defaultOpen: true });
 
-    mountPillTabs(section.querySelector('.achv-tabs'), {
-        tabs: types.map(t => ({ id: t, label: TYPE_LABELS[t] || t })),
-        pillClassFor: (t) => 'league-type-pill type-' + t,
-        onSelect: (t) => section.querySelectorAll('.achv-panel').forEach(p => {
-            p.classList.toggle('hidden', p.dataset.type !== t);
-        }),
-    });
-
-    container.appendChild(section);
-
-    types.forEach(async (t) => {
-        const panel = section.querySelector(`.achv-panel[data-type="${t}"]`);
+    const panel = section.querySelector('.achv-panel');
+    let request = 0;
+    async function render(selected) {
+        const mine = ++request;
+        // Both tables are PR rankings: only the PR-tracking types in the
+        // selection feed them.
+        const prTypes = selected.filter(typeTracksPR);
+        if (prTypes.length === 0) { panel.innerHTML = RECORDS_EMPTY_HTML; return; }
+        panel.innerHTML = '<div class="achv-tables-loading">Loading…</div>';
         try {
-            const data = await buildAllTimeRankings(t);
+            const data = await buildAllTimeRankings(prTypes);
+            if (mine !== request) return;
             panel.innerHTML = renderPRTables(data);
             panel.querySelectorAll('.achv-table').forEach(t => applyShowTopN(t));
             panel.querySelectorAll('.pr-leaders-table').forEach(tbl => {
@@ -2048,10 +2056,14 @@ function renderPRLeadersSection(container, presentTypes) {
                 if (wrap) attachStickyShadow(wrap);
             });
         } catch (err) {
+            if (mine !== request) return;
             console.error(err);
             panel.innerHTML = inlineErrorHtml("This leaders table couldn't be loaded", err);
         }
-    });
+    }
+
+    mountRecordsTypeFilter(section, types, 'PR Leaders', render);
+    container.appendChild(section);
 }
 
 function renderPRTables(data) {
@@ -2081,66 +2093,55 @@ function renderPRTables(data) {
 /* ── Match Records (per-match highlights) ───────────── */
 
 function renderMatchRecordsSection(container, allLeagues, presentTypes) {
-    // A type belongs here if it records EITHER metric. The hardcoded
-    // `doubling || ubc` pair this replaces was a third copy of the "PR and luck
+    const types = sortPresentTypes(presentTypes);
+    // A section exists if some type records EITHER metric. The hardcoded
+    // `doubling || ubc` pair this replaced was a third copy of the "PR and luck
     // are the same question" mistake: it kept every Regular league out of
-    // site-wide Match Records, luck figures and all. Which of the two tables a
-    // given panel then shows is decided per type, below.
-    const types = sortPresentTypes(presentTypes)
-        .filter(t => typeTracksPR(t) || typeTracksLuck(t));
-    if (types.length === 0) return;
-
-    const leaguesByType = {};
-    for (const t of types) {
-        leaguesByType[t] = allLeagues.filter(l => l.leagueType === t);
-    }
+    // site-wide Match Records, luck figures and all.
+    if (!types.some(t => typeTracksPR(t) || typeTracksLuck(t))) return;
+    const leaguesOf = (ts) => allLeagues.filter(l => ts.includes(l.leagueType));
 
     const section = document.createElement('div');
     section.className = 'dash-section match-records-section';
     section.id = 'records-match';
-
-    const panelsHtml = types.map((t, i) => {
-        const luck = typeTracksLuck(t) ? topLuckiestMatches(collectLuckMatches(leaguesByType[t])) : null;
-        const pr   = typeTracksPR(t)   ? topBestPRMatches(collectPRMatches(leaguesByType[t]))   : null;
-        return `
-            <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${t}">
-                ${renderMatchRecordsTables(luck, pr)}
-            </div>`;
-    }).join('');
 
     section.innerHTML = `
         <div class="app-section app-section--card">
             <h2 class="app-section-h2">Match Records</h2>
             <div class="collapsible-body">
                 <div class="achv-tabs"></div>
-                <div class="achv-panels">${panelsHtml}</div>
+                <div class="achv-panels"><div class="achv-panel"></div></div>
             </div>
         </div>`;
 
     wireSectionCollapse(section.querySelector('.app-section'), { defaultOpen: true });
 
-    mountPillTabs(section.querySelector('.achv-tabs'), {
-        tabs: types.map(t => ({ id: t, label: TYPE_LABELS[t] || t })),
-        pillClassFor: (t) => 'league-type-pill type-' + t,
-        onSelect: (t) => {
-            // No re-measure on switch: the revealed panel's header cells go
-            // 0 → n, which is a ResizeObserver notification (stickyCols.js).
-            section.querySelectorAll('.achv-panel').forEach(p => p.classList.toggle('hidden', p.dataset.type !== t));
-        },
-    });
+    const panel = section.querySelector('.achv-panel');
+    function render(selected) {
+        // Each table pools the selected types that answer ITS question: the PR
+        // table sees the PR-tracking leagues only, the luck table every
+        // luck-tracking one — the split the player page's Match Records makes.
+        const prTypes   = selected.filter(typeTracksPR);
+        const luckTypes = selected.filter(typeTracksLuck);
+        const luck = luckTypes.length ? topLuckiestMatches(collectLuckMatches(leaguesOf(luckTypes))) : null;
+        const pr   = prTypes.length   ? topBestPRMatches(collectPRMatches(leaguesOf(prTypes)))       : null;
+        if (luck == null && pr == null) { panel.innerHTML = RECORDS_EMPTY_HTML; return; }
 
+        panel.innerHTML = renderMatchRecordsTables(luck, pr, luckTypes.every(typeTracksPR));
+        panel.querySelectorAll('.achv-table').forEach(t => applyShowTopN(t));
+        panel.querySelectorAll('.match-records-table').forEach(tbl => {
+            const wrap = tbl.closest('.achv-table-wrapper');
+            if (wrap) attachStickyShadow(wrap);
+        });
+        // 3 sticky cols → 2 measured offsets. The observer inside pinStickyCols
+        // covers the flag-load reflow and the tab becoming visible (see
+        // stickyCols.js); the tables are new on every render, so each render
+        // pins its own.
+        pinStickyColsAll(panel, '.match-records-table', ['--mr-col1-w', '--mr-col2-w']);
+    }
+
+    mountRecordsTypeFilter(section, types, 'Match Records', render);
     container.appendChild(section);
-
-    section.querySelectorAll('.achv-table').forEach(t => applyShowTopN(t));
-    section.querySelectorAll('.match-records-table').forEach(tbl => {
-        const wrap = tbl.closest('.achv-table-wrapper');
-        if (wrap) attachStickyShadow(wrap);
-    });
-
-    // 3 sticky cols → 2 measured offsets. The observer inside pinStickyCols
-    // replaces the old rAF + `resize` pair, which missed both the flag-load
-    // reflow and the pill-switch re-reveal (see stickyCols.js).
-    pinStickyColsAll(section, '.match-records-table', ['--mr-col1-w', '--mr-col2-w']);
 }
 
 /**
@@ -2149,12 +2150,15 @@ function renderMatchRecordsSection(container, allLeagues, presentTypes) {
  * reading "No data" — the difference is the same one the cross-league match
  * table draws between "—" and "N/A".
  *
- * A luck row's Player PR / Opp PR columns follow the PR table: a type that is
- * not ranked on PR does not start displaying one inside its luck records.
+ * `luckPrCols` — a luck row's Player PR / Opp PR columns are shown only while
+ * EVERY league type feeding the luck table tracks PR: a type that is not ranked
+ * on PR does not start displaying one inside its luck records, and a pooled
+ * view that includes such a type drops the pair rather than mixing figures
+ * with "—". Same policy as the player page's Match Records.
  */
-function renderMatchRecordsTables(luckRows, prRows) {
+function renderMatchRecordsTables(luckRows, prRows, luckPrCols) {
     const notHidden = r => !_playersMeta[r.player]?.hidden && !_playersMeta[r.opponent]?.hidden;
-    const showPR = prRows != null;
+    const showPR = luckPrCols;
     const prCells = r => `<td>${r.prSelf == null ? '—' : formatNumber(r.prSelf)}</td><td>${r.prOpp == null ? '—' : formatNumber(r.prOpp)}</td>`;
 
     const prCard = prRows == null ? '' : (() => {
@@ -2245,29 +2249,59 @@ function formatShortDate(iso) {
     return formatMatchStamp(iso, '');
 }
 
-/* ── League Records (A6): top 100 appearances by Mean PR ───── */
+/* ── League Records (A6): top 100 single-league appearances per metric ───── */
 
-function collectLeagueRecords(typeLeagues) {
+const LEAGUE_RECORDS_LIMIT = 100;
+
+/**
+ * One row per (completed league × player who played in it), carrying every
+ * figure the four A6 tables rank on. Collected ONCE for all types: each pill's
+ * panel — ALL included — then filters and sorts these rows, instead of walking
+ * the leagues again per panel and per table (Best Luck and Worst Luck used to
+ * run the identical luck computation twice over, to sort it two ways).
+ *
+ * `meanPR` and `percentile` stay null for a league whose type does not track
+ * PR, even though its matches carry one: Best PR is a PR ranking, and Luck
+ * Confidence is derived from the PR win-probability table, calibrated for
+ * doubling-cube matches only (leagueTypes.js, `typeTracksLuck`). A null figure
+ * keeps the row out of that table — `topLeagueRecords` skips it.
+ */
+function collectLeagueSeasonRows(leagues) {
     const rows = [];
-    for (const league of typeLeagues) {
+    for (const league of leagues) {
         if (league.params.Running === true) continue;
         // Places per tier INCLUDING that tier's extra prize rows (prizeRows.js),
         // so a two-gold league tints two ranks gold here as it does on its own page.
         const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
             getMedalPlaces(league.params, { gold: 1, silver: 1, bronze: 1 });
         const customFlags = league.params.CustomFlags || {};
+        const matchLength = league.params.MatchLength ?? 7;
+        const tracksPR = typeTracksPR(league.leagueType);
 
         const played = league.rankings.filter(r => r.games > 0);
         const totalPlayers = played.length;
 
         played.forEach((r, idx) => {
-            const stats = league.statsMap.get(r.player);
-            if (!stats || stats.meanPR == null) return;
             if (_playersMeta[r.player]?.hidden) return;
+            const stats = league.statsMap.get(r.player);
+
+            let percentile = null, unstable = false;
+            if (tracksPR) {
+                const matchRefs = league.matches
+                    .filter(m => m.playerA === r.player || m.playerB === r.player)
+                    .map(m => ({ m, matchLength }));
+                const lp = luckConfidenceStats({ matchRefs, playerName: r.player });
+                percentile = lp.percentile;
+                unstable = lp.unstableSample;
+            }
+
             rows.push({
                 player: r.player,
-                meanPR: stats.meanPR,
-                level: getLevel(stats.meanPR),
+                leagueType: league.leagueType,
+                winRate: stats?.winRate ?? null,
+                meanPR: tracksPR ? (stats?.meanPR ?? null) : null,
+                percentile,
+                unstable,
                 playerRank: idx + 1,
                 totalPlayers,
                 goldCount,
@@ -2280,196 +2314,72 @@ function collectLeagueRecords(typeLeagues) {
             });
         });
     }
-    rows.sort((a, b) => a.meanPR - b.meanPR);
-    return rows.slice(0, 100);
+    return rows;
 }
 
-function collectLeagueWinRateRecords(typeLeagues) {
-    const rows = [];
-    for (const league of typeLeagues) {
-        if (league.params.Running === true) continue;
-        // Places per tier INCLUDING that tier's extra prize rows (prizeRows.js),
-        // so a two-gold league tints two ranks gold here as it does on its own page.
-        const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
-            getMedalPlaces(league.params, { gold: 1, silver: 1, bronze: 1 });
-        const customFlags = league.params.CustomFlags || {};
-
-        const played = league.rankings.filter(r => r.games > 0);
-        const totalPlayers = played.length;
-
-        played.forEach((r, idx) => {
-            const stats = league.statsMap.get(r.player);
-            if (!stats || stats.winRate == null) return;
-            if (_playersMeta[r.player]?.hidden) return;
-            rows.push({
-                player: r.player,
-                winRate: stats.winRate,
-                playerRank: idx + 1,
-                totalPlayers,
-                goldCount,
-                silverCount,
-                bronzeCount,
-                leagueId: league.id,
-                leagueTitle: league.title,
-                date: league.params.IssueDate || '',
-                customFlags
-            });
-        });
-    }
-    rows.sort((a, b) => b.winRate - a.winRate);
-    return rows.slice(0, 100);
+/** The best LEAGUE_RECORDS_LIMIT rows on one figure; rows without it are skipped. */
+function topLeagueRecords(rows, key, dir) {
+    const sign = dir === 'asc' ? 1 : -1;
+    return rows
+        .filter(r => r[key] != null)
+        .sort((a, b) => sign * (a[key] - b[key]))
+        .slice(0, LEAGUE_RECORDS_LIMIT);
 }
 
 function renderLeagueRecordsSection(container, allLeagues, presentTypes) {
-    // Every row here IS a Mean PR, so PR-tracking is the right question — but it
-    // has to be ASKED, not spelled out as a type pair that a new PR-tracking
-    // type would silently miss. Behaviour is unchanged: doubling and ubc are
-    // exactly the types `typeTracksPR` admits today.
-    const types = sortPresentTypes(presentTypes).filter(typeTracksPR);
+    // Every type belongs here: Best Win Rate needs no PR, so a Regular league
+    // has a record to show. The section used to be gated on PR-tracking as a
+    // whole — right for three of its four tables, and it hid the fourth from
+    // the one type that had nothing else. Which tables a selection shows is
+    // decided per render, from the types selected.
+    const types = sortPresentTypes(presentTypes);
     if (types.length === 0) return;
 
-    const leaguesByType = {};
-    for (const t of types) {
-        leaguesByType[t] = allLeagues.filter(l => l.leagueType === t);
-    }
-
-    const hasData = types.some(t =>
-        leaguesByType[t].some(l => l.params.Running !== true)
-    );
-    if (!hasData) return;
+    const seasonRows = collectLeagueSeasonRows(allLeagues);
+    if (seasonRows.length === 0) return;
 
     const section = document.createElement('div');
     section.className = 'dash-section league-records-section';
     section.id = 'records-league';
-
-    const panelsHtml = types.map((t, i) => {
-        const winRateRows  = collectLeagueWinRateRecords(leaguesByType[t]);
-        const prRows       = collectLeagueRecords(leaguesByType[t]);
-        const luckRows     = collectLeagueLuckRecords(leaguesByType[t]);
-        const worstRows    = collectLeagueWorstLuckRecords(leaguesByType[t]);
-        return `
-            <div class="achv-panel${i === 0 ? '' : ' hidden'}" data-type="${t}">
-                ${renderLeagueRecordsPanel(winRateRows, prRows, luckRows, worstRows, t)}
-            </div>`;
-    }).join('');
 
     section.innerHTML = `
         <div class="app-section app-section--card">
             <h2 class="app-section-h2">League Records</h2>
             <div class="collapsible-body">
                 <div class="achv-tabs"></div>
-                <div class="achv-panels">${panelsHtml}</div>
+                <div class="achv-panels"><div class="achv-panel"></div></div>
             </div>
         </div>`;
 
     wireSectionCollapse(section.querySelector('.app-section'), { defaultOpen: true });
 
-    mountPillTabs(section.querySelector('.achv-tabs'), {
-        tabs: types.map(t => ({ id: t, label: TYPE_LABELS[t] || t })),
-        pillClassFor: (t) => 'league-type-pill type-' + t,
-        onSelect: (t) => {
-            section.querySelectorAll('.achv-panel').forEach(p => p.classList.toggle('hidden', p.dataset.type !== t));
-        },
-    });
+    const panel = section.querySelector('.achv-panel');
+    function render(selected) {
+        const rows  = seasonRows.filter(r => selected.includes(r.leagueType));
+        // null = no selected type tracks PR, so the table is not rendered at all
+        // (an empty array still renders, reading "No data").
+        const hasPR = selected.some(typeTracksPR);
+        panel.innerHTML = renderLeagueRecordsPanel({
+            winRateRows: topLeagueRecords(rows, 'winRate', 'desc'),
+            prRows:      hasPR ? topLeagueRecords(rows, 'meanPR', 'asc')      : null,
+            luckRows:    hasPR ? topLeagueRecords(rows, 'percentile', 'desc') : null,
+            worstRows:   hasPR ? topLeagueRecords(rows, 'percentile', 'asc')  : null, // lowest first = unluckiest
+        }, 'lr');
 
+        // The "?" info popups on the Best/Worst Luck cards (a no-op when the
+        // selection has no such cards).
+        ['lr-luck-best-lr', 'lr-luck-worst-lr'].forEach(id => wireLuckInfoPopupById(panel, id));
+
+        panel.querySelectorAll('.achv-table').forEach(t => applyShowTopN(t));
+        panel.querySelectorAll('.league-records-table').forEach(tbl => {
+            const wrap = tbl.closest('.achv-table-wrapper');
+            if (wrap) attachStickyShadow(wrap);
+        });
+        pinStickyColsAll(panel, '.league-records-table', ['--lr-col1-w', '--lr-col2-w']);
+    }
+
+    mountRecordsTypeFilter(section, types, 'League Records', render);
     container.appendChild(section);
-
-    // Wire the "?" info popups on the Best/Worst Luck cards (one per league type).
-    types.forEach(t => {
-        [`lr-luck-best-${t}`, `lr-luck-worst-${t}`].forEach(id => {
-            wireLuckInfoPopupById(section, id);
-        });
-    });
-
-    section.querySelectorAll('.achv-table').forEach(t => applyShowTopN(t));
-    section.querySelectorAll('.league-records-table').forEach(tbl => {
-        const wrap = tbl.closest('.achv-table-wrapper');
-        if (wrap) attachStickyShadow(wrap);
-    });
-
-    pinStickyColsAll(section, '.league-records-table', ['--lr-col1-w', '--lr-col2-w']);
-}
-
-function collectLeagueLuckRecords(typeLeagues) {
-    const rows = [];
-    for (const league of typeLeagues) {
-        if (league.params.Running === true) continue;
-        // Places per tier INCLUDING that tier's extra prize rows (prizeRows.js),
-        // so a two-gold league tints two ranks gold here as it does on its own page.
-        const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
-            getMedalPlaces(league.params, { gold: 1, silver: 1, bronze: 1 });
-        const customFlags = league.params.CustomFlags || {};
-        const matchLength = league.params.MatchLength ?? 7;
-
-        const played = league.rankings.filter(r => r.games > 0);
-        const totalPlayers = played.length;
-
-        played.forEach((r, idx) => {
-            if (_playersMeta[r.player]?.hidden) return;
-            const matchRefs = league.matches
-                .filter(m => m.playerA === r.player || m.playerB === r.player)
-                .map(m => ({ m, matchLength }));
-            const lp = luckConfidenceStats({ matchRefs, playerName: r.player });
-            if (lp.percentile == null) return;
-            rows.push({
-                player: r.player,
-                percentile: lp.percentile,
-                unstable: lp.unstableSample,
-                playerRank: idx + 1,
-                totalPlayers,
-                goldCount,
-                silverCount,
-                bronzeCount,
-                leagueId: league.id,
-                leagueTitle: league.title,
-                date: league.params.IssueDate || '',
-                customFlags
-            });
-        });
-    }
-    rows.sort((a, b) => b.percentile - a.percentile);
-    return rows.slice(0, 100);
-}
-
-function collectLeagueWorstLuckRecords(typeLeagues) {
-    const rows = [];
-    for (const league of typeLeagues) {
-        if (league.params.Running === true) continue;
-        // Places per tier INCLUDING that tier's extra prize rows (prizeRows.js),
-        // so a two-gold league tints two ranks gold here as it does on its own page.
-        const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
-            getMedalPlaces(league.params, { gold: 1, silver: 1, bronze: 1 });
-        const customFlags = league.params.CustomFlags || {};
-        const matchLength = league.params.MatchLength ?? 7;
-
-        const played = league.rankings.filter(r => r.games > 0);
-        const totalPlayers = played.length;
-
-        played.forEach((r, idx) => {
-            if (_playersMeta[r.player]?.hidden) return;
-            const matchRefs = league.matches
-                .filter(m => m.playerA === r.player || m.playerB === r.player)
-                .map(m => ({ m, matchLength }));
-            const lp = luckConfidenceStats({ matchRefs, playerName: r.player });
-            if (lp.percentile == null) return;
-            rows.push({
-                player: r.player,
-                percentile: lp.percentile,
-                unstable: lp.unstableSample,
-                playerRank: idx + 1,
-                totalPlayers,
-                goldCount,
-                silverCount,
-                bronzeCount,
-                leagueId: league.id,
-                leagueTitle: league.title,
-                date: league.params.IssueDate || '',
-                customFlags
-            });
-        });
-    }
-    rows.sort((a, b) => a.percentile - b.percentile); // lowest first = unluckiest
-    return rows.slice(0, 100);
 }
 
 /* Shared "?" info popup for the Best/Worst Luck record cards — reuses the exact
@@ -2484,11 +2394,47 @@ function luckRecordInfoHtml(id) {
         </div>`;
 }
 
-function renderLeagueRecordsPanel(winRateRows, prRows, luckRows, worstRows, type) {
+function renderLeagueRecordsPanel({ winRateRows, prRows, luckRows, worstRows }, type) {
     const winRateHtml = winRateRows.map((r, i) => leagueWinRateRecordRow(i + 1, r)).join('');
-    const prHtml    = prRows.map((r, i)    => leaguePRRecordRow(i + 1, r)).join('');
-    const luckHtml  = luckRows.map((r, i)  => leagueLuckRecordRow(i + 1, r)).join('');
-    const worstHtml = worstRows.map((r, i) => leagueLuckRecordRow(i + 1, r)).join('');
+
+    const prCard = prRows == null ? '' : `
+            <div class="achv-table-card">
+                <h3>Best PR</h3>
+                <div class="achv-table-wrapper">
+                    <table class="achv-table league-records-table font-small" data-mf-table-id="A6">
+                        <thead><tr>
+                            <th scope="col">#</th>
+                            <th scope="col">Player</th>
+                            <th scope="col">PR</th>
+                            <th scope="col">Level</th>
+                            <th scope="col">Rank</th>
+                            <th scope="col">League</th>
+                            <th scope="col">Date</th>
+                        </tr></thead>
+                        <tbody>${prRows.map((r, i) => leaguePRRecordRow(i + 1, r)).join('') || '<tr><td colspan="7">No data</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>`;
+
+    const luckCard = (rows, title, popupId) => rows == null ? '' : `
+            <div class="achv-table-card">
+                <h3>${title} <span class="predictor-tooltip" id="${popupId}-btn">?</span></h3>
+                ${luckRecordInfoHtml(popupId)}
+                <div class="achv-table-wrapper">
+                    <table class="achv-table league-records-table font-small" data-mf-table-id="A6">
+                        <thead><tr>
+                            <th scope="col">#</th>
+                            <th scope="col">Player</th>
+                            <th scope="col">Luck %ile</th>
+                            <th scope="col">Rank</th>
+                            <th scope="col">League</th>
+                            <th scope="col">Date</th>
+                        </tr></thead>
+                        <tbody>${rows.map((r, i) => leagueLuckRecordRow(i + 1, r)).join('') || '<tr><td colspan="6">No data</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>`;
+
     return `
         <div class="match-records-stack">
             <div class="achv-table-card">
@@ -2506,58 +2452,7 @@ function renderLeagueRecordsPanel(winRateRows, prRows, luckRows, worstRows, type
                         <tbody>${winRateHtml || '<tr><td colspan="6">No data</td></tr>'}</tbody>
                     </table>
                 </div>
-            </div>
-            <div class="achv-table-card">
-                <h3>Best PR</h3>
-                <div class="achv-table-wrapper">
-                    <table class="achv-table league-records-table font-small" data-mf-table-id="A6">
-                        <thead><tr>
-                            <th scope="col">#</th>
-                            <th scope="col">Player</th>
-                            <th scope="col">PR</th>
-                            <th scope="col">Level</th>
-                            <th scope="col">Rank</th>
-                            <th scope="col">League</th>
-                            <th scope="col">Date</th>
-                        </tr></thead>
-                        <tbody>${prHtml || '<tr><td colspan="7">No data</td></tr>'}</tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="achv-table-card">
-                <h3>Best Luck <span class="predictor-tooltip" id="lr-luck-best-${type}-btn">?</span></h3>
-                ${luckRecordInfoHtml(`lr-luck-best-${type}`)}
-                <div class="achv-table-wrapper">
-                    <table class="achv-table league-records-table font-small" data-mf-table-id="A6">
-                        <thead><tr>
-                            <th scope="col">#</th>
-                            <th scope="col">Player</th>
-                            <th scope="col">Luck %ile</th>
-                            <th scope="col">Rank</th>
-                            <th scope="col">League</th>
-                            <th scope="col">Date</th>
-                        </tr></thead>
-                        <tbody>${luckHtml || '<tr><td colspan="6">No data</td></tr>'}</tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="achv-table-card">
-                <h3>Worst Luck <span class="predictor-tooltip" id="lr-luck-worst-${type}-btn">?</span></h3>
-                ${luckRecordInfoHtml(`lr-luck-worst-${type}`)}
-                <div class="achv-table-wrapper">
-                    <table class="achv-table league-records-table font-small" data-mf-table-id="A6">
-                        <thead><tr>
-                            <th scope="col">#</th>
-                            <th scope="col">Player</th>
-                            <th scope="col">Luck %ile</th>
-                            <th scope="col">Rank</th>
-                            <th scope="col">League</th>
-                            <th scope="col">Date</th>
-                        </tr></thead>
-                        <tbody>${worstHtml || '<tr><td colspan="6">No data</td></tr>'}</tbody>
-                    </table>
-                </div>
-            </div>
+            </div>${prCard}${luckCard(luckRows, 'Best Luck', `lr-luck-best-${type}`)}${luckCard(worstRows, 'Worst Luck', `lr-luck-worst-${type}`)}
         </div>`;
 }
 
@@ -2576,7 +2471,7 @@ function leaguePRRecordRow(rowRank, r) {
             <td>${rowRank}</td>
             <td><img class="flag" src="${playerFlag}" alt="flag"> ${playerNameLink(r.player, _playersMeta[r.player])}</td>
             <td>${formatNumber(r.meanPR)}</td>
-            <td>${escapeHtml(r.level)}</td>
+            <td>${escapeHtml(getLevel(r.meanPR))}</td>
             ${leagueRankCell(r)}
             <td><a class="league-link" href="${leagueTableUrl(r.leagueId)}">${escapeHtml(r.leagueTitle)}</a></td>
             <td>${formatLeagueDay(r.date)}</td>

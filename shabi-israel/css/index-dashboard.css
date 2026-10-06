@@ -572,8 +572,8 @@
     .achv-tables-grid > .achv-table-card:not(.achv-medals-card):not(.achv-luck-card) {
         grid-column: span 3;
     }
-    /* UBC adds a 3rd metric card (Avg PR Win) → 1/3 each. */
-    .achv-tables-grid.type-ubc > .achv-table-card:not(.achv-medals-card):not(.achv-luck-card) {
+    /* A 3rd metric card (Avg PR Win — any selection that includes UBC) → 1/3 each. */
+    .achv-tables-grid.has-pr-win > .achv-table-card:not(.achv-medals-card):not(.achv-luck-card) {
         grid-column: span 2;
     }
     /* A4 PR Leaders — 2 cards side-by-side (50/50), matching Avg Rank / Avg Win Rate. */
