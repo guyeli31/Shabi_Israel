@@ -21,7 +21,7 @@
 
 import { loadLeagueOrder, loadAllLeagueParams } from '../data/supabaseLoader.js';
 import { supabase } from '../data/supabaseClient.js';
-import { addChange, getStagedContent, T } from './stagingStore.js';
+import { addChange, getChanges, getStagedContent, T } from './stagingStore.js';
 import { attachStickyShadow } from '../utils/stickyShadow.js';
 import { revealMsg, revealAtTop } from './msgScroll.js';
 import { wireSectionCollapse } from '../render/sectionCollapse.js';
@@ -43,6 +43,10 @@ let refreshBadgeFn = null;
 // can't change without a full reload, so this survives in-page re-renders and
 // is re-attached to the rebuilt settings on every Save (see saveAll).
 let _publishedSourceNames = {};
+// The current (staged-or-published) source names of ALL leagues, as last
+// rendered. The page only draws inputs for RUNNING leagues, so this is where
+// the names of the others are kept between a render and the next Save.
+let _sourceNames = {};
 
 // ── entry ───────────────────────────────────────────────────────────────
 export async function renderSyncAdmin(container, refreshBadge) {
@@ -123,7 +127,11 @@ async function loadSyncSettings(leagues) {
     // Staged edits win for the INPUT values (what the admin is editing right now).
     const staged = getStagedContent(T.syncSettings());
     if (staged) {
-        try { return { ...normalize(JSON.parse(staged)), publishedSourceNames }; } catch { /* fall through */ }
+        try {
+            const current = normalize(JSON.parse(staged));
+            current.sourceNames = withPendingLeagueNames(current.sourceNames);
+            return { ...current, publishedSourceNames };
+        } catch { /* fall through */ }
     }
 
     // No stage → current == published (everything clean). Pull published plans too
@@ -150,7 +158,27 @@ async function loadSyncSettings(leagues) {
     } catch { /* tables not present — use synthesized default below */ }
 
     if (plans.length === 0) plans = [synthDefaultPlan(leagues, publishedSourceNames)];
-    return { plans, sourceNames: { ...publishedSourceNames }, publishedSourceNames };
+    return { plans, sourceNames: withPendingLeagueNames({ ...publishedSourceNames }), publishedSourceNames };
+}
+
+/**
+ * Fold in the Source League Name of every league still waiting in Pending
+ * Changes to be created (it inherited one from its preset — see
+ * leagueManager.stageAddLeague).
+ *
+ * Such a league is not on this page yet, so nothing here would ever mention it,
+ * and the file this page stages is authoritative for EVERY league: published
+ * after the creation, it would clear the name the creation had just written.
+ * A name already present wins — it is either the same one or a later edit.
+ */
+function withPendingLeagueNames(sourceNames) {
+    for (const c of getChanges()) {
+        if (c.type !== 'create' || !c.target || c.target.kind !== 'league_params') continue;
+        let name = null;
+        try { name = JSON.parse(c.content).SourceLeagueName; } catch { /* not ours to read */ }
+        if (name && !sourceNames[c.target.leagueId]) sourceNames[c.target.leagueId] = name;
+    }
+    return sourceNames;
 }
 
 /** Coerce a parsed sync_settings.json into the in-memory shape used here. */
@@ -190,6 +218,7 @@ function synthDefaultPlan(leagues, sourceNames) {
 // also lets a harness mount the page with mock data without Supabase/auth.
 export function renderSyncPage(container, leagues, settings, mail = null) {
     _publishedSourceNames = settings.publishedSourceNames || {};
+    _sourceNames = settings.sourceNames || {};
     const active = leagues.filter((l) => l.params && l.params.Running === true);
     const { plans } = settings;
 
@@ -916,10 +945,19 @@ function wireDirtyTracking(container, active) {
 
 // ── Save: rebuild the whole file from the DOM, stage it ────────────────────
 function rebuildFromDOM(container) {
-    const sourceNames = {};
+    // Start from every league's current name and let the inputs overrule it.
+    //
+    // The inputs exist only for RUNNING leagues, while the staged file is
+    // authoritative for every league (updateSyncSettings clears a league that is
+    // absent from the map). Built from the inputs alone, any Save here therefore
+    // wiped the name of every league that had finished — and a finished league
+    // is exactly the one next month's league is cloned from, name included.
+    // A rendered input stays the last word, an emptied one still clears.
+    const sourceNames = { ..._sourceNames };
     container.querySelectorAll('.sync-source-name').forEach((inp) => {
         const v = inp.value.trim();
         if (v) sourceNames[inp.dataset.league] = v;
+        else delete sourceNames[inp.dataset.league];
     });
 
     const plans = [];

@@ -1992,15 +1992,10 @@
    four outcomes, it is the absence of all four. */
 .whatif-np { border-radius: var(--radius-sm); margin-left: var(--space-xs); }
 
-/* An unanswered row, called out where the eye already is. Run Simulation is
-   disabled while any of these remain, and "disabled" has to point somewhere. */
-.whatif-pending {
-    color: var(--color-warning, #f59e0b);
-    font-size: var(--fs-078);
-    font-weight: 600;
-    white-space: nowrap;
-}
-.whatif-row.is-pending { border-left: 2px solid var(--color-warning, #f59e0b); }
+/* No marker for an undecided row on purpose. Staging a pair and not yet
+   deciding it is ordinary work, not a mistake to flag; the simulation leaves
+   that fixture as the baseline has it, and Run Simulation's tooltip is where
+   the count is reported. */
 
 /* Last-300 PR, shown beside a player's name in the What-If pickers and on each
    staged card. A MEASUREMENT about the player, not part of their name, so it is

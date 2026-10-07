@@ -21,25 +21,24 @@
  * Supabase rows ready to hand straight to `.upsert()`.
  */
 
+import { sameSourceValues, sameExactValues } from './matchValueEquality.js';
+
 function key(a, b) {
     return [a, b].sort().join('|');
 }
 
-// Postgres `numeric` round-trips through PostgREST as a string; override records
-// are built from JS number literals. A strict === would read "0" !== 0 as a real
-// change and mark every row dirty. Compare numerically, treating null/undefined
-// as equal to each other only.
-function numEq(x, y) {
-    if (x === null || x === undefined) return y === null || y === undefined;
-    if (y === null || y === undefined) return false;
-    return Number(x) === Number(y);
-}
-
-function sameNumericFields(a, b) {
-    return numEq(a.scoreA, b.scoreA) && numEq(a.scoreB, b.scoreB)
-        && numEq(a.prA, b.prA) && numEq(a.prB, b.prB)
-        && numEq(a.luckA, b.luckA) && numEq(a.luckB, b.luckB);
-}
+// Two different questions, and they used to be one function:
+//
+//   sameSourceValues - "is the SOURCE restating this match?" Pass 1 only. The
+//     External Source serves PR/Luck to two decimals and a mail report records
+//     three, so a match first recorded by mail must not read as changed (and be
+//     redated to the sync's clock) when the source later shows it rounded.
+//   sameNumericFields - exact, for everything an admin authored (pass 2) and
+//     for deciding what to write. A figure typed on purpose is never "just a
+//     rounding" of what was there.
+//
+// See js/data/matchValueEquality.js.
+const sameNumericFields = sameExactValues;
 
 /**
  * @param {object}   args
@@ -121,7 +120,9 @@ export function computeMatchHistoryReconcile({ matchRows, overrideRows, historyR
         const manualHeld = prev && prev.source === 'manual' && liveOverrideKeys.has(k);
         if (manualHeld) {
             next.push({ ...prev, round: m.round });          // pass 2 owns this pairing
-        } else if (prev && sameNumericFields(prev, m)) {
+        } else if (prev && sameSourceValues(prev, m)) {
+            // `...prev`, not `...m`: when the two differ only by the source's
+            // rounding, the STORED figures are the finer ones and they stay.
             next.push({ ...prev, round: m.round, source: 'csv' });
         } else {
             // A pairing with no stored row is normally brand new, and `now` is

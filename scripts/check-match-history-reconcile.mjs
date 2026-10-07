@@ -28,6 +28,12 @@
  *   6. The wipe-guard holds: 0 played matches against a non-empty history is a
  *      transient upstream glitch, not a reset.
  *   7. An unchanged CSV row is never rewritten and never redated.
+ *   8. The source showing a match ROUNDED is not a change. A mail report records
+ *      PR/Luck to three decimals with the moment the match was played; the
+ *      External Source serves two. Compared exactly, the first sync redated
+ *      every mail-recorded match to its own clock (7 Oct 2026). A real
+ *      difference at the source's own precision must still register, and so
+ *      must an admin's override.
  *
  * Run: node scripts/check-match-history-reconcile.mjs
  */
@@ -39,6 +45,8 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const modulePath = resolve(here, '../shabi-israel/js/data/matchHistoryReconcile.js');
 const { computeMatchHistoryReconcile } = await import(pathToFileURL(modulePath).href);
+const { statEq } = await import(pathToFileURL(
+    resolve(here, '../shabi-israel/js/data/matchValueEquality.js')).href);
 
 const NOW = '2026-09-04T10:00:00.000Z';
 const OLD = '2026-07-01T08:00:00.000Z';
@@ -118,6 +126,52 @@ function check(name, passed, detail) {
 {
     const r = run([match('A', 'B', 7, 3)], [], [historyRow('A', 'B', 7, 3, 'csv', OLD)]);
     check('unchanged csv row is not re-upserted', r.upsertRows.length === 0, r);
+}
+
+// 8 - the source's rounding is not a new result.
+{
+    const stats = (row, prA, luckA, prB, luckB) => ({ ...row, pr_a: prA, luck_a: luckA, pr_b: prB, luck_b: luckB });
+    const MAIL = '2026-10-02T13:10:54.000Z';
+    // The mail figures, exactly as recorded (audit_log, August 2026).
+    const stored = stats(historyRow('A', 'B', 7, 4, 'csv', MAIL), 8.054, 1.355, 17.825, -2.036);
+
+    const rounded = run([stats(match('A', 'B', 7, 4), 8.05, 1.36, 17.83, -2.04)], [], [stored]);
+    check('a mail-recorded match shown rounded by the source is not rewritten or redated',
+        rounded.upsertRows.length === 0 && rounded.staleIds.length === 0, rounded);
+
+    // 8.695 is the float trap: x100 gives 869.4999..., which a naive round()
+    // turns into 8.69 while the source shows 8.7.
+    const half = run([stats(match('A', 'B', 7, 4), 8.7, 1.36, 17.83, -2.04)], [],
+        [stats(historyRow('A', 'B', 7, 4, 'csv', MAIL), 8.695, 1.355, 17.825, -2.036)]);
+    check('a half-way value (8.695 shown as 8.7) is still the same match',
+        half.upsertRows.length === 0, half);
+
+    const moved = run([stats(match('A', 'B', 7, 4), 8.06, 1.36, 17.83, -2.04)], [], [stored]);
+    check('a PR that differs by more than rounding (8.054 -> 8.06) is a change, dated now',
+        moved.upsertRows.length === 1 && moved.upsertRows[0].updated_at === NOW, moved);
+
+    const samePrecision = run([stats(match('A', 'B', 7, 4), 8.06, 1.36, 17.83, -2.04)], [],
+        [stats(historyRow('A', 'B', 7, 4, 'csv', MAIL), 8.05, 1.36, 17.83, -2.04)]);
+    check('a 0.01 correction at the source precision (8.05 -> 8.06) is a change',
+        samePrecision.upsertRows.length === 1 && samePrecision.upsertRows[0].updated_at === NOW, samePrecision);
+
+    const score = run([stats(match('A', 'B', 7, 5), 8.05, 1.36, 17.83, -2.04)], [], [stored]);
+    check('a changed score is a change even when the stats only rounded',
+        score.upsertRows.length === 1 && score.upsertRows[0].updated_at === NOW, score);
+
+    // An admin's override is authored, not restated: exact comparison.
+    const override = { ...resultOverride('A', 'B', 7, 4, null), pr_a: 8.05, luck_a: 1.36, pr_b: 17.83, luck_b: -2.04 };
+    const authored = run([stats(match('A', 'B', 7, 4), 8.05, 1.36, 17.83, -2.04)], [override],
+        [stats(historyRow('A', 'B', 7, 4, 'manual', MAIL), 8.054, 1.355, 17.825, -2.036)]);
+    check('an override that types a rounded figure over a finer one is written',
+        authored.upsertRows.length === 1 && Number(authored.upsertRows[0].pr_a) === 8.05, authored);
+
+    check('statEq: equal, rounded, string-typed and null cases',
+        statEq(8.05, 8.05) && statEq('8.054', 8.05) && statEq(8.05, 8.054) && statEq(null, undefined)
+        && statEq(-3.2, -3.2) && statEq(0, 0.004), {});
+    check('statEq: real differences are not swallowed',
+        !statEq(8.05, 8.06) && !statEq(8.054, 8.06) && !statEq(8.054, 8.057) && !statEq(8.74, 8.7)
+        && !statEq(null, 0) && !statEq(8.054, null), {});
 }
 
 if (failures > 0) {

@@ -17,6 +17,7 @@ import {
   findPlayedRegressions, splitRegressions, formatRegressions,
 } from '../shabi-israel/js/data/csvIntegrity.js';
 import { computeMatchHistoryReconcile } from '../shabi-israel/js/data/matchHistoryReconcile.js';
+import { sameSourceValues, valuesOfRow } from '../shabi-israel/js/data/matchValueEquality.js';
 
 const DEFAULT_FLAG = 'IL';
 const SITE_URL = process.env.SOURCE_URL;
@@ -1081,17 +1082,13 @@ async function exportLeagueTask(page, sourceLeagueName, folder, repoRoot) {
  * CSV has cleared both integrity layers (js/data/csvIntegrity.js), and the caller
  * already holds the parsed set.
  */
-// Postgres `numeric` round-trips through PostgREST as a string; parsed CSV gives
-// numbers. Compare by value so "0" and 0 aren't read as a change.
-function numEq(x, y) {
-  if (x === null || x === undefined) return y === null || y === undefined;
-  if (y === null || y === undefined) return false;
-  return Number(x) === Number(y);
-}
+// "Same" allows for the source's rounding: a match a mail report already
+// recorded to three decimals is NOT changed by the source showing it at two.
+// Compared exactly it was - and the sync overwrote the finer figures, then the
+// reconcile moved the match's played-at time to the sync's own clock.
+// The rule and its history live in js/data/matchValueEquality.js.
 function sameMatchRow(row, m) {
-  return numEq(row.pr_a, m.prA) && numEq(row.luck_a, m.luckA) && numEq(row.score_a, m.scoreA)
-      && numEq(row.pr_b, m.prB) && numEq(row.luck_b, m.luckB) && numEq(row.score_b, m.scoreB)
-      && row.played === m.played;
+  return sameSourceValues(valuesOfRow(row), m) && row.played === m.played;
 }
 
 async function writeMatchesToSupabase(folder, matches) {

@@ -30,6 +30,7 @@ import { leagueTypeRank } from '../compute/leagueTypes.js';
 import { landingSettingsPayload } from './landingSettingsPayload.js';
 import { trackAdmin, readFields, fieldList } from './trackAdmin.js';
 import { loadPlayersMetadata } from '../data/supabasePlayersMetadata.js';
+import { fetchSourceLeagueName } from './supabaseAdmin.js';
 import { displayPlayerName, alternateName } from '../utils/nameDisplay.js';
 import { restartSplash, endSplash } from '../utils/splash.js';
 import { formatMatchDay } from '../utils/matchTime.js';
@@ -475,7 +476,8 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
         customFlags: {},
         csvText: null,        // set by the importer; overrides round-robin generation
         importOverrides: [],  // technical results decided in the import preview
-        uploadedFlags: []     // flag codes uploaded from this form — see wireUploadFlagPanel
+        uploadedFlags: [],    // flag codes uploaded from this form — see wireUploadFlagPanel
+        sourceLeagueName: null // Sync's Source League Name, inherited from the loaded preset
     };
 
     // Flag dropdowns are only useful if they offer the codes already in use —
@@ -506,7 +508,7 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
                         <input type="checkbox" id="preset-include-players" checked>
                         <span>Also copy its players (with flags &amp; retired state)</span>
                     </label>
-                    <small class="form-hint">Copies type, duration, entry fee, match length, medals &amp; prizes — so a recurring league doesn't have to be re-typed. The name, the issue date and the match results always stay yours to set.</small>
+                    <small class="form-hint">Copies type, duration, entry fee, match length, medals &amp; prizes, and its Sync Source League Name — so a recurring league doesn't have to be re-typed. The name, the issue date and the match results always stay yours to set.</small>
                 </div>
                 <div class="form-group">
                     <label for="new-league-name">League Name</label>
@@ -779,6 +781,9 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
         // save, exactly as it was the first time.
         state.importOverrides = d.overrides || [];
         state.csvText = (d.csvText && !p.ManualEntry) ? d.csvText : null;
+        // Not a form field, so it has to be carried by hand — otherwise
+        // re-saving the draft would stage it without the inherited name.
+        state.sourceLeagueName = p.SourceLeagueName || null;
 
         const flags = p.CustomFlags || {};
         const retired = new Set(p.RetiredPlayers || []);
@@ -930,6 +935,22 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
             if (presetDays) document.getElementById('new-duration-days').value = presetDays;
             document.getElementById('new-duration-mode').dispatchEvent(new Event('change'));
 
+            // The Source League Name (Sync → Active Leagues) is part of "the
+            // same league again" too: next month's league is fetched from the
+            // same league on the source site. Staged wins over published, as
+            // with the params above — a staged sync_settings edit first, then a
+            // still-pending preset league's own inherited name, then the DB.
+            // Loading a preset that has none clears a name inherited from a
+            // previously loaded one: the form reflects the LAST preset loaded.
+            let sourceName = null;
+            const stagedSync = getStagedContent(T.syncSettings());
+            if (stagedSync) { try { sourceName = (JSON.parse(stagedSync).sourceNames || {})[sourceId] || null; } catch { /* keep looking */ } }
+            if (!sourceName) sourceName = params.SourceLeagueName || null;
+            // A lookup failure must not cost the admin the rest of the preset.
+            if (!sourceName) sourceName = await fetchSourceLeagueName(sourceId).catch(() => null);
+            state.sourceLeagueName = sourceName;
+            const sourceNote = sourceName ? ` Source League Name "${esc(sourceName)}" will be set for Sync.` : '';
+
             let playerNote = '';
             if (withPlayers) {
                 const { allPlayers } = await loadLeagueMatches(sourceId);
@@ -954,7 +975,7 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
                 rerenderPlayers();
                 playerNote = ` with ${names.length} player${names.length === 1 ? '' : 's'}`;
             }
-            showMsg('add-msg', `Preset loaded from "${esc(sourceId)}"${playerNote}. Give the new league a name before creating it.`, 'success');
+            showMsg('add-msg', `Preset loaded from "${esc(sourceId)}"${playerNote}. Give the new league a name before creating it.${sourceNote}`, 'success');
         } catch (err) {
             showMsg('add-msg', `Could not load preset: ${err.message}`, 'error');
         } finally {
@@ -1278,6 +1299,7 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
             players: state.players,
             csvText: state.csvText,
             overrides: state.importOverrides,
+            sourceLeagueName: state.sourceLeagueName,
             // Flags uploaded for THIS league travel with it — read out of the
             // queue here, BEFORE removeGroup below can drop the ones a previous
             // save already folded into the draft's group.
@@ -1438,6 +1460,11 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
         params.Prizes = options.prizes;
     }
     if (retiredPlayers.length > 0) params.RetiredPlayers = retiredPlayers;
+    // Inherited from the preset league. Publishing writes it straight to
+    // leagues.source_league_name (see mapParamsToLeagueRow), so the new league
+    // is syncable from its first publish instead of waiting for a second
+    // Save & Publish round on the Sync page.
+    if (options.sourceLeagueName) params.SourceLeagueName = options.sourceLeagueName;
 
     // CSV: uploaded text wins; otherwise round-robin from players; otherwise header
     // only. Resolved BEFORE the params change is staged — a manually-built league
@@ -1462,7 +1489,8 @@ async function stageAddLeague(name, type, displayOrder, options = {}) {
         subject: name,
         // Pending shows how long the new league will run, so the duration is
         // reviewable before publish rather than only visible afterwards.
-        detail: `Runs ${describeDuration(params).toLowerCase()}`,
+        detail: `Runs ${describeDuration(params).toLowerCase()}`
+            + (params.SourceLeagueName ? ` · Source League Name "${params.SourceLeagueName}"` : ''),
         group: groupId,
         groupDescription
     });

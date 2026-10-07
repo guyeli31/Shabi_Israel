@@ -18,6 +18,7 @@
 import { supabase } from '../data/supabaseClient.js';
 import { parseCSVAllWithRounds } from '../data/csvParser.js';
 import { computeMatchHistoryReconcile } from '../data/matchHistoryReconcile.js';
+import { numEq, sameSourceValues, valuesOfRow } from '../data/matchValueEquality.js';
 import { DURATION_MODES, DEFAULT_DURATION_MODE } from '../compute/leagueDuration.js';
 
 import { invalidateAdminCache } from '../data/supabaseLoader.js';
@@ -51,22 +52,17 @@ function b64ToUint8Array(base64) {
     return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 }
 
-// Postgres `numeric` round-trips through PostgREST as a string; the parsed CSV
-// / staged JSON carry JS numbers. A strict === would read "0" !== 0 as a change.
-function numEq(x, y) {
-    if (x === null || x === undefined) return y === null || y === undefined;
-    if (y === null || y === undefined) return false;
-    return Number(x) === Number(y);
-}
-
 // Row-equality checks so the *sync functions below only UPSERT rows that
 // actually changed. Upserting an unchanged row still runs ON CONFLICT DO UPDATE,
 // which fires the updated_at + audit triggers on every row of the league — the
 // root cause of the "one edit → hundreds of ghost history rows" fan-out.
+//
+// A CSV import is the SOURCE restating matches, so "same" allows for its
+// rounding: a match a mail report recorded to three decimals is not changed by
+// a CSV showing it at two (js/data/matchValueEquality.js). An override, below,
+// is something an admin typed and is compared exactly (numEq).
 function sameMatchRow(row, m) {
-    return numEq(row.pr_a, m.prA) && numEq(row.luck_a, m.luckA) && numEq(row.score_a, m.scoreA)
-        && numEq(row.pr_b, m.prB) && numEq(row.luck_b, m.luckB) && numEq(row.score_b, m.scoreB)
-        && row.played === m.played;
+    return sameSourceValues(valuesOfRow(row), m) && row.played === m.played;
 }
 
 // Compare two timestamps as instants, not strings — a timestamptz round-trips
@@ -176,7 +172,33 @@ function mapParamsToLeagueRow(leagueId, p) {
         retired_players: p.RetiredPlayers || [],
         external_source_sync: p.ExternalSourceSync || null,
         last_updated: p.LastUpdated || null,
+        // Sent ONLY when the params carry one — which is a league created from a
+        // preset, inheriting the name of the league it was cloned from. The
+        // column is otherwise owned by the Sync page (updateSyncSettings), and
+        // the read path never puts SourceLeagueName into a league's params, so an
+        // ordinary Edit League save omits the key and the upsert leaves the
+        // column exactly as it was instead of nulling it.
+        ...(p.SourceLeagueName ? { source_league_name: p.SourceLeagueName } : {}),
     };
+}
+
+/**
+ * The published Source League Name of one league: the dedicated column, then
+ * the legacy per-league ExternalSourceSync jsonb — the same order
+ * public._source_league_name() resolves in, minus its fall-back to the id
+ * (a league with no name set has no name to hand on).
+ */
+export async function fetchSourceLeagueName(leagueId) {
+    const { data, error } = await supabase
+        .from('leagues')
+        .select('source_league_name, external_source_sync')
+        .eq('id', leagueId)
+        .maybeSingle();
+    if (error) throw new Error(`fetchSourceLeagueName failed for ${leagueId}: ${error.message}`);
+    if (!data) return null;
+    return data.source_league_name
+        || (data.external_source_sync && data.external_source_sync.sourceLeagueName)
+        || null;
 }
 
 /** Create or update a league's params row. */

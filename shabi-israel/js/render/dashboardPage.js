@@ -2160,12 +2160,18 @@ function renderWhatIfSimulator(ctx) {
     }
 
     /**
-     * May this row be simulated? A scenario is a complete statement or it is
-     * nothing: a match needs a winner AND, where the PR is scored, a PR winner.
-     * "Not played" is complete on its own — it removes the fixture, and a
-     * fixture that never happens awards no PR point to anybody.
+     * Has this row been given an outcome?
+     *
+     * An unanswered row is not an error and does not block anything — it is a
+     * pair the user has lined up and not yet decided, and the simulation simply
+     * leaves that fixture exactly as the baseline has it. Staging twenty matches
+     * and answering three is a legitimate way to work.
+     *
+     * "Not played" counts as answered: it removes the fixture, which is a
+     * decision. A fixture that never happens awards no PR point to anybody,
+     * which is why it needs no second half.
      */
-    function rowComplete(s) {
+    function rowAnswered(s) {
         if (s.result === 'NP') return true;
         if (!s.result) return false;
         return !needsPRWinner || !!prResultOf(s);
@@ -2313,9 +2319,16 @@ function renderWhatIfSimulator(ctx) {
     const scenarioOdds = () => {
         let p = 1;
         let counted = 0;
+        let notPlayed = 0;
         const factors = [];
         for (const s of staged) {
-            if (s.result === 'NP' || !s.result) continue;
+            // Counted apart, because they are different facts about the
+            // scenario: "you removed this fixture" and "you have not decided
+            // this one yet". Deriving one as `staged.length - counted` made an
+            // undecided row report itself as Not Played AND as undecided, in
+            // the same sentence.
+            if (s.result === 'NP') { notPlayed++; continue; }
+            if (!s.result) continue;
             // UBC: the chosen CELL's joint probability — never the match odds
             // times the PR odds, which would treat two outcomes of one draw as
             // independent events and understate every same-player cell.
@@ -2337,11 +2350,11 @@ function renderWhatIfSimulator(ctx) {
             counted++;
         }
         if (counted === 0) return null;
-        return { pct: p * 100, counted, skipped: staged.length - counted, factors };
+        return { pct: p * 100, counted, skipped: notPlayed, factors };
     };
 
-    /** Rows the user still has to answer — Run Simulation waits for them. */
-    const pendingRows = () => staged.filter(s => !rowComplete(s)).length;
+    /** How many staged rows carry no decision yet — reported, never enforced. */
+    const unansweredRows = () => staged.filter(s => !rowAnswered(s)).length;
 
     /**
      * Percentages stay readable across the whole range a product reaches: five
@@ -2363,15 +2376,18 @@ function renderWhatIfSimulator(ctx) {
      * text is restored after a run, so the figure cannot be lost by a reset.
      */
     function paintRunBtn() {
-        // A half-answered scenario is not a scenario. Blocking here rather than
-        // guessing a default is the whole reason an unanswered row is `null`:
-        // the panel would otherwise simulate a constellation nobody chose and
-        // print a probability for it.
-        const pending = pendingRows();
-        runBtn.disabled = pending > 0;
-        if (pending > 0) {
+        // Staged rows the user has not decided are skipped, not demanded. The
+        // ONE case that is still refused is a list of staged matches where none
+        // has an outcome: every row would be skipped, the run would reproduce
+        // the baseline, and the button would have promised a change it did not
+        // make. An empty list is not that case — it IS the baseline, and showing
+        // it is what the panel does on arrival.
+        const unanswered = unansweredRows();
+        const blocked = staged.length > 0 && unanswered === staged.length;
+        runBtn.disabled = blocked;
+        if (blocked) {
             runBtn.textContent = 'Run Simulation';
-            runBtn.title = `${pending} staged match${pending === 1 ? '' : 'es'} still need an outcome`;
+            runBtn.title = 'Give at least one staged match an outcome';
             return;
         }
 
@@ -2386,6 +2402,10 @@ function renderWhatIfSimulator(ctx) {
         runBtn.title = `Chance of all ${sc.counted} chosen outcome${sc.counted === 1 ? '' : 's'} happening: ${chain}`
             + ` at ${matchLengthForIdx(mlIdx)} points`
             + (sc.skipped ? ` — ${sc.skipped} match${sc.skipped === 1 ? '' : 'es'} set to Not Played, which carry no odds` : '')
+            // Said here rather than on each row: the rows are quiet about it by
+            // design, but a run that silently leaves staged matches untouched
+            // still has to be able to say so somewhere.
+            + (unanswered ? ` — ${unanswered} staged match${unanswered === 1 ? '' : 'es'} with no outcome yet, left as they are` : '')
             + (needsPRWinner ? ' — each figure is one cell of that match\'s outcome table, winner and PR together' : '')
             + (sc.pct > 0 && sc.pct < 50 ? ` (about 1 in ${Math.round(100 / sc.pct).toLocaleString('en-US')})` : '');
     }
@@ -2502,19 +2522,13 @@ function renderWhatIfSimulator(ctx) {
                         <button type="button" class="whatif-res ${s.result === 'NP' ? 'active' : ''}" data-res="NP" title="Not played">NP</button>
                         <button type="button" class="whatif-res ${s.result === 'B' ? 'active' : ''}" data-res="B" title="${escapeHtml(s.b)} wins${odds ? escapeHtml(oddsTitle(s.b, odds.b)) : ''}">B wins${oddsB}</button>
                    </div>`;
-            // An unanswered row is marked, not merely left blank: with twenty
-            // rows staged, "Run Simulation is disabled" has to point somewhere.
-            const pending = rowComplete(s)
-                ? ''
-                : `<span class="whatif-pending" title="Pick an outcome for this match before running the simulation">needs a pick</span>`;
             return `
-                <div class="whatif-row ${s.wasPlayed ? 'was-played' : ''}${rowComplete(s) ? '' : ' is-pending'}" data-idx="${i}">
+                <div class="whatif-row ${s.wasPlayed ? 'was-played' : ''}" data-idx="${i}">
                     <span class="whatif-row-player">${stagedIdentity(s.a)}</span>
                     <span class="whatif-vs-small">vs</span>
                     <span class="whatif-row-player">${stagedIdentity(s.b)}</span>
                     ${playedBadge}
                     ${controls}
-                    ${pending}
                     ${rollback}
                     <button type="button" class="whatif-del" title="Remove">&times;</button>
                 </div>
@@ -2608,6 +2622,13 @@ function renderWhatIfSimulator(ctx) {
                 (m.playerA === b && m.playerB === a);
 
             for (const s of staged) {
+                // AN UNDECIDED ROW CHANGES NOTHING — and `continue` has to come
+                // BEFORE the splices below, which strip the pair out of both
+                // arrays. Falling through would have deleted a real played
+                // result and re-added the fixture as unplayed, i.e. silently
+                // applied "Not Played" to a match the user never answered.
+                if (!rowAnswered(s)) continue;
+
                 const pred = matchPredicate(s.a, s.b);
                 // Remove any existing entry for this pair in both arrays
                 const pIdx = simMatches.findIndex(pred);
@@ -2618,11 +2639,10 @@ function renderWhatIfSimulator(ctx) {
                 const sched = findSchedule(s.a, s.b);
                 if (!sched) continue;
 
-                // `!s.result` is an unanswered row. Run Simulation is disabled
-                // while any exists, so this is unreachable from the UI — but the
-                // alternative branch would read "not A" as "B wins" and invent a
-                // result, which is the kind of guess that must not be one line
-                // away from a guard that could be removed.
+                // `!s.result` cannot reach here — rowAnswered() filtered it out
+                // above — but the alternative branch reads "not A" as "B wins",
+                // and inventing a result must not be one line away from a guard
+                // somebody could remove.
                 if (s.result === 'NP' || !s.result) {
                     simRemaining.push({ ...sched, played: false, scoreA: null, scoreB: null, prA: null, prB: null, luckA: null, luckB: null });
                 } else {

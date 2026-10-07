@@ -172,7 +172,13 @@
       "Bash(node --check shabi-israel/js/render/analyticsPage.js)",
       "Bash(curl -s https://oaowwbwssfsohaskrgnc.supabase.co/rest/v1/site_meta?select=data_version,updated_at -H 'apikey: sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G' -H 'Authorization: Bearer sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G')",
       "Bash(curl -s 'https://oaowwbwssfsohaskrgnc.supabase.co/rest/v1/match_reports?select=status,auto_applied,league_id,received_at&order=received_at.desc&limit=8' -H 'apikey: sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G' -H 'Authorization: Bearer sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G')",
-      "Bash(curl -s 'https://oaowwbwssfsohaskrgnc.supabase.co/rest/v1/leagues?select=id,last_updated,running&order=last_updated.desc&limit=5' -H 'apikey: sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G' -H 'Authorization: Bearer sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G')"
+      "Bash(curl -s 'https://oaowwbwssfsohaskrgnc.supabase.co/rest/v1/leagues?select=id,last_updated,running&order=last_updated.desc&limit=5' -H 'apikey: sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G' -H 'Authorization: Bearer sb_publishable_LiYVVTwNqMMiXVdtxukyxw_UyZQBa8G')",
+      "Bash(curl -s -o /dev/null -w \"8090 -> %{http_code}\\\\n\" http://localhost:8090/shabi-israel/index.html)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:8090/shabi-israel/index.html\")",
+      "PowerShell([System.TimeZoneInfo]::ConvertTimeFromUtc\\(\\(Get-Date\\).ToUniversalTime\\(\\), [System.TimeZoneInfo]::FindSystemTimeZoneById\\('Israel Standard Time'\\)\\).ToString\\('dddd, dd/MM/yyyy HH:mm'\\))",
+      "PowerShell($g = \\(Get-Command gh -ErrorAction SilentlyContinue\\).Source; if \\(-not $g\\) { $g = \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" }; if \\(Test-Path $g\\) { & $g run list --workflow project-title-race.yml --limit 8 --json databaseId,displayTitle,event,createdAt,conclusion,number; \"---\"; & $g run list --workflow sync-source.yml --limit 6 --json databaseId,displayTitle,event,createdAt,conclusion,number } else { \"gh not installed\"; git remote -v })",
+      "Bash(python \"C:/Users/User/AppData/Local/Temp/claude/c--WORKSPACE-Shabi-Israel/3792775c-e5ea-4ccf-8d92-4968febfffbd/scratchpad/apply_fix.py\")",
+      "Bash(node --check shabi-israel/js/admin/supabaseAdmin.js)"
     ]
   },
   "hooks": {
