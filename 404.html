@@ -24,7 +24,7 @@
             var path = location.pathname;
             // Folders that are already correct destinations. If one of these 404s,
             // the target genuinely does not exist — redirecting again would loop.
-            var SERVED = ['/shabi-israel/', '/WC26/'];
+            var SERVED = ['/shabi-israel/', '/WC26/', '/gevkalil/'];
             for (var i = 0; i < SERVED.length; i++) {
                 if (path.indexOf(SERVED[i]) === 0) return;
             }

@@ -379,6 +379,16 @@ function clickTargetHtml(target) {
         const items = target.slice(mi + marker.length).split('; ').map(stagedMatchupHtml).join('; ');
         return `${escapeHtml(head)}${items}`;
     }
+    // League-type filter pills: "<section>: type <leaguetype> on|off" — the
+    // Records/Achievements type bar, the PR-distribution bars, the player pages'
+    // type filters (landingPage / dashboardPage / playerGeneralPage all emit this
+    // one shape). Render the type as its real coloured pill instead of the bare
+    // word "doubling"/"ubc"/"regular". "<section>: type all" names no single type,
+    // so it is left to fall through and stay plain.
+    {
+        const m = /^(.+): type (doubling|ubc|regular) (on|off)$/.exec(target);
+        if (m) return `${escapeHtml(m[1])}: type ${typePillHtml(m[2])} ${escapeHtml(m[3])}`;
+    }
     // Admin-mode events (js/admin/trackAdmin.js grammar): enrich the SUBJECT after
     // " — " so an admin action reads with the same league type-pill / player flag +
     // title chip as every other row. The "[field: old→new]" tail and the

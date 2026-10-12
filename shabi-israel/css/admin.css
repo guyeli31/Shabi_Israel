@@ -1710,7 +1710,7 @@ table.font-large { font-size: var(--fs-093); }
 }
 
 /* ─────────────────────────────────────────────────────────────
-   F5 — CSV Import Preview (Edit League ▸ Import CSV/Excel)
+   F5 — CSV Import Preview (Edit League ▸ Import CSV)
    ─────────────────────────────────────────────────────────────
    The only FF table rendered by the lab's `mountFFTable` (F1–F4/F6/F7 still
    hand-build the same chrome). One row per NEW match in the uploaded file,

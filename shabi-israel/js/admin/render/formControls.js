@@ -14,10 +14,10 @@
  * @param {string} id — id of the file input (and the label's `for`).
  * @param {object} [opts]
  * @param {string} [opts.label="Choose File"] — label button text.
- * @param {string} [opts.accept=".csv,.xlsx"] — input accept filter.
+ * @param {string} [opts.accept=".csv"] — input accept filter.
  * @returns {string} HTML string.
  */
-export function filePickerHTML(id, { label = 'Choose File', accept = '.csv,.xlsx' } = {}) {
+export function filePickerHTML(id, { label = 'Choose File', accept = '.csv' } = {}) {
     return `<div class="custom-file-input">
         <label class="btn btn-secondary btn-sm" for="${id}">${label}</label>
         <input type="file" id="${id}" accept="${accept}">

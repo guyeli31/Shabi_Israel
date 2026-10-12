@@ -22,9 +22,10 @@ it is the domain root, and the app lives one folder down:
 <repo root>              → golan.me.uk/            hub page, CNAME, 404.html
 ├── shabi-israel/        → golan.me.uk/shabi-israel/   the whole app
 │   └── *.html  css/  js/  assets/  vendor/  table-lab/
-└── WC26/                → golan.me.uk/WC26/       predates the layout; keeps
-                                                    its original URL, borrows the
-                                                    app's CSS via ../shabi-israel/
+├── WC26/                → golan.me.uk/WC26/       predates the layout; keeps
+│                                                   its original URL, borrows the
+│                                                   app's CSS via ../shabi-israel/
+└── gevkalil/            → golan.me.uk/gevkalil/   the live quiz (see § Gevkalil)
 ```
 
 Everything else at the repo root (`scripts/`, `docs/`, `sql/`, `tools/`, `v2/`)
@@ -62,6 +63,108 @@ is tooling, not served content.
   ever needs its own repo instead, the domain has to move to a
   `<user>.github.io` repo first; `golan.me.uk/shabi-israel/` stays identical
   either way, so no link breaks.
+
+## Gevkalil — the live quiz (`gevkalil/`)
+
+A second project on the domain, served at `golan.me.uk/gevkalil/`: a Kahoot-style
+live quiz. The host (an allowlisted admin, on a desktop) projects the question;
+players join from a phone or a desktop with a temporary name and no account. One
+quiz on air at a time. Hebrew, RTL. No build step, same rules as the app (relative
+paths only, nothing off-origin) plus a CSP `<meta>` on every page.
+
+| Page | What it is |
+|---|---|
+| `index.html` | Entry + the player's screen. Shows whether a quiz is on air; `ADMIN LOGIN` is always present on the entry screens. `?demo` plays the demo quiz. |
+| `host.html` | The projected screen. After login, the host controls sit on top of it: ☰ (drawer, left — like the app's admin sidebar) and ▶ / Space for "next". |
+| `editor.html` | The quiz editor — the TOOLS interface (`tools/START_GEVKALIL_EDITOR.bat`). Questions, interludes, media, backgrounds, themes, with live previews of both screens. |
+
+- **A player is not a Supabase user.** The whole audience shares the `anon` key,
+  so no `gk_*` table a player touches is readable or writable by anon. Every
+  player action is a SECURITY DEFINER function keyed by a device token
+  (`localStorage['gevkalil:device']`; the server stores only its sha256). The
+  server owns the clock, the correctness check and the score. **The correct
+  answers live in `gk_items`, which anon cannot read** — they reach a browser
+  only inside `gk_public_state`, written by `_gk_publish()`, and only after the
+  reveal. A new feature that needs something on a player's screen adds it to
+  `_gk_publish()` for the right phase; it never grants anon a table.
+- **Anon reads exactly two single-row tables**, `gk_public_state` and
+  `gk_public_live`. Both screens are pure functions of them
+  (`js/data/stateSource.js`): Realtime is the fast path, a poll is the safety
+  net, and a refresh or a dropped connection resumes from `gk_me()`. A phone
+  that lost its token (private tab, another browser) asks to be linked back to
+  its name and the host approves it in the drawer.
+- **Host authority is `public.is_admin()`** — the same allowlist as the app. In a
+  `gk_admin_*` function it is the first statement.
+- **Supabase's default privileges grant EXECUTE on every new public function to
+  anon.** `revoke … from public` alone leaves an internal helper callable; the
+  grant loop at the bottom of `sql/gevkalil.sql` revokes from `public, anon,
+  authenticated` and grants back by name. A new `_gk_*` helper is covered by
+  that loop only once the file is re-run.
+- **A `DELETE`/`UPDATE` with no `WHERE` fails when called through the API**
+  (pg-safeupdate), even inside a SECURITY DEFINER function — and passes in
+  psql, so only the browser finds it. Write `where true`.
+- **Going back is free because the table is derived.** The leaderboard is always
+  the sum of non-voided `gk_answers`; `gk_admin_goto(k)` voids the answers from
+  item k on. Never store a running total.
+- **Media are files in the repo**, one folder per kind:
+  `gevkalil/media/{images,videos,audio,backgrounds}/`. The database stores the
+  path and a CHECK refuses anything that is not one (so no off-origin URL can be
+  saved). The editor's pickers read `media/manifest.json` — **generated, never
+  hand-edit**: after adding or removing a file run
+  `node scripts/gevkalil-media-manifest.mjs` (`--check` gates it). File names:
+  `A-Z a-z 0-9 . _ -` only.
+- **One stage, three audiences.** `js/host/stage.js` draws the quiz for the
+  projected screen AND for every player (`gkPlayer.js` embeds it and adds one
+  status line underneath). Options, not forks: `role: 'player'` makes the
+  answers buttons; `compact` (touch, or narrower than 760px) is the phone
+  layout — the question and its picture are shown, **the option texts are
+  not**, only colour and emblem; `media` is `'full'` on the projected screen
+  and in the demo, `'muted'` for a desktop player and `'still'` for a phone in
+  a live quiz, because the room already has the sound. The stage is sized in
+  container units of its frame (`.st-frame`), never `vw`/`vh` — that is what
+  lets the same CSS serve a projector, an embedded player and the editor's
+  scaled preview. A change to how a question looks is made once, here.
+- **The demo (`index.html?demo`) is a whole quiz with no backend.**
+  `js/demo/engine.js` plays the host and eleven bots on a timer and emits state
+  in exactly the shape `_gk_publish()` / `gk_me()` produce, so it runs the real
+  rendering code — when that shape changes, the engine and
+  `js/preview/mock.js` change with it. Its content is `js/demo/demoQuiz.js`,
+  mirrored by `sql/gevkalil_demo_seed.sql`; its video and audio are synthetic,
+  regenerated by `node scripts/gevkalil-demo-media.mjs` (two questions ask about
+  them — "how many balls", "how many beeps"). The points formula exists twice
+  for this reason only: `_gk_points` in SQL is the authority, `js/scoring.js`
+  is the demo's copy.
+- **CSS animations do not advance in an occluded Playwright MCP window.** An
+  element measured "mid-entrance" seconds after it appeared (a podium column
+  40% low, a ×2 marker four times its size) is the frozen first frame, not a
+  layout bug — check `getAnimations()[0].currentTime` before chasing it.
+- **The editor previews are the real pages**, framed with `?preview` and fed
+  invented state by `postMessage` (`js/preview/mock.js`). A screen that must be
+  previewable therefore renders only from the state object — no fetch of its own.
+- **All DOM goes through `h()` in `js/ui/dom.js`** — text nodes only, no
+  `innerHTML` anywhere in `gevkalil/`. Names and question text are strangers'
+  input shown on a projector.
+- **Tile N is always option N**: red, blue, yellow, black, purple
+  (`js/ui/teams.js`; artwork in `assets/teams/<colour>.svg`). Themes restyle the
+  stage, never the tiles.
+- **Verify** (local Docker Supabase; both refuse to touch a quiz that is really
+  live, and neither can reach production):
+  `node scripts/gevkalil-security-check.mjs` — what a player's browser cannot do,
+  each refusal paired with a control;
+  `node scripts/gevkalil-sim.mjs` — a whole quiz with 30 simulated phones,
+  including going back and a device relink.
+- **`node scripts/gevkalil-layout-check.mjs` after ANY change to a Gevkalil
+  screen** (needs the dev server on :8090, no login, no database). It asks of
+  every stage of a quiz, for the projected screen, a desktop player and a phone
+  player, at ten window shapes: is any text or picture cut by a clipping
+  ancestor, or a label truncated to almost nothing. "Nothing leaves the
+  viewport" is NOT that question — the leaderboard shipped with names squeezed
+  to zero and points off the edge while passing it, because the text was cut by
+  its own row, inside the viewport, in a window taller than the one tested.
+  Sizing type from a container's HEIGHT alone is what did it; bound it by the
+  width too (`min(<from height>, <n>cqw)`).
+- SQL: `sql/gevkalil.sql` (re-runnable; after `admin_write_allowlist_2026-10-09.sql`),
+  optional `sql/gevkalil_demo_seed.sql`.
 
 ## Data & query standards
 

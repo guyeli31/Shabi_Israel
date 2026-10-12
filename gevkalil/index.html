@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <!-- Everything this page may load is listed here, and nothing is off-origin
+         except the app's own Supabase backend (https for the API, wss for the
+         live channel; the 127.0.0.1 pair is the local Docker instance and is
+         unreachable from a visitor's device). No inline script or style is
+         permitted, so a name or question that somehow carried markup could not
+         run even if it reached the page as markup — which js/ui/dom.js already
+         prevents. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://oaowwbwssfsohaskrgnc.supabase.co wss://oaowwbwssfsohaskrgnc.supabase.co http://127.0.0.1:54321 ws://127.0.0.1:54321; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <title>Gevkalil</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#0b5d2c">
+    <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
+    <link rel="stylesheet" href="../shabi-israel/css/fonts.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/host.css">
+    <link rel="stylesheet" href="css/player.css">
+</head>
+<body>
+    <div id="app" class="pl"></div>
+    <script type="module" src="js/gkPlayer.js"></script>
+</body>
+</html>

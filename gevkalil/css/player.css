@@ -1,0 +1,91 @@
+/* player.css — index.html: the entry screens, and the frame around a player's
+   stage. One screen, no scrolling.
+
+   The quiz itself is drawn by the stage (css/host.css); this file owns only
+   what is the player's own: the header chip, the entry forms, and the status
+   line under the stage. */
+
+.pl {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    padding: max(.7rem, env(safe-area-inset-top)) max(.9rem, env(safe-area-inset-right)) max(.6rem, env(safe-area-inset-bottom)) max(.9rem, env(safe-area-inset-left));
+    gap: .6rem;
+}
+/* While playing, the stage runs edge to edge; only the header and the status
+   line keep the page's side padding. */
+.pl[data-playing] { padding-inline: 0; padding-bottom: 0; gap: .35rem; }
+.pl[data-playing] .pl-head { padding-inline: max(.9rem, env(safe-area-inset-right)) max(.9rem, env(safe-area-inset-left)); }
+
+.pl-head { display: flex; align-items: center; justify-content: space-between; gap: .6rem; min-height: 2.2rem; flex: none; }
+.pl-brand { font-weight: 800; font-size: 1.2rem; letter-spacing: .02em; direction: ltr; display: flex; align-items: center; gap: .5em; }
+.pl-brand b { color: var(--accent); margin-inline-start: -.5em; }
+.pl-demo-tag { direction: rtl; font-size: .7em; background: var(--accent); color: var(--accent-ink); padding: .1em .7em; border-radius: 999px; }
+.pl-chip {
+    display: flex; align-items: center; gap: .5em;
+    background: var(--panel); border-radius: 999px; padding: .25em .9em;
+    box-shadow: inset 0 0 0 2px var(--line);
+    max-width: 62%;
+}
+.pl-chip-name { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-chip-points { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; flex: none; }
+
+.pl-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pl-entry { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pl-stage { flex: 1; min-height: 0; }
+.pl-view {
+    flex: 1; min-height: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 1rem; text-align: center;
+    animation: gk-fade-up .35s ease both;
+}
+
+.pl-foot { display: flex; justify-content: center; flex: none; }
+.pl-admin {
+    font-size: .8rem; font-weight: 800; letter-spacing: .08em;
+    color: var(--ink-soft); text-decoration: none;
+    padding: .5em 1.1em; border-radius: 999px; box-shadow: inset 0 0 0 2px var(--line);
+    direction: ltr;
+}
+
+/* ---- entry text ----------------------------------------------------------- */
+.pl-big { font-size: clamp(1.9rem, 9vw, 3rem); font-weight: 800; line-height: 1.1; margin: 0; text-wrap: balance; }
+.pl-sub { font-size: 1.1rem; color: var(--ink-soft); margin: 0; max-width: 24rem; text-wrap: balance; }
+.pl-sub--small { font-size: .92rem; }
+.pl-emoji { font-size: clamp(3.5rem, 22vw, 6rem); line-height: 1; animation: gk-pop .5s var(--ease-pop) both; }
+.pl-status {
+    display: inline-flex; align-items: center; gap: .55em;
+    background: var(--panel); border-radius: 999px; padding: .45em 1.1em; font-weight: 800;
+    box-shadow: inset 0 0 0 2px var(--line);
+}
+.pl-dot { width: .75em; height: .75em; border-radius: 50%; background: var(--none); flex: none; }
+.pl-status[data-live] .pl-dot { background: #ff3b3b; box-shadow: 0 0 0 0 rgba(255, 59, 59, .7); animation: pl-pulse 1.4s infinite; }
+@keyframes pl-pulse { to { box-shadow: 0 0 0 .7em rgba(255, 59, 59, 0); } }
+
+.pl-form { width: 100%; max-width: 22rem; display: flex; flex-direction: column; gap: .7rem; }
+.pl-form .gk-input { font-size: 1.3rem; }
+.pl-form .gk-btn { font-size: 1.2rem; }
+.pl-view > a.gk-btn { text-decoration: none; font-size: 1.15rem; }
+.pl-link { color: var(--ink); font-weight: 700; text-underline-offset: .25em; }
+.pl-error { color: #fff; background: var(--bad); border-radius: var(--radius); padding: .55em .9em; font-weight: 800; margin: 0; }
+
+/* ---- the status line --------------------------------------------------------
+   One line about this player, under the stage. Its colour is the answer's
+   outcome: the stage shows what the right answer was, this shows how YOU did. */
+.pl-strip {
+    flex: none;
+    display: flex; align-items: center; justify-content: center; gap: .8rem; flex-wrap: wrap;
+    min-height: 3.2rem;
+    padding: .5rem max(.9rem, env(safe-area-inset-right)) max(.5rem, env(safe-area-inset-bottom)) max(.9rem, env(safe-area-inset-left));
+    background: rgba(0, 0, 0, .34);
+    font-weight: 800; font-size: 1.1rem; text-align: center;
+    transition: background-color .25s ease;
+}
+.pl-strip[data-tone="good"] { background: var(--good); }
+.pl-strip[data-tone="bad"] { background: var(--bad); }
+.pl-strip[data-tone="none"] { background: #4a4f5c; }
+.pl-strip[data-tone="sent"] { background: rgba(0, 0, 0, .55); }
+.pl-strip[data-tone="good"] .pl-strip-text, .pl-strip[data-tone="bad"] .pl-strip-text { font-size: 1.3em; animation: gk-pop .45s var(--ease-pop) both; }
+.pl-strip-actions { display: flex; gap: .5rem; flex-wrap: wrap; justify-content: center; }
+.pl-strip-actions:empty { display: none; }
+.pl-strip-actions a { text-decoration: none; }

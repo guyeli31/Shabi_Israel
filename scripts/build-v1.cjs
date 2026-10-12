@@ -54,13 +54,16 @@ const COPY_DOMAIN_FILES = ['CNAME', 'index.html', '404.html'];
 // Domain-root project folders — served from golan.me.uk/<dir>/, NOT from inside
 // shabi-israel/. WC26 predates the multi-project layout and keeps its original
 // URL; it borrows the app's CSS via ../shabi-israel/css/.
-const COPY_DOMAIN_DIRS = ['WC26'];
+// gevkalil is a full sibling project (the live quiz): its own pages, CSS and
+// media, importing only the Supabase client from the app.
+const COPY_DOMAIN_DIRS = ['WC26', 'gevkalil'];
 const MINIFY = false; // keep readable for first-pass verification; flip to true for prod
 
 // HTML pages to process: the app's own pages plus any domain-root project page.
 function discoverHtml() {
   const siteHtml = fs.readdirSync(SITE).filter(f => f.endsWith('.html'));
-  const extra = ['WC26/wc26.html'].filter(p => fs.existsSync(path.join(ROOT, p)));
+  const extra = ['WC26/wc26.html', 'gevkalil/index.html', 'gevkalil/host.html', 'gevkalil/editor.html']
+    .filter(p => fs.existsSync(path.join(ROOT, p)));
   return [...siteHtml, ...extra];
 }
 
@@ -113,6 +116,9 @@ function copyStatic() {
     const p = path.join(DIST, 'WC26', f);
     if (fs.existsSync(p)) fs.rmSync(p);
   }
+  // Same for gevkalil/js — its three entries are bundled; vendor/ (a classic
+  // script the page loads by name) stays.
+  rmrf(path.join(DIST, 'gevkalil', 'js'));
 }
 
 // ---- step 2: collect JS entries + write temp inline-entry files ---------
@@ -138,10 +144,15 @@ function collectEntries(htmlFiles) {
       const src = getAttr(attrs, 'src');
       if (src && isLocal(src)) {
         // external module entry (e.g. js/analytics.js) — dedupe across pages
+        // Resolved against the PAGE's folder, and deduped on the resolved
+        // path: a domain-root project (gevkalil/) has its own js/ beside its
+        // pages, so `js/x.js` there is not the app's `js/x.js`. For the app's
+        // own pages `dir` is SITE, so this is the same path as before.
         const outName = path.basename(src).replace(/\.js$/, '');
-        if (!seenExternal.has(src)) {
-          seenExternal.add(src);
-          entries.push({ in: path.join(SITE, src), out: outName });
+        const absSrc = path.resolve(dir, src);
+        if (!seenExternal.has(absSrc)) {
+          seenExternal.add(absSrc);
+          entries.push({ in: absSrc, out: outName });
         }
         htmlMap[rel].externalSrc = src;
         htmlMap[rel].externalOut = outName;

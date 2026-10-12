@@ -246,6 +246,11 @@ export async function exportWhatsAppTableImage({ sourceTable, filename, title, s
         // The identity chip's name span clips for its ellipsis; in a fixed
         // frame there is nothing to truncate, and the clip would eat the badge.
         s.querySelectorAll('.app-identity-name').forEach(n => { n.style.overflow = 'visible'; });
+        // Flag → name spacing as in every table row (`.flag` margin-right 0.3em
+        // plus the space character after it). The chip's own gap is a fixed
+        // --space-xs (4px), tuned for small UI text; at this font size the
+        // flag would sit visibly tighter than in the rows right below it.
+        s.querySelectorAll('.app-identity').forEach(c => { c.style.gap = '0.55em'; });
         normaliseTitleBadgesForExport(s);
         header.appendChild(s);
     } else if (subtitle) {

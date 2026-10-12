@@ -389,59 +389,52 @@
    in it — were squeezed to 0px and 1px. The names are the subject of the row, so
    they get a floor and the date yields; a shortened date still reads, an erased
    name does not. */
-/* TWO LINES once the picker itself is narrower than the one-line layout needs:
-   the date above, the match below.
-   Measured, not guessed: across this league's 89 matches the widest pairing in
-   its emphasised (current) form needs a 430px field, and the steppers take 74px
-   more. Below that, one line truncated in three places at once — "7 Jul 2026,
-   16:…", a title badge cut off mid-row, "ilanblu…" — erasing exactly what the
-   row exists to show. When the date and the match cannot share a line, the
-   honest layout is to stop making them compete: the match line then owns the
-   full width and nothing is cut, at the cost of a slightly taller field.
-   Keyed to the PICKER's width, so it holds for a narrow window, a narrow phone
-   and any future column this control is dropped into alike. */
-/* The probe: the same row, laid out on one line with no width limit, so its
-   natural width can be compared with what the field actually has. Not painted —
-   it only ever gets measured. */
-.snap-display--probe {
-    visibility: hidden;
-    inset: auto;
-    top: 0;
-    left: 0;
-    width: max-content;
-    max-width: none;
-    background: none;
-}
-
-/* A row that does NOT fit on one line stacks: date above, match below. The
-   decision is per row (see mountSnapshotPicker), because the rows differ far
-   more than the viewports do — one breakpoint would stack "ys beats Yaniv162",
-   which has room to spare at any width, and still truncate "Hummus NC M2 beats
-   YossiEliezer23", which never fits beside a date. */
-.snap-display.is-stacked {
-    flex-wrap: wrap;
-    align-content: center;
-    gap: 0 0.3em;
-    white-space: normal;
-}
-.snap-display.is-stacked .snap-opt {
-    flex-wrap: wrap;
-    gap: 0 0.3em;
-    row-gap: 0;
-}
-.snap-display.is-stacked .snap-opt-date {
-    flex: 1 1 100%;
-    font-size: 0.88em;
-    line-height: 1.25;
-}
-
-/* Only the HEIGHT stays width-driven: once the picker is narrow enough that some
-   row will stack, the field reserves both lines for every row. Otherwise the
-   control — and everything below it — would change height on each ‹ › step, as
-   long and short rows alternate. */
+/* ── ONE LINE WIDE, TWO LINES NARROW — and never a mix ──────────────────────
+   The wide layout is unchanged: date, winner, verb, loser, all on one line.
+   Below the breakpoint EVERY row stacks — the date on its own line, the match
+   under it — whether or not that particular row would have fitted.
+   "Whether it would have fitted" is exactly what this used to ask, per row, with
+   a hidden probe. It answered correctly and still read as a fault: "Avi beats
+   Yannay" sat inline while "Hummus NC M2 beats YossiEliezer23" stacked, so
+   stepping ‹ › through a season moved the date between line one and line two
+   depending on whose names came up, and the reader had to find it again at every
+   step. Uniform beats individually-optimal for a control you step through.
+   503px is measured, not picked: the widest pairing in its emphasised (current)
+   form needs a 430px field and the steppers take 74px more. So the breakpoint is
+   the width at which the one-line layout stops being able to hold EVERY row —
+   above it nothing is ever cut, below it nothing is ever inline.
+   A container query, not a viewport one: the rule follows the picker's own
+   width, so it holds for a narrow window, a phone, and any future column this
+   control is dropped into. */
 @container (max-width: 503px) {
+    .snap-display {
+        flex-wrap: wrap;
+        align-content: center;
+        white-space: normal;
+        padding: 0 0.5em;
+    }
+    .snap-opt {
+        flex-wrap: wrap;
+        gap: 0 0.3em;
+        row-gap: 0;
+    }
+    /* `flex: 1 1 100%` is what puts the date on its own line; the two
+       `.snap-display` overrides above it are undone here for the same reason. */
+    .snap-display .snap-opt { flex-wrap: wrap; }
+    .snap-opt-date,
+    .snap-display .snap-opt-date {
+        flex: 1 1 100%;
+        /* Relative to the row's own text, like every other size in this control,
+           so it tracks the clamp()-driven field font instead of stepping. */
+        font-size: 0.88em;
+        line-height: 1.25;
+    }
+
+    /* Both lines are reserved for every row, which is only true because the
+       stacking is now unconditional below this width: a field whose height
+       depended on which match was selected made everything under it jump on
+       each ‹ › step. */
     .snap-nav .snap-select { min-height: 3.2em; }
-    .snap-display { padding: 0 0.5em; }
 }
 
 /* ── Title Race (B4b) ───────────────────────────────────────────────────────

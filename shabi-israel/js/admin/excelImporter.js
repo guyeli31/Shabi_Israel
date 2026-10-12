@@ -1,6 +1,7 @@
 /**
- * excelImporter.js — Import Excel (.xlsx) or CSV files via drag & drop or file picker.
- * Uses SheetJS (loaded from CDN in admin.html) for Excel parsing.
+ * excelImporter.js — Import CSV files via drag & drop or file picker.
+ * CSV only: the leagues are always exported/edited as CSV, so the SheetJS
+ * (.xlsx) dependency was removed — no vendored library, no off-origin load.
  */
 
 import { addChange, readOverridesForEdit, stageManualOverrides, T } from './stagingStore.js';
@@ -13,7 +14,7 @@ import { revealMsg } from './msgScroll.js';
 import { trackAdmin } from './trackAdmin.js';
 
 /**
- * Render the Excel/CSV import UI into a container.
+ * Render the CSV import UI into a container.
  *
  * Two modes, one UI — the drop zone, the compatibility report and the F5
  * decision table are identical in both, which is the point: importing results
@@ -45,7 +46,7 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone, o
 
     container.innerHTML = `
         <div class="admin-card">
-            <h2>${escHtml(opts.heading || 'Import CSV / Excel')}</h2>
+            <h2>${escHtml(opts.heading || 'Import CSV')}</h2>
             <div id="import-msg"></div>
             <div id="drop-zone" style="
                 border: 2px dashed var(--color-border);
@@ -58,10 +59,10 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone, o
                 margin-bottom: var(--space-md);
             ">
                 <p style="font-size:1.1rem;margin-bottom:var(--space-sm)">
-                    Drag & drop .xlsx or .csv file here
+                    Drag & drop a .csv file here
                 </p>
                 <p style="font-size:0.85rem">or click to browse</p>
-                <input type="file" id="file-input" accept=".xlsx,.csv" style="display:none">
+                <input type="file" id="file-input" accept=".csv" style="display:none">
             </div>
             <div id="csv-validation"></div>
             <div id="preview-area" style="display:none">
@@ -135,26 +136,12 @@ export function renderExcelImporter(container, leagueId, refreshBadge, onDone, o
                 const text = await file.text();
                 parsedCSV = text;
                 showPreview(text);
-            } else if (name.endsWith('.xlsx')) {
-                const buffer = await file.arrayBuffer();
-                const csvText = parseExcel(buffer);
-                parsedCSV = csvText;
-                showPreview(csvText);
             } else {
-                showMsg('import-msg', 'Unsupported file type. Use .xlsx or .csv', 'error');
+                showMsg('import-msg', 'Unsupported file type. Use a .csv file.', 'error');
             }
         } catch (err) {
             showMsg('import-msg', `Error reading file: ${err.message}`, 'error');
         }
-    }
-
-    function parseExcel(buffer) {
-        if (typeof XLSX === 'undefined') {
-            throw new Error('SheetJS (XLSX) library not loaded. Check CDN script in admin.html.');
-        }
-        const workbook = XLSX.read(buffer, { type: 'array' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        return XLSX.utils.sheet_to_csv(firstSheet);
     }
 
     function showPreview(csvText) {

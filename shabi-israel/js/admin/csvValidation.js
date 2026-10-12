@@ -1,5 +1,5 @@
 /**
- * csvValidation.js — Pre-stage compatibility report for CSV/Excel imports.
+ * csvValidation.js — Pre-stage compatibility report for CSV imports.
  *
  * When an admin uploads a CSV to replace a league's data, this compares the
  * uploaded file against the league's CURRENT state (staged version if present,

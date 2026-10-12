@@ -2935,50 +2935,31 @@ function mountSnapshotPicker({ input, prevBtn, nextBtn, options, params, onChang
     display.setAttribute('aria-hidden', 'true');
     input.parentElement.appendChild(display);
 
-    // Does THIS row fit on one line? Asked per selection, not answered once by a
-    // width threshold — the rows differ enormously ("ys beats Yaniv162" against
-    // "Hummus NC M2 beats YossiEliezer23"), so a single breakpoint is always
-    // wrong for half of them: it stacks short rows that had room to spare and
-    // truncates long ones that never did. The probe renders the same markup with
-    // the one-line rules and no width limit, and its natural width is compared
-    // with what the field actually has.
-    const probe = document.createElement('span');
-    probe.className = 'snap-display snap-display--probe';
-    probe.setAttribute('aria-hidden', 'true');
-    input.parentElement.appendChild(probe);
-
+    // THE ROW SHAPE IS NO LONGER MEASURED.
+    //
+    // A hidden probe used to lay each row out on one line with no width limit
+    // and compare its natural width with the field's, so a row stacked only when
+    // it had to. It worked, and it was the wrong thing to want: the date then
+    // moved between line one and line two as you stepped ‹ › through a season,
+    // because the answer depended on whose names came up. Stacking every row
+    // unconditionally (css/dashboard.css, .snap-opt-date) costs one line of
+    // height and puts the date in the same place on every row — so the probe,
+    // its stylesheet rule and the resize plumbing below all went with it.
     function paintDisplay() {
         const o = options[index];
-        const html = nameHtmlFor(o) || escapeHtml(o.label);
-        const fontSize = getComputedStyle(input).fontSize;
-        display.innerHTML = html;
-        display.style.fontSize = fontSize;
-        probe.style.fontSize = fontSize;
-        probe.innerHTML = html;
-        // clientWidth excludes the border but includes padding, which the probe
-        // also carries — so the two are measured on the same terms.
-        display.classList.toggle('is-stacked', probe.scrollWidth > display.clientWidth);
+        display.innerHTML = nameHtmlFor(o) || escapeHtml(o.label);
+        display.style.fontSize = getComputedStyle(input).fontSize;
         display.hidden = document.activeElement === input;
     }
 
     input.addEventListener('focus', () => { display.hidden = true; });
     input.addEventListener('blur', () => { setTimeout(paintDisplay, 160); });
 
-    // The fit depends on the field's width, so it has to be re-asked whenever
-    // that width can have changed — not only when the selection does. Measured
-    // once at paint time, a window resize left a 309px row inside a 244px field,
-    // truncated instead of stacked, because nothing had asked the question again.
-    // Both signals are needed, and the combobox's identity chrome documents why:
-    // the observer catches an actual width change, while a `resize` with no width
-    // change can still move the clamp()-driven font under it.
-    let queued = false;
-    const remeasure = () => {
-        if (queued) return;
-        queued = true;
-        requestAnimationFrame(() => { queued = false; paintDisplay(); });
-    };
-    if (typeof ResizeObserver === 'function') new ResizeObserver(remeasure).observe(input.parentElement);
-    window.addEventListener('resize', remeasure);
+    // The ResizeObserver and the `resize` listener that used to live here existed
+    // ONLY to re-ask whether the row still fitted on one line. Nothing asks that
+    // now — the layout is the same at every width — so re-painting on resize
+    // would be work with no output. The font size is read at paint time, and a
+    // selection is the only thing that changes what the chip says.
 
     function paint() {
         // setValue, never `input.value =` — it writes the label AND records the

@@ -589,7 +589,7 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
             </div>
 
             <div class="admin-card">
-                <h3 class="admin-subhead">Or import a file (CSV / Excel)</h3>
+                <h3 class="admin-subhead">Or import a CSV file</h3>
                 <small class="form-hint" style="margin-bottom:var(--space-sm)">
                     The same import screen Edit League uses: drop a file to see every
                     match it contains and decide row by row. Nothing moves until you
@@ -1143,7 +1143,7 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
         onSelect: () => {},                 // just fills the field; the Add button reads it
     });
 
-    // ── Import (CSV / Excel) — the SAME importer Edit League uses ───────────
+    // ── Import (CSV) — the SAME importer Edit League uses ───────────
     // Compose mode: nothing is staged here. The importer produces the CSV (with
     // NP rows zeroed) plus any technical overrides, and hands them back; they
     // ride along with the league-creation change set. The compatibility report

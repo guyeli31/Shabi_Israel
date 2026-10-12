@@ -414,6 +414,14 @@ FodyWeavers.xsd
 
 # Claude / Superpowers internal files
 .claude/scheduled_tasks.lock
+
+# Claude Code's per-machine settings. It records every approved Bash command
+# VERBATIM, so a command carrying a password or key publishes it — which is how
+# the test account's password reached this public repo (GitGuardian, 8 Oct 2026).
+# It was tracked from April to October 2026; those commits stay in history, and
+# every credential in them has been rotated.
+.claude/settings.local.json
+
 .superpowers/
 docs/superpowers/
 

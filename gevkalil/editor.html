@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Same policy as index.html — see the note there. frame-src 'self' is what
+         lets this page frame host.html and index.html for the previews. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://oaowwbwssfsohaskrgnc.supabase.co wss://oaowwbwssfsohaskrgnc.supabase.co http://127.0.0.1:54321 ws://127.0.0.1:54321; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <title>Gevkalil — עורך</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
+    <link rel="stylesheet" href="../shabi-israel/css/fonts.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/player.css">
+    <link rel="stylesheet" href="css/host.css">
+    <link rel="stylesheet" href="css/editor.css">
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module" src="js/gkEditor.js"></script>
+</body>
+</html>
