@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640">
+  <defs>
+    <radialGradient id="pitch" cx=".5" cy="0" r="1.1">
+      <stop offset="0" stop-color="#17a34a"/><stop offset=".55" stop-color="#0b5d2c"/><stop offset="1" stop-color="#063a1b"/>
+    </radialGradient>
+    <clipPath id="disc"><circle cx="320" cy="250" r="168"/></clipPath>
+  </defs>
+  <rect width="640" height="640" fill="url(#pitch)"/>
+  <g fill="#fff" fill-opacity=".05">
+    <rect x="0" width="80" height="640"/><rect x="160" width="80" height="640"/><rect x="320" width="80" height="640"/><rect x="480" width="80" height="640"/>
+  </g>
+  <g fill-opacity=".9">
+    <rect x="56" y="70" width="34" height="34" rx="9" fill="#e2162f" transform="rotate(-14 73 87)"/>
+    <rect x="548" y="96" width="30" height="30" rx="8" fill="#1c4fd6" transform="rotate(18 563 111)"/>
+    <rect x="70" y="392" width="28" height="28" rx="8" fill="#7a2bc4" transform="rotate(22 84 406)"/>
+    <rect x="540" y="372" width="34" height="34" rx="9" fill="#17171c" stroke="#fff" stroke-opacity=".35" stroke-width="2" transform="rotate(-10 557 389)"/>
+  </g>
+  <circle cx="320" cy="250" r="176" fill="#063a1b" fill-opacity=".45"/>
+  <g id="mark">
+    <circle cx="320" cy="250" r="168" fill="#ffd60a"/>
+    <path d="M320 82a168 168 0 0 1 0 336z" fill="#0b5d2c" clip-path="url(#disc)"/>
+    <circle cx="320" cy="250" r="97" fill="#fff"/>
+    <path d="M371.300 218.600c-10.300-20.500-29.600-33.100-53.600-33.100-35.300 0-62.100 27.400-62.100 64.400s26.800 64.400 62.100 64.400c33.600 0 58.100-22.800 60.400-58.100h-61.500v23.900h30.200c-4.600 7.400-13.700 12-26.200 12-19.400 0-33.600-16.500-33.600-42.200s14.200-42.200 32.500-42.200c12 0 20.500 5.700 25.600 16.500z" fill="#17171c"/>
+  </g>
+  <text x="320" y="548" text-anchor="middle" font-family="Heebo, sans-serif" font-weight="800" font-size="104" letter-spacing="1"><tspan fill="#fff">Gev</tspan><tspan fill="#ffd60a">kalil</tspan></text>
+</svg>
