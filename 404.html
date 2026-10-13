@@ -24,9 +24,16 @@
             var path = location.pathname;
             // Folders that are already correct destinations. If one of these 404s,
             // the target genuinely does not exist — redirecting again would loop.
-            var SERVED = ['/shabi-israel/', '/WC26/', '/gevkalil/'];
+            var SERVED = ['/shabi-israel/', '/WC26/', '/gevkahoot/'];
             for (var i = 0; i < SERVED.length; i++) {
                 if (path.indexOf(SERVED[i]) === 0) return;
+            }
+            // The quiz was first published as /gevkalil/ and renamed to /gevkahoot/.
+            // A link shared under the old name must still open the same page.
+            var OLD_QUIZ = '/gevkalil';
+            if (path === OLD_QUIZ || path.indexOf(OLD_QUIZ + '/') === 0) {
+                location.replace('/gevkahoot' + path.slice(OLD_QUIZ.length) + location.search + location.hash);
+                return;
             }
             // The bare domain root is the hub page, not a miss.
             if (path === '/' || path === '') return;

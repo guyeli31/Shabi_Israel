@@ -1,0 +1,72 @@
+/**
+ * intro.js — the instruction slide before a picture game.
+ *
+ * Four coloured answers explain themselves. Dragging jigsaw pieces, tapping a
+ * place in a photo, or trying pieces in a gap do not — so each of those opens
+ * on a slide that SHOWS what to do: a small looping animation of a hand doing
+ * it, and two steps in as few words as possible. The question, and its
+ * countdown, start only when the host presses "next".
+ *
+ * The demonstrations are drawn with plain elements and CSS keyframes
+ * (css/host.css, ".dm-…"): no video, no image, nothing to load. They are
+ * deliberately generic shapes, not the question's own picture — the slide must
+ * not give the picture away before the clock starts.
+ */
+import { h } from '../ui/dom.js';
+
+const hand = () => h('span', { class: 'dm-hand', 'aria-hidden': 'true' }, h('span', { text: '👆' }));
+const pill = (text) => h('span', { class: 'dm-pill', text });
+
+/** Drag a piece into the frame, then press "done". */
+function puzzleDemo() {
+    return h('div', { class: 'dm dm-puzzle', 'aria-hidden': 'true' },
+        h('div', { class: 'dm-frame' },
+            h('span', { class: 'dm-cell', dataset: { c: '1' } }),
+            h('span', { class: 'dm-cell', dataset: { c: '2' } }),
+            h('span', { class: 'dm-cell', dataset: { c: '3' } }),
+            h('span', { class: 'dm-cell dm-cell--empty' })),
+        h('span', { class: 'dm-piece' }),
+        pill('סיימתי ✓'), hand());
+}
+
+/** Tap one of the outlined places, then press "submit". */
+function spotDemo() {
+    return h('div', { class: 'dm dm-spot', 'aria-hidden': 'true' },
+        h('div', { class: 'dm-frame dm-scene' },
+            h('span', { class: 'dm-box', dataset: { b: '1' } }),
+            h('span', { class: 'dm-box dm-box--pick', dataset: { b: '2' } }),
+            h('span', { class: 'dm-box', dataset: { b: '3' } })),
+        pill('הזן תשובה'), hand());
+}
+
+/** Try the candidates in the gap — too small, too big, just right — then submit. */
+function completeDemo() {
+    return h('div', { class: 'dm dm-complete', 'aria-hidden': 'true' },
+        h('div', { class: 'dm-frame dm-scene' }, h('span', { class: 'dm-gap' }), h('span', { class: 'dm-fill' })),
+        h('div', { class: 'dm-thumbs' },
+            h('span', { class: 'dm-thumb', dataset: { t: '1' } }, h('i')),
+            h('span', { class: 'dm-thumb', dataset: { t: '2' } }, h('i')),
+            h('span', { class: 'dm-thumb', dataset: { t: '3' } }, h('i'))),
+        pill('הזן תשובה'), hand());
+}
+
+const INTROS = {
+    puzzle: { icon: '🧩', name: 'פאזל', demo: puzzleDemo, steps: ['גוררים כל חלק למקומו', 'לוחצים ״סיימתי״'] },
+    spot: { icon: '🔎', name: 'זיהוי בתמונה', demo: spotDemo, steps: ['מקישים על האזור הנכון', 'לוחצים ״הזן תשובה״'] },
+    complete: { icon: '🖼️', name: 'השלמת תמונה', demo: completeDemo, steps: ['מנסים את האפשרויות על התמונה', 'לוחצים ״הזן תשובה״'] },
+};
+
+export const hasIntro = (kind) => kind in INTROS;
+
+/** The slide for one item. `host` adds the reminder that the room is waiting on them. */
+export function introSlide(item, { host }) {
+    const def = INTROS[item.kind];
+    return h('section', { class: 'st-intro' },
+        h('div', { class: 'st-intro-head' },
+            h('span', { class: 'st-intro-icon', 'aria-hidden': 'true', text: def.icon }),
+            h('h1', { class: 'st-heading', text: def.name })),
+        def.demo(),
+        h('ol', { class: 'st-steps' }, def.steps.map((text, i) => h('li', null,
+            h('span', { class: 'st-step-n', text: String(i + 1) }), h('span', { text })))),
+        h('p', { class: 'st-intro-note', text: host ? 'מי שמהיר יותר מרוויח יותר · ״הבא״ מתחיל את השאלה' : 'מי שמהיר יותר מרוויח יותר · מיד מתחילים' }));
+}

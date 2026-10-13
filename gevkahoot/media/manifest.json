@@ -1,0 +1,36 @@
+{
+  "images": [
+    "demo-ball.svg",
+    "demo-complete.svg",
+    "demo-puzzle.svg",
+    "demo-shapes.svg",
+    "Kiwi.jpeg",
+    "אסלה.jpeg",
+    "אש אחי.jpg",
+    "בראד הרפז.jpeg",
+    "יאירי צח.jpeg",
+    "ישיבה נרגילות.jpeg",
+    "מקיא 2.jpeg",
+    "מקיא.jpeg",
+    "עופר וינטר.webp",
+    "עמך ישראל.png",
+    "קעקוע.jpeg",
+    "שפרה מיטה.jpeg"
+  ],
+  "backgrounds": [
+    "demo-pitch.svg"
+  ],
+  "videos": [
+    "demo-clip.mp4",
+    "Kiwi_proof.mp4"
+  ],
+  "audio": [
+    "demo-beeps.wav",
+    "demo-loop.wav"
+  ],
+  "sprites": [
+    "demo-ball.svg",
+    "demo-kahoot.svg",
+    "demo-sun.svg"
+  ]
+}

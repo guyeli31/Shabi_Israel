@@ -1,0 +1,677 @@
+/* host.css — the quiz stage (the projected screen AND each player's screen)
+   and the host's drawer.
+
+   The stage lives in a frame that is a size container, and is sized in --u:
+   one hundredth of the largest 16:9 box that fits that frame. Everything on it
+   is in em off that, so it keeps its proportions on a projector, in a player's
+   browser window, and inside the editor's scaled-down preview alike.
+
+   On a phone ([data-compact]) it is one column and --u follows the width. */
+
+.st-frame { container-type: size; position: relative; min-width: 0; min-height: 0; }
+.st-frame--screen { position: fixed; inset: 0; }
+
+.st {
+    --u: min(1cqw, 1.778cqh);
+    position: absolute;
+    inset: 0;
+    isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    font-size: calc(var(--u) * 1.75);
+    padding: calc(var(--u) * 2) calc(var(--u) * 3) calc(var(--u) * 2.4);
+    gap: calc(var(--u) * 1.4);
+    overflow: hidden;
+}
+.st-bg { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: 0; transition: opacity .6s ease; z-index: -2; }
+
+/* The bouncing animation (js/host/bouncers.js). By default it drifts BEHIND
+   the question — above the backdrop, below every word — because a picture
+   crossing the text mid-countdown costs the players the question. "In front"
+   is the host's explicit choice, for interludes and lobbies. Either way it
+   takes no clicks: the answers stay pressable through it. */
+.st-anim { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: -1; }
+.st-anim[data-front] { z-index: 6; }
+.st-anim-sprite { position: absolute; top: 0; left: 0; display: block; object-fit: contain; will-change: transform; filter: drop-shadow(0 .25em .5em rgba(0, 0, 0, .3)); user-select: none; }
+.st-bg[data-on] { opacity: 1; }
+/* A photo behind text needs a scrim, or white type dies on a bright sky. */
+.st-bg[data-on]::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, .5), rgba(0, 0, 0, .35) 40%, rgba(0, 0, 0, .6)); }
+
+/* ---- top bar: the countdown sits top-RIGHT (first in an RTL row) ---------- */
+.st-top { display: flex; align-items: center; gap: 1.2em; min-height: 3.6em; flex: none; padding-inline-end: 7em; /* clear of the host buttons, top-left */ }
+.st-title { flex: 1; font-weight: 800; font-size: 1.15em; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-progress { flex: none; font-weight: 800; background: var(--panel); padding: .3em 1em; border-radius: 999px; box-shadow: inset 0 0 0 2px var(--line); }
+.st-progress:empty { display: none; }
+.st-timer {
+    flex: none; width: 3.6em; height: 3.6em; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-ink);
+    font-weight: 800; box-shadow: 0 .25em 0 rgba(0, 0, 0, .3);
+}
+.st-timer-num { font-size: 1.7em; font-variant-numeric: tabular-nums; line-height: 1; }
+.st-timer[data-urgent] { background: var(--bad); color: #fff; animation: st-tick 1s ease-in-out infinite; }
+@keyframes st-tick { 50% { transform: scale(1.14); } }
+
+.st-main { flex: 1; min-height: 0; display: flex; }
+.st-main > * { flex: 1; min-width: 0; min-height: 0; }
+
+/* ---- centred screens ------------------------------------------------------ */
+.st-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.2em; text-align: center; }
+.st-brand { font-size: 6em; font-weight: 800; direction: ltr; letter-spacing: .01em; text-shadow: 0 .06em 0 rgba(0, 0, 0, .25); animation: gk-pop .6s var(--ease-pop) both; }
+.st-brand b { color: var(--accent); }
+.st-lead { font-size: 1.7em; font-weight: 800; margin: 0; color: var(--ink-soft); }
+.st-heading { font-size: 2.6em; font-weight: 800; margin: 0; animation: gk-fade-up .5s ease both; }
+
+/* ---- lobby ---------------------------------------------------------------- */
+.st-lobby { display: grid; grid-template-columns: minmax(0, 20em) minmax(0, 1fr); gap: 3em; align-items: center; }
+.st-join { display: flex; flex-direction: column; align-items: center; gap: 1em; background: var(--panel); border-radius: 1.6em; padding: 1.6em; box-shadow: inset 0 0 0 2px var(--line); }
+.st-qr { width: 13em; height: 13em; image-rendering: pixelated; border-radius: .6em; background: #fff; }
+.st-url { font-size: 1.25em; font-weight: 800; background: var(--accent); color: var(--accent-ink); padding: .3em .9em; border-radius: 999px; max-width: 100%; overflow-wrap: anywhere; text-align: center; }
+.st-roster { align-self: stretch; display: flex; flex-direction: column; gap: 1em; min-height: 0; padding-block: 1em; }
+.st-count { font-size: 2.2em; font-weight: 800; }
+.st-names { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-wrap: wrap; align-content: flex-start; gap: .55em; }
+.st-name { background: #fff; color: #1b1b22; font-weight: 800; padding: .3em 1em; border-radius: 999px; box-shadow: 0 .2em 0 rgba(0, 0, 0, .25); animation: gk-pop .45s var(--ease-pop) both; max-width: 14em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-name:nth-child(5n + 1) { background: var(--tile-yellow); }
+.st-name:nth-child(5n + 2) { background: var(--tile-red); color: #fff; }
+.st-name:nth-child(5n + 3) { background: #fff; }
+.st-name:nth-child(5n + 4) { background: var(--tile-blue); color: #fff; }
+.st-name:nth-child(5n + 5) { background: var(--tile-purple); color: #fff; }
+
+/* ---- a question or an interlude ---------------------------------------------
+   Grid areas: media, text, options, and the "answered" counter. The editor's
+   layout choice only moves the media. */
+.st-item {
+    position: relative;
+    display: grid;
+    gap: 1.1em 1.6em;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    grid-template-areas: "text media" "options options" "answered answered";
+}
+.st-item:not(:has(.st-media)),
+.st-item[data-layout="background"] { grid-template-areas: "text text" "options options" "answered answered"; }
+.st-item[data-layout="top"] { grid-template-rows: minmax(0, 1.5fr) auto auto auto; grid-template-areas: "media media" "text text" "options options" "answered answered"; }
+.st-item[data-layout="full"] { grid-template-rows: minmax(0, 1fr) auto auto auto; grid-template-areas: "media media" "text text" "options options" "answered answered"; }
+.st-item[data-layout="full"] .st-question { font-size: 1.7em; }
+.st-item[data-kind="interlude"] { grid-template-rows: minmax(0, 1fr); grid-template-areas: "text media"; }
+.st-item[data-kind="interlude"]:not(:has(.st-media)),
+.st-item[data-kind="interlude"][data-layout="background"] { grid-template-areas: "text text"; }
+.st-item[data-kind="interlude"][data-layout="top"],
+.st-item[data-kind="interlude"][data-layout="full"] { grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "media media" "text text"; }
+.st-item[data-kind="interlude"] .st-question { font-size: 3.4em; }
+
+.st-media { grid-area: media; min-height: 0; min-width: 0; display: grid; place-items: center; animation: gk-fade-up .5s ease both; }
+.st-media-el { max-width: 100%; max-height: 100%; min-height: 0; border-radius: 1.2em; box-shadow: 0 .6em 2em rgba(0, 0, 0, .4); object-fit: contain; }
+.st-item[data-layout="full"] .st-media-el { width: 100%; height: 100%; object-fit: cover; }
+.st-audio-badge { font-size: 7em; animation: gk-bob 1.4s ease-in-out infinite; }
+
+.st-text { grid-area: text; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6em; text-align: center; }
+.st-question { margin: 0; font-size: 2.6em; font-weight: 800; line-height: 1.15; text-wrap: balance; text-shadow: 0 .06em .3em rgba(0, 0, 0, .35); animation: gk-fade-up .45s ease both; }
+.st-body { margin: 0; font-size: 1.6em; color: var(--ink-soft); text-wrap: balance; }
+.st-badge { font-weight: 800; padding: .25em 1em; border-radius: 999px; background: var(--accent); color: var(--accent-ink); animation: gk-pop .5s var(--ease-pop) both; }
+.st-badge[data-weight="0"] { background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 2px var(--line); }
+
+.st-ready { grid-area: options; display: flex; align-items: center; justify-content: center; gap: 3.5em; min-height: 9.5em; padding-bottom: 3.6em; direction: ltr; }
+.st-ready .gk-mult { font-size: 1.25em; }
+.st-ready-num { font-size: 7em; font-weight: 800; color: var(--accent); line-height: 1; text-shadow: 0 .06em 0 rgba(0, 0, 0, .3); }
+
+.st-options { grid-area: options; display: grid; gap: .7em; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.st-options[data-n="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.st-options[data-n="5"] { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.st-options[data-n="5"] > * { grid-column: span 2; }
+.st-options[data-n="5"] > :nth-child(4) { grid-column: 2 / span 2; }
+.st-option { display: flex; flex-direction: column; gap: .3em; min-width: 0; animation: gk-fade-up .4s ease both; }
+.st-option:nth-child(2) { animation-delay: .07s; }
+.st-option:nth-child(3) { animation-delay: .14s; }
+.st-option:nth-child(4) { animation-delay: .21s; }
+.st-option:nth-child(5) { animation-delay: .28s; }
+.st-option .gk-tile { font-size: 1.3em; min-height: 3.6em; }
+.st-options[data-revealed] .st-option { animation: none; }
+.st-option[data-correct="false"] .gk-tile { opacity: .38; filter: saturate(.5); }
+.st-option[data-correct="true"] .gk-tile { box-shadow: 0 0 0 .22em #fff, 0 0 0 .5em var(--good), 0 .4em 1.2em rgba(0, 0, 0, .35); animation: st-correct .7s var(--ease-pop) both; }
+@keyframes st-correct { 0% { transform: scale(.94); } 60% { transform: scale(1.04); } 100% { transform: none; } }
+
+.st-share { display: flex; align-items: center; gap: .6em; padding-inline: .4em; }
+.st-share-bar { flex: 1; height: .7em; border-radius: 999px; background: var(--panel); overflow: hidden; }
+.st-share-fill { height: 100%; background: var(--ink); border-radius: inherit; transform-origin: right center; transform: scaleX(0); }
+.st-option[data-correct="true"] .st-share-fill { background: var(--good); }
+.st-share-pct { font-weight: 800; min-width: 3em; text-align: end; font-variant-numeric: tabular-nums; }
+.st-share-tick { font-weight: 800; color: #fff; background: var(--good); width: 1.5em; height: 1.5em; border-radius: 50%; display: grid; place-items: center; flex: none; }
+
+.st-answered { grid-area: answered; justify-self: center; font-weight: 800; background: var(--panel); padding: .3em 1.2em; border-radius: 999px; box-shadow: inset 0 0 0 2px var(--line); font-variant-numeric: tabular-nums; }
+.st-answered:empty { display: none; }
+
+/* ---- results -------------------------------------------------------------- */
+.st-results { justify-content: flex-start; gap: .8em; }
+.st-results .st-heading { font-size: 2em; flex: none; }
+/* The table takes whatever height is left and divides it into eight rows, so
+   it fills a projector and still fits a laptop — the row height, and the type
+   inside it, come from the container rather than from a fixed size. */
+.st-board { width: min(100%, 44em); flex: 1; min-height: 0; container-type: size; }
+/* The type is bounded by the WIDTH as well as by the row height. On a tall
+   narrow phone the rows are high, and type sized from height alone outgrew the
+   row: the name was squeezed to nothing and the points ran off the edge. */
+.st-board .gk-board { --row-h: calc(100cqh / 8); height: 100cqh; font-size: min(calc(100cqh / 8 * .4), 4.3cqw); }
+.st-fastest { list-style: none; margin: 0; padding: 0; width: min(100%, 36em); font-size: 1.05em; display: flex; flex-direction: column; gap: .4em; }
+.st-fast-row { display: flex; align-items: center; gap: .8em; padding: .5em 1em; border-radius: 999px; background: var(--panel); box-shadow: inset 0 0 0 2px var(--line); opacity: 0; animation: gk-fade-up .5s ease forwards; }
+.st-fast-row:first-child { background: var(--accent); color: var(--accent-ink); box-shadow: 0 .25em 0 rgba(0, 0, 0, .3); }
+.st-fast-row:first-child .gk-board-rank { background: var(--accent-ink); color: var(--accent); }
+.st-fast-time { font-weight: 800; font-variant-numeric: tabular-nums; }
+/* The podium fills what is left under the heading and its three blocks are
+   fractions of THAT height, so the winner never grows out of a short window. */
+.st-podium { width: min(100%, 46em); flex: 1; min-height: 0; container-type: size; display: flex; align-items: flex-end; justify-content: center; }
+.st-podium .gk-podium { width: 100%; font-size: 1.15em; }
+.st-podium .gk-podium-block { font-size: min(3em, 14cqh); }
+.st-podium .gk-podium-col[data-place="1"] .gk-podium-block { height: 42cqh; }
+.st-podium .gk-podium-col[data-place="2"] .gk-podium-block { height: 30cqh; }
+.st-podium .gk-podium-col[data-place="3"] .gk-podium-block { height: 20cqh; }
+
+.st-matrix { gap: .6em; }
+.st-matrix .st-heading { font-size: 1.8em; }
+.st-matrix .gk-matrix-wrap { width: 100%; flex: 1; min-height: 0; }
+.st-legend { display: flex; gap: 1em; margin: 0; font-size: .85em; }
+.st-legend span { padding: .15em .8em; border-radius: 999px; color: #fff; }
+.st-legend [data-cell="good"] { background: var(--good); }
+.st-legend [data-cell="bad"] { background: var(--bad); }
+.st-legend [data-cell="none"] { background: rgba(255, 255, 255, .15); }
+
+/* ---- the puzzle (js/host/puzzle.js) --------------------------------------------- */
+.st-puzzle { display: flex; flex-direction: column; gap: .7em; min-height: 0; }
+.st-puzzle-head { flex: none; display: flex; flex-direction: column; align-items: center; gap: .3em; text-align: center; }
+.st-puzzle-head .st-question { font-size: 1.7em; }
+.st-puzzle-foot { flex: none; display: flex; align-items: center; justify-content: center; gap: 1em; flex-wrap: wrap; min-height: 2.6em; }
+.st-puzzle-done { font-size: 1.15em; }
+.st-puzzle-done:not(:disabled) { animation: gk-mult-beat 1s ease-in-out infinite; }
+
+.pz { position: relative; flex: 1; min-height: 0; touch-action: none; user-select: none; -webkit-user-select: none; }
+.pz-frame {
+    position: absolute; top: 0; left: 0; border-radius: .5em;
+    background: rgba(0, 0, 0, .28);
+    box-shadow: inset 0 0 0 3px rgba(255, 255, 255, .55), 0 .4em 1.4em rgba(0, 0, 0, .3);
+    transition: box-shadow .3s ease;
+}
+.pz[data-complete] .pz-frame { box-shadow: inset 0 0 0 3px var(--good), 0 0 0 .3em var(--good), 0 .4em 1.4em rgba(0, 0, 0, .3); }
+/* A piece is two boxes: .pz-piece is positioned and casts the shadow, .pz-face
+   inside it carries the picture and the jigsaw outline (clip-path). Only the
+   face takes the pointer — see js/host/puzzle.js. */
+.pz-piece {
+    position: absolute; top: 0; left: 0; z-index: 2;
+    pointer-events: none;
+    filter: drop-shadow(0 .05em 0 rgba(255, 255, 255, .55)) drop-shadow(0 .22em .3em rgba(0, 0, 0, .6));
+    will-change: transform;
+}
+.pz-face { position: absolute; inset: 0; background-repeat: no-repeat; pointer-events: auto; }
+.pz[data-live] .pz-piece:not([data-placed]) .pz-face { cursor: grab; }
+.pz-piece[data-held] { filter: drop-shadow(0 .05em 0 rgba(255, 255, 255, .55)) drop-shadow(0 .6em .8em rgba(0, 0, 0, .6)); }
+.pz-piece[data-held] .pz-face { cursor: grabbing; filter: brightness(1.08); }
+/* A placed piece settles: the lift goes, so the picture reads as one sheet. */
+.pz-piece[data-placed] { filter: none; z-index: 1; transition: transform .16s ease-out; }
+.pz[data-locked] .pz-face { cursor: default; }
+/* On the projected screen the loose pieces drift a little: it is a picture of
+   a puzzle being solved elsewhere, not a control. */
+.pz:not([data-live]) .pz-piece { animation: pz-idle 3.2s ease-in-out infinite; }
+.pz:not([data-live]) .pz-piece:nth-child(odd) { animation-delay: -1.6s; }
+@keyframes pz-idle { 50% { rotate: 3deg; translate: 0 -.35em; } }
+
+.st-puzzle-intro .st-lead { max-width: 28em; text-wrap: balance; }
+.st-puzzle-icon { font-size: 6em; line-height: 1; animation: st-puzzle-in .9s var(--ease-pop) both, gk-bob 1.6s ease-in-out .9s infinite; }
+@keyframes st-puzzle-in { from { opacity: 0; transform: scale(.2) rotate(-140deg); } to { opacity: 1; transform: none; } }
+.st-puzzle-reveal .st-media-el { animation: gk-pop .6s var(--ease-pop) both; }
+
+.st[data-compact] .st-puzzle-head .st-question { font-size: 1.25em; }
+.st[data-compact] .st-puzzle-icon { font-size: 4.2em; }
+
+/* ---- "spot it" (js/host/spot.js) ------------------------------------------------ */
+.sp { flex: 1; min-height: 0; display: grid; place-items: center; }
+.sp-frame { position: relative; border-radius: .5em; overflow: hidden; box-shadow: 0 .4em 1.4em rgba(0, 0, 0, .4); line-height: 0; }
+.sp-img { width: 100%; height: 100%; display: block; object-fit: fill; user-select: none; -webkit-user-drag: none; }
+.sp-box {
+    position: absolute; padding: 0; margin: 0; background: rgba(255, 255, 255, .06);
+    border: .14em solid #fff; border-radius: .3em;
+    box-shadow: 0 0 0 .08em rgba(0, 0, 0, .65), inset 0 0 0 .08em rgba(0, 0, 0, .45);
+    transition: background-color .15s ease, border-color .15s ease, opacity .25s ease;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+button.sp-box { cursor: pointer; }
+button.sp-box:not(:disabled):hover { background: rgba(255, 255, 255, .22); }
+.sp-box[data-selected] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 30%, transparent); box-shadow: 0 0 0 .22em var(--accent), 0 0 0 .3em rgba(0, 0, 0, .7); z-index: 1; }
+/* The number sits on the box's corner, not inside it: it must not cover a face. */
+.sp-num {
+    position: absolute; top: 0; inset-inline-start: 0; translate: 35% -50%;
+    min-width: 1.5em; height: 1.5em; padding: 0 .3em; border-radius: 999px;
+    display: grid; place-items: center; line-height: 1;
+    background: #fff; color: #17171c; font-size: .7em; font-weight: 800;
+    box-shadow: 0 .1em .3em rgba(0, 0, 0, .5);
+}
+.sp-box[data-selected] .sp-num { background: var(--accent); color: var(--accent-ink); }
+.sp-pct {
+    position: absolute; bottom: 0; left: 50%; translate: -50% 55%;
+    padding: .1em .55em; border-radius: 999px; line-height: 1.3; white-space: nowrap;
+    background: rgba(0, 0, 0, .8); color: #fff; font-size: .7em; font-weight: 800;
+}
+.sp[data-revealed] .sp-box[data-correct="true"] { border-color: var(--good); background: color-mix(in srgb, var(--good) 28%, transparent); box-shadow: 0 0 0 .22em var(--good), 0 0 0 .3em rgba(0, 0, 0, .7); z-index: 1; }
+.sp[data-revealed] .sp-box[data-correct="true"] .sp-pct { background: var(--good); }
+.sp[data-revealed] .sp-box[data-correct="false"] { opacity: .55; }
+.sp[data-revealed] .sp-box[data-picked] { opacity: 1; border-style: dashed; }
+.sp[data-revealed] .sp-box[data-picked][data-correct="false"] { border-color: var(--bad); box-shadow: 0 0 0 .22em var(--bad), 0 0 0 .3em rgba(0, 0, 0, .7); }
+.st-spot .st-puzzle-done:not(:disabled) { animation: gk-mult-beat 1s ease-in-out infinite; }
+
+/* ---- "complete the picture" (js/host/complete.js) ------------------------------- */
+.cp { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .6em; }
+.cp-stage { flex: 1; min-height: 0; display: grid; place-items: center; }
+.cp-frame { position: relative; border-radius: .5em; overflow: hidden; box-shadow: 0 .4em 1.4em rgba(0, 0, 0, .4); line-height: 0; }
+.cp-img { width: 100%; height: 100%; display: block; object-fit: fill; user-select: none; -webkit-user-drag: none; }
+/* The open gap: a dashed outline with a question mark, until a piece is tried. */
+.cp-gap {
+    position: absolute; display: grid; place-items: center; line-height: 1;
+    border: .14em dashed #fff; border-radius: .4em; background: rgba(0, 0, 0, .28);
+    color: #fff; font-weight: 800; font-size: 1.6em; text-shadow: 0 .05em .2em rgba(0, 0, 0, .7);
+    box-shadow: 0 0 0 .07em rgba(0, 0, 0, .6);
+    animation: gk-mult-beat 1.4s ease-in-out infinite;
+}
+/* The tried piece: centred on the gap, its width set per candidate (js). */
+.cp-piece { position: absolute; height: auto; translate: -50% -50%; pointer-events: none; user-select: none; animation: gk-pop .28s var(--ease-pop) both; }
+.cp-options { flex: none; display: flex; justify-content: center; gap: .5em; height: 5.2em; }
+.cp-opt { flex: 1 1 0; max-width: 7em; min-width: 0; padding: .35em; justify-content: center; align-items: center; position: relative; }
+button.cp-opt { cursor: pointer; transition: transform .1s ease, opacity .2s ease; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+button.cp-opt:not(:disabled):active { transform: scale(.95); }
+/* Each candidate at its own relative size: the row itself shows which is bigger. */
+.cp-thumb { max-width: 100%; object-fit: contain; display: block; filter: drop-shadow(0 .1em .15em rgba(0, 0, 0, .5)); }
+.cp-opt[data-selected] { box-shadow: 0 0 0 .18em #fff, 0 0 0 .36em rgba(0, 0, 0, .55), 0 .3em .9em rgba(0, 0, 0, .3); }
+.cp[data-locked]:not([data-revealed]) .cp-opt:not([data-selected]) { opacity: .4; }
+.cp[data-revealed] .cp-opt[data-correct="false"] { opacity: .4; filter: saturate(.5); }
+.cp[data-revealed] .cp-opt[data-correct="true"] { box-shadow: 0 0 0 .18em #fff, 0 0 0 .4em var(--good), 0 .3em .9em rgba(0, 0, 0, .3); }
+.cp[data-revealed] .cp-opt[data-picked] { opacity: 1; outline: .14em dashed #fff; outline-offset: .12em; }
+.cp[data-revealed] .cp-opt[data-correct="true"] .sp-pct { background: var(--good); }
+.st[data-compact] .cp-options { height: 4.6em; gap: .35em; }
+
+/* ---- the instruction slide before a picture game (js/host/intro.js) ---------------
+   A looping demonstration and two short steps. The demonstrations (.dm-…) are
+   plain boxes moved by keyframes on one shared 7-second clock: a hand does the
+   thing, then presses the button. Everything is positioned in em inside a
+   fixed 22×12em box, laid out left-to-right whatever the page direction, so
+   the choreography is the same on every screen and simply scales with it. */
+.st-intro { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1em; text-align: center; min-height: 0; }
+.st-intro-head { display: flex; align-items: center; gap: .5em; animation: gk-fade-up .45s ease both; }
+.st-intro-icon { font-size: 2.6em; line-height: 1; animation: gk-bob 1.6s ease-in-out infinite; }
+.st-intro .st-heading { font-size: 2.2em; animation: none; }
+.st-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: .6em 1.4em; font-size: 1.35em; font-weight: 800; }
+.st-steps li { display: flex; align-items: center; gap: .5em; animation: gk-fade-up .45s ease both; }
+.st-steps li:nth-child(2) { animation-delay: .25s; }
+.st-step-n { width: 1.6em; height: 1.6em; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); flex: none; }
+.st-intro-note { margin: 0; color: var(--ink-soft); font-size: .95em; }
+
+.dm { position: relative; width: 22em; height: 12em; flex: none; direction: ltr; font-size: 1.25em; border-radius: 1em; background: var(--panel); box-shadow: inset 0 0 0 2px var(--line); overflow: hidden; }
+.dm-frame { position: absolute; border-radius: .5em; }
+.dm-hand { position: absolute; line-height: 1; z-index: 5; filter: drop-shadow(0 .16em .24em rgba(0, 0, 0, .5)); animation: 7s ease-in-out infinite both; }
+/* The emoji is enlarged on an INNER element: an em on .dm-hand itself must stay
+   the demonstration's em, or every left/top/translate above would double. */
+.dm-hand > span { display: block; font-size: 2em; }
+.dm-pill { position: absolute; left: 1.4em; top: 1.3em; padding: .35em 1em; border-radius: 999px; font-weight: 800; font-size: .95em; direction: rtl; white-space: nowrap; background: var(--accent); color: var(--accent-ink); box-shadow: 0 .2em 0 rgba(0, 0, 0, .3); animation: 7s ease-in-out infinite both; }
+
+/* -- puzzle: three pieces in place, the fourth dragged home ----------------- */
+.dm-puzzle .dm-frame { left: 12em; top: 2em; width: 8em; height: 8em; display: grid; grid-template-columns: 1fr 1fr; gap: .25em; padding: .25em; background: rgba(0, 0, 0, .3); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .5); }
+.dm-cell { border-radius: .35em; }
+.dm-cell[data-c="1"] { background: var(--tile-red); }
+.dm-cell[data-c="2"] { background: var(--tile-blue); }
+.dm-cell[data-c="3"] { background: var(--tile-yellow); }
+.dm-cell--empty { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .45); border-style: dashed; }
+.dm-piece { position: absolute; left: 2.4em; top: 6.6em; width: 3.625em; height: 3.625em; border-radius: .35em; background: var(--tile-purple); box-shadow: 0 .25em .5em rgba(0, 0, 0, .5); animation: dm-puzzle-piece 7s ease-in-out infinite both; }
+.dm-puzzle .dm-hand { left: 3.4em; top: 8.2em; animation-name: dm-puzzle-hand; }
+.dm-puzzle .dm-pill { animation-name: dm-pill-late; }
+@keyframes dm-puzzle-piece {
+    0%, 10% { transform: none; box-shadow: 0 .25em .5em rgba(0, 0, 0, .5); }
+    /* opacity is stated here too: a property named in only the last keyframe
+       is animated towards it from the very start — the piece faded all the way. */
+    46%, 92% { transform: translate(13.6em, -.35em); box-shadow: none; opacity: 1; }
+    97%, 100% { transform: translate(13.6em, -.35em); opacity: 0; }
+}
+@keyframes dm-puzzle-hand {
+    0%, 10% { transform: none; }
+    46%, 54% { transform: translate(13.6em, -.35em); }
+    68%, 71% { transform: translate(-.2em, -6.1em); }
+    74% { transform: translate(-.2em, -6.1em) scale(.82); }
+    78%, 94% { transform: translate(-.2em, -6.1em); opacity: 1; }
+    100% { transform: translate(-.2em, -6.1em); opacity: 0; }
+}
+
+/* -- spot it: three outlined places, one tapped ----------------------------- */
+.dm-scene { background: linear-gradient(180deg, #5db4ff 0 58%, #1fbf63 58% 100%); box-shadow: 0 .2em .6em rgba(0, 0, 0, .35); overflow: hidden; }
+.dm-spot .dm-scene { left: 9em; top: 1.4em; width: 12em; height: 9.2em; }
+.dm-box { position: absolute; border: .12em solid #fff; border-radius: .25em; box-shadow: 0 0 0 .06em rgba(0, 0, 0, .6); background: rgba(255, 255, 255, .08); }
+.dm-box[data-b="1"] { left: .9em; top: 1.2em; width: 2.8em; height: 3.4em; }
+.dm-box[data-b="2"] { left: 4.8em; top: 4.2em; width: 2.8em; height: 3.4em; }
+.dm-box[data-b="3"] { left: 8.5em; top: 1.6em; width: 2.6em; height: 3em; }
+.dm-box--pick { animation: dm-spot-pick 7s ease-in-out infinite both; }
+.dm-spot .dm-hand { left: 2.6em; top: 8.6em; animation-name: dm-spot-hand; }
+.dm-spot .dm-pill { animation-name: dm-pill-mid; }
+@keyframes dm-spot-pick {
+    0%, 33% { border-color: #fff; background: rgba(255, 255, 255, .08); box-shadow: 0 0 0 .06em rgba(0, 0, 0, .6); }
+    37%, 94% { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 35%, transparent); box-shadow: 0 0 0 .2em var(--accent); }
+    100% { border-color: #fff; background: rgba(255, 255, 255, .08); box-shadow: 0 0 0 .06em rgba(0, 0, 0, .6); }
+}
+@keyframes dm-spot-hand {
+    0%, 8% { transform: none; }
+    30%, 32% { transform: translate(12.1em, -1.2em); }
+    35% { transform: translate(12.1em, -1.2em) scale(.82); }
+    38%, 46% { transform: translate(12.1em, -1.2em); }
+    62%, 65% { transform: translate(.6em, -6.5em); }
+    68% { transform: translate(.6em, -6.5em) scale(.82); }
+    72%, 94% { transform: translate(.6em, -6.5em); opacity: 1; }
+    100% { transform: translate(.6em, -6.5em); opacity: 0; }
+}
+
+/* -- complete the picture: too small, too big, just right ------------------- */
+.dm-complete .dm-scene { left: 9em; top: .8em; width: 12em; height: 6.4em; }
+.dm-gap { position: absolute; left: 7.4em; top: .8em; width: 3.2em; height: 3.2em; border: .12em dashed #fff; border-radius: .3em; background: rgba(0, 0, 0, .22); }
+.dm-fill { position: absolute; left: 9em; top: 2.4em; width: 2em; height: 2em; margin: -1em 0 0 -1em; border-radius: 50%; background: #ffd60a; box-shadow: 0 0 0 .14em #ff9f1c; animation: dm-fill 7s ease-in-out infinite both; }
+.dm-thumbs { position: absolute; left: 9em; top: 8em; width: 12em; display: flex; gap: .6em; }
+.dm-thumb { flex: 1; height: 3em; border-radius: .5em; display: grid; place-items: center; animation: 7s ease-in-out infinite both; }
+.dm-thumb i { display: block; border-radius: 50%; background: #ffd60a; box-shadow: 0 0 0 .1em #ff9f1c; }
+.dm-thumb[data-t="1"] { background: var(--tile-red); animation-name: dm-thumb-1; }
+.dm-thumb[data-t="2"] { background: var(--tile-blue); animation-name: dm-thumb-2; }
+.dm-thumb[data-t="3"] { background: var(--tile-purple); animation-name: dm-thumb-3; }
+.dm-thumb[data-t="1"] i { width: .9em; height: .9em; }
+.dm-thumb[data-t="2"] i { width: 2.2em; height: 2.2em; }
+.dm-thumb[data-t="3"] i { width: 1.5em; height: 1.5em; }
+.dm-complete .dm-hand { left: 3em; top: 9.4em; animation-name: dm-complete-hand; }
+.dm-complete .dm-pill { animation-name: dm-pill-late; }
+@keyframes dm-fill {
+    0%, 16% { transform: scale(0); }
+    19%, 34% { transform: scale(.5); }
+    38%, 52% { transform: scale(1.5); }
+    56%, 94% { transform: scale(1); }
+    100% { transform: scale(0); }
+}
+@keyframes dm-thumb-1 { 0%, 16% { box-shadow: none; } 19%, 34% { box-shadow: 0 0 0 .16em #fff; } 37%, 100% { box-shadow: none; } }
+@keyframes dm-thumb-2 { 0%, 35% { box-shadow: none; } 38%, 52% { box-shadow: 0 0 0 .16em #fff; } 55%, 100% { box-shadow: none; } }
+@keyframes dm-thumb-3 { 0%, 53% { box-shadow: none; } 56%, 94% { box-shadow: 0 0 0 .16em #fff; } 100% { box-shadow: none; } }
+@keyframes dm-complete-hand {
+    0%, 4% { transform: none; }
+    14%, 15% { transform: translate(7.1em, -.4em); }
+    17% { transform: translate(7.1em, -.4em) scale(.82); }
+    20%, 24% { transform: translate(7.1em, -.4em); }
+    33%, 34% { transform: translate(11.3em, -.4em); }
+    36% { transform: translate(11.3em, -.4em) scale(.82); }
+    39%, 43% { transform: translate(11.3em, -.4em); }
+    51%, 52% { transform: translate(15.5em, -.4em); }
+    54% { transform: translate(15.5em, -.4em) scale(.82); }
+    57%, 62% { transform: translate(15.5em, -.4em); }
+    72%, 74% { transform: translate(.2em, -7.3em); }
+    77% { transform: translate(.2em, -7.3em) scale(.82); }
+    80%, 94% { transform: translate(.2em, -7.3em); opacity: 1; }
+    100% { transform: translate(.2em, -7.3em); opacity: 0; }
+}
+
+/* The button waits, dim, until the task is done; then it is pressed and turns
+   green. "mid" and "late" are when in the 7 seconds that happens. */
+@keyframes dm-pill-mid {
+    0%, 36% { opacity: .4; transform: none; background: var(--accent); }
+    40%, 66% { opacity: 1; transform: none; background: var(--accent); }
+    69% { opacity: 1; transform: scale(.92); background: var(--accent); }
+    73%, 95% { opacity: 1; transform: none; background: var(--good); color: #fff; }
+    100% { opacity: .4; background: var(--accent); }
+}
+@keyframes dm-pill-late {
+    0%, 50% { opacity: .4; transform: none; background: var(--accent); }
+    56%, 73% { opacity: 1; transform: none; background: var(--accent); }
+    76% { opacity: 1; transform: scale(.92); background: var(--accent); }
+    80%, 95% { opacity: 1; transform: none; background: var(--good); color: #fff; }
+    100% { opacity: .4; background: var(--accent); }
+}
+
+.st[data-compact] .dm { font-size: .95em; }
+.st[data-compact] .st-steps { font-size: 1.15em; flex-direction: column; align-items: flex-start; }
+.st[data-compact] .st-intro .st-heading { font-size: 1.7em; }
+
+/* ---- the player's stage -------------------------------------------------------
+   Answers are buttons. Once this device has answered (or time is up) they
+   lock: the pick keeps a white ring, the rest step back. */
+.st[data-role="player"] .st-top { padding-inline-end: 0; }
+.st-option button.gk-tile { width: 100%; cursor: pointer; transition: transform .1s ease, opacity .2s ease; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.st-option button.gk-tile:not(:disabled):hover { transform: translateY(-.12em); filter: brightness(1.08); }
+.st-option button.gk-tile:not(:disabled):active { transform: scale(.97); }
+.st-option button.gk-tile:disabled { cursor: default; }
+.st-options[data-locked] .st-option:not([data-picked]) .gk-tile { opacity: .38; }
+.st-option[data-picked] .gk-tile { box-shadow: 0 0 0 .2em #fff, 0 0 0 .42em rgba(0, 0, 0, .35), 0 .4em 1.2em rgba(0, 0, 0, .35); }
+.st-option[data-picked][data-correct="false"] .gk-tile { opacity: .75; filter: none; }
+.st-lobby[data-role="player"] { grid-template-columns: minmax(0, 1fr); }
+
+/* ---- compact: a phone ----------------------------------------------------------
+   One column. The question and its picture are shown; the answers are colour
+   and emblem only — the option TEXT is read off the projected screen (or, in
+   the demo, is simply not needed: the colours are the answer). */
+.st[data-compact] {
+    --u: 2.35cqw;
+    padding: calc(var(--u) * 1.2) calc(var(--u) * 1.6) calc(var(--u) * 1.4);
+    gap: calc(var(--u) * 1);
+}
+.st[data-compact] .st-top { min-height: 3.2em; gap: .6em; }
+.st[data-compact] .st-title { font-size: 1em; }
+.st[data-compact] .st-timer { width: 3.2em; height: 3.2em; }
+.st[data-compact] .st-brand { font-size: 3.6em; }
+.st[data-compact] .st-lead { font-size: 1.3em; }
+.st[data-compact] .st-heading { font-size: 1.7em; }
+
+.st[data-compact] .st-lobby { grid-template-columns: minmax(0, 1fr); gap: 1em; align-items: stretch; }
+.st[data-compact] .st-count { font-size: 1.6em; text-align: center; }
+.st[data-compact] .st-names { justify-content: center; }
+
+.st[data-compact] .st-item,
+.st[data-compact] .st-item[data-layout] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, .8fr) minmax(0, 1.5fr) auto;
+    grid-template-areas: "text" "media" "options" "answered";
+    gap: .7em;
+}
+.st[data-compact] .st-item:not(:has(.st-media)),
+.st[data-compact] .st-item[data-layout="background"] {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "text" "options" "answered";
+}
+.st[data-compact] .st-item[data-kind="interlude"],
+.st[data-compact] .st-item[data-kind="interlude"][data-layout] {
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas: "media" "text";
+    align-content: center;
+}
+.st[data-compact] .st-item[data-kind="interlude"]:not(:has(.st-media)),
+.st[data-compact] .st-item[data-kind="interlude"][data-layout="background"] { grid-template-rows: minmax(0, 1fr); grid-template-areas: "text"; }
+.st[data-compact] .st-question, .st[data-compact] .st-item[data-layout="full"] .st-question { font-size: 1.45em; }
+.st[data-compact] .st-item[data-kind="interlude"] .st-question { font-size: 2em; }
+.st[data-compact] .st-body { font-size: 1.15em; }
+.st[data-compact] .st-item[data-layout="full"] .st-media-el { width: auto; height: auto; object-fit: contain; }
+.st[data-compact] .st-ready { min-height: 0; gap: 2em; padding-bottom: 3.6em; }
+.st[data-compact] .st-ready-num { font-size: 5em; }
+
+.st[data-compact] .st-options,
+.st[data-compact] .st-options[data-n] { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: .5em; min-height: 0; }
+.st[data-compact] .st-options[data-n="2"],
+.st[data-compact] .st-options[data-n="3"] { grid-template-columns: minmax(0, 1fr); }
+.st[data-compact] .st-options[data-n="5"] > * { grid-column: auto; }
+.st[data-compact] .st-options[data-n="5"] > :last-child { grid-column: 1 / -1; }
+.st[data-compact] .st-option { min-height: 0; }
+.st[data-compact] .st-option .gk-tile { flex: 1; min-height: 0; padding: 0; justify-content: center; container-type: size; }
+.st[data-compact] .st-option .gk-tile-text { display: none; }
+.st[data-compact] .st-option .gk-crest { width: min(64cqh, 50cqw); height: min(64cqh, 50cqw); }
+.st[data-compact] .st-share { font-size: .85em; }
+
+.st[data-compact] .st-board { width: 100%; }
+.st[data-compact] .gk-board-row { gap: .5em; padding: 0 .7em; }
+.st[data-compact] .gk-board-move { min-width: 0; }
+.st[data-compact] .st-fastest { font-size: .95em; }
+.st[data-compact] .st-podium { width: 100%; }
+.st[data-compact] .st-podium .gk-podium { font-size: .62em; }
+.st[data-compact] .gk-podium-col { width: 31%; }
+.st[data-compact] .st-legend { flex-wrap: wrap; justify-content: center; gap: .4em; font-size: .75em; }
+.st[data-compact] .gk-matrix { font-size: .8em; }
+
+/* ---- host controls -----------------------------------------------------------
+   Two small buttons, top-left, quiet until hovered: the audience is looking
+   at this screen. The drawer opens from the same side, like the main site's
+   admin sidebar. */
+.hc { position: fixed; top: .9rem; left: .9rem; z-index: 30; display: flex; gap: .5rem; direction: ltr; }
+.hc-btn {
+    position: relative; width: 2.9rem; height: 2.9rem; border-radius: 50%; border: 0;
+    background: rgba(0, 0, 0, .38); color: #fff; font-size: 1.25rem; font-weight: 800;
+    display: grid; place-items: center; opacity: .45; transition: opacity .15s ease, background-color .15s ease;
+}
+.hc-btn:hover, .hc-btn:focus-visible { opacity: 1; background: rgba(0, 0, 0, .7); }
+.hc-btn[data-alert] { opacity: 1; background: var(--bad); }
+.hc-badge { position: absolute; top: -.25rem; right: -.25rem; min-width: 1.3rem; height: 1.3rem; border-radius: 999px; background: #fff; color: var(--bad); font-size: .8rem; display: grid; place-items: center; padding: 0 .3rem; }
+
+.dr-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 39; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+.dr-backdrop[data-open] { opacity: 1; pointer-events: auto; }
+.dr {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 40;
+    width: min(27rem, 92vw);
+    background: #14161f; color: #f1f3f8;
+    font-size: .95rem; font-weight: 600;
+    display: flex; flex-direction: column;
+    transform: translateX(-102%); transition: transform .25s ease;
+    box-shadow: .5rem 0 2rem rgba(0, 0, 0, .45);
+}
+/* The admin surfaces (this drawer, and the whole editor page via .kit) keep one
+   neutral dark palette whatever theme the quiz uses: controls must not change
+   colour, or become unreadable, because the host toggled the stage's design. */
+.dr, .kit {
+    --accent: #ffd60a; --accent-ink: #1a1500; --line: rgba(255, 255, 255, .16); --panel: rgba(255, 255, 255, .06);
+    --ink: #f1f3f8; --ink-soft: rgba(241, 243, 248, .65);
+}
+.dr[data-open] { transform: none; }
+.dr-head { display: flex; align-items: center; gap: .6rem; padding: .8rem 1rem; border-bottom: 1px solid var(--line); flex: none; }
+.dr-head h2 { margin: 0; font-size: 1.1rem; flex: 1; }
+.dr-user { font-size: .78rem; color: var(--ink-soft); direction: ltr; }
+.dr-x { background: none; border: 0; font-size: 1.3rem; padding: .2rem .5rem; border-radius: .4rem; }
+.dr-x:hover { background: var(--panel); }
+.dr-body { flex: 1; overflow-y: auto; padding: .4rem 1rem 2rem; }
+.dr-sec { padding: .9rem 0; border-bottom: 1px solid var(--line); }
+.dr-sec:last-child { border-bottom: 0; }
+.dr-sec > h3 { margin: 0 0 .6rem; font-size: .8rem; letter-spacing: .06em; color: var(--ink-soft); font-weight: 800; }
+.dr-status { font-weight: 800; margin: 0 0 .7rem; }
+.dr-row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.dr-row + .dr-row { margin-top: .5rem; }
+.dr .gk-btn { font-size: .9rem; padding: .55em 1.1em; box-shadow: 0 .18em 0 rgba(0, 0, 0, .4); }
+.dr .gk-btn--primary { font-size: 1.05rem; flex: 1; }
+.dr-select, .dr-input { background: #0d0f16; border: 1px solid var(--line); border-radius: .5rem; padding: .5em .7em; min-width: 0; flex: 1; }
+.dr-note { font-size: .82rem; color: var(--ink-soft); margin: .5rem 0 0; }
+.dr-error { color: #fff; background: var(--bad); padding: .4em .7em; border-radius: .5rem; margin: .5rem 0 0; font-size: .85rem; }
+
+.dr-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+.dr-item { display: flex; align-items: center; gap: .5rem; padding: .4rem .55rem; border-radius: .5rem; background: var(--panel); }
+.dr-item[data-current] { box-shadow: inset 0 0 0 2px var(--accent); }
+.dr-item-main { flex: 1; min-width: 0; background: none; border: 0; text-align: start; display: flex; gap: .5rem; align-items: center; padding: 0; }
+.dr-item-idx { flex: none; width: 1.6rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.dr-item-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dr-tag { flex: none; font-size: .72rem; font-weight: 800; padding: .1em .55em; border-radius: 999px; background: rgba(255, 255, 255, .12); }
+.dr-icon { background: none; border: 0; padding: .2rem .4rem; border-radius: .4rem; opacity: .7; flex: none; }
+.dr-icon:hover { opacity: 1; background: rgba(255, 255, 255, .12); }
+.dr-dot { width: .6rem; height: .6rem; border-radius: 50%; background: var(--none); flex: none; }
+.dr-dot[data-online] { background: var(--good); }
+.dr-points { font-variant-numeric: tabular-nums; color: var(--accent); flex: none; }
+.dr-edit { margin: .3rem 0 .6rem; padding: .7rem; border-radius: .6rem; background: #0d0f16; border: 1px solid var(--line); }
+
+.st-archive-banner { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); z-index: 30; background: #14161f; color: #fff; padding: .5rem .6rem .5rem 1.2rem; border-radius: 999px; display: flex; gap: .8rem; align-items: center; font-size: .95rem; box-shadow: 0 .4rem 1.4rem rgba(0, 0, 0, .5); }
+
+/* ---- login ---------------------------------------------------------------- */
+.lg { position: fixed; inset: 0; display: grid; place-items: center; padding: 1.5rem; }
+.lg-card { width: min(100%, 24rem); background: var(--panel); border-radius: 1.6rem; padding: 2rem 1.6rem; display: flex; flex-direction: column; gap: .8rem; box-shadow: inset 0 0 0 2px var(--line); text-align: center; }
+.lg-card h1 { margin: 0 0 .4rem; font-size: 1.6rem; }
+.lg-card .gk-input { text-align: start; direction: ltr; }
+.lg-back { color: var(--ink-soft); font-size: .9rem; }
+
+/* ---- the item form (js/admin/itemForm.js) — drawer and editor ------------- */
+.if { display: flex; flex-direction: column; gap: .7rem; }
+.if-field { display: flex; flex-direction: column; gap: .25rem; min-width: 0; flex: 1; }
+.if-label { font-size: .78rem; color: var(--ink-soft); font-weight: 800; }
+.if-pair { display: flex; gap: .6rem; flex-wrap: wrap; }
+.if-pair > * { flex: 1 1 9rem; }
+.if textarea { resize: vertical; font-weight: 700; }
+.if-options { display: flex; flex-direction: column; gap: .4rem; align-items: stretch; }
+.if-options > .gk-btn { align-self: flex-start; }
+.if-option { display: flex; align-items: center; gap: .45rem; }
+.if-swatch { padding: .2rem; border-radius: .6rem; font-size: .62rem; flex: none; box-shadow: none; }
+.if-correct, .if-check { display: flex; align-items: center; gap: .35rem; font-size: .85rem; flex: none; cursor: pointer; }
+.if-correct input, .if-check input { width: 1.1rem; height: 1.1rem; accent-color: var(--good); }
+.if-seg { display: inline-flex; border-radius: .5rem; overflow: hidden; border: 1px solid var(--line); align-self: flex-start; direction: ltr; }
+.if-seg-btn { background: #0d0f16; border: 0; padding: .45em 1em; font-weight: 800; }
+.if-seg-btn + .if-seg-btn { border-inline-start: 1px solid var(--line); }
+.if-seg-btn[data-on] { background: var(--accent); color: var(--accent-ink); }
+
+/* The puzzle's circle picker (itemForm): the picture, with the chosen round
+   detail ringed on top of it. */
+.if-circle { display: flex; flex-direction: column; gap: .5rem; }
+.if-circle-stage { position: relative; align-self: flex-start; max-width: 100%; line-height: 0; cursor: crosshair; touch-action: none; border-radius: .5rem; overflow: hidden; }
+.if-circle-img { display: block; max-width: 100%; max-height: 16rem; user-select: none; }
+.if-circle-ring { position: absolute; top: 0; left: 0; border-radius: 50%; box-shadow: 0 0 0 3px #fff, 0 0 0 5px rgba(0, 0, 0, .6), 0 0 0 100vmax rgba(0, 0, 0, .45); pointer-events: none; }
+
+/* The spot-it region editor (itemForm): rectangles drawn on the picture. */
+.if-spot-stage { overflow: visible; }
+.if-spot-layer { position: absolute; inset: 0; pointer-events: none; }
+.if-spot-rect { position: absolute; border: 2px solid #fff; border-radius: 3px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .7); background: rgba(255, 255, 255, .1); font-size: .85rem; }
+.if-spot-rect[data-correct="true"] { border-color: var(--good); background: color-mix(in srgb, var(--good) 30%, transparent); }
+.if-spot-rect[data-ghost] { border-style: dashed; }
+.if-spot-tag { flex: 1; font-weight: 800; }
+
+/* ---- emoji: the "+" beside a text field, and the panel it opens ------------ */
+.ep-wrap { position: relative; display: flex; flex: 1; min-width: 0; }
+/* Physical left, not inline-end: the field is dir="auto", so for a value like
+   "3" its own inline-end is the RIGHT — the padding went there while the
+   button sat on the left, on top of the text. The button is always on the
+   left and the text always starts from the right, whatever is typed. */
+.ep-wrap > .dr-input { flex: 1; padding-left: 2.1rem; }
+.if .dr-input[dir="auto"] { text-align: right; }
+.ep-open { position: absolute; top: .3rem; left: .3rem; width: 1.6rem; height: 1.6rem; border-radius: 50%; border: 1px solid var(--line); background: #14161f; color: var(--ink); font-weight: 800; line-height: 1; padding: 0; }
+.ep-open:hover { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.ep { position: fixed; z-index: 80; width: 19.5rem; max-width: calc(100vw - 16px); background: #14161f; color: var(--ink); border: 1px solid var(--line); border-radius: .8rem; box-shadow: 0 .8rem 2.4rem rgba(0, 0, 0, .6); padding: .4rem; direction: ltr; }
+.ep-tabs { display: flex; gap: .15rem; border-bottom: 1px solid var(--line); padding-bottom: .3rem; margin-bottom: .3rem; }
+.ep-tab { flex: 1; background: none; border: 0; border-radius: .4rem; font-size: 1.1rem; padding: .2rem 0; filter: grayscale(.6); opacity: .7; }
+.ep-tab[data-on] { background: var(--panel); filter: none; opacity: 1; }
+.ep-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: .1rem; max-height: 13rem; overflow-y: auto; }
+.ep-emoji { background: none; border: 0; border-radius: .4rem; font-size: 1.35rem; line-height: 1.5; padding: 0; }
+.ep-emoji:hover, .ep-emoji:focus-visible { background: var(--panel); }
+button.if-swatch { cursor: pointer; border: 0; }
+button.if-swatch:hover { filter: brightness(1.15); }
+
+/* ---- the running order ------------------------------------------------------
+   Each kind of element has its own colour (the bar on the leading edge and a
+   tint) and its own icon, so the shape of a quiz reads at a glance. Type is
+   small on purpose: more of each title fits, and hover shows all of it. */
+.ed-list { gap: .25rem; }
+.ed-row { --kind: #8b93a7; font-size: .82rem; padding: .3rem .45rem; gap: .35rem; cursor: grab;
+    border-inline-start: .28rem solid var(--kind); background: color-mix(in srgb, var(--kind) 13%, #14161f); }
+.ed-row[data-kind="interlude"] { --kind: #4aa8ff; }
+.ed-row[data-kind="question"] { --kind: #ffd60a; }
+.ed-row[data-kind="spot"] { --kind: #2dd4bf; }
+.ed-row[data-kind="puzzle"] { --kind: #c084fc; }
+.ed-row[data-kind="explain"] { --kind: #4ade80; }
+.ed-row[data-kind="complete"] { --kind: #fb7185; }
+/* A segment sits under its question, set in: it is part of that question. */
+.ed-row[data-child] { margin-inline-start: 1.6rem; cursor: default; }
+.ed-row .dr-item-idx { width: 1.2rem; }
+.ed-row .dr-item-main { gap: .35rem; cursor: pointer; }
+.ed-kind { flex: none; }
+.ed-grip { flex: none; opacity: .4; font-size: .9rem; line-height: 1; }
+.ed-row:hover .ed-grip { opacity: .9; }
+.ed-row[data-dragging] { opacity: .4; }
+.ed-row[data-drop="before"] { box-shadow: 0 -3px 0 var(--accent); }
+.ed-row[data-drop="after"] { box-shadow: 0 3px 0 var(--accent); }
+.ed-row[data-current] { box-shadow: inset 0 0 0 2px var(--accent); }
+.ed-row[data-current][data-drop="before"] { box-shadow: inset 0 0 0 2px var(--accent), 0 -3px 0 var(--accent); }
+.ed-row[data-current][data-drop="after"] { box-shadow: inset 0 0 0 2px var(--accent), 0 3px 0 var(--accent); }
+
+/* "Complete the picture" options in the form: the piece, its size, its file. */
+.if-swatch--piece { width: 2.4rem; height: 2.4rem; padding: .2rem; display: grid; place-items: center; }
+.if-swatch--piece img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.if-scale { display: flex; align-items: center; gap: .2rem; flex: none; font-size: .85rem; }
+.if-scale .dr-input { width: 4.4rem; flex: none; text-align: center; }
+.if-piece { flex: 1 1 6rem; min-width: 0; }
+.cm-piece { display: grid; place-items: center; width: 9rem; height: 9rem; padding: .4rem; }
+.cm-piece canvas { max-width: 100%; max-height: 100%; }
+
+/* The Save row at the foot of every item form. The button fills in when there
+   is something unsaved, so its state can be read without reading the text. */
+.if-save { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; padding-top: .6rem; border-top: 1px solid var(--line); position: sticky; bottom: 0; background: inherit; }
+.if-save .dr-note { margin: 0; }
+.if-save-btn { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px var(--line); }
+.if-save-btn[data-dirty] { background: var(--accent); color: var(--accent-ink); box-shadow: 0 .18em 0 rgba(0, 0, 0, .4); }

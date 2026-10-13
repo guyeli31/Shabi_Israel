@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="400" viewBox="0 0 360 400">
+  <rect x="8" y="8" width="344" height="384" rx="84" fill="#46178f" stroke="#fff" stroke-width="12"/>
+  <text x="180" y="232" text-anchor="middle" font-size="210" font-family="'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif">🖕</text>
+  <text x="180" y="350" text-anchor="middle" textLength="280" lengthAdjust="spacingAndGlyphs" font-size="70" font-weight="900" font-style="italic" fill="#fff" font-family="'Arial Black', 'Segoe UI', Arial, Helvetica, sans-serif">Kahoot!</text>
+</svg>

@@ -25,7 +25,7 @@ it is the domain root, and the app lives one folder down:
 ├── WC26/                → golan.me.uk/WC26/       predates the layout; keeps
 │                                                   its original URL, borrows the
 │                                                   app's CSS via ../shabi-israel/
-└── gevkalil/            → golan.me.uk/gevkalil/   the live quiz (see § Gevkalil)
+└── gevkahoot/            → golan.me.uk/gevkahoot/   the live quiz (see § GevKahoot)
 ```
 
 Everything else at the repo root (`scripts/`, `docs/`, `sql/`, `tools/`, `v2/`)
@@ -64,9 +64,9 @@ is tooling, not served content.
   `<user>.github.io` repo first; `golan.me.uk/shabi-israel/` stays identical
   either way, so no link breaks.
 
-## Gevkalil — the live quiz (`gevkalil/`)
+## GevKahoot — the live quiz (`gevkahoot/`)
 
-A second project on the domain, served at `golan.me.uk/gevkalil/`: a Kahoot-style
+A second project on the domain, served at `golan.me.uk/gevkahoot/`: a Kahoot-style
 live quiz. The host (an allowlisted admin, on a desktop) projects the question;
 players join from a phone or a desktop with a temporary name and no account. One
 quiz on air at a time. Hebrew, RTL. No build step, same rules as the app (relative
@@ -76,12 +76,12 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
 |---|---|
 | `index.html` | Entry + the player's screen. Shows whether a quiz is on air; `ADMIN LOGIN` is always present on the entry screens. `?demo` plays the demo quiz. |
 | `host.html` | The projected screen. After login, the host controls sit on top of it: ☰ (drawer, left — like the app's admin sidebar) and ▶ / Space for "next". |
-| `editor.html` | The quiz editor — the TOOLS interface (`tools/START_GEVKALIL_EDITOR.bat`). Questions, interludes, media, backgrounds, themes, with live previews of both screens. |
+| `editor.html` | The quiz editor — the TOOLS interface (`tools/START_GEVKAHOOT_EDITOR.bat`). Questions, interludes, media, backgrounds, themes, with live previews of both screens. |
 
 - **A player is not a Supabase user.** The whole audience shares the `anon` key,
   so no `gk_*` table a player touches is readable or writable by anon. Every
   player action is a SECURITY DEFINER function keyed by a device token
-  (`localStorage['gevkalil:device']`; the server stores only its sha256). The
+  (`localStorage['gevkahoot:device']`; the server stores only its sha256). The
   server owns the clock, the correctness check and the score. **The correct
   answers live in `gk_items`, which anon cannot read** — they reach a browser
   only inside `gk_public_state`, written by `_gk_publish()`, and only after the
@@ -97,7 +97,7 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   `gk_admin_*` function it is the first statement.
 - **Supabase's default privileges grant EXECUTE on every new public function to
   anon.** `revoke … from public` alone leaves an internal helper callable; the
-  grant loop at the bottom of `sql/gevkalil.sql` revokes from `public, anon,
+  grant loop at the bottom of `sql/gevkahoot.sql` revokes from `public, anon,
   authenticated` and grants back by name. A new `_gk_*` helper is covered by
   that loop only once the file is re-run.
 - **A `DELETE`/`UPDATE` with no `WHERE` fails when called through the API**
@@ -107,12 +107,121 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   the sum of non-voided `gk_answers`; `gk_admin_goto(k)` voids the answers from
   item k on. Never store a running total.
 - **Media are files in the repo**, one folder per kind:
-  `gevkalil/media/{images,videos,audio,backgrounds}/`. The database stores the
-  path and a CHECK refuses anything that is not one (so no off-origin URL can be
-  saved). The editor's pickers read `media/manifest.json` — **generated, never
-  hand-edit**: after adding or removing a file run
-  `node scripts/gevkalil-media-manifest.mjs` (`--check` gates it). File names:
-  `A-Z a-z 0-9 . _ -` only.
+  `gevkahoot/media/{images,videos,audio,backgrounds,sprites}/`. The database
+  stores the path and a CHECK refuses anything that is not one (so no off-origin
+  URL can be saved). The editor's pickers read `media/manifest.json` —
+  **generated, never hand-edit**: after adding or removing a file run
+  `node scripts/gevkahoot-media-manifest.mjs` (`--check` gates it).
+- **A media file may be named anything a person would name it** — Hebrew,
+  spaces, brackets. The first real images dropped into the folder were named in
+  Hebrew and, under the original `A-Z a-z 0-9 . _ -` rule, silently never
+  appeared in the editor. What a name may NOT contain is what could make it more
+  than a name: `/ \ ? # % : * " < > |`, control characters, a leading dot. That
+  one rule is written three times and must stay identical: the CHECKs in
+  `sql/gevkahoot.sql` §1b, `MEDIA_RE` in `js/ui/dom.js`, `NAME_RE` in the
+  manifest script (and the sprite cutter).
+- **The bouncing animation** (`js/host/bouncers.js`) is a quiz setting
+  (`gk_quizzes.anim_*`: sprite, count, size, speed, in-front) that an item can
+  switch off for itself (`gk_items.anim_on`), published inside the quiz object
+  as `anim`. It is drawn BEHIND the question by default — a picture crossing the
+  text mid-countdown costs players the question — and never takes clicks. A
+  sprite is a transparent PNG in `media/sprites/`, normally made with the
+  editor's cutter (`js/admin/spriteCutter.js`): pick an image, draw a free-hand
+  outline, and it writes the PNG **and** the updated `manifest.json` straight
+  into the working copy through the File System Access API (Chrome/Edge;
+  elsewhere it downloads the file). Nothing is uploaded.
+- **The puzzle is a third item kind** (`gk_items.kind = 'puzzle'`), and
+  everywhere else it is *a question with one option*: "done" is option 0,
+  `correct = '{0}'` by CHECK, so scoring by time, the fastest five, the table,
+  the matrix and re-scoring need no special case. The test for "scored item" is
+  therefore `kind <> 'interlude'`, never `kind = 'question'` — in SQL and in the
+  client alike (`= 'question'` is right only where the OPTIONS are meant).
+  `js/host/puzzle.js` cuts any media picture into five pieces with CSS
+  (background + clip-path, no image processing), snaps a piece dropped near its
+  place exactly into it, and offers "סיימתי" only when all five are home. At the
+  reveal the picture is shown whole and the round detail the host chose
+  (`circle_x/y/r`, picked on the picture in the editor) takes over the bouncing
+  animation — it is published only then.
+  **"Done" is the one answer taken on trust**: only the browser knows where the
+  pieces are. What the server enforces is a two-second floor (`too_fast`), so a
+  script cannot claim full marks the instant the puzzle opens; a determined
+  cheat can still answer at 2.0s. Do not build a prize on a puzzle's score.
+- **"Spot it" is a fourth item kind** (`kind = 'spot'`): the answers are
+  rectangles the host draws on a picture (`gk_items.regions`, fractions of the
+  picture; up to 12), and a player taps one and confirms. Region N is option N,
+  so — like the puzzle — it is an ordinary question to everything downstream.
+  The rectangles are published while the question is open (they are the
+  choices); `correct` only at the reveal. `js/host/spot.js` draws it; the
+  region editor is in `js/admin/itemForm.js`. "How many answers does this item
+  offer" is therefore a three-way question — options, regions, or the puzzle's
+  one — answered in one place per layer: `v_n` / the bound check in
+  `gk_answer` (SQL), `choices()` in `js/demo/engine.js`.
+- **The "answer explained" segment** (`kind = 'explain'`) is an interlude that
+  BELONGS to a question: its own row (so it has its own text, media, music and
+  animation), tied by `parent_id`, at most one per question, deleted with it. It
+  is **not a stop in the running order** — `_gk_ordered()` and every item count
+  skip rows with a parent — so "next" after a reveal goes reveal → explain →
+  fastest → table. While it shows, `item` in the published state stays the
+  question (a phone still knows what it answered) and the segment rides beside
+  it as `data.explain`; the stage draws it as an interlude. In the editor it is
+  `item.explain` on its question, never an entry of `items` — look an id up
+  with `everyItem()`.
+- **Per-element playback is three states in two columns.** `music_on` /
+  `anim_on = false` mean "none here"; `music` / `anim_sprite` hold "this file
+  here"; both empty means "as the quiz". The stage resolves it for the element
+  on screen (`current()` — the segment during `explain`, else the item). The
+  quiz's `anim` object is always published, with `on`: an item may bring its
+  own sprite to a quiz whose animation is off and still needs the quiz's count,
+  size and speed.
+- **A tile's mark may be an emoji** (`gk_items.symbols`, one per answer, `''` =
+  the default emblem). The tile's COLOUR never changes — "red is the first
+  answer" holds either way.
+- **`dir="auto"` flips more than letter order.** It makes the element's own
+  inline-start/end follow its content, so `text-align: start`,
+  `padding-inline-end` and `inset-inline-end` all switch sides for a value like
+  "3" or "Guy". Twice this put text where it could not be read (English names
+  on the far side of the table; an answer hidden under the emoji button). On a
+  `dir="auto"` element use physical `left`/`right` and `text-align: right`.
+- **"Complete the picture" is a fifth scored kind** (`kind = 'complete'`): a
+  picture with one object taken out, and 2-5 candidate pieces. Tapping a
+  candidate draws it into the gap on the picture itself, so the player judges by
+  eye and can swap freely before submitting. Candidate N is option N. Here
+  `options` holds OBJECTS (`{image, scale}` — a cut-out in `media/sprites/` and
+  its width relative to the real object, 1 = exact), not strings, and `slot` is
+  where the object was. A path inside that JSON gets the same "file name inside
+  its folder" rule as a media column, via `jsonb_path_exists` in the CHECK.
+  The editor makes one from any picture (`js/admin/completeMaker.js`): a
+  free-hand outline, then `removeObject()` writes the picture without the object
+  (to `media/images/`) and the cut-out (to `media/sprites/`). The removal is a
+  simple inpaint — fill inwards from the rim, relax, add grain: clean on plain
+  backgrounds (sky, grass, a wall), a soft blur over busy ones. Fine for the
+  game — the gap is marked on screen anyway — but do not promise "invisible".
+  Every editor tool that writes media goes through `saveMediaFile()`
+  (`js/admin/spriteCutter.js`), which also updates the manifest.
+- **Never put a backslash-heavy literal through a shell heredoc.** A regex
+  written into a file by `python - <<EOF` had its `\u0000-\u001f` turned into
+  the real control characters: it still parsed and still matched, and the file
+  became "binary" to grep. Write such a line with the Write/Edit tools, or from
+  a script FILE, and scan for control characters after any generated edit.
+- **The picture games open on an instruction slide** (phase `intro`): puzzle,
+  spot it and complete the picture are not self-explanatory, so `_gk_enter()`
+  puts them on a slide with a looping demonstration and two steps, with NO
+  clock. The question and its countdown start only on the host's "next"
+  (`_gk_start_question()` — the one place `q_started_at` / `q_deadline` are
+  set). The demonstrations (`js/host/intro.js`, `.dm-…` in `host.css`) are plain
+  boxes on CSS keyframes — generic shapes, never the question's own picture,
+  which must not be given away before the clock runs. Two traps met building
+  them: an `em` on an animated element is ITS OWN font-size (the hand, enlarged
+  with `font-size: 2em`, travelled twice as far as intended — enlarge an inner
+  element instead); and a property named in only the LAST keyframe is animated
+  towards it from 0% (a piece meant to vanish at the end faded all the way) —
+  state it in the keyframe before as well.
+- **The quiz object a screen receives is built in ONE place**,
+  `_gk_quiz_json()` — used both while the quiz runs and when it is frozen into
+  the archive. It had been hand-copied in two functions; a field added to one
+  would have vanished from finished quizzes. A new quiz-level setting goes
+  there, and in the two client mirrors (`js/demo/engine.js`,
+  `js/preview/mock.js`).
 - **One stage, three audiences.** `js/host/stage.js` draws the quiz for the
   projected screen AND for every player (`gkPlayer.js` embeds it and adds one
   status line underneath). Options, not forks: `role: 'player'` makes the
@@ -129,8 +238,8 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   in exactly the shape `_gk_publish()` / `gk_me()` produce, so it runs the real
   rendering code — when that shape changes, the engine and
   `js/preview/mock.js` change with it. Its content is `js/demo/demoQuiz.js`,
-  mirrored by `sql/gevkalil_demo_seed.sql`; its video and audio are synthetic,
-  regenerated by `node scripts/gevkalil-demo-media.mjs` (two questions ask about
+  mirrored by `sql/gevkahoot_demo_seed.sql`; its video and audio are synthetic,
+  regenerated by `node scripts/gevkahoot-demo-media.mjs` (two questions ask about
   them — "how many balls", "how many beeps"). The points formula exists twice
   for this reason only: `_gk_points` in SQL is the authority, `js/scoring.js`
   is the demo's copy.
@@ -142,18 +251,18 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   invented state by `postMessage` (`js/preview/mock.js`). A screen that must be
   previewable therefore renders only from the state object — no fetch of its own.
 - **All DOM goes through `h()` in `js/ui/dom.js`** — text nodes only, no
-  `innerHTML` anywhere in `gevkalil/`. Names and question text are strangers'
+  `innerHTML` anywhere in `gevkahoot/`. Names and question text are strangers'
   input shown on a projector.
 - **Tile N is always option N**: red, blue, yellow, black, purple
   (`js/ui/teams.js`; artwork in `assets/teams/<colour>.svg`). Themes restyle the
   stage, never the tiles.
 - **Verify** (local Docker Supabase; both refuse to touch a quiz that is really
   live, and neither can reach production):
-  `node scripts/gevkalil-security-check.mjs` — what a player's browser cannot do,
+  `node scripts/gevkahoot-security-check.mjs` — what a player's browser cannot do,
   each refusal paired with a control;
-  `node scripts/gevkalil-sim.mjs` — a whole quiz with 30 simulated phones,
+  `node scripts/gevkahoot-sim.mjs` — a whole quiz with 30 simulated phones,
   including going back and a device relink.
-- **`node scripts/gevkalil-layout-check.mjs` after ANY change to a Gevkalil
+- **`node scripts/gevkahoot-layout-check.mjs` after ANY change to a GevKahoot
   screen** (needs the dev server on :8090, no login, no database). It asks of
   every stage of a quiz, for the projected screen, a desktop player and a phone
   player, at ten window shapes: is any text or picture cut by a clipping
@@ -163,8 +272,8 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   its own row, inside the viewport, in a window taller than the one tested.
   Sizing type from a container's HEIGHT alone is what did it; bound it by the
   width too (`min(<from height>, <n>cqw)`).
-- SQL: `sql/gevkalil.sql` (re-runnable; after `admin_write_allowlist_2026-10-09.sql`),
-  optional `sql/gevkalil_demo_seed.sql`.
+- SQL: `sql/gevkahoot.sql` (re-runnable; after `admin_write_allowlist_2026-10-09.sql`),
+  optional `sql/gevkahoot_demo_seed.sql`.
 
 ## Data & query standards
 

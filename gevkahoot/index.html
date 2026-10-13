@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <!-- Everything this page may load is listed here, and nothing is off-origin
+         except the app's own Supabase backend (https for the API, wss for the
+         live channel; the 127.0.0.1 pair is the local Docker instance and is
+         unreachable from a visitor's device). No inline script or style is
+         permitted, so a name or question that somehow carried markup could not
+         run even if it reached the page as markup — which js/ui/dom.js already
+         prevents. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://oaowwbwssfsohaskrgnc.supabase.co wss://oaowwbwssfsohaskrgnc.supabase.co http://127.0.0.1:54321 ws://127.0.0.1:54321; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <title>GevKahoot</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="description" content="GevKahoot — חידון לייב: מצטרפים מהטלפון ומתחרים בזמן אמת">
+
+    <!-- Link-preview card (WhatsApp / Facebook / Twitter) and the browser-tab
+         icon, set up exactly as on the main site. The og:/twitter: URLs are the
+         only absolute ones in the project — a preview crawler cannot resolve a
+         relative path — and they carry /gevkahoot/, so they are the one thing
+         that does not follow a folder move by itself. The image is a PNG
+         generated from assets/logo/logo.svg (node scripts/gevkahoot-logo.mjs). -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="GevKahoot">
+    <meta property="og:description" content="חידון לייב: מצטרפים מהטלפון ומתחרים בזמן אמת">
+    <meta property="og:image" content="https://golan.me.uk/gevkahoot/assets/logo/logo.png">
+    <meta property="og:image:width" content="640">
+    <meta property="og:image:height" content="640">
+    <meta property="og:url" content="https://golan.me.uk/gevkahoot/">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="GevKahoot">
+    <meta name="twitter:description" content="חידון לייב: מצטרפים מהטלפון ומתחרים בזמן אמת">
+    <meta name="twitter:image" content="https://golan.me.uk/gevkahoot/assets/logo/logo.png">
+    <meta name="theme-color" content="#0b5d2c">
+    <link rel="icon" type="image/png" href="assets/favicon-round.png">
+    <link rel="apple-touch-icon" href="assets/logo/logo.png">
+    <link rel="stylesheet" href="../shabi-israel/css/fonts.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/host.css">
+    <link rel="stylesheet" href="css/player.css">
+</head>
+<body>
+    <div id="app" class="pl"></div>
+    <script type="module" src="js/gkPlayer.js"></script>
+</body>
+</html>
