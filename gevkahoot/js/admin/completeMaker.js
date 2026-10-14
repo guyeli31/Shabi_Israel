@@ -2,8 +2,9 @@
  * completeMaker.js — turn any picture into a "complete the picture" question.
  *
  * The host picks a picture already in the repo (media/images or
- * media/backgrounds — never a file from the computer) and draws a free-hand outline around one object in
- * it. Two files come out:
+ * media/backgrounds — never a file from the computer) and marks one object in
+ * it: a free-hand outline, a dragged rectangle, or a dragged circle (Shift
+ * keeps it round). Two files come out:
  *
  *   the picture WITHOUT the object — the outlined area is painted over with
  *     the background that surrounds it (see removeObject below);
@@ -239,29 +240,124 @@ export function openCompleteMaker({ onSaved, manifest, title = 'השלמת תמ�
     const downloadBtn = h('button', { class: 'gk-btn gk-btn--small gk-btn--ghost', type: 'button', text: 'הורדת שני הקבצים', disabled: true });
 
     let work = null;       // the picture at working size (canvas)
-    let fit = null;        // where it is drawn on the editing canvas
-    let points = [];       // the outline, in editing-canvas pixels
+    // The outline is kept in WORK-picture pixels, not screen pixels, so it
+    // stays exactly on the object while the view zooms in and out.
+    let points = [];
     let drawing = false;
     let result = null;     // { hole, piece, slot }
+    // How the object is marked: a free-hand outline, a rectangle, or a circle
+    // (an ellipse in the dragged box; Shift keeps it round). Every shape ends
+    // up as the same outline of points, so removeObject() needs no change.
+    let shape = 'free';
+    let anchor = null;     // where a rectangle / circle drag began (work px)
+    const HINT = {
+        free: 'הקיפו בגרירה את העצם שרוצים להוציא מהתמונה.',
+        rect: 'גררו מלבן סביב העצם שרוצים להוציא מהתמונה.',
+        circle: 'גררו עיגול סביב העצם (מפינה לפינה; Shift שומר על עיגול מושלם).',
+        zoom: 'גררו ריבוע סביב האזור שרוצים להגדיל.',
+    };
+
+    // ---- zoom ----------------------------------------------------------------
+    // The part of the picture on screen is `view`, a rectangle in work pixels
+    // drawn as large as the canvas allows. "🔍" makes the next drag pick a
+    // SQUARE, and the view becomes that square (widened to the canvas's
+    // proportions, so nothing is stretched); "↩" goes back one zoom, "⌂" to
+    // the whole picture. Marking works the same at any zoom — and so does
+    // looking at the result: the fill can be inspected up close.
+    let view = null;       // { x, y, w, h } in work pixels
+    let views = [];        // the views before this one, for "back"
+    let zooming = false;   // the next drag picks the square to zoom to
+    let zoomBox = null;    // [a, b] — that square while it is dragged, canvas px
+    const MIN_VIEW = 24;   // work px: as far in as it goes
+    const scaleOf = () => Math.min(canvas.width / view.w, canvas.height / view.h);
+    const originOf = () => { const s = scaleOf(); return [(canvas.width - view.w * s) / 2, (canvas.height - view.h * s) / 2]; };
+    const toCanvas = ([x, y]) => { const s = scaleOf(), [ox, oy] = originOf(); return [ox + (x - view.x) * s, oy + (y - view.y) * s]; };
+    const toWork = ([px, py]) => { const s = scaleOf(), [ox, oy] = originOf(); return [view.x + (px - ox) / s, view.y + (py - oy) / s]; };
+    const whole = () => ({ x: 0, y: 0, w: work.width, h: work.height });
+
+    const zoomBtn = h('button', { class: 'gk-btn gk-btn--small gk-btn--ghost', type: 'button', text: '🔍 זום לריבוע', disabled: true,
+        title: 'גררו ריבוע על התמונה כדי להגדיל אותו' });
+    const backBtn = h('button', { class: 'gk-btn gk-btn--small gk-btn--ghost', type: 'button', text: '↩ אחורה', disabled: true,
+        title: 'חזרה לזום הקודם' });
+    const homeBtn = h('button', { class: 'gk-btn gk-btn--small gk-btn--ghost', type: 'button', text: '⌂ כל התמונה', disabled: true,
+        title: 'חזרה לתמונה המלאה' });
+    function syncZoom() {
+        zoomBtn.disabled = !work;
+        zoomBtn.toggleAttribute('data-on', zooming);
+        zoomBtn.textContent = zooming ? '🔍 גררו ריבוע…' : '🔍 זום לריבוע';
+        backBtn.disabled = !views.length;
+        homeBtn.disabled = !views.length;
+        canvas.style.cursor = zooming ? 'zoom-in' : 'crosshair';
+    }
+    const hint = () => (zooming ? HINT.zoom : result ? status.textContent : HINT[shape]);
+    zoomBtn.onclick = () => { zooming = !zooming; zoomBox = null; syncZoom(); status.textContent = hint(); paint(); };
+    backBtn.onclick = () => { if (views.length) view = views.pop(); zooming = false; syncZoom(); paint(); };
+    homeBtn.onclick = () => { view = whole(); views = []; zooming = false; syncZoom(); paint(); };
+    /** Zoom to the square dragged from canvas point a to b. */
+    function zoomTo([ax, ay], [bx, by]) {
+        const [wa, wb] = [toWork([ax, ay]), toWork([bx, by])];
+        const side = Math.max(MIN_VIEW, Math.abs(wb[0] - wa[0]), Math.abs(wb[1] - wa[1]));
+        const cx = (wa[0] + wb[0]) / 2, cy = (wa[1] + wb[1]) / 2;
+        const aspect = canvas.width / canvas.height;
+        const w = side * Math.max(1, aspect), hgt = side * Math.max(1, 1 / aspect);
+        views.push(view);
+        view = { x: cx - w / 2, y: cy - hgt / 2, w, h: hgt };
+    }
+
+    /** The outline of a rectangle / circle dragged from a to b (work px), as points. */
+    function shapeOutline([ax, ay], [bx, by], round) {
+        if (round) { const d = Math.max(Math.abs(bx - ax), Math.abs(by - ay)); bx = ax + Math.sign(bx - ax || 1) * d; by = ay + Math.sign(by - ay || 1) * d; }
+        const x0 = Math.min(ax, bx), x1 = Math.max(ax, bx), y0 = Math.min(ay, by), y1 = Math.max(ay, by);
+        if (shape === 'rect') {
+            const corners = [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]];
+            const pts = [];
+            for (let c = 0; c < 4; c++) for (let i = 0; i < 12; i++) {
+                const t = i / 12, [px, py] = corners[c], [qx, qy] = corners[c + 1];
+                pts.push([px + (qx - px) * t, py + (qy - py) * t]);
+            }
+            return pts;
+        }
+        const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, rx = (x1 - x0) / 2, ry = (y1 - y0) / 2;
+        return Array.from({ length: 72 }, (_, i) => [cx + rx * Math.cos(i * Math.PI / 36), cy + ry * Math.sin(i * Math.PI / 36)]);
+    }
+    const shapeSeg = h('div', { class: 'if-seg if-seg--words', role: 'radiogroup', 'aria-label': 'צורת הסימון' },
+        [['free', '✍ צורה חופשית'], ['rect', '▭ מלבן'], ['circle', '◯ עיגול']].map(([key, label]) => h('button', {
+            type: 'button', class: 'if-seg-btn', text: label, dataset: key === shape ? { on: '' } : {},
+            onclick: (e) => {
+                shape = key;
+                zooming = false; syncZoom();
+                for (const b of shapeSeg.children) b.toggleAttribute('data-on', b === e.currentTarget);
+                // A new shape starts a new marking (an object already taken out stays).
+                if (!result) { points = []; removeBtn.disabled = true; paint(); }
+                if (work && !result) status.textContent = HINT[shape];
+            } })));
 
     function paint() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         if (!work) return;
-        ctx.drawImage(result ? result.hole : work, fit.x, fit.y, fit.w, fit.h);
-        if (result || points.length < 2) return;
-        const path = new Path2D();
-        points.forEach(([x, y], i) => (i ? path.lineTo(x, y) : path.moveTo(x, y)));
-        if (!drawing) {
-            // Finished outline: tint what will be taken OUT (the reverse of
-            // the sprite cutter, where the inside is what is kept).
-            path.closePath();
-            ctx.fillStyle = 'rgba(226, 22, 47, .35)';
-            ctx.fill(path);
+        const s = scaleOf(), [ox, oy] = originOf();
+        ctx.drawImage(result ? result.hole : work, ox - view.x * s, oy - view.y * s, work.width * s, work.height * s);
+        if (!result && points.length >= 2) {
+            const path = new Path2D();
+            points.map(toCanvas).forEach(([x, y], i) => (i ? path.lineTo(x, y) : path.moveTo(x, y)));
+            if (!drawing) {
+                // Finished outline: tint what will be taken OUT (the reverse of
+                // the sprite cutter, where the inside is what is kept).
+                path.closePath();
+                ctx.fillStyle = 'rgba(226, 22, 47, .35)';
+                ctx.fill(path);
+            }
+            ctx.lineJoin = 'round';
+            ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0, 0, 0, .7)'; ctx.stroke(path);
+            ctx.lineWidth = 2; ctx.setLineDash([7, 5]); ctx.strokeStyle = '#fff'; ctx.stroke(path);
+            ctx.setLineDash([]);
         }
-        ctx.lineJoin = 'round';
-        ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0, 0, 0, .7)'; ctx.stroke(path);
-        ctx.lineWidth = 2; ctx.setLineDash([7, 5]); ctx.strokeStyle = '#fff'; ctx.stroke(path);
-        ctx.setLineDash([]);
+        if (zoomBox) {
+            const [[ax, ay], [bx, by]] = zoomBox;
+            ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0, 0, 0, .7)'; ctx.strokeRect(ax, ay, bx - ax, by - ay);
+            ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.strokeStyle = '#ffd60a'; ctx.strokeRect(ax, ay, bx - ax, by - ay);
+            ctx.setLineDash([]);
+        }
     }
 
     const at = (e) => {
@@ -274,40 +370,68 @@ export function openCompleteMaker({ onSaved, manifest, title = 'השלמת תמ�
         removeBtn.disabled = true; againBtn.disabled = true; saveBtn.disabled = true; downloadBtn.disabled = true;
         paint();
     }
+    /** The square being dragged: from a, as far as the longer side of a→p. */
+    const square = ([ax, ay], [px, py]) => {
+        const d = Math.max(Math.abs(px - ax), Math.abs(py - ay));
+        return [[ax, ay], [ax + Math.sign(px - ax || 1) * d, ay + Math.sign(py - ay || 1) * d]];
+    };
     canvas.addEventListener('pointerdown', (e) => {
-        if (!work || result) return;
+        if (!work) return;
+        if (zooming) {
+            canvas.setPointerCapture(e.pointerId);
+            const p = at(e);
+            zoomBox = [p, p];
+            return;
+        }
+        if (result) return;
         canvas.setPointerCapture(e.pointerId);
-        drawing = true; points = [at(e)];
+        drawing = true;
+        anchor = toWork(at(e));
+        points = shape === 'free' ? [anchor] : shapeOutline(anchor, anchor, e.shiftKey);
         removeBtn.disabled = true; againBtn.disabled = false;
         paint();
     });
     canvas.addEventListener('pointermove', (e) => {
+        if (zoomBox) { zoomBox = square(zoomBox[0], at(e)); paint(); return; }
         if (!drawing) return;
         const p = at(e);
-        const [lx, ly] = points[points.length - 1];
-        if (Math.hypot(p[0] - lx, p[1] - ly) > 2) { points.push(p); paint(); }
+        if (shape !== 'free') { points = shapeOutline(anchor, toWork(p), e.shiftKey); paint(); return; }
+        const [lx, ly] = toCanvas(points[points.length - 1]);
+        if (Math.hypot(p[0] - lx, p[1] - ly) > 2) { points.push(toWork(p)); paint(); }
     });
     const finish = () => {
+        if (zoomBox) {
+            const [[ax, ay], [bx, by]] = zoomBox;
+            zoomBox = null;
+            // A click without a drag is no square: stay in zoom mode.
+            if (Math.abs(bx - ax) >= 10) { zoomTo([ax, ay], [bx, by]); zooming = false; }
+            syncZoom();
+            status.textContent = hint();
+            paint();
+            return;
+        }
         if (!drawing) return;
         drawing = false;
-        const usable = points.length >= 8;
+        // A free outline needs some length; a shape needs some size on screen.
+        const shown = points.map(toCanvas);
+        const xs = shown.map((q) => q[0]), ys = shown.map((q) => q[1]);
+        const usable = shape === 'free' ? points.length >= 8
+            : Math.max(...xs) - Math.min(...xs) >= 8 && Math.max(...ys) - Math.min(...ys) >= 8;
         if (!usable) points = [];
         removeBtn.disabled = !usable;
-        status.textContent = usable ? 'האזור המסומן באדום ייצא מהתמונה. אפשר לסמן מחדש, או ללחוץ "הוצא את העצם".' : 'הקיפו בגרירה את העצם שרוצים להוציא מהתמונה.';
+        status.textContent = usable ? 'האזור המסומן באדום ייצא מהתמונה. אפשר לסמן מחדש, או ללחוץ "הוצא את העצם".' : HINT[shape];
         paint();
     };
     canvas.addEventListener('pointerup', finish);
     canvas.addEventListener('pointercancel', finish);
-    againBtn.onclick = () => { restart(); status.textContent = 'הקיפו בגרירה את העצם שרוצים להוציא מהתמונה.'; };
+    againBtn.onclick = () => { restart(); status.textContent = HINT[shape]; };
 
     removeBtn.onclick = () => {
         status.textContent = 'מוציא את העצם וממלא את הרקע…';
         removeBtn.disabled = true;
         // Let the status line paint before the (synchronous) number-crunching.
         setTimeout(() => {
-            const k = work.width / fit.w;
-            const outline = points.map(([x, y]) => [(x - fit.x) * k, (y - fit.y) * k]);
-            result = removeObject(work, outline);
+            result = removeObject(work, points);
             if (result.slot.w < 0.02 || result.slot.h < 0.02) { restart(); status.textContent = 'הסימון קטן מדי.'; return; }
             clear(pieceBox).append(result.piece);
             pieceBox.hidden = false;
@@ -362,14 +486,13 @@ export function openCompleteMaker({ onSaved, manifest, title = 'השלמת תמ�
         work = h('canvas', { width: String(Math.round(bitmap.width * k)), height: String(Math.round(bitmap.height * k)) });
         work.getContext('2d').drawImage(bitmap, 0, 0, work.width, work.height);
         bitmap.close?.();
-        const s = Math.min(canvas.width / work.width, canvas.height / work.height);
-        fit = { w: work.width * s, h: work.height * s };
-        fit.x = (canvas.width - fit.w) / 2;
-        fit.y = (canvas.height - fit.h) / 2;
+        // A new picture starts whole, with no zoom history.
+        view = whole(); views = []; zooming = false; zoomBox = null;
+        syncZoom();
         // The result is a NEW picture beside the original, never over it.
         if (!nameInput.value) nameInput.value = `${base}-בלי-העצם`;
         restart();
-        status.textContent = 'הקיפו בגרירה את העצם שרוצים להוציא מהתמונה.';
+        status.textContent = HINT[shape];
     });
 
     const dialog = h('dialog', { class: 'sc kit', dir: 'rtl', 'aria-label': 'יצירת שאלת השלמת תמונה' },
@@ -377,7 +500,8 @@ export function openCompleteMaker({ onSaved, manifest, title = 'השלמת תמ�
             h('h2', { text: title }),
             h('button', { class: 'dr-x', type: 'button', 'aria-label': 'סגור', text: '✕', onclick: () => dialog.close() })),
         h('div', { class: 'sc-body' },
-            h('div', { class: 'sc-row' }, picker, againBtn, removeBtn),
+            h('div', { class: 'sc-row' }, picker, shapeSeg, againBtn, removeBtn),
+            h('div', { class: 'sc-row' }, zoomBtn, backBtn, homeBtn),
             canvas,
             h('div', { class: 'sc-row sc-out' }, pieceBox,
                 h('div', { class: 'sc-save' }, nameInput, h('div', { class: 'sc-row' }, saveBtn, downloadBtn))),

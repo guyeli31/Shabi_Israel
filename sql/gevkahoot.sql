@@ -315,7 +315,7 @@ alter table public.gk_items
     add column if not exists marks text not null default 'teams';
 alter table public.gk_items drop constraint if exists gk_items_marks_check;
 alter table public.gk_items add constraint gk_items_marks_check
-    check (marks in ('teams', 'emoji', 'catan', 'circuit', 'cards'));
+    check (marks in ('teams', 'emoji', 'catan', 'circuit', 'cards', 'fruits'));
 
 alter table public.gk_items drop constraint if exists gk_items_symbols_shape;
 alter table public.gk_items add constraint gk_items_symbols_shape check (

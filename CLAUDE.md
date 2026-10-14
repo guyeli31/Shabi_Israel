@@ -184,9 +184,11 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
 - **A question (and a ranking) picks a mark set** (`gk_items.marks`): `teams`
   (default), `emoji` (the per-answer `symbols` above), `catan` (terrain hexes
   with the resource's picture), `circuit` (resistor, inductor, capacitor,
-  battery, diode) or `cards` (joker, ace of spades, queen of hearts, eight of
+  battery, diode), `cards` (joker, ace of spades, queen of hearts, eight of
   diamonds, two of clubs — suits drawn as paths, not font glyphs, which look
-  different on every phone). An image set is `assets/<set>/<colour>.svg` — five files
+  different on every phone) or `fruits` (kiwi on red, red grapefruit on blue,
+  watermelon on yellow, peach on black, melon on purple — the asked order
+  would have put the red grapefruit on the red tile). An image set is `assets/<set>/<colour>.svg` — five files
   named by TILE colour, chosen for contrast (never a picture on a tile of its
   own colour); `crest()` in `js/ui/teams.js` is the one place that resolves it.
   An emoji in `symbols` wins whatever the set, so rows saved before the column

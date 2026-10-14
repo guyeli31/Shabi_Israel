@@ -181,7 +181,10 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         const src = state.phase === 'lobby'
             ? (quiz.music_on ? safeMedia(quiz.lobby_music) : null)
             : safeMedia(item?.music) || (quiz.music_on ? safeMedia(quiz.music) : null);
-        const itemOwnsSound = item && ['interlude', 'question', 'explain'].includes(state.phase) && (item.video || item.audio);
+        // Wherever an element's own video or audio is on screen, it is heard
+        // and the music is not — the reveal included: a question's clip plays
+        // again beside the answers, and the music used to come back over it.
+        const itemOwnsSound = item && ['interlude', 'question', 'reveal', 'explain'].includes(state.phase) && (item.video || item.audio);
         const want = mode() === 'full' && src && state.status !== 'idle'
             && !(item && item.music_on === false) && !itemOwnsSound;
         if (!want) { music.pause(); return; }
@@ -790,6 +793,10 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         const image = itemBg || safeMedia(quiz.background);
         bg.style.backgroundImage = image ? `url("${image}")` : '';
         bg.toggleAttribute('data-on', !!image);
+        // An item's own picture as the background is shown WHOLE, in its own
+        // proportions (host.css); the quiz's backdrop is wallpaper and fills.
+        bg.toggleAttribute('data-item', !!itemBg);
+        bg.style.setProperty('--bg-img', itemBg ? `url("${itemBg}")` : 'none');
 
         title.textContent = state.status === 'idle' ? '' : quiz.title || '';
         progress.textContent = item && item.kind !== 'interlude' && ['intro', 'question', 'reveal', 'explain', 'fastest'].includes(state.phase)

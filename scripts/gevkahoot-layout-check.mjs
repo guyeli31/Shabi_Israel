@@ -117,6 +117,25 @@ async function showAndAudit({ view, itemIndex, sabotage }) {
             problems.push(`cut by .${String(by).split(' ')[0]}: ${label}`);
         }
     }
+    // A picture or a video is shown in its OWN proportions on every screen:
+    // never cropped to a box of another shape (cover), never stretched (fill).
+    // `contain` letterboxes inside its box, which is fine — the pixels keep
+    // their shape. The action round's ball is cut round on purpose.
+    for (const el of document.querySelectorAll('#app img, #app video')) {
+        const cs = getComputedStyle(el);
+        if (cs.display === 'none' || cs.visibility === 'hidden' || el.closest('.ac')) continue;
+        const r = el.getBoundingClientRect();
+        if (!r.width || !r.height) continue;
+        const w = el.naturalWidth || el.videoWidth, hh = el.naturalHeight || el.videoHeight;
+        const fit = cs.objectFit;
+        if (fit !== 'cover' && fit !== 'fill' && fit !== 'none') continue;
+        const off = w && hh ? Math.abs((r.width / r.height) / (w / hh) - 1) : 1;
+        if (off > 0.02) problems.push(`media ${fit === 'cover' ? 'cropped' : 'stretched'} (object-fit: ${fit}, ${Math.round(off * 100)}% off): ${el.className || el.tagName} ${(el.getAttribute('src') || '').split('/').pop()}`);
+    }
+    // An item's picture as the whole background is shown whole as well.
+    const itemBg = document.querySelector('.st-bg[data-item]');
+    if (itemBg && getComputedStyle(itemBg).backgroundSize === 'cover') problems.push('media cropped (background-size: cover): the item picture shown as background');
+
     // Names and answers hug the RIGHT edge of their box in any language. The
     // mock room includes a Latin name ("Avi") precisely for this: dir="auto"
     // once sent every English name to the far left, away from its rank.

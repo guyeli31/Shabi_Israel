@@ -1,7 +1,7 @@
 /**
  * gevkahoot-marks.mjs — draws the tile emblems of the two extra mark sets.
  *
- *   node scripts/gevkahoot-marks.mjs          writes gevkahoot/assets/{catan,circuit,cards}/<colour>.svg
+ *   node scripts/gevkahoot-marks.mjs          writes gevkahoot/assets/{catan,circuit,cards,fruits}/<colour>.svg
  *   node scripts/gevkahoot-marks.mjs --check  exits 1 if a committed file differs
  *
  * The emblems are drawn here from scratch — no downloaded artwork — as plain
@@ -488,12 +488,140 @@ function joker() {
 const CARDS = { red: joker, blue: aceOfSpades, yellow: queenOfHearts, black: eightOfDiamonds, purple: twoOfClubs };
 
 
+/* ======================================================================
+   Fruits — red grapefruit, kiwi, peach, melon, watermelon: the cut ones
+   shown in cross-section (what makes each one recognisable at tile size),
+   the peach whole with its leaf.
+   ====================================================================== */
+
+/** n wedges round (100,100) between radii r0 and r1, a gap between each. */
+function wedges(n, r0, r1, gapDeg, fill, extra = '') {
+    let s = '';
+    const g = (gapDeg * Math.PI) / 180;
+    for (let i = 0; i < n; i++) {
+        const a0 = (i / n) * Math.PI * 2 + g / 2, a1 = ((i + 1) / n) * Math.PI * 2 - g / 2;
+        const p = (r, a) => `${f(100 + r * Math.cos(a))},${f(100 + r * Math.sin(a))}`;
+        s += `<path d="M${p(r0, a0)} L${p(r1, a0)} A${r1},${r1} 0 0 1 ${p(r1, a1)} L${p(r0, a1)} Z" fill="${fill}"${extra}/>`;
+    }
+    return s;
+}
+
+function grapefruit() {
+    // Half a pink grapefruit: orange peel, white pith, eleven juicy segments.
+    const vesicles = [...Array(11)].map((_, i) => {
+        const a = ((i + 0.5) / 11) * Math.PI * 2;
+        return `<line x1="${f(100 + 20 * Math.cos(a))}" y1="${f(100 + 20 * Math.sin(a))}" x2="${f(100 + 60 * Math.cos(a))}" y2="${f(100 + 60 * Math.sin(a))}" stroke="#fff" stroke-opacity=".28" stroke-width="3" stroke-linecap="round"/>`;
+    }).join('');
+    return svg(CW, CH,
+        '<defs>'
+        + rad('gfPeel', [0.4, 0.35, 0.75], [[0, '#ffd27a'], [1, '#e8792b']])
+        + rad('gfFlesh', [0.5, 0.5, 0.5], [[0, '#ff9a9a'], [0.6, '#f0566a'], [1, '#d42a44']])
+        + '</defs>'
+        + '<circle cx="100" cy="100" r="88" fill="url(#gfPeel)" stroke="#b5561b" stroke-width="2.5"/>'
+        + '<circle cx="100" cy="100" r="79" fill="#fff4e4"/>'
+        + wedges(11, 9, 72, 5, 'url(#gfFlesh)')
+        + vesicles
+        + '<circle cx="100" cy="100" r="8" fill="#fff4e4"/>'
+        + '<ellipse cx="68" cy="62" rx="26" ry="11" fill="#fff" fill-opacity=".22" transform="rotate(-38 68 62)"/>');
+}
+
+function kiwi() {
+    // Half a kiwi: brown fuzzy skin, green flesh with pale rays, a ring of black seeds.
+    const rays = [...Array(28)].map((_, i) => {
+        const a = (i / 28) * Math.PI * 2;
+        return `<line x1="${f(100 + 24 * Math.cos(a))}" y1="${f(100 + 24 * Math.sin(a))}" x2="${f(100 + 66 * Math.cos(a))}" y2="${f(100 + 66 * Math.sin(a))}" stroke="#e6f5a8" stroke-opacity=".55" stroke-width="2"/>`;
+    }).join('');
+    const seeds = [...Array(22)].map((_, i) => {
+        const a = (i / 22) * Math.PI * 2, r = 30 + (i % 2) * 6;
+        const x = f(100 + r * Math.cos(a)), y = f(100 + r * Math.sin(a));
+        return `<ellipse cx="${x}" cy="${y}" rx="2.4" ry="5" fill="#1d140c" transform="rotate(${f((a * 180) / Math.PI + 90)} ${x} ${y})"/>`;
+    }).join('');
+    return svg(CW, CH,
+        '<defs>'
+        + rad('kwSkin', [0.4, 0.35, 0.75], [[0, '#a07542'], [1, '#5e4020']])
+        + rad('kwFlesh', [0.5, 0.5, 0.5], [[0, '#e6f7a0'], [0.45, '#9fd34f'], [1, '#5aa232']])
+        + '</defs>'
+        + '<circle cx="100" cy="100" r="88" fill="url(#kwSkin)" stroke="#3b2812" stroke-width="2.5"/>'
+        + '<circle cx="100" cy="100" r="80" fill="url(#kwFlesh)"/>'
+        + rays
+        + '<ellipse cx="100" cy="100" rx="19" ry="23" fill="#f6fadc"/>'
+        + seeds
+        + '<ellipse cx="66" cy="62" rx="24" ry="10" fill="#fff" fill-opacity=".2" transform="rotate(-38 66 62)"/>');
+}
+
+function peach() {
+    // A whole peach: blush from gold to red, the cleft down its side, a leaf.
+    const body = 'M100,44 C150,32 182,80 176,122 C170,166 132,186 100,180 C68,186 30,166 24,122 C18,80 50,32 100,44 Z';
+    return svg(CW, CH,
+        '<defs>'
+        + rad('pcSkin', [0.32, 0.55, 0.85], [[0, '#ffe09a'], [0.45, '#ffa45e'], [1, '#d93a34']])
+        + lin('pcLeaf', [0, 0, 1, 1], [[0, '#8fd05a'], [1, '#2f7d26']])
+        + '</defs>'
+        + `<path d="${body}" fill="url(#pcSkin)" stroke="#9c3424" stroke-width="2.5"/>`
+        + '<path d="M101,48 C90,84 92,142 104,178" fill="none" stroke="#c0462c" stroke-opacity=".55" stroke-width="3.5" stroke-linecap="round"/>'
+        + '<ellipse cx="66" cy="96" rx="15" ry="27" fill="#fff" fill-opacity=".32" transform="rotate(-18 66 96)"/>'
+        + '<rect x="96" y="26" width="7" height="22" rx="3" fill="#6b4420"/>'
+        + '<path d="M103,38 C116,10 156,8 172,20 C154,40 126,48 103,38 Z" fill="url(#pcLeaf)" stroke="#245e1c" stroke-width="2"/>'
+        + '<path d="M106,37 C126,28 148,22 166,21" fill="none" stroke="#d7f2b0" stroke-width="1.6" stroke-opacity=".8"/>');
+}
+
+function melon() {
+    // Half a cantaloupe: netted green rind, orange flesh, the seed cavity.
+    const seeds = [...Array(14)].map((_, i) => {
+        const a = (i / 14) * Math.PI * 2, r = 19 + (i % 2) * 7;
+        const x = f(100 + r * Math.cos(a)), y = f(100 + r * Math.sin(a));
+        return `<ellipse cx="${x}" cy="${y}" rx="3.4" ry="6.5" fill="#fbf1d6" stroke="#c9a36a" stroke-width="1" transform="rotate(${f((a * 180) / Math.PI + 90)} ${x} ${y})"/>`;
+    }).join('');
+    const net = [...Array(16)].map((_, i) => {
+        const a = (i / 16) * Math.PI * 2;
+        return `<line x1="${f(100 + 80 * Math.cos(a))}" y1="${f(100 + 80 * Math.sin(a))}" x2="${f(100 + 88 * Math.cos(a + 0.12))}" y2="${f(100 + 88 * Math.sin(a + 0.12))}" stroke="#eef0c6" stroke-width="2"/>`;
+    }).join('');
+    return svg(CW, CH,
+        '<defs>'
+        + rad('mlRind', [0.4, 0.35, 0.75], [[0, '#c9d27e'], [1, '#7f8a3e']])
+        + rad('mlFlesh', [0.5, 0.5, 0.5], [[0, '#ffb05a'], [0.55, '#ffbe72'], [1, '#f08a2e']])
+        + '</defs>'
+        + '<circle cx="100" cy="100" r="88" fill="url(#mlRind)" stroke="#5c6628" stroke-width="2.5"/>'
+        + net
+        + '<circle cx="100" cy="100" r="78" fill="#dfeaa6"/>'
+        + '<circle cx="100" cy="100" r="74" fill="url(#mlFlesh)"/>'
+        + '<circle cx="100" cy="100" r="36" fill="#e8913a"/>'
+        + seeds
+        + '<ellipse cx="66" cy="62" rx="24" ry="10" fill="#fff" fill-opacity=".22" transform="rotate(-38 66 62)"/>');
+}
+
+function watermelon() {
+    // A watermelon slice: dark striped rind, the white band, red flesh, black seeds.
+    const seeds = [[70, 84], [100, 92], [130, 84], [84, 110], [116, 110], [100, 128], [56, 100], [144, 100]].map(([x, y]) =>
+        `<path d="M${x},${y - 6} C${x + 4},${y - 1} ${x + 3.5},${y + 5} ${x},${y + 6} C${x - 3.5},${y + 5} ${x - 4},${y - 1} ${x},${y - 6} Z" fill="#1a1414"/>`).join('');
+    return svg(CW, CH,
+        '<defs>'
+        + lin('wmFlesh', [0, 0, 0, 1], [[0, '#ff6d7c'], [1, '#d8243c']])
+        + '</defs>'
+        + '<g transform="rotate(-10 100 100)">'
+        + '<path d="M12,58 A88,88 0 0 0 188,58 Z" fill="#2f8f3a" stroke="#1b5a22" stroke-width="2.5"/>'
+        + [0.25, 0.5, 0.75].map((t) => {
+            const a = Math.PI * t;
+            return `<path d="M${f(100 + 70 * Math.cos(a))},${f(58 + 70 * Math.sin(a))} L${f(100 + 88 * Math.cos(a))},${f(58 + 88 * Math.sin(a))}" stroke="#1b5a22" stroke-width="7" stroke-linecap="round"/>`;
+        }).join('')
+        + '<path d="M20,58 A80,80 0 0 0 180,58 Z" fill="#e9f7d8"/>'
+        + '<path d="M27,58 A73,73 0 0 0 173,58 Z" fill="url(#wmFlesh)"/>'
+        + seeds
+        + '<path d="M30,62 L170,62" stroke="#fff" stroke-opacity=".35" stroke-width="3" stroke-linecap="round"/>'
+        + '</g>');
+}
+
+/** By TILE colour, for contrast — never a fruit on its own colour (the red
+ *  grapefruit is on blue, the green kiwi on red). */
+const FRUITS = { red: kiwi, blue: grapefruit, yellow: watermelon, black: peach, purple: melon };
+
 /* ====================================================================== */
 
 const out = {};
 for (const [key, spec] of Object.entries(CATAN)) out[`catan/${key}.svg`] = catanTile(spec);
 for (const [key, draw] of Object.entries(CIRCUIT)) out[`circuit/${key}.svg`] = draw();
 for (const [key, draw] of Object.entries(CARDS)) out[`cards/${key}.svg`] = draw();
+for (const [key, draw] of Object.entries(FRUITS)) out[`fruits/${key}.svg`] = draw();
 
 const check = process.argv.includes('--check');
 let stale = 0;

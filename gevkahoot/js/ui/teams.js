@@ -28,8 +28,9 @@ export const MARK_SETS = [
     { key: 'catan', label: 'קטאן' },
     { key: 'circuit', label: 'אלקטרוניקה' },
     { key: 'cards', label: 'קלפים' },
+    { key: 'fruits', label: 'פירות' },
 ];
-const IMAGE_SETS = new Set(['teams', 'catan', 'circuit', 'cards']);
+const IMAGE_SETS = new Set(['teams', 'catan', 'circuit', 'cards', 'fruits']);
 
 /** The mark on a tile: the set's emblem, or — when the question's author
  *  picked one for this answer — an emoji. The tile's COLOUR never changes, so

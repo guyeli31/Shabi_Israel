@@ -73,6 +73,8 @@ body:has(.ed) {
     border-radius: .6rem;
 }
 .sc-canvas { width: 100%; height: auto; cursor: crosshair; touch-action: none; display: block; }
+/* the zoom button while it waits for its square */
+.sc .gk-btn[data-on] { background: var(--accent); color: var(--accent-ink); box-shadow: 0 .18em 0 rgba(0, 0, 0, .4); }
 .sc-result { max-width: 9rem; max-height: 9rem; flex: none; }
 .sc-out { align-items: flex-start; }
 .sc-save { flex: 1; min-width: 14rem; display: flex; flex-direction: column; gap: .5rem; }
