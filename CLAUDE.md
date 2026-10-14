@@ -127,7 +127,7 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   as `anim`. It is drawn BEHIND the question by default — a picture crossing the
   text mid-countdown costs players the question — and never takes clicks. A
   sprite is a transparent PNG in `media/sprites/`, normally made with the
-  editor's cutter (`js/admin/spriteCutter.js`): pick an image, draw a free-hand
+  editor's cutter (`js/admin/spriteCutter.js`): pick a picture already in the repo, draw a free-hand
   outline, and it writes the PNG **and** the updated `manifest.json` straight
   into the working copy through the File System Access API (Chrome/Edge;
   elsewhere it downloads the file). Nothing is uploaded.
@@ -217,6 +217,13 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   game — the gap is marked on screen anyway — but do not promise "invisible".
   Every editor tool that writes media goes through `saveMediaFile()`
   (`js/admin/spriteCutter.js`), which also updates the manifest.
+  **All media is pushed media.** The host chose this outright: no upload to
+  Supabase Storage, no file from the computer. So the cutting tools (sprite
+  cutter, complete-the-picture, slider) take their SOURCE picture from the
+  repo — `repoImagePicker(manifest, …)`, images/ and backgrounds/ from the
+  manifest — and never an `<input type="file">`; what they make is written
+  back into `media/` as a new file beside the original, to be committed and
+  pushed like any other. A new tool that needs a picture does the same.
 - **The slider is a sixth scored kind** (`kind = 'slider'`) and the one that is
   NOT right-or-wrong. Same cut-out as "complete the picture" (one piece in
   `options`, `slot`, made by `completeMaker.js`), drawn at its own place; the

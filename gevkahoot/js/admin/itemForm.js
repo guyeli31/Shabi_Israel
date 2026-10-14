@@ -474,7 +474,7 @@ export function itemForm(item, { manifest, onSave }) {
         clear(completeBox);
         const make = h('button', { class: 'gk-btn gk-btn--small', type: 'button',
             text: draft.image ? '✂ החלפת התמונה / העצם…' : '✂ בחירת תמונה והוצאת עצם ממנה…',
-            onclick: () => openCompleteMaker({ onSaved: ({ image, piece, slot }) => {
+            onclick: () => openCompleteMaker({ manifest, onSaved: ({ image, piece, slot }) => {
                 // A fresh question from the new cut: the same object at four
                 // sizes, in a mixed order, with the true size marked right.
                 draft.image = image; draft.slot = slot;
@@ -538,7 +538,7 @@ export function itemForm(item, { manifest, onSave }) {
         clear(sliderBox);
         const make = h('button', { class: 'gk-btn gk-btn--small', type: 'button',
             text: draft.image ? '✂ החלפת התמונה / העצם…' : '✂ בחירת תמונה והוצאת עצם ממנה…',
-            onclick: () => openCompleteMaker({ title: 'סליידר — הוצאת עצם מהתמונה', onSaved: ({ image, piece, slot }) => {
+            onclick: () => openCompleteMaker({ manifest, title: 'סליידר — הוצאת עצם מהתמונה', onSaved: ({ image, piece, slot }) => {
                 draft.image = image; draft.slot = slot;
                 draft.options = [{ image: piece, scale: 1 }];
                 drawSlider(); changed();

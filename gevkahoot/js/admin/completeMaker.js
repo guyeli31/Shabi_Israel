@@ -1,7 +1,8 @@
 /**
  * completeMaker.js — turn any picture into a "complete the picture" question.
  *
- * The host picks a picture and draws a free-hand outline around one object in
+ * The host picks a picture already in the repo (media/images or
+ * media/backgrounds — never a file from the computer) and draws a free-hand outline around one object in
  * it. Two files come out:
  *
  *   the picture WITHOUT the object — the outlined area is painted over with
@@ -31,7 +32,7 @@
  * invisible repair; the gap is marked on the players' screen anyway.
  */
 import { h, clear } from '../ui/dom.js';
-import { saveMediaFile, canSaveMedia, MEDIA_NAME_RE } from './spriteCutter.js';
+import { saveMediaFile, canSaveMedia, MEDIA_NAME_RE, repoImagePicker } from './spriteCutter.js';
 
 const MAX_SIDE = 1400;     // working size of the picture, px (longest side)
 const PIECE_MAX = 640;     // of the saved cut-out, px
@@ -226,7 +227,7 @@ function detailLayer(px, W, H, visible, rad) {
 
 const toBlob = (canvas, type, quality) => new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 
-export function openCompleteMaker({ onSaved, title = 'השלמת תמונה — הוצאת עצם מהתמונה' }) {
+export function openCompleteMaker({ onSaved, manifest, title = 'השלמת תמונה — הוצאת עצם מהתמונה' }) {
     const canvas = h('canvas', { class: 'sc-canvas', width: '760', height: '480' });
     const ctx = canvas.getContext('2d');
     const pieceBox = h('div', { class: 'sc-result cm-piece', hidden: true });
@@ -354,11 +355,9 @@ export function openCompleteMaker({ onSaved, title = 'השלמת תמונה — 
         }
     };
 
-    const picker = h('input', { type: 'file', accept: 'image/*', 'aria-label': 'בחירת תמונה', onchange: async () => {
-        const file = picker.files?.[0];
-        if (!file) return;
-        let bitmap;
-        try { bitmap = await createImageBitmap(file); } catch { status.textContent = 'לא הצלחתי לקרוא את הקובץ הזה כתמונה.'; return; }
+    // The picture comes from the repo's media folder, never from the computer.
+    const picker = repoImagePicker(manifest, (bitmap, base) => {
+        if (!bitmap) { status.textContent = 'לא הצלחתי לקרוא את התמונה הזאת.'; return; }
         const k = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
         work = h('canvas', { width: String(Math.round(bitmap.width * k)), height: String(Math.round(bitmap.height * k)) });
         work.getContext('2d').drawImage(bitmap, 0, 0, work.width, work.height);
@@ -367,10 +366,11 @@ export function openCompleteMaker({ onSaved, title = 'השלמת תמונה — 
         fit = { w: work.width * s, h: work.height * s };
         fit.x = (canvas.width - fit.w) / 2;
         fit.y = (canvas.height - fit.h) / 2;
-        if (!nameInput.value) nameInput.value = file.name.replace(/\.[^.]+$/, '').replace(/[/\\?#%:*"<>|]/g, '').replace(/^\.+/, '');
+        // The result is a NEW picture beside the original, never over it.
+        if (!nameInput.value) nameInput.value = `${base}-בלי-העצם`;
         restart();
         status.textContent = 'הקיפו בגרירה את העצם שרוצים להוציא מהתמונה.';
-    } });
+    });
 
     const dialog = h('dialog', { class: 'sc kit', dir: 'rtl', 'aria-label': 'יצירת שאלת השלמת תמונה' },
         h('div', { class: 'sc-head' },

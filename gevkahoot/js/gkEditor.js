@@ -130,6 +130,10 @@ async function addItem(kind) {
             })() },
         interlude: { quiz_id: quiz.id, position, kind, title: '', media_layout: 'full' },
     }[kind];
+    // A new question (any scored kind) starts with no bouncing animation over
+    // it — "בלי אנימציה באלמנט הזה" — the host's chosen default; an interlude
+    // starts "as the quiz". Either can be changed in the form.
+    if (kind !== 'interlude') row.anim_on = false;
     const created = await api.items.create(row);
     created.explain = null;
     items.push(created);
@@ -244,7 +248,7 @@ function animPanel() {
         h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'הדמות' }),
             mediaSelect(manifest, ['sprites'], quiz.anim_sprite, (v) => act(() => saveQuiz({ anim_sprite: v })))),
         h('div', { class: 'dr-row' },
-            btn('✂ יצירת דמות מתמונה…', () => openSpriteCutter({
+            btn('✂ יצירת דמות מתמונה…', () => openSpriteCutter({ manifest,
                 onSaved: (path) => act(async () => {
                     manifest = await loadManifest();
                     await saveQuiz({ anim_sprite: path, anim_on: true });

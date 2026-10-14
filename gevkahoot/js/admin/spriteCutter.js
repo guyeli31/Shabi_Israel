@@ -1,11 +1,12 @@
 /**
  * spriteCutter.js — make an animation sprite out of any picture.
  *
- * Pick an image, draw a free-hand outline around the part you want, and what
+ * Pick a picture already in the repo (media/images or media/backgrounds), draw a free-hand outline around the part you want, and what
  * is inside the outline becomes a transparent-background PNG: the shape that
  * the quiz's animation multiplies and bounces around the screen.
  *
- * Nothing is uploaded anywhere. The picture is read and cut in this browser,
+ * Nothing is uploaded anywhere, and nothing comes from the computer: the
+ * picture is one already pushed, read and cut in this browser,
  * and the result is written as a FILE into gevkahoot/media/sprites/ — the same
  * place every other media file lives — together with the regenerated
  * media/manifest.json, through the File System Access API (the mechanism the
@@ -60,7 +61,40 @@ export async function saveMediaFile(folder, name, blob) {
 export const canSaveMedia = () => 'showDirectoryPicker' in window;
 export const MEDIA_NAME_RE = /^[^./\\?#%:*"<>|\u0000-\u001f][^/\\?#%:*"<>|\u0000-\u001f]*$/;
 
-export function openSpriteCutter({ onSaved }) {
+/**
+ * The source picture of a cutting tool: one of the pictures ALREADY in the
+ * repo (media/images, media/backgrounds — from the manifest), never a file
+ * from the computer. Every picture a quiz shows is one that was pushed; the
+ * tools only derive new files from those (written back into media/, to be
+ * pushed in turn). `onPick(bitmap, baseName)` gets the decoded picture.
+ */
+export function repoImagePicker(manifest, onPick) {
+    const paths = ['images', 'backgrounds'].flatMap((folder) => (manifest?.[folder] || []).map((name) => `media/${folder}/${name}`));
+    const select = h('select', { class: 'dr-select', 'aria-label': 'בחירת תמונה מתיקיית המדיה' },
+        h('option', { value: '', text: paths.length ? '— בחרו תמונה מתיקיית המדיה —' : 'אין תמונות ב-media/images או media/backgrounds' }),
+        paths.map((path) => h('option', { value: path, text: path.split('/').slice(1).join('/') })));
+    select.addEventListener('change', async () => {
+        const path = select.value;
+        if (!path) return;
+        try {
+            const img = new Image();
+            img.src = path;
+            await img.decode();
+            // Drawn onto a canvas first: createImageBitmap refuses an SVG
+            // <img> (no intrinsic size of its own), and a canvas takes any.
+            const w = img.naturalWidth || 1200, hgt = img.naturalHeight || 800;
+            const c = h('canvas', { width: String(w), height: String(hgt) });
+            c.getContext('2d').drawImage(img, 0, 0, w, hgt);
+            const bitmap = await createImageBitmap(c);
+            onPick(bitmap, path.split('/').pop().replace(/\.[^.]+$/, ''));
+        } catch {
+            onPick(null, null);
+        }
+    });
+    return select;
+}
+
+export function openSpriteCutter({ onSaved, manifest }) {
     const canvas = h('canvas', { class: 'sc-canvas', width: '760', height: '480' });
     const ctx = canvas.getContext('2d');
     const result = h('canvas', { class: 'sc-result' });
@@ -201,25 +235,21 @@ export function openSpriteCutter({ onSaved }) {
         setTimeout(() => URL.revokeObjectURL(url), 2000);
     };
 
-    const picker = h('input', { type: 'file', accept: 'image/*', 'aria-label': 'בחירת תמונה', onchange: async () => {
-        const file = picker.files?.[0];
-        if (!file) return;
-        try {
-            image = await createImageBitmap(file);
-        } catch {
-            status.textContent = 'לא הצלחתי לקרוא את הקובץ הזה כתמונה.';
-            return;
-        }
+    // The picture comes from the repo's media folder, never from the computer.
+    const picker = repoImagePicker(manifest, (bitmap, base) => {
+        if (!bitmap) { status.textContent = 'לא הצלחתי לקרוא את התמונה הזאת.'; return; }
+        image?.close?.();
+        image = bitmap;
         const k = Math.min(canvas.width / image.width, canvas.height / image.height);
         fit = { w: image.width * k, h: image.height * k };
         fit.x = (canvas.width - fit.w) / 2;
         fit.y = (canvas.height - fit.h) / 2;
         points = []; cut = null; result.hidden = true;
         cutBtn.disabled = true; saveBtn.disabled = true; downloadBtn.disabled = true; resetBtn.disabled = true;
-        if (!nameInput.value) nameInput.value = file.name.replace(/\.[^.]+$/, '').replace(/[/\\?#%:*"<>|]/g, '').replace(/^\.+/, '');
+        if (!nameInput.value) nameInput.value = `${base}-sprite`;
         status.textContent = 'הקיפו בגרירה (עכבר או אצבע) את החלק שרוצים לשמור.';
         paint();
-    } });
+    });
 
     result.hidden = true;
     const dialog = h('dialog', { class: 'sc kit', dir: 'rtl', 'aria-label': 'יצירת דמות לאנימציה' },
