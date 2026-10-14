@@ -1,0 +1,6 @@
+/* handoff.html — the goodbye slide. Everything visible is the Shabi Israel
+   site's own loading screen (its css/splash.css); this only gives the page a
+   canvas behind the translucent splash, and sets the Hebrew lines. */
+html, body { margin: 0; height: 100%; background: var(--header-bg, #14141e); }
+.splash .sp-stage { direction: rtl; text-align: center; text-wrap: balance; max-width: 22em; }
+.splash .sp-detail { direction: rtl; text-align: center; }

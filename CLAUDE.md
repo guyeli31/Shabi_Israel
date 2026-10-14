@@ -76,6 +76,7 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
 |---|---|
 | `index.html` | Entry + the player's screen. Shows whether a quiz is on air; `ADMIN LOGIN` is always present on the entry screens. `?demo` plays the demo quiz. |
 | `host.html` | The projected screen. After login, the host controls sit on top of it: ☰ (drawer, left — like the app's admin sidebar) and ▶ / Space for "next". |
+| `handoff.html` | The goodbye after a LIVE quiz: the Shabi Israel site's own loading screen (its `css/splash.css`, tokens and saved `splash-vars.css`, ring by its `buildRing()`) with the farewell line, filling for 5 seconds, then `location.replace('../shabi-israel/')`. A player's page goes there when the host moves from the podium to the matrix, or takes the finished quiz off the air (`farewell()` in `js/gkPlayer.js`); never in the demo or the preview. A separate page because the site's tokens share names with the quiz's. |
 | `editor.html` | The quiz editor — the TOOLS interface (`tools/START_GEVKAHOOT_EDITOR.bat`). Questions, interludes, media, backgrounds, themes, with live previews of both screens. |
 
 - **A player is not a Supabase user.** The whole audience shares the `anon` key,
@@ -253,6 +254,92 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   card on a phone too — the words are what is being ordered. Cards are
   absolutely placed in equal slots (`js/host/rank.js`), so a reorder is one
   `top` assignment the transition animates.
+- **The memory question is an eighth scored kind** (`kind = 'memory'`): a
+  picture held up for `memo_s` seconds (3-120), then taken away, and only then
+  the question — 2-5 typed answers on tiles, scored exactly like a `question`
+  (it takes a mark set too). The memorising time IS the lead-in:
+  `_gk_start_question` puts `q_started_at` `memo_s` ahead, so `gk_answer`
+  refuses an answer while the picture is up ('closed') and the time points
+  count from when it goes. No instruction slide. The title is NOT shown while
+  the picture is up — it would say what to look at. At the reveal the picture
+  returns with `arrows` (`[{x1,y1,x2,y2}]`, tail → tip as fractions of the
+  picture, up to 12, any number) — published only then, since they point at
+  the answer. `js/host/memory.js` draws them for the stage and the editor
+  alike, in an SVG laid over the picture's own box with a viewBox in its
+  natural size (a 0-1 viewBox would squash the heads on a wide picture). The
+  editor draws an arrow by dragging from its tail to the thing. On the reveal
+  the picture takes the larger half of the screen (`.st-item[data-memory]`).
+  Known property: a player can photograph the screen while the picture is up.
+- **The action round is an eighth scored kind** (`kind = 'action'`, "🏀
+  קליעות"): free throws on a drawn court for the whole time limit (10-120s,
+  CHECK; 30 by default). The ball is a round detail of a picture — `image` +
+  `circle_x/y/r`, which a new action item copies from the nearest puzzle
+  before it, so the circle that just lifted off the puzzle comes back as the
+  ball (published as `item.ball`; none = a drawn basketball), held up between
+  the hands of a drawn shooter seen from behind (`shooter()`: Shaquille
+  O'Neal in Orlando's pinstripes, 32; arms up on the follow-through via
+  `data-shot`) — drawn IN FRONT of the ball's layer, so his hands grip it and
+  a short throw falls behind him. A throw is a drag towards the
+  hoop: its sideways slope is the aim, its length the power, its duration
+  whether it was a throw — the three windows are `THROW` in `js/scoring.js`,
+  judged by `judgeThrow()` in `js/host/action.js`; the ball flies where that
+  sends it, a mark stays where it came down, and the message is one of the
+  AUTHOR's lines (`gk_items.feedback = {hit: [..], miss: [..]}`, written in
+  the editor, one picked at random per throw, never the same twice running;
+  up to 12 of each, one line of 1-80 characters, by CHECK) with the built-in
+  diagnosis under it ("חזק מדי", "קצת שמאלה מדי"; alone when there are no
+  lines). When the time is up a buzzer sounds — on the projected screen AND
+  on every player's device (it is everyone's bell), once per round and only
+  right at the bell, never on a screen that opens on a finished round:
+  `assets/sounds/buzzer.wav`, synthesised by `node scripts/gevkahoot-sounds.mjs`
+  (`--check`) — an app sound, so under assets/, not media/. A basket plays
+  the quiz's fixed "correct" sound and a miss its "wrong" (below).
+  The answer is the RUNNING COUNT of baskets, re-sent after every throw: for
+  this kind `gk_answer` updates the one row upwards instead of refusing a
+  second answer, never auto-reveals ("everyone answered" is true after the
+  first throw), and holds the count to one basket per second of clock — the
+  count is the browser's word, like the puzzle's "done". Points are
+  RELATIVE: linear from the room's fewest baskets (0, as if wrong) to its
+  most (weight × 1000, as if answered at once) — `_gk_action_factor` /
+  `_gk_action_score`, re-run after every throw and by the re-score, mirrored
+  by `actionFactor()`. "Correct" = a share above 0. The reveal publishes
+  `values` (every count); the fastest five are its five best shooters
+  (`hits`); a matrix cell is `[ok, ms, points, null, hits, share]`, coloured
+  on the slider's red → green scale by `share`. The projected screen and the
+  instruction slide show the court with a hand throwing by itself (`auto`).
+  A player's count lives in the stage (`throws`), so a rebuilt screen
+  carries on from it.
+- **Who hears what.** The ROOM's sound — background music, a video's
+  soundtrack, an audio clip — plays only where `media` is `'full'` (the
+  projected screen; the demo): a phone shows the picture, a desktop player
+  mutes it. Three fixed sounds, not settings, in `js/ui/sounds.js`
+  (`media/audio/Correct.mp3`, `Wrong.mp3`, `Applause.mp3` — the host's own
+  files; renaming one silences it — plus the buzzer): CORRECT / WRONG are a
+  player's OWN verdict on their own device, any kind (the roulette
+  included) from `me.result.correct` at the reveal — once per question, only
+  on a screen that saw it open (a refresh onto a reveal is silent), nothing
+  for no answer — and in the action round on every basket / miss instead;
+  APPLAUSE greets the podium where the room's sound plays; the buzzer is
+  everyone's. The preview is silent.
+- **The roulette is a scored kind** (`kind = 'roulette'`): a single-zero
+  betting table, 0-36; a player taps a number (a chip lands on it, carrying
+  the number so the bet still reads) and submits. The number IS the option
+  index, so it is an ordinary question with 37 options and exactly one right
+  (CHECK `gk_items_roulette_shape`; `v_n` and the `gk_answer` bound are 37).
+  At the reveal the wheel spins (`createWheel`, `js/host/roulette.js`, a drawn
+  SVG — the reference Lottie was inspiration only, nothing is loaded from it)
+  and the ball drops into that number; then the table, the winning square lit
+  and each square's chip count on it. The spin is a pure function of time
+  since this screen first saw the reveal (`spinStarts` in `stage.js`), and its
+  start angles come from the item id — so a rebuilt screen joins it mid-way
+  and every screen shows the same spin. The table is `direction: ltr` whatever
+  the page (0 on the left, as on a real table): 12 × 3 on the projector, 6 × 6
+  under a full-width zero on a phone. No instruction slide.
+  **A player's result waits for the ball**: while the wheel turns, the
+  stage's `spinning` is true, the phone's status line says "הכדור מתגלגל…"
+  and its score pill shows the total WITHOUT this question's points; the
+  stage's `onSettled` re-renders them when the ball lands. Any new place that
+  shows a result must honour `stage.spinning` too.
 - **Streaks, and the quiz's one special slide.** A streak is a run of correct
   answers (display only, no bonus), counted over scored items worth something:
   a ×0 warm-up neither extends nor breaks a run, an unanswered question breaks
@@ -287,13 +374,16 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   became "binary" to grep. Write such a line with the Write/Edit tools, or from
   a script FILE, and scan for control characters after any generated edit.
 - **The picture games open on an instruction slide** (phase `intro`): puzzle, slider, ranking,
-  spot it and complete the picture are not self-explanatory, so `_gk_enter()`
+  spot it, complete the picture and the action round are not self-explanatory, so `_gk_enter()`
   puts them on a slide with a looping demonstration and two steps, with NO
   clock. The question and its countdown start only on the host's "next"
   (`_gk_start_question()` — the one place `q_started_at` / `q_deadline` are
   set). The demonstrations (`js/host/intro.js`, `.dm-…` in `host.css`) are plain
   boxes on CSS keyframes — generic shapes, never the question's own picture,
-  which must not be given away before the clock runs. Two traps met building
+  which must not be given away before the clock runs. (The one exception
+  is the action round's: its slide throws the real ball, because that ball
+  is the circle the puzzle before it already showed — seeing it again IS the
+  introduction.) Two traps met building
   them: an `em` on an animated element is ITS OWN font-size (the hand, enlarged
   with `font-size: 2em`, travelled twice as far as intended — enlarge an inner
   element instead); and a property named in only the LAST keyframe is animated

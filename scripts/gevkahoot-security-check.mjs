@@ -280,6 +280,102 @@ try {
     const short = sql(`update public.gk_items set correct = '{0,1,2}' where id = '${RK}';`);
     check('a "right order" missing an option is rejected', !short.ok && /violates check/.test(short.out), short.out);
 
+    section('The memory question: no answer while the picture is up; the arrows only at the reveal');
+    const MM = '7e57ab1e-0000-4000-8000-0000000000dc';
+    sql(`insert into public.gk_items (id, quiz_id, position, kind, title, options, correct, weight, time_limit_s, image, memo_s, arrows)
+         values ('${MM}', '${TEST_QUIZ}', -5, 'memory', 'mm', '["a","b","c"]', '{2}', 1, 30, 'media/images/x.png', 3,
+                 '[{"x1":0.1,"y1":0.1,"x2":0.5,"y2":0.5}]');`);
+    check('control: host opens the memory question', host('select public.gk_admin_goto(1);').ok);
+    st = await publicState();
+    check('it goes straight to the question, with no instruction slide', st.phase === 'question' && st.data.item?.kind === 'memory', st);
+    check('the picture is held up for memo_s: the clock starts that far ahead', Math.abs(st.data.starts_at - Date.now() - 3000) < 1500, st.data);
+    check('the arrows and the answer are absent while it is open', !/"arrows"|"correct"/.test(JSON.stringify(st.data)), st.data);
+    check('an answer while the picture is still up is refused', (await rpc('gk_answer', { p_token: bob, p_item: MM, p_option: 2 })).code === 'closed');
+    await new Promise((r) => setTimeout(r, Math.max(0, st.data.starts_at - Date.now()) + 200));
+    check('control: once it is gone, the right answer is accepted', (await rpc('gk_answer', { p_token: bob, p_item: MM, p_option: 2 })).ok);
+    check('an option past the list is refused', (await rpc('gk_answer', { p_token: alice, p_item: MM, p_option: 3 })).code === 'bad_option');
+    host('select public.gk_admin_reveal();');
+    st = await publicState();
+    check('control: the reveal publishes the arrows', st.data.arrows?.length === 1 && st.data.arrows[0].x2 === 0.5, st.data);
+    check('the right answer scores', (await rpc('gk_me', { p_token: bob })).data.result.correct === true);
+    const badArrow = sql(`update public.gk_items set arrows = '[{"x1":0.1,"y1":0.1,"x2":1.5,"y2":0.5}]' where id = '${MM}';`);
+    check('an arrow outside the picture is rejected', !badArrow.ok && /violates check/.test(badArrow.out), badArrow.out);
+    const halfArrow = sql(`update public.gk_items set arrows = '[{"x1":0.1,"y1":0.1}]' where id = '${MM}';`);
+    check('an arrow without a tip is rejected', !halfArrow.ok && /violates check/.test(halfArrow.out), halfArrow.out);
+    const shortMemo = sql(`update public.gk_items set memo_s = 1 where id = '${MM}';`);
+    check('a memorising time under 3 seconds is rejected', !shortMemo.ok && /violates check/.test(shortMemo.out), shortMemo.out);
+
+    section('The action round: a running count, held to the pace of a throw; points relative to the room');
+    const AC = '7e57ab1e-0000-4000-8000-0000000000dd';
+    sql(`insert into public.gk_items (id, quiz_id, position, kind, title, options, correct, weight, time_limit_s, image, circle_x, circle_y, circle_r)
+         values ('${AC}', '${TEST_QUIZ}', -6, 'action', 'ac', '[]', '{}', 1, 30, 'media/images/x.png', 0.5, 0.4, 0.2);`);
+    check('control: host opens the action round', host('select public.gk_admin_goto(1);').ok);
+    st = await publicState();
+    check('it opens on the instruction slide, with no clock', st.phase === 'intro' && st.data.item?.kind === 'action' && !('deadline' in st.data), st);
+    check('control: the ball is public (it is what everyone throws)', st.data.item.ball?.r === 0.2, st.data.item);
+    check('a count on the instruction slide is refused', (await rpc('gk_answer', { p_token: bob, p_item: AC, p_option: 0 })).code === 'closed');
+    check('control: "next" starts it', host('select public.gk_admin_next();').ok);
+    st = await publicState();
+    check('`values` are absent while it is open', !/"values"/.test(JSON.stringify(st.data)), st.data);
+    await new Promise((r) => setTimeout(r, Math.max(0, st.data.starts_at - Date.now()) + 200));
+    check('five baskets in the first second are refused', (await rpc('gk_answer', { p_token: bob, p_item: AC, p_option: 5 })).code === 'too_fast');
+    check('a count past the range is refused', (await rpc('gk_answer', { p_token: bob, p_item: AC, p_option: 121 })).code === 'bad_option');
+    check('control: a first throw that missed (0) is accepted', (await rpc('gk_answer', { p_token: alice, p_item: AC, p_option: 0 })).ok);
+    check('control: …and so is the other player\'s', (await rpc('gk_answer', { p_token: bob, p_item: AC, p_option: 0 })).ok);
+    st = await publicState();
+    check('everyone having "answered" does NOT close it early', st.phase === 'question', st.phase);
+    await new Promise((r) => setTimeout(r, 2300));
+    check('control: the count is updated after more throws', (await rpc('gk_answer', { p_token: bob, p_item: AC, p_option: 2 })).ok
+        && (await rpc('gk_answer', { p_token: alice, p_item: AC, p_option: 1 })).ok);
+    check('control: a late, lower count is accepted…', (await rpc('gk_answer', { p_token: bob, p_item: AC, p_option: 1 })).ok);
+    check('…but never lowers the count', sql(`select option_idx from public.gk_answers a join public.gk_players p on p.id = a.player_id
+         where a.item_id = '${AC}' and not a.voided and p.name like 'Bob%';`).out.trim() === '2');
+    check('one row per player, however many throws', sql(`select count(*) from public.gk_answers where item_id = '${AC}' and not voided;`).out.trim() === '2');
+    host('select public.gk_admin_reveal();');
+    st = await publicState();
+    check('control: the reveal publishes every count', JSON.stringify(st.data.values) === '[1,2]', st.data);
+    check('control: the best shooter heads the "fastest" list, with its count', st.data.fastest?.[0]?.hits === 2 && st.data.fastest.length === 1, st.data.fastest);
+    const bobAc = (await rpc('gk_me', { p_token: bob })).data, aliceAc = (await rpc('gk_me', { p_token: alice })).data;
+    check('the most baskets earn full points (as if answered at once)', bobAc.result.points === 1000 && bobAc.result.correct === true, bobAc);
+    check('the fewest earn nothing (as if wrong)', aliceAc.result.points === 0 && aliceAc.result.correct === false, aliceAc);
+    const acPts = sql(`select points from public.gk_answers where item_id = '${AC}' and not voided order by option_idx;`);
+    check('control: re-scoring leaves the action points as they were', host(`select public.gk_admin_rescore('${AC}');`).ok
+        && sql(`select points from public.gk_answers where item_id = '${AC}' and not voided order by option_idx;`).out === acPts.out, acPts.out);
+    const acOptions = sql(`update public.gk_items set options = '["a"]' where id = '${AC}';`);
+    check('an action round with options is rejected', !acOptions.ok && /violates check/.test(acOptions.out), acOptions.out);
+    const acShort = sql(`update public.gk_items set time_limit_s = 5 where id = '${AC}';`);
+    check('an action round under 10 seconds is rejected', !acShort.ok && /violates check/.test(acShort.out), acShort.out);
+    const acLines = sql(`update public.gk_items set feedback = '{"hit":["יש!"],"miss":["אוף"]}' where id = '${AC}';`);
+    host('select public.gk_admin_refresh();');
+    st = await publicState();
+    check('control: the author\'s feedback lines are saved and published', acLines.ok && st.data.item?.feedback?.hit?.[0] === 'יש!', st.data.item);
+    const longLine = sql(`update public.gk_items set feedback = '{"hit":["${'x'.repeat(81)}"]}' where id = '${AC}';`);
+    check('a feedback line over 80 characters is rejected', !longLine.ok && /violates check/.test(longLine.out), longLine.out);
+    const oddKey = sql(`update public.gk_items set feedback = '{"cheer":["x"]}' where id = '${AC}';`);
+    check('a feedback list other than hit / miss is rejected', !oddKey.ok && /violates check/.test(oddKey.out), oddKey.out);
+
+    section('The roulette: a number 0-36, the answer hidden until the wheel');
+    const RL = '7e57ab1e-0000-4000-8000-0000000000de';
+    sql(`insert into public.gk_items (id, quiz_id, position, kind, title, correct, weight, time_limit_s)
+         values ('${RL}', '${TEST_QUIZ}', -7, 'roulette', 'rl', '{11}', 1, 30);`);
+    check('control: host opens the roulette', host('select public.gk_admin_goto(1);').ok);
+    st = await publicState();
+    check('it goes straight to the question', st.phase === 'question' && st.data.item?.kind === 'roulette', st);
+    check('the winning number is absent while it is open', !/"correct"/.test(JSON.stringify(st.data)), st.data);
+    await new Promise((r) => setTimeout(r, Math.max(0, st.data.starts_at - Date.now()) + 200));
+    check('a number past 36 is refused', (await rpc('gk_answer', { p_token: bob, p_item: RL, p_option: 37 })).code === 'bad_option');
+    check('control: 0 is a valid bet', (await rpc('gk_answer', { p_token: alice, p_item: RL, p_option: 0 })).ok);
+    check('control: the right number is accepted', (await rpc('gk_answer', { p_token: bob, p_item: RL, p_option: 11 })).ok);
+    st = await publicState();
+    check('control: the reveal publishes the number and 37 counts', JSON.stringify(st.data.correct) === '[11]'
+        && st.data.counts?.length === 37 && st.data.counts[11] === 1 && st.data.counts[0] === 1, st.data);
+    check('the right number scores, a wrong one does not', (await rpc('gk_me', { p_token: bob })).data.result.correct === true
+        && (await rpc('gk_me', { p_token: alice })).data.result.correct === false);
+    const twoWin = sql(`update public.gk_items set correct = '{11,12}' where id = '${RL}';`);
+    check('two winning numbers are rejected', !twoWin.ok && /violates check/.test(twoWin.out), twoWin.out);
+    const offTable = sql(`update public.gk_items set correct = '{37}' where id = '${RL}';`);
+    check('a winning number off the table is rejected', !offTable.ok && /violates check/.test(offTable.out), offTable.out);
+
     section('Taking over a name needs the host');
     const thief = token();
     check('a relink request for an existing name is accepted as a REQUEST', (await rpc('gk_request_relink', { p_name: 'alice', p_token: thief })).ok);

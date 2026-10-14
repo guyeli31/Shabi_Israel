@@ -10,7 +10,8 @@
 -- scripts/gevkahoot-demo-media.mjs.
 --
 -- It is a tour of everything a quiz can hold: every kind of scored item
--- (question, complete the picture, slider, ranking, spot it, puzzle), an
+-- (question, complete the picture, slider, ranking, spot it, puzzle, the
+-- action round, memory), an
 -- "answer explained" segment, interludes before and after questions in every
 -- media kind (image, video, audio) and layout (side, top, full, background),
 -- emoji in questions, in answers and on tiles, weights x0 / x1 / x2, one and
@@ -63,11 +64,11 @@ values
   'לפני כל אחד מהם: שקופית קצרה שמראה איך משחקים.', '[]', '{}', 1, 20,
   'media/images/demo-puzzle.svg', null, null, 'full'),
 
- ('6e0b5f0a-0000-4000-8000-00000000d3a0', 14, 'question', '🏁 שאלת הסיום: אילו מהמספרים זוגיים?', '',
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 17, 'question', '🏁 שאלת הסיום: אילו מהמספרים זוגיים?', '',
   '["7", "12", "15", "20", "33"]', '{1,3}', 2, 30,
   'media/backgrounds/demo-pitch.svg', null, null, 'background'),
 
- ('6e0b5f0a-0000-4000-8000-00000000d3a0', 15, 'interlude', '🎉 זהו, סיימנו!', 'ועכשיו — מי ניצח? 🥁',
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 18, 'interlude', '🎉 זהו, סיימנו!', 'ועכשיו — מי ניצח? 🥁',
   '[]', '{}', 1, 20, 'media/images/demo-ball.svg', null, null, 'top');
 
 -- The mark sets: emoji on the warm-up's two tiles, playing cards on the shapes
@@ -144,5 +145,29 @@ insert into public.gk_items
 values
  ('6e0b5f0a-0000-4000-8000-00000000d3a0', 13, 'puzzle', '🧩 הרכיבו את התמונה', '{0}', 1, 40,
   'media/images/demo-puzzle.svg', 0.79, 0.24, 0.2);
+
+-- The action round, right after the puzzle: the puzzle's round detail (the sun)
+-- is now the ball. Free throws for 30 seconds; points relative to the room.
+insert into public.gk_items
+  (quiz_id, position, kind, title, options, correct, weight, time_limit_s, image, circle_x, circle_y, circle_r, feedback)
+values
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 14, 'action', '🏀 כמה סלים תקלעו?', '[]', '{}', 1, 30,
+  'media/images/demo-puzzle.svg', 0.79, 0.24, 0.2,
+  '{"hit": ["יש! 🔥", "סל! כמו בנבא 🏀", "איזה יד!", "עוד אחד כזה!"], "miss": ["אוף, כמעט 😬", "לא נורא, עוד ניסיון!", "הטבעת לא אוהבת אותך היום", "נשום עמוק ושוב"]}');
+
+-- The memory question: the picture is up for six seconds, then the question;
+-- at the reveal it returns with two arrows, one at each cloud.
+insert into public.gk_items
+  (quiz_id, position, kind, title, options, correct, weight, time_limit_s, image, memo_s, arrows)
+values
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 15, 'memory', '☁️ כמה עננים היו בשמיים?', '["1", "2", "3", "4"]', '{1}', 1, 15,
+  'media/images/demo-puzzle.svg', 6,
+  '[{"x1":0.08,"y1":0.5,"x2":0.24,"y2":0.27},{"x1":0.62,"y1":0.6,"x2":0.51,"y2":0.34}]');
+
+-- The roulette: a chip on a number of the table; at the reveal the wheel
+-- spins and the ball drops into 11.
+insert into public.gk_items (quiz_id, position, kind, title, correct, weight, time_limit_s)
+values
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 16, 'roulette', '🎰 כמה שחקנים יש לקבוצת כדורגל על המגרש?', '{11}', 1, 20);
 
 commit;

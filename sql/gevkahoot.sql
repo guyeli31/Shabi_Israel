@@ -174,7 +174,47 @@ alter table public.gk_items
 -- because the stored order is the order a player first sees.
 alter table public.gk_items drop constraint if exists gk_items_kind_check;
 alter table public.gk_items add constraint gk_items_kind_check
-    check (kind in ('question', 'interlude', 'puzzle', 'spot', 'explain', 'complete', 'slider', 'rank'));
+    check (kind in ('question', 'interlude', 'puzzle', 'spot', 'explain', 'complete', 'slider', 'rank', 'memory', 'action', 'roulette'));
+
+-- The roulette question: a betting table of 0-36 (single zero); a player puts
+-- a chip on one number. The number IS the option index, so it is an ordinary
+-- question with 37 options and exactly one right — and at the reveal the
+-- wheel spins and the ball drops into it.
+alter table public.gk_items drop constraint if exists gk_items_roulette_shape;
+alter table public.gk_items add constraint gk_items_roulette_shape check (
+    kind <> 'roulette' or (cardinality(correct) = 1 and correct[1] between 0 and 36)
+);
+
+-- The memory question: a picture shown for `memo_s` seconds, then taken away,
+-- and only then the question about something in it, with 2-5 answers — an
+-- ordinary question from there on (option N = tile N, any number right). The
+-- memorising time is the question's lead-in: _gk_start_question sets
+-- q_started_at that far ahead, so gk_answer refuses an answer while the
+-- picture is still up, and the time points count from when it goes.
+--   memo_s  how long the picture stays up, 3-120
+--   arrows  [{x1, y1, x2, y2}, …] — up to twelve, each tail to tip as fractions
+--           of the picture: drawn on the picture at the reveal, pointing at
+--           what was asked about. Published only at the reveal (they ARE the
+--           answer).
+alter table public.gk_items drop constraint if exists gk_items_memory_shape;
+alter table public.gk_items drop column if exists arrow;   -- a single-arrow draft, never released
+alter table public.gk_items
+    add column if not exists memo_s smallint not null default 10,
+    add column if not exists arrows jsonb not null default '[]'::jsonb;
+alter table public.gk_items add constraint gk_items_memory_shape check (
+    memo_s between 3 and 120
+    and jsonb_typeof(arrows) = 'array'
+    and jsonb_array_length(arrows) <= 12
+    and char_length(arrows::text) <= 1500
+    and not jsonb_path_exists(arrows, '$[*] ? (@.type() != "object")')
+    and not jsonb_path_exists(arrows, '$[*] ? (!(exists(@.x1) && exists(@.y1) && exists(@.x2) && exists(@.y2)))')
+    and not jsonb_path_exists(arrows, '$[*].* ? (@.type() != "number" || @ < 0 || @ > 1)')
+    and (kind <> 'memory' or (
+        jsonb_typeof(options) = 'array'
+        and jsonb_array_length(options) between 2 and 5
+        and cardinality(correct) >= 1
+        and correct <@ (array[0, 1, 2, 3, 4])[1:jsonb_array_length(options)]))
+);
 
 -- 2-5 options, and `correct` a full order of them: as long as the list, and
 -- containing every index (equal length + all present = no repeats).
@@ -186,6 +226,37 @@ alter table public.gk_items add constraint gk_items_rank_shape check (
         and cardinality(correct) = jsonb_array_length(options)
         and correct @> (array[0, 1, 2, 3, 4])[1:jsonb_array_length(options)]
         and char_length(body) <= 40
+    )
+);
+
+-- The action round ("🏀 קליעות"): free throws for the whole time limit. The
+-- ball is a round detail of a picture — `image` + circle_x/y/r, normally the
+-- very circle the puzzle before it lifted off its picture (its sounds are the
+-- quiz's fixed ones, js/ui/sounds.js — not a column). No options and no
+-- `correct`: the answer is how many baskets the player made, in option_idx,
+-- re-sent after every throw (gk_answer keeps the highest). Its points are
+-- RELATIVE, so they are set for the whole room at once by _gk_action_score.
+--   feedback  {hit: [..], miss: [..]} — the lines the quiz's author wrote for
+--             a basket and for a miss (one is picked at random per throw;
+--             none: the built-in ones). Up to 12 of each, 80 characters each.
+alter table public.gk_items drop constraint if exists gk_items_action_shape;
+alter table public.gk_items
+    add column if not exists feedback jsonb not null default '{}'::jsonb;
+alter table public.gk_items drop constraint if exists gk_items_feedback_shape;
+alter table public.gk_items add constraint gk_items_feedback_shape check (
+    jsonb_typeof(feedback) = 'object'
+    and char_length(feedback::text) <= 2400
+    and (feedback - 'hit' - 'miss') = '{}'::jsonb
+    and (not feedback ? 'hit' or (jsonb_typeof(feedback -> 'hit') = 'array' and jsonb_array_length(feedback -> 'hit') <= 12))
+    and (not feedback ? 'miss' or (jsonb_typeof(feedback -> 'miss') = 'array' and jsonb_array_length(feedback -> 'miss') <= 12))
+    -- every line a one-line string of 1-80 characters
+    and not jsonb_path_exists(feedback, '$.*[*] ? (@.type() != "string" || !(@ like_regex "^.{1,80}$"))')
+);
+alter table public.gk_items add constraint gk_items_action_shape check (
+    kind <> 'action' or (
+        jsonb_typeof(options) = 'array' and jsonb_array_length(options) = 0
+        and cardinality(correct) = 0
+        and time_limit_s between 10 and 120
     )
 );
 
@@ -575,6 +646,36 @@ language sql immutable as $$
               else public._gk_points(p_option = any (p_correct), p_weight, p_ms, p_limit_s) end;
 $$;
 
+-- The action round's share for `p_hits` baskets when the room's fewest is
+-- p_lo and its most p_hi: linear, 1 for the best and 0 for the worst — the
+-- best scores as if it answered at once, the worst as if it answered wrong.
+-- Everyone level: 1 if they scored at all. Mirrored by actionFactor() in
+-- js/scoring.js.
+create or replace function public._gk_action_factor(p_hits int, p_lo int, p_hi int)
+returns numeric language sql immutable as $$
+  select case when p_hi > p_lo then (p_hits - p_lo)::numeric / (p_hi - p_lo)
+              when p_hits > 0 then 1 else 0 end;
+$$;
+
+-- Score every answer of one action round from the room's spread. Run after
+-- each throw is recorded and by the re-score, so the stored points are always
+-- those of the answers as they stand (and nobody sees them before the reveal).
+-- "Correct" = a share above zero: what the fastest five and the streaks read.
+create or replace function public._gk_action_score(p_session uuid, p_item uuid)
+returns void language plpgsql security definer set search_path = public, pg_catalog as $$
+declare
+  v_lo int; v_hi int; v_w int;
+begin
+  select weight into v_w from public.gk_items where id = p_item;
+  select min(option_idx), max(option_idx) into v_lo, v_hi
+    from public.gk_answers where session_id = p_session and item_id = p_item and not voided;
+  update public.gk_answers a
+     set points = round(v_w * 1000 * public._gk_action_factor(a.option_idx, v_lo, v_hi))::int,
+         is_correct = public._gk_action_factor(a.option_idx, v_lo, v_hi) > 0
+   where a.session_id = p_session and a.item_id = p_item and not a.voided;
+end;
+$$;
+
 -- Streaks: runs of correct answers in a row. Counted over the scored items
 -- (not interludes) that are worth something — a ×0 warm-up neither extends a
 -- run nor breaks it — up to and including the item on screen. A question not
@@ -688,7 +789,9 @@ $$;
 
 -- Players × questions. A cell is null (no answer) or [is_correct, ms, points,
 -- deviation] — the deviation only for a slider (null otherwise): its cell is
--- coloured on a red-green scale by it rather than right/wrong.
+-- coloured on a red-green scale by it rather than right/wrong. An action
+-- round's cell adds [.., hits, share]: its baskets, and the 0-1 share of the
+-- points they earned (its colour on the same scale).
 create or replace function public._gk_matrix(p_session uuid)
 returns jsonb language sql stable security definer set search_path = public, pg_catalog as $$
   with s as (select quiz_id from public.gk_sessions where id = p_session),
@@ -707,6 +810,9 @@ returns jsonb language sql stable security definer set search_path = public, pg_
   cells as (
     select p.name,
            jsonb_agg(case when a.id is null then 'null'::jsonb
+                          when qs.kind = 'action'
+                          then jsonb_build_array(a.is_correct, a.answered_ms, a.points, null, a.option_idx,
+                                                 round(public._gk_action_factor(a.option_idx, sp.lo, sp.hi), 4))
                           else jsonb_build_array(a.is_correct, a.answered_ms, a.points,
                                                  case when qs.kind = 'slider' then round(public._gk_slider_dev(a.option_idx), 4) end)
                      end order by qs.idx) as cells
@@ -714,6 +820,8 @@ returns jsonb language sql stable security definer set search_path = public, pg_
       cross join qs
       left join public.gk_answers a
              on a.player_id = p.id and a.item_id = qs.id and not a.voided
+      left join lateral (select min(x.option_idx) as lo, max(x.option_idx) as hi from public.gk_answers x
+                          where x.session_id = p_session and x.item_id = qs.id and not x.voided) sp on qs.kind = 'action'
      where p.session_id = p_session and not p.kicked
      group by p.id, p.name
   )
@@ -784,17 +892,25 @@ begin
 
     if it.id is not null then
       v_n := case it.kind when 'question' then jsonb_array_length(it.options) when 'complete' then jsonb_array_length(it.options)
+                          when 'memory' then jsonb_array_length(it.options)
+                          when 'roulette' then 37
                           when 'puzzle' then 1
                           when 'spot' then jsonb_array_length(it.regions) else 0 end;
       d := d || jsonb_build_object('item', jsonb_build_object(
         'id', it.id, 'kind', it.kind, 'title', it.title, 'body', it.body,
-        'options', case when it.kind in ('question', 'complete', 'slider', 'rank') then it.options else '[]'::jsonb end,
+        'options', case when it.kind in ('question', 'complete', 'slider', 'rank', 'memory') then it.options else '[]'::jsonb end,
+        'memo_s', case when it.kind = 'memory' then it.memo_s end,
         'slot', case when it.kind in ('complete', 'slider') then it.slot end,
         'weight', it.weight, 'time_limit', it.time_limit_s,
         'image', it.image, 'video', it.video, 'audio', it.audio,
         'layout', it.media_layout, 'music_on', it.music_on, 'anim_on', it.anim_on,
         'music', it.music, 'anim_sprite', it.anim_sprite, 'symbols', it.symbols, 'marks', it.marks,
         'regions', case when it.kind = 'spot' then it.regions else '[]'::jsonb end,
+        -- the action round's ball: no secret, it is what the players throw
+        'ball', case when it.kind = 'action' and it.circle_r is not null
+                     then jsonb_build_object('x', it.circle_x, 'y', it.circle_y, 'r', it.circle_r) end,
+        -- and the author's lines for a basket and a miss
+        'feedback', case when it.kind = 'action' then it.feedback end,
         'no', (select count(*) from public._gk_ordered(s.quiz_id) o where o.kind <> 'interlude' and o.idx <= s.cur_index),
         'of', (select count(*) from public._gk_ordered(s.quiz_id) o where o.kind <> 'interlude')));
 
@@ -807,6 +923,8 @@ begin
           -- the puzzle's bouncing detail is part of the reveal, not before it
           'circle', case when it.kind = 'puzzle' and it.circle_r is not null
                          then jsonb_build_object('x', it.circle_x, 'y', it.circle_y, 'r', it.circle_r, 'speed', it.circle_speed) end,
+          -- the memory question's arrows point at the answer: reveal only
+          'arrows', case when it.kind = 'memory' then it.arrows end,
           'correct', to_jsonb(it.correct),
           'counts', (select jsonb_agg((select count(*) from public.gk_answers a
                                         where a.session_id = s.id and a.item_id = it.id and not a.voided
@@ -821,16 +939,22 @@ begin
           'right', case when it.kind = 'rank' then
                       (select count(*) from public.gk_answers a
                         where a.session_id = s.id and a.item_id = it.id and not a.voided and a.is_correct) end,
-          'values', case when it.kind = 'slider' then
+          -- (and the action round: every player's baskets)
+          'values', case when it.kind in ('slider', 'action') then
                       coalesce((select jsonb_agg(a.option_idx order by a.option_idx) from public.gk_answers a
                                  where a.session_id = s.id and a.item_id = it.id and not a.voided), '[]'::jsonb) end,
-          'fastest', coalesce((select jsonb_agg(jsonb_build_object('name', f.name, 'ms', f.answered_ms, 'points', f.points)
-                                                order by f.answered_ms, f.id)
-                                 from (select p.name, a.answered_ms, a.points, a.id
+          -- The action round's "fastest five" are its five best shooters
+          -- (most baskets; the earlier last basket breaks a tie), with `hits`.
+          'fastest', coalesce((select jsonb_agg(jsonb_build_object('name', f.name, 'ms', f.answered_ms, 'points', f.points,
+                                                                   'hits', case when it.kind = 'action' then f.option_idx end)
+                                                order by f.ord)
+                                 from (select p.name, a.answered_ms, a.points, a.option_idx,
+                                              row_number() over (order by case when it.kind = 'action' then -a.option_idx else 0 end,
+                                                                          a.answered_ms, a.id) as ord
                                          from public.gk_answers a join public.gk_players p on p.id = a.player_id
                                         where a.session_id = s.id and a.item_id = it.id and not a.voided
                                           and a.is_correct and not p.kicked
-                                        order by a.answered_ms, a.id limit 5) f), '[]'::jsonb));
+                                        order by ord limit 5) f), '[]'::jsonb));
       end if;
     end if;
 
@@ -889,6 +1013,8 @@ begin
   select * into it from public.gk_items where id = s.cur_item_id;
   if not found then return; end if;
   select coalesce(lead_in_s, 0) into v_lead from public.gk_quizzes where id = s.quiz_id;
+  -- A memory question's lead-in is the time its picture is up.
+  if it.kind = 'memory' then v_lead := it.memo_s; end if;
   v_start := now() + make_interval(secs => coalesce(v_lead, 0));
   update public.gk_sessions
      set phase = 'question', revealed = false,
@@ -919,7 +1045,7 @@ begin
   -- self-explanatory the way four coloured answers are, so each opens on an
   -- instruction slide: phase 'intro', no clock. The question itself — and its
   -- countdown — starts only when the host presses "next" (_gk_start_question).
-  if it.kind in ('puzzle', 'spot', 'complete', 'slider', 'rank') then
+  if it.kind in ('puzzle', 'spot', 'complete', 'slider', 'rank', 'action') then
     update public.gk_sessions
        set status = 'running', started_at = coalesce(started_at, now()),
            cur_index = p_index, cur_item_id = it.id, revealed = false,
@@ -1142,6 +1268,8 @@ begin
      or p_option >= (case it.kind when 'puzzle' then 1 when 'spot' then jsonb_array_length(it.regions)
                                   when 'slider' then 1001   -- a position, 0-1000
                                   when 'rank' then 3125     -- a packed order; checked in full below
+                                  when 'roulette' then 37   -- a number, 0-36
+                                  when 'action' then 121    -- baskets; at most one a second, below
                                   else jsonb_array_length(it.options) end)
      or (it.kind = 'slider' and jsonb_array_length(it.options) = 0)
      or (it.kind = 'rank' and public._gk_rank_order(p_option, jsonb_array_length(it.options)) is null) then
@@ -1154,6 +1282,30 @@ begin
   -- opens is refused rather than handed full marks.
   if it.kind = 'puzzle' and v_now < s.q_started_at + interval '2 seconds' then
     raise exception 'too_fast' using errcode = 'P0001';
+  end if;
+
+  -- The action round: the answer is the running count of baskets, re-sent
+  -- after every throw, so it is UPDATED (upwards only) rather than refused as
+  -- a second answer, and never closes the question early — everyone has
+  -- answered after their first throw. Like the puzzle's "done", the count is
+  -- the browser's word; what the server holds it to is the pace of a throw —
+  -- no more than one basket per second on the clock so far.
+  if it.kind = 'action' then
+    if p_option * 1000 > extract(epoch from (v_now - s.q_started_at)) * 1000 then
+      raise exception 'too_fast' using errcode = 'P0001';
+    end if;
+    v_ms := least(greatest((extract(epoch from (v_now - s.q_started_at)) * 1000)::int, 0), it.time_limit_s * 1000);
+    update public.gk_answers set option_idx = p_option, answered_ms = v_ms
+     where session_id = s.id and item_id = it.id and player_id = p.id and not voided and option_idx < p_option;
+    if not found and not exists (select 1 from public.gk_answers
+                                  where session_id = s.id and item_id = it.id and player_id = p.id and not voided) then
+      insert into public.gk_answers (session_id, item_id, player_id, option_idx, answered_ms, is_correct, points)
+      values (s.id, it.id, p.id, p_option, v_ms, false, 0);
+    end if;
+    perform public._gk_action_score(s.id, it.id);
+    update public.gk_players set last_seen = now() where id = p.id;
+    perform public._gk_live(s.id);
+    return;
   end if;
 
   v_ms := least(greatest((extract(epoch from (v_now - s.q_started_at)) * 1000)::int, 0), it.time_limit_s * 1000);
@@ -1419,6 +1571,12 @@ begin
   if not found then return; end if;
   select * into it from public.gk_items where id = p_item and kind not in ('interlude', 'explain');
   if not found then return; end if;
+  if it.kind = 'action' then
+    -- relative points: the whole room at once (a changed weight, mostly)
+    perform public._gk_action_score(s.id, it.id);
+    perform public._gk_publish(s.id);
+    return;
+  end if;
   update public.gk_answers a
      set (is_correct, points) = (select sc.is_correct, sc.points
                                    from public._gk_score(it.kind, it.correct, a.option_idx, it.weight, a.answered_ms, it.time_limit_s) sc)

@@ -28,6 +28,19 @@ export function h(tag, attrs, ...children) {
     return el;
 }
 
+/** An SVG element. Attributes are numbers and fixed names written in this
+ *  codebase — never a stranger's text — so setAttribute is all it needs. */
+export function svgEl(tag, attrs = {}, ...children) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [key, value] of Object.entries(attrs)) {
+        if (value === null || value === undefined || value === false) continue;
+        if (key === 'class') el.setAttribute('class', value);
+        else el.setAttribute(key, String(value));
+    }
+    append(el, children);
+    return el;
+}
+
 function append(el, children) {
     for (const child of children) {
         if (child === null || child === undefined || child === false) continue;

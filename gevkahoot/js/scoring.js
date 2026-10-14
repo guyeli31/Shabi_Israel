@@ -82,6 +82,41 @@ export function scrambleRank(inOrder) {
     return { options: stored.map((s) => s.text), correct };
 }
 
+/**
+ * The action round (free throws). The answer is how many baskets a player
+ * made in the time limit, and the points are RELATIVE to the room: linear
+ * between its fewest (0 points, as if wrong) and its most (weight × 1000, as
+ * if answered at once). Everyone level: full points if they scored at all.
+ *
+ *     share  = (hits − fewest) / (most − fewest)
+ *     points = round( weight × 1000 × share )
+ *
+ * Mirrored by _gk_action_factor / _gk_action_score in sql/gevkahoot.sql.
+ */
+export function actionFactor(hits, lo, hi) {
+    if (hi > lo) return (hits - lo) / (hi - lo);
+    return hits > 0 ? 1 : 0;
+}
+export const actionPoints = (hits, lo, hi, weight) => Math.round(weight * 1000 * actionFactor(hits, lo, hi));
+
+/**
+ * What makes a throw a basket — the three windows a throw must fall in.
+ *   aim    left/right: the drag's sideways slope |dx / dy| — 0.1 lands the
+ *          ball within ±5% of the court's width of the rim's centre (the rim
+ *          is ±6.7% wide); up to `rim` it hits the rim and falls out.
+ *   power  the drag's length upwards as a fraction of the court's height:
+ *          inside the window it reaches the rim; below it falls short, above
+ *          it hits the backboard and bounces out.
+ *   ms     the drag's duration: a throw is ONE movement — longer than `slow`
+ *          is a push, not a throw, and dies on the way.
+ * The server cannot see a throw; it holds the count to one basket a second.
+ */
+export const THROW = {
+    aim: 0.1, rim: 0.17,
+    power: [0.25, 0.4], ideal: 0.325,
+    slow: 1200,
+};
+
 /** "12% גדול מדי" — the deviation as a player reads it. */
 export function sliderVerdict(v) {
     const d = sliderDeviation(v);

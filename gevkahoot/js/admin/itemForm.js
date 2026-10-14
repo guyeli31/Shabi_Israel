@@ -15,6 +15,8 @@ import { emojiButton, openEmojiPicker } from './emojiPicker.js';
 import { openCompleteMaker } from './completeMaker.js';
 import { safeMedia } from '../ui/dom.js';
 import { scrambleRank } from '../scoring.js';
+import { memoryPicture } from '../host/memory.js';
+import { createTable } from '../host/roulette.js';
 
 /** The list of files in gevkahoot/media/, by folder. GitHub Pages has no
  *  directory listing, so the pickers read this generated file instead
@@ -57,6 +59,11 @@ export function itemForm(item, { manifest, onSave }) {
     const isComplete = item.kind === 'complete';
     const isSlider = item.kind === 'slider';
     const isRank = item.kind === 'rank';
+    const isMemory = item.kind === 'memory';
+    const isRoulette = item.kind === 'roulette';
+    const isAction = item.kind === 'action';
+    // The kinds whose answers are typed options on coloured tiles.
+    const hasOptions = isQuestion || isMemory;
     // The ranking is edited IN ORDER (top place first) and stored scrambled.
     const rankList = isRank
         ? ((item.correct || []).length === (item.options || []).length ? item.correct.map((i) => item.options[i]) : [...(item.options || [])])
@@ -68,9 +75,12 @@ export function itemForm(item, { manifest, onSave }) {
         // A question saved before mark sets existed has 'teams' and maybe
         // emojis: those emojis are what it shows, so it opens as 'emoji'.
         marks: item.marks && item.marks !== 'teams' ? item.marks
-            : isQuestion && (item.symbols || []).some(Boolean) ? 'emoji' : 'teams',
+            : hasOptions && (item.symbols || []).some(Boolean) ? 'emoji' : 'teams',
+        memo_s: item.memo_s ?? 10, arrows: (item.arrows || []).map((a) => ({ ...a })),
         circle_x: item.circle_x ?? null, circle_y: item.circle_y ?? null, circle_r: item.circle_r ?? null,
         circle_speed: item.circle_speed ?? 4,
+        // the action round's lines for a basket and a miss
+        feedback: { hit: [...(item.feedback?.hit || [])], miss: [...(item.feedback?.miss || [])] },
         title: item.title, body: item.body,
         options: (item.options || []).map((o) => (o && typeof o === 'object' ? { ...o } : o)), correct: [...(item.correct || [])],
         weight: item.weight, time_limit_s: item.time_limit_s,
@@ -87,7 +97,7 @@ export function itemForm(item, { manifest, onSave }) {
         timer = null;
         saveBtn.toggleAttribute('data-dirty', false);
         {
-            if (isQuestion && draft.correct.length === 0) {
+            if (hasOptions && draft.correct.length === 0) {
                 status.textContent = 'סמנו לפחות תשובה נכונה אחת';
                 saveBtn.toggleAttribute('data-dirty', true);
                 return saving;
@@ -96,9 +106,10 @@ export function itemForm(item, { manifest, onSave }) {
             // after the save, not instead of it.
             const reminder = (isSpot && (draft.regions.length < 2 ? 'נשמר — סמנו לפחות שני אזורים' : draft.correct.length === 0 ? 'נשמר — סמנו איזה אזור נכון' : null))
                 || (isRank && rankList.some((t) => !t.trim()) && 'נשמר — יש תשובה ריקה')
+                || (isMemory && (!draft.image ? 'נשמר — בחרו תמונה לזכור' : draft.arrows.length === 0 ? 'נשמר — אפשר לצייר חץ על התמונה' : null))
                 || (isComplete && draft.image && (draft.options.length < 2 ? 'נשמר — צריך לפחות שתי אפשרויות' : draft.correct.length === 0 ? 'נשמר — סמנו איזו אפשרות נכונה' : null));
             // Each kind saves only the columns that mean something for it.
-            const { circle_x, circle_y, circle_r, circle_speed, regions, symbols, slot, marks, ...common } = draft;
+            const { circle_x, circle_y, circle_r, circle_speed, regions, symbols, slot, marks, memo_s, arrows, feedback, ...common } = draft;
             const playback = { music_on: draft.music_on, music: draft.music, anim_on: draft.anim_on, anim_sprite: draft.anim_sprite };
             const patch = isRank
                 ? { title: draft.title, body: draft.body.trim().slice(0, 40), weight: draft.weight, time_limit_s: draft.time_limit_s,
@@ -115,11 +126,25 @@ export function itemForm(item, { manifest, onSave }) {
                 : isSpot
                 ? { title: draft.title, image: draft.image, weight: draft.weight, time_limit_s: draft.time_limit_s,
                     regions: regions.map((r) => ({ ...r })), correct: [...draft.correct].sort((a, b) => a - b), ...playback }
+                : isRoulette
+                // One number, 0-36: the pocket the ball will drop into.
+                ? { title: draft.title, weight: draft.weight, time_limit_s: draft.time_limit_s, correct: [draft.correct[0] ?? 0], ...playback }
+                : isMemory
+                ? { title: draft.title, image: draft.image, weight: draft.weight, time_limit_s: draft.time_limit_s, memo_s,
+                    arrows: arrows.map((a) => ({ ...a })), options: [...draft.options], correct: [...draft.correct].sort(), marks,
+                    symbols: draft.options.map((_, i) => (marks === 'emoji' && draft.symbols[i]) || ''), ...playback }
                 : isQuestion
                 // One symbol slot per answer, '' meaning "the set's emblem" —
                 // and emojis are saved only while the set IS emoji.
                 ? { ...common, options: [...draft.options], correct: [...draft.correct].sort(), marks,
                     symbols: draft.options.map((_, i) => (marks === 'emoji' && draft.symbols[i]) || '') }
+                : isAction
+                // The ball (a circle of a picture, or none). Its sounds are fixed (js/ui/sounds.js).
+                ? { title: draft.title, image: draft.image, weight: draft.weight, time_limit_s: draft.time_limit_s,
+                    circle_x, circle_y, circle_r, audio: null, options: [], correct: [], ...playback,
+                    // one line each, trimmed, empty lines dropped, at most 12 of 80 characters (CHECK)
+                    feedback: Object.fromEntries(['hit', 'miss'].map((k) => [k,
+                        draft.feedback[k].map((t) => t.replace(/\s+/g, ' ').trim().slice(0, 80)).filter(Boolean).slice(0, 12)])) }
                 : isPuzzle
                     ? { title: draft.title, image: draft.image, weight: draft.weight, time_limit_s: draft.time_limit_s,
                         circle_x, circle_y, circle_r, circle_speed, ...playback }
@@ -214,14 +239,14 @@ export function itemForm(item, { manifest, onSave }) {
 
     // ---- the marks on the tiles: one set per question -----------------------
     // Ranking has no per-answer emoji picker, so it is offered the image sets only.
-    const markSets = MARK_SETS.filter((m) => isQuestion || m.key !== 'emoji');
+    const markSets = MARK_SETS.filter((m) => hasOptions || m.key !== 'emoji');
     const marksSeg = h('div', { class: 'if-seg if-seg--words', role: 'radiogroup', 'aria-label': 'סמלים על האריחים' },
         markSets.map((m) => h('button', { type: 'button', class: 'if-seg-btn', text: m.label,
             dataset: draft.marks === m.key ? { on: '' } : {},
             onclick: (e) => {
                 draft.marks = m.key;
                 for (const b of marksSeg.children) b.toggleAttribute('data-on', b === e.currentTarget);
-                if (isQuestion) drawOptions(); else drawMarksPreview();
+                if (hasOptions) drawOptions(); else drawMarksPreview();
                 changed();
             } })));
     // A question shows the marks on its answers' swatches. A ranking's editor
@@ -236,14 +261,14 @@ export function itemForm(item, { manifest, onSave }) {
     const marksField = h('div', { class: 'if-field' },
         h('span', { class: 'if-label', text: 'סמלים על האריחים' }), marksSeg, isRank && marksPreview);
 
-    if (isQuestion) drawOptions();
+    if (hasOptions) drawOptions();
 
     // ---- the puzzle's picture, and the round detail that bounces afterwards --
     const circleBox = h('div', { class: 'if-circle' });
     function drawCircle() {
         clear(circleBox);
         if (!draft.image) {
-            circleBox.append(h('p', { class: 'dr-note', text: 'בחרו קודם תמונה לפאזל.' }));
+            circleBox.append(h('p', { class: 'dr-note', text: isAction ? 'בלי תמונה הכדור הוא כדורסל מצויר. בחרו תמונה כדי לגזור ממנה כדור.' : 'בחרו קודם תמונה לפאזל.' }));
             return;
         }
         const ring = h('div', { class: 'if-circle-ring', hidden: draft.circle_r === null });
@@ -286,19 +311,22 @@ export function itemForm(item, { manifest, onSave }) {
         circleBox.append(stage,
             h('div', { class: 'if-pair' },
                 h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'גודל העיגול' }), radius),
-                h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'מהירות הקפיצה' }), speed)),
-            h('button', { class: 'gk-btn gk-btn--ghost gk-btn--small', type: 'button', text: 'בלי עיגול קופץ',
+                isPuzzle && h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'מהירות הקפיצה' }), speed)),
+            h('button', { class: 'gk-btn gk-btn--ghost gk-btn--small', type: 'button', text: isAction ? 'כדורסל מצויר במקום' : 'בלי עיגול קופץ',
                 onclick: () => { draft.circle_x = draft.circle_y = draft.circle_r = null; place(); changed(); } }),
-            h('p', { class: 'dr-note', text: 'לחצו על התמונה כדי לבחור איזה חלק עגול ממנה יקפוץ על המסך אחרי שכולם סיימו: שאר התמונה נמוג, והעיגול — בגודלו המקורי — משתחרר וקופץ.' }));
+            h('p', { class: 'dr-note', text: isAction
+                ? 'לחצו על התמונה כדי לבחור איזה חלק עגול ממנה יהיה הכדור. שאלה חדשה מקבלת את העיגול של הפאזל האחרון שלפניה, כך שהכדור שקפץ בחשיפת הפאזל חוזר כאן.'
+                : 'לחצו על התמונה כדי לבחור איזה חלק עגול ממנה יקפוץ על המסך אחרי שכולם סיימו: שאר התמונה נמוג, והעיגול — בגודלו המקורי — משתחרר וקופץ.' }));
     }
-    if (isPuzzle) drawCircle();
+    if (isPuzzle || isAction) drawCircle();
 
     const weightAndTime = h('div', { class: 'if-pair' },
         h('div', { class: 'if-field' }, h('span', { class: 'if-label', text: 'משקל' }), weights),
         field('זמן (שניות)',
-            h('input', { class: 'dr-input', type: 'number', min: '5', max: '300', value: String(draft.time_limit_s),
+            // (the action round: 10-120 seconds, its CHECK)
+            h('input', { class: 'dr-input', type: 'number', min: isAction ? '10' : '5', max: isAction ? '120' : '300', value: String(draft.time_limit_s),
                 onchange: (e) => {
-                    const n = Math.min(300, Math.max(5, Math.round(Number(e.target.value) || 20)));
+                    const n = Math.min(isAction ? 120 : 300, Math.max(isAction ? 10 : 5, Math.round(Number(e.target.value) || (isAction ? 30 : 20))));
                     e.target.value = String(n);
                     set('time_limit_s')(n);
                 } })));
@@ -521,6 +549,100 @@ export function itemForm(item, { manifest, onSave }) {
                 onclick: () => { rankList.push(''); drawRank(); changed(); } }));
         }
     }
+    // ---- the memory question: its picture, and the arrows for the reveal -----
+    const MAX_ARROWS = 12;
+    const arrowBox = h('div', { class: 'if-circle' });
+    function drawArrows() {
+        clear(arrowBox);
+        if (!draft.image) {
+            arrowBox.append(h('p', { class: 'dr-note', text: 'בחרו קודם תמונה.' }));
+            return;
+        }
+        // The same drawing as the stage, without the entrance animation. A
+        // drag on the picture draws a new arrow from where it starts (the
+        // tail) to where it is let go (the tip — put it on the thing).
+        const pic = memoryPicture(draft.image, draft.arrows, { live: false, className: 'if-circle-img' });
+        const stage = h('div', { class: 'if-circle-stage if-arrow-stage', title: 'גררו מהזנב אל הפריט כדי לצייר חץ' }, pic.el);
+        const at = (e) => {
+            const box = pic.img.getBoundingClientRect();
+            return [+Math.min(1, Math.max(0, (e.clientX - box.left) / box.width)).toFixed(4),
+                +Math.min(1, Math.max(0, (e.clientY - box.top) / box.height)).toFixed(4)];
+        };
+        let drawing = null;
+        stage.addEventListener('pointerdown', (e) => {
+            if (draft.arrows.length >= MAX_ARROWS) return;
+            stage.setPointerCapture(e.pointerId);
+            const [x, y] = at(e);
+            drawing = { x1: x, y1: y, x2: x, y2: y };
+        });
+        stage.addEventListener('pointermove', (e) => {
+            if (!drawing) return;
+            [drawing.x2, drawing.y2] = at(e);
+            pic.redraw([...draft.arrows, drawing]);
+        });
+        stage.addEventListener('pointerup', () => {
+            if (!drawing) return;
+            const a = drawing;
+            drawing = null;
+            // A click, or a drag too short to have a direction, is not an arrow.
+            if (Math.hypot(a.x2 - a.x1, a.y2 - a.y1) >= 0.03) { draft.arrows.push(a); changed(); }
+            drawArrows();
+        });
+        const list = draft.arrows.length
+            ? h('div', { class: 'if-pair' },
+                draft.arrows.map((_, i) => h('button', { class: 'gk-btn gk-btn--ghost gk-btn--small', type: 'button', text: `✕ חץ ${i + 1}`,
+                    title: 'מחק את החץ הזה', onclick: () => { draft.arrows.splice(i, 1); drawArrows(); changed(); } })),
+                draft.arrows.length > 1 && h('button', { class: 'gk-btn gk-btn--ghost gk-btn--small', type: 'button', text: 'מחק את כולם',
+                    onclick: () => { draft.arrows = []; drawArrows(); changed(); } }))
+            : null;
+        arrowBox.append(stage, list,
+            h('p', { class: 'dr-note', text: draft.arrows.length >= MAX_ARROWS
+                ? `הגעתם ל-${MAX_ARROWS} חיצים — מחקו אחד כדי לצייר חדש.`
+                : 'גררו על התמונה מנקודת הזנב אל הפריט — שם יהיה ראש החץ. אפשר כמה חיצים שרוצים; בחשיפת התשובה הם מופיעים אחד אחרי השני.' }));
+    }
+    if (isMemory) drawArrows();
+
+    if (isRoulette) {
+        // The right number is chosen on the table itself, as a player bets.
+        const answer = h('span', { class: 'dr-note' });
+        const show = () => { answer.textContent = `התשובה הנכונה: ${draft.correct[0] ?? 0} — הכדור ייפול עליו.`; };
+        const table = createTable({ interactive: true, compact: true, onSelect: (n) => { draft.correct = [n]; show(); changed(); } });
+        table.markPicked(draft.correct[0] ?? 0);
+        show();
+        return h('div', { class: 'if' },
+            field('השאלה (התשובה היא מספר בין 0 ל-36)',
+                emojiButton(h('textarea', { class: 'dr-input', rows: '2', maxlength: '300', dir: 'auto', value: draft.title,
+                    oninput: (e) => set('title')(e.target.value) }))),
+            h('div', { class: 'if-field' }, h('span', { class: 'if-label', text: 'לחצו על המספר הנכון' }),
+                h('div', { class: 'if-roulette' }, table.el), answer),
+            weightAndTime, toggles, saveRow);
+    }
+
+    if (isMemory) {
+        const memo = h('input', { class: 'dr-input', type: 'number', min: '3', max: '120', value: String(draft.memo_s),
+            onchange: (e) => {
+                const n = Math.min(120, Math.max(3, Math.round(Number(e.target.value) || 10)));
+                e.target.value = String(n);
+                set('memo_s')(n);
+            } });
+        return h('div', { class: 'if' },
+            field('התמונה לזכירה',
+                mediaSelect(manifest, ['images', 'backgrounds'], draft.image, (v) => {
+                    // A new picture: the old arrows pointed into the old one.
+                    draft.image = v; draft.arrows = [];
+                    drawArrows(); changed();
+                })),
+            field('כמה שניות התמונה מוצגת', memo),
+            h('div', { class: 'if-field' }, h('span', { class: 'if-label', text: 'החיצים שיופיעו בחשיפת התשובה' }), arrowBox),
+            field('השאלה (מוצגת רק אחרי שהתמונה נעלמת)',
+                emojiButton(h('textarea', { class: 'dr-input', rows: '2', maxlength: '300', dir: 'auto', value: draft.title,
+                    oninput: (e) => set('title')(e.target.value) }))),
+            marksField,
+            h('div', { class: 'if-field' },
+                h('span', { class: 'if-label', text: 'תשובות (2 עד 5) — אפשר לסמן יותר מנכונה אחת' }), optionList),
+            weightAndTime, toggles, saveRow);
+    }
+
     if (isRank) {
         drawRank();
         return h('div', { class: 'if' },
@@ -569,6 +691,31 @@ export function itemForm(item, { manifest, onSave }) {
                 })),
             h('div', { class: 'if-field' }, h('span', { class: 'if-label', text: 'האזורים לבחירה' }), spotBox),
             weightAndTime, toggles, saveRow);
+    }
+
+    /** The action round's lines: a textarea, one line per entry. */
+    const feedbackField = (label, key, example) => field(label,
+        emojiButton(h('textarea', { class: 'dr-input', rows: '5', dir: 'auto', placeholder: example, value: draft.feedback[key].join('\n'),
+            oninput: (e) => { draft.feedback[key] = e.target.value.split('\n'); changed(); } })));
+
+    if (isAction) {
+        return h('div', { class: 'if' },
+            field('הכותרת שמעל המגרש',
+                emojiButton(h('textarea', { class: 'dr-input', rows: '2', maxlength: '300', dir: 'auto', value: draft.title,
+                    oninput: (e) => set('title')(e.target.value) }))),
+            field('התמונה שממנה נגזר הכדור',
+                mediaSelect(manifest, ['images', 'backgrounds'], draft.image, (v) => {
+                    draft.image = v; draft.circle_x = draft.circle_y = draft.circle_r = null;
+                    drawCircle(); changed();
+                })),
+            h('div', { class: 'if-field' }, h('span', { class: 'if-label', text: 'הכדור' }), circleBox),
+            h('div', { class: 'if-pair' },
+                feedbackField('משפטים לקליעה', 'hit', 'יש! 🔥'),
+                feedbackField('משפטים להחטאה', 'miss', 'אוף, כמעט 😬')),
+            h('p', { class: 'dr-note', text: 'שורה לכל משפט, עד 12 בכל רשימה. אחרי כל זריקה מוצג אחד מהם באקראי, ומתחתיו ההסבר הקטן של המשחק, למשל ״חזק מדי״ או ״קצת שמאלה מדי״. בלי משפטים יוצג ההסבר לבדו.' }),
+            weightAndTime,
+            h('p', { class: 'dr-note', text: 'כל שחקן זורק עד שהזמן נגמר. הניקוד יחסי: מי שקלע הכי הרבה מקבל ניקוד מלא (כמו תשובה מיידית), מי שקלע הכי מעט מקבל אפס, וכל השאר לפי קו ישר ביניהם.' }),
+            toggles, saveRow);
     }
 
     if (isPuzzle) {

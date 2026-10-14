@@ -12,7 +12,9 @@
  * deliberately generic shapes, not the question's own picture — the slide must
  * not give the picture away before the clock starts.
  */
-import { h } from '../ui/dom.js';
+import { h, safeMedia } from '../ui/dom.js';
+import { createAction } from './action.js';
+import { circleCutout } from './puzzle.js';
 
 const hand = () => h('span', { class: 'dm-hand', 'aria-hidden': 'true' }, h('span', { text: '👆' }));
 const pill = (text) => h('span', { class: 'dm-pill', text });
@@ -68,6 +70,16 @@ function rankDemo() {
         pill('הזן תשובה'), hand());
 }
 
+/** The action round: the real court, a hand throwing the real ball — the one
+ *  exception to "generic shapes": the ball is the circle the puzzle before it
+ *  already lifted off its picture, so it gives nothing away, and seeing it
+ *  again IS the introduction. */
+function actionDemo(item) {
+    const image = safeMedia(item.image);
+    const ball = item.ball && image ? circleCutout(image, item.ball) : null;
+    return h('div', { class: 'dm dm-action', 'aria-hidden': 'true' }, createAction({ ball, auto: true, feedback: item.feedback || {} }).el);
+}
+
 const INTROS = {
     puzzle: { icon: '🧩', name: 'פאזל', demo: puzzleDemo, steps: ['גוררים כל חלק למקומו', 'לוחצים ״סיימתי״'] },
     spot: { icon: '🔎', name: 'זיהוי בתמונה', demo: spotDemo, steps: ['מקישים על האזור הנכון', 'לוחצים ״הזן תשובה״'] },
@@ -77,6 +89,11 @@ const INTROS = {
     // The one game that is not right-or-wrong, so the slide says how it scores.
     slider: { icon: '🎚️', name: 'סליידר', demo: sliderDemo, steps: ['מזיזים את הסליידר עד שהעצם בגודל האמיתי', 'לוחצים ״הזן תשובה״'],
         note: 'הניקוד: נקודות המהירות × (1 − הסטייה באחוזים)' },
+    // Not right-or-wrong either, and scored against the room: the slide says so.
+    action: { icon: '🏀', name: 'אקשן: קליעות לסל', demo: actionDemo,
+        // It runs to the clock, whoever is done: the second step says how long.
+        steps: (item) => ['גוררים את הכדור אל הסל ומשחררים — לא חזק מדי ולא חלש מדי', `כמה שיותר סלים ב-${item.time_limit} שניות`],
+        note: 'הכי הרבה סלים = ניקוד מלא, הכי מעט = אפס, וכל השאר באמצע' },
 };
 
 export const hasIntro = (kind) => kind in INTROS;
@@ -88,8 +105,8 @@ export function introSlide(item, { host }) {
         h('div', { class: 'st-intro-head' },
             h('span', { class: 'st-intro-icon', 'aria-hidden': 'true', text: def.icon }),
             h('h1', { class: 'st-heading', text: def.name })),
-        def.demo(),
-        h('ol', { class: 'st-steps' }, def.steps.map((text, i) => h('li', null,
+        def.demo(item),
+        h('ol', { class: 'st-steps' }, (typeof def.steps === 'function' ? def.steps(item) : def.steps).map((text, i) => h('li', null,
             h('span', { class: 'st-step-n', text: String(i + 1) }), h('span', { text })))),
         h('p', { class: 'st-intro-note', text: `${def.note || 'מי שמהיר יותר מרוויח יותר'} · ${host ? '״הבא״ מתחיל את השאלה' : 'מיד מתחילים'}` }));
 }

@@ -62,7 +62,7 @@ const MINIFY = false; // keep readable for first-pass verification; flip to true
 // HTML pages to process: the app's own pages plus any domain-root project page.
 function discoverHtml() {
   const siteHtml = fs.readdirSync(SITE).filter(f => f.endsWith('.html'));
-  const extra = ['WC26/wc26.html', 'gevkahoot/index.html', 'gevkahoot/host.html', 'gevkahoot/editor.html']
+  const extra = ['WC26/wc26.html', 'gevkahoot/index.html', 'gevkahoot/host.html', 'gevkahoot/editor.html', 'gevkahoot/handoff.html']
     .filter(p => fs.existsSync(path.join(ROOT, p)));
   return [...siteHtml, ...extra];
 }

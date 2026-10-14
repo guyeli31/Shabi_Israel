@@ -2,7 +2,8 @@
  * demoQuiz.js — the content of the demo quiz anyone can play against bots.
  *
  * Deliberately a tour of everything a quiz can hold: every kind of scored
- * item (question, complete the picture, slider, ranking, spot it, puzzle),
+ * item (question, complete the picture, slider, ranking, spot it, puzzle,
+ * the action round, memory),
  * an "answer explained" segment, interludes before and after questions in
  * every media kind (image, video, audio) and layout (side, top, full,
  * background), emoji in questions, in answers and on tiles, weights ×0 / ×1 /
@@ -34,7 +35,7 @@ export const DEMO_QUIZ = {
 const item = (row) => ({
     body: '', options: [], regions: [], correct: [], weight: 1, time_limit_s: 20,
     image: null, video: null, audio: null, media_layout: 'side', music_on: true, anim_on: true,
-    music: null, anim_sprite: null, symbols: [], marks: 'teams', explain: null, slot: null, ...row,
+    music: null, anim_sprite: null, symbols: [], marks: 'teams', memo_s: 10, arrows: [], explain: null, slot: null, ...row,
 });
 
 export const DEMO_ITEMS = [
@@ -112,6 +113,26 @@ export const DEMO_ITEMS = [
     // the round detail (the sun) that bounces around once it is revealed.
     item({ id: 'demo-p1', kind: 'puzzle', title: '🧩 הרכיבו את התמונה', correct: [0], weight: 1, time_limit_s: 40,
         image: 'media/images/demo-puzzle.svg', circle: { x: 0.79, y: 0.24, r: 0.2, speed: 4 } }),
+
+    // The action round, right after the puzzle: the sun that just lifted off
+    // the puzzle's picture is now the ball — free throws for 30 seconds,
+    // points relative to the room (the best shooter full, the worst none).
+    item({ id: 'demo-a1', kind: 'action', title: '🏀 כמה סלים תקלעו?', weight: 1, time_limit_s: 30,
+        image: 'media/images/demo-puzzle.svg', ball: { x: 0.79, y: 0.24, r: 0.2 },
+        // the author's own lines, one picked per throw
+        feedback: { hit: ['יש! 🔥', 'סל! כמו בנבא 🏀', 'איזה יד!', 'עוד אחד כזה!'], miss: ['אוף, כמעט 😬', 'לא נורא, עוד ניסיון!', 'הטבעת לא אוהבת אותך היום', 'נשום עמוק ושוב'] } }),
+
+    // The memory question: the picture is up for six seconds, then taken away
+    // and the question asked; at the reveal it returns with two arrows, one
+    // at each cloud.
+    item({ id: 'demo-m1', kind: 'memory', title: '☁️ כמה עננים היו בשמיים?', options: ['1', '2', '3', '4'], correct: [1],
+        weight: 1, time_limit_s: 15, image: 'media/images/demo-puzzle.svg', memo_s: 6,
+        arrows: [{ x1: 0.08, y1: 0.5, x2: 0.24, y2: 0.27 }, { x1: 0.62, y1: 0.6, x2: 0.51, y2: 0.34 }] }),
+
+    // The roulette: a chip on a number of the table; at the reveal the wheel
+    // spins and the ball drops into 11.
+    item({ id: 'demo-rl1', kind: 'roulette', title: '🎰 כמה שחקנים יש לקבוצת כדורגל על המגרש?', correct: [11],
+        weight: 1, time_limit_s: 20 }),
 
     // The double-points finale, its picture as the whole background.
     item({ id: 'demo-q5', kind: 'question', title: '🏁 שאלת הסיום: אילו מהמספרים זוגיים?',

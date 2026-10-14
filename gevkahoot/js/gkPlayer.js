@@ -59,7 +59,9 @@ const stage = createStage(stageFrame, {
     // and a phone shows pictures only.
     media: () => (isDemo ? 'full' : compact() ? 'still' : 'muted'),
     muted: isPreview,
-    onAnswer: (itemId, option) => choose(itemId, option),
+    onAnswer: (itemId, option, opts) => (opts?.again ? reportCount(itemId, option) : choose(itemId, option)),
+    // The roulette's ball has landed: now the result may be told.
+    onSettled: () => render(),
 });
 
 const ERRORS = {
@@ -137,6 +139,21 @@ async function choose(itemId, option) {
         if (err.code !== 'already_answered') picked = null;
     }
     refreshMe();
+}
+
+/** The action round: the running count of baskets, sent after every throw.
+ *  Not an answer that closes anything — the server keeps the highest count —
+ *  so it bypasses choose()'s "once only". Sends are chained so they arrive in
+ *  order; a failed one is simply overtaken by the next throw's. */
+let counting = Promise.resolve();
+let shownHits = null;      // { itemId, hits } — this device's count, for the status line
+function reportCount(itemId, hits) {
+    shownHits = { itemId, hits };
+    renderStrip();
+    if (isPreview) return;
+    if (demo) { demo.answer(itemId, hits); return; }
+    counting = counting.then(() => api.answer(itemId, hits)).catch(() => {});
+    counting.then(() => { if (!me.answered) refreshMe(); });
 }
 
 // ---- entry views ----------------------------------------------------------
@@ -226,21 +243,41 @@ function stripContent() {
     if (phase === 'interlude') return [`inter|${item?.id}`, 'plain', compact() && !demo ? 'עיניים למסך' : standing, [go('המשך ▶')]];
     if (phase === 'intro') return [`intro|${item?.id}`, 'plain', compact() && !demo ? 'מיד מתחילים — כך משחקים' : 'כך משחקים', [go('התחל ▶')]];
     if (phase === 'question' && item) {
+        if (item.kind === 'action') {
+            // Throwing until the bell: the line is the count, not "sent".
+            const hits = Math.max(shownHits?.itemId === item.id ? shownHits.hits : 0, me.item_id === item.id ? me.option || 0 : 0);
+            if (now < data.starts_at) return [`ready|${item.id}`, 'plain', '🏀 מתכוננים לזרוק…', []];
+            const count = hits === 1 ? 'קליעה אחת' : `${hits} קליעות`;
+            if (now > data.deadline) return [`late|${item.id}|${hits}`, 'sent', `נגמר הזמן · ${count}`, []];
+            return [`throw|${item.id}|${hits}`, 'plain', hits ? `🏀 ${count} — עוד!` : 'גוררים את הכדור אל הסל ומשחררים', []];
+        }
         const mine = me.answered && me.item_id === item.id ? me.option : picked?.itemId === item.id ? picked.option : null;
         if (mine !== null && mine !== undefined) return [`sent|${item.id}`, 'sent', 'נקלט! מחכים לכל השאר…', []];
-        if (now < data.starts_at) return [`ready|${item.id}`, 'plain', `${item.kind === 'puzzle' ? 'פאזל' : 'שאלה'} ${item.no} מתוך ${item.of} · מתכוננים…`, []];
+        if (now < data.starts_at) return [`ready|${item.id}`, 'plain', item.kind === 'memory'
+            ? 'שאלת זיכרון · זכרו את התמונה, השאלה תבוא אחריה'
+            : `${item.kind === 'puzzle' ? 'פאזל' : 'שאלה'} ${item.no} מתוך ${item.of} · מתכוננים…`, []];
         if (now > data.deadline) return [`late|${item.id}`, 'none', 'נגמר הזמן', []];
-        return [`open|${item.id}`, 'plain', { puzzle: 'גררו את החלקים אל המסגרת', spot: 'הקישו על האזור הנכון ואז ״הזן תשובה״', complete: 'נסו את האפשרויות על התמונה ואז ״הזן תשובה״', slider: 'הזיזו את הסליידר עד שהגודל מדויק ואז ״הזן תשובה״', rank: 'גררו את התשובות לפי הסדר ואז ״הזן תשובה״' }[item.kind] || 'בחרו תשובה', []];
+        return [`open|${item.id}`, 'plain', { puzzle: 'גררו את החלקים אל המסגרת', spot: 'הקישו על האזור הנכון ואז ״הזן תשובה״', complete: 'נסו את האפשרויות על התמונה ואז ״הזן תשובה״', slider: 'הזיזו את הסליידר עד שהגודל מדויק ואז ״הזן תשובה״', rank: 'גררו את התשובות לפי הסדר ואז ״הזן תשובה״', roulette: 'שימו ז׳יטון על מספר ואז ״הזן תשובה״' }[item.kind] || 'בחרו תשובה', []];
     }
     // The leader slide before the last question is about the table, not the
     // question before it: show where this player stands.
     if (phase === 'fire' && data.fire?.lead) return [`lead|${state.rev}|${me.rank}|${me.points}`, 'plain', standing, [go('המשך ▶')]];
+    // A roulette's result waits for the ball: until it lands, "right" or
+    // "wrong" here would tell the player before the wheel does.
+    if (phase === 'reveal' && item?.kind === 'roulette' && stage.spinning) return [`spin|${item.id}`, 'plain', '🎰 הכדור מתגלגל…', []];
     if (['reveal', 'explain', 'fastest', 'fire'].includes(phase) && item && item.kind !== 'interlude') {
         const r = me.result || {};
         // A run of three or more correct answers that this one extended.
         const fire = me.streak >= 3 ? ` · 🔥 ${me.streak} ברצף!` : '';
         const key = `res|${item.id}|${phase}|${me.answered}|${r.correct}|${r.points}|${me.streak}`;
-        if (!me.answered) return [key, 'none', item.kind === 'puzzle' ? 'לא הספקת להרכיב' : 'לא הספקת לענות', [go('המשך ▶')]];
+        if (!me.answered) return [key, 'none', item.kind === 'puzzle' ? 'לא הספקת להרכיב' : item.kind === 'action' ? 'לא זרקת הפעם' : 'לא הספקת לענות', [go('המשך ▶')]];
+        // The action round: the baskets, and what they were worth against the room.
+        if (item.kind === 'action') {
+            const best = Math.max(0, ...(data.values || []));
+            const count = me.option === 1 ? 'קליעה אחת' : `${me.option} קליעות`;
+            const top = me.option > 0 && me.option === best ? ' · הכי הרבה בחדר!' : '';
+            return [key, r.correct ? 'good' : 'plain', `🏀 ${count} · ⁦+${r.points || 0}⁩${top}${fire}`, [go('המשך ▶')]];
+        }
         // The slider is not right-or-wrong: the player is told how far off
         // they were (and what that was worth), whatever it was.
         if (item.kind === 'slider') {
@@ -277,8 +314,28 @@ function renderStrip() {
 }
 
 // ---- render ---------------------------------------------------------------
+/**
+ * The goodbye: when a LIVE quiz this device played in is over, it moves on to
+ * handoff.html — the Shabi Israel loading screen with the farewell line, then
+ * the site's main page. "Over" is the host moving past the podium to the
+ * matrix (the last screen), or taking the finished quiz off the air from the
+ * podium (by then the server has forgotten this device, so the page
+ * remembers that it was a player in a finished quiz). Never in the demo or
+ * the editor's preview.
+ */
+let playedToTheEnd = false;
+function farewell() {
+    if (isDemo || isPreview || !state) return false;
+    if (state.status === 'finished' && me.player) playedToTheEnd = true;
+    const over = (state.status === 'finished' && state.phase === 'matrix' && me.player)
+        || (state.status === 'idle' && playedToTheEnd);
+    if (over) location.replace('handoff.html');
+    return over;
+}
+
 function render() {
     if (!state || state.rev === -1) return;
+    if (farewell()) return;
     if (me.answered && picked && picked.itemId === me.item_id) picked = null;
     if (picked && state.data.item?.id !== picked.itemId) picked = null;
 
@@ -304,10 +361,13 @@ function render() {
     }
     renderStrip();
 
-    renderKeyed(head, `${me.player}|${me.name}|${me.points}|${isDemo}`, () => [
+    // During a roulette spin the score still shows what it was before this
+    // question — the new total would give the result away.
+    const points = (me.points ?? 0) - (stage.spinning ? me.result?.points || 0 : 0);
+    renderKeyed(head, `${me.player}|${me.name}|${points}|${isDemo}`, () => [
         h('div', { class: 'pl-brand' }, 'Gev', h('b', { text: 'Kahoot' }), isDemo && h('span', { class: 'pl-demo-tag', text: 'הדגמה' })),
         me.player && h('div', { class: 'pl-chip' },
             h('span', { class: 'pl-chip-name', dir: 'auto', text: me.name }),
-            h('span', { class: 'pl-chip-points', text: String(me.points ?? 0) })),
+            h('span', { class: 'pl-chip-points', text: String(points) })),
     ]);
 }

@@ -11,7 +11,7 @@ import { h, clear } from '../ui/dom.js';
 import * as api from '../data/api.js';
 import { itemForm, loadManifest } from '../admin/itemForm.js';
 
-const KIND_ICON = { interlude: '🎬', question: '❓', spot: '🔎', puzzle: '🧩', complete: '🖼️', slider: '🎚️', rank: '🔢', explain: '💡' };
+const KIND_ICON = { interlude: '🎬', question: '❓', spot: '🔎', puzzle: '🧩', complete: '🖼️', slider: '🎚️', rank: '🔢', memory: '📸', roulette: '🎰', action: '🏀', explain: '💡' };
 const PHASE_LABEL = {
     lobby: 'הרשמה פתוחה', interlude: 'קטע מעבר', question: 'שאלה פתוחה', reveal: 'התשובה נחשפה',
     explain: 'הסבר התשובה', intro: 'שקופית הוראות — ״הבא״ מתחיל את השאלה',

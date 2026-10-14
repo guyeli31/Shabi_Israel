@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta name="robots" content="noindex">
+    <title>GevKahoot — להתראות</title>
+    <link rel="icon" type="image/png" href="assets/favicon-round.png">
+    <!-- The goodbye slide a player sees when a live quiz is over: the Shabi
+         Israel site's OWN loading screen — its tokens, its splash stylesheet
+         and its saved design (splash-vars.css), unchanged — with the quiz's
+         farewell line, and after five seconds the site's main page.
+         A page of its own rather than an overlay on index.html: the site's
+         tokens (--radius-*, --font-main …) share names with the quiz's, so
+         loading them into the quiz's page would restyle it. -->
+    <link rel="stylesheet" href="../shabi-israel/css/fonts.css">
+    <link rel="stylesheet" href="../shabi-israel/css/variables.css">
+    <link rel="stylesheet" href="../shabi-israel/css/splash.css">
+    <link rel="stylesheet" href="../shabi-israel/assets/splash/splash-vars.css">
+    <link rel="stylesheet" href="css/handoff.css">
+</head>
+<body>
+    <!-- The same markup as the site's pages (see shabi-israel/index.html), so
+         css/splash.css draws it exactly as it draws the site's loading screen.
+         The ring's squares are added by js/handoff.js. -->
+    <div class="splash" id="logo-splash" role="status" aria-live="polite">
+        <div class="splash-core">
+            <div class="sp-copy">
+                <p class="sp-eyebrow"><span></span><em>Shabi Israel</em></p>
+                <p class="sp-stage">החידון נגמר, הינך מועבר לפלטפורמת הששבש החדשה של ישראל</p>
+                <p class="sp-detail">&nbsp;</p>
+            </div>
+            <div class="sp-ring" data-mode="determinate">
+                <div class="sp-logo"><img src="../shabi-israel/assets/logo/logo.png" alt=""></div>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="js/handoff.js"></script>
+</body>
+</html>

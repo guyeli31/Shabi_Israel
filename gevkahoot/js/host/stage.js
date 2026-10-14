@@ -22,23 +22,27 @@
  * the lobby's names — are updated in place by sync(), so a counter ticking up
  * never restarts a video or an entrance animation.
  */
-import { h, renderKeyed, safeMedia, fmtSeconds } from '../ui/dom.js';
+import { h, clear, renderKeyed, safeMedia, fmtSeconds } from '../ui/dom.js';
 import { tile } from '../ui/teams.js';
 import { leaderboard, podium, matrix, confetti, multiplier } from '../ui/views.js';
 import { serverNow } from '../data/clock.js';
 import { createBouncers } from './bouncers.js';
 import { createPuzzle, circleCutout } from './puzzle.js';
+import { memoryPicture } from './memory.js';
+import { createTable, createWheel, colourOf, noMoreBets, NO_MORE_BETS_MS, SPIN_MS, SETTLE_MS } from './roulette.js';
 import { createSpot } from './spot.js';
 import { createComplete } from './complete.js';
 import { createSlider } from './slider.js';
 import { createRank } from './rank.js';
+import { createAction, actionResults } from './action.js';
+import { playSound, preloadSounds } from '../ui/sounds.js';
 import { introSlide, hasIntro } from './intro.js';
 
 const WEIGHT_BADGE = { 0: 'חימום · בלי ניקוד', 2: 'שאלה כפולה ×2' };
 /** The one-time "first to three in a row" animation (a generated, self-contained SVG). */
 const FIRST_STREAK_ANIM = 'media/animations/first-streak.svg';
 
-export function createStage(frame, { muted = false, joinUrl = '', role = 'host', compact = () => false, media = () => 'full', onAnswer = null } = {}) {
+export function createStage(frame, { muted = false, joinUrl = '', role = 'host', compact = () => false, media = () => 'full', onAnswer = null, onSettled = null } = {}) {
     // `frame` is the size container; the stage inside it is laid out in units
     // of that container (see host.css), so it scales the same on a projector,
     // in a player's browser, and in the editor's preview.
@@ -298,6 +302,64 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
             h('div', { class: 'st-puzzle-foot' }, submit, refs.answered));
     }
 
+    /** The roulette: put a chip on a number, then submit. At the reveal the
+     *  wheel spins and the ball drops into the right one; then the table,
+     *  with the winning square lit and everyone's chips counted on it. */
+    const spinStarts = new Map();   // `${item}|${starts_at}` → when this screen first saw the spin
+    // While the wheel turns, the result is not out yet: a player's own "right!"
+    // and their new score wait for the ball (see `spinning`, `onSettled`).
+    let spinFor = null;             // the item id whose spin is still running
+    function roulette(item, { started, revealed }) {
+        const d = state.data;
+        refs.answered = h('div', { class: 'st-answered' });
+        const badge = WEIGHT_BADGE[item.weight] && h('div', { class: 'st-badge', dataset: { weight: String(item.weight) }, text: WEIGHT_BADGE[item.weight] });
+        const title = item.title || 'על איזה מספר להמר?';
+        const live = role === 'player' && !revealed;
+        const submit = live && h('button', { class: 'gk-btn st-puzzle-done', type: 'button', disabled: true, text: 'הזן תשובה',
+            onclick: () => { if (refs.spot.selected !== null) onAnswer?.(item.id, refs.spot.selected); } });
+        refs.done = submit;
+        refs.spot = createTable({ interactive: live && started, compact: !!compact(), onSelect: () => { if (submit) submit.disabled = false; } });
+        const result = h('div', { class: 'rl-result', hidden: true });
+        const section = h('section', { class: 'st-puzzle st-roulette' },
+            h('div', { class: 'st-puzzle-head' }, badge, h('h1', { class: 'st-question', dir: 'auto', text: title }), result),
+            refs.spot.el,
+            h('div', { class: 'st-puzzle-foot' }, submit, refs.answered),
+            !started && h('div', { class: 'st-ready rl-ready' }, (refs.ready = h('span', { class: 'st-ready-num' })), multiplier(item.weight)));
+        if (!revealed) return section;
+
+        const number = (d.correct || [])[0];
+        const mine = me && me.item_id === item.id && me.option !== null && me.option !== undefined ? me.option : null;
+        const showTable = () => {
+            const wasSpinning = spinFor === item.id;
+            spinFor = null;
+            if (wasSpinning) onSettled?.();
+            section.removeAttribute('data-spinning');
+            result.hidden = false;
+            clear(result).append(h('span', { class: 'rl-result-num', dataset: { colour: colourOf(number) }, text: String(number) }));
+            refs.spot.reveal({ correct: d.correct || [], counts: d.counts || [], picked: mine });
+        };
+        const key = `${item.id}|${d.starts_at}`;
+        if (!spinStarts.has(key)) spinStarts.set(key, performance.now());
+        const elapsed = performance.now() - spinStarts.get(key);
+        if (number === undefined || elapsed >= NO_MORE_BETS_MS + SPIN_MS + SETTLE_MS) { showTable(); return section; }
+        spinFor = item.id;
+        // "NO MORE BETS" first, then the wheel — both timed from the same start,
+        // so a screen rebuilt mid-way joins the sequence where it is.
+        const spinWheel = (at) => {
+            section.toggleAttribute('data-spinning', true);
+            section.querySelector('.rl-nomore')?.remove();
+            const wheel = createWheel({ number, key: item.id, elapsed: at, onDone: () => { spin.remove(); showTable(); } });
+            const spin = h('div', { class: 'rl-spin' }, wheel.el);
+            section.append(spin);
+        };
+        if (elapsed >= NO_MORE_BETS_MS) spinWheel(elapsed - NO_MORE_BETS_MS);
+        else {
+            section.append(noMoreBets());
+            setTimeout(() => { if (section.isConnected) spinWheel(0); }, NO_MORE_BETS_MS - elapsed);
+        }
+        return section;
+    }
+
     /** "Complete the picture": try the candidate pieces in the gap, then submit. */
     function complete(item, { started, revealed }) {
         const d = state.data;
@@ -404,18 +466,92 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
             h('div', { class: 'st-puzzle-foot' }, submit, refs.answered));
     }
 
+    /** This device's throws in an action round, by item — kept outside the
+     *  court so a rebuilt screen (a republish mid-round) carries on counting. */
+    const throws = new Map();
+    /** The action round's end-of-time buzzer (js/ui/sounds.js): once per
+     *  round, on the projected screen AND on every player's device — it is
+     *  the bell of a game everyone is playing on their own screen. Silent in
+     *  the preview. */
+    const buzzed = new Set();
+    function buzz(item) {
+        if (muted || buzzed.has(item.id)) return;
+        buzzed.add(item.id);
+        // Only right at the bell: a screen that opens on a finished round
+        // (a refresh, a late join) must not sound it.
+        if (serverNow() - state.data.deadline > 2500) return;
+        playSound('buzzer');
+    }
+    /** The ball of an action round: its circle cut out of its picture, or
+     *  null for the drawn basketball. */
+    const ballOf = (item) => (item.ball && safeMedia(item.image) ? circleCutout(safeMedia(item.image), item.ball) : null);
+
+    /** The action round: free throws until the clock runs out. A player
+     *  throws; the projected screen shows a hand throwing, and the count of
+     *  who is playing; the reveal shows how the room shot. */
+    function action(item, { started, revealed }) {
+        const d = state.data;
+        refs.answered = h('div', { class: 'st-answered' });
+        const badge = WEIGHT_BADGE[item.weight] && h('div', { class: 'st-badge', dataset: { weight: String(item.weight) }, text: WEIGHT_BADGE[item.weight] });
+        const title = item.title || 'כמה סלים תקלעו?';
+        if (!started) {
+            return h('section', { class: 'st-center st-puzzle-intro' },
+                h('div', { class: 'st-puzzle-icon', 'aria-hidden': 'true', text: '🏀' }),
+                h('h1', { class: 'st-heading', dir: 'auto', text: title }),
+                h('div', { class: 'st-ready' }, (refs.ready = h('span', { class: 'st-ready-num' })), multiplier(item.weight)));
+        }
+        const mine = me && me.item_id === item.id && me.option !== null && me.option !== undefined ? me.option : null;
+        if (revealed) {
+            return h('section', { class: 'st-puzzle st-action st-action--res' },
+                h('div', { class: 'st-puzzle-head' }, badge, h('h1', { class: 'st-question', dir: 'auto', text: title })),
+                actionResults({ values: d.values || [], mine: role === 'player' ? mine ?? 0 : null }),
+                h('div', { class: 'st-puzzle-foot' }, refs.answered));
+        }
+        const live = role === 'player';
+        // loaded now, so the bell rings on time
+        if (!muted) preloadSounds('buzzer', 'correct', 'wrong');
+        const kept = throws.get(item.id) || { hits: 0, attempts: 0 };
+        const resume = { hits: Math.max(kept.hits, mine || 0), attempts: kept.attempts };
+        // A throw may start only if it will have come down before the bell.
+        const canThrow = () => state?.phase === 'question' && state.data.item?.id === item.id
+            && serverNow() >= state.data.starts_at && serverNow() < state.data.deadline - 1300;
+        const game = createAction({ ball: ballOf(item), interactive: live, auto: !live,
+            // The throw's sound is this player's own feedback, so it plays on
+            // a phone too (unlike the room's media) — only the preview is silent.
+            start: resume, canThrow, sfx: !muted, feedback: item.feedback || {},
+            onScore: (hits, attempts) => {
+                throws.set(item.id, { hits, attempts });
+                onAnswer?.(item.id, hits, { again: true });
+            } });
+        refs.action = game;
+        return h('section', { class: 'st-puzzle st-action' },
+            h('div', { class: 'st-puzzle-head' }, badge, h('h1', { class: 'st-question', dir: 'auto', text: title })),
+            game.el,
+            h('div', { class: 'st-puzzle-foot' }, refs.answered));
+    }
+
     function question(item, { started, revealed }) {
+        if (item.kind === 'action') return action(item, { started, revealed });
         if (item.kind === 'rank') return rank(item, { started, revealed });
         if (item.kind === 'slider') return slider(item, { started, revealed });
         if (item.kind === 'puzzle') return puzzle(item, { started, revealed });
         if (item.kind === 'spot') return spot(item, { started, revealed });
         if (item.kind === 'complete') return complete(item, { started, revealed });
+        if (item.kind === 'roulette') return roulette(item, { started, revealed });
+        const memory = item.kind === 'memory';
+        if (memory && !started) return memorize(item);
         const d = state.data;
         const counts = d.counts || [];
         const answered = d.answered || 0;
         refs.answered = h('div', { class: 'st-answered' });
-        return h('section', { class: 'st-item', dataset: { layout: item.layout, kind: 'question' } },
-            mediaBlock(item),
+        // A memory question asks with its picture gone, and brings it back —
+        // with the host's arrows on it — only at the reveal.
+        const memoryImage = memory && safeMedia(item.image);
+        const media = !memory ? mediaBlock(item)
+            : revealed && memoryImage ? h('div', { class: 'st-media' }, memoryPicture(memoryImage, d.arrows || []).el) : null;
+        return h('section', { class: 'st-item', dataset: { layout: memory ? 'side' : item.layout, kind: 'question',
+            ...(memory && media ? { memory: '' } : {}) } },
+            media,
             h('div', { class: 'st-text' },
                 WEIGHT_BADGE[item.weight] && h('div', { class: 'st-badge', dataset: { weight: String(item.weight) }, text: WEIGHT_BADGE[item.weight] }),
                 h('h1', { class: 'st-question', dir: 'auto', text: item.title })),
@@ -439,6 +575,18 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
             refs.answered);
     }
 
+    /** The memory question before its clock: the picture alone, and how long
+     *  it stays. The question itself is not shown yet — it would say what to
+     *  look at. (sync() counts refs.ready down to starts_at, as for any lead-in.) */
+    function memorize(item) {
+        const image = safeMedia(item.image);
+        return h('section', { class: 'st-item st-memo', dataset: { layout: 'top', kind: 'interlude' } },
+            image ? h('div', { class: 'st-media' }, memoryPicture(image, []).el) : null,
+            h('div', { class: 'st-text' },
+                h('h1', { class: 'st-question st-memo-head', text: image ? '📸 זכרו את התמונה!' : 'לשאלת הזיכרון הזו עוד לא נבחרה תמונה' }),
+                (refs.ready = h('span', { class: 'st-memo-left' }))));
+    }
+
     function shareFill(pct) {
         const fill = h('div', { class: 'st-share-fill' });
         fill.animate([{ transform: 'scaleX(0)' }, { transform: `scaleX(${pct / 100})` }],
@@ -446,15 +594,19 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         return fill;
     }
 
-    function fastest(rows) {
+    /** The fastest five — for an action round, its five best shooters. */
+    function fastest(rows, kind) {
+        const shooters = kind === 'action';
         return h('section', { class: 'st-center st-results' },
-            h('h1', { class: 'st-heading', text: '⚡ הכי מהירים' }),
+            h('h1', { class: 'st-heading', text: shooters ? '🏀 הקלעים הטובים' : '⚡ הכי מהירים' }),
             rows.length
                 ? h('ol', { class: 'st-fastest' }, rows.map((row, i) => {
                     const li = h('li', { class: 'st-fast-row' },
                         h('span', { class: 'gk-board-rank', text: String(i + 1) }),
                         h('span', { class: 'gk-board-name', dir: 'auto', text: row.name }),
-                        h('span', { class: 'st-fast-time', dir: 'ltr', text: `${fmtSeconds(row.ms)}s` }),
+                        shooters
+                            ? h('span', { class: 'st-fast-time', text: `${row.hits ?? 0} 🏀` })
+                            : h('span', { class: 'st-fast-time', dir: 'ltr', text: `${fmtSeconds(row.ms)}s` }),
                         h('span', { class: 'gk-board-points', dir: 'ltr', text: `+${row.points}` }));
                     li.style.animationDelay = `${i * 0.18}s`;
                     return li;
@@ -493,12 +645,14 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
 
     function grid(data) {
         const hasSlider = (data?.questions || []).some((q) => q.kind === 'slider');
+        const hasAction = (data?.questions || []).some((q) => q.kind === 'action');
         return h('section', { class: 'st-center st-results st-matrix' },
             h('h1', { class: 'st-heading', text: 'מי ענה מה' }),
             h('p', { class: 'st-legend' },
                 h('span', { dataset: { cell: 'good' }, text: 'נכון · שניות עד התשובה' }),
                 h('span', { dataset: { cell: 'bad' }, text: 'טעות' }),
                 hasSlider && h('span', { dataset: { cell: 'scale' }, text: 'סליידר: מאדום לירוק לפי הסטייה' }),
+                hasAction && h('span', { dataset: { cell: 'scale' }, text: 'קליעות: מאדום לירוק, מהחלש לטוב ביותר' }),
                 h('span', { dataset: { cell: 'none' }, text: 'לא ענה' })),
             matrix(data));
     }
@@ -519,7 +673,7 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         if (phase === 'reveal' && item) return [`reveal|${item.id}|${rev}`, () => question(item, { started: true, revealed: true })];
         // The "answer explained" segment is drawn exactly like an interlude.
         if (phase === 'explain' && data.explain) return [`explain|${data.explain.id}|${rev}`, () => interlude(data.explain)];
-        if (phase === 'fastest') return [`fastest|${rev}`, () => fastest(data.fastest || [])];
+        if (phase === 'fastest') return [`fastest|${rev}`, () => fastest(data.fastest || [], item?.kind)];
         if (phase === 'fire') return [`fire|${rev}`, () => onFire(data.fire)];
         if (phase === 'leaderboard') return [`board|${rev}`, () => table(data.leaderboard || [], true)];
         if (phase === 'podium') return [`podium|${rev}`, () => winners(data.leaderboard || [])];
@@ -563,7 +717,7 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
             if (mine) { refs.puzzle.lock(true); if (refs.done) { refs.done.disabled = true; refs.done.textContent = 'נקלט ✓'; } }
             else if (serverNow() > data.deadline) { refs.puzzle.lock(false); if (refs.done) refs.done.disabled = true; }
         }
-        if (refs.spot && ['spot', 'complete', 'slider', 'rank'].includes(item?.kind)) {
+        if (refs.spot && ['spot', 'complete', 'slider', 'rank', 'roulette'].includes(item?.kind)) {
             const mine = me && me.item_id === item.id && me.option !== null && me.option !== undefined ? me.option : null;
             if (phase === 'reveal') refs.spot.markPicked(mine);
             else if (inQuestion && (mine !== null || serverNow() > data.deadline)) {
@@ -573,8 +727,13 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
                 if (refs.done) { refs.done.disabled = true; if (mine !== null) { refs.done.hidden = false; refs.done.textContent = 'נקלט ✓'; } }
             }
         }
+        // The roulette's clock ran out: the croupier closes the table.
+        if (inQuestion && item.kind === 'roulette' && serverNow() > data.deadline) {
+            const table = main.querySelector('.st-roulette');
+            if (table && !table.querySelector('.rl-nomore')) table.append(noMoreBets());
+        }
         if (refs.answered && item && (inQuestion || phase === 'reveal')) {
-            const verb = item.kind === 'puzzle' ? 'סיימו' : 'ענו';
+            const verb = item.kind === 'puzzle' ? 'סיימו' : item.kind === 'action' ? 'זורקים' : 'ענו';
             refs.answered.textContent = `${verb} ${inQuestion ? live.answered : data.answered ?? live.answered} מתוך ${live.players}`;
         }
 
@@ -589,9 +748,30 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
             timer.firstChild.textContent = String(left);
             timer.toggleAttribute('data-urgent', left <= 5);
         }
+        // The action round's bell. The host reveals a moment after the
+        // deadline, so it may first be seen from the reveal.
+        if (item?.kind === 'action' && (phase === 'question' || phase === 'reveal') && data.deadline && now >= data.deadline) buzz(item);
         // The "started" flag is part of the question's key, so crossing
         // starts_at needs a render, not just a sync.
         if (inQuestion && main.dataset.viewKey?.endsWith('|false') && now >= data.starts_at) render(state, me);
+    }
+
+    /**
+     * This player's own verdict, as a sound (js/ui/sounds.js): correct or
+     * wrong, from the server's result in gk_me — so every kind is covered,
+     * whatever makes it right (the roulette included). Once per question, on
+     * the player's device only, and only on a screen that saw the question
+     * open: a refresh onto a reveal says nothing. The action round is not
+     * here: each of its throws already had its sound. No answer, no sound.
+     */
+    const opened = new Set(), judged = new Set();
+    function answerSound(item) {
+        if (!item || role !== 'player' || muted) return;
+        if (state.phase === 'question') { opened.add(item.id); preloadSounds('correct', 'wrong'); return; }
+        if (state.phase !== 'reveal' || item.kind === 'action' || !opened.has(item.id) || judged.has(item.id)) return;
+        if (!me || me.item_id !== item.id || !me.answered || !me.result) return;
+        judged.add(item.id);
+        playSound(me.result.correct ? 'correct' : 'wrong');
     }
 
     function render(next, nextMe = null) {
@@ -620,7 +800,12 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         if (state.phase === 'podium' && celebrated !== state.rev) {
             celebrated = state.rev;
             confetti({ delay: 3300 });
+            // Applause for the winners, as first place rises with the
+            // confetti — the room's sound, so where the room's sound plays
+            // (the projected screen; the demo).
+            if (!muted && mode() === 'full') setTimeout(() => playSound('applause'), 3300);
         }
+        answerSound(item);
         // The quiz's animation runs on every screen of a quiz that has one,
         // except an item that opted out — the same rule as the music.
         const circle = state.phase === 'reveal' && item?.kind === 'puzzle' && state.data.circle && safeMedia(item.image);
@@ -637,7 +822,10 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
             // pieces around the same screen) or an open "complete the picture"
             // or slider (both judged by eye, to a few pixels).
             // The special slide's animation is its own show: nothing drifts over it.
-            const solving = state.phase === 'intro' || state.phase === 'fire' || (state.phase === 'question' && ['puzzle', 'complete', 'slider', 'rank'].includes(item?.kind));
+            // Nor over a memory question's picture while it is being memorised.
+            // Nor over the court, where a drifting picture would look like a second ball.
+            const solving = state.phase === 'intro' || state.phase === 'fire' || (state.phase === 'question' && ['puzzle', 'complete', 'slider', 'rank', 'action', 'roulette'].includes(item?.kind))
+                || (state.phase === 'question' && item?.kind === 'memory' && serverNow() < state.data.starts_at);
             // Which picture bounces here: this element's own, else the quiz's
             // (if the quiz has its animation on); `anim_on = false` means none.
             // Count, size and speed are always the quiz's.
@@ -650,5 +838,10 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
     }
 
     setInterval(sync, 200);
-    return { render, get state() { return state; } };
+    return {
+        render,
+        get state() { return state; },
+        /** A roulette reveal whose ball has not landed yet: the result is held. */
+        get spinning() { return !!spinFor && state?.phase === 'reveal' && state.data.item?.id === spinFor; },
+    };
 }

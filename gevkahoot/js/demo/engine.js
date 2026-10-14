@@ -12,7 +12,7 @@
  * Nothing leaves the browser: no request is made and nothing is stored.
  */
 import { DEMO_QUIZ, DEMO_ITEMS, DEMO_BOTS } from './demoQuiz.js';
-import { points, sliderPoints, sliderCorrect, sliderDeviation, SLIDER, encodeRank, decodeRank } from '../scoring.js';
+import { points, sliderPoints, sliderCorrect, sliderDeviation, SLIDER, encodeRank, decodeRank, actionFactor, actionPoints } from '../scoring.js';
 
 const PAUSE = { intro: 9000, fire: 10000, reveal: 5000, explain: 6000, fastest: 5000, leaderboard: 7500, podium: 11000 };
 const LOBBY_MS = 12000;
@@ -37,8 +37,22 @@ export function createDemo(onChange) {
 
     const item = () => DEMO_ITEMS[index] || null;
     /** How many answers an item offers: options, drawn regions, or the puzzle's single "done". */
-    const choices = (it) => (it.kind === 'puzzle' ? 1 : it.kind === 'spot' ? it.regions.length : ['slider', 'rank'].includes(it.kind) ? 0 : it.options.length);
+    const choices = (it) => (it.kind === 'puzzle' ? 1 : it.kind === 'spot' ? it.regions.length : it.kind === 'roulette' ? 37 : ['slider', 'rank', 'action'].includes(it.kind) ? 0 : it.options.length);
     const answered = (it) => players.filter((p) => p.answers[it.id]);
+    /** The action round's spread so far: the fewest and the most baskets. */
+    const actionSpread = (it) => {
+        const v = answered(it).map((p) => p.answers[it.id].option);
+        return v.length ? [Math.min(...v), Math.max(...v)] : [0, 0];
+    };
+    /** As _gk_action_score: everyone's points from the room's spread. */
+    function scoreAction(it) {
+        const [lo, hi] = actionSpread(it);
+        for (const p of answered(it)) {
+            const a = p.answers[it.id];
+            a.points = actionPoints(a.option, lo, hi, it.weight);
+            a.correct = actionFactor(a.option, lo, hi) > 0;
+        }
+    }
 
     // ---- the table (same order as _gk_leaderboard) ---------------------------
     function table(exclude) {
@@ -74,8 +88,16 @@ export function createDemo(onChange) {
         };
     }
 
-    /** One matrix cell, as _gk_matrix builds it: [correct, ms, points, deviation (slider only)]. */
-    const cellOf = (q, a) => (a ? [a.correct, a.ms, a.points, q.kind === 'slider' ? sliderDeviation(a.option) : null] : null);
+    /** One matrix cell, as _gk_matrix builds it: [correct, ms, points, deviation (slider only)],
+     *  and for an action round [.., null, hits, share]. */
+    function cellOf(q, a) {
+        if (!a) return null;
+        if (q.kind === 'action') {
+            const [lo, hi] = actionSpread(q);
+            return [a.correct, a.ms, a.points, null, a.option, +actionFactor(a.option, lo, hi).toFixed(4)];
+        }
+        return [a.correct, a.ms, a.points, q.kind === 'slider' ? sliderDeviation(a.option) : null];
+    }
 
     // ---- streaks (same rules as _gk_runs / _gk_streaks / _gk_fire) ------------
     /** Runs of correct answers over the scored items worth something, up to the
@@ -124,10 +146,13 @@ export function createDemo(onChange) {
     function publicItem(it) {
         return {
             id: it.id, kind: it.kind, title: it.title, body: it.body,
-            options: ['question', 'complete', 'slider', 'rank'].includes(it.kind) ? it.options : [], slot: it.slot || null,
+            options: ['question', 'complete', 'slider', 'rank', 'memory'].includes(it.kind) ? it.options : [], slot: it.slot || null,
+            memo_s: it.kind === 'memory' ? it.memo_s : null,
             weight: it.weight, time_limit: it.time_limit_s,
             image: it.image, video: it.video, audio: it.audio, layout: it.media_layout, music_on: it.music_on,
             anim_on: it.anim_on, regions: it.kind === 'spot' ? it.regions : [],
+            ball: it.kind === 'action' ? it.ball || null : null,
+            feedback: it.kind === 'action' ? it.feedback || {} : null,
             music: it.music, anim_sprite: it.anim_sprite, symbols: it.symbols || [], marks: it.marks || 'teams',
             no: questions.filter((q) => DEMO_ITEMS.indexOf(q) <= index).length, of: questions.length,
         };
@@ -151,13 +176,16 @@ export function createDemo(onChange) {
                     const got = answered(it);
                     data.correct = it.correct;
                     data.circle = it.kind === 'puzzle' ? it.circle || null : null;
+                    data.arrows = it.kind === 'memory' ? it.arrows || [] : null;
                     data.counts = Array.from({ length: choices(it) }, (_, i) => got.filter((p) => p.answers[it.id].option === i).length);
                     data.answered = got.length;
                     if (it.kind === 'rank') data.right = got.filter((p) => p.answers[it.id].correct).length;
-                    if (it.kind === 'slider') data.values = got.map((p) => p.answers[it.id].option).sort((a, b) => a - b);
+                    if (it.kind === 'slider' || it.kind === 'action') data.values = got.map((p) => p.answers[it.id].option).sort((a, b) => a - b);
+                    // An action round's "fastest five" are its best shooters.
+                    const shoot = it.kind === 'action';
                     data.fastest = got.filter((p) => p.answers[it.id].correct)
-                        .sort((a, b) => a.answers[it.id].ms - b.answers[it.id].ms).slice(0, 5)
-                        .map((p) => ({ name: p.name, ms: p.answers[it.id].ms, points: p.answers[it.id].points }));
+                        .sort((a, b) => (shoot ? b.answers[it.id].option - a.answers[it.id].option : 0) || a.answers[it.id].ms - b.answers[it.id].ms).slice(0, 5)
+                        .map((p) => ({ name: p.name, ms: p.answers[it.id].ms, points: p.answers[it.id].points, hits: shoot ? p.answers[it.id].option : null }));
                 }
             }
             if (phase === 'explain' && it.explain) {
@@ -211,7 +239,7 @@ export function createDemo(onChange) {
         if (it.kind === 'interlude') {
             phase = 'interlude';
             until = Date.now() + it.seconds * 1000;
-        } else if (['puzzle', 'spot', 'complete', 'slider', 'rank'].includes(it.kind) && !opts.started) {
+        } else if (['puzzle', 'spot', 'complete', 'slider', 'rank', 'action'].includes(it.kind) && !opts.started) {
             // As on the server: a picture game opens on its instruction slide,
             // with no clock. There is no host here, so it moves on by itself
             // after a few seconds (or when the player presses "start").
@@ -220,7 +248,8 @@ export function createDemo(onChange) {
         } else {
             phase = 'question';
             until = null;
-            startsAt = Date.now() + DEMO_QUIZ.lead_in_s * 1000;
+            // As on the server: a memory question's lead-in is its picture.
+            startsAt = Date.now() + (it.kind === 'memory' ? it.memo_s : DEMO_QUIZ.lead_in_s) * 1000;
             deadline = startsAt + it.time_limit_s * 1000;
             // Each bot decides now whether, when and what it will answer.
             plans = players.filter((p) => p.bot).filter(() => Math.random() < 0.96).map((p) => {
@@ -231,6 +260,16 @@ export function createDemo(onChange) {
                     // the weaker ones sometimes run out of time (no answer).
                     const ms = Math.round((0.3 + p.bot.pace * 0.75 + spread) * limit);
                     return ms < limit - 300 ? { player: p, at: startsAt + ms, ms, option: 0 } : null;
+                }
+                if (it.kind === 'action') {
+                    // A bot "shoots": its skill sets how many baskets it makes
+                    // in the time (a basket takes two seconds at best). Its
+                    // count is recorded a few seconds in, so the room is seen
+                    // throwing; `ms` is when its last basket would land.
+                    const max = Math.floor(limit / 2000);
+                    const option = Math.max(0, Math.min(max, Math.round(p.bot.skill * max * 0.75 + (Math.random() * 2 - 1) * 2.5)));
+                    const ms = Math.round(limit * (0.82 + Math.random() * 0.14));
+                    return { player: p, at: startsAt + 2500 + Math.random() * 3000, ms, option };
                 }
                 const ms = Math.round(Math.min(limit - 400, Math.max(900, (p.bot.pace + spread) * limit)));
                 if (it.kind === 'rank') {
@@ -256,6 +295,14 @@ export function createDemo(onChange) {
     }
 
     function record(player, it, option, ms) {
+        if (it.kind === 'action') {
+            // The running count: kept at its highest, scored against the room.
+            const had = player.answers[it.id];
+            if (had && had.option >= option) return;
+            player.answers[it.id] = { option, ms, correct: false, points: 0 };
+            scoreAction(it);
+            return;
+        }
         if (it.kind === 'slider') {
             player.answers[it.id] = { option, ms, correct: sliderCorrect(option), points: sliderPoints(option, it.weight, ms, it.time_limit_s) };
             return;
@@ -322,7 +369,8 @@ export function createDemo(onChange) {
                 for (const p of due) record(p.player, it, p.option, p.ms);
                 emitLive();
             }
-            if (now > deadline || answered(it).length === players.length) advance();
+            // The action round runs to the bell, whoever has thrown.
+            if (now > deadline || (it.kind !== 'action' && answered(it).length === players.length)) advance();
             return;
         }
         if (until && now >= until) advance();
@@ -349,8 +397,12 @@ export function createDemo(onChange) {
         answer(itemId, option) {
             const it = item();
             const now = Date.now();
-            if (!user || phase !== 'question' || !it || it.id !== itemId || user.answers[it.id]) return;
-            if (now < startsAt || now > deadline) return;
+            if (!user || phase !== 'question' || !it || it.id !== itemId) return;
+            if (now < startsAt || now > deadline + 500) return;
+            // The action round: the running count, as often as it changes; the
+            // round still ends at the bell (the bots are throwing too).
+            if (it.kind === 'action') { record(user, it, option, now - startsAt); emitLive(); return; }
+            if (user.answers[it.id]) return;
             record(user, it, option, now - startsAt);
             // Nobody real is left to wait for. The bots' answers were decided
             // when the question opened (what, and after how long), so they are

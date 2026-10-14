@@ -104,7 +104,15 @@ export function podium(rows) {
  *  seconds after the question opened the answer came in. */
 export function matrixCell(cell) {
     if (!cell) return h('td', { dataset: { cell: 'none' }, text: '–', title: 'לא ענה' });
-    const [ok, ms, pts, dev] = cell;
+    const [ok, ms, pts, dev, hits, share] = cell;
+    if (hits !== null && hits !== undefined) {
+        // An action round: the baskets, coloured on the same red → green
+        // scale by the share of the points they earned (worst → best).
+        const td = h('td', { dataset: { cell: 'scale' },
+            title: `${hits} קליעות · ${pts ?? 0} נק׳` }, `${hits}`, h('small', { class: 'gk-matrix-dev', text: '🏀' }));
+        td.style.setProperty('--acc', `${Math.round((share ?? 0) * 100)}%`);
+        return td;
+    }
     if (dev !== null && dev !== undefined) {
         // A slider answer is not right or wrong: the colour runs linearly
         // from red (100% off) to green (exact), by the same factor that

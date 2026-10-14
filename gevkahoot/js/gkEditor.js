@@ -113,6 +113,20 @@ async function addItem(kind) {
         slider: { quiz_id: quiz.id, position, kind, title: 'באיזה גודל העצם באמת?', options: [], correct: [900] },
         // Four blank answers already in "order"; the form scrambles them on save.
         rank: { quiz_id: quiz.id, position, kind, title: 'סדרו מהמוקדם למאוחר', body: 'מוקדם', options: ['', '', '', ''], correct: [0, 1, 2, 3] },
+        // A picture to memorise, then an ordinary question about it.
+        memory: { quiz_id: quiz.id, position, kind, title: '', options: ['', ''], correct: [0], memo_s: 10 },
+        // The answer is a number 0-36 on the table; 0 until the host picks one.
+        roulette: { quiz_id: quiz.id, position, kind, title: '', correct: [0] },
+        // Free throws. The ball is a round detail of a picture — by default the
+        // one the nearest puzzle before it lifts off its picture, so the round
+        // follows on from it; the form can pick another.
+        action: { quiz_id: quiz.id, position, kind, title: 'כמה סלים תקלעו?', options: [], correct: [], time_limit_s: 30,
+            // a few lines to start from; the author rewrites them in the form
+            feedback: { hit: ['יש! 🔥', 'סל! 🏀', 'איזה יד!'], miss: ['אוף, כמעט 😬', 'לא נורא, עוד ניסיון!'] },
+            ...(() => {
+                const p = [...items].reverse().find((i) => i.kind === 'puzzle' && i.image && i.circle_r);
+                return p ? { image: p.image, circle_x: p.circle_x, circle_y: p.circle_y, circle_r: p.circle_r } : {};
+            })() },
         interlude: { quiz_id: quiz.id, position, kind, title: '', media_layout: 'full' },
     }[kind];
     const created = await api.items.create(row);
@@ -248,9 +262,12 @@ const KINDS = {
     complete: { icon: '🖼️', label: 'השלמת תמונה' },
     slider: { icon: '🎚️', label: 'סליידר' },
     rank: { icon: '🔢', label: 'דירוג' },
+    memory: { icon: '📸', label: 'זיכרון' },
+    roulette: { icon: '🎰', label: 'רולטה' },
+    action: { icon: '🏀', label: 'אקשן: קליעות' },
     explain: { icon: '💡', label: 'הסבר התשובה' },
 };
-const EMPTY_TITLE = { question: '(שאלה ריקה)', puzzle: '(פאזל)', complete: '(השלמת תמונה)', slider: '(סליידר)', rank: '(דירוג)', spot: '(זיהוי בתמונה)', explain: '(הסבר התשובה)', interlude: '(קטע מעבר)' };
+const EMPTY_TITLE = { question: '(שאלה ריקה)', puzzle: '(פאזל)', complete: '(השלמת תמונה)', slider: '(סליידר)', rank: '(דירוג)', memory: '(שאלת זיכרון)', roulette: '(רולטה)', action: '(אקשן: קליעות)', spot: '(זיהוי בתמונה)', explain: '(הסבר התשובה)', interlude: '(קטע מעבר)' };
 
 let dragFrom = null;   // index of the row being dragged
 
@@ -309,13 +326,16 @@ function listPanel() {
             btn('🖼️ השלמת תמונה', () => act(() => addItem('complete')), 'gk-btn--ghost'),
             btn('🎚️ סליידר', () => act(() => addItem('slider')), 'gk-btn--ghost'),
             btn('🔢 דירוג', () => act(() => addItem('rank')), 'gk-btn--ghost'),
+            btn('📸 זיכרון', () => act(() => addItem('memory')), 'gk-btn--ghost'),
+            btn('🎰 רולטה', () => act(() => addItem('roulette')), 'gk-btn--ghost'),
+            btn('🏀 אקשן: קליעות', () => act(() => addItem('action')), 'gk-btn--ghost'),
             btn('🎬 קטע מעבר', () => act(() => addItem('interlude')), 'gk-btn--ghost')));
 }
 
 function formPanel() {
     const item = selected();
     if (!item) return panel('פריט', h('p', { class: 'dr-note', text: 'הוסיפו שאלה או קטע מעבר כדי להתחיל.' }));
-    return panel({ question: 'עריכת שאלה', puzzle: 'עריכת פאזל', complete: 'עריכת שאלת השלמת תמונה', slider: 'עריכת שאלת סליידר', rank: 'עריכת שאלת דירוג', spot: 'עריכת שאלת זיהוי בתמונה', explain: 'עריכת קטע הסבר התשובה' }[item.kind] || 'עריכת קטע מעבר',
+    return panel({ question: 'עריכת שאלה', puzzle: 'עריכת פאזל', complete: 'עריכת שאלת השלמת תמונה', slider: 'עריכת שאלת סליידר', rank: 'עריכת שאלת דירוג', memory: 'עריכת שאלת זיכרון', roulette: 'עריכת שאלת רולטה', action: 'עריכת שאלת אקשן', spot: 'עריכת שאלת זיהוי בתמונה', explain: 'עריכת קטע הסבר התשובה' }[item.kind] || 'עריכת קטע מעבר',
         itemForm(item, {
             manifest,
             onSave: async (patch) => {

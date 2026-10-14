@@ -40,7 +40,7 @@ export function viewsFor(item) {
     if (!item) return [];
     if (item.kind === 'interlude') return ['item'];
     if (item.kind === 'explain') return ['explain'];
-    const intro = ['puzzle', 'spot', 'complete', 'slider', 'rank'].includes(item.kind) ? ['intro'] : [];
+    const intro = ['puzzle', 'spot', 'complete', 'slider', 'rank', 'action'].includes(item.kind) ? ['intro'] : [];
     return [...intro, 'ready', 'item', 'reveal', ...(item.explain ? ['explain'] : []), 'fastest', 'firstfire', 'leaderboard'];
 }
 
@@ -56,12 +56,16 @@ function publicItem(item, items) {
     const questions = items.filter((i) => i.kind !== 'interlude');
     return {
         id: item.id, kind: item.kind, title: item.title, body: item.body,
-        options: ['question', 'complete', 'slider', 'rank'].includes(item.kind) ? item.options : [], slot: item.slot || null,
+        options: ['question', 'complete', 'slider', 'rank', 'memory'].includes(item.kind) ? item.options : [], slot: item.slot || null,
+        memo_s: item.kind === 'memory' ? item.memo_s ?? 10 : null,
         weight: item.weight, time_limit: item.time_limit_s,
         image: item.image, video: item.video, audio: item.audio,
         layout: item.media_layout, music_on: item.music_on, anim_on: item.anim_on,
         music: item.music || null, anim_sprite: item.anim_sprite || null, symbols: item.symbols || [], marks: item.marks || 'teams',
         regions: item.kind === 'spot' ? item.regions || [] : [],
+        // the action round's ball: the demo carries `ball`, an editor row its circle_* columns
+        feedback: item.kind === 'action' ? item.feedback || {} : null,
+        ball: item.kind !== 'action' ? null : item.ball || (item.circle_r ? { x: item.circle_x, y: item.circle_y, r: item.circle_r } : null),
         no: Math.max(1, questions.findIndex((q) => q.id === item.id) + 1), of: Math.max(1, questions.length),
     };
 }
@@ -87,6 +91,8 @@ function grid(items) {
             const roll = noise(r + 1, c + 1);
             if (roll < 0.1) return null;
             // A slider: a deviation between −45% and +7%, coloured on the scale.
+            // An action round: 2-14 baskets, coloured by their share of the best.
+            if (q.kind === 'action') { const hits = 2 + Math.round(roll * 12); return [hits > 4, 28000, Math.round((hits - 2) / 12 * 1000), null, hits, +((hits - 2) / 12).toFixed(3)]; }
             if (q.kind === 'slider') return [roll > 0.6, Math.round(2000 + roll * 15000), Math.round(900 * (1 - roll * 0.4)), +(0.07 - roll * 0.52).toFixed(3)];
             return roll < 0.38 ? [false, Math.round(2000 + roll * 20000)] : [true, Math.round(1500 + noise(c + 3, r + 7) * 12000)];
         }),
@@ -126,13 +132,13 @@ export function mock(view, quiz, selected, items) {
 
     if (view === 'lobby') return { state: { ...base, status: 'lobby', phase: 'lobby' }, me: { ...me, points: 0, rank: 1 } };
 
-    if (view === 'intro' && ['puzzle', 'spot', 'complete', 'slider', 'rank'].includes(question.kind)) {
+    if (view === 'intro' && ['puzzle', 'spot', 'complete', 'slider', 'rank', 'action'].includes(question.kind)) {
         return { state: { ...base, phase: 'intro', data: { ...base.data, item: publicItem(question, items) } }, me };
     }
     if (view === 'ready' || view === 'intro') {
         // The real lead-in, then it runs on into the question — so the ×2 / ×0
         // marker is previewed exactly as the room will see it.
-        const lead = Math.max(3, quiz.lead_in_s || 0) * 1000;
+        const lead = (question.kind === 'memory' ? question.memo_s ?? 10 : Math.max(3, quiz.lead_in_s || 0)) * 1000;
         return {
             state: { ...base, phase: 'question', data: { ...base.data, item: publicItem(question, items),
                 starts_at: now + lead, deadline: now + lead + question.time_limit_s * 1000 } },
@@ -153,19 +159,29 @@ export function mock(view, quiz, selected, items) {
     }
 
     const n = question.options.length;
-    const slots = question.kind === 'spot' ? question.regions || [] : question.options;
+    // The roulette's options are the 37 numbers of its table.
+    const slots = question.kind === 'spot' ? question.regions || [] : question.kind === 'roulette' ? Array.from({ length: 37 }) : question.options;
     const isSlider = question.kind === 'slider';
     const isRank = question.kind === 'rank';
-    const counts = isPuzzle ? [9] : isSlider || isRank ? [] : slots.map((_, i) => (question.correct.includes(i) ? 5 : 1) + (i % 2));
+    const isAction = question.kind === 'action';
+    // A roulette room bets on a handful of numbers near the right one, not on all 37.
+    const near = (i) => [1, 3, 7].some((k) => Math.abs(i - question.correct[0]) === k);
+    const counts = isPuzzle ? [9] : isSlider || isRank || isAction ? []
+        : question.kind === 'roulette' ? slots.map((_, i) => (question.correct.includes(i) ? 5 : near(i) ? 1 + (i % 2) : 0))
+        : slots.map((_, i) => (question.correct.includes(i) ? 5 : 1) + (i % 2));
     // The slider's room: positions scattered around the target.
-    const values = isSlider ? [610, 700, 760, 820, 850, 880, 905, 930, 960, 1000] : undefined;
+    const values = isSlider ? [610, 700, 760, 820, 850, 880, 905, 930, 960, 1000]
+        // the action round's room: how many baskets each made
+        : isAction ? [2, 4, 5, 5, 6, 7, 7, 7, 8, 9, 11] : undefined;
     // Editor rows carry circle_x/y/r columns; the demo quiz carries `circle`.
     const circle = !isPuzzle ? null : question.circle
         || (question.circle_r ? { x: question.circle_x, y: question.circle_y, r: question.circle_r, speed: question.circle_speed ?? 4 } : null);
-    const answered = isSlider ? values.length : isRank ? 11 : counts.reduce((a, b) => a + b, 0);
+    const answered = isSlider || isAction ? values.length : isRank ? 11 : counts.reduce((a, b) => a + b, 0);
     const revealData = { ...base.data, item: publicItem(question, items), starts_at: now - 20000, deadline: now - 1000,
-        correct: isPuzzle ? [0] : question.correct, circle, counts, values, answered, right: isRank ? 4 : undefined,
-        fastest: NAMES.slice(0, 5).map((name, i) => ({ name, ms: 1400 + i * 900, points: 965 - i * 45 })) };
+        correct: isPuzzle ? [0] : question.correct, circle, arrows: question.kind === 'memory' ? question.arrows || [] : undefined, counts, values, answered, right: isRank ? 4 : undefined,
+        fastest: NAMES.slice(0, 5).map((name, i) => (isAction
+            ? { name, ms: 27000 - i * 600, points: [1000, 889, 778, 778, 667][i], hits: [11, 10, 9, 9, 8][i] }
+            : { name, ms: 1400 + i * 900, points: 965 - i * 45 })) };
 
     if (view === 'explain' && question.explain) {
         const x = question.explain;
@@ -178,8 +194,8 @@ export function mock(view, quiz, selected, items) {
         return { state: { ...base, phase: 'reveal', data: revealData, live: { ...base.live, answered: Math.min(answered, NAMES.length) } },
             me: { ...me, item_id: question.id, answered: true,
                 // the ranking: this player swapped the first two places
-                option: isRank ? rankWithSwap(question.correct) : isSlider ? 850 : question.correct[0] ?? 0,
-                result: isRank ? { correct: false, points: 0, ms: 6200 } : isSlider ? { correct: true, points: 880, ms: 1400 } : { correct: true, points: 965, ms: 1400 } } };
+                option: isRank ? rankWithSwap(question.correct) : isSlider ? 850 : isAction ? 7 : question.correct[0] ?? 0,
+                result: isAction ? { correct: true, points: 556, ms: 27400 } : isRank ? { correct: false, points: 0, ms: 6200 } : isSlider ? { correct: true, points: 880, ms: 1400 } : { correct: true, points: 965, ms: 1400 } } };
     }
     if (view === 'fastest') {
         return { state: { ...base, phase: 'fastest', data: revealData },

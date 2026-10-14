@@ -105,6 +105,52 @@
 .st-item[data-layout="full"] .st-media-el { width: 100%; height: 100%; object-fit: cover; }
 .st-audio-badge { font-size: 7em; animation: gk-bob 1.4s ease-in-out infinite; }
 
+/* ---- the memory question (js/host/memory.js) --------------------------------
+   The picture fills its media cell; the arrows' SVG is laid over the picture's
+   own box by memory.js. While it is up, a countdown says how long is left. */
+.mm-pic { position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; display: grid; place-items: center; }
+.mm-overlay { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.mm-shaft, .mm-shaft-edge { fill: none; stroke-linecap: round; }
+.mm-shaft { stroke: #ffd21f; }
+.mm-shaft-edge { stroke: rgba(0, 0, 0, .7); }
+.mm-head { fill: #ffd21f; }
+.mm-head-edge { fill: rgba(0, 0, 0, .7); stroke: rgba(0, 0, 0, .7); stroke-linejoin: round; }
+.mm-ping { fill: none; stroke: #fff; stroke-width: 3; opacity: 0; }
+/* Live: each arrow draws itself in turn (--i), its head lands, its tip pulses.
+   The head is scaled about its own centre, hence fill-box on it alone. */
+.mm-arrow--live { --at: calc(.7s + var(--i, 0) * .55s); }
+.mm-arrow--live :is(.mm-shaft, .mm-shaft-edge) { stroke-dasharray: 1; stroke-dashoffset: 1; animation: mm-draw .5s ease-out var(--at) forwards; }
+.mm-arrow--live :is(.mm-head, .mm-head-edge) { transform-box: fill-box; transform-origin: center; opacity: 0; transform: scale(.2); animation: mm-land .35s var(--ease-pop) calc(var(--at) + .4s) forwards; }
+.mm-arrow--live .mm-ping { transform-box: fill-box; transform-origin: center; animation: mm-ping 1.6s ease-out calc(var(--at) + .7s) infinite; }
+@keyframes mm-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes mm-land { from { opacity: 0; transform: scale(.2); } to { opacity: 1; transform: scale(1); } }
+@keyframes mm-ping { 0% { opacity: .9; transform: scale(.5); } 100% { opacity: 0; transform: scale(2.2); } }
+/* The memory question's reveal is about the picture: it takes the larger half
+   of the screen, and the question and its answers stand in a column beside it. */
+.st-item[data-memory] {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "media text" "media options" "media answered";
+}
+.st-item[data-memory] .st-question { font-size: min(2em, 3.4cqw); }
+.st-item[data-memory] .st-options { grid-template-columns: minmax(0, 1fr); align-content: start; gap: .5em; min-height: 0; }
+.st-item[data-memory] .st-options > * { grid-column: auto; }
+/* Each answer on one line — the tile, and how the room split beside it. */
+.st-item[data-memory] .st-option { flex-direction: row; align-items: center; gap: .6em; }
+.st-item[data-memory] .st-option .gk-tile { flex: 1.4; font-size: 1em; min-height: 2.4em; padding-block: .3em; }
+.st-item[data-memory] .st-share { flex: 1; min-width: 0; padding-inline: 0; }
+.st[data-compact] .st-item[data-memory] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1.3fr) auto minmax(0, 1fr) auto;
+    grid-template-areas: "media" "text" "options" "answered";
+}
+.st-memo-head { font-size: 2.4em; }
+.st-memo-left { font-size: 3.6em; font-weight: 800; color: var(--accent); line-height: 1; direction: ltr; }
+@media (prefers-reduced-motion: reduce) {
+    .mm-arrow--live :is(.mm-shaft, .mm-shaft-edge, .mm-head, .mm-head-edge) { animation: none; stroke-dashoffset: 0; opacity: 1; transform: none; }
+    .mm-arrow--live .mm-ping { animation: none; }
+}
+
 .st-text { grid-area: text; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6em; text-align: center; }
 .st-question { margin: 0; font-size: 2.6em; font-weight: 800; line-height: 1.15; text-wrap: balance; text-shadow: 0 .06em .3em rgba(0, 0, 0, .35); animation: gk-fade-up .45s ease both; }
 .st-body { margin: 0; font-size: 1.6em; color: var(--ink-soft); text-wrap: balance; }
@@ -261,6 +307,132 @@ button.sp-box:not(:disabled):hover { background: rgba(255, 255, 255, .22); }
 .sp[data-revealed] .sp-box[data-picked] { opacity: 1; border-style: dashed; }
 .sp[data-revealed] .sp-box[data-picked][data-correct="false"] { border-color: var(--bad); box-shadow: 0 0 0 .22em var(--bad), 0 0 0 .3em rgba(0, 0, 0, .7); }
 .st-spot .st-puzzle-done:not(:disabled) { animation: gk-mult-beat 1s ease-in-out infinite; }
+
+/* ---- the roulette (js/host/roulette.js) ---------------------------------------
+   A real table, after a photographed one: green felt, white lines, ONE zero in
+   its tab, the outside fields and the dozens beside the numbers, "2 to 1"
+   under each column. It fills the space left (the wrapper is a size
+   container) within sane proportions, and is a size container itself: every
+   size inside it — numbers, chip, counts — follows from --fs, the type size of
+   a number, which is set from the table's own box. The white lines are each
+   field's outline over the felt, so an empty corner (beside the zero's tab)
+   shows felt, not line. */
+.st-roulette { position: relative; }
+.st-roulette .st-puzzle-done:not(:disabled) { animation: gk-mult-beat 1s ease-in-out infinite; }
+.rl { flex: 1; min-height: 0; container-type: size; display: grid; place-items: center; }
+.rl-table {
+    --felt: #0f6b3a;
+    --line: rgba(255, 255, 255, .9);
+    --g: .7cqmin;
+    --fs: min(9cqh, 3.3cqw);
+    /* A table reads left to right whatever the page: on its side, 0 on the left. */
+    direction: ltr;
+    container-type: size;
+    width: min(100cqw, 100cqh * 3.6);
+    height: min(100cqh, 100cqw / 2.6);
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: 1.15fr repeat(12, 1fr) 1fr;
+    grid-template-rows: repeat(3, 1fr) .75fr .75fr;
+    gap: var(--g);
+    padding: 3cqmin;
+    border-radius: 4cqmin;
+    background: radial-gradient(ellipse at 50% 35%, #15834a, var(--felt) 70%);
+    box-shadow: inset 0 0 0 .5cqmin rgba(0, 0, 0, .25), 0 1.2cqmin 3cqmin rgba(0, 0, 0, .45);
+    /* Times draws its figures on one line; Georgia's old-style 3, 5 and 9 dip below it. */
+    font-family: 'Times New Roman', Times, serif;
+    font-variant-numeric: lining-nums;
+}
+/* Upright, as in the photograph: outside | three columns | dozens. */
+.rl-table[data-compact] {
+    --fs: min(4.1cqh, 8.5cqw);
+    width: min(100cqw, 100cqh * .85);
+    height: 100cqh;
+    grid-template-columns: .8fr repeat(3, 1fr) .8fr;
+    grid-template-rows: 1.1fr repeat(12, 1fr) .9fr;
+    padding: 2.5cqmin;
+}
+.rl-cell, .rl-out {
+    position: relative; min-width: 0; min-height: 0;
+    display: grid; place-items: center;
+    outline: calc(var(--g) / 2 + .5px) solid var(--line);
+}
+.rl-cell {
+    border: 0; padding: 0; border-radius: 0;
+    background: #141418; color: #fff; font: inherit;
+    box-shadow: inset 0 -.25em 0 rgba(0, 0, 0, .25), inset 0 .12em 0 rgba(255, 255, 255, .1);
+}
+.rl-cell[data-colour="red"] { background: #e0121f; }
+/* The zero: its own tab, yellow on a lime oval, as in the photograph. */
+.rl-cell[data-colour="green"] { background: var(--felt); border-radius: 1.2em 1.2em 0 0; }
+.rl-table:not([data-compact]) .rl-cell[data-colour="green"] { border-radius: 1.2em 0 0 1.2em; }
+.rl-num { font-size: var(--fs); font-weight: 700; line-height: 1; text-shadow: 0 .06em .12em rgba(0, 0, 0, .5); }
+.rl-cell[data-colour="green"] .rl-num { font-size: calc(var(--fs) * 1.15); color: #ffe14a; padding: .2em .9em; border-radius: 50%; background: #6cc24a; box-shadow: inset 0 0 0 .08em rgba(0, 0, 0, .25); }
+button.rl-cell { cursor: pointer; }
+button.rl-cell:not(:disabled):hover { filter: brightness(1.2); }
+button.rl-cell:focus-visible { z-index: 1; outline: .15em solid #ffe14a; }
+
+/* The outside fields: furniture of the table, not bets. Upright, their words
+   run down the side, as printed on the felt. */
+.rl-out { background: transparent; color: rgba(255, 255, 255, .92); }
+.rl-out-text { font-size: calc(var(--fs) * .62); font-weight: 700; letter-spacing: .04em; white-space: nowrap; }
+.rl-table[data-compact] .rl-out-text { writing-mode: vertical-rl; }
+.rl-table[data-compact] .rl-out-text { font-size: calc(var(--fs) * .78); }
+.rl-table[data-compact] .rl-out[data-col] .rl-out-text { writing-mode: horizontal-tb; font-size: calc(var(--fs) * .62); }
+.rl-diamond { width: calc(var(--fs) * 1.5); height: calc(var(--fs) * 1.1); clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+.rl-table[data-compact] .rl-diamond { width: calc(var(--fs) * 1.1); height: calc(var(--fs) * 1.7); }
+.rl-out[data-swatch="red"] .rl-diamond { background: #e0121f; }
+.rl-out[data-swatch="black"] .rl-diamond { background: #141418; }
+
+/* The chip: a casino chip — blue, a striped rim, a white inlay, the number
+   it is on — dropped onto the square. */
+.rl-chip {
+    position: absolute; inset: 0; margin: auto;
+    height: min(94%, calc(var(--fs) * 2.3)); aspect-ratio: 1; max-width: 94%;
+    border-radius: 50%; pointer-events: none;
+    background: repeating-conic-gradient(#1c4fd6 0 22.5deg, #fff 22.5deg 30deg);
+    box-shadow: 0 .15em .35em rgba(0, 0, 0, .55), inset 0 0 0 .08em rgba(0, 0, 0, .25);
+    font-size: var(--fs);
+    animation: rl-drop .32s var(--ease-pop) both;
+}
+.rl-chip-face { position: absolute; inset: 17%; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 38% 32%, #4f7cf0, #1c4fd6 70%); box-shadow: 0 0 0 .06em #fff; color: #fff; font: 800 .55em/1 system-ui, sans-serif; }
+@keyframes rl-drop { from { transform: translateY(-60%) scale(1.5); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* The reveal: the winning number lit, the others dimmed, chip counts. */
+.rl[data-revealed] .rl-cell:not([data-win]) { filter: saturate(.55) brightness(.6); }
+.rl-cell[data-win] { z-index: 1; animation: rl-win 1.1s ease-in-out infinite; }
+@keyframes rl-win { 0%, 100% { box-shadow: 0 0 0 .12em #ffe14a, 0 0 .6em .15em #ffe14a; } 50% { box-shadow: 0 0 0 .2em #fff, 0 0 1.1em .3em #ffe14a; } }
+.rl-cell[data-win] { font-size: var(--fs); }
+.rl-count {
+    position: absolute; top: -.55em; right: -.35em; z-index: 2;
+    min-width: 1.5em; padding: .1em .35em; border-radius: 999px;
+    font: 800 max(10px, calc(var(--fs) * .48))/1.2 system-ui, sans-serif; text-align: center;
+    background: #fff; color: #111; box-shadow: 0 .2em .4em rgba(0, 0, 0, .4);
+}
+.rl-result { display: flex; align-items: center; gap: .4em; }
+.rl-result-num {
+    display: grid; place-items: center; width: 2.2em; height: 2.2em; border-radius: 50%;
+    font-size: 1.6em; font-weight: 800; color: #fff; background: #17171c;
+    box-shadow: 0 0 0 .14em #ffe14a, 0 .3em .8em rgba(0, 0, 0, .4);
+    animation: gk-pop .5s var(--ease-pop) both;
+}
+.rl-result-num[data-colour="red"] { background: #d3122b; }
+.rl-result-num[data-colour="green"] { background: #0e7a3c; }
+.rl-ready { position: absolute; inset: 0; z-index: 5; padding: 0; background: rgba(0, 0, 0, .45); backdrop-filter: blur(2px); }
+
+/* The wheel: over the table while it spins, then gone. */
+.rl-spin {
+    position: absolute; inset: 0; z-index: 7;
+    display: grid; place-items: center; container-type: size;
+    background: radial-gradient(circle, rgba(0, 0, 0, .35), rgba(0, 0, 0, .75));
+    animation: gk-fade-up .4s ease both;
+}
+.rl-wheel { width: min(96cqh, 96cqw); height: auto; aspect-ratio: 1; filter: drop-shadow(0 2cqh 4cqh rgba(0, 0, 0, .6)); }
+.rl-spin[data-landed] .rl-wheel { animation: rl-landed .6s ease-out both; }
+@keyframes rl-landed { from { transform: scale(1); } 40% { transform: scale(1.04); } to { transform: scale(1); } }
+.rl-wheel-num { fill: #fff; font: 800 11px/1 system-ui, sans-serif; text-anchor: middle; dominant-baseline: central; }
+.rl-fret { stroke: #e2b33c; stroke-width: 1.2; }
+.st-roulette[data-spinning] .rl { visibility: hidden; }
 
 /* ---- "complete the picture" (js/host/complete.js) ------------------------------- */
 .cp { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .6em; }
@@ -759,6 +931,10 @@ button.sl-end:disabled { cursor: default; opacity: .5; }
 
 /* The spot-it region editor (itemForm): rectangles drawn on the picture. */
 .if-spot-stage { overflow: visible; }
+/* The memory question's arrows: drawn over the picture by memory.js, whose
+   wrapper fills the stage on the projector but must hug the picture here. */
+.if-arrow-stage { overflow: visible; }
+.if-arrow-stage .mm-pic { width: auto; height: auto; display: block; }
 .if-spot-layer { position: absolute; inset: 0; pointer-events: none; }
 .if-spot-rect { position: absolute; border: 2px solid #fff; border-radius: 3px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .7); background: rgba(255, 255, 255, .1); font-size: .85rem; }
 .if-spot-rect[data-correct="true"] { border-color: var(--good); background: color-mix(in srgb, var(--good) 30%, transparent); }
@@ -827,3 +1003,106 @@ button.if-swatch:hover { filter: brightness(1.15); }
 .if-save .dr-note { margin: 0; }
 .if-save-btn { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px var(--line); }
 .if-save-btn[data-dirty] { background: var(--accent); color: var(--accent-ink); box-shadow: 0 .18em 0 rgba(0, 0, 0, .4); }
+
+/* ---- the action round: free throws (js/host/action.js) ----------------------------
+   A 3:4 court as large as the stage allows; everything inside it is sized in
+   units of the court itself (cqw), so a phone and a projector draw the same
+   picture. Two SVG layers sandwich the ball: the board and the back of the rim
+   behind it, the front of the rim and the net in front — a basket goes through. */
+.st-action { align-items: stretch; }
+.ac-wrap { flex: 1; min-height: 0; display: grid; place-items: center; container-type: size; }
+.ac {
+    position: relative; height: min(100cqh, 133.33cqw); aspect-ratio: 3 / 4; container-type: inline-size;
+    border-radius: .8em; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none;
+    box-shadow: 0 .4em 1.4em rgba(0, 0, 0, .45), inset 0 0 0 2px rgba(255, 255, 255, .25); direction: ltr;
+}
+.ac[data-live] { cursor: grab; }
+.ac[data-drag] { cursor: grabbing; }
+.ac-court { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+.ac-court--front { z-index: 3; }
+/* the shooter (in front of the ball: it sits between his hands) and his two poses */
+.ac-shooter { z-index: 2; }
+.ac-arms-shot { display: none; }
+.ac[data-shot] .ac-arms-shot { display: inline; }
+.ac[data-shot] .ac-arms-set { display: none; }
+.ac-marks, .ac-guide { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.ac-marks { z-index: 1; }
+.ac-guide { z-index: 2; }
+.ac-ball { position: absolute; left: 0; top: 0; z-index: 2; pointer-events: none; will-change: transform; filter: drop-shadow(0 1.2cqw 1.2cqw rgba(0, 0, 0, .45)); }
+.ac-ball-img { width: 100%; height: 100%; display: block; border-radius: 50%; object-fit: cover; }
+/* where a throw came down: the latest bright, the ones before it fading */
+.ac-mark { position: absolute; width: 6cqw; height: 2.2cqw; margin: -1.1cqw 0 0 -3cqw; border-radius: 50%; background: rgba(0, 0, 0, .4); box-shadow: 0 0 0 .5cqw rgba(255, 255, 255, .85); animation: ac-mark-in .35s var(--ease-pop) both; }
+.ac-mark:not(:last-child) { opacity: .4; box-shadow: 0 0 0 .4cqw rgba(255, 255, 255, .5); }
+.ac-mark[data-in] { background: rgba(31, 191, 99, .7); box-shadow: 0 0 0 .5cqw #b6ffd2; }
+@keyframes ac-mark-in { from { transform: scale(2.2); opacity: 0; } }
+/* a basket: the net stretches, the rim lights up */
+.ac-net { transform-box: fill-box; transform-origin: 50% 0; }
+.ac-swish .ac-net { animation: ac-net .55s ease-out; }
+.ac-swish .ac-rim { animation: ac-rim .7s ease-out; }
+@keyframes ac-net { 0% { transform: none; } 35% { transform: scale(.82, 1.35); } 70% { transform: scale(1.06, .92); } 100% { transform: none; } }
+@keyframes ac-rim { 0%, 60% { stroke: #fde047; } 100% { stroke: #f97316; } }
+/* the line that says how the throw went */
+.ac-say {
+    position: absolute; left: 50%; top: 47%; z-index: 5; translate: -50% -50%; max-width: 92%;
+    padding: .3em .8em; border-radius: 1em; font-weight: 900; font-size: 5.6cqw; line-height: 1.2; text-align: center;
+    direction: rtl; color: #fff; background: rgba(0, 0, 0, .7); box-shadow: 0 .2em .6em rgba(0, 0, 0, .4);
+    opacity: 0; pointer-events: none;
+}
+.ac-say-main, .ac-say-sub { display: block; }
+.ac-say-sub { font-size: .62em; font-weight: 700; opacity: .9; margin-top: .15em; }
+.ac-say[data-tone="good"] { background: #179b4f; }
+.ac-say[data-tone="near"] { background: #c2410c; }
+.ac-say--on { animation: ac-say 1.7s ease both; }
+@keyframes ac-say { 0% { opacity: 0; scale: .6; } 12% { opacity: 1; scale: 1.06; } 20%, 78% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: 1; } }
+/* the player's count, and the power window beside the court */
+.ac-hud { position: absolute; top: 2.5cqw; right: 2.5cqw; z-index: 4; display: flex; align-items: baseline; gap: 1.2cqw; padding: .8cqw 2.6cqw; border-radius: 3cqw; color: #fff; background: rgba(0, 0, 0, .5); direction: rtl; font-weight: 800; font-size: 4.2cqw; }
+.ac-hud-icon { font-size: 5.5cqw; }
+.ac-hits { font-size: 9cqw; line-height: 1; }
+.ac-tries { opacity: .85; font-size: 3.6cqw; }
+.ac-meter { position: absolute; left: 3cqw; bottom: 7cqw; z-index: 4; width: 3.4cqw; height: 55%; border-radius: 999px; overflow: hidden; background: rgba(0, 0, 0, .42); box-shadow: inset 0 0 0 .45cqw rgba(255, 255, 255, .55); }
+.ac-meter-zone { position: absolute; left: 0; right: 0; background: rgba(31, 191, 99, .85); }
+.ac-meter-fill { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: rgba(255, 255, 255, .55); border-top: .6cqw solid #fff; }
+.ac-over { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; padding: 6cqw; text-align: center; direction: rtl; color: #fff; background: rgba(0, 0, 0, .55); font-weight: 900; font-size: 7cqw; }
+.ac-over[hidden] { display: none; }
+/* the demonstration's hand (enlarged on its inner element: see .dm-hand) */
+.ac-hand { position: absolute; z-index: 5; line-height: 1; opacity: 0; pointer-events: none; filter: drop-shadow(0 .5cqw .8cqw rgba(0, 0, 0, .5)); }
+.ac-hand > span { display: block; font-size: 9cqw; }
+.dm-action { width: 22em; height: 12em; background: none; box-shadow: none; }
+.dm-action .ac-wrap { position: absolute; inset: 0; }
+.dm-action .ac { border-radius: .5em; }
+
+/* the reveal: a bar per number of baskets, the player's own marked */
+.ac-res { flex: 1; min-height: 0; width: min(100%, 44em); margin: 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .7em; }
+.ac-res-bars { width: 100%; height: min(42cqh, 30cqw); display: flex; align-items: flex-end; justify-content: center; gap: .3em; }
+.ac-res-col { flex: 1; max-width: 3em; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: .2em; }
+.ac-res-bar { width: 100%; min-height: 3px; border-radius: .3em .3em 0 0; background: var(--accent); transform-origin: 50% 100%; animation: ac-bar .8s var(--ease-pop) both; }
+.ac-res-col[data-mine] .ac-res-bar { background: var(--good); box-shadow: 0 0 0 .15em #fff; }
+.ac-res-col[data-mine] .ac-res-k { color: var(--good); }
+.ac-res-n { font-weight: 800; font-size: .85em; }
+.ac-res-k { font-weight: 900; color: var(--ink-soft); }
+.ac-res-sum { margin: 0; font-weight: 800; font-size: 1.25em; text-align: center; }
+@keyframes ac-bar { from { transform: scaleY(0); } }
+/* The editor's roulette: a fixed-size copy of the phone table to pick the answer on. */
+.if-roulette { width: min(100%, 22rem); height: 26rem; display: flex; }
+
+/* "NO MORE BETS": slammed over the table when the betting closes. */
+.rl-nomore {
+    position: absolute; inset: 0; z-index: 8;
+    display: grid; place-items: center; pointer-events: none;
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, .55), rgba(0, 0, 0, .25) 70%);
+    container-type: inline-size;
+    animation: gk-fade-up .25s ease both;
+}
+.rl-nomore-text {
+    font: 900 min(11cqw, 7rem)/1 Impact, 'Arial Black', system-ui, sans-serif;
+    letter-spacing: .06em; white-space: nowrap; direction: ltr;
+    color: #ffe14a;
+    -webkit-text-stroke: .03em #7a4b00;
+    text-shadow: 0 .05em 0 #b8860b, 0 .1em .25em rgba(0, 0, 0, .6), 0 0 .6em rgba(255, 225, 74, .55);
+    transform: rotate(-4deg);
+    animation: rl-slam .45s cubic-bezier(.2, 1.4, .4, 1) both;
+}
+@keyframes rl-slam {
+    from { opacity: 0; transform: rotate(-4deg) scale(2.6); filter: blur(6px); }
+    to { opacity: 1; transform: rotate(-4deg) scale(1); filter: blur(0); }
+}
