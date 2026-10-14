@@ -24,7 +24,8 @@ export const DEMO_QUIZ = {
     title: 'חידון לדוגמה',
     theme: 'stadium',
     background: null,
-    music: 'media/audio/demo-loop.wav',
+    music: 'media/audio/demo-loop.wav',          // the questions' music
+    lobby_music: 'media/audio/demo-loop.wav',    // while the room gathers
     music_on: true,
     lead_in_s: 3,
     // A football drifting behind the questions shows the animation option off

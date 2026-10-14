@@ -9,7 +9,7 @@
  */
 import { h, clear } from '../ui/dom.js';
 import * as api from '../data/api.js';
-import { itemForm, loadManifest } from '../admin/itemForm.js';
+import { itemForm, keptForm, leaveForms, loadManifest } from '../admin/itemForm.js';
 
 const KIND_ICON = { interlude: '🎬', question: '❓', spot: '🔎', puzzle: '🧩', complete: '🖼️', slider: '🎚️', rank: '🔢', memory: '📸', roulette: '🎰', action: '🏀', explain: '💡' };
 const PHASE_LABEL = {
@@ -165,7 +165,7 @@ export function createDrawer({ email, onArchive, onSignOut }) {
                         h('span', { class: 'dr-item-title', dir: 'auto', text: it.title || '(ללא כותרת)' })),
                     it.kind !== 'interlude' && it.weight !== 1 && h('span', { class: 'dr-tag', dir: 'ltr', text: `×${it.weight}` }),
                     h('button', { class: 'dr-icon', type: 'button', title: 'עריכה', text: '✎',
-                        onclick: () => { editing = editing === it.id ? null : it.id; openEditor(); } })),
+                        onclick: () => { if (!leaveForms()) return; editing = editing === it.id ? null : it.id; openEditor(); } })),
                 editing === it.id && editForm(it),
                 // The question's "answer explained" segment: part of the
                 // question, so not a stop to jump to — it is reached by
@@ -176,7 +176,7 @@ export function createDrawer({ email, onArchive, onSignOut }) {
                         h('span', { class: 'ed-kind', text: KIND_ICON.explain }),
                         h('span', { class: 'dr-item-title', dir: 'auto', text: it.explain.title || '(הסבר התשובה)' })),
                     h('button', { class: 'dr-icon', type: 'button', title: 'עריכה', text: '✎',
-                        onclick: () => { editing = editing === it.explain.id ? null : it.explain.id; openEditor(); } })),
+                        onclick: () => { if (!leaveForms()) return; editing = editing === it.explain.id ? null : it.explain.id; openEditor(); } })),
                 it.explain && editing === it.explain.id && editForm(it.explain),
             ])));
     }
@@ -192,7 +192,9 @@ export function createDrawer({ email, onArchive, onSignOut }) {
     function editForm(it) {
         const row = itemRows.find((r) => r.id === it.id);
         if (!row || !manifest) return null;
-        return h('li', { class: 'dr-edit' }, itemForm(row, {
+        // The drawer redraws every few seconds: keptForm hands back the same
+        // form while it has unsaved changes, so a fix in progress survives.
+        return h('li', { class: 'dr-edit' }, keptForm(`dr:${row.id}`, () => itemForm(row, {
             manifest,
             onSave: async (patch) => {
                 await api.items.update(row.id, patch);
@@ -201,7 +203,7 @@ export function createDrawer({ email, onArchive, onSignOut }) {
                 if (!['interlude', 'explain'].includes(row.kind)) await api.admin.rescore(row.id);
                 await api.admin.refresh();
             },
-        }));
+        })));
     }
 
     function playerSection() {

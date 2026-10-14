@@ -13,7 +13,7 @@
  */
 import { h, clear } from './ui/dom.js';
 import * as api from './data/api.js';
-import { itemForm, loadManifest, mediaSelect } from './admin/itemForm.js';
+import { itemForm, keptForm, leaveForms, loadManifest, mediaSelect } from './admin/itemForm.js';
 import { mock, VIEWS, viewsFor, GENERAL_VIEWS } from './preview/mock.js';
 import { openSpriteCutter } from './admin/spriteCutter.js';
 
@@ -100,6 +100,7 @@ async function saveQuiz(patch) {
 }
 
 async function addItem(kind) {
+    if (!leaveForms()) return;   // the new item's form replaces the one on screen
     const position = (items.at(-1)?.position || 0) + 1;
     const row = {
         question: { quiz_id: quiz.id, position, kind, title: '', options: ['', ''], correct: [0] },
@@ -137,6 +138,7 @@ async function addItem(kind) {
 
 /** Give a question its "answer explained" segment (it can have one). */
 async function addExplain(parent) {
+    if (!leaveForms()) return;
     const created = await api.items.create({ quiz_id: quiz.id, position: parent.position, kind: 'explain', parent_id: parent.id, title: '', media_layout: 'side' });
     parent.explain = created;
     selectedId = created.id;
@@ -176,7 +178,7 @@ const btn = (text, onclick, cls = '') => h('button', { class: `gk-btn gk-btn--sm
 const panel = (title, ...children) => h('section', { class: 'ed-panel' }, title && h('h2', { text: title }), ...children);
 
 function topBar() {
-    const select = h('select', { class: 'dr-select', 'aria-label': 'חידון', onchange: () => act(() => selectQuiz(quizzes.find((q) => q.id === select.value))) },
+    const select = h('select', { class: 'dr-select', 'aria-label': 'חידון', onchange: () => { if (leaveForms()) act(() => selectQuiz(quizzes.find((q) => q.id === select.value))); else select.value = quiz?.id || ''; } },
         quizzes.map((q) => h('option', { value: q.id, text: q.title })));
     select.value = quiz?.id || '';
     return h('header', { class: 'ed-top' },
@@ -209,11 +211,15 @@ function settingsPanel() {
         h('div', { class: 'if-field' }, h('span', { class: 'if-label', text: 'עיצוב' }), themes),
         h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'תמונת רקע' }),
             mediaSelect(manifest, ['backgrounds'], quiz.background, (v) => act(() => saveQuiz({ background: v })))),
-        h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'מוסיקת רקע' }),
+        // Two musics: the lobby's, and the questions' — the latter also plays
+        // under interludes and results, and is what an item's "as the quiz" means.
+        h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'מוסיקת רקע ללובי' }),
+            mediaSelect(manifest, ['audio'], quiz.lobby_music, (v) => act(() => saveQuiz({ lobby_music: v })))),
+        h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'מוסיקת רקע לשאלות' }),
             mediaSelect(manifest, ['audio'], quiz.music, (v) => act(() => saveQuiz({ music: v })))),
         h('label', { class: 'if-check' },
             h('input', { type: 'checkbox', checked: quiz.music_on, onchange: (e) => act(() => saveQuiz({ music_on: e.target.checked })) }),
-            'להשמיע מוסיקת רקע'),
+            'להשמיע מוסיקת רקע (בלובי ובשאלות)'),
         h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'שניות "מתכוננים" לפני כל שאלה' }),
             h('input', { class: 'dr-input', type: 'number', min: '0', max: '10', value: String(quiz.lead_in_s),
                 onchange: (e) => act(() => saveQuiz({ lead_in_s: Math.min(10, Math.max(0, Math.round(Number(e.target.value) || 0))) })) })));
@@ -281,7 +287,7 @@ function itemRow(it, index) {
         title: `${kind.label}: ${title}`,
     },
     !child && h('span', { class: 'ed-grip', 'aria-hidden': 'true', text: '⠿' }),
-    h('button', { class: 'dr-item-main', type: 'button', onclick: () => { selectedId = it.id; draw(); } },
+    h('button', { class: 'dr-item-main', type: 'button', onclick: () => { if (it.id === selectedId || !leaveForms()) return; selectedId = it.id; draw(); } },
         h('span', { class: 'dr-item-idx', text: child ? '↳' : String(index + 1) }),
         h('span', { class: 'ed-kind', text: kind.icon }),
         h('span', { class: 'dr-item-title', dir: 'auto', text: title })),
@@ -336,7 +342,8 @@ function formPanel() {
     const item = selected();
     if (!item) return panel('פריט', h('p', { class: 'dr-note', text: 'הוסיפו שאלה או קטע מעבר כדי להתחיל.' }));
     return panel({ question: 'עריכת שאלה', puzzle: 'עריכת פאזל', complete: 'עריכת שאלת השלמת תמונה', slider: 'עריכת שאלת סליידר', rank: 'עריכת שאלת דירוג', memory: 'עריכת שאלת זיכרון', roulette: 'עריכת שאלת רולטה', action: 'עריכת שאלת אקשן', spot: 'עריכת שאלת זיהוי בתמונה', explain: 'עריכת קטע הסבר התשובה' }[item.kind] || 'עריכת קטע מעבר',
-        itemForm(item, {
+        // Kept across redraws while it has unsaved changes (keptForm).
+        keptForm(`ed:${item.id}`, () => itemForm(item, {
             manifest,
             onSave: async (patch) => {
                 Object.assign(item, await api.items.update(item.id, patch));
@@ -345,7 +352,7 @@ function formPanel() {
                 redrawList();
                 pushPreview(); pushLive();
             },
-        }),
+        })),
         h('p', { class: 'dr-note', text: 'קובצי מדיה: שימו את הקובץ בתיקייה gevkahoot/media/‎<סוג>‎ והריצו node scripts/gevkahoot-media-manifest.mjs — הוא יופיע ברשימות.' }));
 }
 

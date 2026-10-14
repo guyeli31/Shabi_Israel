@@ -161,7 +161,7 @@ export function createDemo(onChange) {
     function buildState() {
         const it = item();
         const quiz = { title: DEMO_QUIZ.title, theme: DEMO_QUIZ.theme, background: DEMO_QUIZ.background,
-            music: DEMO_QUIZ.music, music_on: DEMO_QUIZ.music_on, anim: DEMO_QUIZ.anim };
+            music: DEMO_QUIZ.music, lobby_music: DEMO_QUIZ.lobby_music, music_on: DEMO_QUIZ.music_on, anim: DEMO_QUIZ.anim };
         let data = { quiz, index: index + 1, count: DEMO_ITEMS.length, locked: false };
         const revealed = ['reveal', 'explain', 'fastest', 'fire', 'leaderboard'].includes(phase);
 

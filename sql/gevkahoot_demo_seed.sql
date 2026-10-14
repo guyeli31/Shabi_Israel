@@ -28,9 +28,9 @@ begin;
 
 delete from public.gk_quizzes where id = '6e0b5f0a-0000-4000-8000-00000000d3a0';
 
-insert into public.gk_quizzes (id, title, theme, background, music, music_on, lead_in_s,
+insert into public.gk_quizzes (id, title, theme, background, music, lobby_music, music_on, lead_in_s,
                                anim_on, anim_sprite, anim_count, anim_size, anim_speed, anim_front)
-values ('6e0b5f0a-0000-4000-8000-00000000d3a0', 'חידון לדוגמה', 'stadium', null, 'media/audio/demo-loop.wav', true, 3,
+values ('6e0b5f0a-0000-4000-8000-00000000d3a0', 'חידון לדוגמה', 'stadium', null, 'media/audio/demo-loop.wav', 'media/audio/demo-loop.wav', true, 3,
         true, 'media/sprites/demo-ball.svg', 5, 11, 3, false);
 
 -- Interludes and four-colour questions.

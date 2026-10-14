@@ -309,6 +309,12 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   instruction slide show the court with a hand throwing by itself (`auto`).
   A player's count lives in the stage (`throws`), so a rebuilt screen
   carries on from it.
+- **Two background musics.** `gk_quizzes.lobby_music` plays in the lobby;
+  `music` ("the questions' music") everywhere after it — interludes and
+  results included — and is what an item's "כמו בחידון" means. `music_on`
+  switches both. When the column was added, existing quizzes got their one
+  music copied into it, so no lobby went quiet. Published in `_gk_quiz_json`
+  and mirrored by the demo engine and the mock; chosen in `syncMusic()`.
 - **Who hears what.** The ROOM's sound — background music, a video's
   soundtrack, an audio clip — plays only where `media` is `'full'` (the
   projected screen; the demo): a phone shows the picture, a desktop player
@@ -426,6 +432,17 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   element measured "mid-entrance" seconds after it appeared (a podium column
   40% low, a ×2 marker four times its size) is the frozen first frame, not a
   layout bug — check `getAnimations()[0].currentTime` before chasing it.
+- **An item is saved only by its Save button** (`js/admin/itemForm.js`, in
+  the editor and in the host's drawer alike) — there was an autosave, and
+  the host asked for it to go: a fix to a live question reaches the air only
+  when they press Save. The trap that came with it: both places REBUILD the
+  form often (the editor after every action, the drawer every 2.5s), which
+  with autosave cost nothing and without it silently drops a draft. So the
+  form is mounted through `keptForm(key, build)` — a form with unsaved
+  changes comes back as the same element — and every move away from it
+  (another item, another quiz, a new item, the drawer's ✎) first asks
+  `leaveForms()`, which confirms. A new place that hosts the form must do
+  both.
 - **The editor previews are the real pages**, framed with `?preview` and fed
   invented state by `postMessage` (`js/preview/mock.js`). A screen that must be
   previewable therefore renders only from the state object — no fetch of its own.

@@ -175,8 +175,12 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
     function syncMusic() {
         const quiz = state.data.quiz || {};
         const item = current();
-        // An item's own music beats the quiz's; music_on = false beats both.
-        const src = safeMedia(item?.music) || (quiz.music_on ? safeMedia(quiz.music) : null);
+        // The lobby has its own music (lobby_music); everything after it plays
+        // the questions' music (`music`), which an item's own beats.
+        // music_on = false (the quiz's switch) silences both.
+        const src = state.phase === 'lobby'
+            ? (quiz.music_on ? safeMedia(quiz.lobby_music) : null)
+            : safeMedia(item?.music) || (quiz.music_on ? safeMedia(quiz.music) : null);
         const itemOwnsSound = item && ['interlude', 'question', 'explain'].includes(state.phase) && (item.video || item.audio);
         const want = mode() === 'full' && src && state.status !== 'idle'
             && !(item && item.music_on === false) && !itemOwnsSound;

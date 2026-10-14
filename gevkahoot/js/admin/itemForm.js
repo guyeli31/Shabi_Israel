@@ -5,9 +5,12 @@
  * correction in the middle of a live quiz. One module, so a field added to a
  * question appears in both without a second form to remember.
  *
- * The form autosaves. It keeps a draft, and every change schedules one save of
- * the whole draft — never a per-field patch, so two quick edits cannot land
- * out of order and leave the row holding the older one.
+ * The form saves ONLY when its Save button is pressed (the host's choice: an
+ * edit reaches the database — and, in a live quiz, the air — when they say
+ * so). It keeps a draft and saves the whole of it — never a per-field patch,
+ * so two quick saves cannot land out of order and leave the row holding the
+ * older one. A draft with unsaved changes survives redraws (keptForm) and is
+ * left only after a confirm (leaveForms); closing the tab asks too.
  */
 import { h, clear } from '../ui/dom.js';
 import { crest, MARK_SETS, TILES } from '../ui/teams.js';
@@ -43,6 +46,39 @@ export function mediaSelect(manifest, folders, value, onChange) {
         value && !paths.includes(value) && h('option', { value, text: `${value.split('/').pop()} (הקובץ חסר)` }));
     select.value = value || '';
     return select;
+}
+
+/**
+ * Unsaved work survives the screen. A form is saved only by its Save button,
+ * so a redraw that rebuilt it would silently throw a draft away — and both
+ * places that hold one redraw often (the editor after every action, the
+ * host's drawer every few seconds). So they mount it through keptForm():
+ * while a form has unsaved changes, the same element comes back, draft and
+ * all. Leaving it on purpose (another item, another quiz) goes through
+ * leaveForms(), which asks first.
+ */
+const FORM_STATE = new WeakMap();   // a form's .if-save row → { isDirty, forget }
+const kept = new Map();             // key → the form element last built for it
+
+function formState(el) { return FORM_STATE.get(el?.querySelector?.('.if-save')); }
+
+/** The form for `key`: the one already there if it has unsaved changes, else a fresh one. */
+export function keptForm(key, build) {
+    const prev = kept.get(key);
+    if (prev && formState(prev)?.isDirty()) return prev;
+    const el = build();
+    kept.set(key, el);
+    return el;
+}
+
+/** Before leaving the form(s) on screen: true to go on. With unsaved changes,
+ *  the host is asked; going on discards them. */
+export function leaveForms() {
+    const dirty = [...kept.values()].filter((el) => el.isConnected && formState(el)?.isDirty());
+    if (!dirty.length) return true;
+    if (!confirm('יש שינויים שלא נשמרו. להמשיך בלי לשמור?')) return false;
+    dirty.forEach((el) => formState(el)?.forget());
+    return true;
 }
 
 const LAYOUTS = [
@@ -88,17 +124,16 @@ export function itemForm(item, { manifest, onSave }) {
         media_layout: item.media_layout, music_on: item.music_on, anim_on: item.anim_on,
     };
     const status = h('span', { class: 'dr-note', role: 'status' });
-    let timer = null;
+    // Saved only by the Save button: an edit marks the form dirty and waits.
+    let dirty = false;
     let saving = Promise.resolve();
 
-    /** Save the draft now. Used by the autosave timer and by the Save button. */
+    /** Save the draft — the Save button, and nothing else. */
     function commit() {
-        clearTimeout(timer);
-        timer = null;
         saveBtn.toggleAttribute('data-dirty', false);
         {
             if (hasOptions && draft.correct.length === 0) {
-                status.textContent = 'סמנו לפחות תשובה נכונה אחת';
+                status.textContent = 'לא נשמר — סמנו לפחות תשובה נכונה אחת';
                 saveBtn.toggleAttribute('data-dirty', true);
                 return saving;
             }
@@ -152,34 +187,36 @@ export function itemForm(item, { manifest, onSave }) {
                     media_layout: draft.media_layout, ...playback };
             // Chain the saves: the next one starts only when this one settled.
             status.textContent = 'שומר…';
+            dirty = false;
             saving = saving.then(() => onSave(patch))
                 .then(() => {
                     const at = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                     status.textContent = reminder || `נשמר ✓ ${at}`;
                 })
-                .catch((err) => { status.textContent = `לא נשמר: ${err.message}`; saveBtn.toggleAttribute('data-dirty', true); });
+                .catch((err) => { dirty = true; status.textContent = `לא נשמר: ${err.message}`; saveBtn.toggleAttribute('data-dirty', true); });
         }
         return saving;
     }
 
-    /** Something was edited: mark it, and save by itself shortly after the
-     *  last keystroke. The Save button does the same thing at once. */
+    /** Something was edited: mark it. Nothing is saved until Save is pressed. */
     function changed() {
-        status.textContent = 'יש שינויים שלא נשמרו…';
+        dirty = true;
+        status.textContent = 'יש שינויים שלא נשמרו — לחצו ״שמור״';
         saveBtn.toggleAttribute('data-dirty', true);
-        clearTimeout(timer);
-        timer = setTimeout(commit, 450);
     }
 
-    // The explicit Save. Edits are also saved automatically, so this is never
-    // the only thing between the host and lost work — it is the answer to "is
-    // it saved?": press it and the line beside it says so, with the time.
+    // Save: the only way an edit reaches the database (the host's choice — an
+    // edit to a live quiz goes on air only when they say so). The line beside
+    // it says when it was saved; the button is lit while there is something to save.
     const saveBtn = h('button', { class: 'gk-btn gk-btn--small if-save-btn', type: 'button', text: '💾 שמור',
         onclick: () => commit() });
     const saveRow = h('div', { class: 'if-save' }, saveBtn, status);
-    // Closing the tab inside the half-second before the autosave would lose the
-    // last edit: ask the browser to hold the page while one is pending.
-    window.addEventListener('beforeunload', (e) => { if (timer && saveRow.isConnected) { commit(); e.preventDefault(); e.returnValue = ''; } });
+    FORM_STATE.set(saveRow, {
+        isDirty: () => dirty,
+        forget: () => { dirty = false; saveBtn.toggleAttribute('data-dirty', false); status.textContent = ''; },
+    });
+    // Closing or reloading the tab with unsaved changes: the browser asks first.
+    window.addEventListener('beforeunload', (e) => { if (dirty && saveRow.isConnected) { e.preventDefault(); e.returnValue = ''; } });
     const field = (label, control) => h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: label }), control);
     const set = (key) => (value) => { draft[key] = value; changed(); };
 
@@ -351,7 +388,7 @@ export function itemForm(item, { manifest, onSave }) {
         return select;
     }
     const toggles = h('div', { class: 'if-pair' },
-        field('מוסיקת רקע באלמנט הזה', playbackSelect('audio', 'music_on', 'music', { inherit: 'כמו בחידון', none: 'בלי מוסיקה' })),
+        field('מוסיקת רקע באלמנט הזה', playbackSelect('audio', 'music_on', 'music', { inherit: 'כמו בחידון (מוסיקת הרקע לשאלות)', none: 'בלי מוסיקה' })),
         field('אנימציה באלמנט הזה', playbackSelect('sprites', 'anim_on', 'anim_sprite', { inherit: 'כמו בחידון', none: 'בלי אנימציה' })));
 
     // ---- "spot it": rectangles drawn on the picture ------------------------
