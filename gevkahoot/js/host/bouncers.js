@@ -87,6 +87,9 @@ export function createBouncers(stage) {
             layer.append(el);
             return { el, x: 0.1 + Math.random() * 0.8, y: 0.1 + Math.random() * 0.8, vx: Math.cos(angle), vy: Math.sin(angle) };
         });
+        // A copy that must set off from a known place (the puzzle's detail,
+        // from where it sat in the picture).
+        if (config.start) { bodies[0].x = config.start.x; bodies[0].y = config.start.y; }
         const first = bodies[0].el;
         const ready = () => {
             if (first.naturalWidth && first.naturalHeight) aspect = first.naturalWidth / first.naturalHeight;
@@ -100,14 +103,17 @@ export function createBouncers(stage) {
         // `src` is a picture made in this browser (the puzzle's round cut-out, a
         // blob: URL); `sprite` is a media path and is validated as one.
         const src = next && (next.src || safeMedia(next.sprite));
-        config = src ? { ...next, count: Math.min(30, Math.max(1, next.count | 0)), size: Math.min(40, Math.max(3, +next.size || 12)), speed: Math.min(10, Math.max(1, +next.speed || 4)) } : null;
+        // A sprite's size is the host's 3-40% setting; a cut-out (`src`) keeps
+        // the size it had in its picture, which may be larger.
+        const [minSize, maxSize] = next?.src ? [1, 95] : [3, 40];
+        config = src ? { ...next, count: Math.min(30, Math.max(1, next.count | 0)), size: Math.min(maxSize, Math.max(minSize, +next.size || 12)), speed: Math.min(10, Math.max(1, +next.speed || 4)) } : null;
         layer.hidden = !config;
         layer.toggleAttribute('data-front', !!config?.front);
         if (!config) { running = false; if (key) { clear(layer); bodies = []; key = ''; } return; }
 
         // Only a new picture or a new head-count rebuilds; size, speed and
         // layer are read live, so dragging a slider does not reshuffle them.
-        const nextKey = `${src}|${config.count}`;
+        const nextKey = `${src}|${config.count}|${config.start ? `${config.start.x},${config.start.y}` : ''}`;
         if (nextKey !== key) { key = nextKey; aspect = 1; build(src); }
 
         if (still.matches) { running = false; const m = metrics(); if (m.W && m.H) place(m); return; }

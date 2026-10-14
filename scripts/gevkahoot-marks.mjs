@@ -1,7 +1,7 @@
 /**
  * gevkahoot-marks.mjs — draws the tile emblems of the two extra mark sets.
  *
- *   node scripts/gevkahoot-marks.mjs          writes gevkahoot/assets/{catan,circuit}/<colour>.svg
+ *   node scripts/gevkahoot-marks.mjs          writes gevkahoot/assets/{catan,circuit,cards}/<colour>.svg
  *   node scripts/gevkahoot-marks.mjs --check  exits 1 if a committed file differs
  *
  * The emblems are drawn here from scratch — no downloaded artwork — as plain
@@ -389,11 +389,111 @@ function battery() {
 
 const CIRCUIT = { red: resistor, blue: inductor, yellow: capacitor, black: battery, purple: diode };
 
+/* ======================================================================
+   Cards — five playing cards, a little tilted: the joker, the ace of
+   spades, the queen of hearts, the eight of diamonds, the two of clubs.
+   The suits are drawn as paths here (no font glyphs: a suit symbol in a
+   system font looks different on every phone); only the corner ranks are
+   text, in a serif every system has.
+   ====================================================================== */
+
+const RED = '#d0142c', INK = '#16161b';
+/** Suit shapes, centred on 0,0, about 80 units tall. */
+const SUIT = {
+    heart: 'M0,32 C-36,4 -46,-14 -38,-28 C-30,-42 -8,-42 0,-24 C8,-42 30,-42 38,-28 C46,-14 36,4 0,32 Z',
+    diamond: 'M0,-40 Q13,-19 29,0 Q13,19 0,40 Q-13,19 -29,0 Q-13,-19 0,-40 Z',
+    spade: 'M0,-40 C-9,-24 -44,-8 -38,14 C-33,30 -12,30 -4,19 C-5,29 -10,37 -18,42 L18,42 C10,37 5,29 4,19 C12,30 33,30 38,14 C44,-8 9,-24 0,-40 Z',
+    club: 'M-4,10 C-4,24 -10,34 -18,41 L18,41 C10,34 4,24 4,10 Z M-15,-19 a15,15 0 1 0 30,0 a15,15 0 1 0 -30,0 Z M-32,4 a15,15 0 1 0 30,0 a15,15 0 1 0 -30,0 Z M2,4 a15,15 0 1 0 30,0 a15,15 0 1 0 -30,0 Z',
+};
+const pip = (suit, x, y, s = 1, flip = false) =>
+    `<path d="${SUIT[suit]}" transform="translate(${x} ${y}) scale(${s})${flip ? ' rotate(180)' : ''}" fill="${suit === 'heart' || suit === 'diamond' ? RED : INK}"/>`;
+
+const CARD = { x: 36, y: 11, w: 128, h: 178 };   // in a 200×200 square, so it sits like the other sets
+/** The card itself: ivory face, thin rim, a soft inner line; `face` drawn on it, then the tilt. */
+function card(face, corner) {
+    const { x, y, w, h } = CARD;
+    const index = (rank, suit, colour) => {
+        const one = `<text x="${x + 15}" y="${y + 29}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="${rank.length > 1 ? 18 : 24}" fill="${colour}">${rank}</text>`
+            + (suit ? pip(suit, x + 15, y + 43, 0.17) : '');
+        return one + `<g transform="rotate(180 ${x + w / 2} ${y + h / 2})">${one}</g>`;
+    };
+    return svg(CW, CH,
+        '<defs>'
+        + lin('face', [0, 0, 0, 1], [[0, '#ffffff'], [1, '#f1ece0']])
+        + '</defs>'
+        + `<g transform="rotate(-7 100 100)">`
+        + `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="12" fill="url(#face)" stroke="#9a9488" stroke-width="2"/>`
+        + `<rect x="${x + 5}" y="${y + 5}" width="${w - 10}" height="${h - 10}" rx="8" fill="none" stroke="#000" stroke-opacity=".06" stroke-width="1.5"/>`
+        + face
+        + (corner ? index(...corner) : '')
+        + '</g>');
+}
+
+function aceOfSpades() {
+    // The big ornate spade of the ace, with a fine white line inside it.
+    const cx = CARD.x + CARD.w / 2, cy = CARD.y + CARD.h / 2;
+    return card(pip('spade', cx, cy, 1.25)
+        + `<path d="${SUIT.spade}" transform="translate(${cx} ${cy}) scale(.9)" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>`,
+    ['A', 'spade', INK]);
+}
+
+function eightOfDiamonds() {
+    // The standard layout: three down each side, two in the middle column.
+    const l = CARD.x + 40, r = CARD.x + CARD.w - 40, c = CARD.x + CARD.w / 2;
+    const top = CARD.y + 38, bot = CARD.y + CARD.h - 38, mid = CARD.y + CARD.h / 2;
+    const at = [[l, top], [r, top], [l, mid], [r, mid], [l, bot], [r, bot], [c, (top + mid) / 2], [c, (mid + bot) / 2]];
+    return card(at.map(([x, y]) => pip('diamond', x, y, 0.36)).join(''), ['8', 'diamond', RED]);
+}
+
+function twoOfClubs() {
+    const c = CARD.x + CARD.w / 2;
+    return card(pip('club', c, CARD.y + 50, 0.62) + pip('club', c, CARD.y + CARD.h - 50, 0.62, true), ['2', 'club', INK]);
+}
+
+function queenOfHearts() {
+    // A court card: a framed panel, a gold crown, and under it the queen's heart.
+    const { x, y, w, h } = CARD;
+    const cx = x + w / 2;
+    const panel = `<rect x="${x + 26}" y="${y + 22}" width="${w - 52}" height="${h - 44}" rx="5" fill="#fbe6e4" stroke="${RED}" stroke-width="2"/>`;
+    const crown = `<path d="M${cx - 30},${y + 76} L${cx - 34},${y + 44} L${cx - 15},${y + 60} L${cx},${y + 38} L${cx + 15},${y + 60} L${cx + 34},${y + 44} L${cx + 30},${y + 76} Z" fill="url(#gold)" stroke="#8a5b06" stroke-width="2.2" stroke-linejoin="round"/>`
+        + `<rect x="${cx - 31}" y="${y + 72}" width="62" height="9" rx="3" fill="url(#gold)" stroke="#8a5b06" stroke-width="2"/>`
+        + [[cx - 34, y + 44], [cx, y + 38], [cx + 34, y + 44]].map(([px, py]) => `<circle cx="${px}" cy="${py}" r="4.5" fill="#fff4c2" stroke="#8a5b06" stroke-width="1.6"/>`).join('')
+        + `<circle cx="${cx}" cy="${y + 66}" r="4" fill="${RED}"/>`;
+    const goldDef = lin('gold', [0, 0, 0, 1], [[0, '#ffe680'], [0.55, '#f2b71c'], [1, '#b8790a']]);
+    return card(`<defs>${goldDef}</defs>` + panel + crown + pip('heart', cx, y + 118, 0.72), ['Q', 'heart', RED]);
+}
+
+function joker() {
+    // The jester: a three-pointed cap with bells over a grin, and the word
+    // JOKER stacked down the corners instead of a rank.
+    const { x, y, w, h } = CARD;
+    const cx = x + w / 2;
+    const face = `<circle cx="${cx}" cy="${y + 112}" r="24" fill="#ffe0bd" stroke="${INK}" stroke-width="2.2"/>`
+        + `<circle cx="${cx - 9}" cy="${y + 107}" r="3" fill="${INK}"/><circle cx="${cx + 9}" cy="${y + 107}" r="3" fill="${INK}"/>`
+        + `<path d="M${cx - 13},${y + 118} Q${cx},${y + 132} ${cx + 13},${y + 118}" fill="none" stroke="${RED}" stroke-width="3" stroke-linecap="round"/>`
+        + `<circle cx="${cx - 17}" cy="${y + 117}" r="4" fill="${RED}" fill-opacity=".35"/><circle cx="${cx + 17}" cy="${y + 117}" r="4" fill="${RED}" fill-opacity=".35"/>`;
+    const cap = `<path d="M${cx - 30},${y + 94} C${cx - 36},${y + 72} ${cx - 42},${y + 60} ${cx - 44},${y + 46} C${cx - 26},${y + 54} ${cx - 16},${y + 64} ${cx - 10},${y + 78} Z" fill="#7a2bc4" stroke="${INK}" stroke-width="2.2" stroke-linejoin="round"/>`
+        + `<path d="M${cx - 12},${y + 86} C${cx - 10},${y + 64} ${cx - 4},${y + 46} ${cx},${y + 32} C${cx + 4},${y + 46} ${cx + 10},${y + 64} ${cx + 12},${y + 86} Z" fill="${RED}" stroke="${INK}" stroke-width="2.2" stroke-linejoin="round"/>`
+        + `<path d="M${cx + 30},${y + 94} C${cx + 36},${y + 72} ${cx + 42},${y + 60} ${cx + 44},${y + 46} C${cx + 26},${y + 54} ${cx + 16},${y + 64} ${cx + 10},${y + 78} Z" fill="#1c4fd6" stroke="${INK}" stroke-width="2.2" stroke-linejoin="round"/>`
+        + `<path d="M${cx - 30},${y + 96} Q${cx},${y + 84} ${cx + 30},${y + 96} L${cx + 28},${y + 101} Q${cx},${y + 90} ${cx - 28},${y + 101} Z" fill="#ffc61a" stroke="${INK}" stroke-width="2"/>`
+        + [[cx - 44, y + 46], [cx, y + 32], [cx + 44, y + 46]].map(([px, py]) => `<circle cx="${px}" cy="${py}" r="6" fill="#ffc61a" stroke="${INK}" stroke-width="2"/>`).join('');
+    const word = (gx, gy, rot) => `<g transform="rotate(${rot} ${x + w / 2} ${y + h / 2})">`
+        + [...'JOKER'].map((ch, i) => `<text x="${gx}" y="${gy + i * 12}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="11.5" fill="${RED}">${ch}</text>`).join('')
+        + '</g>';
+    const star = `<path d="M${cx},${y + 146} l4,9 10,1 -7.5,7 2,10 -8.5,-5 -8.5,5 2,-10 -7.5,-7 10,-1 Z" fill="#ffc61a" stroke="${INK}" stroke-width="1.6" stroke-linejoin="round"/>`;
+    return card(cap + face + star + word(x + 11, y + 20, 0) + word(x + 11, y + 20, 180), null);
+}
+
+/** Tile N is option N, in the order the set was asked for. */
+const CARDS = { red: joker, blue: aceOfSpades, yellow: queenOfHearts, black: eightOfDiamonds, purple: twoOfClubs };
+
+
 /* ====================================================================== */
 
 const out = {};
 for (const [key, spec] of Object.entries(CATAN)) out[`catan/${key}.svg`] = catanTile(spec);
 for (const [key, draw] of Object.entries(CIRCUIT)) out[`circuit/${key}.svg`] = draw();
+for (const [key, draw] of Object.entries(CARDS)) out[`cards/${key}.svg`] = draw();
 
 const check = process.argv.includes('--check');
 let stale = 0;

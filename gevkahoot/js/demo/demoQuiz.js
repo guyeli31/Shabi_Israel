@@ -53,7 +53,7 @@ export const DEMO_ITEMS = [
     // element brings its own bouncing picture (a sun instead of the quiz's ball).
     item({ id: 'demo-q2', kind: 'question', title: 'אילו צורות מופיעות בתמונה? 👀',
         options: ['🔺 משולש', '🟥 ריבוע', '⚪ עיגול', '⭐ כוכב'], correct: [0, 2], weight: 1, time_limit_s: 20,
-        image: 'media/images/demo-shapes.svg', anim_sprite: 'media/sprites/demo-sun.svg' }),
+        image: 'media/images/demo-shapes.svg', anim_sprite: 'media/sprites/demo-sun.svg', marks: 'cards' }),
 
     // An interlude BEFORE a question: a video above the text.
     item({ id: 'demo-i2', kind: 'interlude', title: '🎬 צפו היטב', body: 'השאלה הבאה היא על הסרטון.',
@@ -111,7 +111,7 @@ export const DEMO_ITEMS = [
     // The puzzle: five pieces of the picture, dragged into place. `circle` is
     // the round detail (the sun) that bounces around once it is revealed.
     item({ id: 'demo-p1', kind: 'puzzle', title: '🧩 הרכיבו את התמונה', correct: [0], weight: 1, time_limit_s: 40,
-        image: 'media/images/demo-puzzle.svg', circle: { x: 0.79, y: 0.24, r: 0.2 } }),
+        image: 'media/images/demo-puzzle.svg', circle: { x: 0.79, y: 0.24, r: 0.2, speed: 4 } }),
 
     // The double-points finale, its picture as the whole background.
     item({ id: 'demo-q5', kind: 'question', title: '🏁 שאלת הסיום: אילו מהמספרים זוגיים?',

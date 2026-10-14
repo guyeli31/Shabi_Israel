@@ -102,11 +102,14 @@ alter table public.gk_items
 -- ordinary question with a single correct option.
 --   circle_*  the host's pick of a round detail of the picture (centre and
 --             radius, as fractions of the picture's width / height / shorter
---             side). After the reveal that cut-out bounces around the screen.
+--             side). At the reveal the rest of the picture fades away and that
+--             one detail, at its own size, bounces around the screen.
+--   circle_speed  how fast it bounces, 1-10 (the scale of the quiz's anim_speed)
 alter table public.gk_items
     add column if not exists circle_x real,
     add column if not exists circle_y real,
-    add column if not exists circle_r real;
+    add column if not exists circle_r real,
+    add column if not exists circle_speed smallint not null default 4;
 
 -- "Spot it": a picture with rectangles the host drew on it (around faces,
 -- say). The rectangles ARE the answers — a player taps one and confirms — so
@@ -218,7 +221,7 @@ alter table public.gk_items add constraint gk_items_explain_shape
     check ((kind = 'explain') = (parent_id is not null));
 
 -- The set of marks on a question's (or a ranking's) tiles: the team crests,
--- Catan terrain tiles or electronic parts — files in assets/<set>/<colour>.svg
+-- Catan terrain tiles, electronic parts or playing cards — files in assets/<set>/<colour>.svg
 -- (js/ui/teams.js) — or 'emoji', where the author picks one per answer in
 -- `symbols`. An emoji in `symbols` wins whatever the set, which is also how a
 -- question saved before this column existed still shows its emojis.
@@ -226,7 +229,7 @@ alter table public.gk_items
     add column if not exists marks text not null default 'teams';
 alter table public.gk_items drop constraint if exists gk_items_marks_check;
 alter table public.gk_items add constraint gk_items_marks_check
-    check (marks in ('teams', 'emoji', 'catan', 'circuit'));
+    check (marks in ('teams', 'emoji', 'catan', 'circuit', 'cards'));
 
 alter table public.gk_items drop constraint if exists gk_items_symbols_shape;
 alter table public.gk_items add constraint gk_items_symbols_shape check (
@@ -251,6 +254,7 @@ alter table public.gk_items add constraint gk_items_puzzle_shape check (
     and (circle_x is null or circle_x between 0 and 1)
     and (circle_y is null or circle_y between 0 and 1)
     and (circle_r is null or circle_r between 0.03 and 0.5)
+    and circle_speed between 1 and 10
 );
 
 do $$
@@ -802,7 +806,7 @@ begin
         d := d || jsonb_build_object(
           -- the puzzle's bouncing detail is part of the reveal, not before it
           'circle', case when it.kind = 'puzzle' and it.circle_r is not null
-                         then jsonb_build_object('x', it.circle_x, 'y', it.circle_y, 'r', it.circle_r) end,
+                         then jsonb_build_object('x', it.circle_x, 'y', it.circle_y, 'r', it.circle_r, 'speed', it.circle_speed) end,
           'correct', to_jsonb(it.correct),
           'counts', (select jsonb_agg((select count(*) from public.gk_answers a
                                         where a.session_id = s.id and a.item_id = it.id and not a.voided

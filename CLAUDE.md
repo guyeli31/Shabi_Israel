@@ -139,9 +139,13 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   `js/host/puzzle.js` cuts any media picture into five pieces with CSS
   (background + clip-path, no image processing), snaps a piece dropped near its
   place exactly into it, and offers "סיימתי" only when all five are home. At the
-  reveal the picture is shown whole and the round detail the host chose
-  (`circle_x/y/r`, picked on the picture in the editor) takes over the bouncing
-  animation — it is published only then.
+  reveal the picture is shown whole, then everything but the round detail the
+  host chose (`circle_x/y/r`, picked on the picture in the editor) fades away,
+  and that detail — ONE copy, at exactly the size it had in the picture, at the
+  puzzle's own `circle_speed` 1-10 — lifts off and bounces from where it sat
+  (`startLift()` in `js/host/stage.js`: a still copy over the picture while it
+  fades, then the bouncing layer takes over in the same place and size). It is
+  published only at the reveal.
   **"Done" is the one answer taken on trust**: only the browser knows where the
   pieces are. What the server enforces is a two-second floor (`too_fast`), so a
   script cannot claim full marks the instant the puzzle opens; a determined
@@ -178,12 +182,14 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   answer" holds either way.
 - **A question (and a ranking) picks a mark set** (`gk_items.marks`): `teams`
   (default), `emoji` (the per-answer `symbols` above), `catan` (terrain hexes
-  with the resource's picture) or `circuit` (resistor, inductor, capacitor,
-  battery, diode). An image set is `assets/<set>/<colour>.svg` — five files
+  with the resource's picture), `circuit` (resistor, inductor, capacitor,
+  battery, diode) or `cards` (joker, ace of spades, queen of hearts, eight of
+  diamonds, two of clubs — suits drawn as paths, not font glyphs, which look
+  different on every phone). An image set is `assets/<set>/<colour>.svg` — five files
   named by TILE colour, chosen for contrast (never a picture on a tile of its
   own colour); `crest()` in `js/ui/teams.js` is the one place that resolves it.
   An emoji in `symbols` wins whatever the set, so rows saved before the column
-  still show theirs. The catan/circuit SVGs are drawn from scratch by
+  still show theirs. The catan/circuit/cards SVGs are drawn from scratch by
   `node scripts/gevkahoot-marks.mjs` (`--check` gates them) — **generated,
   never hand-edit**; their lift off the tile is the shared `.gk-crest img`
   filter, not baked into the files. A new set = a draw function there, a

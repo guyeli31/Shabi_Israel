@@ -60,6 +60,60 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
     music.volume = 0.35;
     const bouncers = createBouncers(root);
 
+    // ---- the puzzle's reveal: its round detail lifts off the picture --------
+    // The picture appears whole; then all of it but the host's round detail
+    // fades away, and that detail — at exactly the size it had in the picture —
+    // sets off bouncing from where it sat. One copy, at the puzzle's own speed.
+    let lift = null;        // { key, timers, ghost } — the run in progress
+    function stopLift() {
+        if (!lift) return;
+        lift.timers.forEach(clearTimeout);
+        lift.ghost?.remove();
+        lift = null;
+    }
+    /** Where the picture's pixels actually are inside its (object-fit:
+     *  contain) element. */
+    function contentBox(img) {
+        const b = img.getBoundingClientRect();
+        if (!img.naturalWidth || !img.naturalHeight) return b;
+        const k = Math.min(b.width / img.naturalWidth, b.height / img.naturalHeight);
+        const w = img.naturalWidth * k, hgt = img.naturalHeight * k;
+        return { left: b.left + (b.width - w) / 2, top: b.top + (b.height - hgt) / 2, width: w, height: hgt };
+    }
+    function startLift(key, image, circle) {
+        stopLift();
+        bouncers.update(null);
+        const run = lift = { key, timers: [], ghost: null };
+        const later = (ms, fn) => run.timers.push(setTimeout(() => { if (lift === run) fn(); }, ms));
+        circleCutout(image, circle).then((src) => {
+            if (lift !== run || !src) return;
+            // Once the picture's own entrance (.6s) has settled and been seen.
+            later(1200, () => {
+                const pic = main.querySelector('.st-puzzle-reveal .st-media-el');
+                if (!pic) return;
+                const box = contentBox(pic);
+                const at = root.getBoundingClientRect();
+                const r = circle.r * Math.min(box.width, box.height);
+                const cx = box.left + circle.x * box.width - at.left;
+                const cy = box.top + circle.y * box.height - at.top;
+                // A still copy laid exactly over the detail, so that what stays
+                // behind while the picture fades is the picture's own piece.
+                run.ghost = h('img', { class: 'st-lift', src, alt: '', draggable: 'false',
+                    style: { width: `${2 * r}px`, height: `${2 * r}px`, transform: `translate3d(${cx - r}px, ${cy - r}px, 0)` } });
+                root.append(run.ghost);
+                pic.dataset.fade = '';
+                // Faded: hand the detail to the bouncing layer, same size and
+                // same place, and drop the still copy in the same frame.
+                later(1600, () => {
+                    const W = root.clientWidth, H = root.clientHeight;
+                    bouncers.update({ src, count: 1, size: (2 * r) / Math.min(W, H) * 100,
+                        speed: circle.speed || 4, front: true, start: { x: cx / W, y: cy / H } });
+                    requestAnimationFrame(() => { run.ghost?.remove(); run.ghost = null; });
+                });
+            });
+        });
+    }
+
     let state = null;
     let me = null;          // gk_me() for this device, in the player role
     let refs = {};          // elements the current phase wants sync() to update
@@ -571,15 +625,14 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         // except an item that opted out — the same rule as the music.
         const circle = state.phase === 'reveal' && item?.kind === 'puzzle' && state.data.circle && safeMedia(item.image);
         if (circle) {
-            // The puzzle's reveal: the round detail the host picked from the
-            // picture takes over the animation, in front, while it is on screen.
-            const shownRev = state.rev;
-            circleCutout(circle, state.data.circle).then((src) => {
-                if (src && state.rev === shownRev && state.phase === 'reveal') {
-                    bouncers.update({ src, count: 7, size: 17, speed: 5, front: true });
-                }
-            });
+            // The puzzle's reveal: the round detail the host picked lifts off
+            // the picture and bounces, in front, while it is on screen. Started
+            // once per reveal — a new answer count re-renders, it must not restart.
+            const c = state.data.circle;
+            const key = `${item.id}|${c.x}|${c.y}|${c.r}|${c.speed}`;
+            if (lift?.key !== key) startLift(key, circle, c);
         } else {
+            stopLift();
             // No drifting pictures over an open puzzle (the player is dragging
             // pieces around the same screen) or an open "complete the picture"
             // or slider (both judged by eye, to a few pixels).

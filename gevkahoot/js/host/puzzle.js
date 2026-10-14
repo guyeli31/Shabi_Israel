@@ -277,16 +277,15 @@ export function circleCutout(image, circle) {
             img.onload = () => {
                 const w = img.naturalWidth || 800, hgt = img.naturalHeight || 600;
                 const r = circle.r * Math.min(w, hgt);
-                const size = 320;
+                // Exactly the round piece of the picture — no frame — since it
+                // is first seen sitting in the picture, where it came from.
+                const size = Math.round(Math.min(640, Math.max(240, r * 2)));
                 const canvas = h('canvas', { width: String(size), height: String(size) });
                 const ctx = canvas.getContext('2d');
                 ctx.beginPath();
-                ctx.arc(size / 2, size / 2, size / 2 - 6, 0, Math.PI * 2);
-                ctx.save();
+                ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
                 ctx.clip();
                 ctx.drawImage(img, circle.x * w - r, circle.y * hgt - r, r * 2, r * 2, 0, 0, size, size);
-                ctx.restore();
-                ctx.lineWidth = 10; ctx.strokeStyle = '#fff'; ctx.stroke();
                 canvas.toBlob((blob) => resolve(blob ? URL.createObjectURL(blob) : null), 'image/png');
             };
             img.onerror = () => resolve(null);

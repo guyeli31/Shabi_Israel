@@ -161,7 +161,7 @@ export function mock(view, quiz, selected, items) {
     const values = isSlider ? [610, 700, 760, 820, 850, 880, 905, 930, 960, 1000] : undefined;
     // Editor rows carry circle_x/y/r columns; the demo quiz carries `circle`.
     const circle = !isPuzzle ? null : question.circle
-        || (question.circle_r ? { x: question.circle_x, y: question.circle_y, r: question.circle_r } : null);
+        || (question.circle_r ? { x: question.circle_x, y: question.circle_y, r: question.circle_r, speed: question.circle_speed ?? 4 } : null);
     const answered = isSlider ? values.length : isRank ? 11 : counts.reduce((a, b) => a + b, 0);
     const revealData = { ...base.data, item: publicItem(question, items), starts_at: now - 20000, deadline: now - 1000,
         correct: isPuzzle ? [0] : question.correct, circle, counts, values, answered, right: isRank ? 4 : undefined,

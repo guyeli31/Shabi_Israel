@@ -70,6 +70,7 @@ export function itemForm(item, { manifest, onSave }) {
         marks: item.marks && item.marks !== 'teams' ? item.marks
             : isQuestion && (item.symbols || []).some(Boolean) ? 'emoji' : 'teams',
         circle_x: item.circle_x ?? null, circle_y: item.circle_y ?? null, circle_r: item.circle_r ?? null,
+        circle_speed: item.circle_speed ?? 4,
         title: item.title, body: item.body,
         options: (item.options || []).map((o) => (o && typeof o === 'object' ? { ...o } : o)), correct: [...(item.correct || [])],
         weight: item.weight, time_limit_s: item.time_limit_s,
@@ -97,7 +98,7 @@ export function itemForm(item, { manifest, onSave }) {
                 || (isRank && rankList.some((t) => !t.trim()) && 'נשמר — יש תשובה ריקה')
                 || (isComplete && draft.image && (draft.options.length < 2 ? 'נשמר — צריך לפחות שתי אפשרויות' : draft.correct.length === 0 ? 'נשמר — סמנו איזו אפשרות נכונה' : null));
             // Each kind saves only the columns that mean something for it.
-            const { circle_x, circle_y, circle_r, regions, symbols, slot, marks, ...common } = draft;
+            const { circle_x, circle_y, circle_r, circle_speed, regions, symbols, slot, marks, ...common } = draft;
             const playback = { music_on: draft.music_on, music: draft.music, anim_on: draft.anim_on, anim_sprite: draft.anim_sprite };
             const patch = isRank
                 ? { title: draft.title, body: draft.body.trim().slice(0, 40), weight: draft.weight, time_limit_s: draft.time_limit_s,
@@ -121,7 +122,7 @@ export function itemForm(item, { manifest, onSave }) {
                     symbols: draft.options.map((_, i) => (marks === 'emoji' && draft.symbols[i]) || '') }
                 : isPuzzle
                     ? { title: draft.title, image: draft.image, weight: draft.weight, time_limit_s: draft.time_limit_s,
-                        circle_x, circle_y, circle_r, ...playback }
+                        circle_x, circle_y, circle_r, circle_speed, ...playback }
                 : { title: draft.title, body: draft.body, image: draft.image, video: draft.video, audio: draft.audio,
                     media_layout: draft.media_layout, ...playback };
             // Chain the saves: the next one starts only when this one settled.
@@ -276,14 +277,19 @@ export function itemForm(item, { manifest, onSave }) {
             place();
         });
         radius.addEventListener('change', changed);
+        // How fast the detail bounces once it is free of the picture.
+        const speed = h('input', { type: 'range', class: 'ed-range', min: '1', max: '10', step: '1',
+            value: String(draft.circle_speed), 'aria-label': 'מהירות הקפיצה',
+            onchange: (e) => set('circle_speed')(Number(e.target.value)) });
         img.addEventListener('load', place);
         new ResizeObserver(place).observe(img);
         circleBox.append(stage,
             h('div', { class: 'if-pair' },
                 h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'גודל העיגול' }), radius),
-                h('button', { class: 'gk-btn gk-btn--ghost gk-btn--small', type: 'button', text: 'בלי עיגול קופץ',
-                    onclick: () => { draft.circle_x = draft.circle_y = draft.circle_r = null; place(); changed(); } })),
-            h('p', { class: 'dr-note', text: 'לחצו על התמונה כדי לבחור איזה חלק עגול ממנה יקפוץ על המסך אחרי שכולם סיימו.' }));
+                h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'מהירות הקפיצה' }), speed)),
+            h('button', { class: 'gk-btn gk-btn--ghost gk-btn--small', type: 'button', text: 'בלי עיגול קופץ',
+                onclick: () => { draft.circle_x = draft.circle_y = draft.circle_r = null; place(); changed(); } }),
+            h('p', { class: 'dr-note', text: 'לחצו על התמונה כדי לבחור איזה חלק עגול ממנה יקפוץ על המסך אחרי שכולם סיימו: שאר התמונה נמוג, והעיגול — בגודלו המקורי — משתחרר וקופץ.' }));
     }
     if (isPuzzle) drawCircle();
 

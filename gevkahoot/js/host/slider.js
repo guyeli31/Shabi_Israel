@@ -47,9 +47,14 @@ export function createSlider({ image, slot, piece, symbol, interactive, onMove }
     const rider = symbol ? h('span', { class: 'sl-rider', 'aria-hidden': 'true', text: symbol }) : null;
     const marks = h('div', { class: 'sl-marks', 'aria-hidden': 'true' });
     const track = h('div', { class: 'sl-track', dir: 'ltr' }, marks, input, rider);
+    // − / + step by 1% — the precise way to the very ends, where a finger or a
+    // touchpad easily stops a few pixels short.
+    const endBtn = (text, step, label) => h(interactive ? 'button' : 'span', {
+        class: `sl-end${step > 0 ? ' sl-end--big' : ''}`, type: interactive ? 'button' : null, text,
+        'aria-label': interactive ? label : null, 'aria-hidden': interactive ? null : 'true',
+        onclick: interactive ? () => moveTo(Number(input.value) + step) : null });
     const control = h('div', { class: 'sl-control', dir: 'ltr' },
-        h('span', { class: 'sl-end', 'aria-hidden': 'true', text: '−' }), track,
-        h('span', { class: 'sl-end sl-end--big', 'aria-hidden': 'true', text: '+' }));
+        endBtn('−', -10, 'קטן יותר'), track, endBtn('+', 10, 'גדול יותר'));
     const summary = h('p', { class: 'sl-summary', hidden: true });
     const root = h('div', { class: 'cp sl', dataset: interactive ? { live: '' } : {} }, box, control, summary);
 
@@ -75,12 +80,41 @@ export function createSlider({ image, slot, piece, symbol, interactive, onMove }
     }
     set(SLIDER.start);
 
-    input.addEventListener('input', () => {
+    /** The player moved it (any way): clamp, draw, report. */
+    function moveTo(v) {
         if (locked) return;
+        const next = Math.max(0, Math.min(SLIDER.max, Math.round(v)));
         moved = true;
-        set(Number(input.value));
-        onMove?.(Number(input.value));
-    });
+        set(next);
+        onMove?.(next);
+    }
+    // The keyboard (arrows, Home, End) still goes through the native input.
+    input.addEventListener('input', () => moveTo(Number(input.value)));
+
+    // Dragging is handled on the whole track rather than by the native
+    // handle: the press may land anywhere on it — on the emoji riding the
+    // handle (drawn larger than the input's own strip), above or below it —
+    // and the pointer may run past either end, which then clamps to exactly
+    // 0% or 100%. The handle's centre maps to the value, as the native one does.
+    if (interactive) {
+        const valueAt = (clientX) => {
+            const r = track.getBoundingClientRect();
+            const t = input.offsetHeight;   // the handle's width (it is round)
+            return ((clientX - r.left - t / 2) / Math.max(1, r.width - t)) * SLIDER.max;
+        };
+        track.addEventListener('pointerdown', (e) => {
+            if (locked || e.button > 0) return;
+            e.preventDefault();
+            track.setPointerCapture(e.pointerId);
+            track.dataset.dragging = '';
+            input.focus({ preventScroll: true });
+            moveTo(valueAt(e.clientX));
+        });
+        track.addEventListener('pointermove', (e) => { if ('dragging' in track.dataset) moveTo(valueAt(e.clientX)); });
+        const end = () => { delete track.dataset.dragging; };
+        track.addEventListener('pointerup', end);
+        track.addEventListener('pointercancel', end);
+    }
 
     function layout() {
         const W = box.clientWidth, H = box.clientHeight;
@@ -109,6 +143,7 @@ export function createSlider({ image, slot, piece, symbol, interactive, onMove }
         lock(picked) {
             locked = true;
             input.disabled = true;
+            for (const b of control.querySelectorAll('button')) b.disabled = true;
             root.toggleAttribute('data-locked', true);
             if (picked !== null && picked !== undefined && Number(input.value) !== picked) set(picked);
         },
@@ -125,6 +160,7 @@ export function createSlider({ image, slot, piece, symbol, interactive, onMove }
         reveal({ values = [], picked = null }) {
             locked = true;
             input.disabled = true;
+            for (const b of control.querySelectorAll('button')) b.disabled = true;
             root.toggleAttribute('data-revealed', true);
             set(SLIDER.target);
             for (const v of values) mark(v, sliderCorrect(v) ? 'good' : 'room');

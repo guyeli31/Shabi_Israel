@@ -218,6 +218,11 @@
 .st-puzzle-icon { font-size: 6em; line-height: 1; animation: st-puzzle-in .9s var(--ease-pop) both, gk-bob 1.6s ease-in-out .9s infinite; }
 @keyframes st-puzzle-in { from { opacity: 0; transform: scale(.2) rotate(-140deg); } to { opacity: 1; transform: none; } }
 .st-puzzle-reveal .st-media-el { animation: gk-pop .6s var(--ease-pop) both; }
+/* The round detail lifting off it (stage.js startLift): the picture fades out
+   around a still copy of the detail, which the bouncing layer then takes over
+   at the same size and place — so the copy wears the same shadow as a sprite. */
+.st-puzzle-reveal .st-media-el[data-fade] { animation: none; opacity: 0; box-shadow: none; transition: opacity 1.4s ease, box-shadow 1.4s ease; }
+.st-lift { position: absolute; top: 0; left: 0; z-index: 6; pointer-events: none; user-select: none; filter: drop-shadow(0 .25em .5em rgba(0, 0, 0, .3)); }
 
 .st[data-compact] .st-puzzle-head .st-question { font-size: 1.25em; }
 .st[data-compact] .st-puzzle-icon { font-size: 4.2em; }
@@ -330,6 +335,14 @@ button.cp-opt:not(:disabled):active { transform: scale(.95); }
 .sl-control { flex: none; display: flex; align-items: center; gap: .6em; padding: 0 .4em; width: 100%; max-width: 48em; margin: 0 auto; }
 .sl-end { flex: none; width: 1.7em; height: 1.7em; border-radius: 50%; display: grid; place-items: center; font-weight: 900; font-size: 1em; background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 2px var(--line); }
 .sl-end--big { font-size: 1.4em; }
+button.sl-end { border: 0; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: transform .1s ease; }
+button.sl-end:not(:disabled):active { transform: scale(.9); }
+button.sl-end:disabled { cursor: default; opacity: .5; }
+/* The track takes the drag itself (js/host/slider.js); the native input stays
+   for the keyboard and for screen readers, but does not take the pointer. */
+.sl[data-live] .sl-track { cursor: pointer; touch-action: none; }
+.sl[data-live] .sl-track[data-dragging] { cursor: grabbing; }
+.sl[data-live] .sl-input { pointer-events: none; }
 .sl-track { --sl-thumb: 2.2em; position: relative; flex: 1; min-width: 0; height: 3.4em; display: flex; align-items: center; }
 .sl-input { -webkit-appearance: none; appearance: none; width: 100%; height: var(--sl-thumb); margin: 0; background: transparent; cursor: pointer; touch-action: none; position: relative; z-index: 1; }
 .sl-input:disabled { cursor: default; }
