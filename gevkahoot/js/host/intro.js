@@ -50,10 +50,33 @@ function completeDemo() {
         pill('הזן תשובה'), hand());
 }
 
+/** Drag the handle — too small, too big, just right — and only then submit. */
+function sliderDemo() {
+    return h('div', { class: 'dm dm-slider', 'aria-hidden': 'true' },
+        h('div', { class: 'dm-frame dm-scene' }, h('span', { class: 'dm-target' }), h('span', { class: 'dm-obj' })),
+        h('span', { class: 'dm-rail' }), h('span', { class: 'dm-knob' }),
+        pill('הזן תשובה'), hand());
+}
+
+/** Drag the bottom card to the top — the others make room — then submit. */
+function rankDemo() {
+    return h('div', { class: 'dm dm-rank', 'aria-hidden': 'true' },
+        h('span', { class: 'dm-word', text: '⬆ הכי' }),
+        h('span', { class: 'dm-card', dataset: { c: '1' } }),
+        h('span', { class: 'dm-card', dataset: { c: '2' } }),
+        h('span', { class: 'dm-card', dataset: { c: '3' } }),
+        pill('הזן תשובה'), hand());
+}
+
 const INTROS = {
     puzzle: { icon: '🧩', name: 'פאזל', demo: puzzleDemo, steps: ['גוררים כל חלק למקומו', 'לוחצים ״סיימתי״'] },
     spot: { icon: '🔎', name: 'זיהוי בתמונה', demo: spotDemo, steps: ['מקישים על האזור הנכון', 'לוחצים ״הזן תשובה״'] },
     complete: { icon: '🖼️', name: 'השלמת תמונה', demo: completeDemo, steps: ['מנסים את האפשרויות על התמונה', 'לוחצים ״הזן תשובה״'] },
+    rank: { icon: '🔢', name: 'דירוג', demo: rankDemo, steps: ['גוררים את התשובות לפי הסדר', 'לוחצים ״הזן תשובה״'],
+        note: 'רק הסדר המדויק מזכה, ומי שמהיר יותר מרוויח יותר' },
+    // The one game that is not right-or-wrong, so the slide says how it scores.
+    slider: { icon: '🎚️', name: 'סליידר', demo: sliderDemo, steps: ['מזיזים את הסליידר עד שהעצם בגודל האמיתי', 'לוחצים ״הזן תשובה״'],
+        note: 'הניקוד: נקודות המהירות × (1 − סטיית יחס השטחים)' },
 };
 
 export const hasIntro = (kind) => kind in INTROS;
@@ -68,5 +91,5 @@ export function introSlide(item, { host }) {
         def.demo(),
         h('ol', { class: 'st-steps' }, def.steps.map((text, i) => h('li', null,
             h('span', { class: 'st-step-n', text: String(i + 1) }), h('span', { text })))),
-        h('p', { class: 'st-intro-note', text: host ? 'מי שמהיר יותר מרוויח יותר · ״הבא״ מתחיל את השאלה' : 'מי שמהיר יותר מרוויח יותר · מיד מתחילים' }));
+        h('p', { class: 'st-intro-note', text: `${def.note || 'מי שמהיר יותר מרוויח יותר'} · ${host ? '״הבא״ מתחיל את השאלה' : 'מיד מתחילים'}` }));
 }

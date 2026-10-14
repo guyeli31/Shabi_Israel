@@ -153,9 +153,49 @@ alter table public.gk_items
 alter table public.gk_items
     add column if not exists slot jsonb;
 
+-- The slider: the same cut-out-from-a-picture as "complete the picture", but
+-- ONE piece, always drawn at the object's own place, whose SIZE the player
+-- sets with a slider. The answer is the slider's position, 0-1000, stored in
+-- option_idx; the area grows linearly with it, from a third of the real area
+-- at 0 to exactly the real area at 900 (see _gk_slider_dev). `correct` is
+-- therefore always '{900}' — it is the target position, not an option index.
+--   image    the picture WITH THE GAP     slot     where the object was
+--   options  [{image, scale: 1}] — the one cut-out (none yet = not cut)
+--   symbols  [emoji] — optional: an emoji riding on the slider's handle, which
+--            grows and shrinks in the same ratio as the object
+-- The ranking question: all the options at once, to be dragged into order by
+-- a keyword the host chose (`body`: "מוקדם", "גדול" — most at the top). The
+-- answer is the whole order, packed into option_idx (see _gk_rank_order), and
+-- `correct` is the right order: option indexes from the top place down. The
+-- options are STORED scrambled by the editor (scrambleRank in js/scoring.js),
+-- because the stored order is the order a player first sees.
 alter table public.gk_items drop constraint if exists gk_items_kind_check;
 alter table public.gk_items add constraint gk_items_kind_check
-    check (kind in ('question', 'interlude', 'puzzle', 'spot', 'explain', 'complete'));
+    check (kind in ('question', 'interlude', 'puzzle', 'spot', 'explain', 'complete', 'slider', 'rank'));
+
+-- 2-5 options, and `correct` a full order of them: as long as the list, and
+-- containing every index (equal length + all present = no repeats).
+alter table public.gk_items drop constraint if exists gk_items_rank_shape;
+alter table public.gk_items add constraint gk_items_rank_shape check (
+    kind <> 'rank' or (
+        jsonb_typeof(options) = 'array'
+        and jsonb_array_length(options) between 2 and 5
+        and cardinality(correct) = jsonb_array_length(options)
+        and correct @> (array[0, 1, 2, 3, 4])[1:jsonb_array_length(options)]
+        and char_length(body) <= 40
+    )
+);
+
+alter table public.gk_items drop constraint if exists gk_items_slider_shape;
+alter table public.gk_items add constraint gk_items_slider_shape check (
+    kind <> 'slider' or (
+        jsonb_typeof(options) = 'array'
+        and jsonb_array_length(options) <= 1
+        and correct = '{900}'
+        and not jsonb_path_exists(options,
+              '$[*] ? (!(@.image like_regex "^media/sprites/[^./\\\\?#%:*<>|][^/\\\\?#%:*<>|]*$"))')
+    )
+);
 
 -- Up to five candidates, `correct` naming only ones that exist, and every
 -- candidate's image a file in media/sprites/ — the same "a path is only ever a
@@ -475,6 +515,51 @@ returns integer language sql immutable as $$
               else 0 end;
 $$;
 
+-- The slider's deviation: (area chosen / real area) − 1, signed. Position v
+-- (0-1000) gives area 1/3 + 2/3 × v/900, so the deviation is (v − 900)/1350.
+-- Mirrored by sliderDeviation() in js/scoring.js.
+create or replace function public._gk_slider_dev(p_value int)
+returns numeric language sql immutable as $$
+  select (p_value - 900)::numeric / 1350;
+$$;
+
+-- A ranking answer's code → the order it stands for (option indexes, top
+-- first), or NULL if it is not a full order of p_n options. The code is the
+-- order's base-5 digits, the top place in the lowest. Mirrored by
+-- decodeRank() in js/scoring.js.
+create or replace function public._gk_rank_order(p_code int, p_n int)
+returns int[] language sql immutable as $$
+  with d as (select array_agg((p_code / (5 ^ i)::int) % 5 order by i) as o
+               from generate_series(0, p_n - 1) as g(i))
+  select case when p_code >= 0 and p_code < (5 ^ p_n)::int
+               and (select count(distinct x) from unnest(d.o) x where x < p_n) = p_n
+              then d.o end
+    from d;
+$$;
+
+-- What one answer is worth — the one place the kinds differ in scoring, used
+-- by gk_answer and by the re-score after a live edit.
+--   every kind but the slider: right or wrong, and time-based points if right;
+--   the slider: time-based points scaled by accuracy, 1 − |dev| — the
+--     deviation as a fraction of the real area, so a 100% deviation would score
+--     nothing (the slider cannot get there: its worst is −67%) — and "correct"
+--     (fastest five, the tie-break) within 5% of the real area.
+create or replace function public._gk_score(p_kind text, p_correct int[], p_option int, p_weight int, p_ms int, p_limit_s int,
+                                            out is_correct boolean, out points int)
+language sql immutable as $$
+  select case when p_kind = 'slider' then abs(public._gk_slider_dev(p_option)) <= 0.05
+              -- the ranking: only the exact order
+              when p_kind = 'rank' then public._gk_rank_order(p_option, cardinality(p_correct)) = p_correct
+              else p_option = any (p_correct) end,
+         case when p_kind = 'slider'
+              then round(public._gk_points(true, p_weight, p_ms, p_limit_s)
+                         * greatest(0, 1 - abs(public._gk_slider_dev(p_option))))::int
+              when p_kind = 'rank'
+              then public._gk_points(coalesce(public._gk_rank_order(p_option, cardinality(p_correct)) = p_correct, false),
+                                     p_weight, p_ms, p_limit_s)
+              else public._gk_points(p_option = any (p_correct), p_weight, p_ms, p_limit_s) end;
+$$;
+
 -- The table. `p_exclude` is the question whose effect is being animated: every
 -- row carries its rank with and without that question, so the client can slide
 -- each row from where it was to where it is.
@@ -510,12 +595,14 @@ returns jsonb language sql stable security definer set search_path = public, pg_
     from r;
 $$;
 
--- Players × questions. A cell is null (no answer) or [is_correct, ms].
+-- Players × questions. A cell is null (no answer) or [is_correct, ms, points,
+-- deviation] — the deviation only for a slider (null otherwise): its cell is
+-- coloured on a red-green scale by it rather than right/wrong.
 create or replace function public._gk_matrix(p_session uuid)
 returns jsonb language sql stable security definer set search_path = public, pg_catalog as $$
   with s as (select quiz_id from public.gk_sessions where id = p_session),
   qs as (
-    select o.idx, i.id, i.title, i.weight,
+    select o.idx, i.id, i.title, i.weight, i.kind,
            (row_number() over (order by o.idx))::int as no
       from s, public._gk_ordered(s.quiz_id) o
       join public.gk_items i on i.id = o.item_id
@@ -529,7 +616,9 @@ returns jsonb language sql stable security definer set search_path = public, pg_
   cells as (
     select p.name,
            jsonb_agg(case when a.id is null then 'null'::jsonb
-                          else jsonb_build_array(a.is_correct, a.answered_ms) end order by qs.idx) as cells
+                          else jsonb_build_array(a.is_correct, a.answered_ms, a.points,
+                                                 case when qs.kind = 'slider' then round(public._gk_slider_dev(a.option_idx), 4) end)
+                     end order by qs.idx) as cells
       from public.gk_players p
       cross join qs
       left join public.gk_answers a
@@ -538,7 +627,7 @@ returns jsonb language sql stable security definer set search_path = public, pg_
      group by p.id, p.name
   )
   select jsonb_build_object(
-    'questions', coalesce((select jsonb_agg(jsonb_build_object('no', no, 'title', title, 'weight', weight) order by idx) from qs), '[]'::jsonb),
+    'questions', coalesce((select jsonb_agg(jsonb_build_object('no', no, 'title', title, 'weight', weight, 'kind', kind) order by idx) from qs), '[]'::jsonb),
     'rows',      coalesce((select jsonb_agg(jsonb_build_object('name', lb.name, 'points', lb.points, 'rank', lb.rank,
                                                                'cells', coalesce(c.cells, '[]'::jsonb)) order by lb.rank)
                              from lb left join cells c on c.name = lb.name), '[]'::jsonb)
@@ -608,8 +697,8 @@ begin
                           when 'spot' then jsonb_array_length(it.regions) else 0 end;
       d := d || jsonb_build_object('item', jsonb_build_object(
         'id', it.id, 'kind', it.kind, 'title', it.title, 'body', it.body,
-        'options', case when it.kind in ('question', 'complete') then it.options else '[]'::jsonb end,
-        'slot', case when it.kind = 'complete' then it.slot end,
+        'options', case when it.kind in ('question', 'complete', 'slider', 'rank') then it.options else '[]'::jsonb end,
+        'slot', case when it.kind in ('complete', 'slider') then it.slot end,
         'weight', it.weight, 'time_limit', it.time_limit_s,
         'image', it.image, 'video', it.video, 'audio', it.audio,
         'layout', it.media_layout, 'music_on', it.music_on, 'anim_on', it.anim_on,
@@ -634,6 +723,16 @@ begin
                        from generate_series(0, v_n - 1) as g(i)),
           'answered', (select count(*) from public.gk_answers a
                         where a.session_id = s.id and a.item_id = it.id and not a.voided),
+          -- The slider has positions, not options (its v_n is 0, so no counts):
+          -- instead, every position chosen, anonymous and sorted, so the
+          -- reveal can draw how the room spread around the target.
+          -- the ranking has no per-option counts either: how many got it exact
+          'right', case when it.kind = 'rank' then
+                      (select count(*) from public.gk_answers a
+                        where a.session_id = s.id and a.item_id = it.id and not a.voided and a.is_correct) end,
+          'values', case when it.kind = 'slider' then
+                      coalesce((select jsonb_agg(a.option_idx order by a.option_idx) from public.gk_answers a
+                                 where a.session_id = s.id and a.item_id = it.id and not a.voided), '[]'::jsonb) end,
           'fastest', coalesce((select jsonb_agg(jsonb_build_object('name', f.name, 'ms', f.answered_ms, 'points', f.points)
                                                 order by f.answered_ms, f.id)
                                  from (select p.name, a.answered_ms, a.points, a.id
@@ -719,11 +818,11 @@ begin
    where a.session_id = s.id and not a.voided
      and a.item_id in (select o.item_id from public._gk_ordered(s.quiz_id) o where o.idx >= p_index);
 
-  -- The picture games (puzzle, spot it, complete the picture) are not
+  -- The picture games (puzzle, spot it, complete the picture, the slider) are not
   -- self-explanatory the way four coloured answers are, so each opens on an
   -- instruction slide: phase 'intro', no clock. The question itself — and its
   -- countdown — starts only when the host presses "next" (_gk_start_question).
-  if it.kind in ('puzzle', 'spot', 'complete') then
+  if it.kind in ('puzzle', 'spot', 'complete', 'slider', 'rank') then
     update public.gk_sessions
        set status = 'running', started_at = coalesce(started_at, now()),
            cur_index = p_index, cur_item_id = it.id, revealed = false,
@@ -924,6 +1023,7 @@ declare
   v_now timestamptz := clock_timestamp();
   v_ms int;
   v_ok boolean;
+  v_pts int;
 begin
   -- The session row is the lock every answer and every host action queues on,
   -- so "is this the last answer?" below is never decided on a stale count.
@@ -942,7 +1042,11 @@ begin
   select * into it from public.gk_items where id = p_item;
   if not found or it.kind in ('interlude', 'explain') or p_option is null or p_option < 0
      or p_option >= (case it.kind when 'puzzle' then 1 when 'spot' then jsonb_array_length(it.regions)
-                                  else jsonb_array_length(it.options) end) then
+                                  when 'slider' then 1001   -- a position, 0-1000
+                                  when 'rank' then 3125     -- a packed order; checked in full below
+                                  else jsonb_array_length(it.options) end)
+     or (it.kind = 'slider' and jsonb_array_length(it.options) = 0)
+     or (it.kind = 'rank' and public._gk_rank_order(p_option, jsonb_array_length(it.options)) is null) then
     raise exception 'bad_option' using errcode = '22023';
   end if;
   -- Whether the five pieces are really in place is known only to the browser,
@@ -955,11 +1059,12 @@ begin
   end if;
 
   v_ms := least(greatest((extract(epoch from (v_now - s.q_started_at)) * 1000)::int, 0), it.time_limit_s * 1000);
-  v_ok := p_option = any (it.correct);
+  select sc.is_correct, sc.points into v_ok, v_pts
+    from public._gk_score(it.kind, it.correct, p_option, it.weight, v_ms, it.time_limit_s) sc;
 
   begin
     insert into public.gk_answers (session_id, item_id, player_id, option_idx, answered_ms, is_correct, points)
-    values (s.id, it.id, p.id, p_option, v_ms, v_ok, public._gk_points(v_ok, it.weight, v_ms, it.time_limit_s));
+    values (s.id, it.id, p.id, p_option, v_ms, v_ok, v_pts);
   exception when unique_violation then
     raise exception 'already_answered' using errcode = 'P0001';
   end;
@@ -1196,11 +1301,11 @@ begin
   perform public._gk_require_admin();
   select * into s from public.gk_sessions where status = 'running' for update;
   if not found then return; end if;
-  select * into it from public.gk_items where id = p_item and kind <> 'interlude';
+  select * into it from public.gk_items where id = p_item and kind not in ('interlude', 'explain');
   if not found then return; end if;
   update public.gk_answers a
-     set is_correct = a.option_idx = any (it.correct),
-         points = public._gk_points(a.option_idx = any (it.correct), it.weight, a.answered_ms, it.time_limit_s)
+     set (is_correct, points) = (select sc.is_correct, sc.points
+                                   from public._gk_score(it.kind, it.correct, a.option_idx, it.weight, a.answered_ms, it.time_limit_s) sc)
    where a.session_id = s.id and a.item_id = it.id and not a.voided;
   perform public._gk_publish(s.id);
 end;

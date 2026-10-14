@@ -109,6 +109,10 @@ async function addItem(kind) {
         spot: { quiz_id: quiz.id, position, kind, title: 'זהו את הדמות', regions: [], correct: [] },
         // The gap and the candidate pieces are made in the form, from a picture.
         complete: { quiz_id: quiz.id, position, kind, title: 'מה משלים את התמונה?', options: [], correct: [] },
+        // One cut-out, sized by the player; the target is always 90% (CHECK).
+        slider: { quiz_id: quiz.id, position, kind, title: 'באיזה גודל העצם באמת?', options: [], correct: [900] },
+        // Four blank answers already in "order"; the form scrambles them on save.
+        rank: { quiz_id: quiz.id, position, kind, title: 'סדרו מהמוקדם למאוחר', body: 'מוקדם', options: ['', '', '', ''], correct: [0, 1, 2, 3] },
         interlude: { quiz_id: quiz.id, position, kind, title: '', media_layout: 'full' },
     }[kind];
     const created = await api.items.create(row);
@@ -242,9 +246,11 @@ const KINDS = {
     spot: { icon: '🔎', label: 'זיהוי בתמונה' },
     puzzle: { icon: '🧩', label: 'פאזל' },
     complete: { icon: '🖼️', label: 'השלמת תמונה' },
+    slider: { icon: '🎚️', label: 'סליידר' },
+    rank: { icon: '🔢', label: 'דירוג' },
     explain: { icon: '💡', label: 'הסבר התשובה' },
 };
-const EMPTY_TITLE = { question: '(שאלה ריקה)', puzzle: '(פאזל)', complete: '(השלמת תמונה)', spot: '(זיהוי בתמונה)', explain: '(הסבר התשובה)', interlude: '(קטע מעבר)' };
+const EMPTY_TITLE = { question: '(שאלה ריקה)', puzzle: '(פאזל)', complete: '(השלמת תמונה)', slider: '(סליידר)', rank: '(דירוג)', spot: '(זיהוי בתמונה)', explain: '(הסבר התשובה)', interlude: '(קטע מעבר)' };
 
 let dragFrom = null;   // index of the row being dragged
 
@@ -301,13 +307,15 @@ function listPanel() {
             btn('🔎 זיהוי בתמונה', () => act(() => addItem('spot')), 'gk-btn--ghost'),
             btn('🧩 פאזל', () => act(() => addItem('puzzle')), 'gk-btn--ghost'),
             btn('🖼️ השלמת תמונה', () => act(() => addItem('complete')), 'gk-btn--ghost'),
+            btn('🎚️ סליידר', () => act(() => addItem('slider')), 'gk-btn--ghost'),
+            btn('🔢 דירוג', () => act(() => addItem('rank')), 'gk-btn--ghost'),
             btn('🎬 קטע מעבר', () => act(() => addItem('interlude')), 'gk-btn--ghost')));
 }
 
 function formPanel() {
     const item = selected();
     if (!item) return panel('פריט', h('p', { class: 'dr-note', text: 'הוסיפו שאלה או קטע מעבר כדי להתחיל.' }));
-    return panel({ question: 'עריכת שאלה', puzzle: 'עריכת פאזל', complete: 'עריכת שאלת השלמת תמונה', spot: 'עריכת שאלת זיהוי בתמונה', explain: 'עריכת קטע הסבר התשובה' }[item.kind] || 'עריכת קטע מעבר',
+    return panel({ question: 'עריכת שאלה', puzzle: 'עריכת פאזל', complete: 'עריכת שאלת השלמת תמונה', slider: 'עריכת שאלת סליידר', rank: 'עריכת שאלת דירוג', spot: 'עריכת שאלת זיהוי בתמונה', explain: 'עריכת קטע הסבר התשובה' }[item.kind] || 'עריכת קטע מעבר',
         itemForm(item, {
             manifest,
             onSave: async (patch) => {

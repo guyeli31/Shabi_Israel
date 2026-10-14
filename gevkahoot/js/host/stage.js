@@ -30,6 +30,8 @@ import { createBouncers } from './bouncers.js';
 import { createPuzzle, circleCutout } from './puzzle.js';
 import { createSpot } from './spot.js';
 import { createComplete } from './complete.js';
+import { createSlider } from './slider.js';
+import { createRank } from './rank.js';
 import { introSlide, hasIntro } from './intro.js';
 
 const WEIGHT_BADGE = { 0: 'חימום · בלי ניקוד', 2: 'שאלה כפולה ×2' };
@@ -277,7 +279,78 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
             h('div', { class: 'st-puzzle-foot' }, submit, refs.answered));
     }
 
+    /** The slider: one piece in the picture, sized by the player; submit
+     *  appears only once the slider has moved. */
+    function slider(item, { started, revealed }) {
+        const d = state.data;
+        const image = safeMedia(item.image);
+        const piece = safeMedia(item.options?.[0]?.image);
+        refs.answered = h('div', { class: 'st-answered' });
+        const badge = WEIGHT_BADGE[item.weight] && h('div', { class: 'st-badge', dataset: { weight: String(item.weight) }, text: WEIGHT_BADGE[item.weight] });
+        const title = item.title || 'באיזה גודל העצם באמת?';
+
+        if (!started) {
+            return h('section', { class: 'st-center st-puzzle-intro' },
+                h('div', { class: 'st-puzzle-icon', 'aria-hidden': 'true', text: '🎚️' }),
+                h('h1', { class: 'st-heading', dir: 'auto', text: title }),
+                h('div', { class: 'st-ready' }, (refs.ready = h('span', { class: 'st-ready-num' })), multiplier(item.weight)));
+        }
+        if (!image || !piece || !item.slot) {
+            return h('section', { class: 'st-center' }, h('p', { class: 'st-lead', text: 'לשאלה הזאת עוד לא נבחרה תמונה או לא נחתך ממנה עצם' }));
+        }
+        const live = role === 'player' && !revealed;
+        const submit = live && h('button', { class: 'gk-btn st-puzzle-done', type: 'button', hidden: true, text: 'הזן תשובה',
+            onclick: () => { if (refs.spot.selected !== null) onAnswer?.(item.id, refs.spot.selected); } });
+        refs.done = submit;
+        // Under refs.spot, like "complete the picture": the same lock /
+        // markPicked / selected contract, so sync() treats them alike.
+        refs.spot = createSlider({ image, slot: item.slot, piece, symbol: item.symbols?.[0] || null, interactive: live,
+            onMove: () => { if (submit) submit.hidden = false; } });
+        if (revealed) {
+            const mine = me && me.item_id === item.id && me.option !== null && me.option !== undefined ? me.option : null;
+            refs.spot.reveal({ values: d.values || [], picked: mine });
+        }
+        return h('section', { class: 'st-puzzle st-complete st-slider' },
+            h('div', { class: 'st-puzzle-head' }, badge, h('h1', { class: 'st-question', dir: 'auto', text: title })),
+            refs.spot.el,
+            h('div', { class: 'st-puzzle-foot' }, submit, refs.answered));
+    }
+
+    /** The ranking: drag the cards into order by the host's keyword, then submit. */
+    function rank(item, { started, revealed }) {
+        const d = state.data;
+        refs.answered = h('div', { class: 'st-answered' });
+        const badge = WEIGHT_BADGE[item.weight] && h('div', { class: 'st-badge', dataset: { weight: String(item.weight) }, text: WEIGHT_BADGE[item.weight] });
+        const title = item.title || 'סדרו לפי הסדר';
+
+        if (!started) {
+            return h('section', { class: 'st-center st-puzzle-intro' },
+                h('div', { class: 'st-puzzle-icon', 'aria-hidden': 'true', text: '🔢' }),
+                h('h1', { class: 'st-heading', dir: 'auto', text: title }),
+                h('div', { class: 'st-ready' }, (refs.ready = h('span', { class: 'st-ready-num' })), multiplier(item.weight)));
+        }
+        if ((item.options || []).length < 2) {
+            return h('section', { class: 'st-center' }, h('p', { class: 'st-lead', text: 'לשאלה הזאת עוד אין תשובות לסדר' }));
+        }
+        const live = role === 'player' && !revealed;
+        const submit = live && h('button', { class: 'gk-btn st-puzzle-done', type: 'button', text: 'הזן תשובה',
+            onclick: () => onAnswer?.(item.id, refs.spot.selected) });
+        refs.done = submit;
+        // Under refs.spot: the same lock / markPicked / selected contract.
+        refs.spot = createRank({ options: item.options, keyword: item.body || '', symbols: item.symbols || [], interactive: live });
+        if (revealed) {
+            const mine = me && me.item_id === item.id && me.option !== null && me.option !== undefined ? me.option : null;
+            refs.spot.reveal({ correct: d.correct || [], right: d.right || 0, answered: d.answered || 0, picked: mine });
+        }
+        return h('section', { class: 'st-puzzle st-rank' },
+            h('div', { class: 'st-puzzle-head' }, badge, h('h1', { class: 'st-question', dir: 'auto', text: title })),
+            refs.spot.el,
+            h('div', { class: 'st-puzzle-foot' }, submit, refs.answered));
+    }
+
     function question(item, { started, revealed }) {
+        if (item.kind === 'rank') return rank(item, { started, revealed });
+        if (item.kind === 'slider') return slider(item, { started, revealed });
         if (item.kind === 'puzzle') return puzzle(item, { started, revealed });
         if (item.kind === 'spot') return spot(item, { started, revealed });
         if (item.kind === 'complete') return complete(item, { started, revealed });
@@ -346,11 +419,13 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
     }
 
     function grid(data) {
+        const hasSlider = (data?.questions || []).some((q) => q.kind === 'slider');
         return h('section', { class: 'st-center st-results st-matrix' },
             h('h1', { class: 'st-heading', text: 'מי ענה מה' }),
             h('p', { class: 'st-legend' },
                 h('span', { dataset: { cell: 'good' }, text: 'נכון · שניות עד התשובה' }),
                 h('span', { dataset: { cell: 'bad' }, text: 'טעות' }),
+                hasSlider && h('span', { dataset: { cell: 'scale' }, text: 'סליידר: מאדום לירוק לפי הסטייה' }),
                 h('span', { dataset: { cell: 'none' }, text: 'לא ענה' })),
             matrix(data));
     }
@@ -414,14 +489,14 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
             if (mine) { refs.puzzle.lock(true); if (refs.done) { refs.done.disabled = true; refs.done.textContent = 'נקלט ✓'; } }
             else if (serverNow() > data.deadline) { refs.puzzle.lock(false); if (refs.done) refs.done.disabled = true; }
         }
-        if (refs.spot && (item?.kind === 'spot' || item?.kind === 'complete')) {
+        if (refs.spot && ['spot', 'complete', 'slider', 'rank'].includes(item?.kind)) {
             const mine = me && me.item_id === item.id && me.option !== null && me.option !== undefined ? me.option : null;
             if (phase === 'reveal') refs.spot.markPicked(mine);
             else if (inQuestion && (mine !== null || serverNow() > data.deadline)) {
                 // Answered, or out of time: the picture stops taking taps and
                 // keeps showing what this player chose (if anything).
                 refs.spot.lock(mine);
-                if (refs.done) { refs.done.disabled = true; if (mine !== null) refs.done.textContent = 'נקלט ✓'; }
+                if (refs.done) { refs.done.disabled = true; if (mine !== null) { refs.done.hidden = false; refs.done.textContent = 'נקלט ✓'; } }
             }
         }
         if (refs.answered && item && (inQuestion || phase === 'reveal')) {
@@ -487,8 +562,8 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         } else {
             // No drifting pictures over an open puzzle (the player is dragging
             // pieces around the same screen) or an open "complete the picture"
-            // (which is judged by eye, to a few pixels).
-            const solving = state.phase === 'intro' || (state.phase === 'question' && ['puzzle', 'complete'].includes(item?.kind));
+            // or slider (both judged by eye, to a few pixels).
+            const solving = state.phase === 'intro' || (state.phase === 'question' && ['puzzle', 'complete', 'slider', 'rank'].includes(item?.kind));
             // Which picture bounces here: this element's own, else the quiz's
             // (if the quiz has its animation on); `anim_on = false` means none.
             // Count, size and speed are always the quiz's.

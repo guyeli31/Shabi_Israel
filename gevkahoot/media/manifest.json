@@ -4,6 +4,7 @@
     "demo-complete.svg",
     "demo-puzzle.svg",
     "demo-shapes.svg",
+    "demo-slider.svg",
     "Kiwi.jpeg",
     "אסלה.jpeg",
     "אש אחי.jpg",
@@ -14,6 +15,7 @@
     "מקיא.jpeg",
     "עופר וינטר.webp",
     "עמך ישראל.png",
+    "פטמה.jpeg",
     "קעקוע.jpeg",
     "שפרה מיטה.jpeg"
   ],
@@ -25,11 +27,17 @@
     "Kiwi_proof.mp4"
   ],
   "audio": [
+    "Applause.mp3",
+    "Correct.mp3",
     "demo-beeps.wav",
-    "demo-loop.wav"
+    "demo-loop.wav",
+    "Dire Straits - Money For Nothing.mp3",
+    "Timer.mp3",
+    "Wrong.mp3"
   ],
   "sprites": [
     "demo-ball.svg",
+    "demo-house.svg",
     "demo-kahoot.svg",
     "demo-sun.svg"
   ]

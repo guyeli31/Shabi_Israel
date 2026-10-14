@@ -102,9 +102,21 @@ export function podium(rows) {
  *  seconds after the question opened the answer came in. */
 export function matrixCell(cell) {
     if (!cell) return h('td', { dataset: { cell: 'none' }, text: '–', title: 'לא ענה' });
-    const [ok, ms] = cell;
+    const [ok, ms, pts, dev] = cell;
+    if (dev !== null && dev !== undefined) {
+        // A slider answer is not right or wrong: the colour runs linearly
+        // from red (100% off) to green (exact), by the same factor that
+        // scaled its points; under the seconds, how far off it was.
+        const accuracy = Math.max(0, 1 - Math.abs(dev));
+        const pct = Math.round(Math.abs(dev) * 100);
+        const td = h('td', { dataset: { cell: 'scale' }, dir: 'ltr',
+            title: `סטיית יחס השטחים ${pct}% (${dev > 0 ? 'גדול מדי' : dev < 0 ? 'קטן מדי' : 'מדויק'}) · ${fmtSeconds(ms)} שניות · ${pts ?? 0} נק׳` },
+            fmtSeconds(ms), h('small', { class: 'gk-matrix-dev', text: `${dev > 0 ? '+' : dev < 0 ? '−' : ''}${pct}%` }));
+        td.style.setProperty('--acc', `${Math.round(accuracy * 100)}%`);
+        return td;
+    }
     return ok
-        ? h('td', { dataset: { cell: 'good' }, dir: 'ltr', text: fmtSeconds(ms), title: `נכון, אחרי ${fmtSeconds(ms)} שניות` })
+        ? h('td', { dataset: { cell: 'good' }, dir: 'ltr', text: fmtSeconds(ms), title: `נכון, אחרי ${fmtSeconds(ms)} שניות${pts !== undefined ? ` · ${pts} נק׳` : ''}` })
         : h('td', { dataset: { cell: 'bad' }, text: '✕', title: 'טעות' });
 }
 

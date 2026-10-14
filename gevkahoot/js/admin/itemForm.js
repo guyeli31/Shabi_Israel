@@ -14,6 +14,7 @@ import { crest, TILES } from '../ui/teams.js';
 import { emojiButton, openEmojiPicker } from './emojiPicker.js';
 import { openCompleteMaker } from './completeMaker.js';
 import { safeMedia } from '../ui/dom.js';
+import { scrambleRank } from '../scoring.js';
 
 /** The list of files in gevkahoot/media/, by folder. GitHub Pages has no
  *  directory listing, so the pickers read this generated file instead
@@ -54,6 +55,12 @@ export function itemForm(item, { manifest, onSave }) {
     const isPuzzle = item.kind === 'puzzle';
     const isSpot = item.kind === 'spot';
     const isComplete = item.kind === 'complete';
+    const isSlider = item.kind === 'slider';
+    const isRank = item.kind === 'rank';
+    // The ranking is edited IN ORDER (top place first) and stored scrambled.
+    const rankList = isRank
+        ? ((item.correct || []).length === (item.options || []).length ? item.correct.map((i) => item.options[i]) : [...(item.options || [])])
+        : [];
     const draft = {
         slot: item.slot ? { ...item.slot } : null,
         regions: (item.regions || []).map((r) => ({ ...r })),
@@ -83,11 +90,20 @@ export function itemForm(item, { manifest, onSave }) {
             // A spot question is saved as it is drawn; the reminder is shown
             // after the save, not instead of it.
             const reminder = (isSpot && (draft.regions.length < 2 ? 'נשמר — סמנו לפחות שני אזורים' : draft.correct.length === 0 ? 'נשמר — סמנו איזה אזור נכון' : null))
+                || (isRank && rankList.some((t) => !t.trim()) && 'נשמר — יש תשובה ריקה')
                 || (isComplete && draft.image && (draft.options.length < 2 ? 'נשמר — צריך לפחות שתי אפשרויות' : draft.correct.length === 0 ? 'נשמר — סמנו איזו אפשרות נכונה' : null));
             // Each kind saves only the columns that mean something for it.
             const { circle_x, circle_y, circle_r, regions, symbols, slot, ...common } = draft;
             const playback = { music_on: draft.music_on, music: draft.music, anim_on: draft.anim_on, anim_sprite: draft.anim_sprite };
-            const patch = isComplete
+            const patch = isRank
+                ? { title: draft.title, body: draft.body.trim().slice(0, 40), weight: draft.weight, time_limit_s: draft.time_limit_s,
+                    ...scrambleRank(rankList.map((t) => t.trim())), symbols: [], ...playback }
+                : isSlider
+                // One cut-out at its real size; the target position is fixed.
+                ? { title: draft.title, image: draft.image, slot, weight: draft.weight, time_limit_s: draft.time_limit_s,
+                    options: draft.options.slice(0, 1).map((o) => ({ image: o.image, scale: 1 })), correct: [900],
+                    symbols: draft.symbols[0] ? [draft.symbols[0]] : [], ...playback }
+                : isComplete
                 ? { title: draft.title, image: draft.image, slot, weight: draft.weight, time_limit_s: draft.time_limit_s,
                     options: draft.options.map((o) => ({ image: o.image, scale: o.scale })),
                     correct: [...draft.correct].sort((a, b) => a - b), ...playback }
@@ -412,6 +428,85 @@ export function itemForm(item, { manifest, onSave }) {
             h('span', { class: 'if-label', text: 'האפשרויות — 100% הוא הגודל האמיתי של העצם; לכל אפשרות תמונה וגודל משלה' }),
             list);
     }
+    // ---- the slider: one cut-out, and an optional emoji on the handle --------
+    const sliderBox = h('div', { class: 'if-circle' });
+    function drawSlider() {
+        clear(sliderBox);
+        const make = h('button', { class: 'gk-btn gk-btn--small', type: 'button',
+            text: draft.image ? '✂ החלפת התמונה / העצם…' : '✂ בחירת תמונה והוצאת עצם ממנה…',
+            onclick: () => openCompleteMaker({ title: 'סליידר — הוצאת עצם מהתמונה', onSaved: ({ image, piece, slot }) => {
+                draft.image = image; draft.slot = slot;
+                draft.options = [{ image: piece, scale: 1 }];
+                drawSlider(); changed();
+            } }) });
+        const emoji = h('div', { class: 'if-pair' },
+            h('button', { class: 'if-swatch gk-tile', type: 'button', dataset: { tile: TILES[0].key, emojiOpener: '' },
+                title: 'אימוג׳י על ידית הסליידר — גדל וקטן באותו יחס כמו העצם',
+                onclick: (e) => openEmojiPicker(e.currentTarget, (picked) => { draft.symbols = [picked]; drawSlider(); changed(); }) },
+                draft.symbols[0] ? crest(0, draft.symbols[0]) : h('span', { text: '🙂+' })),
+            draft.symbols[0] && h('button', { class: 'dr-icon', type: 'button', title: 'בלי אימוג׳י (ידית רגילה)', text: '↺',
+                onclick: () => { draft.symbols = []; drawSlider(); changed(); } }),
+            h('span', { class: 'dr-note', text: draft.symbols[0] ? 'האימוג׳י רוכב על הידית וגדל וקטן באותו יחס כמו העצם.' : 'אפשר לבחור אימוג׳י שירכב על ידית הסליידר.' }));
+        if (!draft.image || !draft.slot || !draft.options[0]) {
+            sliderBox.append(make, h('p', { class: 'dr-note', text: 'מעלים תמונה ומקיפים בה עצם אחד. העצם יוצא ממנה, והשחקנים מגדילים ומקטינים אותו במקומו עם סליידר עד שהוא בגודל האמיתי.' }), emoji);
+            return;
+        }
+        const gap = h('div', { class: 'if-spot-rect', dataset: { ghost: '' } });
+        gap.style.left = `${draft.slot.x * 100}%`; gap.style.top = `${draft.slot.y * 100}%`;
+        gap.style.width = `${draft.slot.w * 100}%`; gap.style.height = `${draft.slot.h * 100}%`;
+        const src = safeMedia(draft.options[0].image);
+        sliderBox.append(
+            h('div', { class: 'if-circle-stage if-spot-stage' }, h('img', { class: 'if-circle-img', src: draft.image, alt: '', draggable: 'false' }), h('div', { class: 'if-spot-layer' }, gap)),
+            h('div', { class: 'if-pair' }, src && h('span', { class: 'if-swatch if-swatch--piece gk-tile', dataset: { tile: TILES[0].key } }, h('img', { src, alt: '' })), make),
+            h('p', { class: 'dr-note', text: 'הסליידר מתחיל ב-50%; בקצה השמאלי העצם בשליש משטחו, והגודל האמיתי הוא ב-90%. הניקוד: נקודות המהירות × (1 − סטיית יחס השטחים) — סטייה של 10% משאירה 90% מהנקודות. במטריצה התא נצבע מאדום לירוק לפי הסטייה.' }),
+            emoji);
+    }
+    // ---- the ranking: the answers in their right order, top place first ----
+    const rankBox = h('div', { class: 'if-options' });
+    function drawRank() {
+        clear(rankBox);
+        rankList.forEach((text, i) => {
+            const move = (to) => { rankList.splice(i, 1); rankList.splice(to, 0, text); drawRank(); changed(); };
+            rankBox.append(h('div', { class: 'if-option', dataset: { tile: TILES[i].key } },
+                h('span', { class: 'if-rank-n', text: String(i + 1) }),
+                emojiButton(h('input', { class: 'dr-input', type: 'text', maxlength: '120', value: text, dir: 'auto',
+                    placeholder: i === 0 ? 'הכי …' : i === rankList.length - 1 ? 'הכי פחות …' : `מקום ${i + 1}`, 'aria-label': `מקום ${i + 1}`,
+                    oninput: (e) => { rankList[i] = e.target.value; changed(); } })),
+                i > 0 && h('button', { class: 'dr-icon', type: 'button', title: 'מקום אחד למעלה', text: '↑', onclick: () => move(i - 1) }),
+                i < rankList.length - 1 && h('button', { class: 'dr-icon', type: 'button', title: 'מקום אחד למטה', text: '↓', onclick: () => move(i + 1) }),
+                rankList.length > 2 && h('button', { class: 'dr-icon', type: 'button', title: 'מחק תשובה', text: '✕',
+                    onclick: () => { rankList.splice(i, 1); drawRank(); changed(); } })));
+        });
+        if (rankList.length < 5) {
+            rankBox.append(h('button', { class: 'gk-btn gk-btn--ghost gk-btn--small', type: 'button', text: '+ תשובה',
+                onclick: () => { rankList.push(''); drawRank(); changed(); } }));
+        }
+    }
+    if (isRank) {
+        drawRank();
+        return h('div', { class: 'if' },
+            field('השאלה',
+                emojiButton(h('textarea', { class: 'dr-input', rows: '2', maxlength: '300', dir: 'auto', value: draft.title,
+                    oninput: (e) => set('title')(e.target.value) }))),
+            field('מילת המפתח לדירוג (למשל: מוקדם, גדול)',
+                h('input', { class: 'dr-input', type: 'text', maxlength: '40', dir: 'auto', value: draft.body || '',
+                    oninput: (e) => set('body')(e.target.value) })),
+            h('div', { class: 'if-field' },
+                h('span', { class: 'if-label', text: 'התשובות בסדר הנכון — הראשונה היא ה״הכי״, האחרונה ה״הכי פחות״ (2 עד 5). השחקנים יקבלו אותן מעורבבות.' }),
+                rankBox),
+            weightAndTime, toggles, saveRow);
+    }
+
+    if (isSlider) {
+        drawSlider();
+        return h('div', { class: 'if' },
+            field('השאלה',
+                emojiButton(h('textarea', { class: 'dr-input', rows: '2', maxlength: '300', dir: 'auto', value: draft.title,
+                    oninput: (e) => set('title')(e.target.value) }))),
+            h('div', { class: 'if-field' }, h('span', { class: 'if-label', text: 'התמונה והעצם' }), sliderBox),
+            weightAndTime, toggles, saveRow);
+    }
+
     if (isComplete) {
         drawComplete();
         return h('div', { class: 'if' },

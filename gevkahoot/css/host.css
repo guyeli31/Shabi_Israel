@@ -173,6 +173,7 @@
 .st-legend span { padding: .15em .8em; border-radius: 999px; color: #fff; }
 .st-legend [data-cell="good"] { background: var(--good); }
 .st-legend [data-cell="bad"] { background: var(--bad); }
+.st-legend [data-cell="scale"] { background: linear-gradient(90deg in oklch, var(--bad), var(--good)); }
 .st-legend [data-cell="none"] { background: rgba(255, 255, 255, .15); }
 
 /* ---- the puzzle (js/host/puzzle.js) --------------------------------------------- */
@@ -284,6 +285,60 @@ button.cp-opt:not(:disabled):active { transform: scale(.95); }
 .cp[data-revealed] .cp-opt[data-picked] { opacity: 1; outline: .14em dashed #fff; outline-offset: .12em; }
 .cp[data-revealed] .cp-opt[data-correct="true"] .sp-pct { background: var(--good); }
 .st[data-compact] .cp-options { height: 4.6em; gap: .35em; }
+
+/* ---- the ranking question (js/host/rank.js) ----------------------------------
+   A column of equal slots; the cards are placed in them with `top`, so a
+   reorder is animated by the transition and a dragged card simply follows the
+   finger (no transition while it is held). Text is on every card, phone too. */
+.rk { flex: 1; min-height: 0; width: 100%; max-width: 46em; margin: 0 auto; display: flex; flex-direction: column; gap: .35em; }
+.rk-end { flex: none; text-align: center; font-weight: 800; color: var(--ink-soft); font-size: .95em; }
+.rk-body { flex: 1; min-height: 0; display: flex; gap: .5em; direction: rtl; }
+.rk-numbers { flex: none; width: 1.8em; display: flex; flex-direction: column; }
+.rk-place { flex: 1; display: grid; place-items: center; font-weight: 900; font-size: 1.25em; color: var(--ink-soft); padding-bottom: .3em; }
+.rk-list { --rk-gap: .45em; position: relative; flex: 1; min-width: 0; touch-action: none; }
+.rk-card { position: absolute; left: 0; right: 0; padding: .2em .7em; gap: .6em; align-items: center; transition: top .22s ease, box-shadow .2s ease, scale .15s ease; user-select: none; -webkit-user-select: none; }
+.rk-card .gk-crest { width: 2em; height: 2em; }
+.rk-card .gk-tile-text { font-weight: 800; font-size: 1.15em; line-height: 1.1; }
+.rk[data-live] .rk-card { cursor: grab; touch-action: none; }
+.rk-card[data-dragging] { transition: box-shadow .2s ease, scale .15s ease; z-index: 3; cursor: grabbing; scale: 1.03; box-shadow: 0 .6em 1.4em rgba(0, 0, 0, .5); }
+.rk-grip { flex: none; opacity: .55; font-size: 1.3em; }
+.rk[data-locked]:not([data-revealed]) .rk-card { opacity: .85; }
+.rk[data-revealed] .rk-card[data-ok]::after { position: absolute; left: .5em; top: 50%; translate: 0 -50%; width: 1.5em; height: 1.5em; border-radius: 50%; display: grid; place-items: center; font-weight: 900; color: #fff; box-shadow: 0 0 0 .12em #fff; }
+.rk[data-revealed] .rk-card[data-ok="true"]::after { content: '✓'; background: var(--good); }
+.rk[data-revealed] .rk-card[data-ok="false"]::after { content: '✕'; background: var(--bad); }
+.st[data-compact] .rk-card .gk-crest { width: 1.6em; height: 1.6em; }
+.st[data-compact] .rk-card .gk-tile-text { font-size: 1.05em; }
+
+/* ---- the slider question (js/host/slider.js) --------------------------------
+   The picture and its one piece are .cp-…, as in "complete the picture"; the
+   piece changes size, not image. The track is laid out left = small,
+   right = big whatever the page direction, like a volume control. */
+.sl-piece { animation: none; }
+.sl-ghost { opacity: .45; filter: grayscale(.6) drop-shadow(0 0 .12em #fff); animation: none; }
+.sl-control { flex: none; display: flex; align-items: center; gap: .6em; padding: 0 .4em; width: 100%; max-width: 48em; margin: 0 auto; }
+.sl-end { flex: none; width: 1.7em; height: 1.7em; border-radius: 50%; display: grid; place-items: center; font-weight: 900; font-size: 1em; background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 2px var(--line); }
+.sl-end--big { font-size: 1.4em; }
+.sl-track { --sl-thumb: 2.2em; position: relative; flex: 1; min-width: 0; height: 3.4em; display: flex; align-items: center; }
+.sl-input { -webkit-appearance: none; appearance: none; width: 100%; height: var(--sl-thumb); margin: 0; background: transparent; cursor: pointer; touch-action: none; position: relative; z-index: 1; }
+.sl-input:disabled { cursor: default; }
+.sl-input::-webkit-slider-runnable-track { height: .55em; border-radius: 999px; background: linear-gradient(90deg, rgba(255, 255, 255, .35), var(--accent)); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
+.sl-input::-moz-range-track { height: .55em; border-radius: 999px; background: linear-gradient(90deg, rgba(255, 255, 255, .35), var(--accent)); }
+.sl-input::-webkit-slider-thumb { -webkit-appearance: none; width: var(--sl-thumb); height: var(--sl-thumb); margin-top: calc((.55em - var(--sl-thumb)) / 2); border-radius: 50%; background: #fff; border: .2em solid var(--accent); box-shadow: 0 .15em .45em rgba(0, 0, 0, .45); }
+.sl-input::-moz-range-thumb { width: var(--sl-thumb); height: var(--sl-thumb); border-radius: 50%; background: #fff; border: .2em solid var(--accent); box-shadow: 0 .15em .45em rgba(0, 0, 0, .45); }
+.sl[data-locked] .sl-input::-webkit-slider-thumb { border-color: var(--good); }
+/* The emoji riding on the handle: centred on it, scaled with the object. */
+.sl-rider { position: absolute; top: 50%; font-size: 2.6em; line-height: 1; pointer-events: none; z-index: 2; transform: translate(-50%, -50%); filter: drop-shadow(0 .06em .1em rgba(0, 0, 0, .5)); }
+.sl-track:has(.sl-rider) .sl-input::-webkit-slider-thumb { opacity: 0; }
+.sl-track:has(.sl-rider) .sl-input::-moz-range-thumb { opacity: 0; }
+/* After the reveal: a tick per answer, the target, and this player's pick. */
+.sl-marks { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.sl-mark { position: absolute; top: 50%; width: .22em; height: 1.3em; translate: -50% -50%; border-radius: .1em; background: rgba(255, 255, 255, .55); }
+.sl-mark[data-kind="good"] { background: var(--good); }
+.sl-mark[data-kind="target"] { width: .4em; height: 2.6em; background: var(--good); box-shadow: 0 0 0 .12em #fff; }
+.sl-mark[data-kind="target"]::after { content: '✓'; position: absolute; bottom: 100%; left: 50%; translate: -50% -.1em; font-weight: 900; color: var(--good); font-size: 1.1em; }
+.sl-mark[data-kind="mine"] { width: .3em; height: 2.2em; background: #fff; outline: .12em dashed var(--ink); }
+.sl-summary { flex: none; margin: 0; text-align: center; font-weight: 800; color: var(--ink-soft); }
+.st[data-compact] .sl-track { --sl-thumb: 2.6em; }
 
 /* ---- the instruction slide before a picture game (js/host/intro.js) ---------------
    A looping demonstration and two short steps. The demonstrations (.dm-…) are
@@ -401,6 +456,75 @@ button.cp-opt:not(:disabled):active { transform: scale(.95); }
     77% { transform: translate(.2em, -7.3em) scale(.82); }
     80%, 94% { transform: translate(.2em, -7.3em); opacity: 1; }
     100% { transform: translate(.2em, -7.3em); opacity: 0; }
+}
+
+/* -- the slider: drag the handle until the object fits its outline ------------ */
+.dm-slider .dm-scene { left: 9em; top: .8em; width: 12em; height: 7em; }
+.dm-target { position: absolute; left: 6em; top: 3.5em; width: 3.4em; height: 3.4em; margin: -1.7em 0 0 -1.7em; border-radius: 50%; border: .12em dashed #fff; }
+.dm-obj { position: absolute; left: 6em; top: 3.5em; width: 3.4em; height: 3.4em; margin: -1.7em 0 0 -1.7em; border-radius: 50%; background: #ffd60a; box-shadow: 0 0 0 .14em #ff9f1c; animation: dm-slider-obj 7s ease-in-out infinite both; }
+.dm-rail { position: absolute; left: 9em; top: 9.5em; width: 12em; height: .35em; border-radius: 999px; background: linear-gradient(90deg, rgba(255, 255, 255, .35), var(--accent)); }
+.dm-knob { position: absolute; left: 15em; top: 9.675em; width: 1.2em; height: 1.2em; margin: -.6em 0 0 -.6em; border-radius: 50%; background: #fff; border: .15em solid var(--accent); animation: dm-slider-knob 7s ease-in-out infinite both; }
+.dm-slider .dm-hand { left: 14.6em; top: 9.5em; animation-name: dm-slider-hand; }
+.dm-slider .dm-pill { animation-name: dm-pill-appear; }
+@keyframes dm-slider-knob {
+    0%, 8% { transform: none; }
+    22%, 26% { transform: translateX(-3.6em); }
+    44%, 48% { transform: translateX(5.4em); }
+    54%, 100% { transform: translateX(4.8em); }
+}
+@keyframes dm-slider-obj {
+    0%, 8% { transform: scale(.84); }
+    22%, 26% { transform: scale(.69); }
+    44%, 48% { transform: scale(1.06); }
+    54%, 96% { transform: scale(1); }
+    100% { transform: scale(.84); }
+}
+@keyframes dm-slider-hand {
+    0%, 8% { transform: none; }
+    22%, 26% { transform: translate(-3.6em, 0); }
+    44%, 48% { transform: translate(5.4em, 0); }
+    54%, 58% { transform: translate(4.8em, 0); }
+    70%, 72% { transform: translate(-11.4em, -7.4em); }
+    75% { transform: translate(-11.4em, -7.4em) scale(.82); }
+    78%, 94% { transform: translate(-11.4em, -7.4em); opacity: 1; }
+    100% { transform: translate(-11.4em, -7.4em); opacity: 0; }
+}
+/* "Submit" is not there at all until the slider has moved, as in the game. */
+@keyframes dm-pill-appear {
+    0%, 12% { opacity: 0; transform: scale(.6); background: var(--accent); }
+    17%, 72% { opacity: 1; transform: none; background: var(--accent); }
+    75% { opacity: 1; transform: scale(.92); background: var(--accent); }
+    79%, 95% { opacity: 1; transform: none; background: var(--good); color: #fff; }
+    100% { opacity: 0; background: var(--accent); }
+}
+
+/* -- the ranking: the bottom card is dragged to the top ---------------------- */
+.dm-word { position: absolute; left: 9em; top: .1em; font-weight: 800; font-size: .8em; color: var(--ink-soft); direction: rtl; }
+.dm-card { position: absolute; left: 9em; width: 12em; height: 2.4em; border-radius: .5em; box-shadow: 0 .15em .4em rgba(0, 0, 0, .35); }
+.dm-card::after { content: ''; position: absolute; right: .8em; top: 50%; width: 5em; height: .45em; margin-top: -.225em; border-radius: 999px; background: rgba(255, 255, 255, .75); }
+.dm-card[data-c="1"] { top: 1.2em; background: var(--tile-red); animation: dm-rank-down 7s ease-in-out infinite both; }
+.dm-card[data-c="2"] { top: 4.2em; background: var(--tile-blue); animation: dm-rank-down 7s ease-in-out infinite both; }
+.dm-card[data-c="3"] { top: 7.2em; background: var(--tile-yellow); z-index: 2; animation: dm-rank-up 7s ease-in-out infinite both; }
+.dm-rank .dm-hand { left: 17em; top: 7.9em; animation-name: dm-rank-hand; }
+.dm-rank .dm-pill { animation-name: dm-pill-mid; }
+@keyframes dm-rank-up {
+    0%, 10% { transform: none; }
+    15% { transform: scale(1.05); }
+    38%, 95% { transform: translateY(-6em); }
+    100% { transform: none; }
+}
+@keyframes dm-rank-down {
+    0%, 20% { transform: none; }
+    34%, 95% { transform: translateY(3em); }
+    100% { transform: none; }
+}
+@keyframes dm-rank-hand {
+    0%, 10% { transform: none; }
+    38%, 44% { transform: translateY(-6em); }
+    62%, 65% { transform: translate(-13.8em, -5.8em); }
+    69% { transform: translate(-13.8em, -5.8em) scale(.82); }
+    73%, 94% { transform: translate(-13.8em, -5.8em); opacity: 1; }
+    100% { transform: translate(-13.8em, -5.8em); opacity: 0; }
 }
 
 /* The button waits, dim, until the task is done; then it is pressed and turns

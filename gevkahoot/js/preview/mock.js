@@ -38,7 +38,7 @@ export function viewsFor(item) {
     if (!item) return [];
     if (item.kind === 'interlude') return ['item'];
     if (item.kind === 'explain') return ['explain'];
-    const intro = ['puzzle', 'spot', 'complete'].includes(item.kind) ? ['intro'] : [];
+    const intro = ['puzzle', 'spot', 'complete', 'slider', 'rank'].includes(item.kind) ? ['intro'] : [];
     return [...intro, 'ready', 'item', 'reveal', ...(item.explain ? ['explain'] : []), 'fastest', 'leaderboard'];
 }
 
@@ -54,7 +54,7 @@ function publicItem(item, items) {
     const questions = items.filter((i) => i.kind !== 'interlude');
     return {
         id: item.id, kind: item.kind, title: item.title, body: item.body,
-        options: ['question', 'complete'].includes(item.kind) ? item.options : [], slot: item.slot || null,
+        options: ['question', 'complete', 'slider', 'rank'].includes(item.kind) ? item.options : [], slot: item.slot || null,
         weight: item.weight, time_limit: item.time_limit_s,
         image: item.image, video: item.video, audio: item.audio,
         layout: item.media_layout, music_on: item.music_on, anim_on: item.anim_on,
@@ -78,17 +78,25 @@ function board() {
 function grid(items) {
     const real = items.filter((i) => i.kind !== 'interlude');
     const questions = (real.length ? real : [STUB_QUESTION, STUB_QUESTION, STUB_QUESTION, STUB_QUESTION, STUB_QUESTION])
-        .map((q, i) => ({ no: i + 1, title: q.title, weight: q.weight }));
+        .map((q, i) => ({ no: i + 1, title: q.title, weight: q.weight, kind: q.kind }));
     const rows = board().map((row, r) => ({
         name: row.name, rank: row.rank, points: row.points,
-        cells: questions.map((_, c) => {
+        cells: questions.map((q, c) => {
             const roll = noise(r + 1, c + 1);
             if (roll < 0.1) return null;
+            // A slider: a deviation between −45% and +7%, coloured on the scale.
+            if (q.kind === 'slider') return [roll > 0.6, Math.round(2000 + roll * 15000), Math.round(900 * (1 - roll * 0.4)), +(0.07 - roll * 0.52).toFixed(3)];
             return roll < 0.38 ? [false, Math.round(2000 + roll * 20000)] : [true, Math.round(1500 + noise(c + 3, r + 7) * 12000)];
         }),
     }));
     return { questions, rows };
 }
+
+const rankWithSwap = (correct) => {
+    const o = [...correct];
+    if (o.length > 1) [o[0], o[1]] = [o[1], o[0]];
+    return o.reduce((code, opt, i) => code + opt * 5 ** i, 0);
+};
 
 let rev = 0;
 
@@ -116,7 +124,7 @@ export function mock(view, quiz, selected, items) {
 
     if (view === 'lobby') return { state: { ...base, status: 'lobby', phase: 'lobby' }, me: { ...me, points: 0, rank: 1 } };
 
-    if (view === 'intro' && ['puzzle', 'spot', 'complete'].includes(question.kind)) {
+    if (view === 'intro' && ['puzzle', 'spot', 'complete', 'slider', 'rank'].includes(question.kind)) {
         return { state: { ...base, phase: 'intro', data: { ...base.data, item: publicItem(question, items) } }, me };
     }
     if (view === 'ready' || view === 'intro') {
@@ -144,13 +152,17 @@ export function mock(view, quiz, selected, items) {
 
     const n = question.options.length;
     const slots = question.kind === 'spot' ? question.regions || [] : question.options;
-    const counts = isPuzzle ? [9] : slots.map((_, i) => (question.correct.includes(i) ? 5 : 1) + (i % 2));
+    const isSlider = question.kind === 'slider';
+    const isRank = question.kind === 'rank';
+    const counts = isPuzzle ? [9] : isSlider || isRank ? [] : slots.map((_, i) => (question.correct.includes(i) ? 5 : 1) + (i % 2));
+    // The slider's room: positions scattered around the target.
+    const values = isSlider ? [610, 700, 760, 820, 850, 880, 905, 930, 960, 1000] : undefined;
     // Editor rows carry circle_x/y/r columns; the demo quiz carries `circle`.
     const circle = !isPuzzle ? null : question.circle
         || (question.circle_r ? { x: question.circle_x, y: question.circle_y, r: question.circle_r } : null);
-    const answered = counts.reduce((a, b) => a + b, 0);
+    const answered = isSlider ? values.length : isRank ? 11 : counts.reduce((a, b) => a + b, 0);
     const revealData = { ...base.data, item: publicItem(question, items), starts_at: now - 20000, deadline: now - 1000,
-        correct: isPuzzle ? [0] : question.correct, circle, counts, answered,
+        correct: isPuzzle ? [0] : question.correct, circle, counts, values, answered, right: isRank ? 4 : undefined,
         fastest: NAMES.slice(0, 5).map((name, i) => ({ name, ms: 1400 + i * 900, points: 965 - i * 45 })) };
 
     if (view === 'explain' && question.explain) {
@@ -162,7 +174,10 @@ export function mock(view, quiz, selected, items) {
     }
     if (view === 'reveal' || view === 'explain') {
         return { state: { ...base, phase: 'reveal', data: revealData, live: { ...base.live, answered: Math.min(answered, NAMES.length) } },
-            me: { ...me, item_id: question.id, answered: true, option: question.correct[0] ?? 0, result: { correct: true, points: 965, ms: 1400 } } };
+            me: { ...me, item_id: question.id, answered: true,
+                // the ranking: this player swapped the first two places
+                option: isRank ? rankWithSwap(question.correct) : isSlider ? 850 : question.correct[0] ?? 0,
+                result: isRank ? { correct: false, points: 0, ms: 6200 } : isSlider ? { correct: true, points: 880, ms: 1400 } : { correct: true, points: 965, ms: 1400 } } };
     }
     if (view === 'fastest') {
         return { state: { ...base, phase: 'fastest', data: revealData },

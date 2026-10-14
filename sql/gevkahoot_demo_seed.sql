@@ -9,10 +9,13 @@
 -- ("how many balls?", "how many beeps?") made by
 -- scripts/gevkahoot-demo-media.mjs.
 --
--- It is a tour of what a quiz can hold: an interlude of each media kind
--- (image, video, audio), five questions that differ in every dimension —
--- 2 to 5 options, 10 to 30 seconds, weights x0 / x1 / x2, some with one
--- correct answer and some with several — and one picture puzzle.
+-- It is a tour of everything a quiz can hold: every kind of scored item
+-- (question, complete the picture, slider, ranking, spot it, puzzle), an
+-- "answer explained" segment, interludes before and after questions in every
+-- media kind (image, video, audio) and layout (side, top, full, background),
+-- emoji in questions, in answers and on tiles, weights x0 / x1 / x2, one and
+-- several right answers, and per-element overrides of the music and the
+-- bouncing animation.
 --
 -- OPTIONAL — nothing depends on it. Re-runnable: it replaces its own quiz
 -- (fixed id) and touches nothing else.
@@ -29,45 +32,62 @@ insert into public.gk_quizzes (id, title, theme, background, music, music_on, le
 values ('6e0b5f0a-0000-4000-8000-00000000d3a0', 'חידון לדוגמה', 'stadium', null, 'media/audio/demo-loop.wav', true, 3,
         true, 'media/sprites/demo-ball.svg', 5, 11, 3, false);
 
+-- Interludes and four-colour questions.
 insert into public.gk_items
   (quiz_id, position, kind, title, body, options, correct, weight, time_limit_s, image, video, audio, media_layout)
 values
- ('6e0b5f0a-0000-4000-8000-00000000d3a0', 1, 'interlude', 'ברוכים הבאים לחידון לדוגמה',
-  'חמש שאלות. עונים מהר ונכון — הזמן שווה נקודות.', '[]', '{}', 1, 20,
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 1, 'interlude', '👋 ברוכים הבאים לחידון לדוגמה',
+  'סיור בכל סוגי השאלות. עונים מהר ונכון — הזמן שווה נקודות! 🏆', '[]', '{}', 1, 20,
   'media/images/demo-ball.svg', null, null, 'side'),
 
- ('6e0b5f0a-0000-4000-8000-00000000d3a0', 2, 'question', 'חימום: כמה צלעות יש למשולש?', '',
-  '["3", "4"]', '{0}', 0, 10, null, null, null, 'side'),
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 2, 'question', '🔥 חימום: כמה צלעות יש למשולש?', '',
+  '["3️⃣ שלוש", "4️⃣ ארבע"]', '{0}', 0, 10, null, null, null, 'side'),
 
- ('6e0b5f0a-0000-4000-8000-00000000d3a0', 3, 'question', 'אילו צורות מופיעות בתמונה?', '',
-  '["משולש", "ריבוע", "עיגול", "כוכב"]', '{0,2}', 1, 20,
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 3, 'question', 'אילו צורות מופיעות בתמונה? 👀', '',
+  '["🔺 משולש", "🟥 ריבוע", "⚪ עיגול", "⭐ כוכב"]', '{0,2}', 1, 20,
   'media/images/demo-shapes.svg', null, null, 'side'),
 
- ('6e0b5f0a-0000-4000-8000-00000000d3a0', 4, 'interlude', 'צפו היטב', 'השאלה הבאה היא על הסרטון.',
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 4, 'interlude', '🎬 צפו היטב', 'השאלה הבאה היא על הסרטון.',
   '[]', '{}', 1, 20, null, 'media/videos/demo-clip.mp4', null, 'top'),
 
- ('6e0b5f0a-0000-4000-8000-00000000d3a0', 5, 'question', 'כמה כדורים קפצו בסרטון?', '',
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 5, 'question', 'כמה כדורים קפצו בסרטון? ⚽', '',
   '["2", "3", "4"]', '{1}', 1, 15, null, null, null, 'side'),
 
- ('6e0b5f0a-0000-4000-8000-00000000d3a0', 6, 'interlude', 'עכשיו מקשיבים', 'ספרו את הצפצופים.',
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 6, 'interlude', '🎧 עכשיו מקשיבים', 'ספרו את הצפצופים.',
   '[]', '{}', 1, 20, null, null, 'media/audio/demo-beeps.wav', 'side'),
 
- ('6e0b5f0a-0000-4000-8000-00000000d3a0', 7, 'question', 'כמה צפצופים נשמעו?', '',
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 7, 'question', 'כמה צפצופים נשמעו? 🔔', '',
   '["3", "4", "5", "6"]', '{1}', 1, 12, null, null, null, 'side'),
 
- ('6e0b5f0a-0000-4000-8000-00000000d3a0', 11, 'question', 'שאלת הסיום: אילו מהמספרים זוגיים?', '',
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 8, 'interlude', '🖼️ ועכשיו — משחקי תמונה',
+  'לפני כל אחד מהם: שקופית קצרה שמראה איך משחקים.', '[]', '{}', 1, 20,
+  'media/images/demo-puzzle.svg', null, null, 'full'),
+
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 14, 'question', '🏁 שאלת הסיום: אילו מהמספרים זוגיים?', '',
   '["7", "12", "15", "20", "33"]', '{1,3}', 2, 30,
-  'media/backgrounds/demo-pitch.svg', null, null, 'background');
+  'media/backgrounds/demo-pitch.svg', null, null, 'background'),
+
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 15, 'interlude', '🎉 זהו, סיימנו!', 'ועכשיו — מי ניצח? 🥁',
+  '[]', '{}', 1, 20, 'media/images/demo-ball.svg', null, null, 'top');
 
 -- Emoji marks on the warm-up's two tiles, instead of the default emblems.
 update public.gk_items set symbols = '["🔺", "🟦"]'
  where quiz_id = '6e0b5f0a-0000-4000-8000-00000000d3a0' and position = 2;
+-- Per-element overrides: the shapes question bounces a sun instead of the
+-- quiz's ball; the beeps question has no music; the picture-games interlude
+-- has no animation.
+update public.gk_items set anim_sprite = 'media/sprites/demo-sun.svg'
+ where quiz_id = '6e0b5f0a-0000-4000-8000-00000000d3a0' and position = 3;
+update public.gk_items set music_on = false
+ where quiz_id = '6e0b5f0a-0000-4000-8000-00000000d3a0' and position = 7;
+update public.gk_items set anim_on = false
+ where quiz_id = '6e0b5f0a-0000-4000-8000-00000000d3a0' and position = 8;
 
 -- An "answer explained" segment for the video question: shown after its
 -- reveal, before the fastest five and the table. It belongs to the question
 -- (parent_id) and shares its position.
 insert into public.gk_items (quiz_id, parent_id, position, kind, title, body, image, media_layout)
-select quiz_id, id, position, 'explain', 'שלושה כדורים',
+select quiz_id, id, position, 'explain', '💡 שלושה כדורים',
        'צהוב, ורוד ותכלת — כל אחד בגודל ובקצב קפיצה משלו.', 'media/images/demo-ball.svg', 'side'
   from public.gk_items
  where quiz_id = '6e0b5f0a-0000-4000-8000-00000000d3a0' and position = 5 and kind = 'question';
@@ -77,16 +97,35 @@ select quiz_id, id, position, 'explain', 'שלושה כדורים',
 insert into public.gk_items
   (quiz_id, position, kind, title, correct, weight, time_limit_s, image, slot, options)
 values
- ('6e0b5f0a-0000-4000-8000-00000000d3a0', 8, 'complete', 'איזו שמש משלימה את התמונה?', '{2}', 1, 20,
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 9, 'complete', '☀️ איזו שמש משלימה את התמונה?', '{2}', 1, 20,
   'media/images/demo-complete.svg', '{"x":0.6413,"y":0.0417,"w":0.2975,"h":0.3967}',
   '[{"image":"media/sprites/demo-sun.svg","scale":0.55},{"image":"media/sprites/demo-sun.svg","scale":1.35},{"image":"media/sprites/demo-sun.svg","scale":1},{"image":"media/sprites/demo-sun.svg","scale":0.78}]');
+
+-- The slider: the house is taken out of the scene and put back at whatever
+-- size the player slides it to (the target is always 90%). A house emoji
+-- rides on the handle.
+insert into public.gk_items
+  (quiz_id, position, kind, title, correct, weight, time_limit_s, image, slot, options, symbols)
+values
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 10, 'slider', '🎚️ באיזה גודל הבית באמת?', '{900}', 1, 20,
+  'media/images/demo-slider.svg', '{"x":0.115,"y":0.37,"w":0.3325,"h":0.4533}',
+  '[{"image":"media/sprites/demo-house.svg","scale":1}]', '["🏠"]');
+
+-- The ranking: biggest at the top (keyword in `body`). Stored scrambled, as
+-- the editor stores it; `correct` is the right order, top place first:
+-- לוויתן (1), פיל (0), סוס (3), חתול (2).
+insert into public.gk_items
+  (quiz_id, position, kind, title, body, options, correct, weight, time_limit_s)
+values
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 11, 'rank', '🔢 סדרו מהגדול לקטן', 'גדול',
+  '["🐘 פיל", "🐋 לוויתן", "🐈 חתול", "🐎 סוס"]', '{1,0,3,2}', 1, 25);
 
 -- "Spot it": four rectangles on the picture (house, sun, tree, ball); the
 -- ball (index 3) is the right one.
 insert into public.gk_items
   (quiz_id, position, kind, title, correct, weight, time_limit_s, image, regions)
 values
- ('6e0b5f0a-0000-4000-8000-00000000d3a0', 9, 'spot', 'איפה הכדור?', '{3}', 1, 15,
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 12, 'spot', '🔎 איפה הכדור?', '{3}', 1, 15,
   'media/images/demo-puzzle.svg',
   '[{"x":0.11,"y":0.36,"w":0.34,"h":0.48},{"x":0.62,"y":0.03,"w":0.34,"h":0.42},{"x":0.62,"y":0.52,"w":0.19,"h":0.34},{"x":0.5,"y":0.78,"w":0.13,"h":0.17}]');
 
@@ -95,7 +134,7 @@ values
 insert into public.gk_items
   (quiz_id, position, kind, title, correct, weight, time_limit_s, image, circle_x, circle_y, circle_r)
 values
- ('6e0b5f0a-0000-4000-8000-00000000d3a0', 10, 'puzzle', 'הרכיבו את התמונה', '{0}', 1, 40,
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 13, 'puzzle', '🧩 הרכיבו את התמונה', '{0}', 1, 40,
   'media/images/demo-puzzle.svg', 0.79, 0.24, 0.2);
 
 commit;

@@ -15,18 +15,27 @@
  * cutter. As with all media, they reach the live site on the next commit+push.
  *
  * ABOUT THE "FILTER". Painting an object out is inpainting, and this is the
- * simple, dependable kind: each hidden pixel is filled from the visible pixels
- * around the outline, working inwards, and the fill is then relaxed until it is
- * smooth. On sky, grass, a wall, a table — it is convincing. Over a busy
- * background (a crowd, patterned fabric) it leaves a soft blur where the
- * object was. That is fine for this game: the players are told something is
- * missing, and the gap is marked on their screen anyway.
+ * simple, dependable kind, in two layers:
+ *   the colour — each hidden pixel is filled from the visible pixels around
+ *     the outline, working inwards, and the fill is then relaxed until it is
+ *     smooth (the soft blur);
+ *   the texture — on top of that, the fine detail of REAL pixels from just
+ *     outside the outline, mirrored inwards across it, so the patch has the
+ *     grain, the grass blades, the brick of its surroundings rather than the
+ *     flat look of a blur.
+ * The area painted over is the outline enlarged 1.5 times about its centre:
+ * a hand-drawn outline misses the object's soft edge and its shadow, and the
+ * slider question draws the object SMALLER than it was, so a rim left behind
+ * would show. On sky, grass, a wall, a table — it is convincing. Over a busy
+ * background (a crowd, patterned fabric) it is a plausible smear, not an
+ * invisible repair; the gap is marked on the players' screen anyway.
  */
 import { h, clear } from '../ui/dom.js';
 import { saveMediaFile, canSaveMedia, MEDIA_NAME_RE } from './spriteCutter.js';
 
 const MAX_SIDE = 1400;     // working size of the picture, px (longest side)
 const PIECE_MAX = 640;     // of the saved cut-out, px
+const TEXTURE_CAP = 14;    // largest detail copied into the patch, per channel (0-255)
 
 /**
  * @param source  a canvas holding the picture
@@ -51,13 +60,16 @@ export function removeObject(source, outline) {
     pc.clip();
     pc.drawImage(source, 0, 0);
 
-    // ---- the mask: the outline, grown a little -----------------------------
-    // A hand-drawn outline hugs the object; a rim of its edge pixels left
-    // behind would be smeared inwards by the fill as a ghost of its colour.
+    // ---- the mask: the outline enlarged 1.5×, and grown a little ------------
+    // A hand-drawn outline hugs the object; a rim of its edge pixels (or its
+    // shadow) left behind would be smeared inwards by the fill as a ghost of
+    // its colour — and would show around a piece drawn smaller than it was.
     const grow = Math.max(3, Math.round(Math.max(W, H) * 0.006));
+    const cx = xs.reduce((a, b) => a + b, 0) / xs.length, cy = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const wide = outline.map(([x, y]) => [cx + (x - cx) * 1.5, cy + (y - cy) * 1.5]);
     const maskCanvas = h('canvas', { width: String(W), height: String(H) });
     const mc = maskCanvas.getContext('2d');
-    trace(mc);
+    mc.beginPath(); wide.forEach(([x, y], i) => (i ? mc.lineTo(x, y) : mc.moveTo(x, y))); mc.closePath();
     mc.fillStyle = '#000'; mc.fill();
     mc.lineWidth = grow * 2; mc.lineJoin = 'round'; mc.strokeStyle = '#000'; mc.stroke();
     const alpha = mc.getImageData(0, 0, W, H).data;
@@ -73,6 +85,10 @@ export function removeObject(source, outline) {
     const hidden = [];
     for (let i = 0; i < W * H; i++) if (alpha[i * 4 + 3] > 0) { state[i] = 1; hidden.push(i); }
     if (!hidden.length) return { hole, piece, slot: { x: x0 / W, y: y0 / H, w: bw / W, h: bh / H } };
+    const visible = (i) => state[i] === 0;
+    // The picture's fine detail: each visible pixel minus the average of the
+    // VISIBLE pixels around it (so the object itself never leaks in).
+    const detail = detailLayer(px, W, H, visible, Math.max(3, Math.round(Math.max(W, H) * 0.004)));
 
     // ---- 1. fill inwards, ring by ring --------------------------------------
     // The outermost hidden pixels take the average of their visible
@@ -122,20 +138,95 @@ export function removeObject(source, outline) {
             b[i] = (b[l] + b[rt] + b[u] + b[d]) / 4;
         }
     }
-    // ---- 3. a little grain --------------------------------------------------
-    // A perfectly smooth patch in a photograph reads as "edited". The rest of
-    // the picture has sensor noise; the patch gets a touch of its own.
+    // ---- 3. real texture -------------------------------------------------
+    // A perfectly smooth patch in a photograph reads as "edited". So the hole
+    // is covered in tiles, and each tile borrows the fine detail of a real
+    // patch of the picture just outside the hole (a constant shift per tile,
+    // so the texture is copied whole, not smeared pixel by pixel). A pixel
+    // blends the shifts of the four tiles around it, so there are no seams.
+    const tile = Math.max(12, Math.round(Math.max(W, H) * 0.022));
+    const cap = (v) => Math.max(-TEXTURE_CAP, Math.min(TEXTURE_CAP, v));
+    let mx = 0, my = 0;
+    for (const i of hidden) { mx += i % W; my += (i / W) | 0; }
+    mx /= hidden.length; my /= hidden.length;
+    const okAt = (x, y) => x >= 0 && y >= 0 && x < W && y < H && visible((y | 0) * W + (x | 0));
+    const shifts = new Map();   // "tx,ty" → [dx, dy] or null
+    const shiftFor = (tx, ty) => {
+        const key = `${tx},${ty}`;
+        if (shifts.has(key)) return shifts.get(key);
+        const cx = (tx + 0.5) * tile, cy = (ty + 0.5) * tile;
+        // Out from the hole's centre first, then the other directions; the
+        // nearest distance at which the whole tile lands on real picture wins.
+        const out = Math.atan2(cy - my, cx - mx) || 0;
+        let best = null;
+        for (let step = 1; step <= 40 && !best; step++) {
+            for (let k = 0; k < 8 && !best; k++) {
+                const a = out + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * Math.PI / 4;
+                const dx = Math.round(Math.cos(a) * step * tile * 0.5), dy = Math.round(Math.sin(a) * step * tile * 0.5);
+                let ok = true;
+                for (const fx of [-0.5, 0, 0.5]) for (const fy of [-0.5, 0, 0.5]) if (ok && !okAt(cx + fx * tile + dx, cy + fy * tile + dy)) ok = false;
+                if (ok) best = [dx, dy];
+            }
+        }
+        shifts.set(key, best);
+        return best;
+    };
     for (const i of hidden) {
-        const n = (Math.random() - 0.5) * 7;
-        px[i * 4] = r[i] + n; px[i * 4 + 1] = g[i] + n; px[i * 4 + 2] = b[i] + n;
+        const x = i % W, y = (i / W) | 0;
+        const fx = x / tile - 0.5, fy = y / tile - 0.5;
+        const tx = Math.floor(fx), ty = Math.floor(fy), ax = fx - tx, ay = fy - ty;
+        let dr = 0, dg = 0, db = 0, wsum = 0;
+        for (const [ux, uy, w] of [[tx, ty, (1 - ax) * (1 - ay)], [tx + 1, ty, ax * (1 - ay)], [tx, ty + 1, (1 - ax) * ay], [tx + 1, ty + 1, ax * ay]]) {
+            const sh = shiftFor(ux, uy);
+            if (!sh || w <= 0) continue;
+            const sx = x + sh[0], sy = y + sh[1];
+            if (!okAt(sx, sy)) continue;
+            const q = sy * W + sx;
+            // Only texture, not edges: a strong contrast (the outline of a
+            // face, a railing) copied in draws lines, so the detail is capped.
+            dr += w * cap(detail[q * 3]); dg += w * cap(detail[q * 3 + 1]); db += w * cap(detail[q * 3 + 2]);
+            wsum += w;
+        }
+        const k = wsum > 0 ? 1 / wsum : 0;
+        px[i * 4] = r[i] + dr * k; px[i * 4 + 1] = g[i] + dg * k; px[i * 4 + 2] = b[i] + db * k;
     }
     hc.putImageData(image, 0, 0);
     return { hole, piece, slot: { x: +(x0 / W).toFixed(4), y: +(y0 / H).toFixed(4), w: +(bw / W).toFixed(4), h: +(bh / H).toFixed(4) } };
 }
 
+/** Per visible pixel, its colour minus the mean of the visible pixels within
+ *  `rad` of it: the texture without the shading. Integral images, so it costs
+ *  the same at any radius. Hidden pixels get 0 and count for nothing. */
+function detailLayer(px, W, H, visible, rad) {
+    const S = (W + 1) * (H + 1);
+    const sum = [new Float64Array(S), new Float64Array(S), new Float64Array(S)], cnt = new Float64Array(S);
+    for (let y = 0; y < H; y++) {
+        let a0 = 0, a1 = 0, a2 = 0, c = 0;
+        for (let x = 0; x < W; x++) {
+            const i = y * W + x;
+            if (visible(i)) { a0 += px[i * 4]; a1 += px[i * 4 + 1]; a2 += px[i * 4 + 2]; c += 1; }
+            const k = (y + 1) * (W + 1) + x + 1, u = y * (W + 1) + x + 1;
+            sum[0][k] = sum[0][u] + a0; sum[1][k] = sum[1][u] + a1; sum[2][k] = sum[2][u] + a2; cnt[k] = cnt[u] + c;
+        }
+    }
+    const box = (arr, xa, ya, xb, yb) => arr[yb * (W + 1) + xb] - arr[ya * (W + 1) + xb] - arr[yb * (W + 1) + xa] + arr[ya * (W + 1) + xa];
+    const out = new Float32Array(W * H * 3);
+    for (let y = 0; y < H; y++) {
+        const ya = Math.max(0, y - rad), yb = Math.min(H, y + rad + 1);
+        for (let x = 0; x < W; x++) {
+            const i = y * W + x;
+            if (!visible(i)) continue;
+            const xa = Math.max(0, x - rad), xb = Math.min(W, x + rad + 1);
+            const n = box(cnt, xa, ya, xb, yb);
+            for (let c = 0; c < 3; c++) out[i * 3 + c] = px[i * 4 + c] - box(sum[c], xa, ya, xb, yb) / n;
+        }
+    }
+    return out;
+}
+
 const toBlob = (canvas, type, quality) => new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 
-export function openCompleteMaker({ onSaved }) {
+export function openCompleteMaker({ onSaved, title = 'השלמת תמונה — הוצאת עצם מהתמונה' }) {
     const canvas = h('canvas', { class: 'sc-canvas', width: '760', height: '480' });
     const ctx = canvas.getContext('2d');
     const pieceBox = h('div', { class: 'sc-result cm-piece', hidden: true });
@@ -283,7 +374,7 @@ export function openCompleteMaker({ onSaved }) {
 
     const dialog = h('dialog', { class: 'sc kit', dir: 'rtl', 'aria-label': 'יצירת שאלת השלמת תמונה' },
         h('div', { class: 'sc-head' },
-            h('h2', { text: 'השלמת תמונה — הוצאת עצם מהתמונה' }),
+            h('h2', { text: title }),
             h('button', { class: 'dr-x', type: 'button', 'aria-label': 'סגור', text: '✕', onclick: () => dialog.close() })),
         h('div', { class: 'sc-body' },
             h('div', { class: 'sc-row' }, picker, againBtn, removeBtn),

@@ -392,6 +392,9 @@ button { cursor: pointer; }
 }
 .gk-matrix td[data-cell="good"] { background: var(--good); }
 .gk-matrix td[data-cell="bad"] { background: var(--bad); }
+/* A slider cell: red → green, linear in its accuracy (--acc, 0-100%). */
+.gk-matrix td[data-cell="scale"] { background: color-mix(in oklch, var(--good) var(--acc, 50%), var(--bad)); line-height: 1.05; }
+.gk-matrix-dev { display: block; font-size: .72em; font-weight: 700; opacity: .9; }
 .gk-matrix td[data-cell="none"] { background: rgba(255, 255, 255, .1); color: var(--ink-soft); }
 .gk-matrix td.gk-matrix-total { background: var(--accent); color: var(--accent-ink); }
 

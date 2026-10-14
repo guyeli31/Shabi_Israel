@@ -22,6 +22,7 @@ import { createStateSource, isPreview } from './data/stateSource.js';
 import { syncClock, serverNow } from './data/clock.js';
 import { createStage } from './host/stage.js';
 import { createDemo } from './demo/engine.js';
+import { sliderVerdict, decodeRank } from './scoring.js';
 import { hasUrlFlag } from '../../shabi-israel/js/utils/queryString.js';
 
 const isDemo = hasUrlFlag('demo') && !isPreview;
@@ -155,7 +156,7 @@ function joinView() {
             ? h('div', { class: 'pl-status' }, h('span', { class: 'pl-dot' }), 'הדגמה · מול שחקנים וירטואליים')
             : h('div', { class: 'pl-status', dataset: { live: '' } }, h('span', { class: 'pl-dot' }), 'חידון באוויר'),
         h('h1', { class: 'pl-big', dir: 'auto', text: state.data?.quiz?.title || 'GevKahoot' }),
-        isDemo && h('p', { class: 'pl-sub', text: 'חמש שאלות, כמו בחידון אמיתי: בוחרים שם, רואים מי מצטרף, ומתחרים על המקום הראשון.' }),
+        isDemo && h('p', { class: 'pl-sub', text: 'כל סוגי השאלות, כמו בחידון אמיתי: בוחרים שם, רואים מי מצטרף, ומתחרים על המקום הראשון.' }),
         h('form', { class: 'pl-form', onsubmit: (e) => { e.preventDefault(); typedName = input.value; submitJoin(locked); } },
             input,
             formError && h('p', { class: 'pl-error', role: 'alert', text: formError.text }),
@@ -229,20 +230,34 @@ function stripContent() {
         if (mine !== null && mine !== undefined) return [`sent|${item.id}`, 'sent', 'נקלט! מחכים לכל השאר…', []];
         if (now < data.starts_at) return [`ready|${item.id}`, 'plain', `${item.kind === 'puzzle' ? 'פאזל' : 'שאלה'} ${item.no} מתוך ${item.of} · מתכוננים…`, []];
         if (now > data.deadline) return [`late|${item.id}`, 'none', 'נגמר הזמן', []];
-        return [`open|${item.id}`, 'plain', { puzzle: 'גררו את החלקים אל המסגרת', spot: 'הקישו על האזור הנכון ואז ״הזן תשובה״', complete: 'נסו את האפשרויות על התמונה ואז ״הזן תשובה״' }[item.kind] || 'בחרו תשובה', []];
+        return [`open|${item.id}`, 'plain', { puzzle: 'גררו את החלקים אל המסגרת', spot: 'הקישו על האזור הנכון ואז ״הזן תשובה״', complete: 'נסו את האפשרויות על התמונה ואז ״הזן תשובה״', slider: 'הזיזו את הסליידר עד שהגודל מדויק ואז ״הזן תשובה״', rank: 'גררו את התשובות לפי הסדר ואז ״הזן תשובה״' }[item.kind] || 'בחרו תשובה', []];
     }
     if (['reveal', 'explain', 'fastest'].includes(phase) && item && item.kind !== 'interlude') {
         const r = me.result || {};
         const key = `res|${item.id}|${phase}|${me.answered}|${r.correct}|${r.points}`;
         if (!me.answered) return [key, 'none', item.kind === 'puzzle' ? 'לא הספקת להרכיב' : 'לא הספקת לענות', [go('המשך ▶')]];
-        const cheer = item.kind === 'puzzle' ? 'הרכבת!' : 'נכון!';
+        // The slider is not right-or-wrong: the player is told how far off
+        // they were (and what that was worth), whatever it was.
+        if (item.kind === 'slider') {
+            return [key, r.correct ? 'good' : 'plain', `⁦+${r.points || 0}⁩ · ${sliderVerdict(me.option)}`, [go('המשך ▶')]];
+        }
+        const cheer = item.kind === 'puzzle' ? 'הרכבת!' : item.kind === 'rank' ? 'סידרת בדיוק!' : 'נכון!';
         return r.correct
             // The isolate keeps "+965" reading as +965 inside the Hebrew line;
             // without it the bidi algorithm moves the plus to the far side.
             ? [key, 'good', r.points > 0 ? `${cheer} ⁦+${r.points}⁩` : cheer, [go('המשך ▶')]]
-            : [key, 'bad', 'לא הפעם', [go('המשך ▶')]];
+            : [key, 'bad', item.kind === 'rank' ? rankMiss(item) : 'לא הפעם', [go('המשך ▶')]];
     }
     return [`rank|${state.rev}|${me.rank}|${me.points}`, 'plain', standing, [go('המשך ▶')]];
+}
+
+/** "2 מתוך 4 במקום" — how close a ranking answer came. */
+function rankMiss(item) {
+    const n = item.options.length;
+    const mine = decodeRank(me.option, n), correct = state.data.correct || [];
+    if (!mine || correct.length !== n) return 'לא הסדר הנכון';
+    const ok = mine.filter((opt, place) => correct[place] === opt).length;
+    return `לא הסדר הנכון · ${ok} מתוך ${n} במקום`;
 }
 
 function renderStrip() {

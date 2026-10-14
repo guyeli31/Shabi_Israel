@@ -214,6 +214,72 @@ try {
     const sixth = sql(`update public.gk_items set correct = '{}', options = (select jsonb_agg(jsonb_build_object('image','media/sprites/a.png','scale',1)) from generate_series(1,6)) where id = '${CP}';`);
     check('a sixth candidate is rejected', !sixth.ok && /violates check/.test(sixth.out), sixth.out);
 
+    section('The slider: a position 0-1000, scored by the server for accuracy');
+    const SL = '7e57ab1e-0000-4000-8000-0000000000da';
+    sql(`insert into public.gk_items (id, quiz_id, position, kind, title, correct, weight, time_limit_s, image, slot, options)
+         values ('${SL}', '${TEST_QUIZ}', -3, 'slider', 'sl', '{900}', 1, 30, 'media/images/demo-slider.svg', '{"x":0.1,"y":0.3,"w":0.3,"h":0.4}',
+                 '[{"image":"media/sprites/demo-house.svg","scale":1}]');`);
+    check('control: host opens the slider', host('select public.gk_admin_goto(1);').ok);
+    st = await publicState();
+    check('it opens on the instruction slide, with no clock', st.phase === 'intro' && st.data.item?.kind === 'slider' && !('deadline' in st.data), st);
+    check('a position on the instruction slide is refused', (await rpc('gk_answer', { p_token: bob, p_item: SL, p_option: 900 })).code === 'closed');
+    check('control: "next" starts it', host('select public.gk_admin_next();').ok);
+    st = await publicState();
+    check('control: the piece and its place are public', st.data.item.options?.length === 1 && st.data.item.slot?.w === 0.3, st.data.item);
+    check('`correct` and `values` are absent while it is open', !/"correct"|"values"/.test(JSON.stringify(st.data)), st.data);
+    await new Promise((r) => setTimeout(r, Math.max(0, st.data.starts_at - Date.now()) + 200));
+    check('a position past the end (1001) is refused', (await rpc('gk_answer', { p_token: bob, p_item: SL, p_option: 1001 })).code === 'bad_option');
+    check('a negative position is refused', (await rpc('gk_answer', { p_token: bob, p_item: SL, p_option: -1 })).code === 'bad_option');
+    check('control: the exact position is accepted', (await rpc('gk_answer', { p_token: bob, p_item: SL, p_option: 900 })).ok);
+    check('control: the far end (a third of the area) is accepted', (await rpc('gk_answer', { p_token: alice, p_item: SL, p_option: 0 })).ok);
+    host('select public.gk_admin_reveal();');
+    st = await publicState();
+    check('control: the reveal publishes the target and the positions chosen', JSON.stringify(st.data.correct) === '[900]' && JSON.stringify(st.data.values) === '[0,900]', st.data);
+    const bobSl = (await rpc('gk_me', { p_token: bob })).data, aliceSl = (await rpc('gk_me', { p_token: alice })).data;
+    check('the exact size is "correct" and scores', bobSl.result.correct === true && bobSl.result.points > 500 && bobSl.option === 900, bobSl);
+    // 67% off: the factor is 1 − 0.67 = a third of the time points, and not "correct".
+    check('67% off the area keeps a third of its time points and is not "correct"', aliceSl.result.correct === false
+        && aliceSl.result.points > 0 && Math.abs(aliceSl.result.points / bobSl.result.points - 1 / 3) < 0.02 && aliceSl.option === 0, { aliceSl, bobSl });
+    const pts = sql(`select points from public.gk_answers where item_id = '${SL}' and not voided order by option_idx;`);
+    check('control: re-scoring leaves the slider points as they were', host(`select public.gk_admin_rescore('${SL}');`).ok
+        && sql(`select points from public.gk_answers where item_id = '${SL}' and not voided order by option_idx;`).out === pts.out, pts.out);
+    const moved = sql(`update public.gk_items set correct = '{800}' where id = '${SL}';`);
+    check('a slider target other than 900 is rejected', !moved.ok && /violates check/.test(moved.out), moved.out);
+    const twoPieces = sql(`update public.gk_items set options = '[{"image":"media/sprites/a.png","scale":1},{"image":"media/sprites/b.png","scale":1}]' where id = '${SL}';`);
+    check('a second piece is rejected', !twoPieces.ok && /violates check/.test(twoPieces.out), twoPieces.out);
+    const offSite = sql(`update public.gk_items set options = '[{"image":"https://evil.example/p.png","scale":1}]' where id = '${SL}';`);
+    check('an off-origin piece is rejected', !offSite.ok && /violates check/.test(offSite.out), offSite.out);
+
+    section('The ranking: a whole order, packed in one number; only the exact order scores');
+    const RK = '7e57ab1e-0000-4000-8000-0000000000db';
+    // stored scrambled; the right order (top first) is options 2, 0, 3, 1
+    sql(`insert into public.gk_items (id, quiz_id, position, kind, title, body, options, correct, weight, time_limit_s)
+         values ('${RK}', '${TEST_QUIZ}', -4, 'rank', 'rk', 'גדול', '["b","d","a","c"]', '{2,0,3,1}', 1, 30);`);
+    const enc = (order) => order.reduce((c, o, i) => c + o * 5 ** i, 0);
+    check('control: host opens the ranking', host('select public.gk_admin_goto(1);').ok);
+    st = await publicState();
+    check('it opens on the instruction slide', st.phase === 'intro' && st.data.item?.kind === 'rank', st);
+    check('control: "next" starts it', host('select public.gk_admin_next();').ok);
+    st = await publicState();
+    check('control: all the options and the keyword are public', st.data.item.options?.length === 4 && st.data.item.body === 'גדול', st.data.item);
+    check('the right order is absent while it is open', !/"correct"|"right"/.test(JSON.stringify(st.data)), st.data);
+    await new Promise((r) => setTimeout(r, Math.max(0, st.data.starts_at - Date.now()) + 200));
+    check('an order with a repeat is refused', (await rpc('gk_answer', { p_token: bob, p_item: RK, p_option: enc([2, 2, 3, 1]) })).code === 'bad_option');
+    check('an order naming a 5th option of 4 is refused', (await rpc('gk_answer', { p_token: bob, p_item: RK, p_option: enc([4, 0, 3, 1]) })).code === 'bad_option');
+    check('a code past the range is refused', (await rpc('gk_answer', { p_token: bob, p_item: RK, p_option: 625 })).code === 'bad_option');
+    check('control: the exact order is accepted', (await rpc('gk_answer', { p_token: bob, p_item: RK, p_option: enc([2, 0, 3, 1]) })).ok);
+    check('control: an order with two places swapped is accepted', (await rpc('gk_answer', { p_token: alice, p_item: RK, p_option: enc([0, 2, 3, 1]) })).ok);
+    host('select public.gk_admin_reveal();');
+    st = await publicState();
+    check('control: the reveal publishes the order and how many got it exact', JSON.stringify(st.data.correct) === '[2,0,3,1]' && st.data.right === 1, st.data);
+    const bobRk = (await rpc('gk_me', { p_token: bob })).data, aliceRk = (await rpc('gk_me', { p_token: alice })).data;
+    check('the exact order is correct and scores', bobRk.result.correct === true && bobRk.result.points > 500, bobRk);
+    check('an order with two places swapped scores nothing', aliceRk.result.correct === false && aliceRk.result.points === 0, aliceRk);
+    const notOrder = sql(`update public.gk_items set correct = '{0,0,1,2}' where id = '${RK}';`);
+    check('a "right order" with a repeat is rejected', !notOrder.ok && /violates check/.test(notOrder.out), notOrder.out);
+    const short = sql(`update public.gk_items set correct = '{0,1,2}' where id = '${RK}';`);
+    check('a "right order" missing an option is rejected', !short.ok && /violates check/.test(short.out), short.out);
+
     section('Taking over a name needs the host');
     const thief = token();
     check('a relink request for an existing name is accepted as a REQUEST', (await rpc('gk_request_relink', { p_name: 'alice', p_token: thief })).ok);

@@ -13,3 +13,79 @@ export function points(correct, weight, ms, limitSeconds) {
     const limit = limitSeconds * 1000;
     return Math.round(weight * 1000 * (1 - 0.5 * Math.min(Math.max(ms, 0), limit) / limit));
 }
+
+/**
+ * The slider question. Its answer is a position, 0-1000 (sent as the
+ * "option"), and the position sets the AREA of the object on the picture,
+ * linearly: at 0 it is a third of the real area, at the target (900, i.e. 90%)
+ * exactly the real one. So
+ *
+ *     area(v) / real area = 1/3 + 2/3 × v / 900
+ *     deviation           = area ratio − 1 = (v − 900) / 1350
+ *
+ * Points are the ordinary time-based points scaled by accuracy — the
+ * deviation as a fraction, so a 100% deviation would score nothing (the
+ * slider cannot get there: its worst is −67%):
+ *
+ *     points = round( timePoints × max(0, 1 − |deviation|) )
+ *
+ * In the matrix the cell is coloured by that same factor, linearly from red
+ * (100% off) to green (exact). An answer within 5% of the real area counts as
+ * "correct" for the fastest five and the table's tie-break. Mirrored by _gk_slider_dev and
+ * _gk_score in sql/gevkahoot.sql — change both or neither.
+ */
+export const SLIDER = { target: 900, max: 1000, start: 500, minArea: 1 / 3, good: 0.05 };
+
+/** Area of the object at position `v`, relative to its real area. */
+export const sliderArea = (v) => SLIDER.minArea + (1 - SLIDER.minArea) * v / SLIDER.target;
+/** Signed: +0.12 = 12% too big, −0.3 = 30% too small. */
+export const sliderDeviation = (v) => (v - SLIDER.target) / (SLIDER.target / (1 - SLIDER.minArea));
+export const sliderCorrect = (v) => Math.abs(sliderDeviation(v)) <= SLIDER.good + 1e-9;
+
+/** The accuracy factor for a deviation: 1 when exact, 0 at 100% off. */
+export const sliderAccuracy = (dev) => Math.max(0, 1 - Math.abs(dev));
+
+export function sliderPoints(v, weight, ms, limitSeconds) {
+    return Math.round(points(true, weight, ms, limitSeconds) * sliderAccuracy(sliderDeviation(v)));
+}
+
+/**
+ * The ranking question. The answer is a whole ORDER — option indexes from the
+ * top place to the bottom one — packed into the one integer every answer is
+ * sent as: base-5 digits, the top place in the lowest digit.
+ *     [2, 0, 3, 1]  →  2 + 0·5 + 3·25 + 1·125 = 202
+ * Five options fit in 0-3124. Mirrored by _gk_rank_order in sql/gevkahoot.sql.
+ * Only the exact order scores (time points, as in any question).
+ */
+export const encodeRank = (order) => order.reduce((code, opt, i) => code + opt * 5 ** i, 0);
+
+/** The order a code stands for, or null if it is not a full order of n options. */
+export function decodeRank(code, n) {
+    if (!Number.isInteger(code) || code < 0 || code >= 5 ** n) return null;
+    const order = Array.from({ length: n }, (_, i) => Math.floor(code / 5 ** i) % 5);
+    return new Set(order).size === n && order.every((o) => o < n) ? order : null;
+}
+
+/**
+ * The order the options are STORED (and so first shown) in: by a hash of
+ * their text, which has nothing to do with the ranking — not the author's
+ * order, which IS the answer, and not alphabetical, which for years or
+ * numbers would be the answer too. If the scramble happens to be the right
+ * order it is rotated by one. Returns the stored options and `correct` (the
+ * stored indexes from the top place down).
+ */
+export function scrambleRank(inOrder) {
+    const hash = (s) => [...s].reduce((a, c) => (Math.imul(a ^ c.codePointAt(0), 16777619) >>> 0), 2166136261);
+    let stored = inOrder.map((text, rank) => ({ text, rank })).sort((a, b) => hash(a.text) - hash(b.text) || a.rank - b.rank);
+    if (stored.length > 1 && stored.every((s, i) => s.rank === i)) stored = [...stored.slice(1), stored[0]];
+    const correct = inOrder.map((_, rank) => stored.findIndex((s) => s.rank === rank));
+    return { options: stored.map((s) => s.text), correct };
+}
+
+/** "12% גדול מדי" — the deviation as a player reads it. */
+export function sliderVerdict(v) {
+    const d = sliderDeviation(v);
+    const pct = Math.round(Math.abs(d) * 100);
+    if (pct === 0) return 'בול! סטייה 0%';
+    return `סטיית יחס השטחים ${pct}% (${d > 0 ? 'גדול מדי' : 'קטן מדי'})`;
+}
