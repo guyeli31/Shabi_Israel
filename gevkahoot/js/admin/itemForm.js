@@ -552,7 +552,7 @@ export function itemForm(item, { manifest, onSave }) {
                 onclick: () => { draft.symbols = []; drawSlider(); changed(); } }),
             h('span', { class: 'dr-note', text: draft.symbols[0] ? 'האימוג׳י רוכב על הידית וגדל וקטן באותו יחס כמו העצם.' : 'אפשר לבחור אימוג׳י שירכב על ידית הסליידר.' }));
         if (!draft.image || !draft.slot || !draft.options[0]) {
-            sliderBox.append(make, h('p', { class: 'dr-note', text: 'מעלים תמונה ומקיפים בה עצם אחד. העצם יוצא ממנה, והשחקנים מגדילים ומקטינים אותו במקומו עם סליידר עד שהוא בגודל האמיתי.' }), emoji);
+            sliderBox.append(make, h('p', { class: 'dr-note', text: 'בוחרים תמונה מהריפו ומסמנים בה עצם אחד. העצם יוצא ממנה, והשחקנים מגדילים ומקטינים אותו במקומו עם סליידר עד שהוא בגודל האמיתי.' }), emoji);
             return;
         }
         const gap = h('div', { class: 'if-spot-rect', dataset: { ghost: '' } });
