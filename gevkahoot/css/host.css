@@ -286,6 +286,18 @@ button.cp-opt:not(:disabled):active { transform: scale(.95); }
 .cp[data-revealed] .cp-opt[data-correct="true"] .sp-pct { background: var(--good); }
 .st[data-compact] .cp-options { height: 4.6em; gap: .35em; }
 
+/* ---- the quiz's one special slide (phase 'fire') ---------------------------------
+   A column: the words in a band of their own, then the animation in whatever
+   height is left, letterboxed to its 16:9. Nothing is laid over the picture. */
+.st-first { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3em; text-align: center; }
+.st-first-head { flex: none; animation: st-first-head .7s var(--ease-pop) .3s both; max-width: 100%; }
+@keyframes st-first-head { from { transform: translateY(-.5em) scale(.7); opacity: 0; } to { transform: none; opacity: 1; } }
+.st-first-kicker { margin: 0; font-weight: 900; font-size: min(1.9em, 4.4cqw); color: #ffd23f; text-shadow: 0 .06em 0 #e2162f, 0 0 .5em rgba(0, 0, 0, .6); }
+.st-first-name { margin: 0; font-size: min(3.4em, 7.5cqw, 8cqh); line-height: 1.1; text-shadow: 0 .06em .2em rgba(0, 0, 0, .7); overflow-wrap: anywhere; }
+.st-first-stage { position: relative; flex: 0 1 auto; min-height: 0; width: 100%; aspect-ratio: 16 / 9; max-height: 100%; }
+.st-first-anim { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.gk-board-fire { flex: none; font-weight: 900; color: #ffb02e; font-size: .9em; text-shadow: 0 0 .4em rgba(255, 120, 0, .6); }
+
 /* ---- the ranking question (js/host/rank.js) ----------------------------------
    A column of equal slots; the cards are placed in them with `top`, so a
    reorder is animated by the transition and a dragged card simply follows the
@@ -721,6 +733,9 @@ button.cp-opt:not(:disabled):active { transform: scale(.95); }
 .if-seg-btn { background: #0d0f16; border: 0; padding: .45em 1em; font-weight: 800; }
 .if-seg-btn + .if-seg-btn { border-inline-start: 1px solid var(--line); }
 .if-seg-btn[data-on] { background: var(--accent); color: var(--accent-ink); }
+/* A segment of words (the mark sets) reads right to left; ×0 ×1 ×2 stays ltr. */
+.if-seg--words { direction: rtl; flex-wrap: wrap; }
+.if-marks-preview { display: flex; gap: .35rem; margin-top: .45rem; }
 
 /* The puzzle's circle picker (itemForm): the picture, with the chosen round
    detail ringed on top of it. */

@@ -9,6 +9,7 @@ Put each file in the folder for its kind:
 | `audio/` | Background music and sound clips | mp3, m4a, ogg, wav, aac |
 | `backgrounds/` | Full-screen backdrops for the quiz | png, jpg, webp, svg, avif |
 | `sprites/` | Cut-out pictures for the bouncing animation (transparent background) | png, webp, svg, gif, avif |
+| `animations/` | Ready-made animated slides, shown by the stage itself (e.g. `first-streak.svg`, the one-time "first to 3 in a row" slide) | svg, webp, gif, webm, mp4 |
 
 Then run, from the repo root:
 

@@ -15,7 +15,7 @@ const KIND_ICON = { interlude: '🎬', question: '❓', spot: '🔎', puzzle: '�
 const PHASE_LABEL = {
     lobby: 'הרשמה פתוחה', interlude: 'קטע מעבר', question: 'שאלה פתוחה', reveal: 'התשובה נחשפה',
     explain: 'הסבר התשובה', intro: 'שקופית הוראות — ״הבא״ מתחיל את השאלה',
-    fastest: 'הכי מהירים', leaderboard: 'טבלה', podium: 'פודיום', matrix: 'מטריצה',
+    fastest: 'הכי מהירים', fire: '🔥 שקופית מיוחדת — ״הבא״ ממשיך', leaderboard: 'טבלה', podium: 'פודיום', matrix: 'מטריצה',
 };
 
 export function createDrawer({ email, onArchive, onSignOut }) {

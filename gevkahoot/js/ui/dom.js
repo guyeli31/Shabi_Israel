@@ -61,7 +61,7 @@ export function renderKeyed(el, key, build) {
  * path is validated at the point of use too, whatever fed the state (the
  * preview frame is fed by postMessage, not by the database).
  */
-const MEDIA_RE = /^media\/(images|videos|audio|backgrounds|sprites)\/[^./\\?#%:*"<>|\u0000-\u001f][^/\\?#%:*"<>|\u0000-\u001f]*$/;
+const MEDIA_RE = /^media\/(images|videos|audio|backgrounds|sprites|animations)\/[^./\\?#%:*"<>|\u0000-\u001f][^/\\?#%:*"<>|\u0000-\u001f]*$/;
 export function safeMedia(path) {
     return typeof path === 'string' && MEDIA_RE.test(path) ? path : null;
 }

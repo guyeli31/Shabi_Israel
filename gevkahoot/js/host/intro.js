@@ -76,7 +76,7 @@ const INTROS = {
         note: 'רק הסדר המדויק מזכה, ומי שמהיר יותר מרוויח יותר' },
     // The one game that is not right-or-wrong, so the slide says how it scores.
     slider: { icon: '🎚️', name: 'סליידר', demo: sliderDemo, steps: ['מזיזים את הסליידר עד שהעצם בגודל האמיתי', 'לוחצים ״הזן תשובה״'],
-        note: 'הניקוד: נקודות המהירות × (1 − סטיית יחס השטחים)' },
+        note: 'הניקוד: נקודות המהירות × (1 − הסטייה באחוזים)' },
 };
 
 export const hasIntro = (kind) => kind in INTROS;

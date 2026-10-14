@@ -87,5 +87,5 @@ export function sliderVerdict(v) {
     const d = sliderDeviation(v);
     const pct = Math.round(Math.abs(d) * 100);
     if (pct === 0) return 'בול! סטייה 0%';
-    return `סטיית יחס השטחים ${pct}% (${d > 0 ? 'גדול מדי' : 'קטן מדי'})`;
+    return `סטייה של ${pct}% (${d > 0 ? 'גדול מדי' : 'קטן מדי'})`;
 }

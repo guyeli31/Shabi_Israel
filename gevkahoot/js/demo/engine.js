@@ -14,7 +14,7 @@
 import { DEMO_QUIZ, DEMO_ITEMS, DEMO_BOTS } from './demoQuiz.js';
 import { points, sliderPoints, sliderCorrect, sliderDeviation, SLIDER, encodeRank, decodeRank } from '../scoring.js';
 
-const PAUSE = { intro: 9000, reveal: 5000, explain: 6000, fastest: 5000, leaderboard: 7500, podium: 11000 };
+const PAUSE = { intro: 9000, fire: 10000, reveal: 5000, explain: 6000, fastest: 5000, leaderboard: 7500, podium: 11000 };
 const LOBBY_MS = 12000;
 
 export function createDemo(onChange) {
@@ -77,6 +77,49 @@ export function createDemo(onChange) {
     /** One matrix cell, as _gk_matrix builds it: [correct, ms, points, deviation (slider only)]. */
     const cellOf = (q, a) => (a ? [a.correct, a.ms, a.points, q.kind === 'slider' ? sliderDeviation(a.option) : null] : null);
 
+    // ---- streaks (same rules as _gk_runs / _gk_streaks / _gk_fire) ------------
+    /** Runs of correct answers over the scored items worth something, up to the
+     *  current one. A ×0 item neither counts nor breaks; no answer breaks. */
+    function streakState() {
+        const it = item();
+        const qs = DEMO_ITEMS.slice(0, index + 1).filter((q) => q.kind !== 'interlude' && q.weight > 0);
+        const curK = it && it.kind !== 'interlude' && it.weight > 0 ? qs.length - 1 : null;
+        const now = {};        // name → run still going at the newest scored item
+        const reached = [];    // { name, k, p3 } — where each run first hit three
+        for (const p of players) {
+            let run = 0, p3 = 0;
+            qs.forEach((q, k) => {
+                const a = p.answers[q.id];
+                if (a?.correct) {
+                    run += 1;
+                    if (run <= 3) p3 += a.points;
+                    if (run === 3) reached.push({ name: p.name, k, p3 });
+                } else { run = 0; p3 = 0; }
+            });
+            if (run >= 3) now[p.name] = run;
+        }
+        const firstK = reached.length ? Math.min(...reached.map((r) => r.k)) : null;
+        const firster = firstK !== null && firstK === curK
+            ? reached.filter((r) => r.k === firstK).sort((a, b) => b.p3 - a.p3 || a.name.localeCompare(b.name))[0] : null;
+        return {
+            streaks: now,
+            // the special slide for THIS item, if it is where someone first got three
+            fire: firster ? { first: { name: firster.name, points: firster.p3 } } : null,
+            // has anyone had three in a row yet (if not, the leader gets the slide)
+            ever: reached.length > 0,
+        };
+    }
+
+    /** The leader slide (as _gk_lead): every player tied at the top, and the gap to second. */
+    function leadData() {
+        const rows = table(null);
+        if (!rows.length) return null;
+        const top = rows[0].points;
+        const tied = rows.filter((r) => r.points === top);
+        const second = rows.find((r) => r.points < top);
+        return { lead: { name: tied.map((r) => r.name).sort().join(' · '), gap: tied.length > 1 ? 0 : top - (second ? second.points : 0) } };
+    }
+
     // ---- what the screen is told (same shape as _gk_publish / gk_me) ---------
     function publicItem(it) {
         return {
@@ -85,7 +128,7 @@ export function createDemo(onChange) {
             weight: it.weight, time_limit: it.time_limit_s,
             image: it.image, video: it.video, audio: it.audio, layout: it.media_layout, music_on: it.music_on,
             anim_on: it.anim_on, regions: it.kind === 'spot' ? it.regions : [],
-            music: it.music, anim_sprite: it.anim_sprite, symbols: it.symbols || [],
+            music: it.music, anim_sprite: it.anim_sprite, symbols: it.symbols || [], marks: it.marks || 'teams',
             no: questions.filter((q) => DEMO_ITEMS.indexOf(q) <= index).length, of: questions.length,
         };
     }
@@ -95,7 +138,7 @@ export function createDemo(onChange) {
         const quiz = { title: DEMO_QUIZ.title, theme: DEMO_QUIZ.theme, background: DEMO_QUIZ.background,
             music: DEMO_QUIZ.music, music_on: DEMO_QUIZ.music_on, anim: DEMO_QUIZ.anim };
         let data = { quiz, index: index + 1, count: DEMO_ITEMS.length, locked: false };
-        const revealed = ['reveal', 'explain', 'fastest', 'leaderboard'].includes(phase);
+        const revealed = ['reveal', 'explain', 'fastest', 'fire', 'leaderboard'].includes(phase);
 
         if (status === 'finished') {
             data = { quiz, leaderboard: table(null), matrix: matrix() };
@@ -122,7 +165,11 @@ export function createDemo(onChange) {
                 data.explain = { id: x.id, kind: 'explain', title: x.title, body: x.body, image: x.image, video: x.video, audio: x.audio,
                     layout: x.media_layout, music_on: x.music_on, music: x.music, anim_on: x.anim_on, anim_sprite: x.anim_sprite };
             }
-            if (phase === 'leaderboard') data.leaderboard = table(it.kind !== 'interlude' ? it.id : null);
+            if (phase === 'fire') data.fire = streakState().fire || leadData();
+            if (phase === 'leaderboard') {
+                data.leaderboard = table(it.kind !== 'interlude' ? it.id : null);
+                data.streaks = it.kind !== 'interlude' ? streakState().streaks : {};
+            }
         }
         return { status, phase, rev, data,
             live: { players: players.length, names: players.map((p) => p.name),
@@ -142,7 +189,10 @@ export function createDemo(onChange) {
             me.answered = !!a;
             me.option = a ? a.option : null;
             // As in a live quiz: the outcome is withheld until the reveal.
-            if (!open) me.result = { correct: !!a?.correct, points: a?.points || 0, ms: a?.ms ?? null };
+            if (!open) {
+                me.result = { correct: !!a?.correct, points: a?.points || 0, ms: a?.ms ?? null };
+                me.streak = streakState().streaks[user.name] || 0;
+            }
         }
         if (status === 'finished') me.cells = questions.map((q) => cellOf(q, user.answers[q.id]));
         return me;
@@ -230,10 +280,24 @@ export function createDemo(onChange) {
         // between its reveal and the fastest five.
         if (phase === 'reveal' && it.explain) { phase = 'explain'; until = Date.now() + (it.explain.seconds * 1000 || PAUSE.explain); return emit(); }
         if (phase === 'reveal' || phase === 'explain') { phase = 'fastest'; until = Date.now() + PAUSE.fastest; return emit(); }
-        if (phase === 'fastest') { phase = 'leaderboard'; until = Date.now() + PAUSE.leaderboard; return emit(); }
+        if (phase === 'fastest') {
+            // As on the server: the ON FIRE slide when someone's run of three or
+            // more includes this question — longer when it is the first one.
+            if (streakState().fire) { phase = 'fire'; until = Date.now() + PAUSE.fire; return emit(); }
+        }
+        if (phase === 'fastest' || (phase === 'fire' && streakState().fire)) { phase = 'leaderboard'; until = Date.now() + PAUSE.leaderboard; return emit(); }
         if (phase === 'podium') { phase = 'matrix'; until = null; return emit(); }
         if (phase === 'matrix') return undefined;
-        if (index + 1 < DEMO_ITEMS.length) return enter(index + 1);
+        if (index + 1 < DEMO_ITEMS.length) {
+            // As on the server: if nobody has had three in a row by the time the
+            // last question comes up, the special slide goes to the leader first.
+            const lastQ = DEMO_ITEMS.map((q, i) => (q.kind !== 'interlude' ? i : -1)).reduce((a, b) => Math.max(a, b), -1);
+            const before = DEMO_ITEMS.slice(0, index + 1).some((q) => q.kind !== 'interlude');
+            if (phase !== 'fire' && index + 1 === lastQ && before && !streakState().ever) {
+                phase = 'fire'; until = Date.now() + PAUSE.fire; return emit();
+            }
+            return enter(index + 1);
+        }
         status = 'finished';
         phase = 'podium';
         until = Date.now() + PAUSE.podium;

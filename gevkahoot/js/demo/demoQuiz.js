@@ -34,7 +34,7 @@ export const DEMO_QUIZ = {
 const item = (row) => ({
     body: '', options: [], regions: [], correct: [], weight: 1, time_limit_s: 20,
     image: null, video: null, audio: null, media_layout: 'side', music_on: true, anim_on: true,
-    music: null, anim_sprite: null, symbols: [], explain: null, slot: null, ...row,
+    music: null, anim_sprite: null, symbols: [], marks: 'teams', explain: null, slot: null, ...row,
 });
 
 export const DEMO_ITEMS = [
@@ -43,10 +43,11 @@ export const DEMO_ITEMS = [
         body: 'סיור בכל סוגי השאלות מול שחקנים וירטואליים. עונים מהר ונכון — הזמן שווה נקודות! 🏆',
         image: 'media/images/demo-ball.svg', seconds: 7 }),
 
-    // ×0 warm-up: emoji marks on the tiles instead of the default emblems, and
+    // ×0 warm-up: the emoji mark set — an emoji of the author's choice on each
+    // tile instead of the team crests — and
     // emoji in the question and in the answers.
     item({ id: 'demo-q1', kind: 'question', title: '🔥 חימום: כמה צלעות יש למשולש?',
-        options: ['3️⃣ שלוש', '4️⃣ ארבע'], correct: [0], weight: 0, time_limit_s: 10, symbols: ['🔺', '🟦'] }),
+        options: ['3️⃣ שלוש', '4️⃣ ארבע'], correct: [0], weight: 0, time_limit_s: 10, marks: 'emoji', symbols: ['🔺', '🟦'] }),
 
     // A picture beside the question, two right answers out of four — and this
     // element brings its own bouncing picture (a sun instead of the quiz's ball).
@@ -58,10 +59,10 @@ export const DEMO_ITEMS = [
     item({ id: 'demo-i2', kind: 'interlude', title: '🎬 צפו היטב', body: 'השאלה הבאה היא על הסרטון.',
         video: 'media/videos/demo-clip.mp4', media_layout: 'top', seconds: 8 }),
 
-    // This one carries an "answer explained" segment: shown after the reveal,
+    // This one carries Catan terrain tiles as its marks, and an "answer explained" segment: shown after the reveal,
     // before the fastest five and the table.
     item({ id: 'demo-q3', kind: 'question', title: 'כמה כדורים קפצו בסרטון? ⚽',
-        options: ['2', '3', '4'], correct: [1], weight: 1, time_limit_s: 15,
+        options: ['2', '3', '4'], correct: [1], weight: 1, time_limit_s: 15, marks: 'catan',
         explain: item({ id: 'demo-q3-x', kind: 'explain', title: '💡 שלושה כדורים', seconds: 6,
             body: 'צהוב, ורוד ותכלת — כל אחד בגודל ובקצב קפיצה משלו.', image: 'media/images/demo-ball.svg' }) }),
 
@@ -70,9 +71,9 @@ export const DEMO_ITEMS = [
         audio: 'media/audio/demo-beeps.wav', seconds: 7 }),
 
     // No background music on this one (per-element "none"), so nothing covers
-    // the memory of the beeps.
+    // the memory of the beeps. Its marks are electronic parts.
     item({ id: 'demo-q4', kind: 'question', title: 'כמה צפצופים נשמעו? 🔔',
-        options: ['3', '4', '5', '6'], correct: [1], weight: 1, time_limit_s: 12, music_on: false }),
+        options: ['3', '4', '5', '6'], correct: [1], weight: 1, time_limit_s: 12, music_on: false, marks: 'circuit' }),
 
     // An interlude AFTER a question, opening the picture games: a full-width
     // picture, and no bouncing animation over it.

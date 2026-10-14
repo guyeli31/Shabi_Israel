@@ -118,7 +118,14 @@ try {
     await Promise.all(players.map((p, i) => rpc('gk_answer', { p_token: p.token, p_item: Q[0], p_option: i % 3 })));
     next(); next(); next(); next();   // answer explained, fastest, table, question 2
     await Promise.all(players.map((p, i) => rpc('gk_answer', { p_token: p.token, p_item: Q[1], p_option: i % 2 })));
-    next(); next(); next();   // fastest, table, question 3 (weight ×0)
+    next(); next();           // fastest, table
+    // Nobody can have three in a row in a two-question quiz, so before the last
+    // question the quiz's special slide goes to the leader.
+    next();
+    st = await publicState();
+    const top = table();
+    check('before the last question: the leader slide', st.phase === 'fire' && st.data.fire?.lead?.name.split(' · ').includes(top[0].name), st.data.fire);
+    next();                   // question 3 (weight ×0)
     // Points only, by name: a correct warm-up answer may still reorder a tie.
     const pointsByName = () => table().map((r) => `${r.name}:${r.points}`).sort().join('|');
     const beforeWarmup = pointsByName();

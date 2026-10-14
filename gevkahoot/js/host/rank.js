@@ -26,7 +26,7 @@ import { decodeRank, encodeRank } from '../scoring.js';
  * @param interactive  a player's copy: cards can be dragged
  * @param onMove       called after a card is dropped somewhere new
  */
-export function createRank({ options, keyword, symbols = [], interactive, onMove }) {
+export function createRank({ options, keyword, symbols = [], marks = 'teams', interactive, onMove }) {
     const n = options.length;
     let order = options.map((_, i) => i);   // option index in each place, top first
     let locked = false;
@@ -35,7 +35,7 @@ export function createRank({ options, keyword, symbols = [], interactive, onMove
     const cards = options.map((text, i) => h('div', {
         class: 'rk-card gk-tile', dataset: { tile: TILES[i].key },
         role: interactive ? 'listitem' : null,
-    }, crest(i, symbols[i] || null), h('span', { class: 'gk-tile-text', dir: 'auto', text }),
+    }, crest(i, symbols[i] || null, marks), h('span', { class: 'gk-tile-text', dir: 'auto', text }),
     interactive && h('span', { class: 'rk-grip', 'aria-hidden': 'true', text: '⠿' })));
     const places = options.map((_, i) => h('span', { class: 'rk-place', text: String(i + 1) }));
     const list = h('div', { class: 'rk-list', role: interactive ? 'list' : null }, cards);

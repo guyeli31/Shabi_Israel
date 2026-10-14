@@ -24,7 +24,8 @@
   ],
   "videos": [
     "demo-clip.mp4",
-    "Kiwi_proof.mp4"
+    "Kiwi_proof.mp4",
+    "זליכה קצר.mp4"
   ],
   "audio": [
     "Applause.mp3",
@@ -33,12 +34,16 @@
     "demo-loop.wav",
     "Dire Straits - Money For Nothing.mp3",
     "Timer.mp3",
-    "Wrong.mp3"
+    "Wrong.mp3",
+    "ערוץ 12 הפתיח שלפני המהדורה המרכזית.mp3"
   ],
   "sprites": [
     "demo-ball.svg",
     "demo-house.svg",
     "demo-kahoot.svg",
     "demo-sun.svg"
+  ],
+  "animations": [
+    "first-streak.svg"
   ]
 }

@@ -20,13 +20,15 @@ export const VIEWS = [
     ['reveal', 'חשיפת תשובה'],
     ['explain', 'הסבר התשובה'],
     ['fastest', 'הכי מהירים'],
+    ['firstfire', '🔥 ראשון לשלוש ברצף'],
+    ['leadfire', '🔥 המוביל לפני השאלה האחרונה'],
     ['leaderboard', 'טבלה'],
     ['podium', 'פודיום'],
     ['matrix', 'מטריצה'],
 ];
 
 /** The quiz-wide screens: not about any one element of the running order. */
-export const GENERAL_VIEWS = ['lobby', 'podium', 'matrix'];
+export const GENERAL_VIEWS = ['lobby', 'leadfire', 'podium', 'matrix'];
 
 /**
  * The stages that exist for ONE element of the running order — what the
@@ -39,7 +41,7 @@ export function viewsFor(item) {
     if (item.kind === 'interlude') return ['item'];
     if (item.kind === 'explain') return ['explain'];
     const intro = ['puzzle', 'spot', 'complete', 'slider', 'rank'].includes(item.kind) ? ['intro'] : [];
-    return [...intro, 'ready', 'item', 'reveal', ...(item.explain ? ['explain'] : []), 'fastest', 'leaderboard'];
+    return [...intro, 'ready', 'item', 'reveal', ...(item.explain ? ['explain'] : []), 'fastest', 'firstfire', 'leaderboard'];
 }
 
 const STUB_QUESTION = {
@@ -58,7 +60,7 @@ function publicItem(item, items) {
         weight: item.weight, time_limit: item.time_limit_s,
         image: item.image, video: item.video, audio: item.audio,
         layout: item.media_layout, music_on: item.music_on, anim_on: item.anim_on,
-        music: item.music || null, anim_sprite: item.anim_sprite || null, symbols: item.symbols || [],
+        music: item.music || null, anim_sprite: item.anim_sprite || null, symbols: item.symbols || [], marks: item.marks || 'teams',
         regions: item.kind === 'spot' ? item.regions || [] : [],
         no: Math.max(1, questions.findIndex((q) => q.id === item.id) + 1), of: Math.max(1, questions.length),
     };
@@ -183,8 +185,14 @@ export function mock(view, quiz, selected, items) {
         return { state: { ...base, phase: 'fastest', data: revealData },
             me: { ...me, item_id: question.id, answered: true, option: Math.min(n - 1, 0), result: { correct: true, points: 965, ms: 1400 } } };
     }
+    if (view === 'firstfire' || view === 'leadfire') {
+        return { state: { ...base, phase: 'fire', data: { ...revealData,
+            fire: view === 'firstfire' ? { first: { name: 'נועה', points: 2870 } } : { lead: { name: 'נועה', gap: 640 } } } },
+            me: { ...me, item_id: question.id, answered: true, option: question.correct[0] ?? 0, streak: 4, result: { correct: true, points: 965, ms: 1400 } } };
+    }
     if (view === 'leaderboard') {
-        return { state: { ...base, phase: 'leaderboard', data: { ...base.data, item: publicItem(question, items), leaderboard: rows } },
+        return { state: { ...base, phase: 'leaderboard', data: { ...base.data, item: publicItem(question, items), leaderboard: rows,
+            streaks: { 'נועה': 4, Avi: 3 } } },
             me: { ...me, points: mine.points, rank: mine.rank } };
     }
     const matrix = grid(items);

@@ -9,6 +9,7 @@
  *     gevkahoot/media/audio/         music and sound clips
  *     gevkahoot/media/backgrounds/   full-screen backdrops
  *     gevkahoot/media/sprites/       cut-out pictures for the bouncing animation
+ *     gevkahoot/media/animations/    ready-made animated slides (e.g. the first-streak one)
  *
  * GitHub Pages serves files but will not list a folder, so the editor's
  * pickers cannot discover them. This script writes media/manifest.json — the
@@ -39,6 +40,7 @@ const KINDS = {
     videos: ['.mp4', '.webm', '.m4v'],
     audio: ['.mp3', '.m4a', '.ogg', '.wav', '.aac'],
     sprites: ['.png', '.webp', '.svg', '.gif', '.avif'],
+    animations: ['.svg', '.webp', '.gif', '.webm', '.mp4'],
 };
 // Same rule as the database CHECK and js/ui/dom.js: any name a person would
 // give a file, minus what could make it more than a name.

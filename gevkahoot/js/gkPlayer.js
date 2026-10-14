@@ -232,20 +232,25 @@ function stripContent() {
         if (now > data.deadline) return [`late|${item.id}`, 'none', 'נגמר הזמן', []];
         return [`open|${item.id}`, 'plain', { puzzle: 'גררו את החלקים אל המסגרת', spot: 'הקישו על האזור הנכון ואז ״הזן תשובה״', complete: 'נסו את האפשרויות על התמונה ואז ״הזן תשובה״', slider: 'הזיזו את הסליידר עד שהגודל מדויק ואז ״הזן תשובה״', rank: 'גררו את התשובות לפי הסדר ואז ״הזן תשובה״' }[item.kind] || 'בחרו תשובה', []];
     }
-    if (['reveal', 'explain', 'fastest'].includes(phase) && item && item.kind !== 'interlude') {
+    // The leader slide before the last question is about the table, not the
+    // question before it: show where this player stands.
+    if (phase === 'fire' && data.fire?.lead) return [`lead|${state.rev}|${me.rank}|${me.points}`, 'plain', standing, [go('המשך ▶')]];
+    if (['reveal', 'explain', 'fastest', 'fire'].includes(phase) && item && item.kind !== 'interlude') {
         const r = me.result || {};
-        const key = `res|${item.id}|${phase}|${me.answered}|${r.correct}|${r.points}`;
+        // A run of three or more correct answers that this one extended.
+        const fire = me.streak >= 3 ? ` · 🔥 ${me.streak} ברצף!` : '';
+        const key = `res|${item.id}|${phase}|${me.answered}|${r.correct}|${r.points}|${me.streak}`;
         if (!me.answered) return [key, 'none', item.kind === 'puzzle' ? 'לא הספקת להרכיב' : 'לא הספקת לענות', [go('המשך ▶')]];
         // The slider is not right-or-wrong: the player is told how far off
         // they were (and what that was worth), whatever it was.
         if (item.kind === 'slider') {
-            return [key, r.correct ? 'good' : 'plain', `⁦+${r.points || 0}⁩ · ${sliderVerdict(me.option)}`, [go('המשך ▶')]];
+            return [key, r.correct ? 'good' : 'plain', `⁦+${r.points || 0}⁩ · ${sliderVerdict(me.option)}${fire}`, [go('המשך ▶')]];
         }
         const cheer = item.kind === 'puzzle' ? 'הרכבת!' : item.kind === 'rank' ? 'סידרת בדיוק!' : 'נכון!';
         return r.correct
             // The isolate keeps "+965" reading as +965 inside the Hebrew line;
             // without it the bidi algorithm moves the plus to the far side.
-            ? [key, 'good', r.points > 0 ? `${cheer} ⁦+${r.points}⁩` : cheer, [go('המשך ▶')]]
+            ? [key, 'good', `${r.points > 0 ? `${cheer} ⁦+${r.points}⁩` : cheer}${fire}`, [go('המשך ▶')]]
             : [key, 'bad', item.kind === 'rank' ? rankMiss(item) : 'לא הפעם', [go('המשך ▶')]];
     }
     return [`rank|${state.rev}|${me.rank}|${me.points}`, 'plain', standing, [go('המשך ▶')]];

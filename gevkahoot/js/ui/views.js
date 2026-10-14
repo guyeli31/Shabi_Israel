@@ -18,7 +18,7 @@ import { h, fmtSeconds } from './dom.js';
  * either before or after, so a player dropping out of the top visibly slides
  * off the bottom instead of vanishing.
  */
-export function leaderboard(rows, { size = 8, me = null, animate = true } = {}) {
+export function leaderboard(rows, { size = 8, me = null, animate = true, streaks = {} } = {}) {
     const board = h('div', { class: 'gk-board' });
     board.style.setProperty('--rows', String(Math.min(size, Math.max(rows.length, 1))));
     const shown = rows.filter((r) => r.rank <= size || (animate && r.prev <= size));
@@ -31,6 +31,8 @@ export function leaderboard(rows, { size = 8, me = null, animate = true } = {}) 
         const el = h('div', { class: 'gk-board-row', dataset: me && row.name === me ? { me: '' } : {} },
             rank,
             h('span', { class: 'gk-board-name', dir: 'auto', text: row.name }),
+            // a run of three or more correct answers that is still going
+            streaks[row.name] >= 3 && h('span', { class: 'gk-board-fire', dir: 'ltr', title: `${streaks[row.name]} ברצף`, text: `🔥${streaks[row.name]}` }),
             row.gain > 0 && h('span', { class: 'gk-board-gain', dir: 'ltr', text: `+${row.gain}` }),
             h('span', { class: 'gk-board-move', dir: 'ltr', text: delta > 0 ? `▲${delta}` : delta < 0 ? `▼${-delta}` : '' }),
             points);
@@ -110,7 +112,7 @@ export function matrixCell(cell) {
         const accuracy = Math.max(0, 1 - Math.abs(dev));
         const pct = Math.round(Math.abs(dev) * 100);
         const td = h('td', { dataset: { cell: 'scale' }, dir: 'ltr',
-            title: `סטיית יחס השטחים ${pct}% (${dev > 0 ? 'גדול מדי' : dev < 0 ? 'קטן מדי' : 'מדויק'}) · ${fmtSeconds(ms)} שניות · ${pts ?? 0} נק׳` },
+            title: `סטייה של ${pct}% (${dev > 0 ? 'גדול מדי' : dev < 0 ? 'קטן מדי' : 'מדויק'}) · ${fmtSeconds(ms)} שניות · ${pts ?? 0} נק׳` },
             fmtSeconds(ms), h('small', { class: 'gk-matrix-dev', text: `${dev > 0 ? '+' : dev < 0 ? '−' : ''}${pct}%` }));
         td.style.setProperty('--acc', `${Math.round(accuracy * 100)}%`);
         return td;

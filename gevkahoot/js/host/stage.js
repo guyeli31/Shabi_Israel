@@ -35,6 +35,8 @@ import { createRank } from './rank.js';
 import { introSlide, hasIntro } from './intro.js';
 
 const WEIGHT_BADGE = { 0: 'חימום · בלי ניקוד', 2: 'שאלה כפולה ×2' };
+/** The one-time "first to three in a row" animation (a generated, self-contained SVG). */
+const FIRST_STREAK_ANIM = 'media/animations/first-streak.svg';
 
 export function createStage(frame, { muted = false, joinUrl = '', role = 'host', compact = () => false, media = () => 'full', onAnswer = null } = {}) {
     // `frame` is the size container; the stage inside it is laid out in units
@@ -337,7 +339,7 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
             onclick: () => onAnswer?.(item.id, refs.spot.selected) });
         refs.done = submit;
         // Under refs.spot: the same lock / markPicked / selected contract.
-        refs.spot = createRank({ options: item.options, keyword: item.body || '', symbols: item.symbols || [], interactive: live });
+        refs.spot = createRank({ options: item.options, keyword: item.body || '', symbols: item.symbols || [], marks: item.marks, interactive: live });
         if (revealed) {
             const mine = me && me.item_id === item.id && me.option !== null && me.option !== undefined ? me.option : null;
             refs.spot.reveal({ correct: d.correct || [], right: d.right || 0, answered: d.answered || 0, picked: mine });
@@ -372,8 +374,8 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
                     const pct = answered ? Math.round((counts[i] || 0) / answered * 100) : 0;
                     return h('div', { class: 'st-option', dataset: revealed ? { correct: String(isCorrect) } : {} },
                         role === 'player' && !revealed
-                            ? tile(i, { tag: 'button', type: 'button', text, symbol: item.symbols?.[i] || null, 'aria-label': text, onclick: () => onAnswer?.(item.id, i) })
-                            : tile(i, { text, symbol: item.symbols?.[i] || null }),
+                            ? tile(i, { tag: 'button', type: 'button', text, symbol: item.symbols?.[i] || null, marks: item.marks, 'aria-label': text, onclick: () => onAnswer?.(item.id, i) })
+                            : tile(i, { text, symbol: item.symbols?.[i] || null, marks: item.marks }),
                         // After the reveal: how the room split, beside each answer.
                         revealed && h('div', { class: 'st-share' },
                             h('div', { class: 'st-share-bar' }, shareFill(pct)),
@@ -409,7 +411,24 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
     function table(rows, animate) {
         return h('section', { class: 'st-center st-results' },
             h('h1', { class: 'st-heading', text: '🏆 הטבלה' }),
-            h('div', { class: 'st-board' }, leaderboard(rows, { size: 8, animate, me: me?.name || null })));
+            h('div', { class: 'st-board' }, leaderboard(rows, { size: 8, animate, me: me?.name || null, streaks: state.data.streaks || {} })));
+    }
+
+    /** The quiz's one special slide (phase 'fire'): for the first player to
+     *  get three in a row, or — if nobody does — before the last question, for
+     *  the leader. The words sit in their own band ABOVE the animation, never
+     *  over it: the animation fills the whole of its 16:9 picture, logo
+     *  included, so anything laid on top of it covers something. */
+    function onFire(fire) {
+        const lead = fire?.lead;
+        const kicker = lead
+            ? (lead.gap > 0 ? `מוביל בפער של ${lead.gap} נקודות על הטבלה` : 'תיקו בראש הטבלה!')
+            : '🔥 ראשון לשלוש ברצף!';
+        return h('section', { class: 'st-first' },
+            h('div', { class: 'st-first-head' },
+                h('p', { class: 'st-first-kicker', text: kicker }),
+                h('h1', { class: 'st-first-name', dir: 'auto', text: lead ? lead.name : fire?.first?.name || '' })),
+            h('div', { class: 'st-first-stage' }, h('img', { class: 'st-first-anim', src: FIRST_STREAK_ANIM, alt: '' })));
     }
 
     function winners(rows) {
@@ -447,6 +466,7 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         // The "answer explained" segment is drawn exactly like an interlude.
         if (phase === 'explain' && data.explain) return [`explain|${data.explain.id}|${rev}`, () => interlude(data.explain)];
         if (phase === 'fastest') return [`fastest|${rev}`, () => fastest(data.fastest || [])];
+        if (phase === 'fire') return [`fire|${rev}`, () => onFire(data.fire)];
         if (phase === 'leaderboard') return [`board|${rev}`, () => table(data.leaderboard || [], true)];
         if (phase === 'podium') return [`podium|${rev}`, () => winners(data.leaderboard || [])];
         if (phase === 'matrix') return [`matrix|${rev}`, () => grid(data.matrix)];
@@ -563,7 +583,8 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
             // No drifting pictures over an open puzzle (the player is dragging
             // pieces around the same screen) or an open "complete the picture"
             // or slider (both judged by eye, to a few pixels).
-            const solving = state.phase === 'intro' || (state.phase === 'question' && ['puzzle', 'complete', 'slider', 'rank'].includes(item?.kind));
+            // The special slide's animation is its own show: nothing drifts over it.
+            const solving = state.phase === 'intro' || state.phase === 'fire' || (state.phase === 'question' && ['puzzle', 'complete', 'slider', 'rank'].includes(item?.kind));
             // Which picture bounces here: this element's own, else the quiz's
             // (if the quiz has its animation on); `anim_on = false` means none.
             // Count, size and speed are always the quiz's.

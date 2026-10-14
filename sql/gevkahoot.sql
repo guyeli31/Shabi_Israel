@@ -217,6 +217,17 @@ alter table public.gk_items drop constraint if exists gk_items_explain_shape;
 alter table public.gk_items add constraint gk_items_explain_shape
     check ((kind = 'explain') = (parent_id is not null));
 
+-- The set of marks on a question's (or a ranking's) tiles: the team crests,
+-- Catan terrain tiles or electronic parts — files in assets/<set>/<colour>.svg
+-- (js/ui/teams.js) — or 'emoji', where the author picks one per answer in
+-- `symbols`. An emoji in `symbols` wins whatever the set, which is also how a
+-- question saved before this column existed still shows its emojis.
+alter table public.gk_items
+    add column if not exists marks text not null default 'teams';
+alter table public.gk_items drop constraint if exists gk_items_marks_check;
+alter table public.gk_items add constraint gk_items_marks_check
+    check (marks in ('teams', 'emoji', 'catan', 'circuit'));
+
 alter table public.gk_items drop constraint if exists gk_items_symbols_shape;
 alter table public.gk_items add constraint gk_items_symbols_shape check (
     jsonb_typeof(symbols) = 'array' and jsonb_array_length(symbols) <= 5 and char_length(symbols::text) <= 240
@@ -305,7 +316,7 @@ create table if not exists public.gk_sessions (
     quiz_title    text not null default '',
     status        text not null default 'lobby' check (status in ('lobby', 'running', 'finished', 'aborted')),
     phase         text not null default 'lobby'
-                  check (phase in ('lobby', 'interlude', 'intro', 'question', 'reveal', 'explain', 'fastest', 'leaderboard', 'podium', 'matrix')),
+                  check (phase in ('lobby', 'interlude', 'intro', 'question', 'reveal', 'explain', 'fastest', 'fire', 'leaderboard', 'podium', 'matrix')),
     cur_index     integer,
     cur_item_id   uuid,
     q_started_at  timestamptz,
@@ -323,7 +334,7 @@ create table if not exists public.gk_sessions (
 -- Re-stated as ALTERs so a database created before the 'explain' phase gets it.
 alter table public.gk_sessions drop constraint if exists gk_sessions_phase_check;
 alter table public.gk_sessions add constraint gk_sessions_phase_check
-    check (phase in ('lobby', 'interlude', 'intro', 'question', 'reveal', 'explain', 'fastest', 'leaderboard', 'podium', 'matrix'));
+    check (phase in ('lobby', 'interlude', 'intro', 'question', 'reveal', 'explain', 'fastest', 'fire', 'leaderboard', 'podium', 'matrix'));
 create unique index if not exists gk_sessions_one_active
     on public.gk_sessions ((true)) where status in ('lobby', 'running');
 
@@ -560,6 +571,82 @@ language sql immutable as $$
               else public._gk_points(p_option = any (p_correct), p_weight, p_ms, p_limit_s) end;
 $$;
 
+-- Streaks: runs of correct answers in a row. Counted over the scored items
+-- (not interludes) that are worth something — a ×0 warm-up neither extends a
+-- run nor breaks it — up to and including the item on screen. A question not
+-- answered breaks the run, as a wrong answer does. Derived from the non-voided
+-- answers like everything else, so going back recomputes them.
+-- One row per run: who, where it starts and ends (k = the scored item's
+-- number), its length, and the points of its first three answers (the
+-- tie-break for "first to three"). `last_k` is the newest scored item so far,
+-- `cur_k` the item on screen if it is one (null on a ×0 item).
+create or replace function public._gk_runs(p_session uuid)
+returns table (name text, k0 int, k1 int, n int, p3 int, last_k int, cur_k int)
+language sql stable security definer set search_path = public, pg_catalog as $$
+  with s as (select quiz_id, cur_item_id from public.gk_sessions where id = p_session),
+  upto as (select o.idx from s, public._gk_ordered(s.quiz_id) o where o.item_id = s.cur_item_id),
+  q as (
+    select o.item_id, (row_number() over (order by o.idx))::int as k
+      from s, public._gk_ordered(s.quiz_id) o join public.gk_items i on i.id = o.item_id
+     where o.kind <> 'interlude' and i.weight > 0 and o.idx <= (select idx from upto)
+  ),
+  c as (
+    select p.id as pid, p.name, q.k, coalesce(a.is_correct, false) as ok, coalesce(a.points, 0) as pts
+      from public.gk_players p cross join q
+      left join public.gk_answers a on a.player_id = p.id and a.item_id = q.item_id and not a.voided
+     where p.session_id = p_session and not p.kicked
+  ),
+  g0 as (select c.*, c.k - (row_number() over (partition by c.pid order by c.k))::int as grp from c where c.ok),
+  g as (select g0.*, min(g0.k) over (partition by g0.pid, g0.grp) as ks from g0)
+  select g.name, min(g.k)::int, max(g.k)::int, count(*)::int,
+         (sum(g.pts) filter (where g.k < g.ks + 3))::int,
+         (select max(k) from q)::int,
+         (select q.k from q, s where q.item_id = s.cur_item_id)::int
+    from g group by g.pid, g.name, g.grp;
+$$;
+
+-- Who is on fire now — {name: run} for every run of three or more that is
+-- still going (it reaches the newest scored item). Shown beside the names in
+-- the table and on the player's own phone.
+create or replace function public._gk_streaks(p_session uuid)
+returns jsonb language sql stable security definer set search_path = public, pg_catalog as $$
+  select coalesce(jsonb_object_agg(r.name, r.n), '{}'::jsonb)
+    from public._gk_runs(p_session) r where r.k1 = r.last_k and r.n >= 3;
+$$;
+
+-- The one special slide of a quiz (phase 'fire', shown with
+-- media/animations/first-streak.svg). Two ways to earn it, at most one per quiz:
+--   first  at the first item where anyone's run reaches three: whoever got
+--          there (several at once: the most points over those three answers);
+--   lead   if NOBODY has reached three by the time the last question comes up:
+--          shown before it, naming the leader and the gap to second place.
+-- _gk_fire is the "first" case only (NULL unless it is THIS item);
+-- _gk_lead is the other, and is asked only by gk_admin_next.
+create or replace function public._gk_fire(p_session uuid)
+returns jsonb language sql stable security definer set search_path = public, pg_catalog as $$
+  with r as (select * from public._gk_runs(p_session)),
+  firsts as (select r.name, r.p3, r.k0 + 2 as kk from r where r.n >= 3),
+  first_k as (select min(kk) as kk from firsts)
+  select jsonb_build_object('first', jsonb_build_object('name', f.name, 'points', f.p3))
+    from firsts f, first_k fk
+   where f.kk = fk.kk and fk.kk = (select max(cur_k) from r)
+   order by f.p3 desc, f.name limit 1;
+$$;
+
+-- The leader before the last question: {lead: {name, gap}} — `name` is every
+-- player tied at the top, joined; `gap` is 0 for a tie.
+create or replace function public._gk_lead(p_session uuid)
+returns jsonb language sql stable security definer set search_path = public, pg_catalog as $$
+  with lb as (select x.name, x.points from jsonb_to_recordset(public._gk_leaderboard(p_session, null)) as x(name text, points int, rank int)),
+  top as (select max(points) as p from lb),
+  second as (select max(points) as p from lb, top where lb.points < top.p)
+  select jsonb_build_object('lead', jsonb_build_object(
+           'name', (select string_agg(lb.name, ' · ' order by lb.name) from lb, top where lb.points = top.p),
+           'gap', case when (select count(*) from lb, top where lb.points = top.p) > 1 then 0
+                       else (select top.p - coalesce(second.p, 0) from top, second) end))
+   where exists (select 1 from lb);
+$$;
+
 -- The table. `p_exclude` is the question whose effect is being animated: every
 -- row carries its rank with and without that question, so the client can slide
 -- each row from where it was to where it is.
@@ -645,7 +732,7 @@ begin
          players  = (select count(*) from public.gk_players p where p.session_id = p_session and not p.kicked),
          names    = coalesce((select jsonb_agg(p.name order by p.joined_at)
                                 from public.gk_players p where p.session_id = p_session and not p.kicked), '[]'::jsonb),
-         answered = case when s.phase in ('question', 'reveal', 'explain', 'fastest')
+         answered = case when s.phase in ('question', 'reveal', 'explain', 'fastest', 'fire')
                          then (select count(*) from public.gk_answers a
                                 where a.session_id = p_session and a.item_id = s.cur_item_id and not a.voided)
                          else 0 end,
@@ -687,7 +774,7 @@ begin
       'count', (select count(*) from public.gk_items i where i.quiz_id = s.quiz_id and i.parent_id is null),
       'locked', s.locked);
 
-    if s.phase in ('interlude', 'intro', 'question', 'reveal', 'explain', 'fastest', 'leaderboard') then
+    if s.phase in ('interlude', 'intro', 'question', 'reveal', 'explain', 'fastest', 'fire', 'leaderboard') then
       select * into it from public.gk_items where id = s.cur_item_id;
     end if;
 
@@ -702,7 +789,7 @@ begin
         'weight', it.weight, 'time_limit', it.time_limit_s,
         'image', it.image, 'video', it.video, 'audio', it.audio,
         'layout', it.media_layout, 'music_on', it.music_on, 'anim_on', it.anim_on,
-        'music', it.music, 'anim_sprite', it.anim_sprite, 'symbols', it.symbols,
+        'music', it.music, 'anim_sprite', it.anim_sprite, 'symbols', it.symbols, 'marks', it.marks,
         'regions', case when it.kind = 'spot' then it.regions else '[]'::jsonb end,
         'no', (select count(*) from public._gk_ordered(s.quiz_id) o where o.kind <> 'interlude' and o.idx <= s.cur_index),
         'of', (select count(*) from public._gk_ordered(s.quiz_id) o where o.kind <> 'interlude')));
@@ -754,9 +841,15 @@ begin
           from public.gk_items c where c.parent_id = s.cur_item_id));
     end if;
 
+    if s.phase = 'fire' then
+      d := d || jsonb_build_object('fire', coalesce(public._gk_fire(s.id), public._gk_lead(s.id)));
+    end if;
+
     if s.phase = 'leaderboard' then
       d := d || jsonb_build_object('leaderboard',
-             public._gk_leaderboard(s.id, case when it.kind <> 'interlude' then it.id end));
+             public._gk_leaderboard(s.id, case when it.kind <> 'interlude' then it.id end),
+             -- who is on a run of three or more, shown beside their name
+             'streaks', case when it.kind <> 'interlude' then public._gk_streaks(s.id) else '{}'::jsonb end);
     end if;
   end if;
 
@@ -995,13 +1088,14 @@ begin
     'rank',   case when v_hide then (v_row->>'prev')::int else (v_row->>'rank')::int end,
     'players', (select count(*) from public.gk_players where session_id = v_sid and not kicked));
 
-  if s.cur_item_id is not null and s.phase in ('question', 'reveal', 'explain', 'fastest', 'leaderboard') then
+  if s.cur_item_id is not null and s.phase in ('question', 'reveal', 'explain', 'fastest', 'fire', 'leaderboard') then
     select * into a from public.gk_answers
      where session_id = v_sid and item_id = s.cur_item_id and player_id = p.id and not voided;
     v_out := v_out || jsonb_build_object('item_id', s.cur_item_id, 'answered', a.id is not null, 'option', a.option_idx);
     if not v_hide then
       v_out := v_out || jsonb_build_object('result', jsonb_build_object(
-        'correct', coalesce(a.is_correct, false), 'points', coalesce(a.points, 0), 'ms', a.answered_ms));
+        'correct', coalesce(a.is_correct, false), 'points', coalesce(a.points, 0), 'ms', a.answered_ms),
+        'streak', coalesce((public._gk_streaks(v_sid) ->> p.name)::int, 0));
     end if;
   end if;
 
@@ -1150,6 +1244,13 @@ begin
     update public.gk_sessions set phase = 'fastest' where id = s.id;
     perform public._gk_publish(s.id);
   elsif s.phase = 'fastest' then
+    -- The special slide, when this is the question where someone first got
+    -- three in a row, comes between the fastest five and the table.
+    update public.gk_sessions
+       set phase = case when public._gk_fire(s.id) is not null then 'fire' else 'leaderboard' end
+     where id = s.id;
+    perform public._gk_publish(s.id);
+  elsif s.phase = 'fire' and public._gk_fire(s.id) is not null then
     update public.gk_sessions set phase = 'leaderboard' where id = s.id;
     perform public._gk_publish(s.id);
   else
@@ -1160,6 +1261,16 @@ begin
     select count(*) into v_count from public.gk_items where quiz_id = s.quiz_id and parent_id is null;
     if v_idx > v_count then
       perform public._gk_finish(s.id);
+    elsif s.phase <> 'fire'
+          -- the next item is the last question,
+          and v_idx = (select max(o.idx) from public._gk_ordered(s.quiz_id) o where o.kind <> 'interlude')
+          -- there were questions before it,
+          and exists (select 1 from public._gk_ordered(s.quiz_id) o where o.kind <> 'interlude' and o.idx < v_idx)
+          -- and nobody has had three in a row: the special slide goes here,
+          -- for the leader (a 'fire' phase whose _gk_fire is NULL).
+          and not exists (select 1 from public._gk_runs(s.id) r where r.n >= 3) then
+      update public.gk_sessions set phase = 'fire' where id = s.id;
+      perform public._gk_publish(s.id);
     else
       perform public._gk_enter(s.id, v_idx);
     end if;
@@ -1201,13 +1312,14 @@ begin
   if s.status = 'finished' then
     if p_view not in ('podium', 'matrix') then raise exception 'bad_view' using errcode = '22023'; end if;
   elsif s.status = 'running' then
-    if p_view not in ('reveal', 'explain', 'fastest', 'leaderboard') then raise exception 'bad_view' using errcode = '22023'; end if;
+    if p_view not in ('reveal', 'explain', 'fastest', 'fire', 'leaderboard') then raise exception 'bad_view' using errcode = '22023'; end if;
+    if p_view = 'fire' and public._gk_fire(s.id) is null then raise exception 'bad_view' using errcode = '22023'; end if;
     if p_view = 'explain' and not exists (select 1 from public.gk_items c where c.parent_id = s.cur_item_id) then
       raise exception 'bad_view' using errcode = '22023';
     end if;
     -- An open question's results are not a view yet — reveal it first.
     if s.phase = 'question' and not s.revealed then raise exception 'not_revealed' using errcode = 'P0001'; end if;
-    if p_view in ('reveal', 'explain', 'fastest') and not s.revealed then raise exception 'bad_view' using errcode = '22023'; end if;
+    if p_view in ('reveal', 'explain', 'fastest', 'fire') and not s.revealed then raise exception 'bad_view' using errcode = '22023'; end if;
   else
     raise exception 'bad_view' using errcode = '22023';
   end if;

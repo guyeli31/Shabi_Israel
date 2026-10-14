@@ -70,9 +70,14 @@ values
  ('6e0b5f0a-0000-4000-8000-00000000d3a0', 15, 'interlude', '🎉 זהו, סיימנו!', 'ועכשיו — מי ניצח? 🥁',
   '[]', '{}', 1, 20, 'media/images/demo-ball.svg', null, null, 'top');
 
--- Emoji marks on the warm-up's two tiles, instead of the default emblems.
-update public.gk_items set symbols = '["🔺", "🟦"]'
+-- The mark sets: emoji on the warm-up's two tiles, Catan terrain tiles on the
+-- video question, electronic parts on the beeps question.
+update public.gk_items set marks = 'emoji', symbols = '["🔺", "🟦"]'
  where quiz_id = '6e0b5f0a-0000-4000-8000-00000000d3a0' and position = 2;
+update public.gk_items set marks = 'catan'
+ where quiz_id = '6e0b5f0a-0000-4000-8000-00000000d3a0' and position = 5;
+update public.gk_items set marks = 'circuit'
+ where quiz_id = '6e0b5f0a-0000-4000-8000-00000000d3a0' and position = 7;
 -- Per-element overrides: the shapes question bounces a sun instead of the
 -- quiz's ball; the beeps question has no music; the picture-games interlude
 -- has no animation.

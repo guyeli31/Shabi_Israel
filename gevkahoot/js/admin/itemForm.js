@@ -10,7 +10,7 @@
  * out of order and leave the row holding the older one.
  */
 import { h, clear } from '../ui/dom.js';
-import { crest, TILES } from '../ui/teams.js';
+import { crest, MARK_SETS, TILES } from '../ui/teams.js';
 import { emojiButton, openEmojiPicker } from './emojiPicker.js';
 import { openCompleteMaker } from './completeMaker.js';
 import { safeMedia } from '../ui/dom.js';
@@ -65,6 +65,10 @@ export function itemForm(item, { manifest, onSave }) {
         slot: item.slot ? { ...item.slot } : null,
         regions: (item.regions || []).map((r) => ({ ...r })),
         symbols: [...(item.symbols || [])], music: item.music ?? null, anim_sprite: item.anim_sprite ?? null,
+        // A question saved before mark sets existed has 'teams' and maybe
+        // emojis: those emojis are what it shows, so it opens as 'emoji'.
+        marks: item.marks && item.marks !== 'teams' ? item.marks
+            : isQuestion && (item.symbols || []).some(Boolean) ? 'emoji' : 'teams',
         circle_x: item.circle_x ?? null, circle_y: item.circle_y ?? null, circle_r: item.circle_r ?? null,
         title: item.title, body: item.body,
         options: (item.options || []).map((o) => (o && typeof o === 'object' ? { ...o } : o)), correct: [...(item.correct || [])],
@@ -93,11 +97,11 @@ export function itemForm(item, { manifest, onSave }) {
                 || (isRank && rankList.some((t) => !t.trim()) && 'נשמר — יש תשובה ריקה')
                 || (isComplete && draft.image && (draft.options.length < 2 ? 'נשמר — צריך לפחות שתי אפשרויות' : draft.correct.length === 0 ? 'נשמר — סמנו איזו אפשרות נכונה' : null));
             // Each kind saves only the columns that mean something for it.
-            const { circle_x, circle_y, circle_r, regions, symbols, slot, ...common } = draft;
+            const { circle_x, circle_y, circle_r, regions, symbols, slot, marks, ...common } = draft;
             const playback = { music_on: draft.music_on, music: draft.music, anim_on: draft.anim_on, anim_sprite: draft.anim_sprite };
             const patch = isRank
                 ? { title: draft.title, body: draft.body.trim().slice(0, 40), weight: draft.weight, time_limit_s: draft.time_limit_s,
-                    ...scrambleRank(rankList.map((t) => t.trim())), symbols: [], ...playback }
+                    ...scrambleRank(rankList.map((t) => t.trim())), symbols: [], marks: marks === 'emoji' ? 'teams' : marks, ...playback }
                 : isSlider
                 // One cut-out at its real size; the target position is fixed.
                 ? { title: draft.title, image: draft.image, slot, weight: draft.weight, time_limit_s: draft.time_limit_s,
@@ -111,9 +115,10 @@ export function itemForm(item, { manifest, onSave }) {
                 ? { title: draft.title, image: draft.image, weight: draft.weight, time_limit_s: draft.time_limit_s,
                     regions: regions.map((r) => ({ ...r })), correct: [...draft.correct].sort((a, b) => a - b), ...playback }
                 : isQuestion
-                // One symbol slot per answer, '' meaning "the default emblem".
-                ? { ...common, options: [...draft.options], correct: [...draft.correct].sort(),
-                    symbols: draft.options.map((_, i) => draft.symbols[i] || '') }
+                // One symbol slot per answer, '' meaning "the set's emblem" —
+                // and emojis are saved only while the set IS emoji.
+                ? { ...common, options: [...draft.options], correct: [...draft.correct].sort(), marks,
+                    symbols: draft.options.map((_, i) => (marks === 'emoji' && draft.symbols[i]) || '') }
                 : isPuzzle
                     ? { title: draft.title, image: draft.image, weight: draft.weight, time_limit_s: draft.time_limit_s,
                         circle_x, circle_y, circle_r, ...playback }
@@ -156,15 +161,19 @@ export function itemForm(item, { manifest, onSave }) {
     const optionList = h('div', { class: 'if-options' });
     function drawOptions() {
         clear(optionList);
+        const emoji = draft.marks === 'emoji';
         draft.options.forEach((text, i) => {
             optionList.append(h('div', { class: 'if-option', dataset: { tile: TILES[i].key } },
-                // The mark on this answer's tile: the default emblem, or an
-                // emoji of the author's choice. Click to choose; ↺ goes back.
-                h('button', { class: 'if-swatch gk-tile', type: 'button', dataset: { tile: TILES[i].key, emojiOpener: '' },
-                    title: 'הסמל על האריח — לחצו כדי לבחור אימוג׳י',
-                    onclick: (e) => openEmojiPicker(e.currentTarget, (emoji) => { draft.symbols[i] = emoji; drawOptions(); changed(); }) },
-                    crest(i, draft.symbols[i] || null)),
-                draft.symbols[i] && h('button', { class: 'dr-icon', type: 'button', title: 'חזרה לסמל ברירת המחדל', text: '↺',
+                // The mark on this answer's tile: the set's emblem, or — in the
+                // emoji set — one of the author's choice. Click to choose; ↺
+                // goes back to the default.
+                emoji
+                    ? h('button', { class: 'if-swatch gk-tile', type: 'button', dataset: { tile: TILES[i].key, emojiOpener: '' },
+                        title: 'הסמל על האריח — לחצו כדי לבחור אימוג׳י',
+                        onclick: (e) => openEmojiPicker(e.currentTarget, (picked) => { draft.symbols[i] = picked; drawOptions(); changed(); }) },
+                        crest(i, draft.symbols[i] || null))
+                    : h('span', { class: 'if-swatch gk-tile', dataset: { tile: TILES[i].key } }, crest(i, null, draft.marks)),
+                emoji && draft.symbols[i] && h('button', { class: 'dr-icon', type: 'button', title: 'בלי אימוג׳י', text: '↺',
                     onclick: () => { draft.symbols[i] = ''; drawOptions(); changed(); } }),
                 emojiButton(h('input', { class: 'dr-input', type: 'text', maxlength: '120', value: text, dir: 'auto',
                     placeholder: `תשובה ${i + 1}`, 'aria-label': `תשובה ${i + 1}`,
@@ -201,6 +210,30 @@ export function itemForm(item, { manifest, onSave }) {
                 for (const b of weights.children) b.toggleAttribute('data-on', b === e.currentTarget);
                 changed();
             } })));
+
+    // ---- the marks on the tiles: one set per question -----------------------
+    // Ranking has no per-answer emoji picker, so it is offered the image sets only.
+    const markSets = MARK_SETS.filter((m) => isQuestion || m.key !== 'emoji');
+    const marksSeg = h('div', { class: 'if-seg if-seg--words', role: 'radiogroup', 'aria-label': 'סמלים על האריחים' },
+        markSets.map((m) => h('button', { type: 'button', class: 'if-seg-btn', text: m.label,
+            dataset: draft.marks === m.key ? { on: '' } : {},
+            onclick: (e) => {
+                draft.marks = m.key;
+                for (const b of marksSeg.children) b.toggleAttribute('data-on', b === e.currentTarget);
+                if (isQuestion) drawOptions(); else drawMarksPreview();
+                changed();
+            } })));
+    // A question shows the marks on its answers' swatches. A ranking's editor
+    // list has no tiles, so it gets this strip of the five instead.
+    const marksPreview = h('div', { class: 'if-marks-preview', 'aria-hidden': 'true' });
+    function drawMarksPreview() {
+        clear(marksPreview);
+        TILES.forEach((t, i) => marksPreview.append(
+            h('span', { class: 'if-swatch gk-tile', dataset: { tile: t.key } }, crest(i, null, draft.marks))));
+    }
+    if (isRank) drawMarksPreview();
+    const marksField = h('div', { class: 'if-field' },
+        h('span', { class: 'if-label', text: 'סמלים על האריחים' }), marksSeg, isRank && marksPreview);
 
     if (isQuestion) drawOptions();
 
@@ -458,7 +491,7 @@ export function itemForm(item, { manifest, onSave }) {
         sliderBox.append(
             h('div', { class: 'if-circle-stage if-spot-stage' }, h('img', { class: 'if-circle-img', src: draft.image, alt: '', draggable: 'false' }), h('div', { class: 'if-spot-layer' }, gap)),
             h('div', { class: 'if-pair' }, src && h('span', { class: 'if-swatch if-swatch--piece gk-tile', dataset: { tile: TILES[0].key } }, h('img', { src, alt: '' })), make),
-            h('p', { class: 'dr-note', text: 'הסליידר מתחיל ב-50%; בקצה השמאלי העצם בשליש משטחו, והגודל האמיתי הוא ב-90%. הניקוד: נקודות המהירות × (1 − סטיית יחס השטחים) — סטייה של 10% משאירה 90% מהנקודות. במטריצה התא נצבע מאדום לירוק לפי הסטייה.' }),
+            h('p', { class: 'dr-note', text: 'הסליידר מתחיל ב-50%; בקצה השמאלי העצם בשליש משטחו, והגודל האמיתי הוא ב-90%. הניקוד: נקודות המהירות × (1 − הסטייה באחוזים) — סטייה של 10% משאירה 90% מהנקודות. במטריצה התא נצבע מאדום לירוק לפי הסטייה.' }),
             emoji);
     }
     // ---- the ranking: the answers in their right order, top place first ----
@@ -494,7 +527,7 @@ export function itemForm(item, { manifest, onSave }) {
             h('div', { class: 'if-field' },
                 h('span', { class: 'if-label', text: 'התשובות בסדר הנכון — הראשונה היא ה״הכי״, האחרונה ה״הכי פחות״ (2 עד 5). השחקנים יקבלו אותן מעורבבות.' }),
                 rankBox),
-            weightAndTime, toggles, saveRow);
+            marksField, weightAndTime, toggles, saveRow);
     }
 
     if (isSlider) {
@@ -555,6 +588,7 @@ export function itemForm(item, { manifest, onSave }) {
         !isQuestion && field('טקסט משני',
             emojiButton(h('textarea', { class: 'dr-input', rows: '2', maxlength: '600', dir: 'auto', value: draft.body,
                 oninput: (e) => set('body')(e.target.value) }))),
+        isQuestion && marksField,
         isQuestion && h('div', { class: 'if-field' },
             h('span', { class: 'if-label', text: 'תשובות (2 עד 5) — אפשר לסמן יותר מנכונה אחת' }), optionList),
         isQuestion && weightAndTime,

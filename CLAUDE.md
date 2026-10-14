@@ -176,6 +176,18 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
 - **A tile's mark may be an emoji** (`gk_items.symbols`, one per answer, `''` =
   the default emblem). The tile's COLOUR never changes — "red is the first
   answer" holds either way.
+- **A question (and a ranking) picks a mark set** (`gk_items.marks`): `teams`
+  (default), `emoji` (the per-answer `symbols` above), `catan` (terrain hexes
+  with the resource's picture) or `circuit` (resistor, inductor, capacitor,
+  battery, diode). An image set is `assets/<set>/<colour>.svg` — five files
+  named by TILE colour, chosen for contrast (never a picture on a tile of its
+  own colour); `crest()` in `js/ui/teams.js` is the one place that resolves it.
+  An emoji in `symbols` wins whatever the set, so rows saved before the column
+  still show theirs. The catan/circuit SVGs are drawn from scratch by
+  `node scripts/gevkahoot-marks.mjs` (`--check` gates them) — **generated,
+  never hand-edit**; their lift off the tile is the shared `.gk-crest img`
+  filter, not baked into the files. A new set = a draw function there, a
+  folder, an entry in `MARK_SETS`/`IMAGE_SETS` and in the SQL CHECK.
 - **`dir="auto"` flips more than letter order.** It makes the element's own
   inline-start/end follow its content, so `text-align: start`,
   `padding-inline-end` and `inset-inline-end` all switch sides for a value like
@@ -235,6 +247,28 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   card on a phone too — the words are what is being ordered. Cards are
   absolutely placed in equal slots (`js/host/rank.js`), so a reorder is one
   `top` assignment the transition animates.
+- **Streaks, and the quiz's one special slide.** A streak is a run of correct
+  answers (display only, no bonus), counted over scored items worth something:
+  a ×0 warm-up neither extends nor breaks a run, an unanswered question breaks
+  it. Derived from the answers (`_gk_runs` → `_gk_streaks`), so going back
+  recomputes it. A run of 3+ shows as 🔥N beside the name in the table
+  (`streaks`) and on the player's own line (`streak` in `gk_me`). There is no
+  per-question "ON FIRE" slide — the user asked for exactly ONE special slide
+  per quiz (phase `fire`, `media/animations/first-streak.svg`): at the first
+  question where anyone reaches three (`fire.first`; several at once → most
+  points over those three answers), between the fastest five and the table;
+  or, if nobody has had three by the time the last question comes up, before
+  it, for the leader (`fire.lead`: name, gap to second, 0 = tie). So `fire`
+  is reached from `fastest` (the streak case) or from the step INTO the last
+  question (the leader case — `gk_admin_next` tells them apart by whether
+  `_gk_fire` is null). The words are laid out in a band ABOVE the animation,
+  never over it: the animation fills its whole 16:9 picture (the logo sits at
+  its top), so a name laid on top covered the logo. The animation is one
+  self-contained SVG (both pictures embedded as WebP: an SVG shown as an
+  `<img>` loads nothing else); its hand-drawn horse's legs pivot on px points
+  in the horse's own drawing — keep `transform-box: fill-box` OFF those parts,
+  or each leg swings around its own middle and flies off. The demo engine
+  mirrors all of it. Verify with `node scripts/gevkahoot-streak-check.mjs`.
 - **The fill behind a removed object** (`removeObject()`) covers the outline
   enlarged 1.5× about its centre (the edge, the shadow, and room for the
   slider's smaller sizes), as a smooth colour layer plus REAL texture: tiles
