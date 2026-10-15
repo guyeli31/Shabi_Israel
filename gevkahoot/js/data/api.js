@@ -42,6 +42,7 @@ export const admin = {
     next: () => rpc('gk_admin_next'),
     goto: (index) => rpc('gk_admin_goto', { p_index: index }),
     reveal: () => rpc('gk_admin_reveal'),
+    countdownDone: () => rpc('gk_admin_countdown_done'),
     show: (view) => rpc('gk_admin_show', { p_view: view }),
     finish: () => rpc('gk_admin_finish'),
     close: () => rpc('gk_admin_close'),

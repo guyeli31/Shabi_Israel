@@ -119,8 +119,14 @@ try {
 
     // ------------------------------------------------------------------------
     section('While a question is open, its answer is not in any browser');
-    check('control: host starts question 1', host('select public.gk_admin_next();').ok);
+    check('control: host starts — the "starting in…" slide first', host('select public.gk_admin_next();').ok);
     let st = await publicState();
+    check('…with its end time and no item yet', st.phase === 'countdown' && st.data.ends_at > Date.now() + 5000 && !st.data.item, st.data);
+    check('no answer is taken during it', (await rpc('gk_answer', { p_token: alice, p_item: Q[0], p_option: 0 })).code === 'closed');
+    check('a player cannot end it', (await rpc('gk_admin_countdown_done')).ok === false);
+    check('control: when it runs out, the host screen moves on to question 1', host('select public.gk_admin_countdown_done();').ok);
+    check('…and a second, late call does not step again', host('select public.gk_admin_countdown_done();').ok);
+    st = await publicState();
     check('control: the question IS public', st.phase === 'question' && st.data.item?.title === 'q1');
     check('`correct` is absent from the public state', !('correct' in st.data) && !JSON.stringify(st.data).includes('"correct"'), st.data);
     check('`counts` and `fastest` are absent too', !('counts' in st.data) && !('fastest' in st.data));
@@ -243,8 +249,18 @@ try {
     const pts = sql(`select points from public.gk_answers where item_id = '${SL}' and not voided order by option_idx;`);
     check('control: re-scoring leaves the slider points as they were', host(`select public.gk_admin_rescore('${SL}');`).ok
         && sql(`select points from public.gk_answers where item_id = '${SL}' and not voided order by option_idx;`).out === pts.out, pts.out);
-    const moved = sql(`update public.gk_items set correct = '{800}' where id = '${SL}';`);
-    check('a slider target other than 700 is rejected', !moved.ok && /violates check/.test(moved.out), moved.out);
+    // The author's scale: any target 100-1000 and a start size 5%-95% — nothing else.
+    for (const [label, setSql] of [['a target under 10%', "correct = '{50}'"], ['a target past the end', "correct = '{1200}'"],
+        ['two targets', "correct = '{500,700}'"], ['a start size of 0', 'slider_min = 0'], ['a start size of 100%', 'slider_min = 1']]) {
+        const r = sql(`update public.gk_items set ${setSql} where id = '${SL}';`);
+        check(`the slider refuses ${label}`, !r.ok && /violates check/.test(r.out), r.out);
+    }
+    check('control: the author may set a target of 50% and a start of 20%', sql(`update public.gk_items set correct = '{500}', slider_min = 0.2 where id = '${SL}';`).ok);
+    // re-scored on that scale, 700 is now 32% too big: (1 − 0.2) × (700 − 500) / 500
+    host(`select public.gk_admin_rescore('${SL}');`);
+    const dev = sql(`select round(public._gk_slider_dev(700, 500, 0.2), 3);`).out;
+    check('…and the deviation follows it', dev === '0.320', dev);
+    sql(`update public.gk_items set correct = '{700}', slider_min = 0.3333 where id = '${SL}';`);
     const twoPieces = sql(`update public.gk_items set options = '[{"image":"media/sprites/a.png","scale":1},{"image":"media/sprites/b.png","scale":1}]' where id = '${SL}';`);
     check('a second piece is rejected', !twoPieces.ok && /violates check/.test(twoPieces.out), twoPieces.out);
     const offSite = sql(`update public.gk_items set options = '[{"image":"https://evil.example/p.png","scale":1}]' where id = '${SL}';`);

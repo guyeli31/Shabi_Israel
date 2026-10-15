@@ -14,6 +14,7 @@ const ME = 'נועה';
 
 export const VIEWS = [
     ['lobby', 'לובי'],
+    ['countdown', 'מתחילים בעוד'],
     ['intro', 'שקופית הוראות'],
     ['ready', 'מתכוננים'],
     ['item', 'הפריט הנבחר'],
@@ -28,7 +29,7 @@ export const VIEWS = [
 ];
 
 /** The quiz-wide screens: not about any one element of the running order. */
-export const GENERAL_VIEWS = ['lobby', 'leadfire', 'podium', 'matrix'];
+export const GENERAL_VIEWS = ['lobby', 'countdown', 'leadfire', 'podium', 'matrix'];
 
 /**
  * The stages that exist for ONE element of the running order — what the
@@ -57,6 +58,8 @@ function publicItem(item, items) {
     return {
         id: item.id, kind: item.kind, title: item.title, body: item.body,
         options: ['question', 'complete', 'slider', 'rank', 'memory'].includes(item.kind) ? item.options : [], slot: item.slot || null,
+        // the slider's scale, as _gk_publish sends it
+        slider: item.kind === 'slider' ? { min: item.slider_min ?? 1 / 3, target: item.correct?.[0] ?? 700 } : null,
         memo_s: item.kind === 'memory' ? item.memo_s ?? 10 : null,
         weight: item.weight, time_limit: item.time_limit_s,
         image: item.image, video: item.video, audio: item.audio,
@@ -131,6 +134,7 @@ export function mock(view, quiz, selected, items) {
     const mine = rows.find((r) => r.name === ME);
 
     if (view === 'lobby') return { state: { ...base, status: 'lobby', phase: 'lobby' }, me: { ...me, points: 0, rank: 1 } };
+    if (view === 'countdown') return { state: { ...base, phase: 'countdown', data: { ...base.data, ends_at: Date.now() + 5400 } }, me: { ...me, points: 0, rank: 1 } };
 
     if (view === 'intro' && ['puzzle', 'spot', 'complete', 'slider', 'rank', 'action', 'memory'].includes(question.kind)) {
         return { state: { ...base, phase: 'intro', data: { ...base.data, item: publicItem(question, items) } }, me };
@@ -170,7 +174,8 @@ export function mock(view, quiz, selected, items) {
         : question.kind === 'roulette' ? slots.map((_, i) => (question.correct.includes(i) ? 5 : near(i) ? 1 + (i % 2) : 0))
         : slots.map((_, i) => (question.correct.includes(i) ? 5 : 1) + (i % 2));
     // The slider's room: positions scattered around the target.
-    const values = isSlider ? [610, 700, 760, 820, 850, 880, 905, 930, 960, 1000]
+    // (scattered around ITS target, whatever the author set)
+    const values = isSlider ? [-90, 0, 60, 120, 150, 180, 205, 230, 260, 300].map((d) => Math.max(0, Math.min(1000, (question.correct?.[0] ?? 700) - 200 + d)))
         // the action round's room: how many baskets each made
         : isAction ? [2, 4, 5, 5, 6, 7, 7, 7, 8, 9, 11] : undefined;
     // Editor rows carry circle_x/y/r columns; the demo quiz carries `circle`.

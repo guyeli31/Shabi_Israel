@@ -296,6 +296,7 @@ function stripContent() {
             ? [`lobby|${left}`, 'plain', `${me.name}, נכנסת! מתחילים בעוד ${left} שניות`, [go('התחל עכשיו ▶')]]
             : ['lobby', 'plain', `${me.name}, נכנסת! מחכים שהמנחה יתחיל`, []];
     }
+    if (phase === 'countdown') return ['countdown', 'plain', 'עוד רגע מתחילים — תתכוננו!', [go('התחל ▶')]];
     if (phase === 'interlude') return [`inter|${item?.id}`, 'plain', compact() && !demo ? 'עיניים למסך' : standing, [go('המשך ▶')]];
     if (phase === 'intro') return [`intro|${item?.id}`, 'plain', compact() && !demo ? 'מיד מתחילים — כך משחקים' : 'כך משחקים', [go('התחל ▶')]];
     if (phase === 'question' && item) {
@@ -337,7 +338,7 @@ function stripContent() {
         // The slider is not right-or-wrong: the player is told how far off
         // they were (and what that was worth), whatever it was.
         if (item.kind === 'slider') {
-            return [key, r.correct ? 'good' : 'plain', `⁦+${r.points || 0}⁩ · ${sliderVerdict(me.option)}${fire}`, [go('המשך ▶')]];
+            return [key, r.correct ? 'good' : 'plain', `⁦+${r.points || 0}⁩ · ${sliderVerdict(me.option, item.slider)}${fire}`, [go('המשך ▶')]];
         }
         const cheer = item.kind === 'puzzle' ? 'הרכבת!' : item.kind === 'rank' ? 'סידרת בדיוק!' : 'נכון!';
         return r.correct

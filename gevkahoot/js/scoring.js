@@ -17,15 +17,15 @@ export function points(correct, weight, ms, limitSeconds) {
 /**
  * The slider question. Its answer is a position, 0-1000 (sent as the
  * "option"), and the position sets the AREA of the object on the picture,
- * linearly: at 0 it is a third of the real area, at the target (700, i.e. 70%)
- * exactly the real one. So
+ * linearly: at 0 it is `min` of the real area, at the `target` position
+ * exactly the real one — both the AUTHOR's, per question (gk_items.slider_min
+ * and correct[0], published as item.slider; a third and 700 by default). So
  *
- *     area(v) / real area = 1/3 + 2/3 × v / 700
- *     deviation           = area ratio − 1 = (v − 700) / 1050
+ *     area(v) / real area = min + (1 − min) × v / target
+ *     deviation           = area ratio − 1 = (1 − min) × (v − target) / target
  *
  * Points are the ordinary time-based points scaled by accuracy — the
- * deviation as a fraction, so a 100% deviation would score nothing (the
- * slider cannot get there: its worst is −67%, and +29% at the far end):
+ * deviation as a fraction, so a 100% deviation would score nothing:
  *
  *     points = round( timePoints × max(0, 1 − |deviation|) )
  *
@@ -36,17 +36,22 @@ export function points(correct, weight, ms, limitSeconds) {
  */
 export const SLIDER = { target: 700, max: 1000, start: 500, minArea: 1 / 3, good: 0.05 };
 
+/** An item's slider scale, { min, target }: its published `slider`, else the defaults. */
+export const sliderScale = (s) => ({
+    min: Number.isFinite(+s?.min) ? +s.min : SLIDER.minArea,
+    target: Number.isFinite(+s?.target) && +s.target > 0 ? +s.target : SLIDER.target,
+});
 /** Area of the object at position `v`, relative to its real area. */
-export const sliderArea = (v) => SLIDER.minArea + (1 - SLIDER.minArea) * v / SLIDER.target;
+export const sliderArea = (v, s) => { const { min, target } = sliderScale(s); return min + (1 - min) * v / target; };
 /** Signed: +0.12 = 12% too big, −0.3 = 30% too small. */
-export const sliderDeviation = (v) => (v - SLIDER.target) / (SLIDER.target / (1 - SLIDER.minArea));
-export const sliderCorrect = (v) => Math.abs(sliderDeviation(v)) <= SLIDER.good + 1e-9;
+export const sliderDeviation = (v, s) => { const { min, target } = sliderScale(s); return (1 - min) * (v - target) / target; };
+export const sliderCorrect = (v, s) => Math.abs(sliderDeviation(v, s)) <= SLIDER.good + 1e-9;
 
 /** The accuracy factor for a deviation: 1 when exact, 0 at 100% off. */
 export const sliderAccuracy = (dev) => Math.max(0, 1 - Math.abs(dev));
 
-export function sliderPoints(v, weight, ms, limitSeconds) {
-    return Math.round(points(true, weight, ms, limitSeconds) * sliderAccuracy(sliderDeviation(v)));
+export function sliderPoints(v, weight, ms, limitSeconds, s) {
+    return Math.round(points(true, weight, ms, limitSeconds) * sliderAccuracy(sliderDeviation(v, s)));
 }
 
 /**
@@ -121,8 +126,8 @@ export const THROW = {
 };
 
 /** "12% גדול מדי" — the deviation as a player reads it. */
-export function sliderVerdict(v) {
-    const d = sliderDeviation(v);
+export function sliderVerdict(v, s) {
+    const d = sliderDeviation(v, s);
     const pct = Math.round(Math.abs(d) * 100);
     if (pct === 0) return 'בול! סטייה 0%';
     return `סטייה של ${pct}% (${d > 0 ? 'גדול מדי' : 'קטן מדי'})`;

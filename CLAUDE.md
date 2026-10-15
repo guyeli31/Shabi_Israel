@@ -284,9 +284,15 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   NOT right-or-wrong. Same cut-out as "complete the picture" (one piece in
   `options`, `slot`, made by `completeMaker.js`), drawn at its own place; the
   player sets its SIZE with a slider and the answer is the POSITION, 0-1000, in
-  `option_idx`. Area grows linearly: a third of the real area at 0, the real
-  area at 700 (70%) — so `correct = '{700}'` by CHECK and means "target position",
-  not an option index. Points = time points × max(0, 1 − |area deviation|)
+  `option_idx`. Area grows linearly from `slider_min` of the real area at 0 to
+  the real area at the target `correct[0]` — BOTH the author's, per question
+  (the host's request; defaults a third and 700; CHECK: min 0.05-0.95, target
+  100-1000), set in the editor with a live try-out of the player's own slider
+  on the question's picture. Published as `item.slider = {min, target}`
+  (the slider must draw the sizes; the gap on screen gave the target away to
+  a script anyway). Every slider function takes that scale (`sliderScale()`
+  in js/scoring.js, `_gk_slider_dev(v, target, min)` and `_gk_score(…,
+  slider_min)` in SQL). `correct` means "target position", not an option index. Points = time points × max(0, 1 − |area deviation|)
   (a 100% deviation would score 0; the slider's worst is −67%, its far end +29%). In the matrix
   a slider cell is NOT right/wrong: it carries `[ok, ms, points, deviation]`
   (`_gk_matrix` adds the last two, deviation only for a slider) and is
@@ -383,13 +389,24 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   instruction slide show the court with a hand throwing by itself (`auto`).
   A player's count lives in the stage (`throws`), so a rebuilt screen
   carries on from it.
-- **Three background musics.** `gk_quizzes.lobby_music` plays in the lobby;
-  `music` ("the questions' music") under the elements themselves —
-  interludes, instruction slides, questions — and is what an item's "כמו
-  בחידון" means; `podium_music` while the winners are shown (podium, matrix).
-  The results between questions — reveal, fastest five, special slide, table —
-  are SILENT: a question's music ends with its question (the host's request:
-  "it has done its job"). `music_on`
+- **Three background musics, by the host's rules** (`syncMusic()` in stage.js,
+  re-decided on every clock tick because it follows the clock):
+  `lobby_music` in the lobby and the "starting in…" slide; `music` (what an
+  item's "כמו בחידון" means; an item's own file beats it) under an interlude,
+  and under a question ONLY while it can be answered — from the clock's start
+  to its end: not the get-ready count, not a memory picture, not an
+  instruction slide. A plain multiple-choice question ('question', 'memory')
+  stops at the bell; the SPECIAL kinds (picture games, roulette, action) play
+  on through their reveal. `podium_music` on the podium and the matrix. Never
+  under the fastest five, the special slide or the table; an "answer
+  explained" segment plays only a music of its own.
+- **"Starting in 7… get ready"** (phase `countdown`, the host's request): the
+  host's first "next" from the lobby shows it (`ends_at` = `q_deadline`, 7s);
+  the HOST's screen calls `gk_admin_countdown_done()` when it runs out — which
+  steps on only while the countdown is still showing, so two host tabs cannot
+  step twice; a "next" sooner skips it. Mirrored by the demo engine and the
+  preview (`countdown` view). Its classes are `st-cd-*`: `.st-count` is the
+  lobby's player counter, and sharing it blew the slide up. `music_on`
   switches both. When the column was added, existing quizzes got their one
   music copied into it, so no lobby went quiet. Published in `_gk_quiz_json`
   and mirrored by the demo engine and the mock; chosen in `syncMusic()`.

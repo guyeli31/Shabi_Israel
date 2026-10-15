@@ -38,7 +38,7 @@ const TARGETS = [
     { name: 'desktop player', page: 'index.html?preview', sizes: [[1280, 720], [1100, 650], [1600, 1000]] },
     { name: 'phone player', page: 'index.html?preview', touch: true, sizes: [[430, 950], [430, 739], [390, 844], [360, 640]] },
 ];
-const VIEWS = ['lobby', 'intro', 'ready', 'item', 'reveal', 'explain', 'fastest', 'firstfire', 'leadfire', 'leaderboard', 'podium', 'matrix'];
+const VIEWS = ['lobby', 'countdown', 'intro', 'ready', 'item', 'reveal', 'explain', 'fastest', 'firstfire', 'leadfire', 'leaderboard', 'podium', 'matrix'];
 const PER_ITEM = new Set(['intro', 'ready', 'item', 'reveal', 'explain']);
 
 // ---- runs in the page ------------------------------------------------------

@@ -20,10 +20,10 @@
  */
 import { h, safeMedia } from '../ui/dom.js';
 import { holdTouch } from '../ui/touch.js';
-import { SLIDER, sliderArea, sliderCorrect } from '../scoring.js';
+import { SLIDER, sliderArea, sliderCorrect, sliderScale } from '../scoring.js';
 
 /** Linear size of the piece at position v, relative to the real object. */
-const linear = (v) => Math.sqrt(sliderArea(v));
+const linearAt = (v, scale) => Math.sqrt(Math.max(0, sliderArea(v, scale)));
 /** Where on the track position v is, as a CSS length (the handle's centre). */
 const onTrack = (v) => `calc(var(--sl-thumb) / 2 + (100% - var(--sl-thumb)) * ${v / SLIDER.max})`;
 
@@ -35,7 +35,9 @@ const onTrack = (v) => `calc(var(--sl-thumb) / 2 + (100% - var(--sl-thumb)) * ${
  * @param interactive  a player's copy: the slider moves
  * @param onMove       called with the position after the player moves it
  */
-export function createSlider({ image, slot, piece, symbol, interactive, onMove }) {
+export function createSlider({ image, slot, piece, symbol, interactive, onMove, scale = null }) {
+    // the author's scale (size at 0, where it is exact) — see js/scoring.js
+    const linear = (v) => linearAt(v, scale);
     const picture = h('img', { class: 'cp-img', src: image, alt: '', draggable: 'false' });
     const shown = h('img', { class: 'cp-piece sl-piece', src: piece, alt: '', draggable: 'false' });
     // After the reveal: this player's size, as a ghost behind the real one.
@@ -185,13 +187,14 @@ export function createSlider({ image, slot, piece, symbol, interactive, onMove }
             input.disabled = true;
             for (const b of control.querySelectorAll('button')) b.disabled = true;
             root.toggleAttribute('data-revealed', true);
-            set(SLIDER.target);
-            for (const v of values) mark(v, sliderCorrect(v) ? 'good' : 'room');
-            mark(SLIDER.target, 'target');
+            const target = sliderScale(scale).target;
+            set(target);
+            for (const v of values) mark(v, sliderCorrect(v, scale) ? 'good' : 'room');
+            mark(target, 'target');
             this.markPicked(picked);
             if (values.length) {
-                const mean = values.reduce((n, v) => n + Math.abs(sliderArea(v) - 1), 0) / values.length;
-                const hits = values.filter(sliderCorrect).length;
+                const mean = values.reduce((n, v) => n + Math.abs(sliderArea(v, scale) - 1), 0) / values.length;
+                const hits = values.filter((v) => sliderCorrect(v, scale)).length;
                 summary.hidden = false;
                 summary.textContent = `סטייה ממוצעת ${Math.round(mean * 100)}% · ${hits === 1 ? 'אחד פגע' : `${hits} פגעו`} (עד 5%)`;
             }

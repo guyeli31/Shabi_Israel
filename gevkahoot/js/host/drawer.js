@@ -13,7 +13,7 @@ import { itemForm, keptForm, leaveForms, loadManifest } from '../admin/itemForm.
 
 const KIND_ICON = { interlude: '🎬', question: '❓', spot: '🔎', puzzle: '🧩', complete: '🖼️', slider: '🎚️', rank: '🔢', memory: '📸', roulette: '🎰', action: '🏀', explain: '💡' };
 const PHASE_LABEL = {
-    lobby: 'הרשמה פתוחה', interlude: 'קטע מעבר', question: 'שאלה פתוחה', reveal: 'התשובה נחשפה',
+    lobby: 'הרשמה פתוחה', countdown: 'מתחילים בעוד… (ממשיך לבד)', interlude: 'קטע מעבר', question: 'שאלה פתוחה', reveal: 'התשובה נחשפה',
     explain: 'הסבר התשובה', intro: 'שקופית הוראות — ״הבא״ מתחיל את השאלה',
     fastest: 'הכי מהירים', fire: '🔥 שקופית מיוחדת — ״הבא״ ממשיך', leaderboard: 'טבלה', podium: 'פודיום', matrix: 'מטריצה',
 };

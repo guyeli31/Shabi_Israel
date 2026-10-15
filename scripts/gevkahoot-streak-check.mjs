@@ -66,6 +66,7 @@ async function afterFastest() {
 try {
     host(`select public.gk_admin_open('${QUIZ}');`);
     for (const [name, t] of Object.entries(phones)) await rpc('gk_join', { p_name: name, p_token: t });
+    next();   // "starting in…"
     next();   // q1
 
     section('Two in a row is not a streak yet');

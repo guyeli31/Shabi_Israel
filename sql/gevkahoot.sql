@@ -179,10 +179,15 @@ alter table public.gk_items
 -- ONE piece, always drawn at the object's own place, whose SIZE the player
 -- sets with a slider. The answer is the slider's position, 0-1000, stored in
 -- option_idx; the area grows linearly with it, from a third of the real area
--- at 0 to exactly the real area at 700 (see _gk_slider_dev). `correct` is
--- therefore always '{700}' — it is the target position, not an option index.
--- (It was 900 until the host moved the right answer to 70%: the far end then
--- earned ~93% of the points; at 700 it earns ~71%.)
+-- at 0 to exactly the real area at the target (see _gk_slider_dev). Both are
+-- the AUTHOR's, per question (the host's request — they used to be fixed):
+--   slider_min  the object's area at position 0, as a share of its real area
+--               (0.05-0.95; a third by default) — with the target, the slope
+--   correct     '{target}': the position, 100-1000, where the size is exact
+--               (700 by default; 900 before that) — not an option index.
+-- Both are published while the question is open: the slider has to draw the
+-- sizes. That gives a determined script the target — it always did, since the
+-- gap the object came out of is on the screen too.
 --   image    the picture WITH THE GAP     slot     where the object was
 --   options  [{image, scale: 1}] — the one cut-out (none yet = not cut)
 --   symbols  [emoji] — optional: an emoji riding on the slider's handle, which
@@ -284,11 +289,14 @@ alter table public.gk_items add constraint gk_items_action_shape check (
 alter table public.gk_items drop constraint if exists gk_items_slider_shape;
 -- The target moved from 900 (90%) to 700 (70%): existing sliders follow it.
 update public.gk_items set correct = '{700}' where kind = 'slider' and correct = '{900}';
+alter table public.gk_items add column if not exists slider_min real not null default 0.3333;
+alter table public.gk_items drop constraint if exists gk_items_slider_min;
+alter table public.gk_items add constraint gk_items_slider_min check (slider_min between 0.05 and 0.95);
 alter table public.gk_items add constraint gk_items_slider_shape check (
     kind <> 'slider' or (
         jsonb_typeof(options) = 'array'
         and jsonb_array_length(options) <= 1
-        and correct = '{700}'
+        and cardinality(correct) = 1 and correct[1] between 100 and 1000
         and not jsonb_path_exists(options,
               '$[*] ? (!(@.image like_regex "^media/sprites/[^./\\\\?#%:*<>|][^/\\\\?#%:*<>|]*$"))')
     )
@@ -416,7 +424,7 @@ create table if not exists public.gk_sessions (
     quiz_title    text not null default '',
     status        text not null default 'lobby' check (status in ('lobby', 'running', 'finished', 'aborted')),
     phase         text not null default 'lobby'
-                  check (phase in ('lobby', 'interlude', 'intro', 'question', 'reveal', 'explain', 'fastest', 'fire', 'leaderboard', 'podium', 'matrix')),
+                  check (phase in ('lobby', 'countdown', 'interlude', 'intro', 'question', 'reveal', 'explain', 'fastest', 'fire', 'leaderboard', 'podium', 'matrix')),
     cur_index     integer,
     cur_item_id   uuid,
     q_started_at  timestamptz,
@@ -434,7 +442,7 @@ create table if not exists public.gk_sessions (
 -- Re-stated as ALTERs so a database created before the 'explain' phase gets it.
 alter table public.gk_sessions drop constraint if exists gk_sessions_phase_check;
 alter table public.gk_sessions add constraint gk_sessions_phase_check
-    check (phase in ('lobby', 'interlude', 'intro', 'question', 'reveal', 'explain', 'fastest', 'fire', 'leaderboard', 'podium', 'matrix'));
+    check (phase in ('lobby', 'countdown', 'interlude', 'intro', 'question', 'reveal', 'explain', 'fastest', 'fire', 'leaderboard', 'podium', 'matrix'));
 -- A quiz the host lets anyone play ALONE, against the demo's bots
 -- (index.html?demo&quiz=<id>): gk_demo_get hands its whole content — the
 -- correct answers included — to the browser. Off by default; the editor's
@@ -648,11 +656,13 @@ returns int language sql stable security definer set search_path = public, pg_ca
 $$;
 
 -- The slider's deviation: (area chosen / real area) − 1, signed. Position v
--- (0-1000) gives area 1/3 + 2/3 × v/700, so the deviation is (v − 700)/1050.
--- Mirrored by sliderDeviation() in js/scoring.js.
-create or replace function public._gk_slider_dev(p_value int)
+-- (0-1000) gives area min + (1 − min) × v / target, so the deviation is
+-- (1 − min) × (v − target) / target. Mirrored by sliderDeviation() in
+-- js/scoring.js.
+drop function if exists public._gk_slider_dev(int);
+create or replace function public._gk_slider_dev(p_value int, p_target int default 700, p_min numeric default 0.3333)
 returns numeric language sql immutable as $$
-  select (p_value - 700)::numeric / 1050;
+  select (1 - p_min) * (p_value - p_target)::numeric / greatest(p_target, 1);
 $$;
 
 -- A ranking answer's code → the order it stands for (option indexes, top
@@ -676,16 +686,18 @@ $$;
 --     deviation as a fraction of the real area, so a 100% deviation would score
 --     nothing (the slider cannot get there: its worst is −67%) — and "correct"
 --     (fastest five, the tie-break) within 5% of the real area.
+drop function if exists public._gk_score(text, int[], int, int, int, int);
 create or replace function public._gk_score(p_kind text, p_correct int[], p_option int, p_weight int, p_ms int, p_limit_s int,
+                                            p_slider_min numeric default 0.3333,
                                             out is_correct boolean, out points int)
 language sql immutable as $$
-  select case when p_kind = 'slider' then abs(public._gk_slider_dev(p_option)) <= 0.05
+  select case when p_kind = 'slider' then abs(public._gk_slider_dev(p_option, p_correct[1], p_slider_min)) <= 0.05
               -- the ranking: only the exact order
               when p_kind = 'rank' then public._gk_rank_order(p_option, cardinality(p_correct)) = p_correct
               else p_option = any (p_correct) end,
          case when p_kind = 'slider'
               then round(public._gk_points(true, p_weight, p_ms, p_limit_s)
-                         * greatest(0, 1 - abs(public._gk_slider_dev(p_option))))::int
+                         * greatest(0, 1 - abs(public._gk_slider_dev(p_option, p_correct[1], p_slider_min))))::int
               when p_kind = 'rank'
               then public._gk_points(coalesce(public._gk_rank_order(p_option, cardinality(p_correct)) = p_correct, false),
                                      p_weight, p_ms, p_limit_s)
@@ -842,7 +854,7 @@ create or replace function public._gk_matrix(p_session uuid)
 returns jsonb language sql stable security definer set search_path = public, pg_catalog as $$
   with s as (select quiz_id from public.gk_sessions where id = p_session),
   qs as (
-    select o.idx, i.id, i.title, public._gk_w(p_session, i.id) as weight, i.kind,
+    select o.idx, i.id, i.title, public._gk_w(p_session, i.id) as weight, i.kind, i.correct, i.slider_min,
            (row_number() over (order by o.idx))::int as no
       from s, public._gk_ordered(s.quiz_id) o
       join public.gk_items i on i.id = o.item_id
@@ -860,7 +872,7 @@ returns jsonb language sql stable security definer set search_path = public, pg_
                           then jsonb_build_array(a.is_correct, a.answered_ms, a.points, null, a.option_idx,
                                                  round(public._gk_action_factor(a.option_idx, sp.lo, sp.hi), 4))
                           else jsonb_build_array(a.is_correct, a.answered_ms, a.points,
-                                                 case when qs.kind = 'slider' then round(public._gk_slider_dev(a.option_idx), 4) end)
+                                                 case when qs.kind = 'slider' then round(public._gk_slider_dev(a.option_idx::int, qs.correct[1], qs.slider_min::numeric), 4) end)
                      end order by qs.idx) as cells
       from public.gk_players p
       cross join qs
@@ -931,6 +943,10 @@ begin
       'index', s.cur_index,
       'count', (select count(*) from public.gk_items i where i.quiz_id = s.quiz_id and i.parent_id is null),
       'locked', s.locked);
+    -- "Starting in…": when it ends (the host's screen steps on by itself then).
+    if s.phase = 'countdown' then
+      d := d || jsonb_build_object('ends_at', public._gk_ms(s.q_deadline));
+    end if;
 
     if s.phase in ('interlude', 'intro', 'question', 'reveal', 'explain', 'fastest', 'fire', 'leaderboard') then
       select * into it from public.gk_items where id = s.cur_item_id;
@@ -947,6 +963,8 @@ begin
         'options', case when it.kind in ('question', 'complete', 'slider', 'rank', 'memory') then it.options else '[]'::jsonb end,
         'memo_s', case when it.kind = 'memory' then it.memo_s end,
         'slot', case when it.kind in ('complete', 'slider') then it.slot end,
+        -- the slider's scale: its size at 0 and where it is exact (see §1)
+        'slider', case when it.kind = 'slider' then jsonb_build_object('min', it.slider_min, 'target', it.correct[1]) end,
         'weight', public._gk_w(s.id, it.id), 'time_limit', it.time_limit_s,
         'image', it.image, 'video', it.video, 'audio', it.audio,
         'layout', it.media_layout, 'music_on', it.music_on, 'anim_on', it.anim_on,
@@ -1369,7 +1387,7 @@ begin
 
   v_ms := least(greatest((extract(epoch from (v_now - s.q_started_at)) * 1000)::int, 0), it.time_limit_s * 1000);
   select sc.is_correct, sc.points into v_ok, v_pts
-    from public._gk_score(it.kind, it.correct, p_option, public._gk_w(s.id, it.id), v_ms, it.time_limit_s) sc;
+    from public._gk_score(it.kind, it.correct, p_option, public._gk_w(s.id, it.id), v_ms, it.time_limit_s, it.slider_min::numeric) sc;
 
   begin
     insert into public.gk_answers (session_id, item_id, player_id, option_idx, answered_ms, is_correct, points)
@@ -1441,6 +1459,16 @@ begin
   end if;
 
   if s.status = 'lobby' then
+    -- Registration is over: a built-in "starting in 7… get ready" slide
+    -- before the first item (the host's request). The host's screen calls
+    -- "next" itself when it runs out (js/gkHost.js); a "next" sooner skips it.
+    update public.gk_sessions
+       set status = 'running', started_at = coalesce(started_at, now()), phase = 'countdown',
+           cur_index = null, cur_item_id = null, revealed = false,
+           q_started_at = now(), q_deadline = now() + interval '7 seconds'
+     where id = s.id;
+    perform public._gk_publish(s.id);
+  elsif s.phase = 'countdown' then
     perform public._gk_enter(s.id, 1);
   elsif s.phase = 'intro' then
     -- the instruction slide has been read: now the question, and its countdown
@@ -1501,6 +1529,18 @@ begin
   select * into s from public.gk_sessions where status in ('lobby', 'running') for update;
   if not found then raise exception 'no_quiz' using errcode = 'P0001'; end if;
   perform public._gk_enter(s.id, p_index);
+end;
+$$;
+
+-- The "starting in…" slide ran out: on to the first item — only if it is
+-- still showing, so a second host tab (or a late timer) cannot step twice.
+create or replace function public.gk_admin_countdown_done()
+returns void language plpgsql security definer set search_path = public, pg_catalog as $$
+declare s public.gk_sessions%rowtype;
+begin
+  perform public._gk_require_admin();
+  select * into s from public.gk_sessions where status = 'running' and phase = 'countdown' for update;
+  if found then perform public._gk_enter(s.id, 1); end if;
 end;
 $$;
 
@@ -1654,7 +1694,7 @@ begin
   update public.gk_answers a
      set (is_correct, points) = (select sc.is_correct, sc.points
                                    from public._gk_score(it.kind, it.correct, a.option_idx, public._gk_w(p_session, it.id),
-                                                         a.answered_ms, it.time_limit_s) sc)
+                                                         a.answered_ms, it.time_limit_s, it.slider_min::numeric) sc)
    where a.session_id = p_session and a.item_id = it.id and not a.voided;
 end;
 $$;

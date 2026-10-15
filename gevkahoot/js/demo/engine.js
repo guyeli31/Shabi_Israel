@@ -12,10 +12,14 @@
  * Nothing leaves the browser: no request is made and nothing is stored.
  */
 import { DEMO_QUIZ, DEMO_ITEMS, DEMO_BOTS } from './demoQuiz.js';
-import { points, sliderPoints, sliderCorrect, sliderDeviation, SLIDER, encodeRank, decodeRank, actionFactor, actionPoints } from '../scoring.js';
+import { points, sliderPoints, sliderCorrect, sliderDeviation, sliderScale, SLIDER, encodeRank, decodeRank, actionFactor, actionPoints } from '../scoring.js';
+
+/** A slider item's scale, as _gk_publish sends it: { min, target }. */
+const scaleOf = (it) => sliderScale({ min: it.slider_min, target: it.correct?.[0] });
 
 const PAUSE = { intro: 9000, fire: 10000, reveal: 5000, explain: 6000, fastest: 5000, leaderboard: 7500, podium: 11000 };
 const LOBBY_MS = 12000;
+const COUNTDOWN_MS = 7000;
 
 /**
  * @param content  the quiz to play: { quiz, items } — the built-in demo by
@@ -101,7 +105,7 @@ export function createDemo(onChange, { quiz: QUIZ = DEMO_QUIZ, items: ITEMS = DE
             const [lo, hi] = actionSpread(q);
             return [a.correct, a.ms, a.points, null, a.option, +actionFactor(a.option, lo, hi).toFixed(4)];
         }
-        return [a.correct, a.ms, a.points, q.kind === 'slider' ? sliderDeviation(a.option) : null];
+        return [a.correct, a.ms, a.points, q.kind === 'slider' ? sliderDeviation(a.option, scaleOf(q)) : null];
     }
 
     // ---- streaks (same rules as _gk_runs / _gk_streaks / _gk_fire) ------------
@@ -152,6 +156,7 @@ export function createDemo(onChange, { quiz: QUIZ = DEMO_QUIZ, items: ITEMS = DE
         return {
             id: it.id, kind: it.kind, title: it.title, body: it.body,
             options: ['question', 'complete', 'slider', 'rank', 'memory'].includes(it.kind) ? it.options : [], slot: it.slot || null,
+            slider: it.kind === 'slider' ? scaleOf(it) : null,
             memo_s: it.kind === 'memory' ? it.memo_s : null,
             weight: it.weight, time_limit: it.time_limit_s,
             image: it.image, video: it.video, audio: it.audio, layout: it.media_layout, music_on: it.music_on,
@@ -170,7 +175,9 @@ export function createDemo(onChange, { quiz: QUIZ = DEMO_QUIZ, items: ITEMS = DE
         let data = { quiz, index: index + 1, count: ITEMS.length, locked: false };
         const revealed = ['reveal', 'explain', 'fastest', 'fire', 'leaderboard'].includes(phase);
 
-        if (status === 'finished') {
+        if (phase === 'countdown') {
+            data.ends_at = until;
+        } else if (status === 'finished') {
             data = { quiz, leaderboard: table(null), matrix: matrix() };
         } else if (it) {
             data.item = publicItem(it);
@@ -286,7 +293,8 @@ export function createDemo(onChange, { quiz: QUIZ = DEMO_QUIZ, items: ITEMS = DE
                 if (it.kind === 'slider') {
                     // A bot's eye: off by up to ±(1 − skill) of the area, centred on the truth.
                     const off = (Math.random() * 2 - 1) * (1 - p.bot.skill) * 0.9;
-                    const option = Math.round(Math.min(SLIDER.max, Math.max(0, SLIDER.target + off * (SLIDER.target / (1 - SLIDER.minArea)))));
+                    const { min, target } = scaleOf(it);
+                    const option = Math.round(Math.min(SLIDER.max, Math.max(0, target + off * (target / (1 - min)))));
                     return { player: p, at: startsAt + ms, ms, option };
                 }
                 const right = Math.random() < p.bot.skill;
@@ -309,7 +317,7 @@ export function createDemo(onChange, { quiz: QUIZ = DEMO_QUIZ, items: ITEMS = DE
             return;
         }
         if (it.kind === 'slider') {
-            player.answers[it.id] = { option, ms, correct: sliderCorrect(option), points: sliderPoints(option, it.weight, ms, it.time_limit_s) };
+            player.answers[it.id] = { option, ms, correct: sliderCorrect(option, scaleOf(it)), points: sliderPoints(option, it.weight, ms, it.time_limit_s, scaleOf(it)) };
             return;
         }
         const correct = it.kind === 'rank'
@@ -324,8 +332,11 @@ export function createDemo(onChange, { quiz: QUIZ = DEMO_QUIZ, items: ITEMS = DE
             // "Start now" must not leave half the room outside: whoever has not
             // walked in yet walks in with the whistle.
             for (const bot of DEMO_BOTS) if (!players.some((p) => p.bot === bot)) players.push({ name: bot.name, bot, answers: {} });
-            return enter(0);
+            // As on the server: "starting in 7… get ready" before the first item.
+            status = 'running'; phase = 'countdown'; until = Date.now() + COUNTDOWN_MS;
+            return emit();
         }
+        if (phase === 'countdown') return enter(0);
         if (phase === 'intro') return enter(index, { started: true });
         if (phase === 'question') { phase = 'reveal'; until = Date.now() + PAUSE.reveal; return emit(); }
         // As on the server: a question's "answer explained" segment comes

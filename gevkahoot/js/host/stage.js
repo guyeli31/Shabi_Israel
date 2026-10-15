@@ -214,18 +214,32 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
     function syncMusic() {
         const quiz = state.data.quiz || {};
         const item = current();
-        // Three musics: the lobby's (lobby_music); the questions' (`music`, which
-        // an item's own beats) — under the elements themselves: interludes,
-        // instruction slides, questions; and the winners' (podium_music) on the
-        // podium and the matrix. The results between questions (reveal,
-        // fastest five, special slide, table) are SILENT: a question's music
-        // ends with its question (the host's request).
-        // music_on = false (the quiz's switch) silences all three.
-        const results = ['reveal', 'fastest', 'fire', 'leaderboard'].includes(state.phase);
-        const src = state.phase === 'lobby' ? (quiz.music_on ? safeMedia(quiz.lobby_music) : null)
-            : ['podium', 'matrix'].includes(state.phase) ? (quiz.music_on ? safeMedia(quiz.podium_music) : null)
-            : results ? null
-            : safeMedia(item?.music) || (quiz.music_on ? safeMedia(quiz.music) : null);
+        // Three musics, by the host's rules:
+        //   lobby_music   the lobby, and the "starting in…" slide after it
+        //   music         the questions' (an item's own beats it): under an
+        //                 interlude; under a question ONLY while it can be
+        //                 answered (from the clock's start to its end — not
+        //                 the get-ready count, not a memory picture, not an
+        //                 instruction slide) — and for the special kinds (every
+        //                 picture game, the roulette, the action round) on
+        //                 through its reveal too; a plain multiple-choice
+        //                 question ('question', 'memory') stops at the bell.
+        //   podium_music  the podium and the matrix.
+        // Never under the results: the fastest five, the special slide, the
+        // table. An "answer explained" segment plays only music of its own.
+        // music_on = false (the quiz's switch) silences the quiz's three.
+        const own = safeMedia(item?.music);
+        const quizMusic = (key) => (quiz.music_on ? safeMedia(quiz[key]) : null);
+        const q = state.data.item;
+        const special = q && !['question', 'memory', 'interlude'].includes(q.kind);
+        const now = serverNow();
+        const answering = state.phase === 'question' && now >= state.data.starts_at && now <= state.data.deadline;
+        const src = { lobby: quizMusic('lobby_music'), countdown: quizMusic('lobby_music'),
+            podium: quizMusic('podium_music'), matrix: quizMusic('podium_music'),
+            interlude: own || quizMusic('music'),
+            explain: own,
+            question: answering ? own || quizMusic('music') : null,
+            reveal: special ? own || quizMusic('music') : null }[state.phase] || null;
         // Wherever an element's own video or audio is on screen, it is heard
         // and the music is not — the reveal included: a question's clip plays
         // again beside the answers, and the music used to come back over it.
@@ -238,6 +252,15 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
     }
 
     // ---- phases -----------------------------------------------------------
+    /** "Starting in 7… get ready": registration is over, the first item is
+     *  seconds away. The number is the server's `ends_at`, counted here. */
+    function countdown() {
+        refs.countdown = h('span', { class: 'st-cd-num' });
+        return h('section', { class: 'st-center st-cd' },
+            h('p', { class: 'st-cd-lead', text: 'ההרשמה נסגרה · מתחילים בעוד' }),
+            refs.countdown,
+            h('p', { class: 'st-cd-ready', text: 'תתכוננו!' }));
+    }
     function idle() {
         return h('section', { class: 'st-center' },
             h('div', { class: 'st-brand' }, 'Gev', h('b', { text: 'Kahoot' })),
@@ -475,7 +498,7 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         refs.done = submit;
         // Under refs.spot, like "complete the picture": the same lock /
         // markPicked / selected contract, so sync() treats them alike.
-        refs.spot = createSlider({ image, slot: item.slot, piece, symbol: item.symbols?.[0] || null, interactive: live,
+        refs.spot = createSlider({ image, slot: item.slot, piece, symbol: item.symbols?.[0] || null, interactive: live, scale: item.slider,
             onMove: () => { if (submit) submit.hidden = false; } });
         if (revealed) {
             const mine = me && me.item_id === item.id && me.option !== null && me.option !== undefined ? me.option : null;
@@ -716,6 +739,7 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         const item = data.item;
         if (status === 'idle') return ['idle', idle];
         if (phase === 'lobby') return ['lobby', lobby];
+        if (phase === 'countdown') return [`countdown|${rev}`, countdown];
         if (phase === 'interlude' && item) return [`interlude|${item.id}|${rev}`, () => interlude(item)];
         // A picture game's instruction slide: shown until the host starts the question.
         if (phase === 'intro' && item && hasIntro(item.kind)) return [`intro|${item.id}|${rev}`, () => introSlide(item, { host: role === 'host' })];
@@ -745,6 +769,9 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
     /** The in-place updates: called on every state change and on a clock tick. */
     function sync() {
         if (!state) return;
+        // The questions' music follows the clock (it plays only while answers
+        // can be given), so it is re-decided on every tick.
+        syncMusic();
         const { phase, data, live } = state;
         const item = data.item;
 
@@ -810,6 +837,15 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         }
 
         const now = serverNow();
+        if (refs.countdown && phase === 'countdown' && data.ends_at) {
+            const left = Math.max(0, Math.ceil((data.ends_at - now) / 1000));
+            const text = left > 0 ? String(left) : '🚀';
+            if (refs.countdown.textContent !== text) {
+                refs.countdown.textContent = text;
+                // each number lands with a beat
+                refs.countdown.classList.remove('st-cd-num--beat'); void refs.countdown.offsetWidth; refs.countdown.classList.add('st-cd-num--beat');
+            }
+        }
         if (inQuestion && refs.ready && now < data.starts_at) {
             refs.ready.textContent = String(Math.ceil((data.starts_at - now) / 1000));
         }

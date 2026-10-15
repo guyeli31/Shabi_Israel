@@ -72,6 +72,12 @@ function mountStage({ withControls, email }) {
     // the one device guaranteed to be watching it. The server re-checks the
     // phase, so a duplicate or late call is a no-op.
     setInterval(() => {
+        // "Starting in…" runs out on this screen too: on to the first item.
+        if (live?.phase === 'countdown' && live.data.ends_at && serverNow() > live.data.ends_at + 150) {
+            const key = `countdown|${live.rev}`;
+            if (!revealAsked.has(key)) { revealAsked.add(key); api.admin.countdownDone().catch(() => revealAsked.delete(key)); }
+            return;
+        }
         if (!live || live.phase !== 'question' || !live.data.item) return;
         const id = `${live.data.item.id}|${live.data.deadline}`;
         if (serverNow() > live.data.deadline + 250 && !revealAsked.has(id)) {

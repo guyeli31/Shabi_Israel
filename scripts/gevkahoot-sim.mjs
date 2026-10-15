@@ -37,7 +37,8 @@ try {
 
     // ------------------------------------------------------------------------
     section('Question 1 (weight ×1, options 0 and 2 both correct)');
-    check('host starts', next().ok);
+    check('host starts: the "starting in…" slide', next().ok && (await publicState()).phase === 'countdown');
+    check('"next" skips to question 1', next().ok);
     // Everyone but the last answers, one option each in rotation.
     const first = await Promise.all(players.slice(0, N - 1).map((p, i) => rpc('gk_answer', { p_token: p.token, p_item: Q[0], p_option: i % 3 })));
     check('29 answers accepted in parallel', first.every((r) => r.ok), first.find((r) => !r.ok));

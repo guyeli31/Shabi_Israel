@@ -176,6 +176,15 @@
 .st-badge { font-weight: 800; padding: .25em 1em; border-radius: 999px; background: var(--accent); color: var(--accent-ink); animation: gk-pop .5s var(--ease-pop) both; }
 .st-badge[data-weight="0"] { background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 2px var(--line); }
 
+/* "Starting in…" (stage.js countdown) */
+.st-cd { gap: .4em; }
+.st-cd-lead { margin: 0; font-size: 2em; font-weight: 800; color: var(--ink-soft); text-align: center; }
+.st-cd-num { font-size: 8.5em; font-weight: 900; line-height: 1; color: var(--accent); text-shadow: 0 .05em 0 rgba(0, 0, 0, .3); font-variant-numeric: tabular-nums; min-height: 1em; }
+.st-cd-num--beat { animation: gk-pop .55s var(--ease-pop) both; }
+.st-cd-ready { margin: 0; font-size: 2.6em; font-weight: 900; animation: gk-bob 1.4s ease-in-out infinite; }
+.st[data-compact] .st-cd-lead { font-size: 1.5em; }
+.st[data-compact] .st-cd-num { font-size: 9em; }
+.st[data-compact] .st-cd-ready { font-size: 2.2em; }
 .st-ready { grid-area: options; display: flex; align-items: center; justify-content: center; gap: 3.5em; min-height: 9.5em; padding-bottom: 3.6em; direction: ltr; }
 .st-ready .gk-mult { font-size: 1.25em; }
 .st-ready-num { font-size: 7em; font-weight: 800; color: var(--accent); line-height: 1; text-shadow: 0 .06em 0 rgba(0, 0, 0, .3); }
@@ -475,6 +484,8 @@ button.rl-cell:focus-visible { z-index: 1; outline: .15em solid #ffe14a; }
 
 /* ---- "complete the picture" (js/host/complete.js) ------------------------------- */
 .cp { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .6em; }
+/* the editor's try-out of a slider question (itemForm.js): the player's own slider, in a box */
+.if-slider-preview { height: 22rem; display: flex; flex-direction: column; gap: .5rem; padding: .6rem; border-radius: .7rem; background: rgba(0, 0, 0, .25); font-size: 1rem; }
 .cp-stage { flex: 1; min-height: 0; display: grid; place-items: center; }
 .cp-frame { position: relative; border-radius: .5em; overflow: hidden; box-shadow: 0 .4em 1.4em rgba(0, 0, 0, .4); line-height: 0; }
 .cp-img { width: 100%; height: 100%; display: block; object-fit: fill; user-select: none; -webkit-user-drag: none; }

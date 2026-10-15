@@ -17,7 +17,8 @@ import { crest, MARK_SETS, TILES } from '../ui/teams.js';
 import { emojiButton, openEmojiPicker } from './emojiPicker.js';
 import { openCompleteMaker } from './completeMaker.js';
 import { safeMedia } from '../ui/dom.js';
-import { scrambleRank, SLIDER } from '../scoring.js';
+import { scrambleRank, SLIDER, sliderArea } from '../scoring.js';
+import { createSlider } from '../host/slider.js';
 import { memoryPicture } from '../host/memory.js';
 import { createTable } from '../host/roulette.js';
 
@@ -113,6 +114,10 @@ export function itemForm(item, { manifest, onSave }) {
         marks: item.marks && item.marks !== 'teams' ? item.marks
             : hasOptions && (item.symbols || []).some(Boolean) ? 'emoji' : 'teams',
         memo_s: item.memo_s ?? 10, arrows: (item.arrows || []).map((a) => ({ ...a })),
+        // the slider's scale: its size at 0 (share of the real area) and the
+        // position where it is exact — the author's, per question
+        slider_min: item.slider_min ?? SLIDER.minArea,
+        slider_target: item.kind === 'slider' && item.correct?.[0] ? item.correct[0] : SLIDER.target,
         circle_x: item.circle_x ?? null, circle_y: item.circle_y ?? null, circle_r: item.circle_r ?? null,
         circle_speed: item.circle_speed ?? 4,
         // the action round's lines for a basket and a miss
@@ -144,15 +149,16 @@ export function itemForm(item, { manifest, onSave }) {
                 || (isMemory && (!draft.image ? 'נשמר — בחרו תמונה לזכור' : draft.arrows.length === 0 ? 'נשמר — אפשר לצייר חץ על התמונה' : null))
                 || (isComplete && draft.image && (draft.options.length < 2 ? 'נשמר — צריך לפחות שתי אפשרויות' : draft.correct.length === 0 ? 'נשמר — סמנו איזו אפשרות נכונה' : null));
             // Each kind saves only the columns that mean something for it.
-            const { circle_x, circle_y, circle_r, circle_speed, regions, symbols, slot, marks, memo_s, arrows, feedback, ...common } = draft;
+            const { circle_x, circle_y, circle_r, circle_speed, regions, symbols, slot, marks, memo_s, arrows, feedback, slider_min, slider_target, ...common } = draft;
             const playback = { music_on: draft.music_on, music: draft.music, anim_on: draft.anim_on, anim_sprite: draft.anim_sprite };
             const patch = isRank
                 ? { title: draft.title, body: draft.body.trim().slice(0, 40), weight: draft.weight, time_limit_s: draft.time_limit_s,
                     ...scrambleRank(rankList.map((t) => t.trim())), symbols: [], marks: marks === 'emoji' ? 'teams' : marks, ...playback }
                 : isSlider
-                // One cut-out at its real size; the target position is fixed.
+                // One cut-out at its real size, and the author's scale.
                 ? { title: draft.title, image: draft.image, slot, weight: draft.weight, time_limit_s: draft.time_limit_s,
-                    options: draft.options.slice(0, 1).map((o) => ({ image: o.image, scale: 1 })), correct: [SLIDER.target],
+                    options: draft.options.slice(0, 1).map((o) => ({ image: o.image, scale: 1 })),
+                    correct: [Math.round(slider_target)], slider_min: Math.round(slider_min * 1000) / 1000,
                     symbols: draft.symbols[0] ? [draft.symbols[0]] : [], ...playback }
                 : isComplete
                 ? { title: draft.title, image: draft.image, slot, weight: draft.weight, time_limit_s: draft.time_limit_s,
@@ -555,15 +561,49 @@ export function itemForm(item, { manifest, onSave }) {
             sliderBox.append(make, h('p', { class: 'dr-note', text: 'בוחרים תמונה מהריפו ומסמנים בה עצם אחד. העצם יוצא ממנה, והשחקנים מגדילים ומקטינים אותו במקומו עם סליידר עד שהוא בגודל האמיתי.' }), emoji);
             return;
         }
-        const gap = h('div', { class: 'if-spot-rect', dataset: { ghost: '' } });
-        gap.style.left = `${draft.slot.x * 100}%`; gap.style.top = `${draft.slot.y * 100}%`;
-        gap.style.width = `${draft.slot.w * 100}%`; gap.style.height = `${draft.slot.h * 100}%`;
         const src = safeMedia(draft.options[0].image);
+        // ---- the scale, and a live try-out of it ----------------------------
+        // Two numbers the author sets: how big the object is at the slider's
+        // start (its slope follows), and where along the slider it is exact.
+        // Under them, the player's own slider on this picture, to drag and
+        // see — rebuilt on every change, so it always shows the saved scale.
+        const preview = h('div', { class: 'if-slider-preview' });
+        const facts = h('p', { class: 'dr-note' });
+        const scale = () => ({ min: draft.slider_min, target: draft.slider_target });
+        function drawPreview() {
+            const s = scale();
+            const pct = (v) => `${Math.round(sliderArea(v, s) * 100)}%`;
+            facts.textContent = `ב-0% העצם ${pct(0)} מהשטח האמיתי · ב-50% (שם הסליידר מתחיל) ${pct(SLIDER.start)} · ב-${Math.round(s.target / 10)}% בדיוק בגודלו · ב-100% ${pct(SLIDER.max)}. `
+                + `כל 10% של הסליידר מוסיפים ${Math.round((1 - s.min) / s.target * 100 * 100)}% לשטח. מי שמגיע לקצה הרחוק מהתשובה מקבל ${Math.round(Math.max(0, 1 - Math.max(Math.abs(sliderArea(0, s) - 1), Math.abs(sliderArea(SLIDER.max, s) - 1))) * 100)}% מנקודות המהירות.`;
+            const slider = createSlider({ image: draft.image, slot: draft.slot, piece: src, symbol: draft.symbols[0] || null, interactive: true, scale: s });
+            // "the right size": the slider's own reveal (it stops there, marked);
+            // pressed again, the try-out starts over
+            let shown = false;
+            const show = (e) => {
+                if (shown) { drawPreview(); return; }
+                shown = true;
+                slider.reveal({ values: [], picked: null });
+                e.currentTarget.textContent = 'שוב לגרור';
+            };
+            clear(preview).append(slider.el,
+                h('div', { class: 'if-pair' },
+                    h('button', { class: 'gk-btn gk-btn--small gk-btn--ghost', type: 'button', text: 'הצג את הגודל הנכון', onclick: show }),
+                    h('span', { class: 'dr-note', text: 'גררו את הסליידר כדי לראות איך העצם גדל — כמו שהשחקן יראה.' })));
+        }
+        const range = (label, min, max, step, value, unit, onInput) => {
+            const out = h('span', { class: 'ed-range-value', dir: 'ltr', text: `${value}${unit}` });
+            return h('label', { class: 'if-field' }, h('span', { class: 'if-label' }, label, ' ', out),
+                h('input', { type: 'range', class: 'ed-range', min: String(min), max: String(max), step: String(step), value: String(value),
+                    oninput: (e) => { out.textContent = `${e.target.value}${unit}`; onInput(Number(e.target.value)); drawPreview(); changed(); } }));
+        };
         sliderBox.append(
-            h('div', { class: 'if-circle-stage if-spot-stage' }, h('img', { class: 'if-circle-img', src: draft.image, alt: '', draggable: 'false' }), h('div', { class: 'if-spot-layer' }, gap)),
             h('div', { class: 'if-pair' }, src && h('span', { class: 'if-swatch if-swatch--piece gk-tile', dataset: { tile: TILES[0].key } }, h('img', { src, alt: '' })), make),
-            h('p', { class: 'dr-note', text: 'הסליידר מתחיל ב-50%; בקצה השמאלי העצם בשליש משטחו, והגודל האמיתי הוא ב-70%. הניקוד: נקודות המהירות × (1 − הסטייה באחוזים) — סטייה של 10% משאירה 90% מהנקודות. במטריצה התא נצבע מאדום לירוק לפי הסטייה.' }),
+            range('גודל העצם בתחילת הסליידר (0%) — אחוז מהשטח האמיתי:', 5, 95, 1, Math.round(draft.slider_min * 100), '%', (v) => { draft.slider_min = v / 100; }),
+            range('הגודל הנכון נמצא בסליידר ב:', 10, 100, 1, Math.round(draft.slider_target / 10), '%', (v) => { draft.slider_target = v * 10; }),
+            facts, preview,
+            h('p', { class: 'dr-note', text: 'הניקוד: נקודות המהירות × (1 − הסטייה באחוזים) — סטייה של 10% משאירה 90% מהנקודות. במטריצה התא נצבע מאדום לירוק לפי הסטייה.' }),
             emoji);
+        drawPreview();
     }
     // ---- the ranking: the answers in their right order, top place first ----
     const rankBox = h('div', { class: 'if-options' });
