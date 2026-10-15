@@ -283,10 +283,27 @@
 .st-puzzle-icon { font-size: 6em; line-height: 1; animation: st-puzzle-in .9s var(--ease-pop) both, gk-bob 1.6s ease-in-out .9s infinite; }
 @keyframes st-puzzle-in { from { opacity: 0; transform: scale(.2) rotate(-140deg); } to { opacity: 1; transform: none; } }
 .st-puzzle-reveal .st-media-el { animation: gk-pop .6s var(--ease-pop) both; }
+/* The assembled picture fills its whole area, in its own proportions — a
+   photo smaller than the area is scaled UP (max-width/height alone left a
+   small photo at its own few hundred pixels). The shadow follows the picture
+   itself (drop-shadow), not the letterboxed box; contentBox() in stage.js
+   already finds the picture inside it for the cut and the lift. */
+.st-item.st-puzzle-reveal .st-media-el { width: 100%; height: 100%; object-fit: contain; border-radius: 0; box-shadow: none; filter: drop-shadow(0 .6em 1.6em rgba(0, 0, 0, .45)); }
+/* The assembled picture is the show here: small type, the picture takes the rest. */
+.st-item.st-puzzle-reveal[data-kind] .st-question { font-size: 1.5em; }
+.st-item.st-puzzle-reveal[data-kind] .st-body { font-size: 1.05em; }
+.st-puzzle-reveal .st-text { gap: .2em; }
 /* The round detail lifting off it (stage.js startLift): the picture fades out
    around a still copy of the detail, which the bouncing layer then takes over
    at the same size and place — so the copy wears the same shadow as a sprite. */
 .st-puzzle-reveal .st-media-el[data-fade] { animation: none; opacity: 0; box-shadow: none; transition: opacity 1.4s ease, box-shadow 1.4s ease; }
+/* The cut, shown before the detail lifts off (stage.js cutMarks). */
+.st-cut-veil { position: absolute; z-index: 5; pointer-events: none; background: rgba(0, 0, 0, .55); border-radius: .4em; opacity: 0; animation: gk-win-in .6s ease forwards; transition: opacity .8s ease; }
+.st-cut-ring { position: absolute; top: 0; left: 0; z-index: 6; pointer-events: none; overflow: visible; }
+.st-cut-ring circle { fill: none; stroke: #fff; stroke-width: 4; stroke-linecap: round; stroke-dasharray: 9 7; filter: drop-shadow(0 0 3px rgba(0, 0, 0, .8)); animation: st-cut-draw 1.6s ease-in-out .5s both; }
+@keyframes st-cut-draw { from { stroke-dasharray: 0 var(--c); } to { stroke-dasharray: var(--c) 0; } }
+.st-cut-scissors { position: absolute; top: 0; left: 0; z-index: 7; pointer-events: none; font-size: 2.6em; line-height: 1; filter: drop-shadow(0 .05em .1em rgba(0, 0, 0, .6)); }
+:is(.st-cut-veil, .st-cut-ring, .st-cut-scissors)[data-out] { opacity: 0; transition: opacity .8s ease; }
 .st-lift { position: absolute; top: 0; left: 0; z-index: 6; pointer-events: none; user-select: none; filter: drop-shadow(0 .25em .5em rgba(0, 0, 0, .3)); }
 
 .st[data-compact] .st-puzzle-head .st-question { font-size: 1.25em; }
@@ -560,7 +577,7 @@ button.sl-end:disabled { cursor: default; opacity: .5; }
 .sl-mark[data-kind="target"]::after { content: '✓'; position: absolute; bottom: 100%; left: 50%; translate: -50% -.1em; font-weight: 900; color: var(--good); font-size: 1.1em; }
 .sl-mark[data-kind="mine"] { width: .3em; height: 2.2em; background: #fff; outline: .12em dashed var(--ink); }
 .sl-summary { flex: none; margin: 0; text-align: center; font-weight: 800; color: var(--ink-soft); }
-.st[data-compact] .sl-track { --sl-thumb: 2.6em; }
+.st[data-compact] .sl-track { --sl-thumb: 2.6em; height: 4.4em; }   /* a taller place to put a finger */
 
 /* ---- the instruction slide before a picture game (js/host/intro.js) ---------------
    A looping demonstration and two short steps. The demonstrations (.dm-…) are

@@ -109,6 +109,10 @@ begin
   end if;
 end;
 $$;
+-- A third: `podium_music` plays while the winners are shown (podium and
+-- matrix). The questions' music does NOT carry on into the results any more
+-- (the host's request: it ends with the question), so the winners get theirs.
+alter table public.gk_quizzes add column if not exists podium_music text;
 
 -- The puzzle: a third kind of item. Its picture (`image`) is cut into five
 -- pieces that each player drags back into place against the clock; "done" is
@@ -384,6 +388,7 @@ begin
       ('gk_quizzes', 'background',  'backgrounds'),
       ('gk_quizzes', 'music',       'audio'),
       ('gk_quizzes', 'lobby_music', 'audio'),
+      ('gk_quizzes', 'podium_music', 'audio'),
       ('gk_quizzes', 'anim_sprite', 'sprites'),
       ('gk_items',   'image',       'images|backgrounds'),
       ('gk_items',   'video',       'videos'),
@@ -607,7 +612,7 @@ returns jsonb language sql stable security definer set search_path = public, pg_
   select coalesce(
     (select jsonb_build_object(
               'title', q.title, 'theme', q.theme, 'background', q.background,
-              'music', q.music, 'lobby_music', q.lobby_music, 'music_on', q.music_on,
+              'music', q.music, 'lobby_music', q.lobby_music, 'podium_music', q.podium_music, 'music_on', q.music_on,
               -- Always present, with `on`: an item may bring its own sprite to a
               -- quiz whose animation is otherwise off, and still needs the
               -- quiz's count / size / speed to bounce it with.
@@ -616,7 +621,7 @@ returns jsonb language sql stable security definer set search_path = public, pg_
                                          'speed', q.anim_speed, 'front', q.anim_front))
        from public.gk_quizzes q where q.id = p_quiz),
     jsonb_build_object('title', p_fallback_title, 'theme', 'stadium', 'background', null,
-                       'music', null, 'lobby_music', null, 'music_on', false, 'anim', null));
+                       'music', null, 'lobby_music', null, 'podium_music', null, 'music_on', false, 'anim', null));
 $$;
 
 create or replace function public._gk_ms(p_ts timestamptz)

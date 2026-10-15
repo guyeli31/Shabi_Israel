@@ -26,6 +26,7 @@ export const DEMO_QUIZ = {
     background: null,
     music: 'media/audio/demo-loop.wav',          // the questions' music
     lobby_music: 'media/audio/demo-loop.wav',    // while the room gathers
+    podium_music: 'media/audio/demo-loop.wav',   // while the winners are shown
     music_on: true,
     lead_in_s: 3,
     // A football drifting behind the questions shows the animation option off

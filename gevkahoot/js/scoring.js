@@ -101,8 +101,8 @@ export const actionPoints = (hits, lo, hi, weight) => Math.round(weight * 1000 *
 
 /**
  * What makes a throw a basket — the three windows a throw must fall in.
- *   aim    left/right: the drag's sideways slope |dx / dy| — 0.05 lands the
- *          ball within ±2.5% of the court's width of the rim's centre (the
+ *   aim    left/right: the drag's sideways slope |dx / dy| — 0.0525 lands the
+ *          ball within ±2.6% of the court's width of the rim's centre (the
  *          rim is ±6.7% wide); up to `rim` it hits the rim and falls out.
  *   power  the drag's length upwards as a fraction of the court's height:
  *          inside the window it reaches the rim; below it falls short, above
@@ -110,12 +110,13 @@ export const actionPoints = (hits, lo, hi, weight) => Math.round(weight * 1000 *
  *   ms     the drag's duration: a throw is ONE movement — longer than `slow`
  *          is a push, not a throw, and dies on the way.
  * Both windows were halved at the host's request (they were aim 0.1 and
- * power 0.25-0.4): the round was too easy.
+ * power 0.25-0.4): the round was too easy; then made 10% likelier again —
+ * each window 5% wider, since a basket needs both (1.05² ≈ 1.10).
  * The server cannot see a throw; it holds the count to one basket a second.
  */
 export const THROW = {
-    aim: 0.05, rim: 0.12,
-    power: [0.2875, 0.3625], ideal: 0.325,
+    aim: 0.0525, rim: 0.12,
+    power: [0.285625, 0.364375], ideal: 0.325,
     slow: 1200,
 };
 

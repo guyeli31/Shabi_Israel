@@ -136,11 +136,12 @@ export function createPuzzle({ image, interactive, onChange }) {
         const W = root.clientWidth, H = root.clientHeight;
         if (!W || !H) return null;
         // The frame takes the top of a tall play area and the side of a wide
-        // one; what is left is the tray the loose pieces lie in. (Enlarged at
-        // the host's request — 0.46 / 0.56 before: the picture is the game.)
+        // one; what is left is the tray the loose pieces lie in. (Enlarged
+        // twice at the host's request — 0.46 / 0.56, then 0.52 / 0.62: the
+        // picture is the game; the loose pieces may overlap in the tray.)
         const tall = H > W;
-        const maxW = tall ? W : W * 0.62;
-        const maxH = tall ? H * 0.52 : H;
+        const maxW = tall ? W : W * 0.7;
+        const maxH = tall ? H * 0.58 : H;
         const fw = Math.min(maxW, maxH * ratio);
         const fh = fw / ratio;
         const fx = tall ? (W - fw) / 2 : W - fw;       // right-hand side: the page is RTL

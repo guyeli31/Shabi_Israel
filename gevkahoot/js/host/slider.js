@@ -102,20 +102,41 @@ export function createSlider({ image, slot, piece, symbol, interactive, onMove }
         const valueAt = (clientX) => {
             const r = track.getBoundingClientRect();
             const t = input.offsetHeight;   // the handle's width (it is round)
-            return ((clientX - r.left - t / 2) / Math.max(1, r.width - t)) * SLIDER.max;
+            const v = ((clientX - r.left - t / 2) / Math.max(1, r.width - t)) * SLIDER.max;
+            // The last 2% at either end snap to it: a finger is not a mouse,
+            // and the very ends were the places a phone could not reach.
+            return v <= SLIDER.max * 0.02 ? 0 : v >= SLIDER.max * 0.98 ? SLIDER.max : v;
         };
+        // A FINGER is followed with touch events: iOS Safari delivers every
+        // touchmove to the element the touch began on, wherever the finger
+        // goes — while its pointer events for a touch could stop part-way
+        // (the slider on an iPhone 17 would not reach either end). The
+        // pointer path below is for a mouse or a pen, and skips touches.
+        const end = () => { delete track.dataset.dragging; };
+        track.addEventListener('touchstart', (e) => {
+            if (locked) return;
+            e.preventDefault();
+            track.dataset.dragging = '';
+            moveTo(valueAt(e.touches[0].clientX));
+        }, { passive: false });
+        track.addEventListener('touchmove', (e) => {
+            if (!('dragging' in track.dataset)) return;
+            e.preventDefault();
+            moveTo(valueAt(e.touches[0].clientX));
+        }, { passive: false });
+        track.addEventListener('touchend', end);
+        track.addEventListener('touchcancel', end);
         track.addEventListener('pointerdown', (e) => {
-            if (locked || e.button > 0) return;
+            if (locked || e.button > 0 || e.pointerType === 'touch') return;
             e.preventDefault();
             track.setPointerCapture(e.pointerId);
             track.dataset.dragging = '';
             input.focus({ preventScroll: true });
             moveTo(valueAt(e.clientX));
         });
-        track.addEventListener('pointermove', (e) => { if ('dragging' in track.dataset) moveTo(valueAt(e.clientX)); });
-        const end = () => { delete track.dataset.dragging; };
-        track.addEventListener('pointerup', end);
-        track.addEventListener('pointercancel', end);
+        track.addEventListener('pointermove', (e) => { if (e.pointerType !== 'touch' && 'dragging' in track.dataset) moveTo(valueAt(e.clientX)); });
+        track.addEventListener('pointerup', (e) => { if (e.pointerType !== 'touch') end(); });
+        track.addEventListener('pointercancel', (e) => { if (e.pointerType !== 'touch') end(); });
     }
 
     function layout() {

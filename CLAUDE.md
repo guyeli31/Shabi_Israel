@@ -117,7 +117,10 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   players; a rejection reaches the phone as `gk_me().rejected`.
 - **Touch and iOS Safari** (`js/ui/touch.js`). `touch-action: none` is not
   always honoured by iOS Safari: the slider would not drag sideways and a
-  pinch over the puzzle could not be undone. Every drag area (puzzle, slider,
+  pinch over the puzzle could not be undone. The slider follows a FINGER with
+  touch events (iOS delivers every touchmove to where the touch began; its
+  pointer events for a touch stopped part-way and the handle never reached
+  the ends on an iPhone 17), a mouse with pointer events. Every drag area (puzzle, slider,
   ranking, court) also goes through `holdTouch()` (a cancelled `touchmove`),
   and while a player is playing the page cannot zoom (`lockZoom`) and is put
   back to scale 1 on each screen (`resetZoom`). A new drag area does the same.
@@ -188,7 +191,11 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   send did not get through). Its instruction slide's demonstration shows real
   jigsaw shapes and "נשלח ✓" appearing on its own. At the
   reveal the picture is shown whole, then everything but the round detail the
-  host chose (`circle_x/y/r`, picked on the picture in the editor) fades away,
+  host chose (`circle_x/y/r`, picked on the picture in the editor) fades away
+  (the host's choreography: the whole picture stays up LARGE for 10s —
+  `SHOW_WHOLE_MS`, scaled UP to fill its area, since a photo of a few hundred
+  pixels otherwise stayed that small — then `cutMarks()` shows the cut: the rest
+  dims, a line is traced round the detail and scissors run along it),
   and that detail — ONE copy, at exactly the size it had in the picture, at the
   puzzle's own `circle_speed` 1-10 — lifts off and bounces from where it sat
   (`startLift()` in `js/host/stage.js`: a still copy over the picture while it
@@ -376,11 +383,13 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   instruction slide show the court with a hand throwing by itself (`auto`).
   A player's count lives in the stage (`throws`), so a rebuilt screen
   carries on from it.
-- **Two background musics.** `gk_quizzes.lobby_music` plays in the lobby;
-  `music` ("the questions' music") everywhere after it — interludes and
-  results included — and is what an item's "כמו בחידון" means. The one
-  silence is the reveal: a question's music ends when the right answer is
-  shown (the host's request) and comes back from the next screen. `music_on`
+- **Three background musics.** `gk_quizzes.lobby_music` plays in the lobby;
+  `music` ("the questions' music") under the elements themselves —
+  interludes, instruction slides, questions — and is what an item's "כמו
+  בחידון" means; `podium_music` while the winners are shown (podium, matrix).
+  The results between questions — reveal, fastest five, special slide, table —
+  are SILENT: a question's music ends with its question (the host's request:
+  "it has done its job"). `music_on`
   switches both. When the column was added, existing quizzes got their one
   music copied into it, so no lobby went quiet. Published in `_gk_quiz_json`
   and mirrored by the demo engine and the mock; chosen in `syncMusic()`.

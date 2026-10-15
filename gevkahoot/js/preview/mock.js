@@ -114,7 +114,7 @@ export function mock(view, quiz, selected, items) {
     // layout check passes the demo quiz (an `anim` object already).
     const anim = quiz.anim || { on: !!(quiz.anim_on && quiz.anim_sprite), sprite: quiz.anim_sprite,
         count: quiz.anim_count, size: quiz.anim_size, speed: quiz.anim_speed, front: quiz.anim_front };
-    const quizData = { title: quiz.title, theme: quiz.theme, background: quiz.background, music: quiz.music, lobby_music: quiz.lobby_music, music_on: quiz.music_on, anim };
+    const quizData = { title: quiz.title, theme: quiz.theme, background: quiz.background, music: quiz.music, lobby_music: quiz.lobby_music, podium_music: quiz.podium_music, music_on: quiz.music_on, anim };
     // The scored item the results views are about: the selected question or
     // puzzle, else the quiz's first question.
     // An "answer explained" segment is previewed on top of the question it belongs to.

@@ -22,7 +22,7 @@
  * the lobby's names — are updated in place by sync(), so a counter ticking up
  * never restarts a video or an entrance animation.
  */
-import { h, clear, renderKeyed, safeMedia, fmtSeconds } from '../ui/dom.js';
+import { h, svgEl, clear, renderKeyed, safeMedia, fmtSeconds } from '../ui/dom.js';
 import { tile } from '../ui/teams.js';
 import { leaderboard, podium, matrix, confetti, moneyRain, winnerMoment, multiplier } from '../ui/views.js';
 import { serverNow } from '../data/clock.js';
@@ -73,6 +73,7 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         if (!lift) return;
         lift.timers.forEach(clearTimeout);
         lift.ghost?.remove();
+        for (const el of lift.cut || []) el.remove();
         lift = null;
     }
     /** Where the picture's pixels actually are inside its (object-fit:
@@ -84,6 +85,8 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         const w = img.naturalWidth * k, hgt = img.naturalHeight * k;
         return { left: b.left + (b.width - w) / 2, top: b.top + (b.height - hgt) / 2, width: w, height: hgt };
     }
+    // The puzzle's reveal: the whole picture, then the cut, then the lift.
+    const SHOW_WHOLE_MS = 10000, CUT_DRAW_MS = 1600, CUT_MS = 2600;
     function startLift(key, image, circle) {
         stopLift();
         bouncers.update(null);
@@ -91,8 +94,9 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         const later = (ms, fn) => run.timers.push(setTimeout(() => { if (lift === run) fn(); }, ms));
         circleCutout(image, circle).then((src) => {
             if (lift !== run || !src) return;
-            // Once the picture's own entrance (.6s) has settled and been seen.
-            later(1200, () => {
+            // The assembled picture is shown whole and large for ten seconds
+            // (the host's request: the room looks at what it built) …
+            later(SHOW_WHOLE_MS, () => {
                 const pic = main.querySelector('.st-puzzle-reveal .st-media-el');
                 if (!pic) return;
                 const box = contentBox(pic);
@@ -100,22 +104,55 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
                 const r = circle.r * Math.min(box.width, box.height);
                 const cx = box.left + circle.x * box.width - at.left;
                 const cy = box.top + circle.y * box.height - at.top;
+                // … then the cut is SHOWN: the rest of the picture dims, a line
+                // is drawn round the detail and scissors run along it …
+                run.cut = cutMarks({ box, at, cx, cy, r });
+                root.append(...run.cut);
+                later(CUT_MS, () => {
+                // … and only then does the rest fade and the detail lift off.
                 // A still copy laid exactly over the detail, so that what stays
                 // behind while the picture fades is the picture's own piece.
                 run.ghost = h('img', { class: 'st-lift', src, alt: '', draggable: 'false',
                     style: { width: `${2 * r}px`, height: `${2 * r}px`, transform: `translate3d(${cx - r}px, ${cy - r}px, 0)` } });
                 root.append(run.ghost);
                 pic.dataset.fade = '';
+                for (const el of run.cut) el.dataset.out = '';
                 // Faded: hand the detail to the bouncing layer, same size and
                 // same place, and drop the still copy in the same frame.
                 later(1600, () => {
                     const W = root.clientWidth, H = root.clientHeight;
                     bouncers.update({ src, count: 1, size: (2 * r) / Math.min(W, H) * 100,
                         speed: circle.speed || 4, front: true, start: { x: cx / W, y: cy / H } });
-                    requestAnimationFrame(() => { run.ghost?.remove(); run.ghost = null; });
+                    requestAnimationFrame(() => { run.ghost?.remove(); run.ghost = null; for (const el of run.cut || []) el.remove(); });
+                });
                 });
             });
         });
+    }
+
+    /** The cut, drawn: a dimming veil with a round hole over the detail, the
+     *  circle traced in white, and scissors running once round it. */
+    function cutMarks({ box, at, cx, cy, r }) {
+        const veil = h('div', { class: 'st-cut-veil' });
+        Object.assign(veil.style, { left: `${box.left - at.left}px`, top: `${box.top - at.top}px`, width: `${box.width}px`, height: `${box.height}px` });
+        const hole = `radial-gradient(circle at ${cx - (box.left - at.left)}px ${cy - (box.top - at.top)}px, transparent ${r}px, #000 ${r + 1}px)`;
+        veil.style.webkitMaskImage = hole;
+        veil.style.maskImage = hole;
+        const c = 2 * Math.PI * r;
+        const ring = svgEl('svg', { class: 'st-cut-ring', width: String(2 * r + 12), height: String(2 * r + 12),
+            viewBox: `${-r - 6} ${-r - 6} ${2 * r + 12} ${2 * r + 12}` },
+            svgEl('circle', { cx: 0, cy: 0, r: String(r) }));
+        // through the CSSOM: the page's CSP refuses a style ATTRIBUTE
+        ring.firstChild.style.setProperty('--c', String(c));
+        ring.style.transform = `translate(${cx - r - 6}px, ${cy - r - 6}px)`;
+        const scissors = h('span', { class: 'st-cut-scissors', 'aria-hidden': 'true', text: '✂️' });
+        // once round the circle, the blades pointing along it
+        const frames = Array.from({ length: 25 }, (_, i) => {
+            const a = -Math.PI / 2 + (i / 24) * 2 * Math.PI;
+            return { transform: `translate(${cx + r * Math.cos(a)}px, ${cy + r * Math.sin(a)}px) translate(-50%, -50%) rotate(${a + Math.PI}rad)` };
+        });
+        scissors.animate(frames, { duration: CUT_DRAW_MS, delay: 500, easing: 'ease-in-out', fill: 'both' });
+        return [veil, ring, scissors];
     }
 
     let state = null;
@@ -177,19 +214,23 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
     function syncMusic() {
         const quiz = state.data.quiz || {};
         const item = current();
-        // The lobby has its own music (lobby_music); everything after it plays
-        // the questions' music (`music`), which an item's own beats.
-        // music_on = false (the quiz's switch) silences both.
-        const src = state.phase === 'lobby'
-            ? (quiz.music_on ? safeMedia(quiz.lobby_music) : null)
+        // Three musics: the lobby's (lobby_music); the questions' (`music`, which
+        // an item's own beats) — under the elements themselves: interludes,
+        // instruction slides, questions; and the winners' (podium_music) on the
+        // podium and the matrix. The results between questions (reveal,
+        // fastest five, special slide, table) are SILENT: a question's music
+        // ends with its question (the host's request).
+        // music_on = false (the quiz's switch) silences all three.
+        const results = ['reveal', 'fastest', 'fire', 'leaderboard'].includes(state.phase);
+        const src = state.phase === 'lobby' ? (quiz.music_on ? safeMedia(quiz.lobby_music) : null)
+            : ['podium', 'matrix'].includes(state.phase) ? (quiz.music_on ? safeMedia(quiz.podium_music) : null)
+            : results ? null
             : safeMedia(item?.music) || (quiz.music_on ? safeMedia(quiz.music) : null);
         // Wherever an element's own video or audio is on screen, it is heard
         // and the music is not — the reveal included: a question's clip plays
         // again beside the answers, and the music used to come back over it.
         const itemOwnsSound = item && ['interlude', 'question', 'reveal', 'explain'].includes(state.phase) && (item.video || item.audio);
-        // A question's music ends with the reveal (the host asked for it):
-        // the right answer lands in silence, beside the correct/wrong sounds.
-        const want = mode() === 'full' && src && state.status !== 'idle' && state.phase !== 'reveal'
+        const want = mode() === 'full' && src && state.status !== 'idle'
             && !(item && item.music_on === false) && !itemOwnsSound;
         if (!want) { music.pause(); return; }
         if (music.getAttribute('src') !== src) music.setAttribute('src', src);
