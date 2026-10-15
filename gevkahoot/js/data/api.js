@@ -30,6 +30,10 @@ export const me = () => rpc('gk_me', { p_token: deviceToken() });
 export const answer = (itemId, option) =>
     rpc('gk_answer', { p_token: deviceToken(), p_item: itemId, p_option: option });
 
+// ---- playing a saved quiz alone (js/demo/saved.js) ----------------------------
+export const demoList = () => rpc('gk_demo_list');
+export const demoGet = (quizId) => rpc('gk_demo_get', { p_quiz: quizId });
+
 // ---- host -----------------------------------------------------------------
 export const admin = {
     isAdmin: () => rpc('is_admin'),

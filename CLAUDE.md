@@ -394,8 +394,19 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   included) from `me.result.correct` at the reveal — once per question, only
   on a screen that saw it open (a refresh onto a reveal is silent), nothing
   for no answer — and in the action round on every basket / miss instead;
-  APPLAUSE greets the podium where the room's sound plays; the buzzer is
-  everyone's. The preview is silent.
+  APPLAUSE greets the podium where the room's sound plays, and on the
+  winner's own device; the buzzer is everyone's. The preview is silent.
+  The ROULETTE's verdict waits for the ball: `answerSound` returns while
+  `spinFor` is the item and the wheel's `showTable()` calls it again when the
+  ball lands — and a winning number then pays out: `moneyRain()` (js/ui/views.js),
+  banknotes drawn on a canvas bursting over that player's screen.
+- **The winner's moment** (the host's request). On every screen, as first
+  place lands on the podium, gold rays turn behind its column and the name
+  glows (css/base.css). On the WINNER's own device — `me.rank === 1` at the
+  finished podium, never in the preview — `winnerMoment()` covers the screen
+  ~3.3s in: a trophy, "ניצחת!", their name, place and points, confetti and
+  applause; a tap or 7.5s closes it. `crowned` makes it once per quiz (reset
+  when a new quiz starts, so the demo's "play again" crowns again).
 - **The roulette is a scored kind** (`kind = 'roulette'`): a single-zero
   betting table, 0-36; a player taps a number (a chip lands on it, carrying
   the number so the bet still reads) and submits. The number IS the option
@@ -482,6 +493,18 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   container units of its frame (`.st-frame`), never `vw`/`vh` — that is what
   lets the same CSS serve a projector, an embedded player and the editor's
   scaled preview. A change to how a question looks is made once, here.
+- **A saved quiz can be played ALONE** (`index.html?demo&quiz=<id>`): the same
+  quiz the host runs live, against the demo's bots (the host's request). The
+  engine takes its content as an argument (`createDemo(onChange, { quiz,
+  items })`), and `js/demo/saved.js` fetches it with `gk_demo_get` and adds
+  what a live run gets from the host or `_gk_publish` (an interlude's
+  `seconds`, the puzzle's `circle`, the action round's `ball`). That hands the
+  CORRECT ANSWERS to an anonymous browser, so it is opt-in per quiz
+  (`gk_quizzes.demo_public`, the editor's "זמין כחידון לדוגמה", which says
+  what it costs) and refused while that quiz has a lobby or running session —
+  a phone in the room must never fetch the answers mid-quiz. The entry screens
+  list the opened quizzes (`gk_demo_list`). Known property: someone who plays
+  it alone BEFORE the live run knows the questions; switch it on after.
 - **The demo (`index.html?demo`) is a whole quiz with no backend.**
   `js/demo/engine.js` plays the host and eleven bots on a timer and emits state
   in exactly the shape `_gk_publish()` / `gk_me()` produce, so it runs the real

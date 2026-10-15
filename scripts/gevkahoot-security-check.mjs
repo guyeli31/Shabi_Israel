@@ -389,6 +389,19 @@ try {
     check('a relink request for an unknown name is refused', (await rpc('gk_request_relink', { p_name: 'Nobody', p_token: token() })).code === 'no_such_player');
     host(`select public.gk_admin_relink(id, false) from public.gk_relink_requests where status = 'pending';`);
     check('a rejected request still grants nothing', (await rpc('gk_me', { p_token: thief })).data.player === false);
+
+    section('Playing a saved quiz alone (gk_demo_get hands out the answers — so only when opened, never live)');
+    check('a quiz the host did not open for solo play is refused', (await rpc('gk_demo_get', { p_quiz: TEST_QUIZ })).code === 'no_demo');
+    check('…and is not listed', !JSON.stringify((await rpc('gk_demo_list')).data).includes(TEST_QUIZ));
+    check('a player cannot open it themselves', (await rest(`gk_quizzes?id=eq.${TEST_QUIZ}`, { method: 'PATCH', body: JSON.stringify({ demo_public: true }) })).data?.length !== 1);
+    sql(`update public.gk_quizzes set demo_public = true where id = '${TEST_QUIZ}';`);
+    check('opened, but while it runs LIVE it is refused (no answers to a phone mid-quiz)', (await rpc('gk_demo_get', { p_quiz: TEST_QUIZ })).code === 'live');
+    check('…and not listed while live', !JSON.stringify((await rpc('gk_demo_list')).data).includes(TEST_QUIZ));
+    host('select public.gk_admin_close();');
+    const solo = await rpc('gk_demo_get', { p_quiz: TEST_QUIZ });
+    check('control: once off the air it is handed over, items and answers', solo.ok && solo.data.items.length > 0
+        && solo.data.items.some((i) => Array.isArray(i.correct) && i.correct.length) && typeof solo.data.quiz.lead_in_s === 'number', solo.data && Object.keys(solo.data));
+    check('control: and listed', JSON.stringify((await rpc('gk_demo_list')).data).includes(TEST_QUIZ));
 } finally {
     cleanup();
 }

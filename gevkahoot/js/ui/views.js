@@ -189,3 +189,117 @@ export function confetti({ duration = 7000, delay = 0 } = {}) {
     };
     setTimeout(() => { document.body.append(canvas); requestAnimationFrame(frame); }, delay);
 }
+
+// ---- money ----------------------------------------------------------------
+/**
+ * Banknotes bursting from the middle of the screen and fluttering down — the
+ * roulette's prize, on the device of a player whose number came up (the host
+ * asked for it). Drawn on a canvas like the confetti, so it looks the same on
+ * every phone (an emoji 💵 is a different picture on each).
+ */
+export function moneyRain({ duration = 4200 } = {}) {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const canvas = h('canvas', { class: 'gk-confetti' });
+    const ctx = canvas.getContext('2d');
+    let bills = [];
+    let started = 0;
+
+    function bill(b) {
+        const bw = b.s, bh = b.s * 0.48;
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(b.rot);
+        ctx.scale(1, Math.cos(b.flip));            // the note turning over as it falls
+        // Light paper with a dark rim and a shadow: it must read on the green
+        // "stadium" theme as well as on the dark ones.
+        ctx.shadowColor = 'rgba(0, 0, 0, .45)';
+        ctx.shadowBlur = bw * 0.08;
+        ctx.shadowOffsetY = bw * 0.03;
+        ctx.fillStyle = Math.cos(b.flip) > 0 ? '#b9e39a' : '#9fd17f';
+        ctx.fillRect(-bw / 2, -bh / 2, bw, bh);
+        ctx.shadowColor = 'transparent';
+        ctx.strokeStyle = '#1b5a31';
+        ctx.lineWidth = Math.max(1.5, bw * 0.03);
+        ctx.strokeRect(-bw / 2, -bh / 2, bw, bh);
+        ctx.strokeStyle = '#3f8f52';
+        ctx.lineWidth = Math.max(1, bw * 0.03);
+        ctx.strokeRect(-bw * 0.42, -bh * 0.34, bw * 0.84, bh * 0.68);
+        ctx.fillStyle = '#e8f7dc';
+        ctx.beginPath();
+        ctx.arc(0, 0, bh * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1b5a31';
+        ctx.font = `900 ${Math.round(bh * 0.38)}px Arial, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('₪', 0, bh * 0.02);
+        ctx.restore();
+    }
+
+    const frame = (now) => {
+        if (!canvas.isConnected) return;
+        if (!started) started = now;
+        const age = now - started;
+        const w = canvas.width = canvas.clientWidth;
+        const hgt = canvas.height = canvas.clientHeight;
+        if (!bills.length) {
+            const size = Math.max(46, Math.min(w, hgt) * 0.16);
+            bills = Array.from({ length: 46 }, () => {
+                const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4;   // upwards, fanned out
+                const v = 9 + Math.random() * 11;
+                return {
+                    x: w / 2 + (Math.random() - 0.5) * w * 0.1, y: hgt * 0.55,
+                    vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+                    s: size * (0.75 + Math.random() * 0.5),
+                    rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.12,
+                    flip: Math.random() * Math.PI, vf: 0.08 + Math.random() * 0.12,
+                    sway: Math.random() * Math.PI * 2,
+                };
+            });
+        }
+        ctx.globalAlpha = Math.max(0, Math.min(1, (duration - age) / 900));
+        for (const b of bills) {
+            // a burst, then air resistance: the notes float down, swaying
+            b.vy = Math.min(b.vy + 0.35, 2.6);
+            b.vx *= 0.97;
+            b.sway += 0.06;
+            b.x += b.vx + Math.sin(b.sway) * 1.2;
+            b.y += b.vy;
+            b.rot += b.vr;
+            b.flip += b.vf;
+            bill(b);
+        }
+        if (age < duration) requestAnimationFrame(frame);
+        else canvas.remove();
+    };
+    document.body.append(canvas);
+    requestAnimationFrame(frame);
+}
+
+// ---- the winner ---------------------------------------------------------------
+/**
+ * "You won": the winner's own device, as first place lands on the podium —
+ * the host asked for the winner to have a moment of their own. A full-screen
+ * card (trophy, turning gold rays, their name and score) over the podium,
+ * gone on a tap or after `duration`. The podium itself (every screen) has its
+ * own rays behind the first column — css/base.css.
+ */
+export function winnerMoment({ name, points, players, duration = 7500 }) {
+    const card = h('div', { class: 'gk-win', role: 'dialog', 'aria-label': 'ניצחת בחידון' },
+        h('div', { class: 'gk-win-rays', 'aria-hidden': 'true' }),
+        h('div', { class: 'gk-win-body' },
+            h('span', { class: 'gk-win-trophy', 'aria-hidden': 'true', text: '🏆' }),
+            h('p', { class: 'gk-win-title', text: 'ניצחת!' }),
+            h('p', { class: 'gk-win-name', dir: 'auto', text: name || '' }),
+            h('p', { class: 'gk-win-sub', text: `מקום ראשון מתוך ${players} · ${points} נקודות` }),
+            h('p', { class: 'gk-win-hint', text: 'הקישו כדי לראות את הפודיום' })));
+    const close = () => {
+        if (card.dataset.out !== undefined) return;
+        card.dataset.out = '';
+        setTimeout(() => card.remove(), 500);
+    };
+    card.addEventListener('click', close);
+    setTimeout(close, duration);
+    document.body.append(card);
+    confetti({ duration: 6500 });
+}

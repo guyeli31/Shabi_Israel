@@ -17,9 +17,14 @@ import { points, sliderPoints, sliderCorrect, sliderDeviation, SLIDER, encodeRan
 const PAUSE = { intro: 9000, fire: 10000, reveal: 5000, explain: 6000, fastest: 5000, leaderboard: 7500, podium: 11000 };
 const LOBBY_MS = 12000;
 
-export function createDemo(onChange) {
+/**
+ * @param content  the quiz to play: { quiz, items } — the built-in demo by
+ *                 default, or a quiz saved in the database the host opened for
+ *                 solo play (js/demo/saved.js), in the same shape.
+ */
+export function createDemo(onChange, { quiz: QUIZ = DEMO_QUIZ, items: ITEMS = DEMO_ITEMS } = {}) {
     // "Scored" items: questions and puzzles — everything but an interlude.
-    const questions = DEMO_ITEMS.filter((i) => i.kind !== 'interlude');
+    const questions = ITEMS.filter((i) => i.kind !== 'interlude');
     let players, user, status, phase, index, rev, until, startsAt, deadline, plans;
 
     function reset() {
@@ -35,7 +40,7 @@ export function createDemo(onChange) {
         plans = [];        // the bots' pending answers for the open question
     }
 
-    const item = () => DEMO_ITEMS[index] || null;
+    const item = () => ITEMS[index] || null;
     /** How many answers an item offers: options, drawn regions, or the puzzle's single "done". */
     const choices = (it) => (it.kind === 'puzzle' ? 1 : it.kind === 'spot' ? it.regions.length : it.kind === 'roulette' ? 37 : ['slider', 'rank', 'action'].includes(it.kind) ? 0 : it.options.length);
     const answered = (it) => players.filter((p) => p.answers[it.id]);
@@ -104,7 +109,7 @@ export function createDemo(onChange) {
      *  current one. A ×0 item neither counts nor breaks; no answer breaks. */
     function streakState() {
         const it = item();
-        const qs = DEMO_ITEMS.slice(0, index + 1).filter((q) => q.kind !== 'interlude' && q.weight > 0);
+        const qs = ITEMS.slice(0, index + 1).filter((q) => q.kind !== 'interlude' && q.weight > 0);
         const curK = it && it.kind !== 'interlude' && it.weight > 0 ? qs.length - 1 : null;
         const now = {};        // name → run still going at the newest scored item
         const reached = [];    // { name, k, p3 } — where each run first hit three
@@ -154,15 +159,15 @@ export function createDemo(onChange) {
             ball: it.kind === 'action' ? it.ball || null : null,
             feedback: it.kind === 'action' ? it.feedback || {} : null,
             music: it.music, anim_sprite: it.anim_sprite, symbols: it.symbols || [], marks: it.marks || 'teams',
-            no: questions.filter((q) => DEMO_ITEMS.indexOf(q) <= index).length, of: questions.length,
+            no: questions.filter((q) => ITEMS.indexOf(q) <= index).length, of: questions.length,
         };
     }
 
     function buildState() {
         const it = item();
-        const quiz = { title: DEMO_QUIZ.title, theme: DEMO_QUIZ.theme, background: DEMO_QUIZ.background,
-            music: DEMO_QUIZ.music, lobby_music: DEMO_QUIZ.lobby_music, music_on: DEMO_QUIZ.music_on, anim: DEMO_QUIZ.anim };
-        let data = { quiz, index: index + 1, count: DEMO_ITEMS.length, locked: false };
+        const quiz = { title: QUIZ.title, theme: QUIZ.theme, background: QUIZ.background,
+            music: QUIZ.music, lobby_music: QUIZ.lobby_music, music_on: QUIZ.music_on, anim: QUIZ.anim };
+        let data = { quiz, index: index + 1, count: ITEMS.length, locked: false };
         const revealed = ['reveal', 'explain', 'fastest', 'fire', 'leaderboard'].includes(phase);
 
         if (status === 'finished') {
@@ -249,7 +254,7 @@ export function createDemo(onChange) {
             phase = 'question';
             until = null;
             // As on the server: a memory question's lead-in is its picture.
-            startsAt = Date.now() + (it.kind === 'memory' ? it.memo_s : DEMO_QUIZ.lead_in_s) * 1000;
+            startsAt = Date.now() + (it.kind === 'memory' ? it.memo_s : QUIZ.lead_in_s) * 1000;
             deadline = startsAt + it.time_limit_s * 1000;
             // Each bot decides now whether, when and what it will answer.
             plans = players.filter((p) => p.bot).filter(() => Math.random() < 0.96).map((p) => {
@@ -335,11 +340,11 @@ export function createDemo(onChange) {
         if (phase === 'fastest' || (phase === 'fire' && streakState().fire)) { phase = 'leaderboard'; until = Date.now() + PAUSE.leaderboard; return emit(); }
         if (phase === 'podium') { phase = 'matrix'; until = null; return emit(); }
         if (phase === 'matrix') return undefined;
-        if (index + 1 < DEMO_ITEMS.length) {
+        if (index + 1 < ITEMS.length) {
             // As on the server: if nobody has had three in a row by the time the
             // last question comes up, the special slide goes to the leader first.
-            const lastQ = DEMO_ITEMS.map((q, i) => (q.kind !== 'interlude' ? i : -1)).reduce((a, b) => Math.max(a, b), -1);
-            const before = DEMO_ITEMS.slice(0, index + 1).some((q) => q.kind !== 'interlude');
+            const lastQ = ITEMS.map((q, i) => (q.kind !== 'interlude' ? i : -1)).reduce((a, b) => Math.max(a, b), -1);
+            const before = ITEMS.slice(0, index + 1).some((q) => q.kind !== 'interlude');
             if (phase !== 'fire' && index + 1 === lastQ && before && !streakState().ever) {
                 phase = 'fire'; until = Date.now() + PAUSE.fire; return emit();
             }

@@ -226,7 +226,15 @@ function settingsPanel() {
             'להשמיע מוסיקת רקע (בלובי ובשאלות)'),
         h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'שניות "מתכוננים" לפני כל שאלה' }),
             h('input', { class: 'dr-input', type: 'number', min: '0', max: '10', value: String(quiz.lead_in_s),
-                onchange: (e) => act(() => saveQuiz({ lead_in_s: Math.min(10, Math.max(0, Math.round(Number(e.target.value) || 0))) })) })));
+                onchange: (e) => act(() => saveQuiz({ lead_in_s: Math.min(10, Math.max(0, Math.round(Number(e.target.value) || 0))) })) })),
+        // Solo play (index.html?demo&quiz=<id>): the whole quiz, answers
+        // included, goes to the solo player's browser — so the switch says so.
+        h('label', { class: 'if-check' },
+            h('input', { type: 'checkbox', checked: !!quiz.demo_public, onchange: (e) => act(() => saveQuiz({ demo_public: e.target.checked })) }),
+            'זמין כחידון לדוגמה — כל אחד יכול לשחק אותו לבד מול שחקנים וירטואליים'),
+        quiz.demo_public && h('p', { class: 'dr-note' },
+            'שימו לב: במשחק לבד התשובות הנכונות נשלחות לדפדפן של המשחק, ומי שמבין בזה יכול לראות אותן. לא ניתן לשחק לבד בזמן שהחידון רץ בלייב, אבל מי שמשחק לפני הלייב יכיר את השאלות — כדאי להפעיל רק אחרי שהחידון רץ, או לחידון שלא ירוץ בלייב. ',
+            h('a', { href: `./?demo&quiz=${encodeURIComponent(quiz.id)}`, target: '_blank', rel: 'noopener', text: 'לשחק אותו עכשיו ↗' })));
 }
 
 /** The bouncing animation: which cut-out, how many, how big, how fast. */

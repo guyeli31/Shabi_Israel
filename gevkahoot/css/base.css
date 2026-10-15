@@ -296,6 +296,41 @@ button { cursor: pointer; }
 .gk-podium-col[data-place="2"] .gk-podium-block { height: 6.4rem; background: #dfe5ee; color: #2a2f3a; }
 .gk-podium-col[data-place="3"] .gk-podium-block { height: 4.4rem; background: #e2a068; color: #3a1e06; }
 .gk-podium-col[data-place="1"] .gk-podium-name::before { content: '👑'; display: block; font-size: 1.3em; animation: gk-bob 1.6s ease-in-out 3.9s infinite; }
+/* The winner's moment, on every screen: as first place lands, gold rays turn
+   slowly behind its column and its name glows. */
+.gk-podium-col[data-place="1"] { position: relative; }
+.gk-podium-col[data-place="1"]::after {
+    content: ''; position: absolute; left: 50%; top: 30%; width: 260%; aspect-ratio: 1; translate: -50% -50%; z-index: -1;
+    border-radius: 50%; pointer-events: none; opacity: 0;
+    background: repeating-conic-gradient(rgba(255, 214, 10, .30) 0deg 9deg, transparent 9deg 22.5deg);
+    -webkit-mask-image: radial-gradient(circle, #000 18%, transparent 68%); mask-image: radial-gradient(circle, #000 18%, transparent 68%);
+    animation: gk-win-rays-in 1s ease 3.6s forwards, gk-win-spin 24s linear 3.6s infinite;
+}
+.gk-podium-col[data-place="1"] .gk-podium-name { animation: gk-win-glow 1.8s ease-in-out 3.9s infinite alternate; }
+@keyframes gk-win-rays-in { to { opacity: 1; } }
+@keyframes gk-win-spin { to { transform: rotate(360deg); } }
+@keyframes gk-win-glow { from { text-shadow: 0 .08em .3em rgba(0, 0, 0, .4); } to { text-shadow: 0 0 .5em rgba(255, 214, 10, .9), 0 0 1.2em rgba(255, 214, 10, .5); color: #fff6c2; } }
+
+/* ---- the winner's own device: "you won" (js/ui/views.js winnerMoment) ---- */
+.gk-win { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; overflow: hidden; cursor: pointer; text-align: center; color: #fff;
+    background: radial-gradient(circle at 50% 42%, rgba(255, 214, 10, .38), rgba(8, 10, 18, .9) 68%); animation: gk-win-in .45s ease both; }
+.gk-win[data-out] { animation: gk-win-out .5s ease forwards; }
+.gk-win-rays { position: absolute; left: 50%; top: 42%; width: 260vmax; height: 260vmax; margin: -130vmax 0 0 -130vmax; pointer-events: none;
+    background: repeating-conic-gradient(rgba(255, 214, 10, .22) 0deg 8deg, transparent 8deg 20deg); animation: gk-win-spin 22s linear infinite; }
+.gk-win-body { position: relative; display: flex; flex-direction: column; align-items: center; gap: .35em; padding: 1.2em; max-width: 92vw; }
+.gk-win-trophy { display: block; font-size: min(34vw, 30vh); line-height: 1; filter: drop-shadow(0 .06em .12em rgba(0, 0, 0, .55));
+    animation: gk-win-trophy 1s cubic-bezier(.2, 1.6, .4, 1) .15s both, gk-bob 2.2s ease-in-out 1.2s infinite; }
+.gk-win-title { margin: 0; font-size: min(14vw, 4.4rem); font-weight: 900; color: #ffd60a; text-shadow: 0 .06em 0 #7a5a00, 0 0 .5em rgba(255, 214, 10, .6); animation: gk-pop .6s var(--ease-pop) .55s both; }
+.gk-win-name { margin: 0; font-size: min(8vw, 2.4rem); font-weight: 800; overflow-wrap: anywhere; animation: gk-fade-up .5s ease .85s both; }
+.gk-win-sub { margin: 0; font-size: min(5vw, 1.3rem); color: #ececec; animation: gk-fade-up .5s ease 1.05s both; }
+.gk-win-hint { margin: .9em 0 0; font-size: .85rem; opacity: .65; animation: gk-fade-up .5s ease 2s both; }
+@keyframes gk-win-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gk-win-out { to { opacity: 0; } }
+@keyframes gk-win-trophy { from { opacity: 0; transform: scale(0) rotate(-35deg); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+    .gk-win-rays, .gk-podium-col[data-place="1"]::after { animation: none; opacity: 1; }
+    .gk-win-trophy { animation: none; }
+}
 
 /* ---- the ×2 / ×0 marker ----------------------------------------------------
    Shown during "get ready", before a question that is not worth the usual

@@ -24,7 +24,7 @@
  */
 import { h, clear, renderKeyed, safeMedia, fmtSeconds } from '../ui/dom.js';
 import { tile } from '../ui/teams.js';
-import { leaderboard, podium, matrix, confetti, multiplier } from '../ui/views.js';
+import { leaderboard, podium, matrix, confetti, moneyRain, winnerMoment, multiplier } from '../ui/views.js';
 import { serverNow } from '../data/clock.js';
 import { createBouncers } from './bouncers.js';
 import { createPuzzle, circleCutout } from './puzzle.js';
@@ -122,6 +122,8 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
     let me = null;          // gk_me() for this device, in the player role
     let refs = {};          // elements the current phase wants sync() to update
     let celebrated = null;  // rev the confetti already fired for
+    let crowned = false;    // the winner's own moment has been shown (once a quiz)
+    let podiumSince = null; // when this screen first showed the podium
 
     // ---- media ------------------------------------------------------------
     /** Autoplay with sound needs a prior user gesture. The host has normally
@@ -342,7 +344,7 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         const showTable = () => {
             const wasSpinning = spinFor === item.id;
             spinFor = null;
-            if (wasSpinning) onSettled?.();
+            if (wasSpinning) { onSettled?.(); answerSound(item); }
             section.removeAttribute('data-spinning');
             result.hidden = false;
             clear(result).append(h('span', { class: 'rl-result-num', dataset: { colour: colourOf(number) }, text: String(number) }));
@@ -799,8 +801,13 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         if (state.phase === 'question') { opened.add(item.id); preloadSounds('correct', 'wrong'); return; }
         if (state.phase !== 'reveal' || item.kind === 'action' || !opened.has(item.id) || judged.has(item.id)) return;
         if (!me || me.item_id !== item.id || !me.answered || !me.result) return;
+        // The roulette's verdict is the ball's: nothing until it has landed
+        // (the host's request) — showTable() calls back here when it does.
+        if (item.kind === 'roulette' && spinFor === item.id) return;
         judged.add(item.id);
         playSound(me.result.correct ? 'correct' : 'wrong');
+        // …and a winning number pays out: banknotes all over this screen.
+        if (item.kind === 'roulette' && me.result.correct) moneyRain();
     }
 
     function render(next, nextMe = null) {
@@ -832,11 +839,29 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
 
         if (state.phase === 'podium' && celebrated !== state.rev) {
             celebrated = state.rev;
+            podiumSince = performance.now();
+            if (role === 'player' && !muted) preloadSounds('applause');
             confetti({ delay: 3300 });
             // Applause for the winners, as first place rises with the
             // confetti — the room's sound, so where the room's sound plays
             // (the projected screen; the demo).
             if (!muted && mode() === 'full') { preloadSounds('applause'); setTimeout(() => playSound('applause'), 3300); }
+        }
+        // The winner's own moment: on their device, as first place lands.
+        // `me` arrives just after the podium (gk_me follows the new rev), so
+        // this is checked on every render until it has happened once.
+        if (state.status !== 'finished') crowned = false;     // a new quiz (the demo's "play again")
+        // Not in the editor's preview (muted): it would cover the frame.
+        if (state.phase === 'podium' && state.status === 'finished' && role === 'player' && !crowned && !muted
+            && me?.player && me.rank === 1) {
+            crowned = true;
+            const wait = Math.max(0, 3300 - (performance.now() - (podiumSince ?? performance.now())));
+            setTimeout(() => {
+                if (state.phase !== 'podium') return;
+                winnerMoment({ name: me.name, points: me.points, players: me.players });
+                // their applause, on their own device (the room hears it from the projector)
+                if (!muted && mode() !== 'full') playSound('applause');
+            }, wait);
         }
         answerSound(item);
         // The quiz's animation runs on every screen of a quiz that has one,

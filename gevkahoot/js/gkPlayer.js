@@ -23,10 +23,15 @@ import { createStateSource, isPreview } from './data/stateSource.js';
 import { syncClock, serverNow } from './data/clock.js';
 import { createStage } from './host/stage.js';
 import { createDemo } from './demo/engine.js';
+import { listSavedQuizzes, loadSavedQuiz } from './demo/saved.js';
 import { sliderVerdict, decodeRank } from './scoring.js';
 import { hasUrlFlag } from '../../shabi-israel/js/utils/queryString.js';
 
 const isDemo = hasUrlFlag('demo') && !isPreview;
+// ?demo&quiz=<id>: a quiz saved in the database, played alone against the
+// bots (js/demo/saved.js) — the same quiz the host runs live.
+const savedQuizId = isDemo && /^[0-9a-f-]{36}$/i.test(new URLSearchParams(location.search).get('quiz') || '')
+    ? new URLSearchParams(location.search).get('quiz') : null;
 
 const app = document.getElementById('app');
 const head = h('header', { class: 'pl-head' });
@@ -97,8 +102,23 @@ function onState(next, extra) {
     render();
 }
 
-const demo = isDemo ? createDemo(onState) : null;
+let demo = isDemo && !savedQuizId ? createDemo(onState) : null;
+if (savedQuizId) {
+    loadSavedQuiz(savedQuizId)
+        .then((content) => { demo = createDemo(onState, content); })
+        .catch((err) => {
+            // Not opened for solo play, or being played live right now.
+            renderKeyed(entry, 'saved-missing', () => view(
+                h('div', { class: 'pl-emoji', text: '🔒' }),
+                h('p', { class: 'pl-big', text: err.code === 'live' ? 'החידון הזה רץ עכשיו בלייב' : 'החידון הזה לא זמין לשחק לבד' }),
+                h('p', { class: 'pl-sub', text: err.code === 'live' ? 'אפשר לשחק אותו לבד אחרי שהוא יסתיים.' : 'אפשר לנסות את החידון לדוגמה.' }),
+                demoLink('פתח חידון לדוגמה')));
+        });
+}
 if (!isDemo) createStateSource(onState);
+// The quizzes the host opened for solo play, offered on the entry screens.
+let savedQuizzes = [];
+if (!isDemo && !isPreview) listSavedQuizzes().then((list) => { savedQuizzes = Array.isArray(list) ? list : []; render(); });
 
 if (!isPreview && !isDemo) {
     syncClock();
@@ -185,6 +205,9 @@ async function sendCount() {
 // ---- entry views ----------------------------------------------------------
 const view = (...children) => h('section', { class: 'pl-view' }, ...children);
 const demoLink = (text, cls = 'gk-btn gk-btn--ghost') => h('a', { class: cls, href: './?demo', text });
+/** One link per saved quiz the host opened for solo play. */
+const savedLinks = () => savedQuizzes.map((q) => h('a', { class: 'gk-btn gk-btn--ghost', dir: 'auto',
+    href: `./?demo&quiz=${encodeURIComponent(q.id)}`, text: `שחקו לבד: ${q.title}` }));
 
 function joinView() {
     const taken = formError?.code === 'name_taken';
@@ -199,7 +222,9 @@ function joinView() {
             ? h('div', { class: 'pl-status' }, h('span', { class: 'pl-dot' }), 'הדגמה · מול שחקנים וירטואליים')
             : h('div', { class: 'pl-status', dataset: { live: '' } }, h('span', { class: 'pl-dot' }), 'חידון באוויר'),
         h('h1', { class: 'pl-big', dir: 'auto', text: state.data?.quiz?.title || 'GevKahoot' }),
-        isDemo && h('p', { class: 'pl-sub', text: 'כל סוגי השאלות, כמו בחידון אמיתי: בוחרים שם, רואים מי מצטרף, ומתחרים על המקום הראשון.' }),
+        isDemo && h('p', { class: 'pl-sub', text: savedQuizId
+            ? 'החידון של המנחה, לבד מול שחקנים וירטואליים: בוחרים שם ומתחרים על המקום הראשון.'
+            : 'כל סוגי השאלות, כמו בחידון אמיתי: בוחרים שם, רואים מי מצטרף, ומתחרים על המקום הראשון.' }),
         h('form', { class: 'pl-form', onsubmit: (e) => { e.preventDefault(); typedName = input.value; submitJoin(locked); } },
             input,
             formError && h('p', { class: 'pl-error', role: 'alert', text: formError.text }),
@@ -223,17 +248,18 @@ function pickEntry() {
     const { status, data } = state;
     if (me.player) return null;
     if (status === 'idle') {
-        return ['idle', () => view(
+        return [`idle|${savedQuizzes.map((q) => q.id).join()}`, () => view(
             h('div', { class: 'pl-status' }, h('span', { class: 'pl-dot' }), 'אין חידון באוויר'),
             h('h1', { class: 'pl-big', text: 'עוד לא התחלנו' }),
             h('p', { class: 'pl-sub', text: 'כשהמנחה יפתח חידון, ההרשמה תופיע כאן לבד.' }),
             demoLink('פתח חידון לדוגמה'),
+            savedLinks(),
             h('p', { class: 'pl-sub pl-sub--small', text: 'משחק מלא מול שחקנים וירטואליים, בלי הרשמה.' }))];
     }
     if (me.kicked) return ['kicked', () => view(h('div', { class: 'pl-emoji', text: '🚪' }), h('p', { class: 'pl-big', text: 'הוסרת מהחידון' }))];
     if (status === 'finished') {
-        return ['over', () => view(h('div', { class: 'pl-emoji', text: '🏁' }), h('p', { class: 'pl-big', text: 'החידון הסתיים' }),
-            demoLink('פתח חידון לדוגמה'))];
+        return [`over|${savedQuizzes.map((q) => q.id).join()}`, () => view(h('div', { class: 'pl-emoji', text: '🏁' }), h('p', { class: 'pl-big', text: 'החידון הסתיים' }),
+            demoLink('פתח חידון לדוגמה'), savedLinks())];
     }
     if (me.pending && !otherName) {
         return ['pending', () => view(

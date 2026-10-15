@@ -430,6 +430,12 @@ create table if not exists public.gk_sessions (
 alter table public.gk_sessions drop constraint if exists gk_sessions_phase_check;
 alter table public.gk_sessions add constraint gk_sessions_phase_check
     check (phase in ('lobby', 'interlude', 'intro', 'question', 'reveal', 'explain', 'fastest', 'fire', 'leaderboard', 'podium', 'matrix'));
+-- A quiz the host lets anyone play ALONE, against the demo's bots
+-- (index.html?demo&quiz=<id>): gk_demo_get hands its whole content — the
+-- correct answers included — to the browser. Off by default; the editor's
+-- switch says what it costs, and gk_demo_get refuses while the quiz is live.
+alter table public.gk_quizzes add column if not exists demo_public boolean not null default false;
+
 -- Questions whose points the host cancelled for THIS run (a question that did
 -- not work the same for everyone): they count as weight 0 — no points, and
 -- like a ×0 warm-up they neither extend nor break a streak. Per run, not an
@@ -1734,6 +1740,44 @@ end;
 $$;
 
 -- ----------------------------------------------------------------------------
+-- 7b. Playing a saved quiz alone (the demo engine, js/demo/engine.js).
+--     Anon may list the quizzes the host opened for it, and fetch one — its
+--     items as gk_items rows, correct answers and all, since a solo player's
+--     browser scores itself against bots. That is exactly why it is opt-in per
+--     quiz (demo_public) and refused while that quiz is in a live run: a phone
+--     in the room must not be able to fetch the answers mid-quiz.
+-- ----------------------------------------------------------------------------
+create or replace function public.gk_demo_list()
+returns jsonb language sql stable security definer set search_path = public, pg_catalog as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', q.id, 'title', q.title) order by q.title), '[]'::jsonb)
+    from public.gk_quizzes q
+   where q.demo_public
+     and not exists (select 1 from public.gk_sessions s where s.quiz_id = q.id and s.status in ('lobby', 'running'))
+     and exists (select 1 from public.gk_items i where i.quiz_id = q.id and i.parent_id is null);
+$$;
+
+create or replace function public.gk_demo_get(p_quiz uuid)
+returns jsonb language plpgsql stable security definer set search_path = public, pg_catalog as $$
+declare q public.gk_quizzes%rowtype;
+begin
+  select * into q from public.gk_quizzes where id = p_quiz and demo_public;
+  if not found then raise exception 'no_demo' using errcode = 'P0001'; end if;
+  if exists (select 1 from public.gk_sessions s where s.quiz_id = q.id and s.status in ('lobby', 'running')) then
+    raise exception 'live' using errcode = 'P0001';
+  end if;
+  return jsonb_build_object(
+    'quiz', public._gk_quiz_json(q.id, q.title) || jsonb_build_object('lead_in_s', q.lead_in_s),
+    'items', coalesce((
+      select jsonb_agg((to_jsonb(i) - 'quiz_id' - 'parent_id' - 'created_at' - 'updated_at')
+                       || jsonb_build_object('explain',
+                            (select to_jsonb(c) - 'quiz_id' - 'parent_id' - 'created_at' - 'updated_at'
+                               from public.gk_items c where c.parent_id = i.id limit 1))
+                       order by o.idx)
+        from public._gk_ordered(q.id) o join public.gk_items i on i.id = o.item_id), '[]'::jsonb));
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
 -- 8. Function grants. Supabase's default privileges grant EXECUTE on every new
 --    public function to anon and authenticated, so `revoke … from public` alone
 --    (the usual idiom) would leave the internal helpers callable. Revoke from
@@ -1749,7 +1793,7 @@ begin
   loop
     execute format('revoke all on function %s from public, anon, authenticated;', r.sig);
     execute format('grant execute on function %s to service_role;', r.sig);
-    if r.proname in ('gk_time', 'gk_join', 'gk_request_relink', 'gk_me', 'gk_answer') then
+    if r.proname in ('gk_time', 'gk_join', 'gk_request_relink', 'gk_me', 'gk_answer', 'gk_demo_list', 'gk_demo_get') then
       execute format('grant execute on function %s to anon, authenticated;', r.sig);
     elsif r.proname like 'gk\_admin\_%' then
       execute format('grant execute on function %s to authenticated;', r.sig);
