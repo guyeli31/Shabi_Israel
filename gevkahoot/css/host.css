@@ -143,17 +143,26 @@
     grid-template-areas: "media text" "media options" "media answered";
 }
 .st-item[data-memory] .st-question { font-size: min(2em, 3.4cqw); }
-.st-item[data-memory] .st-options { grid-template-columns: minmax(0, 1fr); align-content: start; gap: .5em; min-height: 0; }
+/* The answers spread down the column (they used to bunch at its top). */
+.st-item[data-memory] .st-options { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(0, 4.2em); align-content: space-evenly; gap: .5em; min-height: 0; }
 .st-item[data-memory] .st-options > * { grid-column: auto; }
 /* Each answer on one line — the tile, and how the room split beside it. */
-.st-item[data-memory] .st-option { flex-direction: row; align-items: center; gap: .6em; }
-.st-item[data-memory] .st-option .gk-tile { flex: 1.4; font-size: 1em; min-height: 2.4em; padding-block: .3em; }
+.st-item[data-memory] .st-option { flex-direction: row; align-items: stretch; gap: .6em; min-height: 0; }
+.st-item[data-memory] .st-option .gk-tile { flex: 1.5; font-size: 1.1em; min-height: 0; padding-block: .3em; }
 .st-item[data-memory] .st-share { flex: 1; min-width: 0; padding-inline: 0; }
 .st[data-compact] .st-item[data-memory] {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1.3fr) auto minmax(0, 1fr) auto;
     grid-template-areas: "media" "text" "options" "answered";
 }
+/* On a phone a tile is a size container (its emblem is sized by it), so it
+   has no height of its own: in this one-row layout it collapsed to nothing
+   and only the bars were left. Each row is given its share of the height,
+   and the tile fills it. */
+.st[data-compact] .st-item[data-memory] .st-options,
+.st[data-compact] .st-item[data-memory] .st-options[data-n] { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(0, 1fr); align-content: stretch; gap: .4em; }
+.st[data-compact] .st-item[data-memory] .st-options[data-n] > * { grid-column: auto; }
+.st[data-compact] .st-item[data-memory] .st-option .gk-tile { flex: 0 0 38%; height: auto; }
 .st-memo-head { font-size: 2.4em; }
 .st-memo-left { font-size: 3.6em; font-weight: 800; color: var(--accent); line-height: 1; direction: ltr; }
 @media (prefers-reduced-motion: reduce) {
@@ -281,6 +290,9 @@
 .st-lift { position: absolute; top: 0; left: 0; z-index: 6; pointer-events: none; user-select: none; filter: drop-shadow(0 .25em .5em rgba(0, 0, 0, .3)); }
 
 .st[data-compact] .st-puzzle-head .st-question { font-size: 1.25em; }
+/* On a phone the puzzle runs almost edge to edge: every pixel of width is
+   picture (the stage's side padding kept a margin it does not need here). */
+.st[data-compact] .st-puzzle .pz { margin-inline: calc(var(--u) * -1.2); }
 .st[data-compact] .st-puzzle-icon { font-size: 4.2em; }
 
 /* ---- "spot it" (js/host/spot.js) ------------------------------------------------ */
@@ -505,6 +517,9 @@ button.cp-opt:not(:disabled):active { transform: scale(.95); }
 .rk[data-revealed] .rk-card[data-ok]::after { position: absolute; left: .5em; top: 50%; translate: 0 -50%; width: 1.5em; height: 1.5em; border-radius: 50%; display: grid; place-items: center; font-weight: 900; color: #fff; box-shadow: 0 0 0 .12em #fff; }
 .rk[data-revealed] .rk-card[data-ok="true"]::after { content: '✓'; background: var(--good); }
 .rk[data-revealed] .rk-card[data-ok="false"]::after { content: '✕'; background: var(--bad); }
+.rk-truth { flex: none; text-align: center; font-weight: 900; font-size: 1.1em; color: #fff; background: var(--good); border-radius: 999px; padding: .15em 1em; align-self: center; animation: gk-pop .45s var(--ease-pop) both; }
+/* "you had it at N", on a card the player put elsewhere; clear of the ✓/✕ mark */
+.rk-was { margin-inline-start: auto; margin-inline-end: 2.2em; flex: none; font-size: .78em; font-weight: 800; white-space: nowrap; padding: .15em .6em; border-radius: 999px; background: rgba(0, 0, 0, .4); color: #fff; animation: gk-fade-up .3s ease both; }
 .st[data-compact] .rk-card .gk-crest { width: 1.6em; height: 1.6em; }
 .st[data-compact] .rk-card .gk-tile-text { font-size: 1.05em; }
 
@@ -571,30 +586,67 @@ button.sl-end:disabled { cursor: default; opacity: .5; }
 .dm-hand > span { display: block; font-size: 2em; }
 .dm-pill { position: absolute; left: 1.4em; top: 1.3em; padding: .35em 1em; border-radius: 999px; font-weight: 800; font-size: .95em; direction: rtl; white-space: nowrap; background: var(--accent); color: var(--accent-ink); box-shadow: 0 .2em 0 rgba(0, 0, 0, .3); animation: 7s ease-in-out infinite both; }
 
-/* -- puzzle: three pieces in place, the fourth dragged home ----------------- */
-.dm-puzzle .dm-frame { left: 12em; top: 2em; width: 8em; height: 8em; display: grid; grid-template-columns: 1fr 1fr; gap: .25em; padding: .25em; background: rgba(0, 0, 0, .3); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .5); }
-.dm-cell { border-radius: .35em; }
-.dm-cell[data-c="1"] { background: var(--tile-red); }
-.dm-cell[data-c="2"] { background: var(--tile-blue); }
-.dm-cell[data-c="3"] { background: var(--tile-yellow); }
-.dm-cell--empty { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .45); border-style: dashed; }
-.dm-piece { position: absolute; left: 2.4em; top: 6.6em; width: 3.625em; height: 3.625em; border-radius: .35em; background: var(--tile-purple); box-shadow: 0 .25em .5em rgba(0, 0, 0, .5); animation: dm-puzzle-piece 7s ease-in-out infinite both; }
-.dm-puzzle .dm-hand { left: 3.4em; top: 8.2em; animation-name: dm-puzzle-hand; }
-.dm-puzzle .dm-pill { animation-name: dm-pill-late; }
+/* -- puzzle: three jigsaw pieces in place, the fourth dragged home; the
+      answer goes by itself the moment it lands ------------------------------ */
+.dm-puzzle .dm-frame { left: 12em; top: 2em; width: 8em; height: 8em; display: grid; grid-template-columns: 1fr 1fr; padding: .25em; background: rgba(0, 0, 0, .3); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .5); overflow: visible; }
+.dm-cell { position: relative; }
+/* The piece's drawing is 140% of its cell (the knobs reach out of it). */
+.dm-jig { position: absolute; left: -20%; top: -20%; width: 140%; height: 140%; overflow: visible; }
+.dm-jig path { stroke: rgba(0, 0, 0, .35); stroke-width: 2; stroke-linejoin: round; }
+.dm-cell[data-c="1"] path { fill: var(--tile-red); }
+.dm-cell[data-c="2"] path { fill: var(--tile-blue); }
+.dm-cell[data-c="3"] path { fill: var(--tile-yellow); }
+.dm-cell--empty path { fill: none; stroke: rgba(255, 255, 255, .6); stroke-width: 2.5; stroke-dasharray: 6 5; }
+.dm-piece { position: absolute; left: 2.4em; top: 6.6em; width: 3.75em; height: 3.75em; filter: drop-shadow(0 .25em .3em rgba(0, 0, 0, .5)); animation: dm-puzzle-piece 7s ease-in-out infinite both; }
+.dm-piece path { fill: var(--tile-purple); }
+.dm-puzzle .dm-hand { left: 3.6em; top: 8.2em; animation-name: dm-puzzle-hand; }
+.dm-puzzle .dm-pill { animation-name: dm-pill-auto; }
 @keyframes dm-puzzle-piece {
-    0%, 10% { transform: none; box-shadow: 0 .25em .5em rgba(0, 0, 0, .5); }
+    0%, 10% { transform: none; filter: drop-shadow(0 .25em .3em rgba(0, 0, 0, .5)); }
     /* opacity is stated here too: a property named in only the last keyframe
        is animated towards it from the very start — the piece faded all the way. */
-    46%, 92% { transform: translate(13.6em, -.35em); box-shadow: none; opacity: 1; }
-    97%, 100% { transform: translate(13.6em, -.35em); opacity: 0; }
+    46%, 92% { transform: translate(13.6em, -.6em); filter: none; opacity: 1; }
+    97%, 100% { transform: translate(13.6em, -.6em); opacity: 0; }
 }
+/* The hand drags the piece home and lets go — it presses nothing after. */
 @keyframes dm-puzzle-hand {
-    0%, 10% { transform: none; }
-    46%, 54% { transform: translate(13.6em, -.35em); }
-    68%, 71% { transform: translate(-.2em, -6.1em); }
-    74% { transform: translate(-.2em, -6.1em) scale(.82); }
-    78%, 94% { transform: translate(-.2em, -6.1em); opacity: 1; }
-    100% { transform: translate(-.2em, -6.1em); opacity: 0; }
+    0%, 10% { transform: none; opacity: 1; }
+    46%, 52% { transform: translate(13.6em, -.6em); opacity: 1; }
+    62%, 100% { transform: translate(13.6em, -.6em); opacity: 0; }
+}
+/* "Sent" appears by itself as the last piece snaps in. */
+@keyframes dm-pill-auto {
+    0%, 46% { opacity: 0; transform: scale(.6); background: var(--good); color: #fff; }
+    51%, 92% { opacity: 1; transform: none; background: var(--good); color: #fff; }
+    97%, 100% { opacity: 0; transform: none; background: var(--good); color: #fff; }
+}
+
+/* -- memory: a scene up while its time runs out, then covered -------------- */
+.dm-memory .dm-scene { left: 1.5em; top: 1em; width: 13.5em; height: 8.6em; }
+.dm-sun { position: absolute; right: 1em; top: .8em; width: 1.8em; height: 1.8em; border-radius: 50%; background: #ffd60a; box-shadow: 0 0 .6em #ffd60a; }
+.dm-house { position: absolute; left: 1.4em; bottom: 1em; width: 3em; height: 2.3em; background: var(--tile-red); }
+.dm-house::before { content: ''; position: absolute; left: -.4em; bottom: 100%; border-left: 1.9em solid transparent; border-right: 1.9em solid transparent; border-bottom: 1.5em solid #7a2a1a; }
+.dm-tree { position: absolute; left: 7.2em; bottom: 1em; width: 1.6em; height: 3.4em; background: #0b6b33; border-radius: 50% 50% .3em .3em; }
+.dm-cover { position: absolute; inset: 0; display: grid; place-items: center; background: var(--panel); color: var(--ink-soft); font-weight: 900; animation: dm-memory-cover 7s ease-in-out infinite both; }
+.dm-cover > span { font-size: 3.5em; }
+.dm-bar { position: absolute; left: 1.5em; top: 10.2em; width: 13.5em; height: .5em; border-radius: 999px; background: var(--accent); transform-origin: left center; animation: dm-memory-bar 7s linear infinite both; }
+.dm-eyes { position: absolute; left: 16.4em; top: 3.3em; animation: dm-memory-eyes 7s ease-in-out infinite both; }
+.dm-eyes > span { display: block; font-size: 2.6em; line-height: 1; }
+@keyframes dm-memory-cover {
+    0%, 52% { opacity: 0; }
+    58%, 94% { opacity: 1; }
+    100% { opacity: 0; }
+}
+@keyframes dm-memory-bar {
+    0% { transform: scaleX(1); opacity: 1; }
+    52% { transform: scaleX(0); opacity: 1; }
+    53%, 100% { transform: scaleX(0); opacity: 0; }
+}
+@keyframes dm-memory-eyes {
+    0%, 52% { opacity: 1; transform: none; }
+    20%, 40% { transform: scale(1.12); }
+    58%, 94% { opacity: .35; transform: none; }
+    100% { opacity: 1; }
 }
 
 /* -- spot it: three outlined places, one tapped ----------------------------- */
@@ -849,6 +901,12 @@ button.sl-end:disabled { cursor: default; opacity: .5; }
 }
 .hc-btn:hover, .hc-btn:focus-visible { opacity: 1; background: rgba(0, 0, 0, .7); }
 .hc-btn[data-alert] { opacity: 1; background: var(--bad); }
+.hc-alerts { position: absolute; top: 3.5rem; left: 0; display: flex; flex-direction: column; gap: .5rem; width: min(24rem, 80vw); direction: rtl; }
+.hc-alerts:empty { display: none; }
+.hc-alert { background: #14161f; color: #fff; border: 2px solid var(--bad); border-radius: .8rem; padding: .7rem .8rem; box-shadow: 0 .5rem 1.5rem rgba(0, 0, 0, .5); animation: gk-fade-up .25s ease both; font-size: .95rem; }
+.hc-alert-text { margin: 0 0 .5rem; line-height: 1.4; }
+.hc-alert-text small { display: block; margin-top: .25rem; color: #c9cbd6; font-size: .82rem; }
+.hc-alert-actions { display: flex; gap: .4rem; }
 .hc-badge { position: absolute; top: -.25rem; right: -.25rem; min-width: 1.3rem; height: 1.3rem; border-radius: 999px; background: #fff; color: var(--bad); font-size: .8rem; display: grid; place-items: center; padding: 0 .3rem; }
 
 .dr-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 39; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
@@ -895,6 +953,7 @@ button.sl-end:disabled { cursor: default; opacity: .5; }
 .dr-item-idx { flex: none; width: 1.6rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .dr-item-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dr-tag { flex: none; font-size: .72rem; font-weight: 800; padding: .1em .55em; border-radius: 999px; background: rgba(255, 255, 255, .12); }
+.dr-tag--off { background: var(--bad); color: #fff; }
 .dr-icon { background: none; border: 0; padding: .2rem .4rem; border-radius: .4rem; opacity: .7; flex: none; }
 .dr-icon:hover { opacity: 1; background: rgba(255, 255, 255, .12); }
 .dr-dot { width: .6rem; height: .6rem; border-radius: 50%; background: var(--none); flex: none; }

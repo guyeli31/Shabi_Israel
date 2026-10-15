@@ -17,6 +17,7 @@
  *   ?preview  the editor's frame, fed by postMessage
  */
 import { h, clear, renderKeyed } from './ui/dom.js';
+import { lockZoom, resetZoom } from './ui/touch.js';
 import * as api from './data/api.js';
 import { createStateSource, isPreview } from './data/stateSource.js';
 import { syncClock, serverNow } from './data/clock.js';
@@ -37,6 +38,8 @@ const foot = h('footer', { class: 'pl-foot' },
     // Always present on the entry screens: the way in for the host.
     h('a', { class: 'pl-admin', href: 'host.html', text: 'ADMIN LOGIN' }));
 main.append(entry, stageFrame);
+// legacy.js may have said "too old" in a browser that then coped after all.
+app.querySelector('.pl-legacy')?.remove();
 app.append(head, main, strip, foot);
 
 let state = null;
@@ -46,6 +49,7 @@ let typedName = '';
 let formError = null;      // { code, text }
 let busy = false;
 let picked = null;         // { itemId, option } — optimistic, until `me` confirms
+let otherName = false;     // a pending relink set aside: "not me, I'll pick another name"
 let demoUntil = null;      // demo only: when the current pause ends by itself
 
 /** A phone: touch, or simply narrow (which is also the editor's phone frame). */
@@ -119,9 +123,16 @@ async function submitJoin(relink) {
         if (demo) demo.join(name);
         else if (relink) await api.requestRelink(name);
         else await api.join(name);
+        otherName = false;
         await refreshMe();
     } catch (err) {
         formError = { code: err.code, text: errorText(err.code) };
+        // A name already in the quiz is most often its owner back from a
+        // crashed browser: the request to take it over goes to the host at
+        // once (they approve or not), rather than waiting for a second tap.
+        if (err.code === 'name_taken' && !demo && !relink) {
+            try { await api.requestRelink(name); otherName = false; formError = null; await refreshMe(); } catch { /* keep the error */ }
+        }
     }
     busy = false; render();
 }
@@ -143,17 +154,32 @@ async function choose(itemId, option) {
 
 /** The action round: the running count of baskets, sent after every throw.
  *  Not an answer that closes anything — the server keeps the highest count —
- *  so it bypasses choose()'s "once only". Sends are chained so they arrive in
- *  order; a failed one is simply overtaken by the next throw's. */
-let counting = Promise.resolve();
+ *  so it bypasses choose()'s "once only". At most ONE send is in flight: a
+ *  throw made meanwhile only updates the count waiting to go, and when the
+ *  send returns the latest count follows it. So a slow network gets fewer,
+ *  later sends rather than a queue of stale ones (each of which the server
+ *  serialises behind every other player's), and the count still always
+ *  arrives. A failed send is overtaken by the next. */
+let sending = false;
+let toSend = null;         // { itemId, hits } — the newest count not yet sent
 let shownHits = null;      // { itemId, hits } — this device's count, for the status line
 function reportCount(itemId, hits) {
     shownHits = { itemId, hits };
     renderStrip();
     if (isPreview) return;
     if (demo) { demo.answer(itemId, hits); return; }
-    counting = counting.then(() => api.answer(itemId, hits)).catch(() => {});
-    counting.then(() => { if (!me.answered) refreshMe(); });
+    toSend = { itemId, hits };
+    if (!sending) sendCount();
+}
+async function sendCount() {
+    sending = true;
+    while (toSend) {
+        const { itemId, hits } = toSend;
+        toSend = null;
+        try { await api.answer(itemId, hits); } catch { /* the next send carries the count */ }
+    }
+    sending = false;
+    if (!me.answered) refreshMe();
 }
 
 // ---- entry views ----------------------------------------------------------
@@ -209,12 +235,16 @@ function pickEntry() {
         return ['over', () => view(h('div', { class: 'pl-emoji', text: '🏁' }), h('p', { class: 'pl-big', text: 'החידון הסתיים' }),
             demoLink('פתח חידון לדוגמה'))];
     }
-    if (me.pending) {
+    if (me.pending && !otherName) {
         return ['pending', () => view(
             h('div', { class: 'pl-emoji', text: '🙋' }),
-            h('p', { class: 'pl-big', text: 'ממתינים לאישור המנחה' }),
-            h('p', { class: 'pl-sub', dir: 'auto', text: `ספרו למנחה שזה ${typedName.trim() || 'השחקן שהתנתק'}.` }))];
+            h('p', { class: 'pl-big', text: 'השם הזה כבר בחידון' }),
+            h('p', { class: 'pl-sub', dir: 'auto', text: `אם ${typedName.trim() || 'השם'} זה השם שלך (למשל אחרי שהדפדפן קרס), נשלחה למנחה בקשה להעביר אותו למכשיר הזה עם כל הניקוד. ממתינים לאישור…` }),
+            h('button', { class: 'gk-btn gk-btn--ghost', type: 'button', text: 'זה לא אני — אבחר שם אחר',
+                onclick: () => { otherName = true; typedName = ''; render(); } }))];
     }
+    // The host said it is not them: the same form, asking for another name.
+    if (me.rejected && !formError && !otherName) formError = { code: 'rejected', text: 'החיבור לשם הזה לא אושר. בחרו שם אחר.' };
     return [`join|${formError?.code || ''}|${busy}|${!!data.locked}`, joinView];
 }
 
@@ -345,6 +375,9 @@ function render() {
     stageFrame.hidden = !playing;
     foot.hidden = playing;
     app.toggleAttribute('data-playing', playing);
+    // While playing the page does not zoom (js/ui/touch.js), and a page that
+    // got zoomed anyway is put back on every new screen.
+    if (!isPreview) { lockZoom(playing); if (playing) resetZoom(); }
 
     if (playing) {
         // The stage marks the chosen answer from `me`; fold the optimistic tap

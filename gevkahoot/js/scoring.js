@@ -17,15 +17,15 @@ export function points(correct, weight, ms, limitSeconds) {
 /**
  * The slider question. Its answer is a position, 0-1000 (sent as the
  * "option"), and the position sets the AREA of the object on the picture,
- * linearly: at 0 it is a third of the real area, at the target (900, i.e. 90%)
+ * linearly: at 0 it is a third of the real area, at the target (700, i.e. 70%)
  * exactly the real one. So
  *
- *     area(v) / real area = 1/3 + 2/3 × v / 900
- *     deviation           = area ratio − 1 = (v − 900) / 1350
+ *     area(v) / real area = 1/3 + 2/3 × v / 700
+ *     deviation           = area ratio − 1 = (v − 700) / 1050
  *
  * Points are the ordinary time-based points scaled by accuracy — the
  * deviation as a fraction, so a 100% deviation would score nothing (the
- * slider cannot get there: its worst is −67%):
+ * slider cannot get there: its worst is −67%, and +29% at the far end):
  *
  *     points = round( timePoints × max(0, 1 − |deviation|) )
  *
@@ -34,7 +34,7 @@ export function points(correct, weight, ms, limitSeconds) {
  * "correct" for the fastest five and the table's tie-break. Mirrored by _gk_slider_dev and
  * _gk_score in sql/gevkahoot.sql — change both or neither.
  */
-export const SLIDER = { target: 900, max: 1000, start: 500, minArea: 1 / 3, good: 0.05 };
+export const SLIDER = { target: 700, max: 1000, start: 500, minArea: 1 / 3, good: 0.05 };
 
 /** Area of the object at position `v`, relative to its real area. */
 export const sliderArea = (v) => SLIDER.minArea + (1 - SLIDER.minArea) * v / SLIDER.target;
@@ -101,19 +101,21 @@ export const actionPoints = (hits, lo, hi, weight) => Math.round(weight * 1000 *
 
 /**
  * What makes a throw a basket — the three windows a throw must fall in.
- *   aim    left/right: the drag's sideways slope |dx / dy| — 0.1 lands the
- *          ball within ±5% of the court's width of the rim's centre (the rim
- *          is ±6.7% wide); up to `rim` it hits the rim and falls out.
+ *   aim    left/right: the drag's sideways slope |dx / dy| — 0.05 lands the
+ *          ball within ±2.5% of the court's width of the rim's centre (the
+ *          rim is ±6.7% wide); up to `rim` it hits the rim and falls out.
  *   power  the drag's length upwards as a fraction of the court's height:
  *          inside the window it reaches the rim; below it falls short, above
  *          it hits the backboard and bounces out.
  *   ms     the drag's duration: a throw is ONE movement — longer than `slow`
  *          is a push, not a throw, and dies on the way.
+ * Both windows were halved at the host's request (they were aim 0.1 and
+ * power 0.25-0.4): the round was too easy.
  * The server cannot see a throw; it holds the count to one basket a second.
  */
 export const THROW = {
-    aim: 0.1, rim: 0.17,
-    power: [0.25, 0.4], ideal: 0.325,
+    aim: 0.05, rim: 0.12,
+    power: [0.2875, 0.3625], ideal: 0.325,
     slow: 1200,
 };
 

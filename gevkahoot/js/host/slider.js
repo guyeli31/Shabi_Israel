@@ -19,6 +19,7 @@
  * at any size.
  */
 import { h, safeMedia } from '../ui/dom.js';
+import { holdTouch } from '../ui/touch.js';
 import { SLIDER, sliderArea, sliderCorrect } from '../scoring.js';
 
 /** Linear size of the piece at position v, relative to the real object. */
@@ -97,6 +98,7 @@ export function createSlider({ image, slot, piece, symbol, interactive, onMove }
     // and the pointer may run past either end, which then clamps to exactly
     // 0% or 100%. The handle's centre maps to the value, as the native one does.
     if (interactive) {
+        holdTouch(track);
         const valueAt = (clientX) => {
             const r = track.getBoundingClientRect();
             const t = input.offsetHeight;   // the handle's width (it is round)

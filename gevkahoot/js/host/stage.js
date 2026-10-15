@@ -185,7 +185,9 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         // and the music is not — the reveal included: a question's clip plays
         // again beside the answers, and the music used to come back over it.
         const itemOwnsSound = item && ['interlude', 'question', 'reveal', 'explain'].includes(state.phase) && (item.video || item.audio);
-        const want = mode() === 'full' && src && state.status !== 'idle'
+        // A question's music ends with the reveal (the host asked for it):
+        // the right answer lands in silence, beside the correct/wrong sounds.
+        const want = mode() === 'full' && src && state.status !== 'idle' && state.phase !== 'reveal'
             && !(item && item.music_on === false) && !itemOwnsSound;
         if (!want) { music.pause(); return; }
         if (music.getAttribute('src') !== src) music.setAttribute('src', src);
@@ -248,7 +250,7 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
                 h('div', { class: 'st-puzzle-icon', 'aria-hidden': 'true', text: '🧩' }),
                 h('h1', { class: 'st-heading', text: 'פאזל!' }),
                 h('p', { class: 'st-lead', text: role === 'player'
-                    ? 'גוררים את חמשת החלקים אל המסגרת ולוחצים ״סיימתי״. מי שמסיים ראשון מרוויח הכי הרבה.'
+                    ? 'גוררים את חמשת החלקים אל המסגרת. ברגע שהפאזל שלם הוא נשלח לבד — מי שמסיים ראשון מרוויח הכי הרבה.'
                     : 'כל אחד מרכיב אצלו את התמונה מחמישה חלקים. מי שמסיים ראשון מרוויח הכי הרבה.' }),
                 h('div', { class: 'st-ready' }, (refs.ready = h('span', { class: 'st-ready-num' })), multiplier(item.weight)));
         }
@@ -264,15 +266,16 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
             return h('section', { class: 'st-center' }, h('p', { class: 'st-lead', text: 'לפאזל הזה עוד לא נבחרה תמונה' }));
         }
         const live = role === 'player';
-        const done = live && h('button', { class: 'gk-btn st-puzzle-done', type: 'button', disabled: true, text: 'סיימתי ✓',
-            onclick: () => onAnswer?.(item.id, 0) });
-        refs.done = done;
-        refs.puzzle = createPuzzle({ image, interactive: live, onChange: (complete) => { if (done) done.disabled = !complete; } });
+        // No "done" button: the moment the fifth piece snaps home the answer
+        // goes by itself (the host's request) — the time IS the score, and a
+        // button to find and press only cost the player seconds. sync() sends
+        // it again if a send did not get through.
+        refs.puzzle = createPuzzle({ image, interactive: live, onChange: (complete) => { if (complete && live) sendPuzzle(item); } });
         return h('section', { class: 'st-puzzle' },
             h('div', { class: 'st-puzzle-head' }, badge,
                 h('h1', { class: 'st-question', dir: 'auto', text: item.title || 'הרכיבו את הפאזל' })),
             refs.puzzle.el,
-            h('div', { class: 'st-puzzle-foot' }, done, refs.answered));
+            h('div', { class: 'st-puzzle-foot' }, refs.answered));
     }
 
     /** "Spot it": the picture with the host's rectangles; tap one, then submit. */
@@ -688,6 +691,14 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         return ['idle', idle];
     }
 
+    const autoSent = new Set();      // sliders sent by the bell, by item
+    /** A solved puzzle's "done", sent by itself; at most once a second. */
+    let puzzleSentAt = 0;
+    function sendPuzzle(item) {
+        if (Date.now() - puzzleSentAt < 1000) return;
+        puzzleSentAt = Date.now();
+        onAnswer?.(item.id, 0);
+    }
     /** The in-place updates: called on every state change and on a clock tick. */
     function sync() {
         if (!state) return;
@@ -721,11 +732,22 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
             // This device finished (show it assembled) or the clock ran out
             // (freeze it as it is): either way the pieces stop moving.
             const mine = me && me.item_id === item.id && me.option !== null && me.option !== undefined;
-            if (mine) { refs.puzzle.lock(true); if (refs.done) { refs.done.disabled = true; refs.done.textContent = 'נקלט ✓'; } }
-            else if (serverNow() > data.deadline) { refs.puzzle.lock(false); if (refs.done) refs.done.disabled = true; }
+            if (mine) refs.puzzle.lock(true);
+            else if (serverNow() > data.deadline) refs.puzzle.lock(false);
+            // solved, but no answer on record yet: the send failed — again
+            else if (role === 'player' && refs.puzzle.complete) sendPuzzle(item);
         }
         if (refs.spot && ['spot', 'complete', 'slider', 'rank', 'roulette'].includes(item?.kind)) {
             const mine = me && me.item_id === item.id && me.option !== null && me.option !== undefined ? me.option : null;
+            // The slider: time is up and it was never submitted — the place it
+            // was left at IS the answer (the host's rule), sent just before
+            // the bell so the server still takes it. Only a slider the player
+            // moved: an untouched one at its 50% start is no answer at all.
+            if (role === 'player' && inQuestion && item.kind === 'slider' && mine === null && !autoSent.has(item.id)
+                && refs.spot.selected !== null && serverNow() >= data.deadline - 400) {
+                autoSent.add(item.id);
+                onAnswer?.(item.id, refs.spot.selected);
+            }
             if (phase === 'reveal') refs.spot.markPicked(mine);
             else if (inQuestion && (mine !== null || serverNow() > data.deadline)) {
                 // Answered, or out of time: the picture stops taking taps and
@@ -814,7 +836,7 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
             // Applause for the winners, as first place rises with the
             // confetti — the room's sound, so where the room's sound plays
             // (the projected screen; the demo).
-            if (!muted && mode() === 'full') setTimeout(() => playSound('applause'), 3300);
+            if (!muted && mode() === 'full') { preloadSounds('applause'); setTimeout(() => playSound('applause'), 3300); }
         }
         answerSound(item);
         // The quiz's animation runs on every screen of a quiz that has one,

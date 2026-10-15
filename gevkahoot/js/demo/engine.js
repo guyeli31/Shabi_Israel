@@ -239,7 +239,7 @@ export function createDemo(onChange) {
         if (it.kind === 'interlude') {
             phase = 'interlude';
             until = Date.now() + it.seconds * 1000;
-        } else if (['puzzle', 'spot', 'complete', 'slider', 'rank', 'action'].includes(it.kind) && !opts.started) {
+        } else if (['puzzle', 'spot', 'complete', 'slider', 'rank', 'action', 'memory'].includes(it.kind) && !opts.started) {
             // As on the server: a picture game opens on its instruction slide,
             // with no clock. There is no host here, so it moves on by itself
             // after a few seconds (or when the player presses "start").
@@ -281,7 +281,7 @@ export function createDemo(onChange) {
                 if (it.kind === 'slider') {
                     // A bot's eye: off by up to ±(1 − skill) of the area, centred on the truth.
                     const off = (Math.random() * 2 - 1) * (1 - p.bot.skill) * 0.9;
-                    const option = Math.round(Math.min(SLIDER.max, Math.max(0, SLIDER.target + off * 1350)));
+                    const option = Math.round(Math.min(SLIDER.max, Math.max(0, SLIDER.target + off * (SLIDER.target / (1 - SLIDER.minArea)))));
                     return { player: p, at: startsAt + ms, ms, option };
                 }
                 const right = Math.random() < p.bot.skill;

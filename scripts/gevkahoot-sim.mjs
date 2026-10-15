@@ -83,6 +83,16 @@ try {
     check('a double-weight answer is worth just under 2000', doubled.points > 1800 && doubled.points <= 2000, doubled);
     check('the table changed', totals(rows) !== afterQ1);
 
+    section('The host cancels a question’s points, then gives them back');
+    const byName = () => table().map((r) => `${r.name}:${r.points}`).sort().join('|');
+    const withQ2 = byName();
+    check('host cancels question 2', host(`select public.gk_admin_cancel('${Q[1]}', true);`).ok);
+    check('…every answer to it is now worth nothing', sql(`select count(*) from public.gk_answers where item_id = '${Q[1]}' and not voided and points <> 0;`).out === '0');
+    check('…so the points are exactly those after question 1', byName() === afterQ1.split('|').map((x) => x.split(':').slice(0, 2).join(':')).sort().join('|'));
+    check('…and the published question says ×0', (await publicState()).data.item?.weight === 0);
+    check('a player cannot cancel', (await rpc('gk_admin_cancel', { p_item: Q[1], p_cancel: true })).ok === false);
+    check('host gives the points back', host(`select public.gk_admin_cancel('${Q[1]}', false);`).ok && byName() === withQ2);
+
     section('A phone dies mid-quiz and is linked back by the host');
     const lost = players[1];
     const before = (await rpc('gk_me', { p_token: lost.token })).data;
@@ -92,6 +102,20 @@ try {
     const after = (await rpc('gk_me', { p_token: fresh })).data;
     check('the new device is the same player with the same score', after.player && after.name === lost.name && after.points === before.points, { before, after });
     check('the old device no longer is', (await rpc('gk_me', { p_token: lost.token })).data.player === false);
+
+    section('A device asks for a name, then joins under its own instead');
+    const stray = token();
+    await rpc('gk_request_relink', { p_name: players[0].name, p_token: stray });
+    check('the request is waiting', (await rpc('gk_me', { p_token: stray })).data.pending === true);
+    const joinedOwn = await rpc('gk_join', { p_name: 'שם משלי', p_token: stray });
+    check('…joining under another name withdraws it', joinedOwn.ok
+        && sql(`select count(*) from public.gk_relink_requests where status = 'pending';`).out === '0', joinedOwn);
+    host(`select public.gk_admin_kick(id) from public.gk_players where name = 'שם משלי';`);
+    const refused = token();
+    await rpc('gk_request_relink', { p_name: players[0].name, p_token: refused });
+    host(`select public.gk_admin_relink(id, false) from public.gk_relink_requests where status = 'pending';`);
+    const told = (await rpc('gk_me', { p_token: refused })).data;
+    check('a refused device is told so', told.rejected === true && told.pending === false, told);
     lost.token = fresh;
 
     section('A wrong answer key is corrected live');
@@ -129,8 +153,27 @@ try {
     // Points only, by name: a correct warm-up answer may still reorder a tie.
     const pointsByName = () => table().map((r) => `${r.name}:${r.points}`).sort().join('|');
     const beforeWarmup = pointsByName();
-    await Promise.all(players.map((p, i) => rpc('gk_answer', { p_token: p.token, p_item: Q[2], p_option: i % 5 })));
+    // Everyone but the last answers: removing that one is what completes the room.
+    await Promise.all(players.slice(0, N - 1).map((p, i) => rpc('gk_answer', { p_token: p.token, p_item: Q[2], p_option: i % 5 })));
     check('a zero-weight question changes nobody\'s points', pointsByName() === beforeWarmup);
+
+    section('The host removes two players mid-quiz');
+    const playerId = (name) => sql(`select p.id from public.gk_players p join public.gk_sessions s on s.id = p.session_id
+                                     where s.quiz_id = '${TEST_QUIZ}' and s.status = 'running' and p.name = '${name}';`).out;
+    const gone = [players[2], players[N - 1]];
+    check('host removes a player who already answered', host(`select public.gk_admin_kick('${playerId(gone[0].name)}');`).ok);
+    st = await publicState();
+    check('…their answer stops counting, and the question stays open', st.phase === 'question'
+        && (await rest('gk_public_live?id=eq.1&select=*')).data[0].answered === N - 2, st.phase);
+    check('host removes the one player still to answer', host(`select public.gk_admin_kick('${playerId(gone[1].name)}');`).ok);
+    st = await publicState();
+    check('…and everyone left has answered: revealed by itself', st.phase === 'reveal'
+        && st.data.answered === N - 2 && st.data.counts.reduce((a, b) => a + b, 0) === N - 2, st.data.counts);
+    check('the removed players are gone from the table, past points included',
+        table().length === N - 2 && !table().some((r) => gone.some((g) => g.name === r.name)));
+    check('a removed phone is told so', (await rpc('gk_me', { p_token: gone[0].token })).data.kicked === true);
+    check('…and cannot join again under another name',
+        (await rpc('gk_join', { p_name: 'שם חדש', p_token: gone[0].token })).code === 'kicked');
     next(); next();           // fastest, table
     check('host steps past the last item', next().ok);
     st = await publicState();
@@ -138,8 +181,8 @@ try {
 
     section('Archive');
     const result = JSON.parse(sql(`select result from public.gk_sessions where quiz_id = '${TEST_QUIZ}' and status = 'finished';`).out);
-    check('the result holds the final table', result.leaderboard.length === N);
-    check('the matrix is players × questions', result.matrix.rows.length === N && result.matrix.questions.length === 3
+    check('the result holds the final table', result.leaderboard.length === N - 2);
+    check('the matrix is players × questions', result.matrix.rows.length === N - 2 && result.matrix.questions.length === 3
         && result.matrix.rows.every((r) => r.cells.length === 3));
     check('a correct cell carries the answer time', result.matrix.rows.some((r) => r.cells.some((c) => c && c[0] === true && Number.isInteger(c[1]))));
     const final = (await rpc('gk_me', { p_token: players[0].token })).data;

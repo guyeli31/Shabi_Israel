@@ -111,12 +111,12 @@ values
   '[{"image":"media/sprites/demo-sun.svg","scale":0.55},{"image":"media/sprites/demo-sun.svg","scale":1.35},{"image":"media/sprites/demo-sun.svg","scale":1},{"image":"media/sprites/demo-sun.svg","scale":0.78}]');
 
 -- The slider: the house is taken out of the scene and put back at whatever
--- size the player slides it to (the target is always 90%). A house emoji
+-- size the player slides it to (the target is always 70%). A house emoji
 -- rides on the handle.
 insert into public.gk_items
   (quiz_id, position, kind, title, correct, weight, time_limit_s, image, slot, options, symbols)
 values
- ('6e0b5f0a-0000-4000-8000-00000000d3a0', 10, 'slider', '🎚️ באיזה גודל הבית באמת?', '{900}', 1, 20,
+ ('6e0b5f0a-0000-4000-8000-00000000d3a0', 10, 'slider', '🎚️ באיזה גודל הבית באמת?', '{700}', 1, 20,
   'media/images/demo-slider.svg', '{"x":0.115,"y":0.37,"w":0.3325,"h":0.4533}',
   '[{"image":"media/sprites/demo-house.svg","scale":1}]', '["🏠"]');
 

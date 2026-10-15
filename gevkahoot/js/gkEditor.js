@@ -110,8 +110,8 @@ async function addItem(kind) {
         spot: { quiz_id: quiz.id, position, kind, title: 'זהו את הדמות', regions: [], correct: [] },
         // The gap and the candidate pieces are made in the form, from a picture.
         complete: { quiz_id: quiz.id, position, kind, title: 'מה משלים את התמונה?', options: [], correct: [] },
-        // One cut-out, sized by the player; the target is always 90% (CHECK).
-        slider: { quiz_id: quiz.id, position, kind, title: 'באיזה גודל העצם באמת?', options: [], correct: [900] },
+        // One cut-out, sized by the player; the target is always 70% (CHECK).
+        slider: { quiz_id: quiz.id, position, kind, title: 'באיזה גודל העצם באמת?', options: [], correct: [700] },
         // Four blank answers already in "order"; the form scrambles them on save.
         rank: { quiz_id: quiz.id, position, kind, title: 'סדרו מהמוקדם למאוחר', body: 'מוקדם', options: ['', '', '', ''], correct: [0, 1, 2, 3] },
         // A picture to memorise, then an ordinary question about it.

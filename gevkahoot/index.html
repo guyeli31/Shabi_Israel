@@ -42,6 +42,9 @@
 </head>
 <body>
     <div id="app" class="pl"></div>
+    <!-- A classic ES5 script, so it runs where the quiz cannot (legacy.js). It
+         sits beside the page, not in js/: the build bundles js/ away. -->
+    <script src="legacy.js"></script>
     <script type="module" src="js/gkPlayer.js"></script>
 </body>
 </html>

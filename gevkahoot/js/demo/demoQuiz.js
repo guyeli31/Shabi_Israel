@@ -91,7 +91,7 @@ export const DEMO_ITEMS = [
 
     // The slider: the house is taken out, and put back at whatever size the
     // player slides it to. A house emoji rides on the handle.
-    item({ id: 'demo-sl1', kind: 'slider', title: '🎚️ באיזה גודל הבית באמת?', correct: [900], weight: 1, time_limit_s: 20,
+    item({ id: 'demo-sl1', kind: 'slider', title: '🎚️ באיזה גודל הבית באמת?', correct: [700], weight: 1, time_limit_s: 20,
         image: 'media/images/demo-slider.svg', slot: { x: 0.115, y: 0.37, w: 0.3325, h: 0.4533 },
         options: [{ image: 'media/sprites/demo-house.svg', scale: 1 }], symbols: ['🏠'] }),
 

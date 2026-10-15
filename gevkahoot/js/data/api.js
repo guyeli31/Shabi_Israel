@@ -45,6 +45,7 @@ export const admin = {
     kick: (playerId) => rpc('gk_admin_kick', { p_player: playerId }),
     relink: (requestId, approve) => rpc('gk_admin_relink', { p_request: requestId, p_approve: approve }),
     rescore: (itemId) => rpc('gk_admin_rescore', { p_item: itemId }),
+    cancel: (itemId, cancel) => rpc('gk_admin_cancel', { p_item: itemId, p_cancel: cancel }),
     refresh: () => rpc('gk_admin_refresh'),
 };
 

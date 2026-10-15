@@ -28,6 +28,7 @@
 import { h, svgEl } from '../ui/dom.js';
 import { THROW } from '../scoring.js';
 import { playSound } from '../ui/sounds.js';
+import { holdTouch } from '../ui/touch.js';
 
 // ---- the court's geometry, as fractions of its box (3 wide : 4 high) ------
 const START = { x: 0.5, y: 0.62 };      // the ball, held up by the shooter at the line
@@ -196,7 +197,9 @@ function shooter() {
         svgEl('path', { d: jersey, fill: '#141418' }),
         svgEl('path', { d: jersey, fill: 'url(#ac-pin)' }),
         svgEl('path', { d: 'M93,357 C103,350 112,336 114,320 L121,313 Q150,328 179,313 L186,320 C188,336 197,350 207,357', fill: 'none', stroke: '#2f6ae0', 'stroke-width': 3.2, 'stroke-linejoin': 'round' }),
-        svgEl('text', { x: 150, y: 342, 'text-anchor': 'middle', direction: 'rtl', 'font-family': 'Arial, Helvetica, sans-serif', 'font-weight': 700, 'font-size': 10.5, fill: '#fff', 'letter-spacing': 0.4 }, 'שאקיל וניל'),
+        // No letter-spacing on this text: WebKit lays out spaced SVG text
+        // glyph by glyph, left to right, and the Hebrew comes out reversed.
+        svgEl('text', { x: 150, y: 342, 'text-anchor': 'middle', direction: 'rtl', 'font-family': 'Arial, Helvetica, sans-serif', 'font-weight': 700, 'font-size': 10.5, fill: '#fff' }, 'שאקיל וניל'),
         svgEl('text', { x: 150, y: 378, 'text-anchor': 'middle', 'font-family': "'Arial Black', Arial, sans-serif", 'font-weight': 900, 'font-size': 36, fill: '#2f6ae0', stroke: '#fff', 'stroke-width': 2.6, 'paint-order': 'stroke', 'stroke-linejoin': 'round' }, '32'));
 }
 
@@ -379,6 +382,7 @@ export function createAction({ ball = null, interactive = false, auto = false, s
 
     // ---- the player's throw ----------------------------------------------------
     if (interactive) {
+        holdTouch(court);
         let drag = null;
         court.addEventListener('pointerdown', (e) => {
             if (busy || locked || drag || !canThrow()) return;

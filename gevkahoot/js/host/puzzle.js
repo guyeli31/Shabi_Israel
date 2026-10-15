@@ -23,6 +23,7 @@
  * rotating a phone or resizing a window moves nothing out of place.
  */
 import { h } from '../ui/dom.js';
+import { holdTouch } from '../ui/touch.js';
 
 /** The five cells, in the unit square: two on top, three underneath. */
 const T = 1 / 3;
@@ -111,6 +112,7 @@ const SNAP = 0.12;
 export function createPuzzle({ image, interactive, onChange }) {
     const frame = h('div', { class: 'pz-frame' });
     const root = h('div', { class: 'pz', dataset: interactive ? { live: '' } : {} }, frame);
+    if (interactive) holdTouch(root);
     let ratio = 4 / 3;           // picture width / height, until it has loaded
     let locked = false;
     let complete = false;
@@ -134,10 +136,11 @@ export function createPuzzle({ image, interactive, onChange }) {
         const W = root.clientWidth, H = root.clientHeight;
         if (!W || !H) return null;
         // The frame takes the top of a tall play area and the side of a wide
-        // one; what is left is the tray the loose pieces lie in.
+        // one; what is left is the tray the loose pieces lie in. (Enlarged at
+        // the host's request — 0.46 / 0.56 before: the picture is the game.)
         const tall = H > W;
-        const maxW = tall ? W : W * 0.56;
-        const maxH = tall ? H * 0.46 : H;
+        const maxW = tall ? W : W * 0.62;
+        const maxH = tall ? H * 0.52 : H;
         const fw = Math.min(maxW, maxH * ratio);
         const fh = fw / ratio;
         const fx = tall ? (W - fw) / 2 : W - fw;       // right-hand side: the page is RTL

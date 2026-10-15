@@ -94,6 +94,49 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   net, and a refresh or a dropped connection resumes from `gk_me()`. A phone
   that lost its token (private tab, another browser) asks to be linked back to
   its name and the host approves it in the drawer.
+- **Removing a player ("🗑 הסר" in the drawer, `gk_admin_kick`) removes them
+  from the whole quiz**: `kicked`, and every answer of theirs voided, so the
+  table, the matrix, the counts and "answered X of Y" all lose them, an action
+  round is re-priced without their baskets, and if they were the one still to
+  answer the question reveals. Their token is KEPT — it is what tells that
+  phone "הוסרת" and refuses it a second join under a new name.
+- **Cancelling a question's points** (⊘ beside an asked question in the
+  drawer's running order, `gk_admin_cancel(item, true|false)`) is per RUN, not
+  an edit of the quiz: `gk_sessions.cancelled` lists the items, and
+  `_gk_w(session, item)` gives such an item weight 0. Every place that scores
+  or counts a streak reads the weight through `_gk_w` — never
+  `gk_items.weight` — so the answers stay and re-price to 0 (`_gk_rescore`),
+  the streaks treat it as a ×0 warm-up, and ↺ gives the points back.
+- **A taken name is a relink request, automatically.** When a phone joins
+  under a name already in the quiz (its owner's browser crashed, most often),
+  `gkPlayer.js` sends `gk_request_relink` at once and waits; the host sees it
+  ON the screen under ☰ (`.hc-alert`, with whether that player's old device is
+  still connected) and approves or rejects without opening the drawer. The
+  phone can give up ("זה לא אני") and join under another name — `gk_join` then
+  deletes its pending request, so a late approval cannot hand one device two
+  players; a rejection reaches the phone as `gk_me().rejected`.
+- **Touch and iOS Safari** (`js/ui/touch.js`). `touch-action: none` is not
+  always honoured by iOS Safari: the slider would not drag sideways and a
+  pinch over the puzzle could not be undone. Every drag area (puzzle, slider,
+  ranking, court) also goes through `holdTouch()` (a cancelled `touchmove`),
+  and while a player is playing the page cannot zoom (`lockZoom`) and is put
+  back to scale 1 on each screen (`resetZoom`). A new drag area does the same.
+- **Never `letter-spacing` on Hebrew SVG text.** WebKit (every iPhone
+  browser) lays spaced SVG `<text>` out glyph by glyph, left to right: the
+  jersey's "שאקיל וניל" read "לינו ליקאש" on an iPhone 17 while Chrome showed
+  it right. Verified in Playwright's WebKit, the engine to check SVG text in.
+- **Too old to play: `gevkahoot/legacy.js`.** The quiz needs a browser from
+  2020 on (optional chaining, container units, :has()); an iPhone 5 stops at
+  iOS 10.3, whose Safari cannot even parse the modules — the player saw an
+  empty page. `legacy.js` is the one ES5 classic script: it shows "the browser
+  on this device is too old" when the browser has no modules or a module fails
+  to PARSE (a SyntaxError on the window), and gkPlayer.js removes it if the
+  quiz starts after all. It sits BESIDE the page, not in `js/`: the build
+  deletes `gevkahoot/js` from dist after bundling it.
+- **Sound effects go through Web Audio** (`js/ui/sounds.js`): each file
+  decoded once, unlocked by the first touch. A new `<audio>` per play was
+  silent on an iPhone whenever the play came from a timer (the reveal's
+  verdict, a basket) rather than a touch.
 - **Host authority is `public.is_admin()`** — the same allowlist as the app. In a
   `gk_admin_*` function it is the first statement.
 - **Supabase's default privileges grant EXECUTE on every new public function to
@@ -139,7 +182,11 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   client alike (`= 'question'` is right only where the OPTIONS are meant).
   `js/host/puzzle.js` cuts any media picture into five pieces with CSS
   (background + clip-path, no image processing), snaps a piece dropped near its
-  place exactly into it, and offers "סיימתי" only when all five are home. At the
+  place exactly into it, and sends "done" BY ITSELF the moment the fifth piece
+  is home — there is no button (the host's request: the time is the score, and
+  a button cost seconds; `sendPuzzle()` in stage.js, re-sent by sync() if a
+  send did not get through). Its instruction slide's demonstration shows real
+  jigsaw shapes and "נשלח ✓" appearing on its own. At the
   reveal the picture is shown whole, then everything but the round detail the
   host chose (`circle_x/y/r`, picked on the picture in the editor) fades away,
   and that detail — ONE copy, at exactly the size it had in the picture, at the
@@ -231,9 +278,9 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   `options`, `slot`, made by `completeMaker.js`), drawn at its own place; the
   player sets its SIZE with a slider and the answer is the POSITION, 0-1000, in
   `option_idx`. Area grows linearly: a third of the real area at 0, the real
-  area at 900 — so `correct = '{900}'` by CHECK and means "target position",
+  area at 700 (70%) — so `correct = '{700}'` by CHECK and means "target position",
   not an option index. Points = time points × max(0, 1 − |area deviation|)
-  (a 100% deviation would score 0; the slider's worst is −67%). In the matrix
+  (a 100% deviation would score 0; the slider's worst is −67%, its far end +29%). In the matrix
   a slider cell is NOT right/wrong: it carries `[ok, ms, points, deviation]`
   (`_gk_matrix` adds the last two, deviation only for a slider) and is
   coloured linearly red → green by that same factor, with the seconds and the
@@ -243,11 +290,15 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   `js/scoring.js` (the demo, and the deviation a phone shows after the
   reveal) — verified equal value by value; change both or neither. At the
   reveal `_gk_publish` adds `values` (every position chosen) instead of
-  `counts`. "Submit" appears only after the first move (default 50%). An
+  `counts`. "Submit" appears only after the first move (default 50%), and a
+  slider moved but never submitted is sent where it stands just before the
+  bell (the host's rule: when time is up, the slider's place IS the answer);
+  an untouched one stays unanswered. An
   optional emoji (`symbols[0]`) rides the handle, scaled like the object.
-  Because the target and the minimum are fixed and public, the far end (1000)
-  is only 7.4% too big and earns ~93% of the points — a known property of the
-  requested 90% target, not a bug.
+  The target was 90% (900) until the host moved it to 70%: at 90% the far
+  end (1000) was only 7.4% too big and earned ~93% of the points; at 70% it is
+  28.6% too big and earns ~71%. The SQL file moves existing sliders' `correct`
+  from '{900}' to '{700}' before re-adding the CHECK.
 - **The ranking is a seventh scored kind** (`kind = 'rank'`): 2-5 answers
   dragged into order by a keyword the host sets (`body`: "מוקדם", "גדול" — most
   at the top). `correct` is the right ORDER (option indexes, top place first;
@@ -262,14 +313,21 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   to be the answer. Unlike every colour question, the answer's TEXT is on the
   card on a phone too — the words are what is being ordered. Cards are
   absolutely placed in equal slots (`js/host/rank.js`), so a reorder is one
-  `top` assignment the transition animates.
+  `top` assignment the transition animates. That is how the reveal shows the
+  RIGHT order (the host's request): a phone first shows the player's own order
+  with ✓/✕ per place, then after 1.8s the cards slide into the right order
+  under "✓ הסדר הנכון", each misplaced card saying "אצלך: מקום N"; the
+  projected screen goes straight to the right order with the same heading.
 - **The memory question is an eighth scored kind** (`kind = 'memory'`): a
   picture held up for `memo_s` seconds (3-120), then taken away, and only then
   the question — 2-5 typed answers on tiles, scored exactly like a `question`
   (it takes a mark set too). The memorising time IS the lead-in:
   `_gk_start_question` puts `q_started_at` `memo_s` ahead, so `gk_answer`
   refuses an answer while the picture is up ('closed') and the time points
-  count from when it goes. No instruction slide. The title is NOT shown while
+  count from when it goes. It opens on a WARNING slide (phase `intro`, the
+  host's request — it used to start cold): "משחק זיכרון!", how many seconds
+  the picture will be up, and a generic scene being covered; "next" then
+  holds the picture up. The title is NOT shown while
   the picture is up — it would say what to look at. At the reveal the picture
   returns with `arrows` (`[{x1,y1,x2,y2}]`, tail → tip as fractions of the
   picture, up to 12, any number) — published only then, since they point at
@@ -320,7 +378,9 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   carries on from it.
 - **Two background musics.** `gk_quizzes.lobby_music` plays in the lobby;
   `music` ("the questions' music") everywhere after it — interludes and
-  results included — and is what an item's "כמו בחידון" means. `music_on`
+  results included — and is what an item's "כמו בחידון" means. The one
+  silence is the reveal: a question's music ends when the right answer is
+  shown (the host's request) and comes back from the next screen. `music_on`
   switches both. When the column was added, existing quizzes got their one
   music copied into it, so no lobby went quiet. Published in `_gk_quiz_json`
   and mirrored by the demo engine and the mock; chosen in `syncMusic()`.
@@ -389,7 +449,8 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   became "binary" to grep. Write such a line with the Write/Edit tools, or from
   a script FILE, and scan for control characters after any generated edit.
 - **The picture games open on an instruction slide** (phase `intro`): puzzle, slider, ranking,
-  spot it, complete the picture and the action round are not self-explanatory, so `_gk_enter()`
+  spot it, complete the picture and the action round are not self-explanatory (and the memory
+  question needs its warning), so `_gk_enter()`
   puts them on a slide with a looping demonstration and two steps, with NO
   clock. The question and its countdown start only on the host's "next"
   (`_gk_start_question()` — the one place `q_started_at` / `q_deadline` are
@@ -467,6 +528,18 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   each refusal paired with a control;
   `node scripts/gevkahoot-sim.mjs` — a whole quiz with 30 simulated phones,
   including going back and a device relink.
+- **Load: `node scripts/gevkahoot-load.mjs --password-file <file>`** — a short
+  real quiz (question, basketball, two questions, seconds each) played by
+  twenty REAL browsers at once: Chrome and Edge as Android phones and on the
+  desktop, WebKit as iPhones, Firefox as an Android phone — each joining
+  through the form, tapping and throwing with a real pointer. Reports, per
+  browser family, how long after each host step the screen changed, tap →
+  "נקלט" and throw → feedback (timed inside the page), every server call's
+  p50/p95, and console errors. `--target cloud --yes` runs it against
+  golan.me.uk (refuses while a quiz is on air; aborts and deletes its quiz, so
+  nothing enters the archive). The host password is read from a file outside
+  the repo, never from the command line. Measured on one machine, the
+  browsers compete with Docker for CPU: compare runs from the same place.
 - **`node scripts/gevkahoot-layout-check.mjs` after ANY change to a GevKahoot
   screen** (needs the dev server on :8090, no login, no database). It asks of
   every stage of a quiz, for the projected screen, a desktop player and a phone

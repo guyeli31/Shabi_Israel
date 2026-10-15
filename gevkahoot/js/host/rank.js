@@ -16,6 +16,7 @@
  * reorder is one assignment and the CSS transition animates it.
  */
 import { h } from '../ui/dom.js';
+import { holdTouch } from '../ui/touch.js';
 import { crest } from '../ui/teams.js';
 import { TILES } from '../ui/teams.js';
 import { decodeRank, encodeRank } from '../scoring.js';
@@ -39,6 +40,7 @@ export function createRank({ options, keyword, symbols = [], marks = 'teams', in
     interactive && h('span', { class: 'rk-grip', 'aria-hidden': 'true', text: '⠿' })));
     const places = options.map((_, i) => h('span', { class: 'rk-place', text: String(i + 1) }));
     const list = h('div', { class: 'rk-list', role: interactive ? 'list' : null }, cards);
+    if (interactive) holdTouch(list);
     const numbers = h('div', { class: 'rk-numbers', 'aria-hidden': 'true' }, places);
     const word = keyword ? keyword.trim() : '';
     const root = h('div', { class: 'rk', dataset: interactive ? { live: '' } : {} },
@@ -47,6 +49,10 @@ export function createRank({ options, keyword, symbols = [], marks = 'teams', in
         h('div', { class: 'rk-end', text: word ? `⬇ הכי פחות ${word}` : '⬇ אחרון' }));
     const summary = h('p', { class: 'sl-summary', hidden: true });
     root.append(summary);
+    // Shown once the cards stand in the right order — so that order is read
+    // as THE answer, not as the player's own.
+    const truth = h('div', { class: 'rk-truth', hidden: true, text: '✓ הסדר הנכון' });
+    root.prepend(truth);
 
     const slotTop = (place) => `calc(${place} * 100% / ${n})`;
     function place() {
@@ -113,16 +119,31 @@ export function createRank({ options, keyword, symbols = [], marks = 'teams', in
             if (picked !== null && picked !== undefined) show(picked);
         },
         markPicked() {},
-        /** The reveal: the cards slide into the right order; for a player,
-         *  each card says whether THEIR order had it in the right place. */
+        /** The reveal. A player first sees THEIR order, each card ✓/✕ for
+         *  whether it stood in its right place; a moment later the cards slide
+         *  into the right order under "הסדר הנכון", and every card that was
+         *  elsewhere says where the player had put it. The projected screen
+         *  goes straight to the right order. */
         reveal({ correct = [], right = 0, answered = 0, picked = null }) {
             locked = true;
             root.toggleAttribute('data-revealed', true);
             const mine = picked === null || picked === undefined ? null : decodeRank(picked, n);
-            if (correct.length === n) { order = [...correct]; place(); }
+            const known = correct.length === n;
             cards.forEach((card, opt) => {
-                if (mine) card.dataset.ok = String(mine.indexOf(opt) === correct.indexOf(opt));
+                if (mine && known) card.dataset.ok = String(mine.indexOf(opt) === correct.indexOf(opt));
             });
+            const showTruth = () => {
+                if (!known) return;
+                order = [...correct]; place();
+                truth.hidden = false;
+                if (mine) cards.forEach((card, opt) => {
+                    if (card.dataset.ok === 'false' && !card.querySelector('.rk-was')) {
+                        card.append(h('span', { class: 'rk-was', text: `אצלך: מקום ${mine.indexOf(opt) + 1}` }));
+                    }
+                });
+            };
+            if (mine && known) { order = [...mine]; place(); setTimeout(showTruth, 1800); }
+            else showTruth();
             summary.hidden = false;
             summary.textContent = answered
                 ? `${right === 1 ? 'אחד' : right} מתוך ${answered} סידרו בדיוק נכון`

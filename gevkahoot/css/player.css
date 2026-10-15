@@ -16,6 +16,8 @@
    line keep the page's side padding. */
 .pl[data-playing] { padding-inline: 0; padding-bottom: 0; gap: .35rem; }
 .pl[data-playing] .pl-head { padding-inline: max(.9rem, env(safe-area-inset-right)) max(.9rem, env(safe-area-inset-left)); }
+/* No pinch or double-tap zoom while playing (js/ui/touch.js lockZoom). */
+html[data-nozoom], html[data-nozoom] body { touch-action: pan-x pan-y; }
 
 .pl-head { display: flex; align-items: center; justify-content: space-between; gap: .6rem; min-height: 2.2rem; flex: none; }
 .pl-brand { font-weight: 800; font-size: 1.2rem; letter-spacing: .02em; direction: ltr; display: flex; align-items: center; gap: .5em; }
@@ -89,3 +91,8 @@
 .pl-strip-actions { display: flex; gap: .5rem; flex-wrap: wrap; justify-content: center; }
 .pl-strip-actions:empty { display: none; }
 .pl-strip-actions a { text-decoration: none; }
+
+/* legacy.js: the message for a browser too old to run the quiz. Plain CSS
+   only — that browser reads little else. */
+.pl-legacy { margin: auto; padding: 2rem 1.2rem; text-align: center; color: #fff; font-size: 1.15rem; line-height: 1.5; }
+.pl-legacy-title { font-size: 1.5rem; font-weight: 800; margin: 0 0 .8rem; }

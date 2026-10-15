@@ -217,12 +217,12 @@ try {
     section('The slider: a position 0-1000, scored by the server for accuracy');
     const SL = '7e57ab1e-0000-4000-8000-0000000000da';
     sql(`insert into public.gk_items (id, quiz_id, position, kind, title, correct, weight, time_limit_s, image, slot, options)
-         values ('${SL}', '${TEST_QUIZ}', -3, 'slider', 'sl', '{900}', 1, 30, 'media/images/demo-slider.svg', '{"x":0.1,"y":0.3,"w":0.3,"h":0.4}',
+         values ('${SL}', '${TEST_QUIZ}', -3, 'slider', 'sl', '{700}', 1, 30, 'media/images/demo-slider.svg', '{"x":0.1,"y":0.3,"w":0.3,"h":0.4}',
                  '[{"image":"media/sprites/demo-house.svg","scale":1}]');`);
     check('control: host opens the slider', host('select public.gk_admin_goto(1);').ok);
     st = await publicState();
     check('it opens on the instruction slide, with no clock', st.phase === 'intro' && st.data.item?.kind === 'slider' && !('deadline' in st.data), st);
-    check('a position on the instruction slide is refused', (await rpc('gk_answer', { p_token: bob, p_item: SL, p_option: 900 })).code === 'closed');
+    check('a position on the instruction slide is refused', (await rpc('gk_answer', { p_token: bob, p_item: SL, p_option: 700 })).code === 'closed');
     check('control: "next" starts it', host('select public.gk_admin_next();').ok);
     st = await publicState();
     check('control: the piece and its place are public', st.data.item.options?.length === 1 && st.data.item.slot?.w === 0.3, st.data.item);
@@ -230,13 +230,13 @@ try {
     await new Promise((r) => setTimeout(r, Math.max(0, st.data.starts_at - Date.now()) + 200));
     check('a position past the end (1001) is refused', (await rpc('gk_answer', { p_token: bob, p_item: SL, p_option: 1001 })).code === 'bad_option');
     check('a negative position is refused', (await rpc('gk_answer', { p_token: bob, p_item: SL, p_option: -1 })).code === 'bad_option');
-    check('control: the exact position is accepted', (await rpc('gk_answer', { p_token: bob, p_item: SL, p_option: 900 })).ok);
+    check('control: the exact position is accepted', (await rpc('gk_answer', { p_token: bob, p_item: SL, p_option: 700 })).ok);
     check('control: the far end (a third of the area) is accepted', (await rpc('gk_answer', { p_token: alice, p_item: SL, p_option: 0 })).ok);
     host('select public.gk_admin_reveal();');
     st = await publicState();
-    check('control: the reveal publishes the target and the positions chosen', JSON.stringify(st.data.correct) === '[900]' && JSON.stringify(st.data.values) === '[0,900]', st.data);
+    check('control: the reveal publishes the target and the positions chosen', JSON.stringify(st.data.correct) === '[700]' && JSON.stringify(st.data.values) === '[0,700]', st.data);
     const bobSl = (await rpc('gk_me', { p_token: bob })).data, aliceSl = (await rpc('gk_me', { p_token: alice })).data;
-    check('the exact size is "correct" and scores', bobSl.result.correct === true && bobSl.result.points > 500 && bobSl.option === 900, bobSl);
+    check('the exact size is "correct" and scores', bobSl.result.correct === true && bobSl.result.points > 500 && bobSl.option === 700, bobSl);
     // 67% off: the factor is 1 − 0.67 = a third of the time points, and not "correct".
     check('67% off the area keeps a third of its time points and is not "correct"', aliceSl.result.correct === false
         && aliceSl.result.points > 0 && Math.abs(aliceSl.result.points / bobSl.result.points - 1 / 3) < 0.02 && aliceSl.option === 0, { aliceSl, bobSl });
@@ -244,7 +244,7 @@ try {
     check('control: re-scoring leaves the slider points as they were', host(`select public.gk_admin_rescore('${SL}');`).ok
         && sql(`select points from public.gk_answers where item_id = '${SL}' and not voided order by option_idx;`).out === pts.out, pts.out);
     const moved = sql(`update public.gk_items set correct = '{800}' where id = '${SL}';`);
-    check('a slider target other than 900 is rejected', !moved.ok && /violates check/.test(moved.out), moved.out);
+    check('a slider target other than 700 is rejected', !moved.ok && /violates check/.test(moved.out), moved.out);
     const twoPieces = sql(`update public.gk_items set options = '[{"image":"media/sprites/a.png","scale":1},{"image":"media/sprites/b.png","scale":1}]' where id = '${SL}';`);
     check('a second piece is rejected', !twoPieces.ok && /violates check/.test(twoPieces.out), twoPieces.out);
     const offSite = sql(`update public.gk_items set options = '[{"image":"https://evil.example/p.png","scale":1}]' where id = '${SL}';`);
@@ -287,7 +287,11 @@ try {
                  '[{"x1":0.1,"y1":0.1,"x2":0.5,"y2":0.5}]');`);
     check('control: host opens the memory question', host('select public.gk_admin_goto(1);').ok);
     st = await publicState();
-    check('it goes straight to the question, with no instruction slide', st.phase === 'question' && st.data.item?.kind === 'memory', st);
+    check('it opens on its warning slide ("memorise the next picture"), no clock', st.phase === 'intro' && st.data.item?.kind === 'memory' && !st.data.starts_at, st);
+    check('an answer on the warning slide is refused', (await rpc('gk_answer', { p_token: bob, p_item: MM, p_option: 2 })).code === 'closed');
+    check('control: "next" holds the picture up', host('select public.gk_admin_next();').ok);
+    st = await publicState();
+    check('…and that is the question phase', st.phase === 'question' && st.data.item?.kind === 'memory', st);
     check('the picture is held up for memo_s: the clock starts that far ahead', Math.abs(st.data.starts_at - Date.now() - 3000) < 1500, st.data);
     check('the arrows and the answer are absent while it is open', !/"arrows"|"correct"/.test(JSON.stringify(st.data)), st.data);
     check('an answer while the picture is still up is refused', (await rpc('gk_answer', { p_token: bob, p_item: MM, p_option: 2 })).code === 'closed');

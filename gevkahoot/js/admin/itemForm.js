@@ -17,7 +17,7 @@ import { crest, MARK_SETS, TILES } from '../ui/teams.js';
 import { emojiButton, openEmojiPicker } from './emojiPicker.js';
 import { openCompleteMaker } from './completeMaker.js';
 import { safeMedia } from '../ui/dom.js';
-import { scrambleRank } from '../scoring.js';
+import { scrambleRank, SLIDER } from '../scoring.js';
 import { memoryPicture } from '../host/memory.js';
 import { createTable } from '../host/roulette.js';
 
@@ -152,7 +152,7 @@ export function itemForm(item, { manifest, onSave }) {
                 : isSlider
                 // One cut-out at its real size; the target position is fixed.
                 ? { title: draft.title, image: draft.image, slot, weight: draft.weight, time_limit_s: draft.time_limit_s,
-                    options: draft.options.slice(0, 1).map((o) => ({ image: o.image, scale: 1 })), correct: [900],
+                    options: draft.options.slice(0, 1).map((o) => ({ image: o.image, scale: 1 })), correct: [SLIDER.target],
                     symbols: draft.symbols[0] ? [draft.symbols[0]] : [], ...playback }
                 : isComplete
                 ? { title: draft.title, image: draft.image, slot, weight: draft.weight, time_limit_s: draft.time_limit_s,
@@ -562,7 +562,7 @@ export function itemForm(item, { manifest, onSave }) {
         sliderBox.append(
             h('div', { class: 'if-circle-stage if-spot-stage' }, h('img', { class: 'if-circle-img', src: draft.image, alt: '', draggable: 'false' }), h('div', { class: 'if-spot-layer' }, gap)),
             h('div', { class: 'if-pair' }, src && h('span', { class: 'if-swatch if-swatch--piece gk-tile', dataset: { tile: TILES[0].key } }, h('img', { src, alt: '' })), make),
-            h('p', { class: 'dr-note', text: 'הסליידר מתחיל ב-50%; בקצה השמאלי העצם בשליש משטחו, והגודל האמיתי הוא ב-90%. הניקוד: נקודות המהירות × (1 − הסטייה באחוזים) — סטייה של 10% משאירה 90% מהנקודות. במטריצה התא נצבע מאדום לירוק לפי הסטייה.' }),
+            h('p', { class: 'dr-note', text: 'הסליידר מתחיל ב-50%; בקצה השמאלי העצם בשליש משטחו, והגודל האמיתי הוא ב-70%. הניקוד: נקודות המהירות × (1 − הסטייה באחוזים) — סטייה של 10% משאירה 90% מהנקודות. במטריצה התא נצבע מאדום לירוק לפי הסטייה.' }),
             emoji);
     }
     // ---- the ranking: the answers in their right order, top place first ----

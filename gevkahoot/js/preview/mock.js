@@ -40,7 +40,7 @@ export function viewsFor(item) {
     if (!item) return [];
     if (item.kind === 'interlude') return ['item'];
     if (item.kind === 'explain') return ['explain'];
-    const intro = ['puzzle', 'spot', 'complete', 'slider', 'rank', 'action'].includes(item.kind) ? ['intro'] : [];
+    const intro = ['puzzle', 'spot', 'complete', 'slider', 'rank', 'action', 'memory'].includes(item.kind) ? ['intro'] : [];
     return [...intro, 'ready', 'item', 'reveal', ...(item.explain ? ['explain'] : []), 'fastest', 'firstfire', 'leaderboard'];
 }
 
@@ -132,7 +132,7 @@ export function mock(view, quiz, selected, items) {
 
     if (view === 'lobby') return { state: { ...base, status: 'lobby', phase: 'lobby' }, me: { ...me, points: 0, rank: 1 } };
 
-    if (view === 'intro' && ['puzzle', 'spot', 'complete', 'slider', 'rank', 'action'].includes(question.kind)) {
+    if (view === 'intro' && ['puzzle', 'spot', 'complete', 'slider', 'rank', 'action', 'memory'].includes(question.kind)) {
         return { state: { ...base, phase: 'intro', data: { ...base.data, item: publicItem(question, items) } }, me };
     }
     if (view === 'ready' || view === 'intro') {

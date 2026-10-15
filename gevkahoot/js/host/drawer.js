@@ -7,7 +7,7 @@
  * the drawer is for the exceptions — jumping, going back, fixing a question,
  * linking a player's new phone.
  */
-import { h, clear } from '../ui/dom.js';
+import { h, clear, renderKeyed } from '../ui/dom.js';
 import * as api from '../data/api.js';
 import { itemForm, keptForm, leaveForms, loadManifest } from '../admin/itemForm.js';
 
@@ -33,6 +33,12 @@ export function createDrawer({ email, onArchive, onSignOut }) {
     const burger = h('button', { class: 'hc-btn', type: 'button', title: 'תפריט ניהול', 'aria-label': 'תפריט ניהול', onclick: () => toggle(true) }, '☰', badge);
     const nextBtn = h('button', { class: 'hc-btn', type: 'button', title: 'הבא (רווח)', 'aria-label': 'הבא', text: '▶', onclick: () => run(api.admin.next) });
     const controls = h('div', { class: 'hc' }, burger, nextBtn);
+    // A phone asking to take over a name already in the quiz (its owner's
+    // browser crashed — or someone else typed the same name): shown on the
+    // screen itself, under the two buttons, so the host decides at once
+    // without opening the drawer.
+    const alerts = h('div', { class: 'hc-alerts', role: 'alert', 'aria-live': 'assertive' });
+    controls.append(alerts);
     const body = h('div', { class: 'dr-body' });
     const backdrop = h('div', { class: 'dr-backdrop', onclick: () => toggle(false) });
     const panel = h('aside', { class: 'dr', dir: 'rtl', 'aria-label': 'ניהול החידון' },
@@ -47,6 +53,7 @@ export function createDrawer({ email, onArchive, onSignOut }) {
         open = next;
         panel.toggleAttribute('data-open', open);
         backdrop.toggleAttribute('data-open', open);
+        drawAlerts();
         if (open) { poll(); if (!admin.session) loadQuizzes(); }
     }
 
@@ -88,6 +95,7 @@ export function createDrawer({ email, onArchive, onSignOut }) {
         // A phone waiting to be linked is the one thing the host must notice
         // without opening the drawer.
         burger.toggleAttribute('data-alert', waiting > 0);
+        drawAlerts();
         // Don't rebuild under the host's cursor while they are typing a fix.
         if (open && !panel.contains(document.activeElement?.closest?.('.if') || null)) draw();
     }
@@ -138,6 +146,22 @@ export function createDrawer({ email, onArchive, onSignOut }) {
         return sec('שליטה', ...rows);
     }
 
+    /** The on-screen alert: one card per waiting request, with whether the
+     *  player it names is still connected — a crashed browser is not. */
+    function drawAlerts() {
+        const reqs = open ? [] : admin.requests || [];
+        const online = (name) => admin.players?.find((p) => p.name === name)?.online;
+        renderKeyed(alerts, reqs.map((r) => `${r.id}|${online(r.name)}`).join(','), () => reqs.map((r) => h('div', { class: 'hc-alert' },
+            h('p', { class: 'hc-alert-text' },
+                '🙋 מכשיר חדש מבקש להיות ', h('b', { dir: 'auto', text: r.name }),
+                h('small', { text: online(r.name)
+                    ? 'השחקן בשם הזה עדיין מחובר מהמכשיר הקודם — אולי זה מישהו אחר עם אותו שם.'
+                    : 'המכשיר הקודם לא מחובר — כנראה הדפדפן קרס. אישור מעביר אליו את השחקן עם כל הניקוד.' })),
+            h('div', { class: 'hc-alert-actions' },
+                btn('אשר', () => run(() => api.admin.relink(r.id, true)), 'gk-btn--small'),
+                btn('דחה', () => run(() => api.admin.relink(r.id, false)), 'gk-btn--small gk-btn--ghost')))));
+    }
+
     function requestSection() {
         if (!admin.requests?.length) return null;
         return sec('מכשיר חדש מבקש להתחבר',
@@ -163,7 +187,18 @@ export function createDrawer({ email, onArchive, onSignOut }) {
                         h('span', { class: 'dr-item-idx', text: String(it.idx) }),
                         h('span', { class: 'ed-kind', text: KIND_ICON[it.kind] || '🎬' }),
                         h('span', { class: 'dr-item-title', dir: 'auto', text: it.title || '(ללא כותרת)' })),
-                    it.kind !== 'interlude' && it.weight !== 1 && h('span', { class: 'dr-tag', dir: 'ltr', text: `×${it.weight}` }),
+                    it.cancelled
+                        ? h('span', { class: 'dr-tag dr-tag--off', text: 'ניקוד בוטל' })
+                        : it.kind !== 'interlude' && it.weight !== 1 && h('span', { class: 'dr-tag', dir: 'ltr', text: `×${it.weight}` }),
+                    // A question already asked whose points the host takes back
+                    // (or gives back) for everyone — it did not work the same for all.
+                    s.status === 'running' && it.kind !== 'interlude' && s.index && it.idx <= s.index && h('button', {
+                        class: 'dr-icon', type: 'button', text: it.cancelled ? '↺' : '⊘',
+                        title: it.cancelled ? 'החזרת הניקוד של השאלה הזאת' : 'ביטול הניקוד של השאלה הזאת לכל המשתתפים',
+                        onclick: () => (it.cancelled
+                            ? confirm('להחזיר את הניקוד של השאלה הזאת לכולם?')
+                            : confirm('לבטל את הניקוד של השאלה הזאת לכל המשתתפים?\nהתשובות נשמרות, אבל לא שוות נקודות, והטבלה תתעדכן מיד. אפשר להחזיר.'))
+                            && run(() => api.admin.cancel(it.id, !it.cancelled)) }),
                     h('button', { class: 'dr-icon', type: 'button', title: 'עריכה', text: '✎',
                         onclick: () => { if (!leaveForms()) return; editing = editing === it.id ? null : it.id; openEditor(); } })),
                 editing === it.id && editForm(it),
@@ -216,8 +251,8 @@ export function createDrawer({ email, onArchive, onSignOut }) {
                 h('span', { class: 'dr-item-title', dir: 'auto', text: p.name }),
                 s.phase === 'question' && p.answered && h('span', { class: 'dr-tag', text: 'ענה' }),
                 h('span', { class: 'dr-points', text: String(p.points) }),
-                s.status !== 'finished' && h('button', { class: 'dr-icon', type: 'button', title: 'הסר שחקן', text: '✕',
-                    onclick: () => confirm(`להסיר את ${p.name} מהחידון?`) && run(() => api.admin.kick(p.id)) })))));
+                s.status !== 'finished' && h('button', { class: 'gk-btn gk-btn--small gk-btn--ghost', type: 'button', title: 'הסרת השחקן מהחידון', text: '🗑 הסר',
+                    onclick: () => confirm(`להסיר את ${p.name} מהחידון?\nכל התשובות של השחקן יוסרו מהטבלה, מהמטריצה ומהספירות.`) && run(() => api.admin.kick(p.id)) })))));
     }
 
     function archiveSection() {

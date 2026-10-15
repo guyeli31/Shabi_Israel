@@ -175,8 +175,10 @@ alter table public.gk_items
 -- ONE piece, always drawn at the object's own place, whose SIZE the player
 -- sets with a slider. The answer is the slider's position, 0-1000, stored in
 -- option_idx; the area grows linearly with it, from a third of the real area
--- at 0 to exactly the real area at 900 (see _gk_slider_dev). `correct` is
--- therefore always '{900}' — it is the target position, not an option index.
+-- at 0 to exactly the real area at 700 (see _gk_slider_dev). `correct` is
+-- therefore always '{700}' — it is the target position, not an option index.
+-- (It was 900 until the host moved the right answer to 70%: the far end then
+-- earned ~93% of the points; at 700 it earns ~71%.)
 --   image    the picture WITH THE GAP     slot     where the object was
 --   options  [{image, scale: 1}] — the one cut-out (none yet = not cut)
 --   symbols  [emoji] — optional: an emoji riding on the slider's handle, which
@@ -276,11 +278,13 @@ alter table public.gk_items add constraint gk_items_action_shape check (
 );
 
 alter table public.gk_items drop constraint if exists gk_items_slider_shape;
+-- The target moved from 900 (90%) to 700 (70%): existing sliders follow it.
+update public.gk_items set correct = '{700}' where kind = 'slider' and correct = '{900}';
 alter table public.gk_items add constraint gk_items_slider_shape check (
     kind <> 'slider' or (
         jsonb_typeof(options) = 'array'
         and jsonb_array_length(options) <= 1
-        and correct = '{900}'
+        and correct = '{700}'
         and not jsonb_path_exists(options,
               '$[*] ? (!(@.image like_regex "^media/sprites/[^./\\\\?#%:*<>|][^/\\\\?#%:*<>|]*$"))')
     )
@@ -426,6 +430,11 @@ create table if not exists public.gk_sessions (
 alter table public.gk_sessions drop constraint if exists gk_sessions_phase_check;
 alter table public.gk_sessions add constraint gk_sessions_phase_check
     check (phase in ('lobby', 'interlude', 'intro', 'question', 'reveal', 'explain', 'fastest', 'fire', 'leaderboard', 'podium', 'matrix'));
+-- Questions whose points the host cancelled for THIS run (a question that did
+-- not work the same for everyone): they count as weight 0 — no points, and
+-- like a ×0 warm-up they neither extend nor break a streak. Per run, not an
+-- edit of the quiz: the next run of the same quiz scores them again.
+alter table public.gk_sessions add column if not exists cancelled uuid[] not null default '{}';
 create unique index if not exists gk_sessions_one_active
     on public.gk_sessions ((true)) where status in ('lobby', 'running');
 
@@ -617,12 +626,22 @@ returns integer language sql immutable as $$
               else 0 end;
 $$;
 
+-- An item's weight in a run: 0 if the host cancelled its points there
+-- (gk_sessions.cancelled), else its own. Every place that SCORES or counts a
+-- streak reads the weight through this — never gk_items.weight directly.
+create or replace function public._gk_w(p_session uuid, p_item uuid)
+returns int language sql stable security definer set search_path = public, pg_catalog as $$
+  select case when s.cancelled is not null and p_item = any (s.cancelled) then 0 else i.weight end
+    from public.gk_items i left join public.gk_sessions s on s.id = p_session
+   where i.id = p_item;
+$$;
+
 -- The slider's deviation: (area chosen / real area) − 1, signed. Position v
--- (0-1000) gives area 1/3 + 2/3 × v/900, so the deviation is (v − 900)/1350.
+-- (0-1000) gives area 1/3 + 2/3 × v/700, so the deviation is (v − 700)/1050.
 -- Mirrored by sliderDeviation() in js/scoring.js.
 create or replace function public._gk_slider_dev(p_value int)
 returns numeric language sql immutable as $$
-  select (p_value - 900)::numeric / 1350;
+  select (p_value - 700)::numeric / 1050;
 $$;
 
 -- A ranking answer's code → the order it stands for (option indexes, top
@@ -682,7 +701,7 @@ returns void language plpgsql security definer set search_path = public, pg_cata
 declare
   v_lo int; v_hi int; v_w int;
 begin
-  select weight into v_w from public.gk_items where id = p_item;
+  v_w := public._gk_w(p_session, p_item);
   select min(option_idx), max(option_idx) into v_lo, v_hi
     from public.gk_answers where session_id = p_session and item_id = p_item and not voided;
   update public.gk_answers a
@@ -709,7 +728,7 @@ language sql stable security definer set search_path = public, pg_catalog as $$
   q as (
     select o.item_id, (row_number() over (order by o.idx))::int as k
       from s, public._gk_ordered(s.quiz_id) o join public.gk_items i on i.id = o.item_id
-     where o.kind <> 'interlude' and i.weight > 0 and o.idx <= (select idx from upto)
+     where o.kind <> 'interlude' and public._gk_w(p_session, i.id) > 0 and o.idx <= (select idx from upto)
   ),
   c as (
     select p.id as pid, p.name, q.k, coalesce(a.is_correct, false) as ok, coalesce(a.points, 0) as pts
@@ -812,7 +831,7 @@ create or replace function public._gk_matrix(p_session uuid)
 returns jsonb language sql stable security definer set search_path = public, pg_catalog as $$
   with s as (select quiz_id from public.gk_sessions where id = p_session),
   qs as (
-    select o.idx, i.id, i.title, i.weight, i.kind,
+    select o.idx, i.id, i.title, public._gk_w(p_session, i.id) as weight, i.kind,
            (row_number() over (order by o.idx))::int as no
       from s, public._gk_ordered(s.quiz_id) o
       join public.gk_items i on i.id = o.item_id
@@ -917,7 +936,7 @@ begin
         'options', case when it.kind in ('question', 'complete', 'slider', 'rank', 'memory') then it.options else '[]'::jsonb end,
         'memo_s', case when it.kind = 'memory' then it.memo_s end,
         'slot', case when it.kind in ('complete', 'slider') then it.slot end,
-        'weight', it.weight, 'time_limit', it.time_limit_s,
+        'weight', public._gk_w(s.id, it.id), 'time_limit', it.time_limit_s,
         'image', it.image, 'video', it.video, 'audio', it.audio,
         'layout', it.media_layout, 'music_on', it.music_on, 'anim_on', it.anim_on,
         'music', it.music, 'anim_sprite', it.anim_sprite, 'symbols', it.symbols, 'marks', it.marks,
@@ -1061,7 +1080,9 @@ begin
   -- self-explanatory the way four coloured answers are, so each opens on an
   -- instruction slide: phase 'intro', no clock. The question itself — and its
   -- countdown — starts only when the host presses "next" (_gk_start_question).
-  if it.kind in ('puzzle', 'spot', 'complete', 'slider', 'rank', 'action') then
+  -- The memory question too: its slide is the warning that the next picture
+  -- is to be MEMORISED (the host asked for it; it used to start cold).
+  if it.kind in ('puzzle', 'spot', 'complete', 'slider', 'rank', 'action', 'memory') then
     update public.gk_sessions
        set status = 'running', started_at = coalesce(started_at, now()),
            cur_index = p_index, cur_item_id = it.id, revealed = false,
@@ -1159,6 +1180,10 @@ begin
 
   insert into public.gk_players (session_id, name, name_key, token_hash)
   values (s.id, v_name, lower(v_name), h);
+  -- This device asked to be someone already in the quiz, then gave up and
+  -- joined under a name of its own: the request goes, so the host cannot
+  -- approve it later and hand this device a second player.
+  delete from public.gk_relink_requests where session_id = s.id and token_hash = h and status = 'pending';
   perform public._gk_live(s.id);
   return jsonb_build_object('name', v_name);
 end;
@@ -1214,7 +1239,10 @@ begin
       'player', false,
       'kicked', coalesce(p.kicked, false),
       'pending', exists (select 1 from public.gk_relink_requests
-                          where session_id = v_sid and token_hash = h and status = 'pending'));
+                          where session_id = v_sid and token_hash = h and status = 'pending'),
+      -- the host said "that is not them": the phone asks for another name
+      'rejected', exists (select 1 from public.gk_relink_requests
+                           where session_id = v_sid and token_hash = h and status = 'rejected'));
   end if;
   update public.gk_players set last_seen = now() where id = p.id;
 
@@ -1317,16 +1345,20 @@ begin
                                   where session_id = s.id and item_id = it.id and player_id = p.id and not voided) then
       insert into public.gk_answers (session_id, item_id, player_id, option_idx, answered_ms, is_correct, points)
       values (s.id, it.id, p.id, p_option, v_ms, false, 0);
+      -- Only a player's FIRST throw changes what the public live row shows
+      -- ("throwing: X of Y"). Re-writing it on every basket made each throw
+      -- a broadcast to every connected phone — twenty players throwing
+      -- every two seconds was a storm of updates nobody needed.
+      perform public._gk_live(s.id);
     end if;
     perform public._gk_action_score(s.id, it.id);
     update public.gk_players set last_seen = now() where id = p.id;
-    perform public._gk_live(s.id);
     return;
   end if;
 
   v_ms := least(greatest((extract(epoch from (v_now - s.q_started_at)) * 1000)::int, 0), it.time_limit_s * 1000);
   select sc.is_correct, sc.points into v_ok, v_pts
-    from public._gk_score(it.kind, it.correct, p_option, it.weight, v_ms, it.time_limit_s) sc;
+    from public._gk_score(it.kind, it.correct, p_option, public._gk_w(s.id, it.id), v_ms, it.time_limit_s) sc;
 
   begin
     insert into public.gk_answers (session_id, item_id, player_id, option_idx, answered_ms, is_correct, points)
@@ -1545,8 +1577,27 @@ begin
   perform public._gk_require_admin();
   select * into s from public.gk_sessions where status in ('lobby', 'running') for update;
   if not found then raise exception 'no_quiz' using errcode = 'P0001'; end if;
-  update public.gk_players set kicked = true, token_hash = null where id = p_player and session_id = s.id;
-  perform public._gk_publish(s.id);
+  -- The token stays: it is how that phone is told "you were removed" (gk_me)
+  -- and refused if it tries to join again (gk_join). Wiping it let the same
+  -- phone straight back in under a new name.
+  update public.gk_players set kicked = true where id = p_player and session_id = s.id;
+  if not found then return; end if;
+  -- Removed from the WHOLE quiz, past questions included: their answers stop
+  -- counting anywhere (the answer counts, "answered X of Y", the slider's and
+  -- the action round's values), and an action round is re-priced without
+  -- their baskets — its points are relative to the room.
+  update public.gk_answers set voided = true where session_id = s.id and player_id = p_player and not voided;
+  perform public._gk_action_score(s.id, i.id) from public.gk_items i where i.quiz_id = s.quiz_id and i.kind = 'action';
+  -- The one still to answer may have been who was removed: everyone left has
+  -- answered, so reveal as gk_answer would have (never the action round).
+  if s.phase = 'question' and (select kind from public.gk_items where id = s.cur_item_id) <> 'action'
+     and (select count(*) from public.gk_players pl where pl.session_id = s.id and not pl.kicked) > 0
+     and (select count(*) from public.gk_answers a where a.session_id = s.id and a.item_id = s.cur_item_id and not a.voided)
+         >= (select count(*) from public.gk_players pl where pl.session_id = s.id and not pl.kicked) then
+    perform public._gk_reveal(s.id);
+  else
+    perform public._gk_publish(s.id);
+  end if;
 end;
 $$;
 
@@ -1576,27 +1627,60 @@ $$;
 
 -- After a live edit of the current question (a wrong "correct" tick, a changed
 -- weight) recompute what its answers are worth, from the stored answer times.
-create or replace function public.gk_admin_rescore(p_item uuid)
+-- Re-price every answer of one item from the stored answer times — after a
+-- changed answer key or weight, or a cancelled / restored question.
+create or replace function public._gk_rescore(p_session uuid, p_item uuid)
 returns void language plpgsql security definer set search_path = public, pg_catalog as $$
-declare
-  s  public.gk_sessions%rowtype;
-  it public.gk_items%rowtype;
+declare it public.gk_items%rowtype;
 begin
-  perform public._gk_require_admin();
-  select * into s from public.gk_sessions where status = 'running' for update;
-  if not found then return; end if;
   select * into it from public.gk_items where id = p_item and kind not in ('interlude', 'explain');
   if not found then return; end if;
   if it.kind = 'action' then
-    -- relative points: the whole room at once (a changed weight, mostly)
-    perform public._gk_action_score(s.id, it.id);
-    perform public._gk_publish(s.id);
+    -- relative points: the whole room at once
+    perform public._gk_action_score(p_session, it.id);
     return;
   end if;
   update public.gk_answers a
      set (is_correct, points) = (select sc.is_correct, sc.points
-                                   from public._gk_score(it.kind, it.correct, a.option_idx, it.weight, a.answered_ms, it.time_limit_s) sc)
-   where a.session_id = s.id and a.item_id = it.id and not a.voided;
+                                   from public._gk_score(it.kind, it.correct, a.option_idx, public._gk_w(p_session, it.id),
+                                                         a.answered_ms, it.time_limit_s) sc)
+   where a.session_id = p_session and a.item_id = it.id and not a.voided;
+end;
+$$;
+
+create or replace function public.gk_admin_rescore(p_item uuid)
+returns void language plpgsql security definer set search_path = public, pg_catalog as $$
+declare s public.gk_sessions%rowtype;
+begin
+  perform public._gk_require_admin();
+  select * into s from public.gk_sessions where status = 'running' for update;
+  if not found then return; end if;
+  perform public._gk_rescore(s.id, p_item);
+  perform public._gk_publish(s.id);
+end;
+$$;
+
+-- Cancel a question's points for everyone in this run (p_cancel = true), or
+-- give them back (false): a question that did not work the same for every
+-- player. The answers stay; they are re-priced at weight 0, so the table, the
+-- matrix and the streaks all follow at once.
+create or replace function public.gk_admin_cancel(p_item uuid, p_cancel boolean)
+returns void language plpgsql security definer set search_path = public, pg_catalog as $$
+declare s public.gk_sessions%rowtype;
+begin
+  perform public._gk_require_admin();
+  select * into s from public.gk_sessions where status = 'running' for update;
+  if not found then raise exception 'no_quiz' using errcode = 'P0001'; end if;
+  if not exists (select 1 from public.gk_items where id = p_item and quiz_id = s.quiz_id
+                                                   and parent_id is null and kind <> 'interlude') then
+    raise exception 'bad_item' using errcode = '22023';
+  end if;
+  update public.gk_sessions
+     set cancelled = case when coalesce(p_cancel, false)
+                          then array(select distinct x from unnest(cancelled || p_item) x)
+                          else array_remove(cancelled, p_item) end
+   where id = s.id;
+  perform public._gk_rescore(s.id, p_item);
   perform public._gk_publish(s.id);
 end;
 $$;
@@ -1627,6 +1711,7 @@ begin
                                   'index', s.cur_index, 'item_id', s.cur_item_id, 'revealed', s.revealed, 'locked', s.locked),
     'items', coalesce((select jsonb_agg(jsonb_build_object(
                          'idx', o.idx, 'id', i.id, 'kind', i.kind, 'title', i.title, 'weight', i.weight,
+                         'cancelled', i.id = any (s.cancelled),
                          'explain', (select jsonb_build_object('id', c.id, 'title', c.title)
                                        from public.gk_items c where c.parent_id = i.id),
                          'correct', to_jsonb(i.correct), 'options', i.options) order by o.idx)
