@@ -32,6 +32,9 @@ export const DEMO_QUIZ = {
     // A football drifting behind the questions shows the animation option off
     // without getting in anyone's way.
     anim: { on: true, sprite: 'media/sprites/demo-ball.svg', count: 5, size: 11, speed: 3, front: false },
+    // The closing's own (podium, matrix) — independent of the opening's: the
+    // built-in gnomes, one of each colour.
+    closing_anim: { on: true, sprite: 'builtin:gnomes', count: 6, size: 12, speed: 3, front: false },
 };
 
 /** An item with every field a demo item needs — the gk_items row defaults. */

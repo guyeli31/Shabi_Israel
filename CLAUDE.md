@@ -139,7 +139,16 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
 - **Sound effects go through Web Audio** (`js/ui/sounds.js`): each file
   decoded once, unlocked by the first touch. A new `<audio>` per play was
   silent on an iPhone whenever the play came from a timer (the reveal's
-  verdict, a basket) rather than a touch.
+  verdict, a basket) rather than a touch. Three iPhone traps, each met as
+  "sometimes the verdict sounds, sometimes not": (1) a context that ran goes
+  `interrupted` (locked screen, a notification, another app) — NOT
+  `suspended` — so wake it from any non-running state; a sound started into a
+  sleeping context is simply lost, so `playSound` waits for the wake-up and,
+  failing it, HOLDS the sound up to 6 s for the next touch / return to the
+  screen; (2) the gesture listeners must stay for the page's life — only a
+  touch wakes it on iOS, more than once; (3) Web Audio follows the silent
+  switch unless `navigator.audioSession.type = 'playback'`. `?sounddebug`
+  shows, on the device itself, what became of each sound.
 - **Host authority is `public.is_admin()`** — the same allowlist as the app. In a
   `gk_admin_*` function it is the first statement.
 - **Supabase's default privileges grant EXECUTE on every new public function to
@@ -217,8 +226,8 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   jigsaw shapes and "נשלח ✓" appearing on its own. At the
   reveal the picture is shown whole, then everything but the round detail the
   host chose (`circle_x/y/r`, picked on the picture in the editor) fades away
-  (the host's choreography: the whole picture stays up LARGE for 10s —
-  `SHOW_WHOLE_MS`, scaled UP to fill its area, since a photo of a few hundred
+  (the host's choreography: the whole picture stays up LARGE for 3s —
+  `SHOW_WHOLE_MS` (10s until the host asked it shortened), scaled UP to fill its area, since a photo of a few hundred
   pixels otherwise stayed that small — then `cutMarks()` shows the cut: the rest
   dims, a line is traced round the detail and scissors run along it),
   and that detail — ONE copy, at exactly the size it had in the picture, at the

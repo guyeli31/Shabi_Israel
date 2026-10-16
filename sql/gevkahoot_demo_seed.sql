@@ -182,9 +182,11 @@ update public.gk_items
    set anim_on = true, anim_sprite = coalesce(anim_sprite, 'media/sprites/demo-ball.svg'),
        anim_count = 5, anim_size = 11, anim_speed = 3, anim_front = false
  where quiz_id = '6e0b5f0a-0000-4000-8000-00000000d3a0' and not (parent_id is null and position = 8);
+-- The closing's own animation (podium, matrix) — independent of the opening's:
+-- the built-in gnomes, one of each colour (as js/demo/demoQuiz.js).
 update public.gk_quizzes
-   set closing_anim_on = true, closing_anim_sprite = 'media/sprites/demo-ball.svg',
-       closing_anim_count = 5, closing_anim_size = 11, closing_anim_speed = 3, closing_anim_front = false
+   set closing_anim_on = true, closing_anim_sprite = 'builtin:gnomes',
+       closing_anim_count = 6, closing_anim_size = 12, closing_anim_speed = 3, closing_anim_front = false
  where id = '6e0b5f0a-0000-4000-8000-00000000d3a0';
 
 commit;

@@ -90,7 +90,9 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         return { left: b.left + (b.width - w) / 2, top: b.top + (b.height - hgt) / 2, width: w, height: hgt };
     }
     // The puzzle's reveal: the whole picture, then the cut, then the lift.
-    const SHOW_WHOLE_MS = 10000, CUT_DRAW_MS = 1600, CUT_MS = 2600;
+    // (10s until the host's request to shorten it: the room was waiting on a
+    // held picture well past the point of having seen it.)
+    const SHOW_WHOLE_MS = 3000, CUT_DRAW_MS = 1600, CUT_MS = 2600;
     function startLift(key, image, circle) {
         stopLift();
         bouncers.update(null);

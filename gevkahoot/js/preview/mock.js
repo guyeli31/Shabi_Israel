@@ -120,11 +120,11 @@ export function mock(view, quiz, selected, items) {
     // layout check passes the demo quiz (an `anim` object already).
     const anim = quiz.anim || { on: !!(quiz.anim_on && quiz.anim_sprite), sprite: quiz.anim_sprite,
         count: quiz.anim_count, size: quiz.anim_size, speed: quiz.anim_speed, front: quiz.anim_front };
-    // the closing's animation (podium, matrix), in the same two spellings
-    const closingAnim = quiz.closing_anim || (quiz.closing_anim_on !== undefined
-        ? { on: !!(quiz.closing_anim_on && quiz.closing_anim_sprite), sprite: quiz.closing_anim_sprite, count: quiz.closing_anim_count,
-            size: quiz.closing_anim_size, speed: quiz.closing_anim_speed, front: quiz.closing_anim_front }
-        : anim);
+    // the closing's animation (podium, matrix), in the same two spellings —
+    // its OWN settings only: a quiz without them has no closing animation,
+    // never the opening's (the host's request: the two are independent)
+    const closingAnim = quiz.closing_anim || { on: !!(quiz.closing_anim_on && quiz.closing_anim_sprite), sprite: quiz.closing_anim_sprite ?? null,
+        count: quiz.closing_anim_count, size: quiz.closing_anim_size, speed: quiz.closing_anim_speed, front: quiz.closing_anim_front };
     const quizData = { title: quiz.title, theme: quiz.theme, background: quiz.background, music: quiz.music, lobby_music: quiz.lobby_music, podium_music: quiz.podium_music, slide_music: quiz.slide_music || {}, music_on: quiz.music_on, anim, closing_anim: closingAnim };
     // The scored item the results views are about: the selected question or
     // puzzle, else the quiz's first question.
