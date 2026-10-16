@@ -66,9 +66,11 @@ function publicItem(item, items) {
         image: item.image, video: item.video, audio: item.audio,
         layout: item.media_layout, music_on: item.music_on, anim_on: item.anim_on,
         music: item.music || null, anim_sprite: item.anim_sprite || null, symbols: item.symbols || [], marks: item.marks || 'teams',
+        anim_count: item.anim_count, anim_size: item.anim_size, anim_speed: item.anim_speed, anim_front: item.anim_front,
         regions: item.kind === 'spot' ? item.regions || [] : [],
         // the action round's ball: the demo carries `ball`, an editor row its circle_* columns
         feedback: item.kind === 'action' ? item.feedback || {} : null,
+        throw_level: item.kind === 'action' ? item.throw_level ?? 5 : null,
         ball: item.kind !== 'action' ? null : item.ball || (item.circle_r ? { x: item.circle_x, y: item.circle_y, r: item.circle_r } : null),
         no: Math.max(1, questions.findIndex((q) => q.id === item.id) + 1), of: Math.max(1, questions.length),
     };
@@ -118,7 +120,12 @@ export function mock(view, quiz, selected, items) {
     // layout check passes the demo quiz (an `anim` object already).
     const anim = quiz.anim || { on: !!(quiz.anim_on && quiz.anim_sprite), sprite: quiz.anim_sprite,
         count: quiz.anim_count, size: quiz.anim_size, speed: quiz.anim_speed, front: quiz.anim_front };
-    const quizData = { title: quiz.title, theme: quiz.theme, background: quiz.background, music: quiz.music, lobby_music: quiz.lobby_music, podium_music: quiz.podium_music, slide_music: quiz.slide_music || {}, music_on: quiz.music_on, anim };
+    // the closing's animation (podium, matrix), in the same two spellings
+    const closingAnim = quiz.closing_anim || (quiz.closing_anim_on !== undefined
+        ? { on: !!(quiz.closing_anim_on && quiz.closing_anim_sprite), sprite: quiz.closing_anim_sprite, count: quiz.closing_anim_count,
+            size: quiz.closing_anim_size, speed: quiz.closing_anim_speed, front: quiz.closing_anim_front }
+        : anim);
+    const quizData = { title: quiz.title, theme: quiz.theme, background: quiz.background, music: quiz.music, lobby_music: quiz.lobby_music, podium_music: quiz.podium_music, slide_music: quiz.slide_music || {}, music_on: quiz.music_on, anim, closing_anim: closingAnim };
     // The scored item the results views are about: the selected question or
     // puzzle, else the quiz's first question.
     // An "answer explained" segment is previewed on top of the question it belongs to.
@@ -195,7 +202,7 @@ export function mock(view, quiz, selected, items) {
         const x = question.explain;
         return { state: { ...base, phase: 'explain', data: { ...revealData, explain: {
             id: x.id, kind: 'explain', title: x.title, body: x.body, image: x.image, video: x.video, audio: x.audio,
-            layout: x.media_layout, music_on: x.music_on, music: x.music || null, anim_on: x.anim_on, anim_sprite: x.anim_sprite || null } } },
+            layout: x.media_layout, music_on: x.music_on, music: x.music || null, anim_on: x.anim_on, anim_sprite: x.anim_sprite || null, anim_count: x.anim_count, anim_size: x.anim_size, anim_speed: x.anim_speed, anim_front: x.anim_front } } },
             me: { ...me, item_id: question.id, answered: true, option: question.correct[0] ?? 0, result: { correct: true, points: 965, ms: 1400 } } };
     }
     if (view === 'reveal' || view === 'explain') {

@@ -129,6 +129,25 @@ export const THROW = {
     slow: 1200,
 };
 
+/**
+ * The windows of a throw at the host's difficulty (`gk_items.throw_level`,
+ * 1 easiest - 10 hardest; 5 is THROW itself). The level scales how far a throw
+ * may stray and still go in — the aim, the rim, and the power window around
+ * the ideal — by 2^((5 − level) / 4): twice as forgiving at 1, ~0.4 at 10,
+ * each step the same proportion. The ideal and "too slow" do not move.
+ */
+export function throwWindows(level = 5) {
+    const k = 2 ** ((5 - Math.min(10, Math.max(1, Math.round(+level) || 5))) / 4);
+    const [lo, hi] = THROW.power;
+    return {
+        aim: THROW.aim * k,
+        rim: Math.max(THROW.rim, THROW.aim * k * 1.6),
+        power: [THROW.ideal - (THROW.ideal - lo) * k, THROW.ideal + (hi - THROW.ideal) * k],
+        ideal: THROW.ideal,
+        slow: THROW.slow,
+    };
+}
+
 /** "12% גדול מדי" — the deviation as a player reads it. */
 export function sliderVerdict(v, s) {
     const d = sliderDeviation(v, s);

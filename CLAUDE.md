@@ -176,10 +176,18 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   one rule is written three times and must stay identical: the CHECKs in
   `sql/gevkahoot.sql` §1b, `MEDIA_RE` in `js/ui/dom.js`, `NAME_RE` in the
   manifest script (and the sprite cutter).
-- **The bouncing animation** (`js/host/bouncers.js`) is a quiz setting
-  (`gk_quizzes.anim_*`: sprite, count, size, speed, in-front) that an item can
-  switch off for itself (`gk_items.anim_on`), published inside the quiz object
-  as `anim`. It is drawn BEHIND the question by default — a picture crossing the
+- **The bouncing animation** (`js/host/bouncers.js`) belongs to EACH ELEMENT
+  (the host's request): a question, an interlude, an "answer explained"
+  segment each carry `anim_on / anim_sprite / anim_count / anim_size /
+  anim_speed / anim_front` on their `gk_items` row; the quiz's own `anim_*`
+  are its OPENING's (lobby, countdown; published as `anim`) and
+  `closing_anim_*` its CLOSING's (podium, matrix; published as
+  `closing_anim`). The editor shows one checkbox per element — "add an
+  animation" — and only when it is ticked the picture and its settings
+  (`js/admin/animFields.js`). An element switched on with no picture of its
+  own borrows the opening's (the stage's fallback; the demo's items rely on
+  it). When the columns first appeared the SQL filled them once so nothing
+  on screen changed. New elements start with none. It is drawn BEHIND the question by default — a picture crossing the
   text mid-countdown costs players the question — and never takes clicks. A
   sprite is a transparent PNG in `media/sprites/`, normally made with the
   editor's cutter (`js/admin/spriteCutter.js`): pick a picture already in the repo, draw a free-hand
@@ -382,6 +390,9 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   a short throw falls behind him. A throw is a drag towards the
   hoop: its sideways slope is the aim, its length the power, its duration
   whether it was a throw — the three windows are `THROW` in `js/scoring.js`,
+  scaled per question by the host's difficulty (`gk_items.throw_level`, 1-10,
+  5 = `THROW` exactly; `throwWindows(level)` widens/narrows aim and power
+  together by 2^((5 − level)/4); the demonstration hand keeps level 5),
   judged by `judgeThrow()` in `js/host/action.js`; the ball flies where that
   sends it, a mark stays where it came down, and the message is one of the
   AUTHOR's lines (`gk_items.feedback = {hit: [..], miss: [..]}`, written in

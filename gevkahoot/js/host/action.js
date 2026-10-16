@@ -26,7 +26,7 @@
  * real ball) and what the projected screen shows while the room plays.
  */
 import { h, svgEl } from '../ui/dom.js';
-import { THROW } from '../scoring.js';
+import { THROW, throwWindows } from '../scoring.js';
 import { playSound } from '../ui/sounds.js';
 import { holdTouch } from '../ui/touch.js';
 
@@ -46,24 +46,25 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
  * What a drag does. `dx`, `up` are the drag in fractions of the court's width
  * and height (up = towards the hoop), `ms` its duration. Returns the outcome
  * and the line the player reads, or null for a drag too small to be a throw.
+ * `win` is the windows at the question's difficulty (throwWindows).
  */
-export function judgeThrow(dx, up, ms) {
+export function judgeThrow(dx, up, ms, win = THROW) {
     if (up < 0.04) return null;
     // The slope in court units: dx is a fraction of the WIDTH, up of the
     // HEIGHT, and the court is 3:4 — so a 45° drag is a slope of 1.
     const slope = (dx * 3) / (up * 4);
     const side = slope > 0 ? 'ימינה' : 'שמאלה';
-    const [lo, hi] = THROW.power;
-    const aimed = Math.abs(slope) <= THROW.aim;
-    const alsoAim = !aimed && Math.abs(slope) > THROW.aim ? ` · וגם ${side} מדי` : '';
-    if (ms > THROW.slow) return { outcome: 'slow', slope, power: up, text: '🐢 לאט מדי — זורקים בתנועה אחת' };
+    const [lo, hi] = win.power;
+    const aimed = Math.abs(slope) <= win.aim;
+    const alsoAim = !aimed && Math.abs(slope) > win.aim ? ` · וגם ${side} מדי` : '';
+    if (ms > win.slow) return { outcome: 'slow', slope, power: up, text: '🐢 לאט מדי — זורקים בתנועה אחת' };
     if (up < lo) return { outcome: 'short', slope, power: up, text: `${up < lo * 0.8 ? '⬇️ חלש מדי' : '⬇️ קצת חלש מדי'}${alsoAim}` };
     if (up > hi) return { outcome: 'long', slope, power: up, text: `${up > hi * 1.2 ? '⬆️ חזק מדי' : '⬆️ קצת חזק מדי'}${alsoAim}` };
     if (aimed) {
-        const clean = Math.abs(slope) <= THROW.aim * 0.4 && Math.abs(up - THROW.ideal) <= (hi - lo) * 0.2;
+        const clean = Math.abs(slope) <= win.aim * 0.4 && Math.abs(up - win.ideal) <= (hi - lo) * 0.2;
         return { outcome: clean ? 'swish' : 'hit', slope, power: up, text: clean ? '🎯 סוויש! נקי לגמרי' : '🏀 קליעה!' };
     }
-    if (Math.abs(slope) <= THROW.rim) return { outcome: 'rim', slope, power: up, text: `😬 בטבעת — קצת ${side} מדי` };
+    if (Math.abs(slope) <= win.rim) return { outcome: 'rim', slope, power: up, text: `😬 בטבעת — קצת ${side} מדי` };
     return { outcome: 'side', slope, power: up, text: `↔️ החטאה — ${side} מדי` };
 }
 export const isBasket = (outcome) => outcome === 'swish' || outcome === 'hit';
@@ -227,7 +228,10 @@ function drawnBall() {
  *                    built-in diagnosis ("too hard", "a bit to the left")
  *                    under it; none: the diagnosis alone
  */
-export function createAction({ ball = null, interactive = false, auto = false, start = {}, canThrow = () => true, onScore = null, sfx = true, feedback = {} } = {}) {
+export function createAction({ ball = null, interactive = false, auto = false, start = {}, canThrow = () => true, onScore = null, sfx = true, feedback = {}, level = 5 } = {}) {
+    // The windows at the host's difficulty: what counts as a basket, and the
+    // power meter's zone. (The demonstration hand keeps the standard ones.)
+    const win = throwWindows(level);
     let hits = start.hits || 0, attempts = Math.max(start.attempts || 0, hits);
     let busy = false, locked = false;
     // The sounds are this player's own feedback: only a real throw, and not in the preview.
@@ -252,7 +256,7 @@ export function createAction({ ball = null, interactive = false, auto = false, s
 
     // The power window, beside the court: where the drag is, against where it
     // should end. It answers "how hard" while the finger is still down.
-    const [lo, hi] = THROW.power;
+    const [lo, hi] = win.power;
     const METER_MAX = 0.55;
     const meterFill = h('span', { class: 'ac-meter-fill' });
     const meter = interactive && h('div', { class: 'ac-meter', 'aria-hidden': 'true' },
@@ -412,7 +416,7 @@ export function createAction({ ball = null, interactive = false, auto = false, s
             drag = null;
             delete court.dataset.drag;
             guideLine.setAttribute('opacity', '0');
-            const judged = e.type === 'pointerup' && canThrow() && !locked ? judgeThrow(dx, up, ms) : null;
+            const judged = e.type === 'pointerup' && canThrow() && !locked ? judgeThrow(dx, up, ms, win) : null;
             if (!judged) { pos = { ...START }; draw(); showPower(0); return; }
             launch(judged, { real: true });
         };

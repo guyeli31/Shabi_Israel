@@ -19,6 +19,7 @@ import { itemForm, keptForm, leaveForms, loadManifest, mediaSelect } from './adm
 import { mock, VIEWS, viewsFor } from './preview/mock.js';
 import { openSpriteCutter } from './admin/spriteCutter.js';
 import { OPENING_SLIDES, CLOSING_SLIDES, slideMusicRows, viewOfSlide } from './admin/slideMusic.js';
+import { animFields } from './admin/animFields.js';
 
 const root = document.getElementById('app');
 const THEMES = [['stadium', 'אצטדיון'], ['candy', 'ממתק'], ['night', 'לילה']];
@@ -221,16 +222,17 @@ function quizSlideMusic(keys) {
 
 /** The opening: the quiz's settings, its lobby and "starting in…" slides. */
 function openingPanel() {
-    return [settingsPanel(), animPanel(), panel('פתיחה — לובי ו"מתחילים בעוד"', quizSlideMusic(OPENING_SLIDES))];
+    return [settingsPanel(), quizAnimPanel('אנימציה בפתיחה — לובי ו"מתחילים בעוד"', ''), panel('פתיחה — לובי ו"מתחילים בעוד"', quizSlideMusic(OPENING_SLIDES))];
 }
 
 /** The closing: the winners' music, the podium and the matrix. */
 function closingPanel() {
-    return panel('סיום — פודיום ומטריצה',
+    return [panel('סיום — פודיום ומטריצה',
         h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'מוסיקת רקע להצגת הזוכים' }),
             mediaSelect(manifest, ['audio'], quiz.podium_music, (v) => act(() => saveQuiz({ podium_music: v })))),
         quizSlideMusic(CLOSING_SLIDES),
-        h('p', { class: 'dr-note', text: 'אחרי הפודיום, בטלפון של המנצח מופיע "ניצחת!"; אחרי המטריצה השחקנים עוברים לשקופית הפרידה ולאתר.' }));
+        h('p', { class: 'dr-note', text: 'אחרי הפודיום, בטלפון של המנצח מופיע "ניצחת!"; אחרי המטריצה השחקנים עוברים לשקופית הפרידה ולאתר.' })),
+        quizAnimPanel('אנימציה בסיום — פודיום ומטריצה', 'closing_')];
 }
 
 function settingsPanel() {
@@ -267,38 +269,17 @@ function settingsPanel() {
             h('a', { href: `./?demo&quiz=${encodeURIComponent(quiz.id)}`, target: '_blank', rel: 'noopener', text: 'לשחק אותו עכשיו ↗' })));
 }
 
-/** The bouncing animation: which cut-out, how many, how big, how fast. */
-function animPanel() {
-    const slider = (label, key, min, max, unit) => {
-        const value = h('span', { class: 'ed-range-value', dir: 'ltr', text: `${quiz[key]}${unit}` });
-        return h('label', { class: 'if-field' },
-            h('span', { class: 'if-label' }, label, ' ', value),
-            h('input', { type: 'range', class: 'ed-range', min: String(min), max: String(max), step: '1', value: String(quiz[key]),
-                // The number follows the thumb; the save (and the previews)
-                // wait for the thumb to be let go — one write, not fifty.
-                oninput: (e) => { value.textContent = `${e.target.value}${unit}`; },
-                onchange: (e) => act(() => saveQuiz({ [key]: Number(e.target.value) })) }));
-    };
-    return panel('אנימציה',
-        h('label', { class: 'if-check' },
-            h('input', { type: 'checkbox', checked: quiz.anim_on, onchange: (e) => act(() => saveQuiz({ anim_on: e.target.checked })) }),
-            'דמויות קופצות על המסך'),
-        h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'הדמות' }),
-            mediaSelect(manifest, ['sprites'], quiz.anim_sprite, (v) => act(() => saveQuiz({ anim_sprite: v })))),
-        h('div', { class: 'dr-row' },
-            btn('✂ יצירת דמות מתמונה…', () => openSpriteCutter({ manifest,
-                onSaved: (path) => act(async () => {
-                    manifest = await loadManifest();
-                    await saveQuiz({ anim_sprite: path, anim_on: true });
-                }),
-            }), 'gk-btn--ghost')),
-        slider('כמות במקביל', 'anim_count', 1, 30, ''),
-        slider('גודל', 'anim_size', 3, 40, '%'),
-        slider('מהירות', 'anim_speed', 1, 10, ''),
-        h('label', { class: 'if-check' },
-            h('input', { type: 'checkbox', checked: quiz.anim_front, onchange: (e) => act(() => saveQuiz({ anim_front: e.target.checked })) }),
-            'מעל התוכן (ברירת המחדל: מאחורי הטקסט)'),
-        h('p', { class: 'dr-note', text: 'כל דמות נעה בקו ישר וחוזרת מהקירות באותה זווית. אפשר לכבות אותה לפריט מסוים בטופס שלו.' }));
+/** An animation of the QUIZ's own screens: the opening's (its `anim_*`
+ *  columns: lobby, "starting in…") or the closing's (`closing_anim_*`:
+ *  podium, matrix). Saved at once, like every quiz setting. */
+function quizAnimPanel(title, prefix) {
+    const col = (k) => `${prefix}${k === 'on' ? 'anim_on' : `anim_${k}`}`;
+    return panel(title, animFields({ manifest,
+        get: (k) => quiz[col(k)],
+        set: (patch) => act(() => saveQuiz(Object.fromEntries(Object.entries(patch).map(([k, v]) => [col(k), v])))),
+        onCutter: (done) => openSpriteCutter({ manifest, onSaved: async (path) => { manifest = await loadManifest(); done(path); } }),
+        label: 'הוסף אנימציה', emptyNote: 'בלי דמות לא תופיע אנימציה.' }),
+        h('p', { class: 'dr-note', text: 'כל דמות נעה בקו ישר וחוזרת מהקירות באותה זווית. לכל שאלה ולכל קטע מעבר יש אנימציה משלו, בטופס שלו.' }));
 }
 
 /** What each kind of element is called, and its mark in the running order. */

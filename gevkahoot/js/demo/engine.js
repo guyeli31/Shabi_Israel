@@ -164,7 +164,9 @@ export function createDemo(onChange, { quiz: QUIZ = DEMO_QUIZ, items: ITEMS = DE
             anim_on: it.anim_on, regions: it.kind === 'spot' ? it.regions : [],
             ball: it.kind === 'action' ? it.ball || null : null,
             feedback: it.kind === 'action' ? it.feedback || {} : null,
+            throw_level: it.kind === 'action' ? it.throw_level ?? 5 : null,
             music: it.music, anim_sprite: it.anim_sprite, symbols: it.symbols || [], marks: it.marks || 'teams',
+            anim_count: it.anim_count, anim_size: it.anim_size, anim_speed: it.anim_speed, anim_front: it.anim_front,
             no: questions.filter((q) => ITEMS.indexOf(q) <= index).length, of: questions.length,
         };
     }
@@ -172,7 +174,7 @@ export function createDemo(onChange, { quiz: QUIZ = DEMO_QUIZ, items: ITEMS = DE
     function buildState() {
         const it = item();
         const quiz = { title: QUIZ.title, theme: QUIZ.theme, background: QUIZ.background,
-            music: QUIZ.music, lobby_music: QUIZ.lobby_music, podium_music: QUIZ.podium_music, slide_music: QUIZ.slide_music || {}, music_on: QUIZ.music_on, anim: QUIZ.anim };
+            music: QUIZ.music, lobby_music: QUIZ.lobby_music, podium_music: QUIZ.podium_music, slide_music: QUIZ.slide_music || {}, music_on: QUIZ.music_on, anim: QUIZ.anim, closing_anim: QUIZ.closing_anim || QUIZ.anim };
         let data = { quiz, index: index + 1, count: ITEMS.length, locked: false };
         const revealed = ['reveal', 'explain', 'fastest', 'fire', 'leaderboard'].includes(phase);
 
@@ -204,7 +206,7 @@ export function createDemo(onChange, { quiz: QUIZ = DEMO_QUIZ, items: ITEMS = DE
             if (phase === 'explain' && it.explain) {
                 const x = it.explain;
                 data.explain = { id: x.id, kind: 'explain', title: x.title, body: x.body, image: x.image, video: x.video, audio: x.audio,
-                    layout: x.media_layout, music_on: x.music_on, music: x.music, anim_on: x.anim_on, anim_sprite: x.anim_sprite };
+                    layout: x.media_layout, music_on: x.music_on, music: x.music, anim_on: x.anim_on, anim_sprite: x.anim_sprite, anim_count: x.anim_count, anim_size: x.anim_size, anim_speed: x.anim_speed, anim_front: x.anim_front };
             }
             if (phase === 'fire') data.fire = streakState().fire || leadData();
             if (phase === 'leaderboard') {

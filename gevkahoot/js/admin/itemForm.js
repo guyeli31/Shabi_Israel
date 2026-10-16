@@ -20,6 +20,7 @@ import { safeMedia } from '../ui/dom.js';
 import { scrambleRank, SLIDER, sliderSize } from '../scoring.js';
 import { createSlider } from '../host/slider.js';
 import { slidesOf, slideMusicRows } from './slideMusic.js';
+import { animFields } from './animFields.js';
 import { memoryPicture } from '../host/memory.js';
 import { BUILTIN_ANIMS } from '../host/bouncers.js';
 import { createTable } from '../host/roulette.js';
@@ -128,6 +129,7 @@ export function itemForm(item, { manifest, onSave, onShowSlide = null }) {
         slider_target: item.kind === 'slider' && item.correct?.[0] ? item.correct[0] : SLIDER.target,
         circle_x: item.circle_x ?? null, circle_y: item.circle_y ?? null, circle_r: item.circle_r ?? null,
         circle_speed: item.circle_speed ?? 4,
+        throw_level: item.throw_level ?? 5,
         // the action round's lines for a basket and a miss
         feedback: { hit: [...(item.feedback?.hit || [])], miss: [...(item.feedback?.miss || [])] },
         // the music of each of its slides (js/admin/slideMusic.js)
@@ -137,6 +139,8 @@ export function itemForm(item, { manifest, onSave, onShowSlide = null }) {
         weight: item.weight, time_limit_s: item.time_limit_s,
         image: item.image, video: item.video, audio: item.audio,
         media_layout: item.media_layout, music_on: item.music_on, anim_on: item.anim_on,
+        // the element's whole animation (js/admin/animFields.js)
+        anim_count: item.anim_count ?? 6, anim_size: item.anim_size ?? 12, anim_speed: item.anim_speed ?? 4, anim_front: !!item.anim_front,
     };
     const status = h('span', { class: 'dr-note', role: 'status' });
     // Saved only by the Save button: an edit marks the form dirty and waits.
@@ -161,6 +165,7 @@ export function itemForm(item, { manifest, onSave, onShowSlide = null }) {
             // Each kind saves only the columns that mean something for it.
             const { circle_x, circle_y, circle_r, circle_speed, regions, symbols, slot, marks, memo_s, arrows, feedback, slider_min, slider_target, ...common } = draft;
             const playback = { music_on: draft.music_on, music: draft.music, anim_on: draft.anim_on, anim_sprite: draft.anim_sprite,
+                anim_count: draft.anim_count, anim_size: draft.anim_size, anim_speed: draft.anim_speed, anim_front: draft.anim_front,
                 slide_music: slidesOf(item.kind).length ? draft.slide_music : {} };
             const patch = isRank
                 ? { title: draft.title, body: draft.body.trim().slice(0, 40), weight: draft.weight, time_limit_s: draft.time_limit_s,
@@ -193,7 +198,7 @@ export function itemForm(item, { manifest, onSave, onShowSlide = null }) {
                 : isAction
                 // The ball (a circle of a picture, or none). Its sounds are fixed (js/ui/sounds.js).
                 ? { title: draft.title, image: draft.image, weight: draft.weight, time_limit_s: draft.time_limit_s,
-                    circle_x, circle_y, circle_r, audio: null, options: [], correct: [], ...playback,
+                    circle_x, circle_y, circle_r, throw_level: draft.throw_level, audio: null, options: [], correct: [], ...playback,
                     // one line each, trimmed, empty lines dropped, at most 12 of 80 characters (CHECK)
                     feedback: Object.fromEntries(['hit', 'miss'].map((k) => [k,
                         draft.feedback[k].map((t) => t.replace(/\s+/g, ' ').trim().slice(0, 80)).filter(Boolean).slice(0, 12)])) }
@@ -407,7 +412,11 @@ export function itemForm(item, { manifest, onSave, onShowSlide = null }) {
     }
     const toggles = h('div', { class: 'if-pair' },
         field('מוסיקת רקע באלמנט הזה', playbackSelect('audio', 'music_on', 'music', { inherit: 'כמו בחידון (מוסיקת הרקע לשאלות)', none: 'בלי מוסיקה' })),
-        field('אנימציה באלמנט הזה', playbackSelect('sprites', 'anim_on', 'anim_sprite', { inherit: 'כמו בחידון', none: 'בלי אנימציה' })));
+        // the element's animation: a checkbox, and only when ticked its settings
+        animFields({ manifest,
+            get: (k) => draft[k === 'on' ? 'anim_on' : `anim_${k}`],
+            set: (patch) => { for (const [k, v] of Object.entries(patch)) draft[k === 'on' ? 'anim_on' : `anim_${k}`] = v; changed(); },
+            emptyNote: 'בלי דמות משלו — תופיע הדמות של הפתיחה.' }));
     // The music of each slide of this question, one by one (the host's
     // request) — "רגיל" is what the rules play there; the name shows it.
     const slideMusic = slidesOf(item.kind).length ? h('details', { class: 'if-details', open: true },
@@ -793,6 +802,23 @@ export function itemForm(item, { manifest, onSave, onShowSlide = null }) {
         emojiButton(h('textarea', { class: 'dr-input', rows: '5', dir: 'auto', placeholder: example, value: draft.feedback[key].join('\n'),
             oninput: (e) => { draft.feedback[key] = e.target.value.split('\n'); changed(); } })));
 
+    /** How hard a basket is: 1-10, 5 the standard. It widens or narrows the
+     *  range of a good throw — the aim and the power alike (throwWindows). */
+    function throwLevelField() {
+        const NAMES = ['', 'קל מאוד', 'קל מאוד', 'קל', 'קל', 'רגיל', 'קשה', 'קשה', 'קשה מאוד', 'קשה מאוד', 'כמעט בלתי אפשרי'];
+        const say = h('span', { class: 'dr-note' });
+        const show = () => {
+            const k = 2 ** ((5 - draft.throw_level) / 4);
+            say.textContent = `${draft.throw_level} — ${NAMES[draft.throw_level]} · טווח הזריקה הטובה: ${Math.round(k * 100)}% מהרגיל`;
+        };
+        const range = h('input', { type: 'range', class: 'ed-range', min: '1', max: '10', step: '1', value: String(draft.throw_level),
+            'aria-label': 'קושי הקליעה',
+            oninput: (e) => { draft.throw_level = Number(e.target.value); show(); },
+            onchange: () => changed() });
+        show();
+        return h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'קושי הקליעה (1 קל · 10 קשה)' }), range, say);
+    }
+
     if (isAction) {
         return h('div', { class: 'if' },
             field('הכותרת שמעל המגרש',
@@ -804,6 +830,7 @@ export function itemForm(item, { manifest, onSave, onShowSlide = null }) {
                     drawCircle(); changed();
                 })),
             h('div', { class: 'if-field' }, h('span', { class: 'if-label', text: 'הכדור' }), circleBox),
+            throwLevelField(),
             h('div', { class: 'if-pair' },
                 feedbackField('משפטים לקליעה', 'hit', 'יש! 🔥'),
                 feedbackField('משפטים להחטאה', 'miss', 'אוף, כמעט 😬')),

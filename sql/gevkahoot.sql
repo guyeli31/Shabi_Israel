@@ -303,6 +303,12 @@ alter table public.gk_items add constraint gk_items_feedback_shape check (
     -- every line a one-line string of 1-80 characters
     and not jsonb_path_exists(feedback, '$.*[*] ? (@.type() != "string" || !(@ like_regex "^.{1,80}$"))')
 );
+-- How hard a throw is to score, 1 (easiest) - 10 (hardest), 5 the standard:
+-- it scales the windows of a basket (throwWindows in js/scoring.js). Judged
+-- in the player's browser, like the count itself.
+alter table public.gk_items add column if not exists throw_level smallint not null default 5;
+alter table public.gk_items drop constraint if exists gk_items_throw_level;
+alter table public.gk_items add constraint gk_items_throw_level check (throw_level between 1 and 10);
 alter table public.gk_items add constraint gk_items_action_shape check (
     kind <> 'action' or (
         jsonb_typeof(options) = 'array' and jsonb_array_length(options) = 0
@@ -399,6 +405,52 @@ alter table public.gk_items add constraint gk_items_puzzle_shape check (
     and circle_speed between 1 and 10
 );
 
+-- Every element carries its WHOLE animation (the host's request): its own
+-- on/off, picture, count, size, speed and front — set only when switched on.
+-- The quiz's own anim_* columns are now the OPENING's (lobby, "starting
+-- in…"), and closing_anim_* the CLOSING's (podium, matrix). Once, when the
+-- columns first appear, everything is filled so that nothing on screen
+-- changes: an item that showed the quiz's animation gets the quiz's settings,
+-- and the closing gets a copy of the opening's.
+do $$
+begin
+  if not exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'gk_items' and column_name = 'anim_count') then
+    alter table public.gk_items
+        add column anim_count smallint not null default 6,
+        add column anim_size  smallint not null default 12,
+        add column anim_speed smallint not null default 4,
+        add column anim_front boolean  not null default false;
+    update public.gk_items i
+       set anim_count = q.anim_count, anim_size = q.anim_size, anim_speed = q.anim_speed, anim_front = q.anim_front,
+           anim_sprite = coalesce(i.anim_sprite, case when q.anim_on then q.anim_sprite end),
+           anim_on = i.anim_on and coalesce(i.anim_sprite, case when q.anim_on then q.anim_sprite end) is not null
+      from public.gk_quizzes q where q.id = i.quiz_id and true;
+  end if;
+  if not exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'gk_quizzes' and column_name = 'closing_anim_on') then
+    alter table public.gk_quizzes
+        add column closing_anim_on     boolean  not null default false,
+        add column closing_anim_sprite text,
+        add column closing_anim_count  smallint not null default 6,
+        add column closing_anim_size   smallint not null default 12,
+        add column closing_anim_speed  smallint not null default 4,
+        add column closing_anim_front  boolean  not null default false;
+    update public.gk_quizzes
+       set closing_anim_on = anim_on, closing_anim_sprite = anim_sprite, closing_anim_count = anim_count,
+           closing_anim_size = anim_size, closing_anim_speed = anim_speed, closing_anim_front = anim_front
+     where true;
+  end if;
+end;
+$$;
+alter table public.gk_items alter column anim_on set default false;
+alter table public.gk_items drop constraint if exists gk_items_anim_shape;
+alter table public.gk_items add constraint gk_items_anim_shape check (
+    anim_count between 1 and 30 and anim_size between 3 and 40 and anim_speed between 1 and 10);
+alter table public.gk_quizzes drop constraint if exists gk_quizzes_closing_anim_shape;
+alter table public.gk_quizzes add constraint gk_quizzes_closing_anim_shape check (
+    closing_anim_count between 1 and 30 and closing_anim_size between 3 and 40 and closing_anim_speed between 1 and 10);
+
 do $$
 begin
   if not exists (select 1 from pg_constraint where conname = 'gk_quizzes_anim_shape') then
@@ -438,6 +490,7 @@ begin
       ('gk_quizzes', 'lobby_music', 'audio'),
       ('gk_quizzes', 'podium_music', 'audio'),
       ('gk_quizzes', 'anim_sprite', 'sprites'),
+      ('gk_quizzes', 'closing_anim_sprite', 'sprites'),
       ('gk_items',   'image',       'images|backgrounds'),
       ('gk_items',   'video',       'videos'),
       ('gk_items',   'audio',       'audio'),
@@ -453,7 +506,7 @@ begin
     execute format('alter table public.%I add constraint %I check (%I is null or %I ~ %L);',
                    r.tbl, r.tbl || '_' || r.col || '_path', r.col, r.col,
                    '^(media/(' || r.folders || ')/' || v_name
-                   || case when r.col = 'anim_sprite' then '|builtin:gnomes' else '' end || ')$');
+                   || case when r.col in ('anim_sprite', 'closing_anim_sprite') then '|builtin:gnomes' else '' end || ')$');
   end loop;
 end;
 $$;
@@ -669,7 +722,12 @@ returns jsonb language sql stable security definer set search_path = public, pg_
               -- quiz's count / size / speed to bounce it with.
               'anim', jsonb_build_object('on', q.anim_on and q.anim_sprite is not null, 'sprite', q.anim_sprite,
                                          'count', q.anim_count, 'size', q.anim_size,
-                                         'speed', q.anim_speed, 'front', q.anim_front))
+                                         'speed', q.anim_speed, 'front', q.anim_front),
+              -- the closing's (podium, matrix); `anim` above is the opening's
+              'closing_anim', jsonb_build_object('on', q.closing_anim_on and q.closing_anim_sprite is not null,
+                                         'sprite', q.closing_anim_sprite, 'count', q.closing_anim_count,
+                                         'size', q.closing_anim_size, 'speed', q.closing_anim_speed,
+                                         'front', q.closing_anim_front))
        from public.gk_quizzes q where q.id = p_quiz),
     jsonb_build_object('title', p_fallback_title, 'theme', 'stadium', 'background', null,
                        'music', null, 'lobby_music', null, 'podium_music', null, 'music_on', false, 'anim', null));
@@ -1013,12 +1071,14 @@ begin
         'image', it.image, 'video', it.video, 'audio', it.audio,
         'layout', it.media_layout, 'music_on', it.music_on, 'anim_on', it.anim_on,
         'music', it.music, 'anim_sprite', it.anim_sprite, 'symbols', it.symbols, 'marks', it.marks,
+        'anim_count', it.anim_count, 'anim_size', it.anim_size, 'anim_speed', it.anim_speed, 'anim_front', it.anim_front,
         'regions', case when it.kind = 'spot' then it.regions else '[]'::jsonb end,
         -- the action round's ball: no secret, it is what the players throw
         'ball', case when it.kind = 'action' and it.circle_r is not null
                      then jsonb_build_object('x', it.circle_x, 'y', it.circle_y, 'r', it.circle_r) end,
         -- and the author's lines for a basket and a miss
         'feedback', case when it.kind = 'action' then it.feedback end,
+        'throw_level', case when it.kind = 'action' then it.throw_level end,
         'no', (select count(*) from public._gk_ordered(s.quiz_id) o where o.kind <> 'interlude' and o.idx <= s.cur_index),
         'of', (select count(*) from public._gk_ordered(s.quiz_id) o where o.kind <> 'interlude')));
 
@@ -1073,7 +1133,8 @@ begin
       d := d || jsonb_build_object('explain', (
         select jsonb_build_object('id', c.id, 'kind', c.kind, 'title', c.title, 'body', c.body,
                                   'image', c.image, 'video', c.video, 'audio', c.audio, 'layout', c.media_layout,
-                                  'music_on', c.music_on, 'music', c.music, 'anim_on', c.anim_on, 'anim_sprite', c.anim_sprite)
+                                  'music_on', c.music_on, 'music', c.music, 'anim_on', c.anim_on, 'anim_sprite', c.anim_sprite,
+                                  'anim_count', c.anim_count, 'anim_size', c.anim_size, 'anim_speed', c.anim_speed, 'anim_front', c.anim_front)
           from public.gk_items c where c.parent_id = s.cur_item_id));
     end if;
 

@@ -610,7 +610,7 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         const game = createAction({ ball: ballOf(item), interactive: live, auto: !live,
             // The throw's sound is this player's own feedback, so it plays on
             // a phone too (unlike the room's media) — only the preview is silent.
-            start: resume, canThrow, sfx: !muted, feedback: item.feedback || {},
+            start: resume, canThrow, sfx: !muted, feedback: item.feedback || {}, level: item.throw_level ?? 5,
             onScore: (hits, attempts) => {
                 throws.set(item.id, { hits, attempts });
                 onAnswer?.(item.id, hits, { again: true });
@@ -977,12 +977,23 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
             // Nor over the court, where a drifting picture would look like a second ball.
             const solving = state.phase === 'intro' || state.phase === 'fire' || (state.phase === 'question' && ['puzzle', 'complete', 'slider', 'rank', 'action', 'roulette'].includes(item?.kind))
                 || (state.phase === 'question' && item?.kind === 'memory' && serverNow() < state.data.starts_at);
-            // Which picture bounces here: this element's own, else the quiz's
-            // (if the quiz has its animation on); `anim_on = false` means none.
-            // Count, size and speed are always the quiz's.
+            // Which animation runs here — every element carries its own (the
+            // host's request): on/off, picture, count, size, speed, front.
+            // The opening's (lobby, countdown) is the quiz's `anim`; the
+            // closing's (podium, matrix) is `closing_anim`. An element switched
+            // on without a picture of its own (or a demo item) borrows the
+            // opening's picture and settings.
             const here = current();
-            const sprite = here?.anim_on === false ? null : here?.anim_sprite || (quiz.anim?.on ? quiz.anim.sprite : null);
-            bouncers.update(state.status !== 'idle' && !solving && sprite ? { ...(quiz.anim || {}), sprite } : null);
+            let anim = null;
+            if (['lobby', 'countdown'].includes(state.phase)) anim = quiz.anim?.on ? quiz.anim : null;
+            else if (['podium', 'matrix'].includes(state.phase)) anim = quiz.closing_anim?.on ? quiz.closing_anim : null;
+            else if (here && here.anim_on !== false) {
+                const sprite = here.anim_sprite || (quiz.anim?.on ? quiz.anim.sprite : null);
+                const base = quiz.anim || {};
+                if (sprite) anim = { sprite, count: here.anim_count ?? base.count, size: here.anim_size ?? base.size,
+                    speed: here.anim_speed ?? base.speed, front: here.anim_front ?? base.front };
+            }
+            bouncers.update(state.status !== 'idle' && !solving && anim ? anim : null);
         }
         syncMusic();
         sync();
