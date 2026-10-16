@@ -31,6 +31,8 @@ let selectedId = null;
 let manifest = null;
 let view = 'item';
 let notice = '';
+let quizSavedAt = null;   // when a quiz setting last saved (shown on the opening / closing)
+let quizNote = '';        // the top Save's answer there
 
 /** `items` holds the running order: the stops of the quiz. A question's
  *  "answer explained" segment is not a stop — it hangs off its question as
@@ -93,6 +95,7 @@ async function selectQuiz(next) {
     for (const it of items) it.explain = rows.find((r) => r.parent_id === it.id) || null;
     selectedId = items[0]?.id || OPENING;
     try { localStorage.setItem('gevkahoot:editor-quiz', quiz?.id || ''); } catch { /* convenience only */ }
+    quizSavedAt = null; quizNote = '';     // another quiz: its own saves from here
     draw();
 }
 
@@ -104,6 +107,8 @@ async function act(fn) {
 
 async function saveQuiz(patch) {
     Object.assign(quiz, await api.quizzes.update(quiz.id, patch));
+    quizSavedAt = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    quizNote = '';
     pushPreview(); pushLive();
 }
 
@@ -200,11 +205,19 @@ function topBar() {
         quiz && btn('מחק חידון', () => confirm(`למחוק את החידון "${quiz.title}" וכל הפריטים שבו?`) && act(async () => { await api.quizzes.remove(quiz.id); await loadQuizzes(); }), 'gk-btn--ghost'),
         // Quiz settings save the moment they are changed; the open element's
         // form has its own Save. This one presses it, so there is a Save in
-        // reach wherever the page is scrolled to.
+        // reach wherever the page is scrolled to. On the opening and the
+        // closing there is no form: everything there is already saved, and
+        // the button says so — it used to do nothing at all there, which read
+        // as "the closing's animation cannot be saved".
         quiz && btn('💾 שמור', () => {
             const formSave = document.querySelector('.ed .if-save-btn');
-            if (formSave) formSave.click();
+            if (formSave) { formSave.click(); return; }
+            quizNote = `כל השינויים כאן נשמרים מיד ✓${quizSavedAt ? ` (אחרון: ${quizSavedAt})` : ''}`;
+            draw();
         }),
+        // The opening's and the closing's settings: the proof that a change landed.
+        quiz && (selectedId === OPENING || selectedId === CLOSING) && (quizNote || quizSavedAt)
+            && h('span', { class: 'dr-note ed-saved', role: 'status', text: quizNote || `נשמר ✓ ${quizSavedAt}` }),
         h('span', { class: 'ed-spacer' }),
         notice && h('span', { class: 'dr-error', role: 'alert', text: notice }),
         h('a', { class: 'gk-btn gk-btn--small gk-btn--ghost', href: 'host.html', target: '_blank', rel: 'noopener', text: 'מסך המנחה ↗' }),
