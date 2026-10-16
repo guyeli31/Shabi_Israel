@@ -243,9 +243,10 @@ try {
     check('control: the reveal publishes the target and the positions chosen', JSON.stringify(st.data.correct) === '[700]' && JSON.stringify(st.data.values) === '[0,700]', st.data);
     const bobSl = (await rpc('gk_me', { p_token: bob })).data, aliceSl = (await rpc('gk_me', { p_token: alice })).data;
     check('the exact size is "correct" and scores', bobSl.result.correct === true && bobSl.result.points > 500 && bobSl.option === 700, bobSl);
-    // 67% off: the factor is 1 − 0.67 = a third of the time points, and not "correct".
-    check('67% off the area keeps a third of its time points and is not "correct"', aliceSl.result.correct === false
-        && aliceSl.result.points > 0 && Math.abs(aliceSl.result.points / bobSl.result.points - 1 / 3) < 0.02 && aliceSl.option === 0, { aliceSl, bobSl });
+    // At 0 the object is 57.7% of its real SIZE (perimeter, not area): 42.3%
+    // off, so it keeps 57.7% of its time points, and is not "correct".
+    check('42% off the size (perimeter) keeps 58% of its time points and is not "correct"', aliceSl.result.correct === false
+        && aliceSl.result.points > 0 && Math.abs(aliceSl.result.points / bobSl.result.points - 0.577) < 0.02 && aliceSl.option === 0, { aliceSl, bobSl });
     const pts = sql(`select points from public.gk_answers where item_id = '${SL}' and not voided order by option_idx;`);
     check('control: re-scoring leaves the slider points as they were', host(`select public.gk_admin_rescore('${SL}');`).ok
         && sql(`select points from public.gk_answers where item_id = '${SL}' and not voided order by option_idx;`).out === pts.out, pts.out);
@@ -260,7 +261,7 @@ try {
     host(`select public.gk_admin_rescore('${SL}');`);
     const dev = sql(`select round(public._gk_slider_dev(700, 500, 0.2), 3);`).out;
     check('…and the deviation follows it', dev === '0.320', dev);
-    sql(`update public.gk_items set correct = '{700}', slider_min = 0.3333 where id = '${SL}';`);
+    sql(`update public.gk_items set correct = '{700}', slider_min = 0.577 where id = '${SL}';`);
     const twoPieces = sql(`update public.gk_items set options = '[{"image":"media/sprites/a.png","scale":1},{"image":"media/sprites/b.png","scale":1}]' where id = '${SL}';`);
     check('a second piece is rejected', !twoPieces.ok && /violates check/.test(twoPieces.out), twoPieces.out);
     const offSite = sql(`update public.gk_items set options = '[{"image":"https://evil.example/p.png","scale":1}]' where id = '${SL}';`);

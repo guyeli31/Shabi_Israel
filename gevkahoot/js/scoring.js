@@ -17,12 +17,13 @@ export function points(correct, weight, ms, limitSeconds) {
 /**
  * The slider question. Its answer is a position, 0-1000 (sent as the
  * "option"), and the position sets the AREA of the object on the picture,
- * linearly: at 0 it is `min` of the real area, at the `target` position
- * exactly the real one — both the AUTHOR's, per question (gk_items.slider_min
- * and correct[0], published as item.slider; a third and 700 by default). So
+ * linearly — its PERIMETER, i.e. its size, not its area: at 0 it is `min` of
+ * the real size, at the `target` position exactly the real one — both the
+ * AUTHOR's, per question (gk_items.slider_min and correct[0], published as
+ * item.slider; 0.577 and 700 by default). So
  *
- *     area(v) / real area = min + (1 − min) × v / target
- *     deviation           = area ratio − 1 = (1 − min) × (v − target) / target
+ *     size(v) / real size = min + (1 − min) × v / target
+ *     deviation           = size ratio − 1 = (1 − min) × (v − target) / target
  *
  * Points are the ordinary time-based points scaled by accuracy — the
  * deviation as a fraction, so a 100% deviation would score nothing:
@@ -34,16 +35,19 @@ export function points(correct, weight, ms, limitSeconds) {
  * "correct" for the fastest five and the table's tie-break. Mirrored by _gk_slider_dev and
  * _gk_score in sql/gevkahoot.sql — change both or neither.
  */
-export const SLIDER = { target: 700, max: 1000, start: 500, minArea: 1 / 3, good: 0.05 };
+export const SLIDER = { target: 700, max: 1000, start: 500, minSize: 0.577, good: 0.05 };
 
 /** An item's slider scale, { min, target }: its published `slider`, else the defaults. */
 export const sliderScale = (s) => ({
-    min: Number.isFinite(+s?.min) ? +s.min : SLIDER.minArea,
+    min: Number.isFinite(+s?.min) ? +s.min : SLIDER.minSize,
     target: Number.isFinite(+s?.target) && +s.target > 0 ? +s.target : SLIDER.target,
 });
-/** Area of the object at position `v`, relative to its real area. */
-export const sliderArea = (v, s) => { const { min, target } = sliderScale(s); return min + (1 - min) * v / target; };
-/** Signed: +0.12 = 12% too big, −0.3 = 30% too small. */
+/** SIZE of the object at position `v` — its perimeter, i.e. its width and
+ *  height — relative to its real size. (It was the AREA until the host asked
+ *  for the perimeter: the picture grows evenly, and "10% off" means 10% of
+ *  its outline, not 21% of its surface.) */
+export const sliderSize = (v, s) => { const { min, target } = sliderScale(s); return min + (1 - min) * v / target; };
+/** Signed: +0.12 = 12% too big, −0.3 = 30% too small (by perimeter). */
 export const sliderDeviation = (v, s) => { const { min, target } = sliderScale(s); return (1 - min) * (v - target) / target; };
 export const sliderCorrect = (v, s) => Math.abs(sliderDeviation(v, s)) <= SLIDER.good + 1e-9;
 

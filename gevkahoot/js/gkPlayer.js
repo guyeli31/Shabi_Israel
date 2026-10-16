@@ -279,7 +279,7 @@ function pickEntry() {
 function stripContent() {
     const { status, phase, data } = state;
     const item = data.item;
-    const now = serverNow();
+    const now = state.data?.frozen_at ?? serverNow();   // frozen in the editor's preview
     const left = demoUntil ? Math.max(0, Math.ceil((demoUntil - Date.now()) / 1000)) : null;
     const go = (text) => demo && demoUntil && h('button', { class: 'gk-btn gk-btn--small', type: 'button', text, onclick: () => demo.skip() });
     const standing = `מקום ${me.rank ?? '–'} מתוך ${me.players ?? 0} · ${me.points ?? 0} נק׳`;

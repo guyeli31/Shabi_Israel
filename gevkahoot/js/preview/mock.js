@@ -59,7 +59,7 @@ function publicItem(item, items) {
         id: item.id, kind: item.kind, title: item.title, body: item.body,
         options: ['question', 'complete', 'slider', 'rank', 'memory'].includes(item.kind) ? item.options : [], slot: item.slot || null,
         // the slider's scale, as _gk_publish sends it
-        slider: item.kind === 'slider' ? { min: item.slider_min ?? 1 / 3, target: item.correct?.[0] ?? 700 } : null,
+        slider: item.kind === 'slider' ? { min: item.slider_min ?? 0.577, target: item.correct?.[0] ?? 700 } : null,
         memo_s: item.kind === 'memory' ? item.memo_s ?? 10 : null,
         weight: item.weight, time_limit: item.time_limit_s,
         image: item.image, video: item.video, audio: item.audio,
@@ -127,7 +127,9 @@ export function mock(view, quiz, selected, items) {
     }
     const question = selected && selected.kind !== 'interlude' ? selected : items.find((i) => i.kind === 'question') || STUB_QUESTION;
     const isPuzzle = question.kind === 'puzzle';
-    const base = { rev: ++rev, status: 'running', data: { quiz: quizData, index: 1, count: items.length, locked: false },
+    // `frozen_at`: the screens' clock stands still at this moment — a preview
+    // shows a question open, it must not run out and lock (stage.js).
+    const base = { rev: ++rev, status: 'running', data: { quiz: quizData, index: 1, count: items.length, locked: false, frozen_at: now },
         live: { players: NAMES.length, answered: 7, names: NAMES } };
     const me = { player: true, name: ME, points: 2840, rank: 3, players: NAMES.length };
     const rows = board();

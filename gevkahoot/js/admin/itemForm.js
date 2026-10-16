@@ -17,7 +17,7 @@ import { crest, MARK_SETS, TILES } from '../ui/teams.js';
 import { emojiButton, openEmojiPicker } from './emojiPicker.js';
 import { openCompleteMaker } from './completeMaker.js';
 import { safeMedia } from '../ui/dom.js';
-import { scrambleRank, SLIDER, sliderArea } from '../scoring.js';
+import { scrambleRank, SLIDER, sliderSize } from '../scoring.js';
 import { createSlider } from '../host/slider.js';
 import { memoryPicture } from '../host/memory.js';
 import { createTable } from '../host/roulette.js';
@@ -116,7 +116,7 @@ export function itemForm(item, { manifest, onSave }) {
         memo_s: item.memo_s ?? 10, arrows: (item.arrows || []).map((a) => ({ ...a })),
         // the slider's scale: its size at 0 (share of the real area) and the
         // position where it is exact — the author's, per question
-        slider_min: item.slider_min ?? SLIDER.minArea,
+        slider_min: item.slider_min ?? SLIDER.minSize,
         slider_target: item.kind === 'slider' && item.correct?.[0] ? item.correct[0] : SLIDER.target,
         circle_x: item.circle_x ?? null, circle_y: item.circle_y ?? null, circle_r: item.circle_r ?? null,
         circle_speed: item.circle_speed ?? 4,
@@ -572,9 +572,9 @@ export function itemForm(item, { manifest, onSave }) {
         const scale = () => ({ min: draft.slider_min, target: draft.slider_target });
         function drawPreview() {
             const s = scale();
-            const pct = (v) => `${Math.round(sliderArea(v, s) * 100)}%`;
-            facts.textContent = `ב-0% העצם ${pct(0)} מהשטח האמיתי · ב-50% (שם הסליידר מתחיל) ${pct(SLIDER.start)} · ב-${Math.round(s.target / 10)}% בדיוק בגודלו · ב-100% ${pct(SLIDER.max)}. `
-                + `כל 10% של הסליידר מוסיפים ${Math.round((1 - s.min) / s.target * 100 * 100)}% לשטח. מי שמגיע לקצה הרחוק מהתשובה מקבל ${Math.round(Math.max(0, 1 - Math.max(Math.abs(sliderArea(0, s) - 1), Math.abs(sliderArea(SLIDER.max, s) - 1))) * 100)}% מנקודות המהירות.`;
+            const pct = (v) => `${Math.round(sliderSize(v, s) * 100)}%`;
+            facts.textContent = `גודל העצם (היקף) — ב-0%: ${pct(0)} מהאמיתי · ב-50% (שם הסליידר מתחיל) ${pct(SLIDER.start)} · ב-${Math.round(s.target / 10)}% בדיוק בגודלו · ב-100% ${pct(SLIDER.max)}. `
+                + `כל 10% של הסליידר מוסיפים ${Math.round((1 - s.min) / s.target * 100 * 100)}% להיקף. מי שמגיע לקצה הרחוק מהתשובה מקבל ${Math.round(Math.max(0, 1 - Math.max(Math.abs(sliderSize(0, s) - 1), Math.abs(sliderSize(SLIDER.max, s) - 1))) * 100)}% מנקודות המהירות.`;
             const slider = createSlider({ image: draft.image, slot: draft.slot, piece: src, symbol: draft.symbols[0] || null, interactive: true, scale: s });
             // "the right size": the slider's own reveal (it stops there, marked);
             // pressed again, the try-out starts over
@@ -598,7 +598,7 @@ export function itemForm(item, { manifest, onSave }) {
         };
         sliderBox.append(
             h('div', { class: 'if-pair' }, src && h('span', { class: 'if-swatch if-swatch--piece gk-tile', dataset: { tile: TILES[0].key } }, h('img', { src, alt: '' })), make),
-            range('גודל העצם בתחילת הסליידר (0%) — אחוז מהשטח האמיתי:', 5, 95, 1, Math.round(draft.slider_min * 100), '%', (v) => { draft.slider_min = v / 100; }),
+            range('גודל העצם בתחילת הסליידר (0%) — אחוז מההיקף האמיתי:', 5, 95, 1, Math.round(draft.slider_min * 100), '%', (v) => { draft.slider_min = v / 100; }),
             range('הגודל הנכון נמצא בסליידר ב:', 10, 100, 1, Math.round(draft.slider_target / 10), '%', (v) => { draft.slider_target = v * 10; }),
             facts, preview,
             h('p', { class: 'dr-note', text: 'הניקוד: נקודות המהירות × (1 − הסטייה באחוזים) — סטייה של 10% משאירה 90% מהנקודות. במטריצה התא נצבע מאדום לירוק לפי הסטייה.' }),

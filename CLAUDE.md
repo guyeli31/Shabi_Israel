@@ -284,10 +284,13 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   NOT right-or-wrong. Same cut-out as "complete the picture" (one piece in
   `options`, `slot`, made by `completeMaker.js`), drawn at its own place; the
   player sets its SIZE with a slider and the answer is the POSITION, 0-1000, in
-  `option_idx`. Area grows linearly from `slider_min` of the real area at 0 to
-  the real area at the target `correct[0]` — BOTH the author's, per question
-  (the host's request; defaults a third and 700; CHECK: min 0.05-0.95, target
-  100-1000), set in the editor with a live try-out of the player's own slider
+  `option_idx`. The object's SIZE — its perimeter, NOT its area (the host's
+  request; deviations and points are measured on it too, so 10% off is 10% of
+  the outline) — grows linearly from `slider_min` of the real size at 0 to the
+  real size at the target `correct[0]` — BOTH the author's, per question
+  (defaults 0.577 and 700; CHECK: min 0.05-0.95, target 100-1000; the SQL
+  converted the earlier area shares to sizes once, √, marked by the column's
+  comment 'size'), set in the editor with a live try-out of the player's own slider
   on the question's picture. Published as `item.slider = {min, target}`
   (the slider must draw the sizes; the gap on screen gave the target away to
   a script anyway). Every slider function takes that scale (`sliderScale()`
@@ -563,7 +566,10 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   `leaveForms()`, which confirms. A new place that hosts the form must do
   both.
 - **The editor previews are the real pages**, framed with `?preview` and fed
-  invented state by `postMessage` (`js/preview/mock.js`). A screen that must be
+  invented state by `postMessage` (`js/preview/mock.js`). That state carries
+  `frozen_at`, and the stage's clock stands still at it: a question shown in
+  the preview never runs out (it used to lock after its time limit — the
+  preview's slider "would not reach the ends" because it was simply locked). A screen that must be
   previewable therefore renders only from the state object — no fetch of its own.
 - **All DOM goes through `h()` in `js/ui/dom.js`** — text nodes only, no
   `innerHTML` anywhere in `gevkahoot/`. Names and question text are strangers'

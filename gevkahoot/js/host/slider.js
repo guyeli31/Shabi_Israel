@@ -20,10 +20,10 @@
  */
 import { h, safeMedia } from '../ui/dom.js';
 import { holdTouch } from '../ui/touch.js';
-import { SLIDER, sliderArea, sliderCorrect, sliderScale } from '../scoring.js';
+import { SLIDER, sliderSize, sliderCorrect, sliderScale } from '../scoring.js';
 
 /** Linear size of the piece at position v, relative to the real object. */
-const linearAt = (v, scale) => Math.sqrt(Math.max(0, sliderArea(v, scale)));
+const linearAt = (v, scale) => Math.max(0, sliderSize(v, scale));
 /** Where on the track position v is, as a CSS length (the handle's centre). */
 const onTrack = (v) => `calc(var(--sl-thumb) / 2 + (100% - var(--sl-thumb)) * ${v / SLIDER.max})`;
 
@@ -193,7 +193,7 @@ export function createSlider({ image, slot, piece, symbol, interactive, onMove, 
             mark(target, 'target');
             this.markPicked(picked);
             if (values.length) {
-                const mean = values.reduce((n, v) => n + Math.abs(sliderArea(v, scale) - 1), 0) / values.length;
+                const mean = values.reduce((n, v) => n + Math.abs(sliderSize(v, scale) - 1), 0) / values.length;
                 const hits = values.filter((v) => sliderCorrect(v, scale)).length;
                 summary.hidden = false;
                 summary.textContent = `סטייה ממוצעת ${Math.round(mean * 100)}% · ${hits === 1 ? 'אחד פגע' : `${hits} פגעו`} (עד 5%)`;

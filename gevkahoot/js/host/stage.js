@@ -25,7 +25,7 @@
 import { h, svgEl, clear, renderKeyed, safeMedia, fmtSeconds } from '../ui/dom.js';
 import { tile } from '../ui/teams.js';
 import { leaderboard, podium, matrix, confetti, moneyRain, winnerMoment, multiplier } from '../ui/views.js';
-import { serverNow } from '../data/clock.js';
+import { serverNow as liveNow } from '../data/clock.js';
 import { createBouncers } from './bouncers.js';
 import { createPuzzle, circleCutout } from './puzzle.js';
 import { memoryPicture } from './memory.js';
@@ -53,6 +53,10 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
     applyCompact();
     window.addEventListener('resize', applyCompact);
     const mode = () => (muted ? 'muted' : media());
+    // The stage's clock. The editor's preview freezes it (`frozen_at` in its
+    // invented state): a question shown there must not run out — it used to
+    // lock after its time limit, and the slider in the preview "would not move".
+    const serverNow = () => state?.data?.frozen_at ?? liveNow();
 
     const bg = h('div', { class: 'st-bg' });
     const title = h('div', { class: 'st-title', dir: 'auto' });

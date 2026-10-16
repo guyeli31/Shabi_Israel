@@ -178,11 +178,12 @@ alter table public.gk_items
 -- The slider: the same cut-out-from-a-picture as "complete the picture", but
 -- ONE piece, always drawn at the object's own place, whose SIZE the player
 -- sets with a slider. The answer is the slider's position, 0-1000, stored in
--- option_idx; the area grows linearly with it, from a third of the real area
--- at 0 to exactly the real area at the target (see _gk_slider_dev). Both are
--- the AUTHOR's, per question (the host's request — they used to be fixed):
---   slider_min  the object's area at position 0, as a share of its real area
---               (0.05-0.95; a third by default) — with the target, the slope
+-- option_idx; the object's SIZE (its perimeter — not its area, the host's
+-- request) grows linearly with it, from slider_min of the real size at 0 to
+-- exactly the real size at the target (see _gk_slider_dev). Both are the
+-- AUTHOR's, per question (the host's request — they used to be fixed):
+--   slider_min  the object's size at position 0, as a share of its real size
+--               (0.05-0.95; 0.577 by default) — with the target, the slope
 --   correct     '{target}': the position, 100-1000, where the size is exact
 --               (700 by default; 900 before that) — not an option index.
 -- Both are published while the question is open: the slider has to draw the
@@ -289,7 +290,22 @@ alter table public.gk_items add constraint gk_items_action_shape check (
 alter table public.gk_items drop constraint if exists gk_items_slider_shape;
 -- The target moved from 900 (90%) to 700 (70%): existing sliders follow it.
 update public.gk_items set correct = '{700}' where kind = 'slider' and correct = '{900}';
-alter table public.gk_items add column if not exists slider_min real not null default 0.3333;
+alter table public.gk_items add column if not exists slider_min real not null default 0.577;
+alter table public.gk_items alter column slider_min set default 0.577;
+-- The slider measures the object by its PERIMETER (its linear size), not its
+-- area (the host's request): `slider_min` is now the SIZE at position 0. Once,
+-- the stored values move from an area share to the same picture's size share
+-- (√ — a third of the area is 58% of the size), so every existing question
+-- looks exactly as before; the column's comment marks that it was done.
+do $$
+begin
+  if col_description('public.gk_items'::regclass,
+       (select attnum from pg_attribute where attrelid = 'public.gk_items'::regclass and attname = 'slider_min')) is distinct from 'size' then
+    update public.gk_items set slider_min = greatest(0.05, least(0.95, round(sqrt(slider_min)::numeric, 3)));
+    comment on column public.gk_items.slider_min is 'size';
+  end if;
+end;
+$$;
 alter table public.gk_items drop constraint if exists gk_items_slider_min;
 alter table public.gk_items add constraint gk_items_slider_min check (slider_min between 0.05 and 0.95);
 alter table public.gk_items add constraint gk_items_slider_shape check (
@@ -655,12 +671,12 @@ returns int language sql stable security definer set search_path = public, pg_ca
    where i.id = p_item;
 $$;
 
--- The slider's deviation: (area chosen / real area) − 1, signed. Position v
--- (0-1000) gives area min + (1 − min) × v / target, so the deviation is
--- (1 − min) × (v − target) / target. Mirrored by sliderDeviation() in
+-- The slider's deviation: (size chosen / real size) − 1, signed — SIZE as in
+-- perimeter, not area. Position v (0-1000) gives the size min + (1 − min) ×
+-- v / target, so the deviation is (1 − min) × (v − target) / target. Mirrored by sliderDeviation() in
 -- js/scoring.js.
 drop function if exists public._gk_slider_dev(int);
-create or replace function public._gk_slider_dev(p_value int, p_target int default 700, p_min numeric default 0.3333)
+create or replace function public._gk_slider_dev(p_value int, p_target int default 700, p_min numeric default 0.577)
 returns numeric language sql immutable as $$
   select (1 - p_min) * (p_value - p_target)::numeric / greatest(p_target, 1);
 $$;
@@ -688,7 +704,7 @@ $$;
 --     (fastest five, the tie-break) within 5% of the real area.
 drop function if exists public._gk_score(text, int[], int, int, int, int);
 create or replace function public._gk_score(p_kind text, p_correct int[], p_option int, p_weight int, p_ms int, p_limit_s int,
-                                            p_slider_min numeric default 0.3333,
+                                            p_slider_min numeric default 0.577,
                                             out is_correct boolean, out points int)
 language sql immutable as $$
   select case when p_kind = 'slider' then abs(public._gk_slider_dev(p_option, p_correct[1], p_slider_min)) <= 0.05
