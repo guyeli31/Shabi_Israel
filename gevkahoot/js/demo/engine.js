@@ -351,13 +351,15 @@ export function createDemo(onChange, { quiz: QUIZ = DEMO_QUIZ, items: ITEMS = DE
             // more includes this question — longer when it is the first one.
             if (streakState().fire) { phase = 'fire'; until = Date.now() + PAUSE.fire; return emit(); }
         }
-        if (phase === 'fastest' || (phase === 'fire' && streakState().fire)) { phase = 'leaderboard'; until = Date.now() + PAUSE.leaderboard; return emit(); }
+        // As on the server: the LAST question has no table after it — the
+        // winners come next, and the table would give the podium away.
+        const lastQ = ITEMS.map((q, i) => (q.kind !== 'interlude' ? i : -1)).reduce((a, b) => Math.max(a, b), -1);
+        if (index !== lastQ && (phase === 'fastest' || (phase === 'fire' && streakState().fire))) { phase = 'leaderboard'; until = Date.now() + PAUSE.leaderboard; return emit(); }
         if (phase === 'podium') { phase = 'matrix'; until = null; return emit(); }
         if (phase === 'matrix') return undefined;
         if (index + 1 < ITEMS.length) {
             // As on the server: if nobody has had three in a row by the time the
             // last question comes up, the special slide goes to the leader first.
-            const lastQ = ITEMS.map((q, i) => (q.kind !== 'interlude' ? i : -1)).reduce((a, b) => Math.max(a, b), -1);
             const before = ITEMS.slice(0, index + 1).some((q) => q.kind !== 'interlude');
             if (phase !== 'fire' && index + 1 === lastQ && before && !streakState().ever) {
                 phase = 'fire'; until = Date.now() + PAUSE.fire; return emit();

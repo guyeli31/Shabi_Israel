@@ -102,9 +102,14 @@ try {
 
     section('No second slide');
     await play(Q4, { Ben: 0, Cal: 0, Ada: 1 });
-    st = await afterFastest();
-    check('after q4 (Ben at four, Cal at three): straight to the table', st.phase === 'leaderboard', st.phase);
-    check('…which still shows their flames', st.data.streaks.Ben === 4 && st.data.streaks.Cal === 3 && !('Ada' in st.data.streaks), st.data.streaks);
+    // q4 is the LAST question: no table after it (the winners come next), so
+    // the flames are read from the players' own lines on its fastest five.
+    next();                     // fastest
+    st = await publicState();
+    check('after q4 (Ben at four, Cal at three): no second special slide', st.phase === 'fastest', st.phase);
+    const flames = {};
+    for (const name of ['Ben', 'Cal']) flames[name] = (await rpc('gk_me', { p_token: phones[name] })).data.streak;
+    check('…and their flames are still counted', flames.Ben === 4 && flames.Cal === 3, flames);
     me = (await rpc('gk_me', { p_token: phones.Ada })).data;
     check('a broken run is reported as 0', me.streak === 0, me);
 

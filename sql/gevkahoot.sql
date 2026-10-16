@@ -1549,6 +1549,7 @@ declare
   s public.gk_sessions%rowtype;
   v_idx int;
   v_count int;
+  v_last boolean;
 begin
   perform public._gk_require_admin();
   select * into s from public.gk_sessions where status in ('lobby', 'running') for update;
@@ -1591,14 +1592,24 @@ begin
   elsif s.phase = 'explain' then
     update public.gk_sessions set phase = 'fastest' where id = s.id;
     perform public._gk_publish(s.id);
-  elsif s.phase = 'fastest' then
+  end if;
+  -- The LAST question has no table after it (the host's request): the
+  -- winners are announced next, and the table would give the podium away.
+  -- So from its fastest five (or its special slide) the quiz steps on — to a
+  -- closing interlude, or straight to the podium. The only question without.
+  v_last := s.cur_item_id is not null and s.cur_item_id = (
+    select o.item_id from public._gk_ordered(s.quiz_id) o where o.kind <> 'interlude' order by o.idx desc limit 1);
+
+  if s.status = 'lobby' or s.phase in ('countdown', 'intro', 'question', 'reveal', 'explain') then
+    null;   -- handled above
+  elsif s.phase = 'fastest' and (not v_last or public._gk_fire(s.id) is not null) then
     -- The special slide, when this is the question where someone first got
     -- three in a row, comes between the fastest five and the table.
     update public.gk_sessions
        set phase = case when public._gk_fire(s.id) is not null then 'fire' else 'leaderboard' end
      where id = s.id;
     perform public._gk_publish(s.id);
-  elsif s.phase = 'fire' and public._gk_fire(s.id) is not null then
+  elsif s.phase = 'fire' and public._gk_fire(s.id) is not null and not v_last then
     update public.gk_sessions set phase = 'leaderboard' where id = s.id;
     perform public._gk_publish(s.id);
   else

@@ -419,7 +419,9 @@ function slidesInView() {
     const item = selected();
     const own = viewsFor(item);
     const lastQ = [...items].reverse().find((i) => i.kind !== 'interlude');
-    return item && item === lastQ ? own.flatMap((v) => (v === 'firstfire' ? ['firstfire', 'leadfire'] : [v])) : own;
+    // the last question: the leader's slide before it, and NO table after it
+    // (the winners are announced next — gk_admin_next skips it)
+    return item && item === lastQ ? own.flatMap((v) => (v === 'firstfire' ? ['firstfire', 'leadfire'] : v === 'leaderboard' ? [] : [v])) : own;
 }
 
 function drawViewTabs() {

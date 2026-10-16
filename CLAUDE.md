@@ -458,6 +458,13 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   shows its slides in the previews, stepped through with ‹ › and dots (a
   question opens on itself; the last question adds the leader slide); a
   slide's name in a music row jumps the previews to it.
+- **No table after the LAST question** (the host's request: the winners are
+  announced next, and the table would give the podium away — the suspense).
+  `gk_admin_next` steps from the last scored item's fastest five (or its
+  special slide, if one is earned there) straight on — to a closing
+  interlude, or to the podium. The only question without a table; the
+  demo engine and the editor's preview (no "טבלה" slide on it) mirror it.
+  A host can still call the table up from the drawer by hand.
 - **"Starting in 7… get ready"** (phase `countdown`, the host's request): the
   host's first "next" from the lobby shows it (`ends_at` = `q_deadline`, 7s);
   the HOST's screen calls `gk_admin_countdown_done()` when it runs out — which

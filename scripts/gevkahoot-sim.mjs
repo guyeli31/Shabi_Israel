@@ -175,10 +175,10 @@ try {
     check('a removed phone is told so', (await rpc('gk_me', { p_token: gone[0].token })).data.kicked === true);
     check('…and cannot join again under another name',
         (await rpc('gk_join', { p_name: 'שם חדש', p_token: gone[0].token })).code === 'kicked');
-    next(); next();           // fastest, table
-    check('host steps past the last item', next().ok);
+    next();                   // fastest — and no table after the LAST question
+    check('host steps on from the last question’s fastest five', next().ok);
     st = await publicState();
-    check('the quiz is finished, on the podium', st.status === 'finished' && st.phase === 'podium', st);
+    check('…straight to the podium: no table after the last question', st.status === 'finished' && st.phase === 'podium', st.phase);
 
     section('Archive');
     const result = JSON.parse(sql(`select result from public.gk_sessions where quiz_id = '${TEST_QUIZ}' and status = 'finished';`).out);
