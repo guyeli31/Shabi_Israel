@@ -157,8 +157,17 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   `gevkahoot/media/{images,videos,audio,backgrounds,sprites}/`. The database
   stores the path and a CHECK refuses anything that is not one (so no off-origin
   URL can be saved). The editor's pickers read `media/manifest.json` —
-  **generated, never hand-edit**: after adding or removing a file run
-  `node scripts/gevkahoot-media-manifest.mjs` (`--check` gates it).
+  **generated, never hand-edit**: after adding, removing OR REPLACING a file
+  run `node scripts/gevkahoot-media-manifest.mjs` (`--check` gates it).
+  The manifest also holds each file's version (`versions`: sha1 of the
+  content, 10 hex digits), and `safeMedia()` puts it in the address
+  (`…/x.jpg?v=…`), loading the manifest once by top-level await before any
+  screen draws. That is what makes a file replaced under the SAME name show
+  up at once everywhere: GitHub Pages lets a browser keep a file ~10 minutes,
+  and a host once saw the old picture with the new slot on it. So every
+  media address shown on a page goes through `safeMedia()` — a raw path in a
+  `src` is the bug. The editor's tools write the version too
+  (`addToManifest` in `spriteCutter.js`, same order, same hash).
 - **A media file may be named anything a person would name it** — Hebrew,
   spaces, brackets. The first real images dropped into the folder were named in
   Hebrew and, under the original `A-Z a-z 0-9 . _ -` rule, silently never
@@ -177,6 +186,14 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   outline, and it writes the PNG **and** the updated `manifest.json` straight
   into the working copy through the File System Access API (Chrome/Edge;
   elsewhere it downloads the file). Nothing is uploaded.
+  The sprite may instead be a BUILT-IN animation, named not pathed:
+  `anim_sprite = 'builtin:gnomes'` — six garden gnomes (`assets/gnomes/<colour>.svg`,
+  drawn by `node scripts/gevkahoot-gnomes.mjs`, `--check` gates them), one of
+  each colour in turn, every one also spinning on itself; the bounce keeps
+  room for its longer side so a turning gnome never leaves the stage. The
+  pickers (quiz and per element) list it first (`BUILTIN_ANIMS` in
+  `bouncers.js`); the `anim_sprite` path CHECK allows exactly this one name.
+  A new built-in = an entry in `BUILTIN_ANIMS` and in that CHECK.
 - **The puzzle is a third item kind** (`gk_items.kind = 'puzzle'`), and
   everywhere else it is *a question with one option*: "done" is option 0,
   `correct = '{0}'` by CHECK, so scoring by time, the fastest five, the table,
@@ -403,6 +420,24 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   on through their reveal. `podium_music` on the podium and the matrix. Never
   under the fastest five, the special slide or the table; an "answer
   explained" segment plays only a music of its own.
+- **Music per slide** (`slide_music` jsonb on `gk_items` and on `gk_quizzes`,
+  the host's request): every screen of a question — intro, ready, question,
+  reveal, fastest, fire, leaderboard — and of the quiz's opening (lobby,
+  countdown) and closing (podium, matrix) may override the rules above: a
+  missing key = the rules; `'none'`; `'continue'` (syncMusic leaves whatever is
+  playing alone); or a file in media/audio/ (plays even where the element's
+  own music switch is off). CHECKed (known keys only, string values only, a
+  path only inside media/audio/); published with the item and in
+  `_gk_quiz_json`; picked in the editor by `js/admin/slideMusic.js` — inside
+  the item form (saved by its Save button) and in the opening / closing
+  panels (saved at once, like every quiz setting).
+- **The editor's layout.** A side menu, the window's full height, folding to a
+  strip (open by default, remembered): the running order between two
+  bookends — "פתיחה" (the quiz's settings, animation, lobby and countdown
+  slides) and "סיום" (winners' music, podium, matrix). Selecting anything
+  shows its slides in the previews, stepped through with ‹ › and dots (a
+  question opens on itself; the last question adds the leader slide); a
+  slide's name in a music row jumps the previews to it.
 - **"Starting in 7… get ready"** (phase `countdown`, the host's request): the
   host's first "next" from the lobby shows it (`ends_at` = `q_deadline`, 7s);
   the HOST's screen calls `gk_admin_countdown_done()` when it runs out — which

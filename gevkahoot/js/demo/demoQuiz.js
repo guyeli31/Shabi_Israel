@@ -142,9 +142,10 @@ export const DEMO_ITEMS = [
         options: ['7', '12', '15', '20', '33'], correct: [1, 3], weight: 2, time_limit_s: 30,
         image: 'media/backgrounds/demo-pitch.svg', media_layout: 'background' }),
 
-    // An interlude after the last question, before the podium.
+    // An interlude after the last question, before the podium — with the
+    // built-in gnomes as its animation, each spinning on itself.
     demoItem({ id: 'demo-i5', kind: 'interlude', title: '🎉 זהו, סיימנו!', body: 'ועכשיו — מי ניצח? 🥁',
-        image: 'media/images/demo-ball.svg', media_layout: 'top', seconds: 5 }),
+        image: 'media/images/demo-ball.svg', media_layout: 'top', seconds: 5, anim_sprite: 'builtin:gnomes' }),
 ];
 
 /** The bots: a name, how often they are right, and how fast they tend to be

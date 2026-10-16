@@ -35,7 +35,7 @@ const onTrack = (v) => `calc(var(--sl-thumb) / 2 + (100% - var(--sl-thumb)) * ${
  * @param interactive  a player's copy: the slider moves
  * @param onMove       called with the position after the player moves it
  */
-export function createSlider({ image, slot, piece, symbol, interactive, onMove, scale = null }) {
+export function createSlider({ image, slot, piece, symbol, interactive, onMove, scale = null, showValue = false }) {
     // the author's scale (size at 0, where it is exact) — see js/scoring.js
     const linear = (v) => linearAt(v, scale);
     const picture = h('img', { class: 'cp-img', src: image, alt: '', draggable: 'false' });
@@ -59,7 +59,10 @@ export function createSlider({ image, slot, piece, symbol, interactive, onMove, 
     const control = h('div', { class: 'sl-control', dir: 'ltr' },
         endBtn('−', -10, 'קטן יותר'), track, endBtn('+', 10, 'גדול יותר'));
     const summary = h('p', { class: 'sl-summary', hidden: true });
-    const root = h('div', { class: 'cp sl', dataset: interactive ? { live: '' } : {} }, box, control, summary);
+    // The editor's try-out only (showValue): where the slider stands, and how
+    // big the object is there — a player is never shown either.
+    const readout = showValue ? h('p', { class: 'sl-readout', 'aria-live': 'polite' }) : null;
+    const root = h('div', { class: 'cp sl', dataset: interactive ? { live: '' } : {} }, box, readout, control, summary);
 
     let ratio = 4 / 3;
     let moved = false;
@@ -74,6 +77,7 @@ export function createSlider({ image, slot, piece, symbol, interactive, onMove, 
     function set(v) {
         input.value = String(v);
         sizeAt(shown, v);
+        if (readout) readout.textContent = `הסליידר ב-${Math.round(v / SLIDER.max * 100)}% · גודל העצם ${Math.round(linear(v) * 100)}% מהאמיתי`;
         if (rider) {
             rider.style.left = onTrack(v);
             // The emoji keeps the object's proportion: at the real size it is

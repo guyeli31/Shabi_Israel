@@ -11,10 +11,23 @@
  * are kept as fractions of the stage, so a resize (or the editor's scaled
  * preview) keeps every copy where it was, proportionally.
  *
+ * Besides a media sprite there are BUILT-IN animations (anim_sprite =
+ * 'builtin:<name>'): a set of pictures in assets/, one copy of each in turn,
+ * which may also spin. The gnomes (scripts/gevkahoot-gnomes.mjs) drift like the
+ * shapes behind a Kahoot! lobby, each turning on itself.
+ *
  * It is decoration and never part of the game: no pointer events, hidden from
  * assistive technology, and still for anyone who asked for reduced motion.
  */
 import { h, clear, safeMedia } from '../ui/dom.js';
+
+export const BUILTIN_ANIMS = {
+    'builtin:gnomes': {
+        label: '🧙 גמדים צבעוניים (מובנה)',
+        srcs: ['red', 'blue', 'yellow', 'green', 'purple', 'orange'].map((c) => `assets/gnomes/${c}.svg`),
+        spin: true,
+    },
+};
 
 export function createBouncers(stage) {
     const layer = h('div', { class: 'st-anim', 'aria-hidden': 'true' });
@@ -22,7 +35,8 @@ export function createBouncers(stage) {
 
     let config = null;   // { sprite, count, size, speed, front } or null
     let key = '';
-    let bodies = [];     // { el, x, y, vx, vy } — x/y are the centre, 0..1 of the stage
+    let bodies = [];     // { el, x, y, vx, vy, rot, vr } — x/y are the centre, 0..1 of the stage
+    let spin = false;    // the copies turn on themselves (a built-in set that asks for it)
     let aspect = 1;      // sprite width / height
     let last = 0;
     let running = false;
@@ -45,7 +59,7 @@ export function createBouncers(stage) {
         for (const b of bodies) {
             b.el.style.width = `${m.w}px`;
             b.el.style.height = `${m.h}px`;
-            b.el.style.transform = `translate3d(${b.x * m.W - m.w / 2}px, ${b.y * m.H - m.h / 2}px, 0)`;
+            b.el.style.transform = `translate3d(${b.x * m.W - m.w / 2}px, ${b.y * m.H - m.h / 2}px, 0)${spin ? ` rotate(${b.rot.toFixed(1)}deg)` : ''}`;
         }
     }
 
@@ -57,8 +71,10 @@ export function createBouncers(stage) {
         if (m.W && m.H) {
             // Speed 1..10 → the stage's shorter side crossed in about 12s..1.2s.
             const px = Math.min(m.W, m.H) * config.speed / 12;
-            const halfX = m.w / 2 / m.W;
-            const halfY = m.h / 2 / m.H;
+            // A spinning copy needs room for its longer side in every direction.
+            const reach = spin ? Math.max(m.w, m.h) / 2 : 0;
+            const halfX = (reach || m.w / 2) / m.W;
+            const halfY = (reach || m.h / 2) / m.H;
             for (const b of bodies) {
                 b.x += b.vx * px * dt / m.W;
                 b.y += b.vy * px * dt / m.H;
@@ -70,22 +86,26 @@ export function createBouncers(stage) {
                 else if (b.y > 1 - halfY) { b.y = 1 - halfY - (b.y - (1 - halfY)); b.vy = -Math.abs(b.vy); }
                 b.x = Math.min(1 - halfX, Math.max(halfX, b.x));
                 b.y = Math.min(1 - halfY, Math.max(halfY, b.y));
+                if (spin) b.rot = (b.rot + b.vr * dt) % 360;
             }
             place(m);
         }
         requestAnimationFrame(frame);
     }
 
-    function build(src) {
+    function build(srcs) {
         clear(layer);
-        bodies = Array.from({ length: config.count }, () => {
+        bodies = Array.from({ length: config.count }, (_, i) => {
+            const src = srcs[i % srcs.length];
             // Any direction except nearly along a wall: a copy sliding flat
             // along the top edge forever is not a bounce.
             const quadrant = Math.floor(Math.random() * 4) * Math.PI / 2;
             const angle = quadrant + (0.2 + Math.random() * 0.6) * Math.PI / 2;
             const el = h('img', { class: 'st-anim-sprite', src, alt: '', draggable: 'false' });
             layer.append(el);
-            return { el, x: 0.1 + Math.random() * 0.8, y: 0.1 + Math.random() * 0.8, vx: Math.cos(angle), vy: Math.sin(angle) };
+            // A full turn every 2.5-6 seconds, either way round.
+            const vr = (Math.random() < 0.5 ? -1 : 1) * (60 + Math.random() * 84);
+            return { el, x: 0.1 + Math.random() * 0.8, y: 0.1 + Math.random() * 0.8, vx: Math.cos(angle), vy: Math.sin(angle), rot: Math.random() * 360, vr };
         });
         // A copy that must set off from a known place (the puzzle's detail,
         // from where it sat in the picture).
@@ -101,8 +121,10 @@ export function createBouncers(stage) {
 
     function update(next) {
         // `src` is a picture made in this browser (the puzzle's round cut-out, a
-        // blob: URL); `sprite` is a media path and is validated as one.
-        const src = next && (next.src || safeMedia(next.sprite));
+        // blob: URL); `sprite` is a built-in set's name, or a media path and
+        // validated as one.
+        const builtin = next && !next.src ? BUILTIN_ANIMS[next.sprite] : null;
+        const src = next && (next.src || (builtin ? next.sprite : safeMedia(next.sprite)));
         // A sprite's size is the host's 3-40% setting; a cut-out (`src`) keeps
         // the size it had in its picture, which may be larger.
         const [minSize, maxSize] = next?.src ? [1, 95] : [3, 40];
@@ -114,7 +136,7 @@ export function createBouncers(stage) {
         // Only a new picture or a new head-count rebuilds; size, speed and
         // layer are read live, so dragging a slider does not reshuffle them.
         const nextKey = `${src}|${config.count}|${config.start ? `${config.start.x},${config.start.y}` : ''}`;
-        if (nextKey !== key) { key = nextKey; aspect = 1; build(src); }
+        if (nextKey !== key) { key = nextKey; aspect = 1; spin = !!builtin?.spin; build(builtin ? builtin.srcs : [src]); }
 
         if (still.matches) { running = false; const m = metrics(); if (m.W && m.H) place(m); return; }
         if (!running) { running = true; last = performance.now(); requestAnimationFrame(frame); }

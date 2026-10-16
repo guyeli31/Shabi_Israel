@@ -157,6 +157,7 @@ export function createDemo(onChange, { quiz: QUIZ = DEMO_QUIZ, items: ITEMS = DE
             id: it.id, kind: it.kind, title: it.title, body: it.body,
             options: ['question', 'complete', 'slider', 'rank', 'memory'].includes(it.kind) ? it.options : [], slot: it.slot || null,
             slider: it.kind === 'slider' ? scaleOf(it) : null,
+            slide_music: it.slide_music || {},
             memo_s: it.kind === 'memory' ? it.memo_s : null,
             weight: it.weight, time_limit: it.time_limit_s,
             image: it.image, video: it.video, audio: it.audio, layout: it.media_layout, music_on: it.music_on,
@@ -171,7 +172,7 @@ export function createDemo(onChange, { quiz: QUIZ = DEMO_QUIZ, items: ITEMS = DE
     function buildState() {
         const it = item();
         const quiz = { title: QUIZ.title, theme: QUIZ.theme, background: QUIZ.background,
-            music: QUIZ.music, lobby_music: QUIZ.lobby_music, podium_music: QUIZ.podium_music, music_on: QUIZ.music_on, anim: QUIZ.anim };
+            music: QUIZ.music, lobby_music: QUIZ.lobby_music, podium_music: QUIZ.podium_music, slide_music: QUIZ.slide_music || {}, music_on: QUIZ.music_on, anim: QUIZ.anim };
         let data = { quiz, index: index + 1, count: ITEMS.length, locked: false };
         const revealed = ['reveal', 'explain', 'fastest', 'fire', 'leaderboard'].includes(phase);
 

@@ -114,6 +114,30 @@ $$;
 -- (the host's request: it ends with the question), so the winners get theirs.
 alter table public.gk_quizzes add column if not exists podium_music text;
 
+-- Music per SLIDE (the host's request): what plays on each screen of an item,
+-- and on the quiz's opening and closing screens. A missing key means "as the
+-- rules say" (syncMusic in js/host/stage.js); otherwise
+--   'none'      silence
+--   'continue'  whatever was playing on the screen before goes on
+--   a path      that file, from media/audio/
+--   item keys   intro, ready, question, reveal, fastest, fire, leaderboard
+--               (an "answer explained" segment has its own element and music)
+--   quiz keys   lobby, countdown, podium, matrix
+alter table public.gk_items add column if not exists slide_music jsonb not null default '{}'::jsonb;
+alter table public.gk_quizzes add column if not exists slide_music jsonb not null default '{}'::jsonb;
+alter table public.gk_items drop constraint if exists gk_items_slide_music;
+alter table public.gk_items add constraint gk_items_slide_music check (
+    jsonb_typeof(slide_music) = 'object'
+    and slide_music - array['intro', 'ready', 'question', 'reveal', 'fastest', 'fire', 'leaderboard'] = '{}'::jsonb
+    and not jsonb_path_exists(slide_music, '$.* ? (!(@.type() == "string" && (@ == "none" || @ == "continue" || @ like_regex "^media/audio/[^./\\?#%:*<>|][^/\\?#%:*<>|]*$")))')
+);
+alter table public.gk_quizzes drop constraint if exists gk_quizzes_slide_music;
+alter table public.gk_quizzes add constraint gk_quizzes_slide_music check (
+    jsonb_typeof(slide_music) = 'object'
+    and slide_music - array['lobby', 'countdown', 'podium', 'matrix'] = '{}'::jsonb
+    and not jsonb_path_exists(slide_music, '$.* ? (!(@.type() == "string" && (@ == "none" || @ == "continue" || @ like_regex "^media/audio/[^./\\?#%:*<>|][^/\\?#%:*<>|]*$")))')
+);
+
 -- The puzzle: a third kind of item. Its picture (`image`) is cut into five
 -- pieces that each player drags back into place against the clock; "done" is
 -- its one and only answer, stored as option 0, so everything downstream —
@@ -424,9 +448,12 @@ begin
     -- the inline CHECKs of the first version were auto-named <table>_<col>_check
     execute format('alter table public.%I drop constraint if exists %I;', r.tbl, r.tbl || '_' || r.col || '_check');
     execute format('alter table public.%I drop constraint if exists %I;', r.tbl, r.tbl || '_' || r.col || '_path');
+    -- The animation may also be a BUILT-IN set, named, not a file: the
+    -- gnomes (js/host/bouncers.js BUILTIN_ANIMS). The one non-path value.
     execute format('alter table public.%I add constraint %I check (%I is null or %I ~ %L);',
                    r.tbl, r.tbl || '_' || r.col || '_path', r.col, r.col,
-                   '^media/(' || r.folders || ')/' || v_name || '$');
+                   '^(media/(' || r.folders || ')/' || v_name
+                   || case when r.col = 'anim_sprite' then '|builtin:gnomes' else '' end || ')$');
   end loop;
 end;
 $$;
@@ -636,7 +663,7 @@ returns jsonb language sql stable security definer set search_path = public, pg_
   select coalesce(
     (select jsonb_build_object(
               'title', q.title, 'theme', q.theme, 'background', q.background,
-              'music', q.music, 'lobby_music', q.lobby_music, 'podium_music', q.podium_music, 'music_on', q.music_on,
+              'music', q.music, 'lobby_music', q.lobby_music, 'podium_music', q.podium_music, 'slide_music', q.slide_music, 'music_on', q.music_on,
               -- Always present, with `on`: an item may bring its own sprite to a
               -- quiz whose animation is otherwise off, and still needs the
               -- quiz's count / size / speed to bounce it with.
@@ -981,6 +1008,7 @@ begin
         'slot', case when it.kind in ('complete', 'slider') then it.slot end,
         -- the slider's scale: its size at 0 and where it is exact (see §1)
         'slider', case when it.kind = 'slider' then jsonb_build_object('min', it.slider_min, 'target', it.correct[1]) end,
+        'slide_music', it.slide_music,
         'weight', public._gk_w(s.id, it.id), 'time_limit', it.time_limit_s,
         'image', it.image, 'video', it.video, 'audio', it.audio,
         'layout', it.media_layout, 'music_on', it.music_on, 'anim_on', it.anim_on,

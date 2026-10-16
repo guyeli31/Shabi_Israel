@@ -75,8 +75,31 @@ export function renderKeyed(el, key, build) {
  * preview frame is fed by postMessage, not by the database).
  */
 const MEDIA_RE = /^media\/(images|videos|audio|backgrounds|sprites|animations)\/[^./\\?#%:*"<>|\u0000-\u001f][^/\\?#%:*"<>|\u0000-\u001f]*$/;
+
+/*
+ * Each media file's version — a hash of its content, from media/manifest.json
+ * (scripts/gevkahoot-media-manifest.mjs) — goes into its address as `?v=…`.
+ * A file replaced under the same name then has a NEW address, so no browser
+ * (the host's, a player's) keeps showing the old picture from its cache; one
+ * that did not change keeps its address and stays cached. Loaded once, before
+ * any module that draws can run (top-level await), so the very first screen
+ * already asks for the right versions. No manifest (a script, offline): plain
+ * paths, exactly as before.
+ */
+let VERSIONS = {};
+try {
+    const res = await fetch(new URL('../../media/manifest.json', import.meta.url), { cache: 'no-store' });
+    if (res.ok) VERSIONS = (await res.json()).versions || {};
+} catch { /* plain paths */ }
+
+const VERSION_RE = /\?v=[0-9a-f]{10}$/;
 export function safeMedia(path) {
-    return typeof path === 'string' && MEDIA_RE.test(path) ? path : null;
+    if (typeof path !== 'string') return null;
+    // Idempotent: an address that already carries its version is checked bare.
+    const bare = path.replace(VERSION_RE, '');
+    if (!MEDIA_RE.test(bare)) return null;
+    const v = VERSIONS[bare.slice('media/'.length)];
+    return v ? `${bare}?v=${v}` : bare;
 }
 
 export const fmtSeconds = (ms) => (ms / 1000).toFixed(1);

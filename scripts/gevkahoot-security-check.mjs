@@ -65,6 +65,16 @@ try {
 
     // ------------------------------------------------------------------------
     section('Database constraints');
+    // Music per slide: only the known slides, and only none / continue / a file in media/audio.
+    for (const [label, json] of [['an off-site address', '{"reveal":"https://evil.example/x.mp3"}'], ['a path outside media/audio', '{"reveal":"media/images/x.png"}'],
+        ['an unknown slide', '{"bogus":"none"}'], ['a non-text value', '{"reveal":5}']]) {
+        const r = sql(`update public.gk_items set slide_music = '${json}' where id = '${Q[0]}';`);
+        check(`a slide's music refuses ${label}`, !r.ok && /violates check/.test(r.out), r.out);
+    }
+    check('control: none, continue and an audio file are accepted', sql(`update public.gk_items set slide_music = '{"ready":"none","reveal":"continue","leaderboard":"media/audio/x.mp3"}' where id = '${Q[0]}';`).ok);
+    check("control: the quiz's opening and closing slides take the same values", sql(`update public.gk_quizzes set slide_music = '{"lobby":"continue","podium":"media/audio/x.mp3"}' where id = '${TEST_QUIZ}';`).ok);
+    check("…and refuse an item's slide name", !sql(`update public.gk_quizzes set slide_music = '{"reveal":"none"}' where id = '${TEST_QUIZ}';`).ok);
+    sql(`update public.gk_items set slide_music = '{}' where id = '${Q[0]}'; update public.gk_quizzes set slide_music = '{}' where id = '${TEST_QUIZ}';`);
     const offOrigin = sql(`insert into public.gk_items (quiz_id, kind, image) values ('${TEST_QUIZ}', 'interlude', 'https://evil.example/x.png');`);
     check('an off-origin media URL is rejected', !offOrigin.ok && /violates check/.test(offOrigin.out), offOrigin.out);
     const traversal = sql(`insert into public.gk_items (quiz_id, kind, video) values ('${TEST_QUIZ}', 'interlude', 'media/videos/../../index.html');`);

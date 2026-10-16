@@ -1,8 +1,10 @@
 /**
  * gkEditor.js — editor.html, the quiz editor (opened from tools/).
  *
- * Three columns: the quiz and its run sheet, the form for the selected item,
- * and two live previews — the projected screen in a desktop frame and the
+ * A side menu — the quiz's running order between its OPENING (lobby,
+ * "starting in…", the quiz's settings) and its CLOSING (podium, matrix),
+ * collapsible, open by default — then the form for what is selected, and two
+ * live previews — the projected screen in a desktop frame and the
  * player's phone in a phone frame — showing the item being edited at any stage
  * of a quiz. The previews are the real pages (see js/preview/mock.js).
  *
@@ -14,8 +16,9 @@
 import { h, clear } from './ui/dom.js';
 import * as api from './data/api.js';
 import { itemForm, keptForm, leaveForms, loadManifest, mediaSelect } from './admin/itemForm.js';
-import { mock, VIEWS, viewsFor, GENERAL_VIEWS } from './preview/mock.js';
+import { mock, VIEWS, viewsFor } from './preview/mock.js';
 import { openSpriteCutter } from './admin/spriteCutter.js';
+import { OPENING_SLIDES, CLOSING_SLIDES, slideMusicRows, viewOfSlide } from './admin/slideMusic.js';
 
 const root = document.getElementById('app');
 const THEMES = [['stadium', 'אצטדיון'], ['candy', 'ממתק'], ['night', 'לילה']];
@@ -33,6 +36,10 @@ let notice = '';
  *  `item.explain` — so every lookup by id has to look in both places. */
 const everyItem = () => items.flatMap((i) => (i.explain ? [i, i.explain] : [i]));
 const selected = () => everyItem().find((i) => i.id === selectedId) || null;
+// Besides an item, the menu can select the quiz's opening or its closing.
+const OPENING = 'opening', CLOSING = 'closing';
+let sideOpen = true;   // the side menu, open by default
+try { sideOpen = localStorage.getItem('gevkahoot:editor-side') !== 'closed'; } catch { /* convenience only */ }
 const parentOf = (child) => items.find((i) => i.explain === child) || null;
 
 // ---- previews -------------------------------------------------------------
@@ -83,7 +90,7 @@ async function selectQuiz(next) {
     const rows = quiz ? await api.items.list(quiz.id) : [];
     items = rows.filter((r) => !r.parent_id);
     for (const it of items) it.explain = rows.find((r) => r.parent_id === it.id) || null;
-    selectedId = items[0]?.id || null;
+    selectedId = items[0]?.id || OPENING;
     try { localStorage.setItem('gevkahoot:editor-quiz', quiz?.id || ''); } catch { /* convenience only */ }
     draw();
 }
@@ -203,6 +210,29 @@ function topBar() {
         h('a', { class: 'gk-btn gk-btn--small gk-btn--ghost', href: './', target: '_blank', rel: 'noopener', text: 'מסך הכניסה ↗' }));
 }
 
+/** The music of the quiz's own slides (its opening or its closing). Quiz
+ *  settings save as they change, like every other quiz setting. */
+function quizSlideMusic(keys) {
+    const value = { ...(quiz.slide_music || {}) };
+    return h('details', { class: 'if-details', open: true }, h('summary', { text: 'מוסיקה לכל שקופית' }),
+        slideMusicRows({ keys, value, manifest, onChange: (v) => act(() => saveQuiz({ slide_music: v })),
+            onShow: (key) => showSlide(key) }));
+}
+
+/** The opening: the quiz's settings, its lobby and "starting in…" slides. */
+function openingPanel() {
+    return [settingsPanel(), animPanel(), panel('פתיחה — לובי ו"מתחילים בעוד"', quizSlideMusic(OPENING_SLIDES))];
+}
+
+/** The closing: the winners' music, the podium and the matrix. */
+function closingPanel() {
+    return panel('סיום — פודיום ומטריצה',
+        h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'מוסיקת רקע להצגת הזוכים' }),
+            mediaSelect(manifest, ['audio'], quiz.podium_music, (v) => act(() => saveQuiz({ podium_music: v })))),
+        quizSlideMusic(CLOSING_SLIDES),
+        h('p', { class: 'dr-note', text: 'אחרי הפודיום, בטלפון של המנצח מופיע "ניצחת!"; אחרי המטריצה השחקנים עוברים לשקופית הפרידה ולאתר.' }));
+}
+
 function settingsPanel() {
     const themes = h('div', { class: 'ed-themes', role: 'radiogroup', 'aria-label': 'עיצוב' },
         THEMES.map(([key, label]) => h('button', { type: 'button', class: 'ed-theme', text: label,
@@ -221,8 +251,6 @@ function settingsPanel() {
             mediaSelect(manifest, ['audio'], quiz.lobby_music, (v) => act(() => saveQuiz({ lobby_music: v })))),
         h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'מוסיקת רקע לשאלות' }),
             mediaSelect(manifest, ['audio'], quiz.music, (v) => act(() => saveQuiz({ music: v })))),
-        h('label', { class: 'if-field' }, h('span', { class: 'if-label', text: 'מוסיקת רקע להצגת הזוכים' }),
-            mediaSelect(manifest, ['audio'], quiz.podium_music, (v) => act(() => saveQuiz({ podium_music: v })))),
         h('label', { class: 'if-check' },
             h('input', { type: 'checkbox', checked: quiz.music_on, onchange: (e) => act(() => saveQuiz({ music_on: e.target.checked })) }),
             'להשמיע מוסיקת רקע (בלובי, בשאלות ובהצגת הזוכים)'),
@@ -335,9 +363,20 @@ function itemRow(it, index) {
     return row;
 }
 
+/** The opening and the closing: rows like an item's, without the item's tools. */
+function bookendRow(id, icon, title, note) {
+    return h('li', { class: 'dr-item ed-row ed-row--bookend', dataset: { kind: id, ...(selectedId === id ? { current: '' } : {}) }, title: note },
+        h('button', { class: 'dr-item-main', type: 'button', onclick: () => { if (selectedId === id || !leaveForms()) return; selectedId = id; draw(); } },
+            h('span', { class: 'dr-item-idx', text: icon }),
+            h('span', { class: 'dr-item-title', text: title })));
+}
+
 function listPanel() {
     return panel(`מהלך החידון (${items.length})`,
-        h('ul', { class: 'dr-list ed-list' }, items.flatMap((it, i) => [itemRow(it, i), it.explain && itemRow(it.explain, i)])),
+        h('ul', { class: 'dr-list ed-list' },
+            bookendRow(OPENING, '🚪', 'פתיחה', 'הגדרות החידון, הלובי ו"מתחילים בעוד"'),
+            items.flatMap((it, i) => [itemRow(it, i), it.explain && itemRow(it.explain, i)]),
+            bookendRow(CLOSING, '🏆', 'סיום', 'פודיום, "ניצחת!" ומטריצה')),
         h('p', { class: 'dr-note', text: 'גוררים שורה כדי לשנות את הסדר. 💡+ מוסיף לשאלה קטע הסבר שמוצג אחרי חשיפת התשובה.' }),
         h('div', { class: 'dr-row' },
             btn('❓ שאלה', () => act(() => addItem('question'))),
@@ -353,12 +392,15 @@ function listPanel() {
 }
 
 function formPanel() {
+    if (selectedId === OPENING) return openingPanel();
+    if (selectedId === CLOSING) return closingPanel();
     const item = selected();
     if (!item) return panel('פריט', h('p', { class: 'dr-note', text: 'הוסיפו שאלה או קטע מעבר כדי להתחיל.' }));
     return panel({ question: 'עריכת שאלה', puzzle: 'עריכת פאזל', complete: 'עריכת שאלת השלמת תמונה', slider: 'עריכת שאלת סליידר', rank: 'עריכת שאלת דירוג', memory: 'עריכת שאלת זיכרון', roulette: 'עריכת שאלת רולטה', action: 'עריכת שאלת אקשן', spot: 'עריכת שאלת זיהוי בתמונה', explain: 'עריכת קטע הסבר התשובה' }[item.kind] || 'עריכת קטע מעבר',
         // Kept across redraws while it has unsaved changes (keptForm).
         keptForm(`ed:${item.id}`, () => itemForm(item, {
             manifest,
+            onShowSlide: (key) => showSlide(key),
             onSave: async (patch) => {
                 Object.assign(item, await api.items.update(item.id, patch));
                 // Only the list row and the previews follow a save — rebuilding
@@ -372,27 +414,46 @@ function formPanel() {
 
 const VIEW_LABEL = Object.fromEntries(VIEWS);
 const viewTabs = h('div', { class: 'ed-views', role: 'tablist' });
-let showGeneral = false;   // the quiz-wide screens (lobby, podium, matrix), on request
 
-/** The stages offered are the ones the selected element actually has: an
- *  interlude is one screen and gets no tabs at all; a question gets its
- *  get-ready, itself, the reveal, its segment if any, and the results. */
-function drawViewTabs() {
+/** The slides of what is selected, in the order the room sees them: the
+ *  opening's, the closing's, or an item's (its get-ready, itself, the reveal,
+ *  its segment if any, the results; the leader's special slide on the last
+ *  question). The arrows step through them; a question opens on itself. */
+function slidesInView() {
+    if (selectedId === OPENING) return ['lobby', 'countdown'];
+    if (selectedId === CLOSING) return ['podium', 'matrix'];
     const item = selected();
     const own = viewsFor(item);
-    const offered = [...own, ...(showGeneral ? GENERAL_VIEWS : [])];
-    if (!offered.includes(view)) view = own.includes('item') ? 'item' : offered[0] || 'lobby';
+    const lastQ = [...items].reverse().find((i) => i.kind !== 'interlude');
+    return item && item === lastQ ? own.flatMap((v) => (v === 'firstfire' ? ['firstfire', 'leadfire'] : [v])) : own;
+}
+
+function drawViewTabs() {
+    const offered = slidesInView();
+    if (!offered.includes(view)) view = offered.includes('item') ? 'item' : offered[0] || 'lobby';
     clear(viewTabs);
+    const at = offered.indexOf(view);
+    const go = (i) => { view = offered[i]; drawViewTabs(); pushPreview(); };
     if (offered.length > 1) {
-        for (const key of offered) {
-            viewTabs.append(h('button', { type: 'button', class: 'ed-view', role: 'tab', text: VIEW_LABEL[key],
-                'aria-selected': String(view === key), dataset: view === key ? { on: '' } : {},
-                onclick: () => { view = key; drawViewTabs(); pushPreview(); } }));
-        }
+        // RTL: "previous" on the right, "next" on the left.
+        viewTabs.append(
+            h('button', { type: 'button', class: 'ed-view ed-step', text: '› הקודם', disabled: at <= 0, onclick: () => go(at - 1) }),
+            h('span', { class: 'ed-step-label', text: `${VIEW_LABEL[view]} · ${at + 1} מתוך ${offered.length}` }),
+            h('button', { type: 'button', class: 'ed-view ed-step', text: 'הבא ‹', disabled: at >= offered.length - 1, onclick: () => go(at + 1) }),
+            h('div', { class: 'ed-dots' }, offered.map((key, i) => h('button', { type: 'button', class: 'ed-dot', title: VIEW_LABEL[key],
+                'aria-label': VIEW_LABEL[key], dataset: i === at ? { on: '' } : {}, onclick: () => go(i) }))));
+    } else if (offered.length === 1) {
+        viewTabs.append(h('span', { class: 'ed-step-label', text: VIEW_LABEL[view] }));
     }
-    viewTabs.append(h('button', { type: 'button', class: 'ed-view ed-view--more', text: showGeneral ? '− מסכים כלליים' : '+ מסכים כלליים',
-        title: 'לובי, פודיום ומטריצה — מסכים של החידון כולו, לא של האלמנט הנבחר',
-        onclick: () => { showGeneral = !showGeneral; drawViewTabs(); pushPreview(); } }));
+}
+
+/** "Show me this slide": from a music row's name to the previews. */
+function showSlide(key) {
+    const target = viewOfSlide(key);
+    const offered = slidesInView();
+    view = offered.includes(target) ? target : key === 'fire' && offered.includes('leadfire') ? 'leadfire' : view;
+    drawViewTabs();
+    pushPreview();
 }
 
 function previewPanel() {
@@ -415,9 +476,25 @@ function redrawList() {
 // reloads it, which would blank both previews on every click.
 const previewColumn = previewPanel();
 const topSlot = h('div', { class: 'ed-slot' });
-const colA = h('div', { class: 'ed-col' });
+const colA = h('div', { class: 'ed-side-body' });
 const colB = h('div', { class: 'ed-col' });
-const shell = [topSlot, h('div', { class: 'ed-cols' }, colA, colB, previewColumn)];
+// The side menu: the whole height of the window, top included; it folds away
+// to a strip and back (open by default; the choice is remembered).
+const side = h('aside', { class: 'ed-side', 'aria-label': 'מהלך החידון' });
+const sideToggle = h('button', { class: 'ed-side-toggle', type: 'button' });
+const syncSide = () => {
+    side.toggleAttribute('data-closed', !sideOpen);
+    sideToggle.textContent = sideOpen ? '⟩ סגירה' : '⟨ מהלך החידון';
+    sideToggle.title = sideOpen ? 'קיפול התפריט' : 'פתיחת התפריט';
+};
+sideToggle.addEventListener('click', () => {
+    sideOpen = !sideOpen;
+    try { localStorage.setItem('gevkahoot:editor-side', sideOpen ? 'open' : 'closed'); } catch { /* convenience only */ }
+    syncSide();
+});
+side.append(sideToggle, colA);
+syncSide();
+const shell = [side, h('div', { class: 'ed-main' }, topSlot, h('div', { class: 'ed-cols' }, colB, previewColumn))];
 let mounted = false;
 
 function draw() {
@@ -436,8 +513,9 @@ function draw() {
         return;
     }
     listSlot = listPanel();
-    colA.append(settingsPanel(), animPanel(), listSlot);
-    colB.append(formPanel());
+    colA.append(listSlot);
+    const form = formPanel();
+    colB.append(...(Array.isArray(form) ? form : [form]));
     drawViewTabs();
     pushPreview();
 }

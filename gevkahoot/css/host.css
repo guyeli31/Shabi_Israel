@@ -484,6 +484,12 @@ button.rl-cell:focus-visible { z-index: 1; outline: .15em solid #ffe14a; }
 
 /* ---- "complete the picture" (js/host/complete.js) ------------------------------- */
 .cp { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .6em; }
+/* music per slide (js/admin/slideMusic.js) */
+.if-details > summary { cursor: pointer; font-weight: 800; padding: .3rem 0; }
+.if-slides { display: grid; gap: .35rem; margin-top: .4rem; }
+.if-slide { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); gap: .5rem; align-items: center; }
+.if-slide-name { border: 0; background: none; color: var(--ink); font: inherit; font-weight: 700; text-align: start; padding: 0; cursor: pointer; text-decoration: underline dotted; }
+span.if-slide-name { cursor: default; text-decoration: none; }
 /* the editor's try-out of a slider question (itemForm.js): the player's own slider, in a box */
 .if-slider-preview { height: 22rem; display: flex; flex-direction: column; gap: .5rem; padding: .6rem; border-radius: .7rem; background: rgba(0, 0, 0, .25); font-size: 1rem; }
 .cp-stage { flex: 1; min-height: 0; display: grid; place-items: center; }
@@ -587,6 +593,7 @@ button.sl-end:disabled { cursor: default; opacity: .5; }
 .sl-mark[data-kind="target"] { width: .4em; height: 2.6em; background: var(--good); box-shadow: 0 0 0 .12em #fff; }
 .sl-mark[data-kind="target"]::after { content: '✓'; position: absolute; bottom: 100%; left: 50%; translate: -50% -.1em; font-weight: 900; color: var(--good); font-size: 1.1em; }
 .sl-mark[data-kind="mine"] { width: .3em; height: 2.2em; background: #fff; outline: .12em dashed var(--ink); }
+.sl-readout { flex: none; margin: 0; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); }
 .sl-summary { flex: none; margin: 0; text-align: center; font-weight: 800; color: var(--ink-soft); }
 .st[data-compact] .sl-track { --sl-thumb: 2.6em; height: 4.4em; }   /* a taller place to put a finger */
 

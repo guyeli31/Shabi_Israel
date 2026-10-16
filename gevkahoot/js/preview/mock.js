@@ -60,6 +60,7 @@ function publicItem(item, items) {
         options: ['question', 'complete', 'slider', 'rank', 'memory'].includes(item.kind) ? item.options : [], slot: item.slot || null,
         // the slider's scale, as _gk_publish sends it
         slider: item.kind === 'slider' ? { min: item.slider_min ?? 0.577, target: item.correct?.[0] ?? 700 } : null,
+        slide_music: item.slide_music || {},
         memo_s: item.kind === 'memory' ? item.memo_s ?? 10 : null,
         weight: item.weight, time_limit: item.time_limit_s,
         image: item.image, video: item.video, audio: item.audio,
@@ -117,7 +118,7 @@ export function mock(view, quiz, selected, items) {
     // layout check passes the demo quiz (an `anim` object already).
     const anim = quiz.anim || { on: !!(quiz.anim_on && quiz.anim_sprite), sprite: quiz.anim_sprite,
         count: quiz.anim_count, size: quiz.anim_size, speed: quiz.anim_speed, front: quiz.anim_front };
-    const quizData = { title: quiz.title, theme: quiz.theme, background: quiz.background, music: quiz.music, lobby_music: quiz.lobby_music, podium_music: quiz.podium_music, music_on: quiz.music_on, anim };
+    const quizData = { title: quiz.title, theme: quiz.theme, background: quiz.background, music: quiz.music, lobby_music: quiz.lobby_music, podium_music: quiz.podium_music, slide_music: quiz.slide_music || {}, music_on: quiz.music_on, anim };
     // The scored item the results views are about: the selected question or
     // puzzle, else the quiz's first question.
     // An "answer explained" segment is previewed on top of the question it belongs to.

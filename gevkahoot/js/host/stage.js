@@ -248,10 +248,22 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         // and the music is not — the reveal included: a question's clip plays
         // again beside the answers, and the music used to come back over it.
         const itemOwnsSound = item && ['interlude', 'question', 'reveal', 'explain'].includes(state.phase) && (item.video || item.audio);
-        const want = mode() === 'full' && src && state.status !== 'idle'
-            && !(item && item.music_on === false) && !itemOwnsSound;
+        // …unless the author chose for THIS slide (slide_music, the host's
+        // request): 'none', 'continue' (what the screen before was playing goes
+        // on, untouched), or a file — which plays even where the element's own
+        // music switch is off. Opening and closing slides are the quiz's.
+        const slideKey = { lobby: 'lobby', countdown: 'countdown', podium: 'podium', matrix: 'matrix', intro: 'intro',
+            question: now < state.data.starts_at ? 'ready' : 'question', reveal: 'reveal', fastest: 'fastest', fire: 'fire',
+            leaderboard: 'leaderboard' }[state.phase];
+        const slides = ['lobby', 'countdown', 'podium', 'matrix'].includes(state.phase) ? quiz.slide_music : q?.slide_music;
+        const setting = slideKey && slides ? slides[slideKey] : undefined;
+        if (setting === 'continue') return;
+        const chosen = setting === 'none' ? null : typeof setting === 'string' && setting ? safeMedia(setting) : src;
+        const explicit = typeof setting === 'string' && setting !== 'none';
+        const want = mode() === 'full' && chosen && state.status !== 'idle'
+            && (explicit || !(item && item.music_on === false)) && !itemOwnsSound;
         if (!want) { music.pause(); return; }
-        if (music.getAttribute('src') !== src) music.setAttribute('src', src);
+        if (music.getAttribute('src') !== chosen) music.setAttribute('src', chosen);
         if (music.paused) start(music);
     }
 

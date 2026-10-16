@@ -170,4 +170,8 @@ insert into public.gk_items (quiz_id, position, kind, title, correct, weight, ti
 values
  ('6e0b5f0a-0000-4000-8000-00000000d3a0', 16, 'roulette', '🎰 כמה שחקנים יש לקבוצת כדורגל על המגרש?', '{11}', 1, 20);
 
+-- The closing interlude: the built-in gnomes as its animation.
+update public.gk_items set anim_sprite = 'builtin:gnomes'
+ where quiz_id = '6e0b5f0a-0000-4000-8000-00000000d3a0' and kind = 'interlude' and title = '🎉 זהו, סיימנו!';
+
 commit;

@@ -17,22 +17,41 @@
  * Like every media file, a new sprite reaches the live site with the next
  * commit and push.
  */
-import { h, clear } from '../ui/dom.js';
+import { h, clear, safeMedia } from '../ui/dom.js';
 
 const MAX_SIDE = 512;          // of the saved sprite, in px
-const FOLDERS = ['images', 'backgrounds', 'videos', 'audio', 'sprites'];   // manifest key order
+// The manifest's key order — ALL the folders of scripts/gevkahoot-media-manifest.mjs
+// (a folder left out here would vanish from the file and fail its --check).
+const FOLDERS = ['images', 'backgrounds', 'videos', 'audio', 'sprites', 'animations'];
 
 let mediaDir = null;           // the granted gevkahoot/media handle, kept for the session
 
-/** Add a file name to manifest.json exactly as scripts/gevkahoot-media-manifest.mjs
- *  would have written it, so `--check` still passes afterwards. */
-async function addToManifest(dir, folder, name) {
+/** The file's version as the manifest script computes it: sha1 of the
+ *  content, first 10 hex digits. */
+async function versionOf(blob) {
+    const digest = await crypto.subtle.digest('SHA-1', await blob.arrayBuffer());
+    return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 10);
+}
+
+/** Add a file to manifest.json — its name in its folder's list and its
+ *  version — exactly as scripts/gevkahoot-media-manifest.mjs would have
+ *  written it, so `--check` still passes afterwards. */
+async function addToManifest(dir, folder, name, blob) {
     const handle = await dir.getFileHandle('manifest.json');
     const current = JSON.parse(await (await handle.getFile()).text());
     const next = {};
     for (const key of FOLDERS) next[key] = [...(current[key] || [])];
     if (!next[folder].includes(name)) next[folder].push(name);
     next[folder].sort((a, b) => a.localeCompare(b, 'en'));
+    const had = current.versions || {};
+    const fresh = await versionOf(blob);
+    next.versions = {};
+    for (const key of FOLDERS) {
+        for (const file of next[key]) {
+            const id = `${key}/${file}`;
+            next.versions[id] = id === `${folder}/${name}` ? fresh : had[id];
+        }
+    }
     const writable = await handle.createWritable();
     await writable.write(`${JSON.stringify(next, null, 2)}\n`);
     await writable.close();
@@ -56,7 +75,7 @@ export async function saveMediaFile(folder, name, blob) {
     const writable = await file.createWritable();
     await writable.write(blob);
     await writable.close();
-    await addToManifest(mediaDir, folder, name);
+    await addToManifest(mediaDir, folder, name, blob);
 }
 export const canSaveMedia = () => 'showDirectoryPicker' in window;
 export const MEDIA_NAME_RE = /^[^./\\?#%:*"<>|\u0000-\u001f][^/\\?#%:*"<>|\u0000-\u001f]*$/;
@@ -78,7 +97,7 @@ export function repoImagePicker(manifest, onPick) {
         if (!path) return;
         try {
             const img = new Image();
-            img.src = path;
+            img.src = safeMedia(path) || path;
             await img.decode();
             // Drawn onto a canvas first: createImageBitmap refuses an SVG
             // <img> (no intrinsic size of its own), and a canvas takes any.

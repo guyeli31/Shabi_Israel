@@ -19,7 +19,9 @@ import { openCompleteMaker } from './completeMaker.js';
 import { safeMedia } from '../ui/dom.js';
 import { scrambleRank, SLIDER, sliderSize } from '../scoring.js';
 import { createSlider } from '../host/slider.js';
+import { slidesOf, slideMusicRows } from './slideMusic.js';
 import { memoryPicture } from '../host/memory.js';
+import { BUILTIN_ANIMS } from '../host/bouncers.js';
 import { createTable } from '../host/roulette.js';
 
 /** The list of files in gevkahoot/media/, by folder. GitHub Pages has no
@@ -35,16 +37,22 @@ export async function loadManifest() {
     }
 }
 
+/** The built-in animations offered first in an animation picker, as [value, label]. */
+const builtinAnims = () => Object.entries(BUILTIN_ANIMS).map(([value, b]) => [value, b.label]);
+
 /** A <select> over one or more media folders. The value is the path as the
- *  database stores it ("media/videos/x.mp4"), or null. */
+ *  database stores it ("media/videos/x.mp4"), or null. A sprites picker also
+ *  offers the built-in animations (the gnomes). */
 export function mediaSelect(manifest, folders, value, onChange) {
+    const extras = folders.includes('sprites') ? builtinAnims() : [];
     const paths = folders.flatMap((folder) => (manifest[folder] || []).map((name) => `media/${folder}/${name}`));
     const select = h('select', { class: 'dr-select', onchange: () => onChange(select.value || null) },
         h('option', { value: '', text: '— ללא —' }),
+        extras.map(([v, label]) => h('option', { value: v, text: label })),
         paths.map((path) => h('option', { value: path, text: path.split('/').slice(1).join('/') })),
         // A path saved earlier whose file has since been removed: keep it
         // selectable and say so, rather than silently showing "none".
-        value && !paths.includes(value) && h('option', { value, text: `${value.split('/').pop()} (הקובץ חסר)` }));
+        value && !paths.includes(value) && !extras.some(([v]) => v === value) && h('option', { value, text: `${value.split('/').pop()} (הקובץ חסר)` }));
     select.value = value || '';
     return select;
 }
@@ -89,7 +97,7 @@ const LAYOUTS = [
     ['background', 'כרקע (תמונה בלבד)'],
 ];
 
-export function itemForm(item, { manifest, onSave }) {
+export function itemForm(item, { manifest, onSave, onShowSlide = null }) {
     const isQuestion = item.kind === 'question';
     const isPuzzle = item.kind === 'puzzle';
     const isSpot = item.kind === 'spot';
@@ -122,6 +130,8 @@ export function itemForm(item, { manifest, onSave }) {
         circle_speed: item.circle_speed ?? 4,
         // the action round's lines for a basket and a miss
         feedback: { hit: [...(item.feedback?.hit || [])], miss: [...(item.feedback?.miss || [])] },
+        // the music of each of its slides (js/admin/slideMusic.js)
+        slide_music: { ...(item.slide_music || {}) },
         title: item.title, body: item.body,
         options: (item.options || []).map((o) => (o && typeof o === 'object' ? { ...o } : o)), correct: [...(item.correct || [])],
         weight: item.weight, time_limit_s: item.time_limit_s,
@@ -150,7 +160,8 @@ export function itemForm(item, { manifest, onSave }) {
                 || (isComplete && draft.image && (draft.options.length < 2 ? 'נשמר — צריך לפחות שתי אפשרויות' : draft.correct.length === 0 ? 'נשמר — סמנו איזו אפשרות נכונה' : null));
             // Each kind saves only the columns that mean something for it.
             const { circle_x, circle_y, circle_r, circle_speed, regions, symbols, slot, marks, memo_s, arrows, feedback, slider_min, slider_target, ...common } = draft;
-            const playback = { music_on: draft.music_on, music: draft.music, anim_on: draft.anim_on, anim_sprite: draft.anim_sprite };
+            const playback = { music_on: draft.music_on, music: draft.music, anim_on: draft.anim_on, anim_sprite: draft.anim_sprite,
+                slide_music: slidesOf(item.kind).length ? draft.slide_music : {} };
             const patch = isRank
                 ? { title: draft.title, body: draft.body.trim().slice(0, 40), weight: draft.weight, time_limit_s: draft.time_limit_s,
                     ...scrambleRank(rankList.map((t) => t.trim())), symbols: [], marks: marks === 'emoji' ? 'teams' : marks, ...playback }
@@ -315,7 +326,7 @@ export function itemForm(item, { manifest, onSave }) {
             return;
         }
         const ring = h('div', { class: 'if-circle-ring', hidden: draft.circle_r === null });
-        const img = h('img', { class: 'if-circle-img', src: draft.image, alt: '', draggable: 'false' });
+        const img = h('img', { class: 'if-circle-img', src: safeMedia(draft.image), alt: '', draggable: 'false' });
         const stage = h('div', { class: 'if-circle-stage', title: 'לחצו על התמונה כדי למקם את העיגול' }, img, ring);
         const radius = h('input', { type: 'range', class: 'ed-range', min: '3', max: '50', step: '1',
             value: String(Math.round((draft.circle_r ?? 0.18) * 100)), 'aria-label': 'גודל העיגול' });
@@ -388,14 +399,21 @@ export function itemForm(item, { manifest, onSave }) {
         } },
         h('option', { value: '', text: labels.inherit }),
         h('option', { value: '__none', text: labels.none }),
+        folder === 'sprites' && builtinAnims().map(([v, label]) => h('option', { value: v, text: label })),
         paths.map((path) => h('option', { value: path, text: path.split('/').pop() })),
-        current && current !== '__none' && !paths.includes(current) && h('option', { value: current, text: `${current.split('/').pop()} (הקובץ חסר)` }));
+        current && current !== '__none' && !paths.includes(current) && !(folder === 'sprites' && BUILTIN_ANIMS[current]) && h('option', { value: current, text: `${current.split('/').pop()} (הקובץ חסר)` }));
         select.value = current;
         return select;
     }
     const toggles = h('div', { class: 'if-pair' },
         field('מוסיקת רקע באלמנט הזה', playbackSelect('audio', 'music_on', 'music', { inherit: 'כמו בחידון (מוסיקת הרקע לשאלות)', none: 'בלי מוסיקה' })),
         field('אנימציה באלמנט הזה', playbackSelect('sprites', 'anim_on', 'anim_sprite', { inherit: 'כמו בחידון', none: 'בלי אנימציה' })));
+    // The music of each slide of this question, one by one (the host's
+    // request) — "רגיל" is what the rules play there; the name shows it.
+    const slideMusic = slidesOf(item.kind).length ? h('details', { class: 'if-details', open: true },
+        h('summary', { text: 'מוסיקה לכל שקופית' }),
+        slideMusicRows({ keys: slidesOf(item.kind), kind: item.kind, value: draft.slide_music, manifest,
+            onChange: () => changed(), onShow: onShowSlide })) : null;
 
     // ---- "spot it": rectangles drawn on the picture ------------------------
     const MAX_REGIONS = 12;
@@ -406,7 +424,7 @@ export function itemForm(item, { manifest, onSave }) {
             spotBox.append(h('p', { class: 'dr-note', text: 'בחרו קודם תמונה.' }));
             return;
         }
-        const img = h('img', { class: 'if-circle-img', src: draft.image, alt: '', draggable: 'false' });
+        const img = h('img', { class: 'if-circle-img', src: safeMedia(draft.image), alt: '', draggable: 'false' });
         const layer = h('div', { class: 'if-spot-layer' });
         const stage = h('div', { class: 'if-circle-stage if-spot-stage', title: 'גררו על התמונה כדי לסמן אזור' }, img, layer);
         const list = h('div', { class: 'if-options' });
@@ -533,7 +551,7 @@ export function itemForm(item, { manifest, onSave }) {
         }
         rows();
         completeBox.append(
-            h('div', { class: 'if-circle-stage if-spot-stage' }, h('img', { class: 'if-circle-img', src: draft.image, alt: '', draggable: 'false' }), h('div', { class: 'if-spot-layer' }, gap)),
+            h('div', { class: 'if-circle-stage if-spot-stage' }, h('img', { class: 'if-circle-img', src: safeMedia(draft.image), alt: '', draggable: 'false' }), h('div', { class: 'if-spot-layer' }, gap)),
             make,
             h('span', { class: 'if-label', text: 'האפשרויות — 100% הוא הגודל האמיתי של העצם; לכל אפשרות תמונה וגודל משלה' }),
             list);
@@ -575,7 +593,7 @@ export function itemForm(item, { manifest, onSave }) {
             const pct = (v) => `${Math.round(sliderSize(v, s) * 100)}%`;
             facts.textContent = `גודל העצם (היקף) — ב-0%: ${pct(0)} מהאמיתי · ב-50% (שם הסליידר מתחיל) ${pct(SLIDER.start)} · ב-${Math.round(s.target / 10)}% בדיוק בגודלו · ב-100% ${pct(SLIDER.max)}. `
                 + `כל 10% של הסליידר מוסיפים ${Math.round((1 - s.min) / s.target * 100 * 100)}% להיקף. מי שמגיע לקצה הרחוק מהתשובה מקבל ${Math.round(Math.max(0, 1 - Math.max(Math.abs(sliderSize(0, s) - 1), Math.abs(sliderSize(SLIDER.max, s) - 1))) * 100)}% מנקודות המהירות.`;
-            const slider = createSlider({ image: draft.image, slot: draft.slot, piece: src, symbol: draft.symbols[0] || null, interactive: true, scale: s });
+            const slider = createSlider({ image: draft.image, slot: draft.slot, piece: src, symbol: draft.symbols[0] || null, interactive: true, scale: s, showValue: true });
             // "the right size": the slider's own reveal (it stops there, marked);
             // pressed again, the try-out starts over
             let shown = false;
@@ -692,7 +710,7 @@ export function itemForm(item, { manifest, onSave }) {
                     oninput: (e) => set('title')(e.target.value) }))),
             h('div', { class: 'if-field' }, h('span', { class: 'if-label', text: 'לחצו על המספר הנכון' }),
                 h('div', { class: 'if-roulette' }, table.el), answer),
-            weightAndTime, toggles, saveRow);
+            weightAndTime, toggles, slideMusic, saveRow);
     }
 
     if (isMemory) {
@@ -717,7 +735,7 @@ export function itemForm(item, { manifest, onSave }) {
             marksField,
             h('div', { class: 'if-field' },
                 h('span', { class: 'if-label', text: 'תשובות (2 עד 5) — אפשר לסמן יותר מנכונה אחת' }), optionList),
-            weightAndTime, toggles, saveRow);
+            weightAndTime, toggles, slideMusic, saveRow);
     }
 
     if (isRank) {
@@ -732,7 +750,7 @@ export function itemForm(item, { manifest, onSave }) {
             h('div', { class: 'if-field' },
                 h('span', { class: 'if-label', text: 'התשובות בסדר הנכון — הראשונה היא ה״הכי״, האחרונה ה״הכי פחות״ (2 עד 5). השחקנים יקבלו אותן מעורבבות.' }),
                 rankBox),
-            marksField, weightAndTime, toggles, saveRow);
+            marksField, weightAndTime, toggles, slideMusic, saveRow);
     }
 
     if (isSlider) {
@@ -742,7 +760,7 @@ export function itemForm(item, { manifest, onSave }) {
                 emojiButton(h('textarea', { class: 'dr-input', rows: '2', maxlength: '300', dir: 'auto', value: draft.title,
                     oninput: (e) => set('title')(e.target.value) }))),
             h('div', { class: 'if-field' }, h('span', { class: 'if-label', text: 'התמונה והעצם' }), sliderBox),
-            weightAndTime, toggles, saveRow);
+            weightAndTime, toggles, slideMusic, saveRow);
     }
 
     if (isComplete) {
@@ -752,7 +770,7 @@ export function itemForm(item, { manifest, onSave }) {
                 emojiButton(h('textarea', { class: 'dr-input', rows: '2', maxlength: '300', dir: 'auto', value: draft.title,
                     oninput: (e) => set('title')(e.target.value) }))),
             h('div', { class: 'if-field' }, h('span', { class: 'if-label', text: 'התמונה והעצם החסר' }), completeBox),
-            weightAndTime, toggles, saveRow);
+            weightAndTime, toggles, slideMusic, saveRow);
     }
 
     if (isSpot) {
@@ -767,7 +785,7 @@ export function itemForm(item, { manifest, onSave }) {
                     drawSpot(); changed();
                 })),
             h('div', { class: 'if-field' }, h('span', { class: 'if-label', text: 'האזורים לבחירה' }), spotBox),
-            weightAndTime, toggles, saveRow);
+            weightAndTime, toggles, slideMusic, saveRow);
     }
 
     /** The action round's lines: a textarea, one line per entry. */
@@ -792,7 +810,7 @@ export function itemForm(item, { manifest, onSave }) {
             h('p', { class: 'dr-note', text: 'שורה לכל משפט, עד 12 בכל רשימה. אחרי כל זריקה מוצג אחד מהם באקראי, ומתחתיו ההסבר הקטן של המשחק, למשל ״חזק מדי״ או ״קצת שמאלה מדי״. בלי משפטים יוצג ההסבר לבדו.' }),
             weightAndTime,
             h('p', { class: 'dr-note', text: 'כל שחקן זורק עד שהזמן נגמר. הניקוד יחסי: מי שקלע הכי הרבה מקבל ניקוד מלא (כמו תשובה מיידית), מי שקלע הכי מעט מקבל אפס, וכל השאר לפי קו ישר ביניהם.' }),
-            toggles, saveRow);
+            toggles, slideMusic, saveRow);
     }
 
     if (isPuzzle) {
@@ -808,7 +826,7 @@ export function itemForm(item, { manifest, onSave }) {
                 })),
             weightAndTime,
             h('div', { class: 'if-field' }, h('span', { class: 'if-label', text: 'העיגול הקופץ' }), circleBox),
-            toggles, saveRow);
+            toggles, slideMusic, saveRow);
     }
 
     return h('div', { class: 'if' },
@@ -833,5 +851,5 @@ export function itemForm(item, { manifest, onSave }) {
                 select.value = draft.media_layout;
                 return select;
             })())),
-        toggles, saveRow);
+        toggles, slideMusic, saveRow);
 }

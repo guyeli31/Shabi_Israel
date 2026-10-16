@@ -13,7 +13,10 @@
  *
  * GitHub Pages serves files but will not list a folder, so the editor's
  * pickers cannot discover them. This script writes media/manifest.json — the
- * list — and the editor reads that. Run it after adding or removing a file:
+ * list — and the editor reads that. It also holds each file's VERSION (a hash
+ * of its content), which the site puts in the file's address so that a file
+ * REPLACED under the same name is never served from a browser's old cache.
+ * Run it after adding, removing or replacing a file:
  *
  *     node scripts/gevkahoot-media-manifest.mjs
  *
@@ -27,6 +30,7 @@
  *     file the picker offers can always be saved;
  *   · nothing over 95 MB: GitHub rejects a push containing a 100 MB file.
  */
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -74,6 +78,19 @@ for (const [folder, exts] of Object.entries(KINDS)) {
     manifest[folder].sort((a, b) => a.localeCompare(b, 'en'));
 }
 
+// The version of every file: a short hash of its CONTENT. The site adds it to
+// the file's address (safeMedia in js/ui/dom.js), so a file replaced under the
+// same name gets a new address and no browser keeps showing the old one from
+// its cache. Same order as the lists above; the editor's tools write it alike
+// (addToManifest in js/admin/spriteCutter.js).
+manifest.versions = {};
+for (const folder of Object.keys(KINDS)) {
+    for (const name of manifest[folder]) {
+        const bytes = fs.readFileSync(path.join(MEDIA, folder, name));
+        manifest.versions[`${folder}/${name}`] = crypto.createHash('sha1').update(bytes).digest('hex').slice(0, 10);
+    }
+}
+
 const next = JSON.stringify(manifest, null, 2) + '\n';
 const current = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8') : '';
 const check = process.argv.includes('--check');
@@ -86,7 +103,7 @@ if (check) {
     console.log('gevkahoot media manifest: up to date');
 } else {
     fs.writeFileSync(OUT, next);
-    const total = Object.values(manifest).reduce((n, list) => n + list.length, 0);
+    const total = Object.keys(KINDS).reduce((n, folder) => n + manifest[folder].length, 0);
     console.log(`gevkahoot media manifest: ${total} file(s) → gevkahoot/media/manifest.json`);
     if (problems.length) process.exit(1);
 }
