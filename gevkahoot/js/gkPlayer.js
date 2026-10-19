@@ -24,7 +24,7 @@ import { syncClock, serverNow } from './data/clock.js';
 import { createStage } from './host/stage.js';
 import { createDemo } from './demo/engine.js';
 import { listSavedQuizzes, loadSavedQuiz } from './demo/saved.js';
-import { sliderVerdict, decodeRank } from './scoring.js';
+import { sliderVerdict, decodeRank, sliderDeviation, sliderAccuracy, actionFactor } from './scoring.js';
 import { hasUrlFlag } from '../../shabi-israel/js/utils/queryString.js';
 import * as gka from './data/analytics.js';
 
@@ -427,7 +427,25 @@ function trackStage() {
         correct: mine ? !!me.result?.correct : null,
         points: reveal ? (mine ? me.result?.points ?? 0 : null) : state.phase === 'podium' ? me.points ?? null : null,
         answered_ms: mine ? me.result?.ms ?? null : null,
+        ...(mine ? scaled(item) : {}),
     });
+}
+
+/** The scaled kinds, as the matrix shows them: the action round's baskets and
+ *  a slider's deviation, each with the 0-1 accuracy that colours it red →
+ *  green — the same factor that scaled the points. */
+function scaled(item) {
+    const round3 = (x) => Math.round(x * 1000) / 1000;
+    if (item.kind === 'action') {
+        const v = state.data.values || [];
+        const hits = me.option ?? 0;
+        return { hits, accuracy: round3(actionFactor(hits, v.length ? Math.min(...v) : hits, v.length ? Math.max(...v) : hits)) };
+    }
+    if (item.kind === 'slider') {
+        const dev = sliderDeviation(me.option, item.slider);
+        return { deviation: round3(dev), accuracy: round3(sliderAccuracy(dev)) };
+    }
+    return {};
 }
 
 // ---- render ---------------------------------------------------------------
@@ -442,8 +460,15 @@ function trackStage() {
  */
 let playedToTheEnd = false;
 let leaving = false;       // render() runs again before the page is gone: one goodbye
+// Only a page that WATCHED the quiz live (its lobby or a question) says
+// goodbye at its end. A host who leaves a finished quiz on the matrix keeps
+// it "finished" on the air; without this, every later visit to the entry
+// page from that phone was sent away to the site again and again.
+let sawLive = false;
 function farewell() {
     if (isDemo || isPreview || !state) return false;
+    if (state.status === 'lobby' || state.status === 'running') sawLive = true;
+    if (!sawLive) return false;
     if (state.status === 'finished' && me.player) playedToTheEnd = true;
     const over = (state.status === 'finished' && state.phase === 'matrix' && me.player)
         || (state.status === 'idle' && playedToTheEnd);

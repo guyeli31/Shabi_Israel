@@ -156,6 +156,10 @@ function collectEntries(htmlFiles) {
         }
         htmlMap[rel].externalSrc = src;
         htmlMap[rel].externalOut = outName;
+        // Every external module of the page, by its src: a page may have more
+        // than one (gevkahoot/analytics.html wakes its splash from a second
+        // entry), and a single slot rewrote all of them to the last bundle.
+        (htmlMap[rel].externals ||= {})[src] = outName;
       } else if (!src && body.trim()) {
         // inline module entry — extract to a temp file NEXT TO the html so its
         // relative imports (./js/…, ../js/…, ./wc26.js) resolve unchanged.
@@ -288,8 +292,8 @@ function rewriteHtml(htmlFiles, htmlMap, jsOutMap, cssMap) {
       // (golan.me.uk/shabi-israel/). See CLAUDE.md § Hosting layout.
       const buildHref = out =>
         toPosix(path.relative(path.dirname(abs), path.join(SITE_DIST, BUILD_SUBDIR, out)));
-      if (src && isLocal(src) && info.externalOut) {
-        return `<script type="module" src="${buildHref(jsOutMap[info.externalOut])}"></script>`;
+      if (src && isLocal(src) && (info.externals?.[src] || info.externalOut)) {
+        return `<script type="module" src="${buildHref(jsOutMap[info.externals?.[src] || info.externalOut])}"></script>`;
       }
       if (!src && body.trim() && info.inlineOut) {
         return `<script type="module" src="${buildHref(jsOutMap[info.inlineOut])}"></script>`;

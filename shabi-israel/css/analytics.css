@@ -454,6 +454,11 @@
     color: var(--color-accent);
 }
 
+/* ── Page title: "<Project> Analytics" + the project's round logo ─────────────
+   Shared by shabi-israel/analytics.html and gevkahoot/analytics.html. */
+.analytics-title { display: inline-flex; align-items: center; justify-content: center; gap: 0.45em; }
+.analytics-title-logo { height: 1.5em; width: 1.5em; object-fit: cover; border-radius: 50%; flex: none; }
+
 /* ── Session card — a native <details>, so expanding needs no JS ─────────── */
 .analytics-session {
     border: 1px solid var(--color-border);

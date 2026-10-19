@@ -1,7 +1,6 @@
 /* analytics.css — what gevkahoot/analytics.html adds to the main site's
    analytics look (../shabi-israel/css/analytics.css and its tokens). */
 
-body { background: var(--color-bg, #f5f6f8); }
 
 /* Horizontal bars: label · bar · value. Plain DOM, so it themes with the tokens. */
 .gka-bars { display: flex; flex-direction: column; gap: 6px; }
@@ -19,30 +18,32 @@ body { background: var(--color-bg, #f5f6f8); }
 .gka-login { display: flex; flex-wrap: wrap; gap: var(--space-sm, 8px); align-items: center; }
 .gk-login-input { padding: 8px 10px; border: 1px solid var(--color-border, #ccc); border-radius: 6px; font: inherit; min-width: 14em; }
 
-/* A visit (Journeys) and a game (Quizzes Opened): a summary line that opens. */
-.gka-visit, .gka-game {
-    border: 1px solid var(--color-border, #ddd); border-radius: 8px; margin-top: var(--space-sm, 8px);
-    background: var(--color-surface, #fff);
-}
-.gka-visit > summary, .gka-game > summary { cursor: pointer; padding: 8px 12px; font-size: var(--fs-sm, 0.875rem); }
-.gka-visit[open] > summary, .gka-game[open] > summary { border-bottom: 1px solid var(--color-border, #ddd); }
-.gka-visit > .mf-wrap, .gka-game > .mf-wrap { padding: 8px; }
-
-/* Live and demo told apart at a glance: the edge colour. */
-.gka-game { border-inline-start-width: 5px; }
-.gka-game[data-mode='live'] { border-inline-start-color: #d93025; }
-.gka-game[data-mode='demo'] { border-inline-start-color: #1a73e8; }
-.gka-game[data-mode='saved'] { border-inline-start-color: #8e44ad; }
-.gka-game > summary { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
-.gka-game-mode { font-weight: 700; white-space: nowrap; }
-.gka-game-title { font-weight: 600; }
-.gka-game-meta { color: var(--color-text-muted, #666); }
+/* A visit (Journeys) and a game (Quizzes Opened) are the main site's session
+   card (.analytics-session, ../shabi-israel/css/analytics.css). A game adds
+   one thing: live and demo told apart at a glance by its left edge. */
+.analytics-session.gka-game { border-left-width: 4px; border-left-style: solid; }
+.analytics-session.gka-game[data-mode='live'] { border-left-color: #d93025; }
+.analytics-session.gka-game[data-mode='demo'] { border-left-color: #1a73e8; }
+.analytics-session.gka-game[data-mode='saved'] { border-left-color: #8e44ad; }
 
 /* Slide rows: a question / interlude, and its own screens indented under it,
    like a page and the visits inside it. */
 .gka-item { font-weight: 600; }
 /* padding-LEFT, not inline-start: the label is dir="auto" (CLAUDE.md § dir="auto"). */
 .gka-sub { display: inline-block; padding-left: 1.6em; color: var(--color-text-muted, #666); }
+
+/* A result, coloured as in the quiz's matrix (gevkahoot/css/base.css): the
+   same --good / --bad, and the same red → green mix by --acc for the scaled
+   kinds (action round, slider). */
+.gka-res {
+    --good: #1fbf63; --bad: #e5334b;
+    display: inline-block; padding: 1px 8px; border-radius: 999px;
+    font-weight: 600; white-space: nowrap; color: #fff;
+}
+.gka-res[data-res='good'] { background: var(--good); }
+.gka-res[data-res='bad'] { background: var(--bad); }
+.gka-res[data-res='scale'] { background: color-mix(in oklch, var(--good) var(--acc, 50%), var(--bad)); }
+.gka-res[data-res='none'] { background: rgba(127, 127, 127, 0.18); color: var(--color-text-muted, #666); }
 
 @media (max-width: 600px) {
     .gka-bar-row { grid-template-columns: minmax(6em, 9em) 1fr auto; }

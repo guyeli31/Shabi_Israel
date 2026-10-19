@@ -25,6 +25,16 @@ import { login, isLoggedIn, getUsername } from '../../shabi-israel/js/admin/auth
 import { mountAppTabs } from '../../shabi-israel/js/render/appTabs.js';
 import { mountFilterToggle } from '../../shabi-israel/js/render/subTabs.js';
 import { spliceQueryParam } from '../../shabi-israel/js/utils/queryString.js';
+import { applyThemeBootstrap, initThemePicker } from '../../shabi-israel/js/render/themePicker.js';
+import { wireSectionCollapse } from '../../shabi-israel/js/render/sectionCollapse.js';
+// The loading screen, as on the main site's analytics page. Already running:
+// js/gkAnalyticsSplash.js started it before this module's graph had loaded.
+import { splashStage, endSplash, restartSplash } from '../../shabi-israel/js/utils/splash.js';
+
+// The main site's theme picker. The theme attribute itself was set before the
+// first paint by analytics-boot.js (the site's inline <head> script, as a file).
+applyThemeBootstrap();
+initThemePicker();
 
 const content = document.getElementById('content');
 const ALL_TIME = 'all';
@@ -192,6 +202,69 @@ function visitsOf(events) {
 }
 const clicks = (events, prefix) => events.filter((e) => e.event_type === 'click' && e.click_target?.startsWith(prefix));
 
+// ---- the session card head — the main site's format (analyticsPage.js renderSessions) ----
+/** Each operator's own hue, the same hash as the main site's, so one person's
+ *  chip has one colour on both dashboards. */
+function userHue(name) {
+    const str = String(name || '');
+    let x = 0;
+    for (let i = 0; i < str.length; i++) x = (Math.imul(x, 31) + str.charCodeAt(i)) | 0;
+    return ((x % 360) + 360) % 360;
+}
+/** "19 Oct 2026 09:42:38" (Israel time), as the main site writes an event time. */
+const fmtEventTime = (iso) => {
+    const d = new Date(iso), o = { timeZone: TZ };
+    return `${d.toLocaleDateString('en-GB', { ...o, day: '2-digit', month: 'short', year: 'numeric' })} ${d.toLocaleTimeString('en-GB', { ...o, hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+};
+/** The session chip: a 6-digit serial (000000 = the first visit ever), and for
+ *  an operator their name before it, tinted by their hue. */
+function sidChip(v) {
+    const n = ordinals[v.id];
+    const code = n == null ? String(v.id).slice(0, 8) : String(n).padStart(6, '0');
+    if (!v.admin) return h('span', { class: 'analytics-sid analytics-sid--visitor', title: v.id, text: code });
+    const el = h('span', { class: 'analytics-sid analytics-sid--user', title: v.id, text: `${v.admin}_${code}` });
+    el.style.setProperty('--sid-hue', userHue(v.admin));
+    return el;
+}
+const devicePill = (d) => h('span', { class: `analytics-device-pill device-${d || 'unknown'}`, title: d || 'unknown', 'aria-label': d || 'unknown' },
+    h('span', { 'aria-hidden': 'true', text: DEVICE_ICON[d] || '❓' }));
+const pill = (icon, text, title) => h('span', { class: 'analytics-referrer-pill', title },
+    h('span', { 'aria-hidden': 'true', text: icon }), text);
+/** The one-line route under the head: nodes joined by → arrows. */
+function route(nodes, title) {
+    const el = h('span', { class: 'analytics-session-route', title });
+    nodes.forEach((n, i) => {
+        if (i) el.append(h('span', { class: 'rt-arrow', text: ' → ' }));
+        el.append(h('span', { class: 'rt-node', dir: 'auto', text: n }));
+    });
+    return el;
+}
+/** A session card: the head always, the body drawn the first time it opens
+ *  (as on the main site — a hundred cards of tables nobody opened is waste). */
+function sessionCard(v, head, body, extraClass = '') {
+    const card = h('details', { class: `analytics-session${v.admin ? ' analytics-session--user' : ''}${extraClass ? ` ${extraClass}` : ''}` },
+        h('summary', { class: 'analytics-session-head' }, head),
+        h('div', { class: 'analytics-session-body' }));
+    if (v.admin) card.style.setProperty('--sid-hue', userHue(v.admin));
+    card.addEventListener('toggle', () => {
+        if (!card.open || card.dataset.drawn) return;
+        card.dataset.drawn = '1';
+        card.querySelector('.analytics-session-body').append(body());
+    });
+    return card;
+}
+/** A visit's way through the quiz's pages: the entry screen, the demo, a live quiz. */
+function visitRoute(v) {
+    const NODE = { browse: '🏠 Entry', demo: '🎮 Demo', saved: '📚 Saved demo', live: '🔴 Live' };
+    const nodes = [];
+    for (const e of v.events) {
+        const m = e.event_type === 'pageview' || e.click_target === 'Join: ok' ? e.mode : null;
+        if (m && NODE[m] && nodes[nodes.length - 1] !== NODE[m]) nodes.push(NODE[m]);
+    }
+    if (v.events.some((e) => e.click_target === 'Exit: handoff')) nodes.push('👋 Shabi Israel');
+    return nodes;
+}
+
 // ---- page state --------------------------------------------------------------------
 let months = [];
 let monthKey = currentMonth();
@@ -209,18 +282,40 @@ async function rpc(name, args) {
     return data;
 }
 
+/** "GevKahoot Analytics" + the logo — written with the report, not in the
+ *  HTML: the splash is transparent, and a title under it would show through. */
+function writeTitle() {
+    const title = document.getElementById('page-title');
+    if (!title || title.childNodes.length) return;
+    title.append('GevKahoot Analytics', h('img', { class: 'analytics-title-logo', src: 'assets/logo/logo.png', alt: '' }));
+}
+
+let firstLoad = true;
+/** Fetch a month and draw it. The loading screen narrates the fetch: the
+ *  first load continues the one already on screen, a later one (another
+ *  month, a login) runs it again — but a filter change never reaches here,
+ *  it re-renders from the rows in hand with no splash (as on the main site). */
 async function load() {
+    if (!firstLoad) restartSplash();
+    firstLoad = false;
     clear(content);
-    content.append(h('p', { class: 'muted', text: 'Loading…' }));
-    if (!isLoggedIn()) { loginGate(); return; }
+    splashStage('access');
+    if (!isLoggedIn()) { endSplash(); loginGate(); return; }
     const { from, to } = monthRange(monthKey);
     try {
         const range = { from_date: from.toISOString(), to_date: to.toISOString() };
-        [months, raw, runs, ordinals] = await Promise.all([rpc('gk_analytics_months'), rpc('gk_analytics_raw', range),
-            rpc('gk_analytics_runs', range), rpc('gk_analytics_session_ordinals')]);
+        splashStage('months');
+        // Stages only move forward, so each may fire as its own fetch lands.
+        [months, raw, runs, ordinals] = await Promise.all([
+            rpc('gk_analytics_months').then((r) => { splashStage('summary'); return r; }),
+            rpc('gk_analytics_raw', range).then((r) => { splashStage('runs'); return r; }),
+            rpc('gk_analytics_runs', range),
+            rpc('gk_analytics_session_ordinals'),
+        ]);
         const { data: qs } = await supabase.from('gk_quizzes').select('id, title');
         quizTitles = new Map((qs || []).map((q) => [q.id, q.title]));
     } catch (err) {
+        endSplash();
         clear(content);
         const denied = /not authorized|permission|JWT/i.test(err.message || '');
         content.append(h('div', { class: 'admin-msg admin-msg-error',
@@ -229,10 +324,15 @@ async function load() {
         return;
     }
     fetchedAt = new Date();
+    splashStage('render');
+    writeTitle();
     render();
+    // Last: the report is ready only once every section is drawn and wired.
+    endSplash();
 }
 
 function loginGate(again = false) {
+    writeTitle();
     if (!again) clear(content);
     const email = h('input', { type: 'email', class: 'gk-login-input', placeholder: 'Email', autocomplete: 'username', required: true });
     const pass = h('input', { type: 'password', class: 'gk-login-input', placeholder: 'Password', autocomplete: 'current-password', required: true });
@@ -313,6 +413,7 @@ function render() {
     activityTab(P.activity, events);
     healthTab(P.health, events);
     quizzesTab(P['quizzes-opened'], visits);
+    content.querySelectorAll('.app-section').forEach((sec) => wireSectionCollapse(sec, { defaultOpen: true }));
 }
 
 // ── 📈 Overview: how much, of what, when ──
@@ -348,6 +449,8 @@ function liveTab(panel, events) {
         runId = id;
         history.replaceState(history.state, '', spliceQueryParam(location.href, 'run', id));
         clear(panel); liveTab(panel, events);
+        // A fresh set of sections: wire them (render()'s pass ran on the old ones).
+        panel.querySelectorAll('.app-section').forEach((sec) => wireSectionCollapse(sec, { defaultOpen: true }));
     };
     panel.append(section('Live runs', table(runs, [
         { label: 'Date', value: (r) => fmtTime(r.created_at) },
@@ -379,7 +482,8 @@ function liveTab(panel, events) {
         { label: 'Kind', value: (i) => kindLabel(i.kind) },
         { label: 'Question', auto: true, value: (i) => i.title },
         { label: 'Answered', value: (i) => `${i.answered} · ${pct(i.answered, active.length)}` },
-        { label: 'Correct', value: (i) => (i.kind === 'action' || i.kind === 'slider' ? '—' : pct(i.correct, i.answered)) },
+        { label: 'Correct', value: (i) => (i.kind === 'action' ? `🏀 avg ${i.hits_avg ?? 0} · best ${i.hits_max ?? 0}`
+            : i.kind === 'slider' ? '—' : pct(i.correct, i.answered)) },
         { label: 'Median time', value: (i) => fmtSpeed(i.median_ms) },
     ]), note('In asked order. Slider and action rounds are scored on a scale, so "correct" is not shown for them.')));
     const lastNo = (p) => {
@@ -465,6 +569,8 @@ function questionsTab(panel, events) {
             const k = keyFn(e);
             const g = m.get(k) || { kind: e.item_kind, mode: e.mode, quiz: e.quiz_id, no: e.item_no, n: 0, answered: 0, correct: 0, pts: [] };
             g.n++; if (e.correct !== null && e.correct !== undefined) g.answered++; if (e.correct) g.correct++; if (e.points != null) g.pts.push(e.points);
+            if (e.hits != null) (g.hits ||= []).push(e.hits);
+            if (e.accuracy != null) (g.acc ||= []).push(e.accuracy);
             m.set(k, g);
         }
         return [...m.values()];
@@ -474,7 +580,7 @@ function questionsTab(panel, events) {
         { label: 'Kind', value: (g) => kindLabel(g.kind) },
         { label: 'Reveals', value: (g) => g.n },
         { label: 'Answered', value: (g) => pct(g.answered, g.n) },
-        { label: 'Correct', value: (g) => (g.kind === 'action' || g.kind === 'slider' ? '—' : pct(g.correct, g.answered)) },
+        { label: 'Correct', value: (g) => scaledSummary(g) },
         { label: 'Avg. points', value: (g) => avg(g.pts) },
     ])));
     const perQ = group((e) => `${e.mode}|${e.quiz_id || ''}|${e.item_no}`).sort((a, b) => (a.mode + a.quiz).localeCompare(b.mode + b.quiz) || a.no - b.no);
@@ -483,30 +589,33 @@ function questionsTab(panel, events) {
         { label: '#', value: (g) => g.no ?? '—' },
         { label: 'Kind', value: (g) => kindLabel(g.kind) },
         { label: 'Reveals', value: (g) => g.n },
-        { label: 'Correct', value: (g) => (g.kind === 'action' || g.kind === 'slider' ? '—' : pct(g.correct, g.answered)) },
+        { label: 'Correct', value: (g) => scaledSummary(g) },
         { label: 'Avg. points', value: (g) => avg(g.pts) },
     ])));
 }
 
 // ── 👣 Journeys: one visit at a time ──
 function journeysTab(panel, visits) {
-    const list = visits.filter((v) => v.linked).slice(0, 100);
-    const s = section('Visits — Israel & signed-in (most recent 100)');
-    if (!list.length) s.append(empty());
+    const list = visits.filter((v) => v.linked).slice(0, 200);
+    const s = section('Sessions — Israel & signed-in users (most recent 200)');
+    if (!list.length) s.append(h('p', { class: 'muted', text: 'No sessions yet. A session id is kept for visits from an Asia/Jerusalem timezone and for any signed-in user — every other visitor is recorded as unlinked events by design, and appears only in the logs.' }));
     for (const v of list) {
+        const views = v.events.filter((e) => e.event_type === 'pageview').length;
+        const nClicks = v.events.filter((e) => e.event_type === 'click').length;
         const t0 = new Date(v.start).getTime();
-        s.append(h('details', { class: 'gka-visit' },
-            h('summary', null,
-                h('span', { text: fmtTime(v.start) }),
-                h('span', { text: ` · ${DEVICE_ICON[v.device] || '❓'} ${v.os}/${v.browser}` }),
-                h('span', { text: ` · ${v.modes.map((m) => MODE[m].icon).join('')}` }),
-                h('span', { text: ` · ${v.events.length} events · ${fmtMs(v.dwell)}` }),
-                v.admin && h('span', { class: 'muted', text: ` · operator ${v.admin}` })),
-            table(v.events, [
-                { label: '+', value: (e) => fmtMs(new Date(e.created_at).getTime() - t0) },
-                { label: 'Event', value: (e) => eventLabel(e) },
-                { label: 'Mode', value: (e) => MODE[e.mode]?.icon || '' },
-            ])));
+        s.append(sessionCard(v, [
+            sidChip(v),
+            h('span', { class: 'analytics-session-time', text: fmtEventTime(v.start) }),
+            h('span', { class: 'analytics-session-meta', text: fmtMs(v.dwell) }),
+            h('span', { class: 'analytics-session-meta', text: `${views} view${views === 1 ? '' : 's'} · ${nClicks} click${nClicks === 1 ? '' : 's'}` }),
+            devicePill(v.device),
+            v.referrer && pill(REFERRER_ICON[v.referrer] || '🌐', v.referrer, 'Entry referrer'),
+            route(visitRoute(v), 'The way through the quiz'),
+        ], () => table(v.events, [
+            { label: '+', value: (e) => fmtMs(new Date(e.created_at).getTime() - t0) },
+            { label: 'Event', value: (e) => eventLabel(e) },
+            { label: 'Mode', value: (e) => MODE[e.mode]?.icon || '' },
+        ])));
     }
     panel.append(s);
 }
@@ -548,6 +657,42 @@ function healthTab(panel, events) {
         ['🔒 Saved quiz unavailable', clicks(events, 'Saved: unavailable').length],
     ], [{ label: 'Signal', value: (r) => r[0] }, { label: 'Count', value: (r) => r[1] }]),
     note('Not measured yet: a browser too old for the quiz (legacy.js runs where no module can, so it cannot use this beacon).')));
+}
+
+/** A result coloured as in the quiz's matrix: right green, wrong red, and the
+ *  scaled kinds (action round, slider) on the matrix's red → green scale by
+ *  the accuracy that scaled their points — the same colours and the same
+ *  color-mix (gevkahoot/css/base.css, .gk-matrix td[data-cell]). */
+function resultCell(e) {
+    if (!e || !e.item_kind) return '';
+    const cell = (kind, text, acc = null, title = null) => {
+        const el = h('span', { class: 'gka-res', dataset: { res: kind }, text, title });
+        if (acc !== null) el.style.setProperty('--acc', `${Math.round(acc * 100)}%`);
+        return el;
+    };
+    if (e.correct === null || e.correct === undefined) return cell('none', '— no answer');
+    if (e.item_kind === 'action') {
+        const n = e.hits;
+        const text = n == null ? '🏀 scored' : `🏀 ${n} ${n === 1 ? 'basket' : 'baskets'}`;
+        return e.accuracy != null ? cell('scale', text, e.accuracy, `${Math.round(e.accuracy * 100)}% of the room's best`)
+            : cell(e.correct ? 'good' : 'bad', text);
+    }
+    if (e.item_kind === 'slider') {
+        if (e.deviation == null) return cell(e.correct ? 'good' : 'bad', e.correct ? '✓ within 5%' : '• scored');
+        const p = Math.round(Math.abs(e.deviation) * 100);
+        const text = `🎚️ ${e.deviation > 0 ? '+' : e.deviation < 0 ? '−' : ''}${p}% ${e.deviation > 0 ? 'too big' : e.deviation < 0 ? 'too small' : 'exact'}`;
+        return cell('scale', text, e.accuracy ?? Math.max(0, 1 - Math.abs(e.deviation)));
+    }
+    return e.correct ? cell('good', '✓ correct') : cell('bad', '✕ wrong');
+}
+
+/** The demo tables' "Correct" column: a share for right/wrong kinds, the
+ *  baskets for the action round, the mean accuracy for the slider. */
+function scaledSummary(g) {
+    const avg = (xs) => (xs?.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+    if (g.kind === 'action') return g.hits?.length ? `🏀 avg ${avg(g.hits).toFixed(1)} · best ${Math.max(...g.hits)}` : '—';
+    if (g.kind === 'slider') return g.acc?.length ? `🎚️ ${Math.round(avg(g.acc) * 100)}% accurate` : '—';
+    return pct(g.correct, g.answered);
 }
 
 // ── 🗂️ Quizzes Opened: every game a player played, slide by slide ──
@@ -635,33 +780,27 @@ function quizzesTab(panel, visits) {
         note('Every game a player played — 🔴 live or 🎮/📚 alone against the bots. Open one for its slides: each question or interlude is a row, the screens inside it indented under it, each with the time it was on this player\'s screen. Israel / signed-in visits only: a global-route visit has no id to tie its screens together.'));
     if (!games.length) s.append(empty());
     for (const g of games) {
-        const sess = ordinals[g.visit.id] ? `#${ordinals[g.visit.id]}` : '—';
-        const verdict = (e) => {
-            if (!e || !e.item_kind) return '';
-            if (e.correct === null || e.correct === undefined) return '— no answer';
-            if (e.item_kind === 'slider' || e.item_kind === 'action') return '• scored';
-            return e.correct ? '✓ correct' : '✕ wrong';
-        };
-        s.append(h('details', { class: 'gka-game', dataset: { mode: g.mode } },
-            h('summary', null,
-                h('span', { class: 'gka-game-mode', text: `${MODE[g.mode].icon} ${MODE[g.mode].label}` }),
-                h('span', { class: 'gka-game-title', dir: 'auto', text: g.title }),
-                h('span', { class: 'gka-game-meta', text: [
-                    `session ${sess}`,
-                    fmtTime(g.start),
-                    `⏱ ${fmtMs(new Date(g.end) - new Date(g.start))}`,
-                    `${g.correct}/${g.asked} correct`,
-                    `${g.points} pts`,
-                    g.speed != null ? `median ${fmtSpeed(g.speed)}` : null,
-                    g.finished ? '🏁 finished' : `🛑 stopped at ${g.stoppedAt}${g.exit ? ` (${{ restart: '↺ restart', menu: '⌂ menu', exit: '🚪 exit' }[g.exit] || g.exit})` : ''}`,
-                ].filter(Boolean).join(' · ') })),
-            table(slideRows(g), [
-                { label: 'Slide', value: (r) => h('span', { class: r.level ? 'gka-sub' : r.item ? 'gka-item' : null, dir: 'auto', text: r.level ? `↳ ${r.label}` : r.label }) },
-                { label: 'On screen', value: (r) => fmtMs(r.ms) },
-                { label: 'Result', value: (r) => verdict(r.e) },
-                { label: 'Points', value: (r) => (r.e && r.e.item_kind && r.e.points != null ? r.e.points : '') },
-                { label: 'Speed', value: (r) => (r.e?.answered_ms != null ? fmtSpeed(r.e.answered_ms) : '') },
-            ])));
+        const v = g.visit;
+        const stop = g.finished ? '🏁 finished'
+            : `🛑 stopped at ${g.stoppedAt}${g.exit ? ` (${{ restart: '↺ restart', menu: '⌂ menu', exit: '🚪 exit' }[g.exit] || g.exit})` : ''}`;
+        const card = sessionCard(v, [
+            sidChip(v),
+            h('span', { class: 'analytics-session-time', text: fmtEventTime(g.start) }),
+            h('span', { class: 'analytics-session-meta', text: fmtMs(new Date(g.end) - new Date(g.start)) }),
+            h('span', { class: 'analytics-session-meta', text: [`${g.correct}/${g.asked} correct`, `${g.points} pts`,
+                g.speed != null ? `median ${fmtSpeed(g.speed)}` : null].filter(Boolean).join(' · ') }),
+            devicePill(v.device),
+            pill(MODE[g.mode].icon, MODE[g.mode].label, 'Live or alone against the bots'),
+            route([g.title, stop], 'The quiz, and how far this game got'),
+        ], () => table(slideRows(g), [
+            { label: 'Slide', value: (r) => h('span', { class: r.level ? 'gka-sub' : r.item ? 'gka-item' : null, dir: 'auto', text: r.level ? `↳ ${r.label}` : r.label }) },
+            { label: 'On screen', value: (r) => fmtMs(r.ms) },
+            { label: 'Result', value: (r) => resultCell(r.e) },
+            { label: 'Points', value: (r) => (r.e && r.e.item_kind && r.e.points != null ? r.e.points : '') },
+            { label: 'Speed', value: (r) => (r.e?.answered_ms != null ? fmtSpeed(r.e.answered_ms) : '') },
+        ]), 'gka-game');
+        card.dataset.mode = g.mode;
+        s.append(card);
     }
     panel.append(s);
 }

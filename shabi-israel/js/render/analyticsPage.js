@@ -2163,7 +2163,17 @@ export async function renderAnalyticsPage(monthKeyArg = null, viewArg = null) {
     // The page ships an empty header (see analytics.html); write the title here so
     // it appears with the content rather than through the transparent splash.
     const title = document.getElementById('page-title');
-    if (title) title.textContent = 'Analytics';
+    // "<Project> Analytics" + the project's logo — the same title shape as
+    // gevkahoot/analytics.html, so the two dashboards say whose numbers they are.
+    if (title && !title.querySelector('.analytics-title-logo')) {
+        title.classList.add('analytics-title');
+        title.textContent = 'Shabi Israel Analytics';
+        const logo = document.createElement('img');
+        logo.className = 'analytics-title-logo';
+        logo.src = 'assets/logo/logo.png';
+        logo.alt = '';
+        title.appendChild(logo);
+    }
 
     // Which month is shown, and the viewer's own operator name (email local part,
     // matching how send() stores admin_user) — needed to tell "self" from "other".

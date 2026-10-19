@@ -76,7 +76,7 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
 |---|---|
 | `index.html` | Entry + the player's screen. Shows whether a quiz is on air; `ADMIN LOGIN` is always present on the entry screens. `?demo` plays the demo quiz. |
 | `host.html` | The projected screen. After login, the host controls sit on top of it: ☰ (drawer, left — like the app's admin sidebar) and ▶ / Space for "next". |
-| `handoff.html` | The goodbye after a LIVE quiz: the Shabi Israel site's own loading screen (its `css/splash.css`, tokens and saved `splash-vars.css`, ring by its `buildRing()`) with the farewell line, filling for 5 seconds, then `location.replace('../shabi-israel/')`. A player's page goes there when the host moves from the podium to the matrix, or takes the finished quiz off the air (`farewell()` in `js/gkPlayer.js`); never in the demo or the preview. A separate page because the site's tokens share names with the quiz's. |
+| `handoff.html` | The goodbye after a LIVE quiz: the Shabi Israel site's own loading screen (its `css/splash.css`, tokens and saved `splash-vars.css`, ring by its `buildRing()`) with the farewell line, filling for 5 seconds, then `location.replace('../shabi-israel/')`. A player's page goes there when the host moves from the podium to the matrix, or takes the finished quiz off the air (`farewell()` in `js/gkPlayer.js`); never in the demo or the preview, and only on a page that WATCHED the quiz live (its lobby or a question) — a host who leaves a finished quiz on the matrix keeps it on the air, and a later visit to the entry page from that phone used to be sent away again every time. A separate page because the site's tokens share names with the quiz's. |
 | `editor.html` | The quiz editor — the TOOLS interface (`tools/START_GEVKAHOOT_EDITOR.bat`). Questions, interludes, media, backgrounds, themes, with live previews of both screens. |
 
 - **A player is not a Supabase user.** The whole audience shares the `anon` key,
@@ -686,11 +686,21 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   under `?preview`. A screen a player reaches is a `stage` row (phase, item,
   and at the reveal the verdict, points and speed — live from `gk_me`, so a
   reveal waits for the `me` fetched for its rev); slide times are the gap to
-  the visit's next row. Answers and players of a LIVE run are read from the
+  the visit's next row. The scaled kinds carry what the matrix shows: the
+  action round's `hits`, a slider's `deviation`, and the 0-1 `accuracy`
+  (actionFactor / sliderAccuracy) that colours the result on the matrix's
+  red → green `color-mix`. Answers and players of a LIVE run are read from the
   quiz's own tables (`gk_analytics_runs`), not the beacon. A click is
   recorded only from an element with `data-track` (type-first:
   `Entry: demo`, `Demo: continue reveal`, `Nav: back`) — never the stage's
-  tiles. SQL: `sql/gevkahoot_analytics.sql`, after `gevkahoot.sql` (whose
+  tiles. It looks like the site's analytics because it IS its parts: the
+  session cards, tabs, theme picker and loading screen are the site's own
+  (`data-stages="gk-analytics"` in SPLASH_STAGE_SETS). The page's CSP forbids
+  the inline scripts the site's pages use, so `analytics-boot.js` (classic,
+  beside the page) sets the theme and builds the ring, `js/gkAnalyticsSplash.js`
+  wakes the splash early, and the splash markup names the site's design file
+  (`data-config`, read by `loadSplashConfig()` — the default path is
+  page-relative). SQL: `sql/gevkahoot_analytics.sql`, after `gevkahoot.sql` (whose
   grant loop names `gk_track` / `gk_analytics_*`, so a re-run keeps them).
 - SQL: `sql/gevkahoot.sql` (re-runnable; after `admin_write_allowlist_2026-10-09.sql`),
   optional `sql/gevkahoot_demo_seed.sql`, then `sql/gevkahoot_analytics.sql`.

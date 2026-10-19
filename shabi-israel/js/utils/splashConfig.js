@@ -72,6 +72,15 @@ export const SPLASH_STAGE_SETS = {
         { key: 'context', label: 'Loading league & player details', chip: 'Details',  ms:  900 },
         { key: 'render',  label: 'Building the report',          chip: 'Report',  ms:  700 }
     ],
+    /* gevkahoot/analytics.html — see load() in gevkahoot/js/gkAnalytics.js. */
+    'gk-analytics': [
+        { key: 'connect', label: 'Connecting to the database',      chip: 'Connect',  ms:  700 },
+        { key: 'access',  label: 'Checking your access',            chip: 'Access',   ms:  400 },
+        { key: 'months',  label: 'Loading available months',        chip: 'Months',   ms:  600 },
+        { key: 'summary', label: "Fetching this month's activity",  chip: 'Activity', ms: 1200 },
+        { key: 'runs',    label: 'Reading the live quizzes',        chip: 'Live',     ms:  700 },
+        { key: 'render',  label: 'Building the report',             chip: 'Report',   ms:  600 }
+    ],
     /* admin.html — see initAdminPage() and the view callback. */
     admin: [
         { key: 'connect', label: 'Connecting to the database', chip: 'Connect', ms: 700 },
@@ -106,7 +115,11 @@ export async function loadSplashConfig() {
     } catch { /* ignore a corrupt draft and fall through to the file */ }
 
     try {
-        const res = await fetch(SPLASH_CONFIG_PATH, { cache: 'no-store' });
+        // The path is relative to the PAGE. A page outside shabi-israel/ (the
+        // GevKahoot analytics, gevkahoot/analytics.html) names the site's
+        // file on its splash markup: data-config="../shabi-israel/…".
+        const path = document.getElementById('logo-splash')?.dataset.config || SPLASH_CONFIG_PATH;
+        const res = await fetch(path, { cache: 'no-store' });
         if (res.ok) return await res.json();
     } catch { /* no committed config yet — defaults apply */ }
 

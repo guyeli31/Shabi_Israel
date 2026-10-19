@@ -65,6 +65,12 @@ create table if not exists public.gk_analytics_events (
 alter table public.gk_analytics_events add column if not exists item_id     text;     -- a uuid live, 'demo-q1' in the demo
 alter table public.gk_analytics_events add column if not exists item_title  text;     -- the question as shown on screen
 alter table public.gk_analytics_events add column if not exists answered_ms integer;  -- at a reveal: this player's time
+-- Added for the scaled kinds (as the matrix shows them): the action round's
+-- baskets, a slider's signed deviation, and the 0-1 accuracy that colours
+-- the result red → green (actionFactor / sliderAccuracy in js/scoring.js).
+alter table public.gk_analytics_events add column if not exists hits      smallint;
+alter table public.gk_analytics_events add column if not exists deviation real;
+alter table public.gk_analytics_events add column if not exists accuracy  real;
 create index if not exists gk_analytics_events_created on public.gk_analytics_events (created_at);
 
 alter table public.gk_analytics_events enable row level security;
@@ -86,7 +92,7 @@ begin
   if jsonb_typeof(p_events) <> 'array' or jsonb_array_length(p_events) > 25 then return; end if;
   insert into public.gk_analytics_events
     (session_id, region, admin_user, event_type, page, mode, quiz_id, run_id, phase, item_kind,
-     item_no, correct, points, item_id, item_title, answered_ms, click_target, device_type, os, browser, referrer_kind, from_page, duration_ms)
+     item_no, correct, points, item_id, item_title, answered_ms, hits, deviation, accuracy, click_target, device_type, os, browser, referrer_kind, from_page, duration_ms)
   select left(e->>'session_id', 40),
          case when e->>'region' in ('Africa','America','Antarctica','Arctic','Asia','Atlantic','Australia','Europe','Indian','Pacific','Other')
               then e->>'region' end,
@@ -104,6 +110,9 @@ begin
          left(e->>'item_id', 40),
          left(e->>'item_title', 120),
          case when e->>'answered_ms' ~ '^\d{1,7}$' then (e->>'answered_ms')::integer end,
+         case when e->>'hits' ~ '^\d{1,4}$' then (e->>'hits')::smallint end,
+         case when e->>'deviation' ~ '^-?\d{1,3}(\.\d+)?$' then greatest(-10, least(10, (e->>'deviation')::real)) end,
+         case when e->>'accuracy' ~ '^\d(\.\d+)?$' then greatest(0, least(1, (e->>'accuracy')::real)) end,
          left(e->>'click_target', 120),
          case when e->>'device_type' in ('mobile', 'tablet', 'desktop') then e->>'device_type' end,
          left(e->>'os', 20),
@@ -146,7 +155,8 @@ begin
 end;
 $$;
 
--- Visit id → a stable serial (#1 = the first visit ever recorded), so a visit
+-- Visit id → a stable serial (000000 = the first visit ever recorded, as on the
+-- main site's analytics_session_ordinals), so a visit
 -- has the same number in every month's view.
 create or replace function public.gk_analytics_session_ordinals()
 returns jsonb language plpgsql stable security definer set search_path = public, pg_catalog as $$
@@ -154,7 +164,7 @@ begin
   perform public._gk_require_admin();
   return coalesce((
     select jsonb_object_agg(session_id, n)
-      from (select session_id, row_number() over (order by min(created_at), session_id) as n
+      from (select session_id, row_number() over (order by min(created_at), session_id) - 1 as n
               from public.gk_analytics_events where session_id is not null
              group by session_id) t), '{}'::jsonb);
 end;
@@ -182,14 +192,18 @@ begin
           'items', coalesce((
              select jsonb_agg(jsonb_build_object(
                       'no', it.no, 'item_id', it.item_id, 'kind', it.kind, 'title', it.title,
-                      'answered', it.answered, 'correct', it.correct, 'median_ms', it.median_ms)
+                      'answered', it.answered, 'correct', it.correct, 'median_ms', it.median_ms,
+                      'hits_avg', it.hits_avg, 'hits_max', it.hits_max)
                     order by it.no)
                from (select a.item_id,
                             row_number() over (order by min(a.created_at)) as no,
                             coalesce(i.kind, '?') as kind, coalesce(i.title, '') as title,
                             count(*) as answered,
                             count(*) filter (where a.is_correct) as correct,
-                            round(percentile_cont(0.5) within group (order by a.answered_ms))::int as median_ms
+                            round(percentile_cont(0.5) within group (order by a.answered_ms))::int as median_ms,
+                            -- the action round's answer IS the basket count
+                            case when i.kind = 'action' then round(avg(a.option_idx), 1) end as hits_avg,
+                            case when i.kind = 'action' then max(a.option_idx) end as hits_max
                        from public.gk_answers a
                        left join public.gk_items i on i.id = a.item_id
                       where a.session_id = s.id and not a.voided
