@@ -226,6 +226,9 @@ function sidChip(v) {
     el.style.setProperty('--sid-hue', userHue(v.admin));
     return el;
 }
+/** The name the player chose (live and demo) — a stranger's text, so dir=auto
+ *  and through h() like every name in GevKahoot. */
+const nameChip = (name) => name && h('span', { class: 'gka-player', dir: 'auto', title: 'The name the player chose', text: `👤 ${name}` });
 const devicePill = (d) => h('span', { class: `analytics-device-pill device-${d || 'unknown'}`, title: d || 'unknown', 'aria-label': d || 'unknown' },
     h('span', { 'aria-hidden': 'true', text: DEVICE_ICON[d] || '❓' }));
 const pill = (icon, text, title) => h('span', { class: 'analytics-referrer-pill', title },
@@ -282,12 +285,12 @@ async function rpc(name, args) {
     return data;
 }
 
-/** "GevKahoot Analytics" + the logo — written with the report, not in the
+/** "GevKahoot Analytics" + the round G (the tab icon, without the wordmark) — written with the report, not in the
  *  HTML: the splash is transparent, and a title under it would show through. */
 function writeTitle() {
     const title = document.getElementById('page-title');
     if (!title || title.childNodes.length) return;
-    title.append('GevKahoot Analytics', h('img', { class: 'analytics-title-logo', src: 'assets/logo/logo.png', alt: '' }));
+    title.append('GevKahoot Analytics', h('img', { class: 'analytics-title-logo', src: 'assets/logo/mark.svg', alt: '' }));
 }
 
 let firstLoad = true;
@@ -603,8 +606,10 @@ function journeysTab(panel, visits) {
         const views = v.events.filter((e) => e.event_type === 'pageview').length;
         const nClicks = v.events.filter((e) => e.event_type === 'click').length;
         const t0 = new Date(v.start).getTime();
+        const names = [...new Set(v.events.map((e) => e.player_name).filter(Boolean))];
         s.append(sessionCard(v, [
             sidChip(v),
+            nameChip(names.join(', ')),
             h('span', { class: 'analytics-session-time', text: fmtEventTime(v.start) }),
             h('span', { class: 'analytics-session-meta', text: fmtMs(v.dwell) }),
             h('span', { class: 'analytics-session-meta', text: `${views} view${views === 1 ? '' : 's'} · ${nClicks} click${nClicks === 1 ? '' : 's'}` }),
@@ -626,15 +631,16 @@ function activityTab(panel, events) {
     const host = h('div');
     const draw = (q) => {
         clear(host);
-        const rows = (q ? all.filter((e) => e.click_target.toLowerCase().includes(q.toLowerCase())) : all).slice(0, 500);
+        const rows = (q ? all.filter((e) => `${e.click_target} ${e.player_name || ''}`.toLowerCase().includes(q.toLowerCase())) : all).slice(0, 500);
         host.append(table(rows, [
             { label: 'Time', value: (e) => fmtTime(e.created_at) },
+            { label: 'Player', auto: true, value: (e) => e.player_name || '' },
             { label: 'Interaction', value: (e) => `${clickIcon(e.click_target)} ${e.click_target}` },
             { label: 'Mode', value: (e) => `${MODE[e.mode]?.icon || ''} ${MODE[e.mode]?.label || ''}` },
             { label: 'Device', value: (e) => DEVICE_ICON[e.device_type] || '' },
         ]));
     };
-    const input = h('input', { type: 'text', class: 'analytics-clicks-search-input app-search-input', placeholder: 'Search an interaction… (browse shows the latest 500)',
+    const input = h('input', { type: 'text', class: 'analytics-clicks-search-input app-search-input', placeholder: 'Search an interaction or a player… (browse shows the latest 500)',
         oninput: (e) => draw(e.target.value) });
     panel.append(section('All clicks & interactions', h('div', { class: 'analytics-clicks-search' }, input), host));
     draw('');
@@ -724,12 +730,12 @@ function gamesOf(v) {
                 demoGame.exitAt = e.created_at;
                 demoGame = null;
             } else if (e.click_target === 'Demo: joined') {
-                demoGame = { visit: v, mode: e.mode, quiz: e.quiz_id, start: e.created_at, stages: [] };
+                demoGame = { visit: v, mode: e.mode, quiz: e.quiz_id, start: e.created_at, stages: [], joinName: e.player_name };
                 games.push(demoGame);
             } else if (e.event_type === 'stage' && demoGame) demoGame.stages.push({ e, next: v.events[i + 1], via: via(i) });
         } else if (e.mode === 'live' && e.run_id && (e.event_type === 'stage' || e.click_target === 'Join: ok' || e.click_target === 'Relink: approved')) {
             let g = liveGames.get(e.run_id);
-            if (!g) { g = { visit: v, mode: 'live', run: e.run_id, start: e.created_at, stages: [] }; liveGames.set(e.run_id, g); games.push(g); }
+            if (!g) { g = { visit: v, mode: 'live', run: e.run_id, start: e.created_at, stages: [], joinName: e.player_name }; liveGames.set(e.run_id, g); games.push(g); }
             if (e.event_type === 'stage') g.stages.push({ e, next: v.events[i + 1], via: via(i) });
         }
     });
@@ -738,6 +744,7 @@ function gamesOf(v) {
         const last = g.stages[g.stages.length - 1];
         g.end = g.exitAt || last?.next?.created_at || last?.e.created_at || g.start;
         g.finished = g.stages.some((st) => st.e.phase === 'podium');
+        g.name = g.stages.find((st) => st.e.player_name)?.e.player_name || g.joinName || null;
         g.stoppedAt = last ? slideName(last.e) : 'before the first screen';
         const reveals = g.stages.filter((st) => st.e.phase === 'reveal' && st.e.item_kind);
         g.asked = reveals.length;
@@ -785,6 +792,7 @@ function quizzesTab(panel, visits) {
             : `🛑 stopped at ${g.stoppedAt}${g.exit ? ` (${{ restart: '↺ restart', menu: '⌂ menu', exit: '🚪 exit' }[g.exit] || g.exit})` : ''}`;
         const card = sessionCard(v, [
             sidChip(v),
+            nameChip(g.name),
             h('span', { class: 'analytics-session-time', text: fmtEventTime(g.start) }),
             h('span', { class: 'analytics-session-meta', text: fmtMs(new Date(g.end) - new Date(g.start)) }),
             h('span', { class: 'analytics-session-meta', text: [`${g.correct}/${g.asked} correct`, `${g.points} pts`,

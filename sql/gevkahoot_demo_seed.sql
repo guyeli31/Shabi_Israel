@@ -31,7 +31,7 @@ delete from public.gk_quizzes where id = '6e0b5f0a-0000-4000-8000-00000000d3a0';
 insert into public.gk_quizzes (id, title, theme, background, music, lobby_music, music_on, lead_in_s,
                                anim_on, anim_sprite, anim_count, anim_size, anim_speed, anim_front)
 values ('6e0b5f0a-0000-4000-8000-00000000d3a0', 'חידון לדוגמה', 'stadium', null, 'media/audio/demo-loop.wav', 'media/audio/demo-loop.wav', true, 3,
-        true, 'media/sprites/demo-ball.svg', 5, 11, 3, false);
+        true, 'media/sprites/gevkahoot-mark.svg', 5, 11, 3, false);
 
 -- Interludes and four-colour questions.
 insert into public.gk_items
@@ -39,7 +39,7 @@ insert into public.gk_items
 values
  ('6e0b5f0a-0000-4000-8000-00000000d3a0', 1, 'interlude', '👋 ברוכים הבאים לחידון לדוגמה',
   'סיור בכל סוגי השאלות. עונים מהר ונכון — הזמן שווה נקודות! 🏆', '[]', '{}', 1, 20,
-  'media/images/demo-ball.svg', null, null, 'side'),
+  'media/images/gevkahoot-mark.svg', null, null, 'side'),
 
  ('6e0b5f0a-0000-4000-8000-00000000d3a0', 2, 'question', '🔥 חימום: כמה צלעות יש למשולש?', '',
   '["3️⃣ שלוש", "4️⃣ ארבע"]', '{0}', 0, 10, null, null, null, 'side'),
@@ -69,7 +69,7 @@ values
   'media/backgrounds/demo-pitch.svg', null, null, 'background'),
 
  ('6e0b5f0a-0000-4000-8000-00000000d3a0', 18, 'interlude', '🎉 זהו, סיימנו!', 'ועכשיו — מי ניצח? 🥁',
-  '[]', '{}', 1, 20, 'media/images/demo-ball.svg', null, null, 'top');
+  '[]', '{}', 1, 20, 'media/images/gevkahoot-mark.svg', null, null, 'top');
 
 -- The mark sets: emoji on the warm-up's two tiles, playing cards on the shapes
 -- question, Catan terrain tiles on the video question, electronic parts on the
@@ -83,7 +83,7 @@ update public.gk_items set marks = 'circuit'
 update public.gk_items set marks = 'cards'
  where quiz_id = '6e0b5f0a-0000-4000-8000-00000000d3a0' and position = 3;
 -- Per-element overrides: the shapes question bounces a sun instead of the
--- quiz's ball; the beeps question has no music; the picture-games interlude
+-- quiz's G mark; the beeps question has no music; the picture-games interlude
 -- has no animation.
 update public.gk_items set anim_sprite = 'media/sprites/demo-sun.svg'
  where quiz_id = '6e0b5f0a-0000-4000-8000-00000000d3a0' and position = 3;
@@ -97,7 +97,7 @@ update public.gk_items set anim_on = false
 -- (parent_id) and shares its position.
 insert into public.gk_items (quiz_id, parent_id, position, kind, title, body, image, media_layout)
 select quiz_id, id, position, 'explain', '💡 שלושה כדורים',
-       'צהוב, ורוד ותכלת — כל אחד בגודל ובקצב קפיצה משלו.', 'media/images/demo-ball.svg', 'side'
+       'צהוב, ורוד ותכלת — כל אחד בגודל ובקצב קפיצה משלו.', 'media/images/gevkahoot-mark.svg', 'side'
   from public.gk_items
  where quiz_id = '6e0b5f0a-0000-4000-8000-00000000d3a0' and position = 5 and kind = 'question';
 
@@ -175,11 +175,11 @@ update public.gk_items set anim_sprite = 'builtin:gnomes'
  where quiz_id = '6e0b5f0a-0000-4000-8000-00000000d3a0' and kind = 'interlude' and title = '🎉 זהו, סיימנו!';
 
 -- Every element carries its own animation now (an element shows one only
--- when switched on): the sample's elements show the quiz's ball — or their
+-- when switched on): the sample's elements show the quiz's G mark — or their
 -- own sun / gnomes — except the picture-games interlude, as before; and the
--- closing (podium, matrix) the ball too.
+-- closing (podium, matrix) the G mark too.
 update public.gk_items
-   set anim_on = true, anim_sprite = coalesce(anim_sprite, 'media/sprites/demo-ball.svg'),
+   set anim_on = true, anim_sprite = coalesce(anim_sprite, 'media/sprites/gevkahoot-mark.svg'),
        anim_count = 5, anim_size = 11, anim_speed = 3, anim_front = false
  where quiz_id = '6e0b5f0a-0000-4000-8000-00000000d3a0' and not (parent_id is null and position = 8);
 -- The closing's own animation (podium, matrix) — independent of the opening's:

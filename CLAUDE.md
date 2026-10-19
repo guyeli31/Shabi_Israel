@@ -681,7 +681,9 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   The beacon is `js/data/analytics.js`, loaded by `gkPlayer.js` only — same
   rules as `shabi-israel/js/analytics.js`: no IP, timezone routing, per-tab
   id in sessionStorage, the SAME `shabi:no-analytics` key (one origin), and
-  never the device token or the name a player types. It writes through
+  never the device token. The ONE free text it keeps is the name a player
+  chose (`player_name`, live and demo, on every row from the join — the
+  host's decision; live it follows `gk_me` after a refresh or relink). It writes through
   `gk_track()` (SECURITY DEFINER, anon), never a table grant, and is silent
   under `?preview`. A screen a player reaches is a `stage` row (phase, item,
   and at the reveal the verdict, points and speed — live from `gk_me`, so a

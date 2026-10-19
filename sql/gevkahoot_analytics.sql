@@ -20,9 +20,10 @@
 -- random per-TAB id from sessionStorage, sent only for an Asia/Jerusalem
 -- timezone or a signed-in operator; everyone else carries only a continent.
 -- NEVER the device token (localStorage['gevkahoot:device']) or its hash — that
--- one persists across visits and would link them. The name a player types is
--- free text and is never sent; a LIVE player's name is shown to the admin only
--- from gk_players, where the quiz already holds it (it is on the projector).
+-- one persists across visits and would link them. The one free text kept is
+-- the NAME a player chose (live and demo), by the host's decision: each game
+-- is tied to who played it (`player_name`, at most 20 characters, as the join
+-- form allows).
 --
 -- Writes: anon calls gk_track(), a SECURITY DEFINER insert — no gk_* table is
 -- writable by a browser role, this one included. Reads: gk_analytics_*(), each
@@ -71,6 +72,8 @@ alter table public.gk_analytics_events add column if not exists answered_ms inte
 alter table public.gk_analytics_events add column if not exists hits      smallint;
 alter table public.gk_analytics_events add column if not exists deviation real;
 alter table public.gk_analytics_events add column if not exists accuracy  real;
+-- The name the player chose (the host's decision — see the header).
+alter table public.gk_analytics_events add column if not exists player_name text;
 create index if not exists gk_analytics_events_created on public.gk_analytics_events (created_at);
 
 alter table public.gk_analytics_events enable row level security;
@@ -92,7 +95,7 @@ begin
   if jsonb_typeof(p_events) <> 'array' or jsonb_array_length(p_events) > 25 then return; end if;
   insert into public.gk_analytics_events
     (session_id, region, admin_user, event_type, page, mode, quiz_id, run_id, phase, item_kind,
-     item_no, correct, points, item_id, item_title, answered_ms, hits, deviation, accuracy, click_target, device_type, os, browser, referrer_kind, from_page, duration_ms)
+     item_no, correct, points, item_id, item_title, answered_ms, hits, deviation, accuracy, player_name, click_target, device_type, os, browser, referrer_kind, from_page, duration_ms)
   select left(e->>'session_id', 40),
          case when e->>'region' in ('Africa','America','Antarctica','Arctic','Asia','Atlantic','Australia','Europe','Indian','Pacific','Other')
               then e->>'region' end,
@@ -113,6 +116,7 @@ begin
          case when e->>'hits' ~ '^\d{1,4}$' then (e->>'hits')::smallint end,
          case when e->>'deviation' ~ '^-?\d{1,3}(\.\d+)?$' then greatest(-10, least(10, (e->>'deviation')::real)) end,
          case when e->>'accuracy' ~ '^\d(\.\d+)?$' then greatest(0, least(1, (e->>'accuracy')::real)) end,
+         nullif(left(btrim(e->>'player_name'), 20), ''),
          left(e->>'click_target', 120),
          case when e->>'device_type' in ('mobile', 'tablet', 'desktop') then e->>'device_type' end,
          left(e->>'os', 20),

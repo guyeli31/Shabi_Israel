@@ -5,6 +5,7 @@
     "demo-puzzle.svg",
     "demo-shapes.svg",
     "demo-slider.svg",
+    "gevkahoot-mark.svg",
     "Kiwi.jpeg",
     "אסלה.jpeg",
     "אש אחי.jpg",
@@ -50,6 +51,7 @@
     "demo-house.svg",
     "demo-kahoot.svg",
     "demo-sun.svg",
+    "gevkahoot-mark.svg",
     "פטמה-בלי-העצם-piece.png"
   ],
   "animations": [
@@ -61,6 +63,7 @@
     "images/demo-puzzle.svg": "c322615e3b",
     "images/demo-shapes.svg": "0af1c1c90b",
     "images/demo-slider.svg": "1f67e708c1",
+    "images/gevkahoot-mark.svg": "139577ccd1",
     "images/Kiwi.jpeg": "c58d05c4e6",
     "images/אסלה.jpeg": "ab91d57f83",
     "images/אש אחי.jpg": "9420d801d3",
@@ -98,6 +101,7 @@
     "sprites/demo-house.svg": "a64dc019fa",
     "sprites/demo-kahoot.svg": "3beedff405",
     "sprites/demo-sun.svg": "128f1eee29",
+    "sprites/gevkahoot-mark.svg": "139577ccd1",
     "sprites/פטמה-בלי-העצם-piece.png": "5fa6905a52",
     "animations/first-streak.svg": "bd78ba219e"
   }

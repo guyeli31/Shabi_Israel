@@ -10,9 +10,12 @@
  *     visit can be followed; everyone else sends independent events carrying
  *     only a continent, and nothing is written to their device;
  *   - only coarse, categorical fields (device type, OS, browser, referrer kind,
- *     visible dwell time) — never a URL, a screen size, or free text. The name
- *     a player types is never sent: only what became of it ('Join: ok',
- *     'Join: name_taken');
+ *     visible dwell time) — never a URL or a screen size;
+ *   - ONE exception, by the host's decision: the NAME a player chose (live
+ *     and demo alike) is recorded as `player_name`, on every row from the
+ *     moment they joined — it is what the player submitted to play under, and
+ *     the host wants each game tied to who played it. It is the only free
+ *     text here; nothing else a player types is sent;
  *   - NEVER the device token (localStorage['gevkahoot:device']) or its hash —
  *     it persists across visits, the one thing this beacon refuses to do;
  *   - `admin_user` names the OPERATOR (an admin trying the quiz), never a player;
@@ -99,8 +102,9 @@ function referrer() {
 const DEVICE = device();
 const REFERRER = referrer();
 
-// What the page is doing right now — set by gkPlayer.js as it learns it.
-let context = { mode: hasUrlFlag('demo') ? 'demo' : 'browse', quiz_id: null, run_id: null };
+// What the page is doing right now — set by gkPlayer.js as it learns it
+// (player_name: the name this device is playing under, once it has joined).
+let context = { mode: hasUrlFlag('demo') ? 'demo' : 'browse', quiz_id: null, run_id: null, player_name: null };
 export function setContext(patch) { context = { ...context, ...patch }; }
 
 let queue = [];

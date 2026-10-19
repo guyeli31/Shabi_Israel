@@ -26,6 +26,14 @@
 .analytics-session.gka-game[data-mode='demo'] { border-left-color: #1a73e8; }
 .analytics-session.gka-game[data-mode='saved'] { border-left-color: #8e44ad; }
 
+/* The name the player chose, beside the session chip. Physical margins only:
+   it is dir="auto" (CLAUDE.md § dir="auto"). */
+.gka-player {
+    display: inline-block; padding: 1px 8px; border-radius: 999px; font-weight: 600;
+    font-size: var(--fs-085, 0.85rem); background: var(--color-inset, rgba(127, 127, 127, 0.12));
+    border: 1px solid var(--color-border, #ddd);
+}
+
 /* Slide rows: a question / interlude, and its own screens indented under it,
    like a page and the visits inside it. */
 .gka-item { font-weight: 600; }

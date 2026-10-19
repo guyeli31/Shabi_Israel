@@ -29,9 +29,10 @@ export const DEMO_QUIZ = {
     podium_music: 'media/audio/demo-loop.wav',   // while the winners are shown
     music_on: true,
     lead_in_s: 3,
-    // A football drifting behind the questions shows the animation option off
+    // The GevKahoot mark (the round G, scripts/gevkahoot-logo.mjs) drifting
+    // behind the questions shows the animation option off
     // without getting in anyone's way.
-    anim: { on: true, sprite: 'media/sprites/demo-ball.svg', count: 5, size: 11, speed: 3, front: false },
+    anim: { on: true, sprite: 'media/sprites/gevkahoot-mark.svg', count: 5, size: 11, speed: 3, front: false },
     // The closing's own (podium, matrix) — independent of the opening's: the
     // built-in gnomes, one of each colour.
     closing_anim: { on: true, sprite: 'builtin:gnomes', count: 6, size: 12, speed: 3, front: false },
@@ -48,7 +49,7 @@ export const DEMO_ITEMS = [
     // ---- opening: an interlude with a picture beside the text ----------------
     demoItem({ id: 'demo-i1', kind: 'interlude', title: '👋 ברוכים הבאים לחידון לדוגמה',
         body: 'סיור בכל סוגי השאלות מול שחקנים וירטואליים. עונים מהר ונכון — הזמן שווה נקודות! 🏆',
-        image: 'media/images/demo-ball.svg', seconds: 7 }),
+        image: 'media/images/gevkahoot-mark.svg', seconds: 7 }),
 
     // ×0 warm-up: the emoji mark set — an emoji of the author's choice on each
     // tile instead of the team crests — and
@@ -57,7 +58,7 @@ export const DEMO_ITEMS = [
         options: ['3️⃣ שלוש', '4️⃣ ארבע'], correct: [0], weight: 0, time_limit_s: 10, marks: 'emoji', symbols: ['🔺', '🟦'] }),
 
     // A picture beside the question, two right answers out of four — and this
-    // element brings its own bouncing picture (a sun instead of the quiz's ball).
+    // element brings its own bouncing picture (a sun instead of the quiz's G).
     demoItem({ id: 'demo-q2', kind: 'question', title: 'אילו צורות מופיעות בתמונה? 👀',
         options: ['🔺 משולש', '🟥 ריבוע', '⚪ עיגול', '⭐ כוכב'], correct: [0, 2], weight: 1, time_limit_s: 20,
         image: 'media/images/demo-shapes.svg', anim_sprite: 'media/sprites/demo-sun.svg', marks: 'cards' }),
@@ -71,7 +72,7 @@ export const DEMO_ITEMS = [
     demoItem({ id: 'demo-q3', kind: 'question', title: 'כמה כדורים קפצו בסרטון? ⚽',
         options: ['2', '3', '4'], correct: [1], weight: 1, time_limit_s: 15, marks: 'catan',
         explain: demoItem({ id: 'demo-q3-x', kind: 'explain', title: '💡 שלושה כדורים', seconds: 6,
-            body: 'צהוב, ורוד ותכלת — כל אחד בגודל ובקצב קפיצה משלו.', image: 'media/images/demo-ball.svg' }) }),
+            body: 'צהוב, ורוד ותכלת — כל אחד בגודל ובקצב קפיצה משלו.', image: 'media/images/gevkahoot-mark.svg' }) }),
 
     // An audio interlude: the quiz's music steps aside while it plays.
     demoItem({ id: 'demo-i3', kind: 'interlude', title: '🎧 עכשיו מקשיבים', body: 'ספרו את הצפצופים.',
@@ -148,7 +149,7 @@ export const DEMO_ITEMS = [
     // An interlude after the last question, before the podium — with the
     // built-in gnomes as its animation, each spinning on itself.
     demoItem({ id: 'demo-i5', kind: 'interlude', title: '🎉 זהו, סיימנו!', body: 'ועכשיו — מי ניצח? 🥁',
-        image: 'media/images/demo-ball.svg', media_layout: 'top', seconds: 5, anim_sprite: 'builtin:gnomes' }),
+        image: 'media/images/gevkahoot-mark.svg', media_layout: 'top', seconds: 5, anim_sprite: 'builtin:gnomes' }),
 ];
 
 /** The bots: a name, how often they are right, and how fast they tend to be

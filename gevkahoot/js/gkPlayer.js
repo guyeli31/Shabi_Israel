@@ -61,6 +61,7 @@ let otherName = false;     // a pending relink set aside: "not me, I'll pick ano
 let demoUntil = null;      // demo only: when the current pause ends by itself
 let meKnown = false;       // analytics: the first `me` (and so the pageview) has been seen
 let stageKey = null;       // analytics: the last screen sent
+let joining = false;       // analytics: a demo join is drawing its lobby — hold its row
 let meAt = null;           // analytics: the state rev `me` was last fetched FOR
 
 /** A phone: touch, or simply narrow (which is also the editor's phone frame). */
@@ -154,21 +155,28 @@ async function submitJoin(relink) {
     if (busy || isPreview) return;
     busy = true; formError = null; render();
     try {
-        if (demo) demo.join(name);
+        // demo.join() draws the lobby at once; its slide row waits for the
+        // "Demo: joined" row below, so a game's rows start with its join.
+        if (demo) { joining = true; try { demo.join(name); } finally { joining = false; } }
         else if (relink) await api.requestRelink(name);
         else await api.join(name);
         if (!demo && !relink) gka.setContext({ mode: 'live', run_id: state?.session_id || null });
-        gka.track(demo ? 'Demo: joined' : relink ? 'Relink: requested' : 'Join: ok');
+        // The name the player submitted — recorded from here on (the host's
+        // decision; js/data/analytics.js). A relink asks for a name that is
+        // not this device's yet, so it is sent on that row alone.
+        if (!relink) gka.setContext({ player_name: name });
+        gka.track(demo ? 'Demo: joined' : relink ? 'Relink: requested' : 'Join: ok', relink ? { player_name: name } : {});
+        if (demo) trackStage();
         otherName = false;
         await refreshMe();
     } catch (err) {
         formError = { code: err.code, text: errorText(err.code) };
-        gka.track(`Join: ${err.code || 'failed'}`);
+        gka.track(`Join: ${err.code || 'failed'}`, { player_name: name });
         // A name already in the quiz is most often its owner back from a
         // crashed browser: the request to take it over goes to the host at
         // once (they approve or not), rather than waiting for a second tap.
         if (err.code === 'name_taken' && !demo && !relink) {
-            try { await api.requestRelink(name); gka.track('Relink: requested (name taken)'); otherName = false; formError = null; await refreshMe(); } catch { /* keep the error */ }
+            try { await api.requestRelink(name); gka.track('Relink: requested (name taken)', { player_name: name }); otherName = false; formError = null; await refreshMe(); } catch { /* keep the error */ }
         }
     }
     busy = false; render();
@@ -394,7 +402,9 @@ function renderStrip() {
  *  it is known whether this is a player, and the moments the server decided
  *  (a relink approved or not, a removal). */
 function trackMe(was, now) {
-    gka.setContext({ run_id: state?.session_id || null, mode: now.player ? 'live' : 'browse' });
+    // The server's own record of who this device is: after a refresh, or a
+    // relink approved, the name comes from here, not from the form.
+    gka.setContext({ run_id: state?.session_id || null, mode: now.player ? 'live' : 'browse', player_name: now.player ? now.name || null : null });
     if (!meKnown) { meKnown = true; gka.pageview(); return; }
     if (was.pending && now.player) gka.track('Relink: approved');
     if (!was.rejected && now.rejected) gka.track('Relink: rejected');
@@ -407,7 +417,7 @@ function trackMe(was, now) {
  *  this player's verdict, points and speed. Live, the verdict is the
  *  server's own (`gk_me`), so a reveal waits for the `me` fetched for it. */
 function trackStage() {
-    if (isPreview || !state || state.rev === -1) return;
+    if (isPreview || joining || !state || state.rev === -1) return;
     if (isDemo) gka.pageview();
     if (!me.player) { stageKey = null; return; }
     const item = state.data?.item;
@@ -523,8 +533,11 @@ function render() {
                         picked = null; demo?.restart();
                     }
                 } }),
+            // Tracked at the click, not as data-track: the header is redrawn
+            // only when the name or score changes, so a label written into it
+            // would name the screen it was DRAWN on.
             h('a', { class: 'gk-btn gk-btn--small gk-btn--ghost', href: './', text: '⌂ תפריט', title: 'חזרה למסך הכניסה',
-                dataset: { track: `Demo: menu${me.player ? ` at ${state.phase}` : ''}` } })),
+                onclick: () => gka.track(`Demo: menu${me.player ? ` at ${state.phase}` : ''}`) })),
         me.player && h('div', { class: 'pl-chip' },
             h('span', { class: 'pl-chip-name', dir: 'auto', text: me.name }),
             h('span', { class: 'pl-chip-points', text: String(points) })),
