@@ -42,14 +42,25 @@ const WEIGHT_BADGE = { 0: 'חימום · בלי ניקוד', 2: 'שאלה כפו
 /** The one-time "first to three in a row" animation (a generated, self-contained SVG). */
 const FIRST_STREAK_ANIM = 'media/animations/first-streak.svg';
 
-export function createStage(frame, { muted = false, joinUrl = '', role = 'host', compact = () => false, media = () => 'full', onAnswer = null, onSettled = null } = {}) {
+// The puzzle's reveal: the whole picture, then the cut, then the lift.
+// (10s until the host's request to shorten it: the room was waiting on a
+// held picture well past the point of having seen it.)
+const SHOW_WHOLE_MS = 3000, CUT_DRAW_MS = 1600, CUT_MS = 2600, FADE_MS = 1600;
+/** How long the puzzle's reveal takes to play out, up to the detail
+ *  bouncing — what the demo, which has no host to press "next", waits for. */
+export const PUZZLE_REVEAL_MS = SHOW_WHOLE_MS + CUT_MS + FADE_MS;
+
+export function createStage(frame, { muted = false, joinUrl = '', role = 'host', compact = () => false, media = () => 'full', onAnswer = null, onSettled = null, texts = () => false } = {}) {
     // `frame` is the size container; the stage inside it is laid out in units
     // of that container (see host.css), so it scales the same on a projector,
     // in a player's browser, and in the editor's preview.
     const root = h('div', { class: 'st', dataset: { role } });
     frame.classList.add('st-frame');
     frame.append(root);
-    const applyCompact = () => root.toggleAttribute('data-compact', !!compact());
+    // `texts`: a phone shows the answers' TEXT too, not only colour and
+    // emblem — in the demo, where no projected screen shows them (the host's
+    // request). The live phone keeps colour-only: the room reads the screen.
+    const applyCompact = () => { root.toggleAttribute('data-compact', !!compact()); root.toggleAttribute('data-texts', !!texts()); };
     applyCompact();
     window.addEventListener('resize', applyCompact);
     const mode = () => (muted ? 'muted' : media());
@@ -89,10 +100,6 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
         const w = img.naturalWidth * k, hgt = img.naturalHeight * k;
         return { left: b.left + (b.width - w) / 2, top: b.top + (b.height - hgt) / 2, width: w, height: hgt };
     }
-    // The puzzle's reveal: the whole picture, then the cut, then the lift.
-    // (10s until the host's request to shorten it: the room was waiting on a
-    // held picture well past the point of having seen it.)
-    const SHOW_WHOLE_MS = 3000, CUT_DRAW_MS = 1600, CUT_MS = 2600;
     function startLift(key, image, circle) {
         stopLift();
         bouncers.update(null);
@@ -125,7 +132,7 @@ export function createStage(frame, { muted = false, joinUrl = '', role = 'host',
                 for (const el of run.cut) el.dataset.out = '';
                 // Faded: hand the detail to the bouncing layer, same size and
                 // same place, and drop the still copy in the same frame.
-                later(1600, () => {
+                later(FADE_MS, () => {
                     const W = root.clientWidth, H = root.clientHeight;
                     bouncers.update({ src, count: 1, size: (2 * r) / Math.min(W, H) * 100,
                         speed: circle.speed || 4, front: true, start: { x: cx / W, y: cy / H } });

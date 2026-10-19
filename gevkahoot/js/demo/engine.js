@@ -12,12 +12,21 @@
  * Nothing leaves the browser: no request is made and nothing is stored.
  */
 import { DEMO_QUIZ, DEMO_ITEMS, DEMO_BOTS } from './demoQuiz.js';
+import { NO_MORE_BETS_MS, SPIN_MS, SETTLE_MS } from '../host/roulette.js';
+import { PUZZLE_REVEAL_MS } from '../host/stage.js';
 import { points, sliderPoints, sliderCorrect, sliderDeviation, sliderScale, SLIDER, encodeRank, decodeRank, actionFactor, actionPoints } from '../scoring.js';
 
 /** A slider item's scale, as _gk_publish sends it: { min, target }. */
 const scaleOf = (it) => sliderScale({ min: it.slider_min, target: it.correct?.[0] });
 
 const PAUSE = { intro: 9000, fire: 10000, reveal: 5000, explain: 6000, fastest: 5000, leaderboard: 7500, podium: 11000 };
+/** The reveal's pause: 5s, or long enough for a reveal that PLAYS — the
+ *  roulette's wheel (no more bets, the spin, the ball settling: 10s) and the
+ *  puzzle's picture-cut-lift — plus a few seconds to take in the result. A
+ *  fixed 5s moved on mid-spin, before the number came up. Timed from the
+ *  same constants the screen uses. */
+const revealPause = (it) => (it?.kind === 'roulette' ? NO_MORE_BETS_MS + SPIN_MS + SETTLE_MS + 4000
+    : it?.kind === 'puzzle' ? PUZZLE_REVEAL_MS + 3000 : PAUSE.reveal);
 const LOBBY_MS = 12000;
 const COUNTDOWN_MS = 7000;
 
@@ -341,7 +350,7 @@ export function createDemo(onChange, { quiz: QUIZ = DEMO_QUIZ, items: ITEMS = DE
         }
         if (phase === 'countdown') return enter(0);
         if (phase === 'intro') return enter(index, { started: true });
-        if (phase === 'question') { phase = 'reveal'; until = Date.now() + PAUSE.reveal; return emit(); }
+        if (phase === 'question') { phase = 'reveal'; until = Date.now() + revealPause(it); return emit(); }
         // As on the server: a question's "answer explained" segment comes
         // between its reveal and the fastest five.
         if (phase === 'reveal' && it.explain) { phase = 'explain'; until = Date.now() + (it.explain.seconds * 1000 || PAUSE.explain); return emit(); }
@@ -379,7 +388,7 @@ export function createDemo(onChange, { quiz: QUIZ = DEMO_QUIZ, items: ITEMS = DE
             const due = DEMO_BOTS.filter((b) => b.joinAt <= now && !players.some((p) => p.bot === b));
             for (const bot of due) players.push({ name: bot.name, bot, answers: {} });
             if (due.length) emitLive();
-            if (until && now >= until) advance();
+            // No start by itself: the player presses "start" (the host's request).
             return;
         }
         if (phase === 'question') {
@@ -394,7 +403,11 @@ export function createDemo(onChange, { quiz: QUIZ = DEMO_QUIZ, items: ITEMS = DE
             if (now > deadline || (it.kind !== 'action' && answered(it).length === players.length)) advance();
             return;
         }
-        if (until && now >= until) advance();
+        // Every pause waits for "המשך" (the host's request: a demo player reads
+        // at their own pace) — only the "starting in…" count runs out by
+        // itself, as it does live. `until` still marks a pause the player may
+        // end (it is what offers the button).
+        if (phase === 'countdown' && until && now >= until) advance();
     }, 100);
 
     reset();

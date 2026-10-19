@@ -43,7 +43,9 @@ export function createStateSource(onChange) {
     let liveSeq = -1;
     const applyState = (row) => {
         if (!row || row.rev <= state.rev) return false;
-        state = { ...state, status: row.status, phase: row.phase, rev: row.rev, data: row.data || {} };
+        // session_id: which run this is — only the player analytics reads it
+        // (js/data/analytics.js), to tie a visit to its run.
+        state = { ...state, status: row.status, phase: row.phase, rev: row.rev, session_id: row.session_id || null, data: row.data || {} };
         return true;
     };
     const applyLive = (row) => {

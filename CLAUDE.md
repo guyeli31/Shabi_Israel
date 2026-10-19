@@ -609,7 +609,14 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   overrides) — a new feature gets a place in it, in both files. Once the
   real player has answered, the engine records the bots' already-decided
   answers at their planned times and reveals at once: nobody real is left to
-  wait for. The points formula exists twice
+  wait for. The demo player is their own host (the host's request): every pause —
+  lobby, instruction slide, reveal, segment, fastest five, table, podium —
+  waits for their "המשך"; only the question's clock and the "starting in…"
+  count run out by themselves, as live. (No "המשך" while the roulette wheel
+  turns.) The header carries "↺ מחדש" and "⌂ תפריט" throughout. And since no
+  projected screen shows the answers, a phone in the demo shows each answer's
+  TEXT on its tile, one per row (stage option `texts`, `[data-texts]` in
+  host.css; `?preview&texts` for the layout check's "demo phone"). The points formula exists twice
   for this reason only: `_gk_points` in SQL is the authority, `js/scoring.js`
   is the demo's copy.
 - **CSS animations do not advance in an occluded Playwright MCP window.** An
@@ -667,8 +674,26 @@ paths only, nothing off-origin) plus a CSP `<meta>` on every page.
   its own row, inside the viewport, in a window taller than the one tested.
   Sizing type from a container's HEIGHT alone is what did it; bound it by the
   width too (`min(<from height>, <n>cqw)`).
+- **Player analytics: `analytics.html`** (`golan.me.uk/gevkahoot/analytics`) —
+  the twin of the main site's `analytics.html`, for what PLAYERS do (live and
+  demo); the host's work is not measured. Admin-only by URL with an inline
+  login gate; every `gk_analytics_*` RPC starts with `_gk_require_admin()`.
+  The beacon is `js/data/analytics.js`, loaded by `gkPlayer.js` only — same
+  rules as `shabi-israel/js/analytics.js`: no IP, timezone routing, per-tab
+  id in sessionStorage, the SAME `shabi:no-analytics` key (one origin), and
+  never the device token or the name a player types. It writes through
+  `gk_track()` (SECURITY DEFINER, anon), never a table grant, and is silent
+  under `?preview`. A screen a player reaches is a `stage` row (phase, item,
+  and at the reveal the verdict, points and speed — live from `gk_me`, so a
+  reveal waits for the `me` fetched for its rev); slide times are the gap to
+  the visit's next row. Answers and players of a LIVE run are read from the
+  quiz's own tables (`gk_analytics_runs`), not the beacon. A click is
+  recorded only from an element with `data-track` (type-first:
+  `Entry: demo`, `Demo: continue reveal`, `Nav: back`) — never the stage's
+  tiles. SQL: `sql/gevkahoot_analytics.sql`, after `gevkahoot.sql` (whose
+  grant loop names `gk_track` / `gk_analytics_*`, so a re-run keeps them).
 - SQL: `sql/gevkahoot.sql` (re-runnable; after `admin_write_allowlist_2026-10-09.sql`),
-  optional `sql/gevkahoot_demo_seed.sql`.
+  optional `sql/gevkahoot_demo_seed.sql`, then `sql/gevkahoot_analytics.sql`.
 
 ## Data & query standards
 

@@ -912,6 +912,14 @@ button.sl-end:disabled { cursor: default; opacity: .5; }
 .st[data-compact] .st-option .gk-tile { flex: 1; min-height: 0; padding: 0; justify-content: center; container-type: size; }
 .st[data-compact] .st-option .gk-tile-text { display: none; }
 .st[data-compact] .st-option .gk-crest { width: min(64cqh, 50cqw); height: min(64cqh, 50cqw); }
+/* The demo on a phone (data-texts): no projected screen shows the answers, so
+   each tile carries its text — one answer per row, the emblem beside it. */
+.st[data-compact][data-texts] .st-options,
+.st[data-compact][data-texts] .st-options[data-n] { grid-template-columns: minmax(0, 1fr); }
+.st[data-compact][data-texts] .st-options[data-n="5"] > :last-child { grid-column: auto; }
+.st[data-compact][data-texts] .st-option .gk-tile { justify-content: flex-start; gap: .55em; padding: .2em .8em; container-type: normal; }
+.st[data-compact][data-texts] .st-option .gk-tile-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 1.05em; line-height: 1.15; }
+.st[data-compact][data-texts] .st-option .gk-crest { width: 2em; height: 2em; flex: none; }
 .st[data-compact] .st-share { font-size: .85em; }
 
 .st[data-compact] .st-board { width: 100%; }

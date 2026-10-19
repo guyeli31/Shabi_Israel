@@ -37,6 +37,8 @@ const TARGETS = [
     { name: 'projected screen', page: 'host.html?preview', sizes: [[1280, 720], [1920, 1080], [1024, 768]] },
     { name: 'desktop player', page: 'index.html?preview', sizes: [[1280, 720], [1100, 650], [1600, 1000]] },
     { name: 'phone player', page: 'index.html?preview', touch: true, sizes: [[430, 950], [430, 739], [390, 844], [360, 640]] },
+    // the demo's phone: the answers' text on its tiles (no projected screen shows them)
+    { name: 'demo phone (texts)', page: 'index.html?preview&texts', touch: true, sizes: [[430, 739], [390, 844], [360, 640]] },
 ];
 const VIEWS = ['lobby', 'countdown', 'intro', 'ready', 'item', 'reveal', 'explain', 'fastest', 'firstfire', 'leadfire', 'leaderboard', 'podium', 'matrix'];
 const PER_ITEM = new Set(['intro', 'ready', 'item', 'reveal', 'explain']);
@@ -75,6 +77,10 @@ async function showAndAudit({ view, itemIndex, sabotage }) {
     for (const el of document.querySelectorAll('#app *')) {
         const ownText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
         if (!ownText && !el.matches('img, video, canvas')) continue;
+        // The bouncing animation's pictures move the whole time and touch the
+        // stage's edges by design (they bounce off them): caught mid-bounce
+        // they read as "cut", a different screen each run. Not content.
+        if (el.closest('.st-anim')) continue;
         const cs = getComputedStyle(el);
         if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) continue;
         let r = el.getBoundingClientRect();

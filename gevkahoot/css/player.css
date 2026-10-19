@@ -96,3 +96,8 @@ html[data-nozoom], html[data-nozoom] body { touch-action: pan-x pan-y; }
    only — that browser reads little else. */
 .pl-legacy { margin: auto; padding: 2rem 1.2rem; text-align: center; color: #fff; font-size: 1.15rem; line-height: 1.5; }
 .pl-legacy-title { font-size: 1.5rem; font-weight: 800; margin: 0 0 .8rem; }
+
+/* The demo's own controls in the header: start over, back to the entry page. */
+.pl-demo-nav { display: flex; gap: .35rem; }
+.pl-demo-nav .gk-btn { font-size: .78rem; padding: .25em .6em; }
+@media (max-width: 440px) { .pl-demo-tag { display: none; } }

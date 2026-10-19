@@ -1954,9 +1954,12 @@ begin
   loop
     execute format('revoke all on function %s from public, anon, authenticated;', r.sig);
     execute format('grant execute on function %s to service_role;', r.sig);
-    if r.proname in ('gk_time', 'gk_join', 'gk_request_relink', 'gk_me', 'gk_answer', 'gk_demo_list', 'gk_demo_get') then
+    -- gk_track / gk_analytics_*: sql/gevkahoot_analytics.sql (the player
+    -- analytics beacon and its admin reads), named here so a re-run of this
+    -- file does not revoke them.
+    if r.proname in ('gk_time', 'gk_join', 'gk_request_relink', 'gk_me', 'gk_answer', 'gk_demo_list', 'gk_demo_get', 'gk_track') then
       execute format('grant execute on function %s to anon, authenticated;', r.sig);
-    elsif r.proname like 'gk\_admin\_%' then
+    elsif r.proname like 'gk\_admin\_%' or r.proname like 'gk\_analytics\_%' then
       execute format('grant execute on function %s to authenticated;', r.sig);
     end if;
   end loop;

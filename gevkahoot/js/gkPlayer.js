@@ -26,12 +26,15 @@ import { createDemo } from './demo/engine.js';
 import { listSavedQuizzes, loadSavedQuiz } from './demo/saved.js';
 import { sliderVerdict, decodeRank } from './scoring.js';
 import { hasUrlFlag } from '../../shabi-israel/js/utils/queryString.js';
+import * as gka from './data/analytics.js';
 
 const isDemo = hasUrlFlag('demo') && !isPreview;
 // ?demo&quiz=<id>: a quiz saved in the database, played alone against the
 // bots (js/demo/saved.js) — the same quiz the host runs live.
 const savedQuizId = isDemo && /^[0-9a-f-]{36}$/i.test(new URLSearchParams(location.search).get('quiz') || '')
     ? new URLSearchParams(location.search).get('quiz') : null;
+
+if (savedQuizId) gka.setContext({ mode: 'saved', quiz_id: savedQuizId });
 
 const app = document.getElementById('app');
 const head = h('header', { class: 'pl-head' });
@@ -41,7 +44,7 @@ const stageFrame = h('div', { class: 'pl-stage', hidden: true });
 const strip = h('div', { class: 'pl-strip', hidden: true });
 const foot = h('footer', { class: 'pl-foot' },
     // Always present on the entry screens: the way in for the host.
-    h('a', { class: 'pl-admin', href: 'host.html', text: 'ADMIN LOGIN' }));
+    h('a', { class: 'pl-admin', href: 'host.html', text: 'ADMIN LOGIN', dataset: { track: 'Entry: admin login' } }));
 main.append(entry, stageFrame);
 // legacy.js may have said "too old" in a browser that then coped after all.
 app.querySelector('.pl-legacy')?.remove();
@@ -56,6 +59,9 @@ let busy = false;
 let picked = null;         // { itemId, option } — optimistic, until `me` confirms
 let otherName = false;     // a pending relink set aside: "not me, I'll pick another name"
 let demoUntil = null;      // demo only: when the current pause ends by itself
+let meKnown = false;       // analytics: the first `me` (and so the pageview) has been seen
+let stageKey = null;       // analytics: the last screen sent
+let meAt = null;           // analytics: the state rev `me` was last fetched FOR
 
 /** A phone: touch, or simply narrow (which is also the editor's phone frame). */
 const compact = () => matchMedia('(pointer: coarse)').matches || innerWidth < 760;
@@ -67,6 +73,9 @@ const stage = createStage(stageFrame, {
     // live quiz the room already has the sound: a desktop shows video muted
     // and a phone shows pictures only.
     media: () => (isDemo ? 'full' : compact() ? 'still' : 'muted'),
+    // The demo has no projected screen, so a phone shows the answers' text
+    // too (`?preview&texts` shows it in a preview, for the layout check).
+    texts: () => isDemo || (isPreview && hasUrlFlag('texts')),
     muted: isPreview,
     onAnswer: (itemId, option, opts) => (opts?.again ? reportCount(itemId, option) : choose(itemId, option)),
     // The roulette's ball has landed: now the result may be told.
@@ -88,7 +97,11 @@ const errorText = (code) => ERRORS[code] || 'משהו השתבש, נסו שוב'
 async function refreshMe() {
     if (isPreview || isDemo) return;
     try {
+        const was = me;
+        const rev = state?.rev ?? null;
         me = (await api.me()) || { player: false };
+        meAt = rev;
+        trackMe(was, me);
         render();
     } catch { /* offline for a moment; the next state change retries */ }
 }
@@ -107,6 +120,7 @@ if (savedQuizId) {
     loadSavedQuiz(savedQuizId)
         .then((content) => { demo = createDemo(onState, content); })
         .catch((err) => {
+            gka.track(`Saved: unavailable (${err.code === 'live' ? 'live' : 'closed'})`);
             // Not opened for solo play, or being played live right now.
             renderKeyed(entry, 'saved-missing', () => view(
                 h('div', { class: 'pl-emoji', text: '🔒' }),
@@ -143,15 +157,18 @@ async function submitJoin(relink) {
         if (demo) demo.join(name);
         else if (relink) await api.requestRelink(name);
         else await api.join(name);
+        if (!demo && !relink) gka.setContext({ mode: 'live', run_id: state?.session_id || null });
+        gka.track(demo ? 'Demo: joined' : relink ? 'Relink: requested' : 'Join: ok');
         otherName = false;
         await refreshMe();
     } catch (err) {
         formError = { code: err.code, text: errorText(err.code) };
+        gka.track(`Join: ${err.code || 'failed'}`);
         // A name already in the quiz is most often its owner back from a
         // crashed browser: the request to take it over goes to the host at
         // once (they approve or not), rather than waiting for a second tap.
         if (err.code === 'name_taken' && !demo && !relink) {
-            try { await api.requestRelink(name); otherName = false; formError = null; await refreshMe(); } catch { /* keep the error */ }
+            try { await api.requestRelink(name); gka.track('Relink: requested (name taken)'); otherName = false; formError = null; await refreshMe(); } catch { /* keep the error */ }
         }
     }
     busy = false; render();
@@ -204,10 +221,10 @@ async function sendCount() {
 
 // ---- entry views ----------------------------------------------------------
 const view = (...children) => h('section', { class: 'pl-view' }, ...children);
-const demoLink = (text, cls = 'gk-btn gk-btn--ghost') => h('a', { class: cls, href: './?demo', text });
+const demoLink = (text, cls = 'gk-btn gk-btn--ghost') => h('a', { class: cls, href: './?demo', text, dataset: { track: 'Entry: demo' } });
 /** One link per saved quiz the host opened for solo play. */
 const savedLinks = () => savedQuizzes.map((q) => h('a', { class: 'gk-btn gk-btn--ghost', dir: 'auto',
-    href: `./?demo&quiz=${encodeURIComponent(q.id)}`, text: `שחקו לבד: ${q.title}` }));
+    href: `./?demo&quiz=${encodeURIComponent(q.id)}`, text: `שחקו לבד: ${q.title}`, dataset: { track: `Entry: saved ${q.title}` } }));
 
 function joinView() {
     const taken = formError?.code === 'name_taken';
@@ -238,7 +255,7 @@ function joinView() {
             ? h('p', { class: 'pl-sub', text: 'ההרשמה נסגרה. מי שכבר נרשם והתנתק: כותבים את השם ומבקשים חיבור מחדש.' })
             : !isDemo && taken && h('p', { class: 'pl-sub', text: 'אם זה השם שלך מקודם, אפשר לבקש חיבור מחדש והמנחה יאשר.' }),
         isDemo
-            ? h('a', { class: 'pl-link', href: './', text: 'חזרה למסך הכניסה' })
+            ? h('a', { class: 'pl-link', href: './', text: 'חזרה למסך הכניסה', dataset: { track: 'Demo: menu (join form)' } })
             : demoLink('או נסו קודם חידון לדוגמה', 'pl-link'));
 }
 
@@ -267,6 +284,7 @@ function pickEntry() {
             h('p', { class: 'pl-big', text: 'השם הזה כבר בחידון' }),
             h('p', { class: 'pl-sub', dir: 'auto', text: `אם ${typedName.trim() || 'השם'} זה השם שלך (למשל אחרי שהדפדפן קרס), נשלחה למנחה בקשה להעביר אותו למכשיר הזה עם כל הניקוד. ממתינים לאישור…` }),
             h('button', { class: 'gk-btn gk-btn--ghost', type: 'button', text: 'זה לא אני — אבחר שם אחר',
+                dataset: { track: 'Relink: not me' },
                 onclick: () => { otherName = true; typedName = ''; render(); } }))];
     }
     // The host said it is not them: the same form, asking for another name.
@@ -281,19 +299,20 @@ function stripContent() {
     const item = data.item;
     const now = state.data?.frozen_at ?? serverNow();   // frozen in the editor's preview
     const left = demoUntil ? Math.max(0, Math.ceil((demoUntil - Date.now()) / 1000)) : null;
-    const go = (text) => demo && demoUntil && h('button', { class: 'gk-btn gk-btn--small', type: 'button', text, onclick: () => demo.skip() });
+    const go = (text) => demo && demoUntil && h('button', { class: 'gk-btn gk-btn--small', type: 'button', text,
+        dataset: { track: `Demo: continue ${phase}` }, onclick: () => demo.skip() });
     const standing = `מקום ${me.rank ?? '–'} מתוך ${me.players ?? 0} · ${me.points ?? 0} נק׳`;
 
     if (status === 'finished') {
         return [`fin|${phase}|${!!demoUntil}`, 'plain', `סיימת במקום ${me.rank} עם ${me.points} נקודות`, [
             go('למטריצה ▶'),
-            demo && h('button', { class: 'gk-btn gk-btn--small gk-btn--ghost', type: 'button', text: 'שחק שוב', onclick: () => { picked = null; demo.restart(); } }),
-            demo && h('a', { class: 'gk-btn gk-btn--small gk-btn--ghost', href: './', text: 'יציאה' }),
+            demo && h('button', { class: 'gk-btn gk-btn--small gk-btn--ghost', type: 'button', text: 'שחק שוב', dataset: { track: 'Demo: play again' }, onclick: () => { picked = null; demo.restart(); } }),
+            demo && h('a', { class: 'gk-btn gk-btn--small gk-btn--ghost', href: './', text: 'יציאה', dataset: { track: 'Demo: exit' } }),
         ]];
     }
     if (phase === 'lobby') {
         return demo
-            ? [`lobby|${left}`, 'plain', `${me.name}, נכנסת! מתחילים בעוד ${left} שניות`, [go('התחל עכשיו ▶')]]
+            ? ['lobby', 'plain', `${me.name}, נכנסת! מתחילים כשתלחצו`, [go('התחל ▶')]]
             : ['lobby', 'plain', `${me.name}, נכנסת! מחכים שהמנחה יתחיל`, []];
     }
     if (phase === 'countdown') return ['countdown', 'plain', 'עוד רגע מתחילים — תתכוננו!', [go('התחל ▶')]];
@@ -370,6 +389,47 @@ function renderStrip() {
     ]);
 }
 
+// ---- analytics (js/data/analytics.js) ---------------------------------------
+/** A live device's own story, from what `me` turned into: the pageview once
+ *  it is known whether this is a player, and the moments the server decided
+ *  (a relink approved or not, a removal). */
+function trackMe(was, now) {
+    gka.setContext({ run_id: state?.session_id || null, mode: now.player ? 'live' : 'browse' });
+    if (!meKnown) { meKnown = true; gka.pageview(); return; }
+    if (was.pending && now.player) gka.track('Relink: approved');
+    if (!was.rejected && now.rejected) gka.track('Relink: rejected');
+    if (!was.kicked && now.kicked) gka.track('Live: kicked');
+}
+
+/** Each screen a PLAYER reaches, live or demo — the "Quizzes Opened" tab of
+ *  analytics.html is built from these: the slide, when it appeared on THIS
+ *  device (so its time on screen is the gap to the next), and at the reveal
+ *  this player's verdict, points and speed. Live, the verdict is the
+ *  server's own (`gk_me`), so a reveal waits for the `me` fetched for it. */
+function trackStage() {
+    if (isPreview || !state || state.rev === -1) return;
+    if (isDemo) gka.pageview();
+    if (!me.player) { stageKey = null; return; }
+    const item = state.data?.item;
+    const scored = !!item && item.kind !== 'interlude';
+    const reveal = state.phase === 'reveal' && scored;
+    if (reveal && !isDemo && meAt !== state.rev) return;   // render() comes again with it
+    const key = `${state.status}|${state.phase}|${item?.id || ''}`;
+    if (key === stageKey) return;
+    stageKey = key;
+    const mine = reveal && me.answered && me.item_id === item.id;
+    gka.stage({
+        phase: state.phase,
+        item_id: item?.id || null,
+        item_kind: item?.kind || null,
+        item_no: scored ? item.no ?? null : null,
+        item_title: item?.title || null,
+        correct: mine ? !!me.result?.correct : null,
+        points: reveal ? (mine ? me.result?.points ?? 0 : null) : state.phase === 'podium' ? me.points ?? null : null,
+        answered_ms: mine ? me.result?.ms ?? null : null,
+    });
+}
+
 // ---- render ---------------------------------------------------------------
 /**
  * The goodbye: when a LIVE quiz this device played in is over, it moves on to
@@ -381,18 +441,20 @@ function renderStrip() {
  * the editor's preview.
  */
 let playedToTheEnd = false;
+let leaving = false;       // render() runs again before the page is gone: one goodbye
 function farewell() {
     if (isDemo || isPreview || !state) return false;
     if (state.status === 'finished' && me.player) playedToTheEnd = true;
     const over = (state.status === 'finished' && state.phase === 'matrix' && me.player)
         || (state.status === 'idle' && playedToTheEnd);
-    if (over) location.replace('handoff.html');
+    if (over && !leaving) { leaving = true; gka.track('Exit: handoff'); location.replace('handoff.html'); }
     return over;
 }
 
 function render() {
     if (!state || state.rev === -1) return;
     if (farewell()) return;
+    trackStage();
     if (me.answered && picked && picked.itemId === me.item_id) picked = null;
     if (picked && state.data.item?.id !== picked.itemId) picked = null;
 
@@ -426,6 +488,18 @@ function render() {
     const points = (me.points ?? 0) - (stage.spinning ? me.result?.points || 0 : 0);
     renderKeyed(head, `${me.player}|${me.name}|${points}|${isDemo}`, () => [
         h('div', { class: 'pl-brand' }, 'Gev', h('b', { text: 'Kahoot' }), isDemo && h('span', { class: 'pl-demo-tag', text: 'הדגמה' })),
+        // The demo, at any moment (the host's request): start over, or back
+        // to the entry page.
+        isDemo && h('div', { class: 'pl-demo-nav' },
+            h('button', { class: 'gk-btn gk-btn--small gk-btn--ghost', type: 'button', text: '↺ מחדש', title: 'התחלת החידון מחדש',
+                onclick: () => {
+                    if (!me.player || confirm('להתחיל את החידון מחדש?')) {
+                        gka.track(`Demo: restart${me.player ? ` at ${state.phase}` : ''}`);
+                        picked = null; demo?.restart();
+                    }
+                } }),
+            h('a', { class: 'gk-btn gk-btn--small gk-btn--ghost', href: './', text: '⌂ תפריט', title: 'חזרה למסך הכניסה',
+                dataset: { track: `Demo: menu${me.player ? ` at ${state.phase}` : ''}` } })),
         me.player && h('div', { class: 'pl-chip' },
             h('span', { class: 'pl-chip-name', dir: 'auto', text: me.name }),
             h('span', { class: 'pl-chip-points', text: String(points) })),

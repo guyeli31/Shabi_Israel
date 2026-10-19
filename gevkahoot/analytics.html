@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <!-- Same policy as the quiz's other pages: nothing off-origin except the
+         app's own Supabase backend. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://oaowwbwssfsohaskrgnc.supabase.co wss://oaowwbwssfsohaskrgnc.supabase.co http://127.0.0.1:54321 ws://127.0.0.1:54321; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <title>Analytics — GevKahoot</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" type="image/png" href="assets/favicon-round.png">
+    <!-- The main site's analytics look: its tokens, tabs, sections, cards and
+         tables (the page is the GevKahoot twin of shabi-israel/analytics.html). -->
+    <link rel="stylesheet" href="../shabi-israel/css/fonts.css">
+    <link rel="stylesheet" href="../shabi-israel/css/variables.css">
+    <link rel="stylesheet" href="../shabi-israel/css/typography-tokens.css">
+    <link rel="stylesheet" href="../shabi-israel/css/layout.css">
+    <link rel="stylesheet" href="../shabi-israel/css/components.css">
+    <link rel="stylesheet" href="../shabi-israel/css/tabs.css">
+    <link rel="stylesheet" href="../shabi-israel/css/subtabs.css">
+    <link rel="stylesheet" href="../shabi-israel/css/sections.css">
+    <link rel="stylesheet" href="../shabi-israel/css/dashboard.css">
+    <link rel="stylesheet" href="../shabi-israel/css/admin.css">
+    <link rel="stylesheet" href="../shabi-israel/table-lab/formats/mf/mf.css">
+    <link rel="stylesheet" href="../shabi-israel/css/analytics.css">
+    <link rel="stylesheet" href="css/analytics.css">
+</head>
+<body>
+    <div class="page-container" id="main" role="main">
+        <div class="page-header">
+            <h1 id="page-title">GevKahoot Analytics</h1>
+        </div>
+        <div id="content"><p class="muted">Loading…</p></div>
+    </div>
+    <script type="module" src="js/gkAnalytics.js"></script>
+</body>
+</html>
