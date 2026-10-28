@@ -144,6 +144,25 @@ function normaliseTitleBadgesForExport(root) {
         pill.appendChild(frame);
     });
 }
+/**
+ * Rank-medal fix-up for the WhatsApp frame's clone.
+ *
+ * `.medal` is a FIXED 18px circle (14px under the mobile media query), while
+ * the frame font-fits every --fs-* token up to roughly 17–34px. The circle
+ * therefore stayed page-sized beside enlarged text — and smaller still when
+ * exported from a phone, since the media query reads the live viewport.
+ * Re-express it in em of its own --fs-072 number: 18px / 11.52px (the desktop
+ * design, 0.72rem at its max) = 1.5625em, so it keeps the web's proportion to
+ * the row at any fitted size and from any device.
+ */
+function normaliseMedalsForExport(root) {
+    root.querySelectorAll('.medal').forEach(m => {
+        m.style.fontSize = 'var(--fs-072)';
+        m.style.width = '1.5625em';
+        m.style.height = '1.5625em';
+    });
+}
+
 // The whole fluid type family, keyed by its design-max in rem. Tables use
 // several of these — not just --fs-085 (data cells): B7b's "played ≥ half"
 // divider is --fs-075, footers are --fs-060, etc. The font-fit below drives
@@ -151,12 +170,18 @@ function normaliseTitleBadgesForExport(root) {
 // ratio to --fs-085. Overriding only --fs-085/--fs-093 would leave the rest
 // at the page's live fluid (viewport-dependent!) value, so they'd render
 // disproportionately tiny next to the scaled-up data cells.
+// EVERY token in css/typography-tokens.css belongs here. A token left out
+// keeps its live, viewport-sized value while the cells around it are scaled
+// up — the rank medal's --fs-072 was missing, so its number came out tiny.
 const WA_FS_TOKENS = {
-    '--fs-060': 0.60, '--fs-075': 0.75, '--fs-085': 0.85, '--fs-093': 0.93,
-    '--fs-100': 1.00, '--fs-105': 1.05, '--fs-110': 1.10, '--fs-112': 1.12,
-    '--fs-115': 1.15, '--fs-120': 1.20, '--fs-125': 1.25, '--fs-135': 1.35,
-    '--fs-140': 1.40, '--fs-150': 1.50, '--fs-160': 1.60, '--fs-180': 1.80,
-    '--fs-190': 1.90,
+    '--fs-055': 0.55, '--fs-060': 0.60, '--fs-062': 0.62, '--fs-065': 0.65,
+    '--fs-068': 0.68, '--fs-070': 0.70, '--fs-072': 0.72, '--fs-075': 0.75,
+    '--fs-078': 0.78, '--fs-080': 0.80, '--fs-082': 0.82, '--fs-085': 0.85,
+    '--fs-088': 0.88, '--fs-090': 0.90, '--fs-092': 0.92, '--fs-093': 0.93,
+    '--fs-095': 0.95, '--fs-100': 1.00, '--fs-105': 1.05, '--fs-110': 1.10,
+    '--fs-112': 1.12, '--fs-115': 1.15, '--fs-120': 1.20, '--fs-125': 1.25,
+    '--fs-135': 1.35, '--fs-140': 1.40, '--fs-150': 1.50, '--fs-160': 1.60,
+    '--fs-180': 1.80, '--fs-190': 1.90, '--fs-200': 2.00,
 };
 // The fitted size we solve for IS --fs-085 (the data-cell token); every
 // other token is scaled relative to it.
@@ -283,6 +308,7 @@ export async function exportWhatsAppTableImage({ sourceTable, filename, title, s
         cell.style.boxShadow = 'none';
     });
     normaliseTitleBadgesForExport(tableClone);
+    normaliseMedalsForExport(tableClone);
     tableClone.style.maxWidth = 'none';
 
     // Content-width mode: pin every cell nowrap so each column sizes to its
