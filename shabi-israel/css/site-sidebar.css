@@ -214,11 +214,9 @@
     pointer-events: inherit;
 }
 
-/* Long lists get internal scrolling. Targets the leaf flyouts that fill
-   with many rows: the leagues lists inside Dashboard/Table (10-20). The
-   parent Leagues flyout itself only holds two rows. */
-.site-nav-flyout[data-submenu="leagues-dashboard"],
-.site-nav-flyout[data-submenu="leagues-table"] {
+/* Long lists get internal scrolling: the Leagues flyout lists every
+   league (10-20 rows). */
+.site-nav-flyout[data-submenu="leagues"] {
     max-height: min(70vh, 520px);
     overflow-y: auto;
 }
@@ -265,7 +263,7 @@
     transform: translateX(-4px);
 }
 
-/* Nested flyouts (Dashboard / Table inside Leagues) — same pattern, just
+/* Nested flyouts (Theme Customize / Show name as inside Settings) — same pattern, just
    they live INSIDE another flyout, so their `left: 100%` cascades further. */
 .site-nav-flyout-host--nested {
     display: block;

@@ -532,10 +532,11 @@ as $$
     -- expand one session into the same table format as clicks_log above. This
     -- is the ONLY key that reconstructs a sequence of one visitor's events, and
     -- it can only ever contain rows that opted into a session id by being on
-    -- the Israel route. Payload is bounded at 200 visits x 500 events each
-    -- regardless of traffic; event_count is counted over the FULL visit, so a
-    -- truncated timeline still reports its true size and the dashboard can say
-    -- "showing the first N of M".
+    -- the Israel route. Bounded at 200 visits; the timeline itself is NOT
+    -- capped — a shown visit shows every one of its events (long visits are
+    -- rare, and the whole range is already bounded by analytics_events_raw's
+    -- 20000-row cap, which applies to every visit together, not each one). So
+    -- event_count always equals the timeline length.
     'sessions',        (select coalesce(jsonb_agg(t), '[]'::jsonb) from
                           (select s.session_id, s.started_at, s.ended_at, s.duration_ms,
                                   s.event_count, s.pageview_count, s.click_count,
@@ -563,9 +564,14 @@ as $$
                                       'from_league_id', x.from_league_id,
                                       'from_player',    x.from_player
                                     ) order by x.created_at), '[]'::jsonb) as timeline
+                             -- The timeline is NOT capped: a visit that ships
+                             -- carries every one of its events (see the key's
+                             -- header). The only ceiling is the 20000-row
+                             -- analytics_events_raw cap the dashboard reads
+                             -- through, which bounds every visit together.
                              from (select * from ev e
                                    where e.session_id = s.session_id
-                                   order by e.created_at limit 500) x
+                                   order by e.created_at) x
                            ) tl
                            -- Repeated even though `sess` is already ordered:
                            -- order does not propagate out of a CTE, and the

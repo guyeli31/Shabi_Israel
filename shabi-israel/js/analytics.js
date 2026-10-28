@@ -637,14 +637,13 @@ document.addEventListener('click', (e) => {
     if (!trackEl && !exportBtn && !showMoreEl && !langFlagEl && !searchPickEl && !tabEl && !menuEl && !actionBtn && !navArrowEl && !breadcrumbEl && !privacyEl && !infoEl && !linkEl) return;
 
     // Submenu TOGGLES only open a flyout, they aren't a destination — so log the
-    // final leaf, never the toggle. Covers both sidebars: the "Leagues" 2-level
-    // flyout (Leagues > Dashboard/Table > <league>), "Records", "Settings", the
+    // final leaf, never the toggle. Covers both sidebars: the "Leagues" flyout
+    // (Leagues > <league>), "Records", "Settings", the
     // nested "Theme Customize" (settings-theme) and "Show name as" (settings-name).
     // Their leaves (Achievements/PR/Match, a league, a theme swatch, Username/Full
     // name) are NOT .site-nav-group and stay tracked.
     if (menuEl && menuEl.matches('.site-nav-group') &&
-        ['leagues', 'leagues-dashboard', 'leagues-table',
-         'records', 'settings', 'settings-theme', 'settings-name'].includes(menuEl.dataset.group)) {
+        ['leagues', 'records', 'settings', 'settings-theme', 'settings-name'].includes(menuEl.dataset.group)) {
         return;
     }
 
@@ -697,11 +696,10 @@ document.addEventListener('click', (e) => {
         const rawLabel = labelEl ? labelOf(labelEl)
             : (labelOf(menuEl) || (menuEl.getAttribute('aria-label') || menuEl.getAttribute('title') || '').trim());
         if (!rawLabel) return;
-        // A league entry under Leagues > Dashboard or Leagues > Table needs
-        // its parent section named too ("Dashboard: July 2026"), since the
-        // league name alone is ambiguous between the two destinations.
-        const label = menuEl.closest('[data-flyout="leagues-dashboard"]') ? `Dashboard: ${rawLabel}`
-            : menuEl.closest('[data-flyout="leagues-table"]') ? `Table: ${rawLabel}`
+        // A league entry under Leagues opens that league's Dashboard; it keeps
+        // the "Dashboard: July 2026" name it had when Leagues still split into
+        // Dashboard / Table sub-menus, so old and new rows count together.
+        const label = menuEl.closest('[data-flyout="leagues"]') ? `Dashboard: ${rawLabel}`
             : rawLabel;
         // Only the admin's OWN sidebar (admin.html, class "admin-sidebar" —
         // see js/admin/render/adminSidebarNav.js) is admin-exclusive; the

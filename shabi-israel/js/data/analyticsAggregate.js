@@ -220,15 +220,55 @@ export function computeSummary(events, filter) {
             nav_type: e.nav_type, from_page: e.from_page, from_league_id: e.from_league_id, from_player: e.from_player,
         }));
 
-    // ── sessions (Israel route only: session_id present) ──
+    // ── sessions (Israel route only; see buildSessions) ──
+    const sessions = buildSessions(ev, { limit: 200 });
+
+    return {
+        traffic_mix: mix,
+        total_pageviews, total_sessions, avg_dwell_ms, bounce_pct, last_event_at,
+        top_pages, top_leagues, top_players, by_device, by_region, by_referrer,
+        timeseries, by_hour_day, by_hour_month, dwell_buckets,
+        transitions, transitions_log, clicks_log, sessions,
+    };
+}
+
+/**
+ * Build the per-visit session objects from ALREADY-audience-filtered events
+ * (`ev` — the caller applies audienceKeep first, exactly as computeSummary does).
+ * Israel route only: a visit exists only for rows carrying a session_id.
+ *
+ * Optional window `{ fromTime, toTime }` (epoch ms) filters by the visit's START
+ * time (`started_at`, its first event) — the same key the list is ordered by. A
+ * visit that began before `fromTime` or after `toTime` is dropped whole; a visit
+ * straddling a boundary is classified by where it STARTED, the simple and
+ * expected rule. This is what lets the dashboard surface early-in-the-month
+ * visits: narrowing the window re-applies the `limit` to the NARROWED set, so a
+ * visit the month-wide "most recent 200" dropped reappears once the window holds
+ * fewer than `limit` of them. The raw rows are already in the browser, so a
+ * window change costs no round trip.
+ *
+ * The timeline is NOT truncated — a returned visit carries every one of its
+ * events, so a trace shown is a trace shown in full. (There used to be a
+ * 500-event cap here and in analytics_summary; it was removed because long
+ * visits are rare, the card is built lazily only on expand, and the whole range
+ * is already bounded by analytics_events_raw's own row cap — which bounds every
+ * visit together, not each one. So event_count always equals the timeline
+ * length.) Sorted newest-first and capped at `limit` (default 200; 0 = no cap).
+ */
+export function buildSessions(ev, { fromTime = -Infinity, toTime = Infinity, limit = 200 } = {}) {
     const bySession = new Map();
     for (const e of ev) {
         if (e.session_id == null) continue;
         (bySession.get(e.session_id) || bySession.set(e.session_id, []).get(e.session_id)).push(e);
     }
-    const sessions = [...bySession.entries()].map(([session_id, list]) => {
+    const out = [];
+    for (const [session_id, list] of bySession.entries()) {
         list.sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0));
         const started_at = list[0].created_at;
+        // Window is on the visit's START (see header) — skip out-of-window visits
+        // before doing any of the per-visit work below.
+        const startMs = new Date(started_at).getTime();
+        if (startMs < fromTime || startMs > toTime) continue;
         const ended_at = list[list.length - 1].created_at;
         const isPv = (e) => e.event_type === 'pageview';
         // entry_/exit_ are the FIRST/LAST pageview's own values — INCLUDING null
@@ -238,7 +278,7 @@ export function computeSummary(events, filter) {
         const firstPv = list.find(isPv) || null;
         let lastPv = null;
         for (let i = list.length - 1; i >= 0; i--) if (isPv(list[i])) { lastPv = list[i]; break; }
-        return {
+        out.push({
             session_id, started_at, ended_at,
             duration_ms: Math.round(new Date(ended_at).getTime() - new Date(started_at).getTime()),
             event_count: list.length,
@@ -259,21 +299,15 @@ export function computeSummary(events, filter) {
             entry_promo_banner: firstPv ? firstPv.promo_banner : null,
             exit_page: lastPv ? lastPv.page : null,
             exit_player: lastPv ? lastPv.player : null,
-            timeline: list.slice(0, 500).map((e) => ({
+            timeline: list.map((e) => ({
                 created_at: e.created_at, event_type: e.event_type, page: e.page, league_id: e.league_id,
                 player: e.player, tab: e.tab, moved_banner: e.moved_banner,
                 promo_banner: e.promo_banner, click_target: e.click_target,
                 duration_ms: e.duration_ms, nav_type: e.nav_type, from_page: e.from_page,
                 from_league_id: e.from_league_id, from_player: e.from_player,
             })),
-        };
-    }).sort((a, b) => (a.started_at < b.started_at ? 1 : a.started_at > b.started_at ? -1 : 0)).slice(0, 200);
-
-    return {
-        traffic_mix: mix,
-        total_pageviews, total_sessions, avg_dwell_ms, bounce_pct, last_event_at,
-        top_pages, top_leagues, top_players, by_device, by_region, by_referrer,
-        timeseries, by_hour_day, by_hour_month, dwell_buckets,
-        transitions, transitions_log, clicks_log, sessions,
-    };
+        });
+    }
+    out.sort((a, b) => (a.started_at < b.started_at ? 1 : a.started_at > b.started_at ? -1 : 0));
+    return limit ? out.slice(0, limit) : out;
 }

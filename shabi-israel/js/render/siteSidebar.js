@@ -4,9 +4,7 @@
  *  Header        — round logo + "Shabi Israel" (links to index.html);
  *                  matches the brand row of the (removed) top nav.
  *  Players       — links to index.html?tab=players#players-panel (jumps straight to the A7 directory panel, tab strip scrolled out of view).
- *  Leagues ▸
- *      Dashboard ▸ — chronological list of every league.
- *      Table ▸     — chronological list of every league.
+ *  Leagues ▸     — chronological list of every league; each opens its Dashboard.
  *  Records       — links to index.html?tab=records#records-* (jumps straight to that sub-section, tab strip scrolled out of view).
  *  Leaders       — links to index.html?tab=leaders#leaders-panel (jumps straight to the leaderboard panel, tab strip scrolled out of view).
  *  Settings ▸
@@ -18,7 +16,7 @@
  *
  *  Submenus are FLYOUTS that open to the right of the sidebar on hover
  *  AND on click (click pins; click elsewhere unpins). Nested submenus
- *  (Leagues → Dashboard → leagues list) cascade further right.
+ *  (Settings → Theme Customize) cascade further right.
  *  Mobile collapses to an off-canvas drawer behind a hamburger.
  *
  *  Icons reuse the same emoji vocabulary as the page tabs (TAB_ICONS), so a
@@ -27,7 +25,7 @@
  */
 
 import { loadLandingSettings, loadAllLeagueParams } from '../data/store.js';
-import { leagueUrl, leagueTableUrl, playerUrl, parseLeagueDate, searchFlagHtml } from '../utils/helpers.js';
+import { leagueUrl, playerUrl, parseLeagueDate, searchFlagHtml } from '../utils/helpers.js';
 import { getNameDisplayMode, setNameDisplayMode } from '../utils/nameDisplay.js';
 import { isLoggedIn, login, logout, getUsername } from '../admin/auth.js';
 import { isPreviewMode } from '../admin/previewMode.js';
@@ -47,8 +45,6 @@ import { mountTopbar, setTopbarBrand } from './topbar.js';
 const ICON = {
     players:     TAB_ICONS.players,                 // 👥
     leagues:     TAB_ICONS.leagues,                 // table/grid SVG
-    dashboard:   TAB_ICONS.standings,               // 📊
-    table:       TAB_ICONS.leagues,                 // same SVG, scoped to inner row
     records:     TAB_ICONS.records,                 // 📜
     medal:       '🏅',                              // Records → Achievements
     brain:       '🧠',                              // Records → PR
@@ -65,7 +61,7 @@ const ICON = {
 };
 
 /* League-type pill labels — mirrors LEAGUE_TYPE_BADGE in navigation.js so the
-   Dashboard/Table flyouts show the same D/R/UBC vocabulary as search results. */
+   Leagues flyout shows the same D/R/UBC vocabulary as search results. */
 const LEAGUE_TYPE_LABEL = {
     doubling: 'Doubling',
     regular:  'Regular',
@@ -178,26 +174,7 @@ function renderShell(sidebar, opts) {
                     ${ICON.chevron}
                 </button>
                 <div class="site-nav-flyout" data-submenu="leagues" role="menu">
-                    <div class="site-nav-flyout-host site-nav-flyout-host--nested" data-flyout="leagues-dashboard">
-                        <button class="site-nav-item site-nav-group" data-group="leagues-dashboard">
-                            <span class="site-nav-icon" aria-hidden="true">${ICON.dashboard}</span>
-                            <span class="site-nav-label">Dashboard</span>
-                            ${ICON.chevron}
-                        </button>
-                        <div class="site-nav-flyout site-nav-flyout--nested" data-submenu="leagues-dashboard" role="menu">
-                            <div class="site-nav-flyout-loading">Loading…</div>
-                        </div>
-                    </div>
-                    <div class="site-nav-flyout-host site-nav-flyout-host--nested" data-flyout="leagues-table">
-                        <button class="site-nav-item site-nav-group" data-group="leagues-table">
-                            <span class="site-nav-icon" aria-hidden="true">${ICON.table}</span>
-                            <span class="site-nav-label">Table</span>
-                            ${ICON.chevron}
-                        </button>
-                        <div class="site-nav-flyout site-nav-flyout--nested" data-submenu="leagues-table" role="menu">
-                            <div class="site-nav-flyout-loading">Loading…</div>
-                        </div>
-                    </div>
+                    <div class="site-nav-flyout-loading">Loading…</div>
                 </div>
             </div>
 
@@ -341,10 +318,10 @@ async function populateAsync(opts) {
         .filter(l => !l.hidden)
         .sort((a, b) => b.date - a.date);
 
-    populateLeaguesSubmenu(_sidebarEl.querySelector('[data-submenu="leagues-dashboard"]'),
-        leaguesAll, leagueUrl, opts.activeView === 'league' ? opts.leagueId : null);
-    populateLeaguesSubmenu(_sidebarEl.querySelector('[data-submenu="leagues-table"]'),
-        leaguesAll, leagueTableUrl, opts.activeView === 'leagueTable' ? opts.leagueId : null);
+    // One list, straight under Leagues: a league always opens on its Dashboard.
+    const onLeague = opts.activeView === 'league' || opts.activeView === 'leagueTable';
+    populateLeaguesSubmenu(_sidebarEl.querySelector('[data-submenu="leagues"]'),
+        leaguesAll, leagueUrl, onLeague ? opts.leagueId : null);
 }
 
 function populateLeaguesSubmenu(container, leagues, urlFn, activeId) {

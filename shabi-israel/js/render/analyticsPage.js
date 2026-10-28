@@ -30,7 +30,7 @@
  */
 
 import { supabase } from '../data/supabaseClient.js';
-import { computeSummary, audienceKeep } from '../data/analyticsAggregate.js';
+import { computeSummary, audienceKeep, buildSessions } from '../data/analyticsAggregate.js';
 import { loadAllLeagues } from '../data/store.js';
 import { isLoggedIn, login, getUsername } from '../admin/auth.js';
 import { escapeHtml } from '../utils/sanitize.js';
@@ -1738,16 +1738,35 @@ function timelineRow(e, sessionDevice) {
  *  population statistic. Foreign visitors carry no session id by design and can
  *  never appear here; they exist in the all-clicks log below as unlinked
  *  individual rows, which is the entire point of the two-route model (see
- *  sql/analytics_poc.sql's header). `section` must contain #sessions-list.
+ *  sql/analytics_poc.sql's header).
+ *
+ *  Takes the RAW events for the month plus the audience filter, and sessionises
+ *  them FRESH on every window change — NOT a pre-capped session array. That is
+ *  the whole point of the From/To control: the 200-visit cap is re-applied to
+ *  the NARROWED window, so picking a few early days surfaces visits the
+ *  month-wide "most recent 200" dropped (buildSessions filters by each visit's
+ *  START time). The raw rows are already in the browser, so a window change
+ *  costs no round trip. `section` must contain #sessions-list and the two
+ *  #sessions-from / #sessions-to datetime inputs.
  *
  *  Each card is a native <details>: no expand JS, keyboard and aria-expanded for
  *  free, and a `toggle` event that doubles as the lazy-render hook. Note it must
  *  NOT be an .app-section — renderAnalyticsPage ends with a blanket
  *  wireSectionCollapse over every .app-section, and that helper isn't idempotent,
  *  so a nested one would get double-wired and toggle twice per click. */
-function renderSessions(section, sessions) {
+function renderSessions(section, { rawEvents, filter }) {
     const host = section.querySelector('#sessions-list');
-    if (!sessions || sessions.length === 0) {
+    const fromInput = section.querySelector('#sessions-from');
+    const toInput = section.querySelector('#sessions-to');
+
+    // Audience-filtered once (the same predicate computeSummary used); the window
+    // then re-sessionises THIS set, never the capped data.sessions.
+    const ev = (rawEvents || []).filter(audienceKeep(filter));
+    const hasAnySession = ev.some((e) => e.session_id != null);
+
+    if (!hasAnySession) {
+        if (fromInput) fromInput.disabled = true;
+        if (toInput) toInput.disabled = true;
         host.innerHTML = '<p class="muted">No sessions yet. A session id is kept for visits from an '
             + 'Asia/Jerusalem timezone AND for any signed-in user (from anywhere) — every other '
             + '(anonymous, non-Israel) visitor is recorded as unlinked individual events by design, '
@@ -1755,53 +1774,75 @@ function renderSessions(section, sessions) {
         return;
     }
 
-    host.innerHTML = sessions.map((s) => `
-        <details class="analytics-session${s.admin_user ? ' analytics-session--user' : ''}"${s.admin_user ? ` style="--sid-hue:${userHue(s.admin_user)}"` : ''}>
-            <summary class="analytics-session-head">
-                ${sessionChip(s.session_id, s.admin_user)}
-                <span class="analytics-session-time">${escapeHtml(formatEventTime(new Date(s.started_at)))}</span>
-                <span class="analytics-session-meta">${escapeHtml(formatSpan(s.duration_ms))}</span>
-                <span class="analytics-session-meta">${s.pageview_count} view${s.pageview_count === 1 ? '' : 's'} · ${s.click_count} click${s.click_count === 1 ? '' : 's'}</span>
-                ${devicePill(s.device_type)}
-                ${referrerPill(s.entry_referrer)}
-                ${sessionRoute(s)}
-            </summary>
-            <div class="analytics-session-body"></div>
-        </details>`).join('');
+    // datetime-local wants "YYYY-MM-DDTHH:mm" in LOCAL time (same helper and same
+    // timezone quirk as mountFilteredLog: boundaries line up with the displayed
+    // Asia/Jerusalem times only for an admin sitting in Israel). Default window:
+    // the dawn of history to now — i.e. show everything.
+    const toLocalInputValue = (d) => {
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    fromInput.value = toLocalInputValue(new Date(0));
+    toInput.value = toLocalInputValue(new Date());
 
-    // Lazy: 200 sessions x up to 500 timeline events is ~100k rows built upfront
-    // for tables nobody has opened yet. <details> fires `toggle` on first expand,
-    // and dataset.drawn keeps it to once.
-    host.querySelectorAll('.analytics-session').forEach((el, i) => {
-        el.addEventListener('toggle', () => {
-            if (!el.open || el.dataset.drawn) return;
-            el.dataset.drawn = '1';
-            const s = sessions[i];
-            const timeline = s.timeline || [];
-            const body = el.querySelector('.analytics-session-body');
-            // Clicks ONLY. Pageview and Dwell rows are both non-interactions: the
-            // visit's navigation is already told by the card head's entry→exit
-            // route and its view count, and its total dwell by the head's span, so
-            // listing every page-view/timer here is redundant noise. What's left
-            // that a header can't summarise is the actual interactions — the
-            // clicks — so the trace is exactly those. A pure-browse visit (no
-            // clicks) shows the same table with an empty body (emptyKeepsTable),
-            // so it reads like every other session's table — just with no rows.
-            const events = timeline.filter((e) => e.event_type === 'click');
-            // Stacked AND grouped by page: within one visit a page is revisited
-            // across several clicks, so the page shows once with its clicks beneath.
-            // No session/device (constant here — the card head already shows both);
-            // ascending, because a trace is read forwards.
-            renderClickLog(body, events.map((e) => timelineRow(e, s.device_type)),
-                { grouped: true, withSession: false, withDevice: false, sort: { key: 'date', dir: 'asc' }, emptyKeepsTable: true });
-            // click_count is counted over the WHOLE visit server-side, so if the
-            // 500-event timeline cap dropped some clicks, this still flags it.
-            if (events.length < s.click_count) {
-                body.insertAdjacentHTML('beforeend',
-                    `<p class="muted">Showing the first ${events.length} of ${s.click_count} clicks.</p>`);
-            }
+    const drawCards = (sessions) => {
+        if (!sessions.length) {
+            host.innerHTML = '<p class="muted">No sessions started in this time window.</p>';
+            return;
+        }
+        host.innerHTML = sessions.map((s) => `
+            <details class="analytics-session${s.admin_user ? ' analytics-session--user' : ''}"${s.admin_user ? ` style="--sid-hue:${userHue(s.admin_user)}"` : ''}>
+                <summary class="analytics-session-head">
+                    ${sessionChip(s.session_id, s.admin_user)}
+                    <span class="analytics-session-time">${escapeHtml(formatEventTime(new Date(s.started_at)))}</span>
+                    <span class="analytics-session-meta">${escapeHtml(formatSpan(s.duration_ms))}</span>
+                    <span class="analytics-session-meta">${s.pageview_count} view${s.pageview_count === 1 ? '' : 's'} · ${s.click_count} click${s.click_count === 1 ? '' : 's'}</span>
+                    ${devicePill(s.device_type)}
+                    ${referrerPill(s.entry_referrer)}
+                    ${sessionRoute(s)}
+                </summary>
+                <div class="analytics-session-body"></div>
+            </details>`).join('');
+
+        // Lazy: the body tables are built only on first expand. <details> fires
+        // `toggle` then, and dataset.drawn keeps it to once.
+        host.querySelectorAll('.analytics-session').forEach((el, i) => {
+            el.addEventListener('toggle', () => {
+                if (!el.open || el.dataset.drawn) return;
+                el.dataset.drawn = '1';
+                const s = sessions[i];
+                const timeline = s.timeline || [];
+                const body = el.querySelector('.analytics-session-body');
+                // Clicks ONLY. Pageview and Dwell rows are both non-interactions: the
+                // visit's navigation is already told by the card head's entry→exit
+                // route and its view count, and its total dwell by the head's span, so
+                // listing every page-view/timer here is redundant noise. What's left
+                // that a header can't summarise is the actual interactions — the
+                // clicks — so the trace is exactly those. A pure-browse visit (no
+                // clicks) shows the same table with an empty body (emptyKeepsTable),
+                // so it reads like every other session's table — just with no rows.
+                // The timeline is no longer truncated, so this is every click of the
+                // visit — no "showing the first N of M" caveat is possible.
+                const events = timeline.filter((e) => e.event_type === 'click');
+                // Stacked AND grouped by page: within one visit a page is revisited
+                // across several clicks, so the page shows once with its clicks beneath.
+                // No session/device (constant here — the card head already shows both);
+                // ascending, because a trace is read forwards.
+                renderClickLog(body, events.map((e) => timelineRow(e, s.device_type)),
+                    { grouped: true, withSession: false, withDevice: false, sort: { key: 'date', dir: 'asc' }, emptyKeepsTable: true });
+            });
         });
-    });
+    };
+
+    const draw = () => {
+        const fromTime = fromInput.value ? new Date(fromInput.value).getTime() : -Infinity;
+        const toTime = toInput.value ? new Date(toInput.value).getTime() : Infinity;
+        drawCards(buildSessions(ev, { fromTime, toTime, limit: 200 }));
+    };
+
+    fromInput.addEventListener('change', draw);
+    toInput.addEventListener('change', draw);
+    draw();
 }
 
 function renderKpiCards(host, data, fetchedAt) {
@@ -2456,11 +2497,19 @@ export async function renderAnalyticsPage(monthKeyArg = null, viewArg = null) {
     // Sessions are the real thing; the flows aggregate is what the global route
     // gets instead, since those events can never be linked into a visit.
     // "most recent 200" is in the title because the Sessions KPI counts every
-    // visit in range and the two will disagree once traffic passes the cap.
-    const sessionsSection = makeSection('Sessions — Israel & signed-in users (most recent 200)');
-    sessionsSection.innerHTML += `<div id="sessions-list"></div>`;
+    // visit in range and the two will disagree once traffic passes the cap — but
+    // the From/To filter below re-applies that cap to the chosen window, so a
+    // narrower window reaches visits the month-wide 200 dropped (e.g. the start
+    // of a busy month). renderSessions sessionises the raw rows itself.
+    const sessionsSection = makeSection('Sessions — Israel & signed-in users (most recent 200 per window)');
+    sessionsSection.innerHTML += `
+        <div class="analytics-time-filter">
+            <label>From <input type="datetime-local" id="sessions-from"></label>
+            <label>To <input type="datetime-local" id="sessions-to"></label>
+        </div>
+        <div id="sessions-list"></div>`;
     shell.panels.journeys.appendChild(sessionsSection);
-    renderSessions(sessionsSection, data.sessions);
+    renderSessions(sessionsSection, { rawEvents, filter: { ...audience, viewer: viewerUser } });
 
     const flowsSection = makeSection('Top navigation flows');
     flowsSection.innerHTML += `<div id="table-flows"></div>
