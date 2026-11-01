@@ -184,7 +184,7 @@ export async function renderLeaguePage() {
                     },
                 },
             });
-            mountMFTable(mountPoint, preset);
+            mountMFTable(mountPoint, { ...preset, tableName: 'League table' });
         };
 
         renderTable();

@@ -921,3 +921,43 @@ export function computeTopXPct(finishRankCounts, playerIdx, n, totalWeight, X) {
     for (let r = 0; r < limit; r++) count += finishRankCounts[base + r];
     return totalWeight > 0 ? (count / totalWeight) * 100 : 0;
 }
+
+// A stored point's counts are rebuilt from rounded cumulative percentages, so
+// two equal figures can differ by float noise. Noise must not decide an order.
+const snapPct = (v) => Math.round(v * 1e6) / 1e6;
+
+/**
+ * Sort comparator for the "top X" tables: higher P(top X) first.
+ *
+ * An exact tie says nothing about X itself, so it is settled by the neighbouring
+ * thresholds, read off the counts the simulation already kept:
+ *   - 100%: whoever is likelier to be inside X-1, then X-2, ... (every threshold
+ *     above X is 100% for both, so looking up could never separate them)
+ *   - any other figure: whoever is likelier to reach X+1, then X+2, ...
+ * Being level on the cumulative figure up to a place means the place's own count
+ * decides the next one, so no prefix sum is needed along the way.
+ *
+ * @returns {number} negative if A ranks above B, 0 if this cannot separate them.
+ */
+export function compareTopX(finishRankCounts, playerA, playerB, n, totalWeight, X) {
+    if (!(totalWeight > 0)) return 0;
+    const pctA = snapPct(computeTopXPct(finishRankCounts, playerA, n, totalWeight, X));
+    const pctB = snapPct(computeTopXPct(finishRankCounts, playerB, n, totalWeight, X));
+    if (pctA !== pctB) return pctB - pctA;
+
+    const share = (player, r) => snapPct((finishRankCounts[player * n + r] / totalWeight) * 100);
+    if (pctA === 100) {
+        // Inside X for certain, so fewer finishes in the last place of the
+        // window means more inside the next window down.
+        for (let r = Math.min(X, n) - 1; r >= 0; r--) {
+            const diff = share(playerA, r) - share(playerB, r);
+            if (diff !== 0) return diff;
+        }
+    } else {
+        for (let r = X; r < n; r++) {
+            const diff = share(playerB, r) - share(playerA, r);
+            if (diff !== 0) return diff;
+        }
+    }
+    return 0;
+}

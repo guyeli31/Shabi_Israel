@@ -620,14 +620,14 @@ function renderLeaguesTable(section, perLeague, playerName) {
         const shown = typeId === ALL_TYPES_ID
             ? perLeague
             : perLeague.filter(e => e.league.leagueType === typeId);
-        mountMFTable(mountPoint, buildPlayerLeaguesPreset({
+        mountMFTable(mountPoint, { tableName: 'Leagues', ...buildPlayerLeaguesPreset({
             perLeague: shown,
             playerName,
             parseLeagueDate,
             enrich: {
                 leagueLink: (id, title) => `<a href="${leagueUrl(id)}">${escapeHtml(title)}</a>`,
             },
-        }));
+        }) });
     }
 
     // League-type filter (shared pill sub-tabs) — see typeFilterTabs for the
@@ -937,7 +937,7 @@ function renderMatchHistory(section, playerName, perLeague) {
                 },
             },
         });
-        mountMFTable(host, preset);
+        mountMFTable(host, { ...preset, tableName: 'All matches' });
         attachPlayerNameInteractions(host, null);
     }
 
@@ -1068,7 +1068,7 @@ function renderMatchup(panel, playerName, allRows) {
     const opponentSuffix = (name) => _allMeta[name]?.hidden
         ? ''
         : getTitleAbbreviationsHtml(_allMeta[name]);
-    mountMFTable(c4Mount, buildAllOpponentsPreset({ opponents, enrich: { flagFor, opponentSuffix } }));
+    mountMFTable(c4Mount, { ...buildAllOpponentsPreset({ opponents, enrich: { flagFor, opponentSuffix } }), tableName: 'All opponents' });
 
     // Clicking an opponent in C4 opens the C3 detail above it and jumps
     // straight to that lookup section — NOT the page top (window.scrollTo
@@ -1241,7 +1241,7 @@ function renderMatchup(panel, playerName, allRows) {
                 },
             },
         });
-        mountMFTable(mountPoint, preset);
+        mountMFTable(mountPoint, { ...preset, tableName: 'H2H matches' });
         // No leagueId in scope on this page — the winner name opens the general card.
         attachPlayerNameInteractions(mountPoint, null);
     }
@@ -1470,12 +1470,12 @@ function renderTotalLuckSection(container, playerName, perLeague) {
             mountPoint.innerHTML = '<div class="pg-note">No data for this selection.</div>';
             return;
         }
-        mountMFTable(mountPoint, buildPlayerTotalLuckPreset({
+        mountMFTable(mountPoint, { tableName: 'Total luck', ...buildPlayerTotalLuckPreset({
             rows: shown,
             enrich: {
                 leagueLink: (id, title) => `<a href="${leagueUrl(id)}">${escapeHtml(title)}</a>`,
             },
-        }));
+        }) });
     }
 
     const { bar } = mountLeagueTypeFilter(section, {

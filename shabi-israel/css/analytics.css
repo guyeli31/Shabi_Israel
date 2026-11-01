@@ -165,6 +165,34 @@
     margin-left: var(--space-xs, 4px);
 }
 
+/* 24-hour From/To field: a native date picker + explicit 0–23 hour and 0–59
+   minute selects (dtField24 in analyticsPage.js), replacing the native
+   datetime-local whose AM/PM a 12-hour locale forces and which ignores `lang`.
+   The date input keeps the shared control look above; the selects match it, and
+   the three sit on one baseline with the label. */
+.dt24 {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs, 4px);
+    margin-left: var(--space-xs, 4px);
+}
+.dt24 .dt24-date { margin-left: 0; }
+.dt24 select {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    padding: 3px 4px;
+    cursor: pointer;
+}
+.dt24-time {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+.dt24-colon { opacity: 0.6; }
+
 /* "Exclude my own traffic" and the History tab's "provably mine" now use the
    shared neutral pill (mountFilterToggle → .subtab--pill.pill-neutral,
    css/subtabs.css). The checkbox chrome that lived here is deleted rather than

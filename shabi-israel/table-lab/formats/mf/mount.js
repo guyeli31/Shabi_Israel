@@ -74,6 +74,12 @@ if (typeof window !== 'undefined' && !window.__mfTableRegistry__) {
 export function mountMFTable(mountPoint, args) {
     const {
         tableId         = null,
+        // Human-readable table name for analytics. A user-initiated column sort
+        // dispatches a `shabi:interaction` naming THIS table, so a page with
+        // several tables can say which one was sorted (see attachSort). Falls back
+        // to tableId; with neither, the sort fires no event (it would be
+        // ambiguous). Display/analytics only — never a CSS/storage key.
+        tableName       = null,
         data            = [],
         cols            = [],
         fontClass       = 'font-small',
@@ -142,7 +148,7 @@ export function mountMFTable(mountPoint, args) {
     attachSort(
         wrapper, table, cols, data, summaryData, medalRows, medalCounts,
         getRowClass, extents, stickyCols, topNControls,
-        initialSort
+        initialSort, tableName || tableId || null
     );
 
     // 11. Register
@@ -287,7 +293,7 @@ function measureStickyCols(wrapper, table) {
 function attachSort(
     wrapper, table, cols, data, summaryData, medalRows, medalCounts,
     getRowClass, extents, stickyCols, topNControls,
-    initialSort = null
+    initialSort = null, sortName = null
 ) {
     // Single shared sort closure — drives click handlers AND the optional
     // initial-sort restoration from a one-shot pending entry. Tracks the
@@ -353,6 +359,19 @@ function attachSort(
                 ? (sortDir === 'asc' ? 'desc' : 'asc')
                 : 'asc';
             runSort(colIdx, nextDir);
+            // Analytics: a USER-initiated column sort. Dispatched here, not inside
+            // runSort, so the programmatic initial/handover sort below never fires
+            // an event. Named by the table (sortName) so a page with several tables
+            // says which one moved; the column label is stripped of any markup, and
+            // the direction is an arrow (↑ asc / ↓ desc). No name → no event, since
+            // an unnamed table's sort could not be attributed.
+            if (sortName && typeof window !== 'undefined') {
+                const label = String(col.label || col.key || '')
+                    .replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+                window.dispatchEvent(new CustomEvent('shabi:interaction', {
+                    detail: { target: `${sortName}: sort by ${label} ${nextDir === 'asc' ? '↑' : '↓'}` },
+                }));
+            }
         });
     });
 

@@ -26,7 +26,7 @@ import { drawCorrelationRow, drawHistogramRow } from './prCorrelationChart.js';
 import { luckConfidenceFromItems } from '../compute/luckConfidence.js';
 import { applyLuckPill } from './luckPill.js';
 import { renderBreadcrumbs } from './navigation.js';
-import { predictChampionship, computeTopXPct, prProbabilityTableHtml, getWinProbability, nearestMatchLengthIdx, matchLengthForIdx, effectivePRFor, stagedOutcomeOdds } from '../compute/championshipPredictor.js';
+import { predictChampionship, computeTopXPct, compareTopX, prProbabilityTableHtml, getWinProbability, nearestMatchLengthIdx, matchLengthForIdx, effectivePRFor, stagedOutcomeOdds } from '../compute/championshipPredictor.js';
 import { pmTableHtml } from '../../table-lab/formats/pm/mount.js';
 import { getPopup, leagueTypePill, leagueLuckGaussianHtml } from '../data/popupContent.js';
 import { tableValidationExampleHistogramSvg } from './exampleHistograms.js';
@@ -1369,6 +1369,21 @@ function activeRoster(stored, ctx) {
 }
 
 /**
+ * The row order of the Predictor's and What-If's tables. Players compareTopX
+ * cannot separate keep the championship order, and whoever is level on that too
+ * follows the league table of `matches` - the played set the projection is for -
+ * rather than whatever order the roster happened to be built in.
+ */
+function sortByTopX(result, X, matches, ctx) {
+    const { rankings: table } = rankLeague({ matches, allPlayers: ctx.allPlayersSet, config: ctx.leagueConfig });
+    const tablePos = new Map(table.map((r, i) => [r.player, i]));
+    return [...result.rankings].sort((a, b) =>
+        compareTopX(result.finishRankCounts, a.playerIdx, b.playerIdx, result.n, result.totalWeight, X)
+        || b.championshipPct - a.championshipPct
+        || (tablePos.get(a.player) ?? table.length) - (tablePos.get(b.player) ?? table.length));
+}
+
+/**
  * The league settings that are an input to EVERY projected point, in the shape
  * scheduleFingerprint wants. Read from ctx here and from the `leagues` row in
  * the Node job — both must produce the same three values or every stored point
@@ -1582,8 +1597,16 @@ async function renderPredictor(ctx) {
             matches: ctx.liveMatches, allPlayers: ctx.allPlayersSet, config: ctx.leagueConfig
         });
         const top = rankings[0];
+        const topMeta = top ? ctx.playersMeta[top.player] : null;
+        const champion = !top ? 'N/A'
+            : topMeta?.hidden ? playerNameLink(top.player, topMeta)
+            : playerIdentityHtml({
+                name: displayPlayerName(top.player, topMeta),
+                flagCode: getFlagCode(top.player, ctx.params.CustomFlags),
+                titleHtml: getTitleAbbreviationsHtml(topMeta),
+            });
         moeHost.textContent = '';
-        host.innerHTML = `<div style="text-align:center;color:var(--color-text-muted);padding:var(--space-md)">Season complete — ${top ? top.player : 'N/A'} wins the championship.</div>`;
+        host.innerHTML = `<div style="text-align:center;color:var(--color-text-muted);padding:var(--space-md)">Season complete — ${champion} wins the championship.</div>`;
         return;
     }
 
@@ -1675,7 +1698,7 @@ async function renderPredictor(ctx) {
         const showPRWins = ctx.leagueConfig.showPRWins;
         let expanded = false;
         const renderTable = (full) => {
-            const sorted = [...result.rankings].sort((a, b) => getTopXPct(b) - getTopXPct(a));
+            const sorted = sortByTopX(result, currentX, ctx.liveMatches, ctx);
             const data = full ? sorted : sorted.slice(0, 5);
             const rows = data.map((r, i) => {
                 const flagCode = getFlagCode(r.player, ctx.params.CustomFlags);
@@ -2757,7 +2780,7 @@ function renderWhatIfSimulator(ctx) {
             const showPRWins = ctx.leagueConfig.showPRWins;
             let expanded = false;
             const renderTable = (full) => {
-                const sorted = [...result.rankings].sort((a, b) => getTopXPct(b) - getTopXPct(a));
+                const sorted = sortByTopX(result, currentX, simMatches, ctx);
                 const data = full ? sorted : sorted.slice(0, 5);
                 const rows = data.map((r, i) => {
                     const flagCode = getFlagCode(r.player, ctx.params.CustomFlags);

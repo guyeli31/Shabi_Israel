@@ -379,15 +379,19 @@ function clickTargetHtml(target) {
         const items = target.slice(mi + marker.length).split('; ').map(stagedMatchupHtml).join('; ');
         return `${escapeHtml(head)}${items}`;
     }
-    // League-type filter pills: "<section>: type <leaguetype> on|off" — the
-    // Records/Achievements type bar, the PR-distribution bars, the player pages'
-    // type filters (landingPage / dashboardPage / playerGeneralPage all emit this
-    // one shape). Render the type as its real coloured pill instead of the bare
-    // word "doubling"/"ubc"/"regular". "<section>: type all" names no single type,
-    // so it is left to fall through and stay plain.
+    // League-type filter bar: "<section>: type <leaguetype> on|off" (and
+    // "<section>: type all") — the Records/Achievements type bar, the
+    // PR-distribution bars, the player pages' type filters (landingPage /
+    // dashboardPage / playerGeneralPage all emit this one shape). It is an on/off
+    // TOGGLE, so it reads as a "filter" (a sort would carry a direction, not
+    // on/off), and the league type shows as its real coloured pill instead of the
+    // bare word "doubling"/"ubc"/"regular". "type all" names no single type, so it
+    // keeps the word "all" with no pill.
     {
         const m = /^(.+): type (doubling|ubc|regular) (on|off)$/.exec(target);
-        if (m) return `${escapeHtml(m[1])}: type ${typePillHtml(m[2])} ${escapeHtml(m[3])}`;
+        if (m) return `${escapeHtml(m[1])}: filter ${typePillHtml(m[2])} ${escapeHtml(m[3])}`;
+        const mAll = /^(.+): type all$/.exec(target);
+        if (mAll) return `${escapeHtml(mAll[1])}: filter all`;
     }
     // Admin-mode events (js/admin/trackAdmin.js grammar): enrich the SUBJECT after
     // " — " so an admin action reads with the same league type-pill / player flag +
@@ -423,6 +427,16 @@ function adminTargetHtml(target) {
     const prefix = head.slice(0, dash);
     const subject = head.slice(dash + 3);
 
+    // "Round editor: save technical win <winner>" carries the winner's OWN player
+    // key inside the prefix (roundEditor.js appends it to "technical win"), so
+    // enrich it with the same flag + title chip as the "A vs B" subject below —
+    // the winner then reads identically before the " — " and after it. Every
+    // other prefix has no entity in it and stays plain.
+    let prefixHtml;
+    const tw = /^(Round editor: save technical win )(.+)$/.exec(prefix);
+    if (tw) prefixHtml = `${escapeHtml(tw[1])}${playerHtml(tw[2])}`;
+    else prefixHtml = escapeHtml(prefix);
+
     let subjectHtml;
     if (ADMIN_LEAGUE_PREFIXES.includes(prefix)) {
         subjectHtml = leagueHtml(subject);
@@ -436,7 +450,7 @@ function adminTargetHtml(target) {
     } else {
         subjectHtml = escapeHtml(subject); // unknown subject kind (e.g. "Sync: run now — 1 league") stays plain
     }
-    return `${escapeHtml(prefix)} — ${subjectHtml}${escapeHtml(tail)}${escapeHtml(ADMIN_SUFFIX)}`;
+    return `${prefixHtml} — ${subjectHtml}${escapeHtml(tail)}${escapeHtml(ADMIN_SUFFIX)}`;
 }
 
 /** One staged matchup inside a "What if: run" summary — "A beats B", "A draws B",
@@ -1103,12 +1117,52 @@ function renderClickLog(host, rows, { grouped = false, withSession = false, with
     }).join('')}</div>`;
 }
 
+// ── 24-hour From/To field ──────────────────────────────────────────────────
+// A native <input type="datetime-local"> shows the time as AM/PM in a 12-hour
+// locale (en-US), and Chromium IGNORES the element's `lang` attribute for date/
+// time inputs (verified: lang="en-GB"/"he" still render "05:30 PM"), so there is
+// no reliable, cross-browser way to force a 0–23 clock onto the native control.
+// So the time is picked explicitly instead: a native date picker (which has no
+// AM/PM) plus a 0–23 hour <select> and a 0–59 minute <select>. The value is the
+// same local wall-clock the old inputs produced, read back by dtFieldTime().
+// `id` goes on the WRAPPER so the existing fromSel/toSel selectors still resolve.
+function dtField24(id) {
+    const opts = (n, sel = -1) => Array.from({ length: n }, (_, i) =>
+        `<option value="${i}"${i === sel ? ' selected' : ''}>${String(i).padStart(2, '0')}</option>`).join('');
+    return `<span class="dt24" id="${id}">`
+        + `<input type="date" class="dt24-date" aria-label="date">`
+        + `<span class="dt24-time"><select class="dt24-h" aria-label="hour (0–23)">${opts(24)}</select>`
+        + `<span class="dt24-colon">:</span>`
+        + `<select class="dt24-m" aria-label="minute">${opts(60)}</select></span>`
+        + `</span>`;
+}
+// Local wall-clock epoch ms for the field, or null when no date is set (so the
+// caller can treat an empty From as -∞ and an empty To as +∞, as before).
+function dtFieldTime(el) {
+    const d = el.querySelector('.dt24-date').value;
+    if (!d) return null;
+    const [Y, Mo, D] = d.split('-').map(Number);
+    const h = +el.querySelector('.dt24-h').value || 0;
+    const m = +el.querySelector('.dt24-m').value || 0;
+    return new Date(Y, Mo - 1, D, h, m).getTime();
+}
+// Fill the field from a Date (its local wall-clock parts).
+function dtFieldSet(el, date) {
+    const pad = (n) => String(n).padStart(2, '0');
+    el.querySelector('.dt24-date').value = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    el.querySelector('.dt24-h').value = String(date.getHours());
+    el.querySelector('.dt24-m').value = String(date.getMinutes());
+}
+function dtFieldOnChange(el, fn) { el.querySelectorAll('input, select').forEach((c) => c.addEventListener('change', fn)); }
+function dtFieldDisable(el) { el.querySelectorAll('input, select').forEach((c) => { c.disabled = true; }); }
+
 /** The shared From/To time window, layered on top of renderLogTable — kept out
  *  of the table renderer itself because the per-session tables don't want one.
- *  Known pre-existing quirk, unchanged here: the datetime-local inputs read the
+ *  Known pre-existing quirk, unchanged here: the date+time fields read the
  *  BROWSER's timezone while the Date column renders Asia/Jerusalem, so filter
  *  boundaries only line up with displayed times for an admin sitting in Israel.
- *  `section` must contain the three selectors passed in. */
+ *  `section` must contain the three selectors passed in (fromSel/toSel point at
+ *  the dt24 wrappers). */
 function mountFilteredLog(section, { hostSel, fromSel, toSel, rows, columns, emptyWindowText, search, render, browseCap }) {
     // How each filtered row set is drawn: the transitions log keeps the table
     // (renderLogTable + columns); the clicks logs pass `render` to stack Page over
@@ -1116,28 +1170,22 @@ function mountFilteredLog(section, { hostSel, fromSel, toSel, rows, columns, emp
     // unaffected.
     const renderRows = render || ((h, r, opts) => renderLogTable(h, r, columns, opts));
     const host = section.querySelector(hostSel);
-    const fromInput = section.querySelector(fromSel);
-    const toInput = section.querySelector(toSel);
+    const fromEl = section.querySelector(fromSel);
+    const toEl = section.querySelector(toSel);
 
     if (rows.length === 0) {
-        fromInput.disabled = true;
-        toInput.disabled = true;
+        dtFieldDisable(fromEl);
+        dtFieldDisable(toEl);
         if (search) { const si = section.querySelector(search.inputSel); if (si) si.disabled = true; }
         host.innerHTML = '<p class="muted">No data yet.</p>';
         return;
     }
 
-    // datetime-local wants "YYYY-MM-DDTHH:mm" in LOCAL time (no timezone
-    // suffix) — toISOString() is UTC, so build it from local getters instead.
-    const toLocalInputValue = (d) => {
-        const pad = (n) => String(n).padStart(2, '0');
-        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    };
     // Default window on every refresh: from the dawn of history to right now
     // — i.e. show everything — rather than clamping to the fetched data's own
     // min/max (which shifted every time new data arrived).
-    fromInput.value = toLocalInputValue(new Date(0));
-    toInput.value = toLocalInputValue(new Date());
+    dtFieldSet(fromEl, new Date(0));
+    dtFieldSet(toEl, new Date());
 
     // Optional smart-search filter (the all-clicks log). `query` is the active
     // filter text — set by the search field on every keystroke AND on a pick, so
@@ -1168,8 +1216,8 @@ function mountFilteredLog(section, { hostSel, fromSel, toSel, rows, columns, emp
     // on a filter change preserves whatever column the admin sorted by.
     const sort = { key: 'date', dir: 'desc' }; // newest first by default
     const draw = () => {
-        const fromTime = fromInput.value ? new Date(fromInput.value).getTime() : -Infinity;
-        const toTime = toInput.value ? new Date(toInput.value).getTime() : Infinity;
+        const ft = dtFieldTime(fromEl); const fromTime = ft == null ? -Infinity : ft;
+        const tt = dtFieldTime(toEl);   const toTime   = tt == null ? Infinity  : tt;
         const windowed = rows.filter((r) => r.date.getTime() >= fromTime && r.date.getTime() <= toTime);
         // browse-all counts over the WHOLE windowed corpus (a search reaches all of it).
         if (search) {
@@ -1190,8 +1238,8 @@ function mountFilteredLog(section, { hostSel, fromSel, toSel, rows, columns, emp
         renderRows(host, shown, { emptyText: q ? 'No interactions match this search.' : emptyWindowText, sort });
     };
 
-    fromInput.addEventListener('change', draw);
-    toInput.addEventListener('change', draw);
+    dtFieldOnChange(fromEl, draw);
+    dtFieldOnChange(toEl, draw);
 
     if (search) {
         const searchInput = section.querySelector(search.inputSel);
@@ -1756,8 +1804,8 @@ function timelineRow(e, sessionDevice) {
  *  so a nested one would get double-wired and toggle twice per click. */
 function renderSessions(section, { rawEvents, filter }) {
     const host = section.querySelector('#sessions-list');
-    const fromInput = section.querySelector('#sessions-from');
-    const toInput = section.querySelector('#sessions-to');
+    const fromEl = section.querySelector('#sessions-from');
+    const toEl = section.querySelector('#sessions-to');
 
     // Audience-filtered once (the same predicate computeSummary used); the window
     // then re-sessionises THIS set, never the capped data.sessions.
@@ -1765,8 +1813,8 @@ function renderSessions(section, { rawEvents, filter }) {
     const hasAnySession = ev.some((e) => e.session_id != null);
 
     if (!hasAnySession) {
-        if (fromInput) fromInput.disabled = true;
-        if (toInput) toInput.disabled = true;
+        if (fromEl) dtFieldDisable(fromEl);
+        if (toEl) dtFieldDisable(toEl);
         host.innerHTML = '<p class="muted">No sessions yet. A session id is kept for visits from an '
             + 'Asia/Jerusalem timezone AND for any signed-in user (from anywhere) — every other '
             + '(anonymous, non-Israel) visitor is recorded as unlinked individual events by design, '
@@ -1774,16 +1822,12 @@ function renderSessions(section, { rawEvents, filter }) {
         return;
     }
 
-    // datetime-local wants "YYYY-MM-DDTHH:mm" in LOCAL time (same helper and same
-    // timezone quirk as mountFilteredLog: boundaries line up with the displayed
-    // Asia/Jerusalem times only for an admin sitting in Israel). Default window:
-    // the dawn of history to now — i.e. show everything.
-    const toLocalInputValue = (d) => {
-        const pad = (n) => String(n).padStart(2, '0');
-        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    };
-    fromInput.value = toLocalInputValue(new Date(0));
-    toInput.value = toLocalInputValue(new Date());
+    // Default window: the dawn of history to now — i.e. show everything. Same
+    // 24-hour date+time field as mountFilteredLog (timezone quirk unchanged:
+    // boundaries line up with the displayed Asia/Jerusalem times only for an
+    // admin sitting in Israel).
+    dtFieldSet(fromEl, new Date(0));
+    dtFieldSet(toEl, new Date());
 
     const drawCards = (sessions) => {
         if (!sessions.length) {
@@ -1835,13 +1879,13 @@ function renderSessions(section, { rawEvents, filter }) {
     };
 
     const draw = () => {
-        const fromTime = fromInput.value ? new Date(fromInput.value).getTime() : -Infinity;
-        const toTime = toInput.value ? new Date(toInput.value).getTime() : Infinity;
+        const ft = dtFieldTime(fromEl); const fromTime = ft == null ? -Infinity : ft;
+        const tt = dtFieldTime(toEl);   const toTime   = tt == null ? Infinity  : tt;
         drawCards(buildSessions(ev, { fromTime, toTime, limit: 200 }));
     };
 
-    fromInput.addEventListener('change', draw);
-    toInput.addEventListener('change', draw);
+    dtFieldOnChange(fromEl, draw);
+    dtFieldOnChange(toEl, draw);
     draw();
 }
 
@@ -2081,8 +2125,8 @@ function renderHistory(panel, data, hideMine, onToggle) {
 
     const clicks = add('All clicks & interactions', `
         <div class="analytics-time-filter">
-            <label>From <input type="datetime-local" id="history-clicks-from"></label>
-            <label>To <input type="datetime-local" id="history-clicks-to"></label>
+            <label>From ${dtField24('history-clicks-from')}</label>
+            <label>To ${dtField24('history-clicks-to')}</label>
         </div>
         <div id="history-clicks"></div>`);
     // Own selectors, so the ids never collide with the live Activity tab's log.
@@ -2504,8 +2548,8 @@ export async function renderAnalyticsPage(monthKeyArg = null, viewArg = null) {
     const sessionsSection = makeSection('Sessions — Israel & signed-in users (most recent 200 per window)');
     sessionsSection.innerHTML += `
         <div class="analytics-time-filter">
-            <label>From <input type="datetime-local" id="sessions-from"></label>
-            <label>To <input type="datetime-local" id="sessions-to"></label>
+            <label>From ${dtField24('sessions-from')}</label>
+            <label>To ${dtField24('sessions-to')}</label>
         </div>
         <div id="sessions-list"></div>`;
     shell.panels.journeys.appendChild(sessionsSection);
@@ -2528,8 +2572,8 @@ export async function renderAnalyticsPage(monthKeyArg = null, viewArg = null) {
                    aria-label="Search interactions by text, page, or icon">
         </div>
         <div class="analytics-time-filter">
-            <label>From <input type="datetime-local" id="clicks-log-from"></label>
-            <label>To <input type="datetime-local" id="clicks-log-to"></label>
+            <label>From ${dtField24('clicks-log-from')}</label>
+            <label>To ${dtField24('clicks-log-to')}</label>
         </div>
         <div id="table-clicks-log"></div>`;
     shell.panels.activity.appendChild(clicksLogSection);
@@ -2544,8 +2588,8 @@ export async function renderAnalyticsPage(monthKeyArg = null, viewArg = null) {
     const transitionsLogSection = makeSection('All page-to-page transitions');
     transitionsLogSection.innerHTML += `
         <div class="analytics-time-filter">
-            <label>From <input type="datetime-local" id="transitions-log-from"></label>
-            <label>To <input type="datetime-local" id="transitions-log-to"></label>
+            <label>From ${dtField24('transitions-log-from')}</label>
+            <label>To ${dtField24('transitions-log-to')}</label>
         </div>
         <div id="table-transitions-log"></div>`;
     shell.panels.activity.appendChild(transitionsLogSection);

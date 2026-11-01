@@ -160,7 +160,7 @@ export async function renderPlayerPage() {
                     opponentSuffix: (name) => getTitleAbbreviationsHtml(allMeta[name]),
                 },
             });
-            mountMFTable(mountPoint, preset);
+            mountMFTable(mountPoint, { ...preset, tableName: 'Match history' });
             attachPlayerNameInteractions(mountPoint, leagueId);
         };
 

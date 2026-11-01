@@ -1419,7 +1419,7 @@ function renderCompletedLeagues(container, completed) {
         const shown = typeId === ALL_TYPES_ID ? rows : rows.filter(r => r.leagueType === typeId);
         mountPoint.innerHTML = '';
         const preset = buildCompletedLeaguesPreset({ rows: shown, flagUrl, leagueUrl });
-        const { table } = mountMFTable(mountPoint, preset);
+        const { table } = mountMFTable(mountPoint, { ...preset, tableName: 'Completed leagues' });
         // Preserve legacy class so existing CSS (.completed-leagues-table) continues to apply.
         table.classList.add('completed-leagues-table');
 
@@ -1674,7 +1674,9 @@ function renderLeaderboards(container, leaderboards) {
                 leagueType: lb.leagueType,
                 flagUrl,
             });
-            const { table } = mountMFTable(mountPoint, preset);
+            // tableName = the panel's own title ("<year> Leaderboard"), so the
+            // analytics sort line names the specific annual table that was sorted.
+            const { table } = mountMFTable(mountPoint, { ...preset, tableName: title });
             // Preserve legacy class so existing .leaderboard-table CSS still applies.
             table.classList.add('leaderboard-table');
 
