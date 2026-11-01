@@ -18,21 +18,29 @@ export function typePillHtml(type) {
     return `<span class="league-type-pill type-${type}">${TYPE_LABELS[type] || type}</span>`;
 }
 
+/** No rank to show: the dash sits on the column's slash line. */
+const RANK_CELL_DASH = '<span class="rank-cell"><span class="rank-place"></span><span class="rank-sep">&mdash;</span></span>';
+
 /**
- * The "rank / total" cell, medal-tinted from the league's own medal places —
- * the tier counts PLUS its extra prize rows (see compute/prizeRows.js), so a
- * league with two gold rows tints two ranks gold here exactly as it does on its
- * own table. Shared by C1 and C6.
+ * The "rank / total" cell, a pill in the medal's colour from the league's own
+ * medal places — the tier counts PLUS its extra prize rows (see
+ * compute/prizeRows.js), so a league with two gold rows marks two ranks gold
+ * here exactly as it does on its own table. Shared by C1 and C6.
+ *
+ * Every value carries .rank-cell, medal or not, and is split into place / slash
+ * / total: the "/" stays on one vertical line down the column whatever the
+ * place's digit count, and whether or not a pill made it bold (see .rank-cell).
  */
 export function rankCellHtml(league, playerRank, totalPlayers) {
-    if (playerRank == null) return '&mdash;';
+    if (playerRank == null) return RANK_CELL_DASH;
     const { gold: goldCount, silver: silverCount, bronze: bronzeCount } =
         getMedalPlaces(league.params, { gold: 1, silver: 1, bronze: 1 });
-    const rankClass = playerRank <= goldCount                             ? 'rank-cell-gold'
-                    : playerRank <= goldCount + silverCount               ? 'rank-cell-silver'
-                    : playerRank <= goldCount + silverCount + bronzeCount ? 'rank-cell-bronze'
+    const rankClass = playerRank <= goldCount                             ? ' rank-cell-gold'
+                    : playerRank <= goldCount + silverCount               ? ' rank-cell-silver'
+                    : playerRank <= goldCount + silverCount + bronzeCount ? ' rank-cell-bronze'
                     : '';
-    return `<span class="${rankClass}">${playerRank} / ${totalPlayers}</span>`;
+    const digits = playerRank < 10 ? ' rank-cell--one-digit' : '';
+    return `<span class="rank-cell${rankClass}${digits}"><span class="rank-place">${playerRank}</span><span class="rank-sep"> / </span>${totalPlayers}</span>`;
 }
 
 /**
@@ -139,7 +147,7 @@ export function buildPlayerLeaguesPreset({ perLeague, playerName, parseLeagueDat
                 type:          typePillHtml(cfg.type),
                 _type:         cfg.type,
                 status:        running ? 'Running' : 'Completed',
-                rank:          '—',
+                rank:          RANK_CELL_DASH,
                 _rank:         null,
                 gp: null, wins: null, losses: null,
                 primary:       '—',

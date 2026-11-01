@@ -1129,10 +1129,46 @@
     z-index: 4;
 }
 
-/* Medal coloring in RANK column */
-.rank-cell-gold { color: var(--color-gold-text, #92400e); font-weight: 700; }
-.rank-cell-silver { color: var(--color-silver-text, #475569); font-weight: 600; }
-.rank-cell-bronze { color: var(--color-bronze-text, #b45309); font-weight: 600; }
+/* Medal pill in RANK column. Its box is .status-pill's / .league-type-pill's (see
+   the note above .status-pill in components.css): C1 shows them in the same row,
+   so a change to their geometry changes this too.
+   The box is on every rank, medal or not, and the "/" sits at one fixed distance
+   from it: the place is right-aligned in a box sized in em (ch would follow the
+   font weight, and a pill is bolder than a plain rank), the slash centred in
+   another. A one-digit place narrows its box and moves the pill by the same
+   amount, so the slash stays put and the pill has no empty slot inside it.
+   The text is a fixed dark, NOT --color-*-text: those are written for the pale
+   medal row tints, and on the solid medal colour they measure 1.1-1.9:1 in the
+   dark themes. Rainbow's purple "silver" is the one fill that needs white. */
+.rank-cell {
+    display: inline-block;
+    padding: 0.2em 0.85em;
+    border-radius: var(--radius-full);
+    font-size: 1em;
+    line-height: 1.5;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.rank-place {
+    display: inline-block;
+    width: 1.25em;
+    text-align: right;
+}
+.rank-sep {
+    display: inline-block;
+    width: 1.15em;
+    text-align: center;
+}
+.rank-cell--one-digit { margin-left: 0.6em; }
+.rank-cell--one-digit .rank-place { width: 0.65em; }
+.rank-cell-gold,
+.rank-cell-silver,
+.rank-cell-bronze { color: #111; font-weight: 600; }
+.rank-cell-gold { background: var(--color-gold); }
+.rank-cell-silver { background: var(--color-silver); }
+.rank-cell-bronze { background: var(--color-bronze); }
+[data-theme="rainbow"] .rank-cell-silver { color: #fff; }
 
 /* Leagues table wrapper — plain layout container.
    Card visual (radius, shadow, scroll) lives on the inner .mf-wrap now,

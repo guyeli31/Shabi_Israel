@@ -159,6 +159,8 @@ Per-context overrides (`.dash-table .flag`, `.achv-table .flag`, etc.) carry the
 
 > **`.status-pill` and `.league-type-pill` must always change together.** C1 and F1 show the two in **adjacent columns of the same row**, and `components.css` states they are the same size by design. Editing one class, or one of the two files, splits that pair — and `admin.html` does not load `components.css`, so the admin copy is a genuine second site, not a stale duplicate.
 
+> **`.rank-cell` (the medal pill in C1/C6's Rank column, `css/player-general.css`) copies that same box** — padding, `1em`, line-height, `0.02em` spacing, weight 600 — because C1 shows it in the same row as the other two. A change to their geometry changes it too.
+
 The image export is immune to all of this: `js/utils/exportTableImage.js` sets `pill.style.fontSize` inline in px, which outranks every stylesheet.
 
 > **FF — three cell modes per ColDef.** A single FF table can mix freely:
@@ -368,7 +370,7 @@ Columns (left → right):
 |---|---|---|
 | 1 | `leagueTitle` | **Sticky.** Clickable league title (`tdClass: 'league-cell'`) |
 | 2 | `type` | league-type pill (`.league-type-pill.type-*`) |
-| 3 | `rank` | `rank / total`, medal-tinted from the league's own Gold/Silver/BronzeCount |
+| 3 | `rank` | `rank / total`, a pill in the medal's colour (`.rank-cell`) from the league's own Gold/Silver/BronzeCount; the "/" stays on one vertical line down the column |
 | 4 | `luck` | Luck Confidence percentile **D** (0–100), tinted by `colorForValue(D, 0, 100)` at weight 600 |
 
 **Row scope (load-bearing):** only leagues that are **completed** (`params.Running !== true`) **and** track PR (`config.showPR`). A mid-season luck reading would otherwise sit beside finished seasons as if it were settled, and REGULAR leagues record no PR at all, so there is no model to be lucky against.
