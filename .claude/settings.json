@@ -70,7 +70,9 @@
       "PowerShell(Get-FileHash shabi-israel/assets/promo/UBC_champ.jpg, shabi-israel/assets/league-art/ubc.jpg -Algorithm MD5 | Select-Object Hash, Path; [System.TimeZoneInfo]::ConvertTimeFromUtc\\(\\(Get-Date\\).ToUniversalTime\\(\\), [System.TimeZoneInfo]::FindSystemTimeZoneById\\('Israel Standard Time'\\)\\).ToString\\('dd/MM/yyyy HH:mm'\\))",
       "mcp__playwright__browser_tabs",
       "Bash(curl -s \"https://golan.me.uk/shabi-israel/assets/promo/promo-config.json\")",
-      "Bash(curl -s \"https://golan.me.uk/shabi-israel/js/render/promoWindow.js\")"
+      "Bash(curl -s \"https://golan.me.uk/shabi-israel/js/render/promoWindow.js\")",
+      "Bash(node --check shabi-israel/js/render/searchOverlay.js)",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"C:/WORKSPACE/.claude/scripts/israel-time.ps1\")"
     ]
   }
 }

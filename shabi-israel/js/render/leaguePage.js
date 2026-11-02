@@ -23,7 +23,7 @@ import { mountMFTable } from '../../table-lab/formats/mf/mount.js';
 import { buildLeagueTablePreset } from '../presets/leagueTablePreset.js';
 import { installPageStateHandover, stashMountedSorts } from '../utils/pageStateHandover.js';
 import { buildLeagueHeaderData, renderV13Header, formatLastUpdatedDate } from './leagueHeader.js';
-import { getMatchesAsOf, INITIAL_POINT } from '../compute/matchHistory.js';
+import { getMatchesAsOf, parsePointValue, INITIAL_POINT } from '../compute/matchHistory.js';
 
 export async function renderLeaguePage() {
     const container = document.getElementById('content');
@@ -32,9 +32,11 @@ export async function renderLeaguePage() {
     // update point (linked from the dashboard B2 "Open full table" button).
     // A re-encoded/shared URL can decode the "+HH:MM" timezone offset's "+"
     // into a space; restore it so the timestamp still parses (otherwise the
-    // date reads as raw ISO and the as-of filter matches nothing).
+    // date reads as raw ISO and the as-of filter matches nothing). The value
+    // may end in a "#n" ordinal (several matches recorded at one instant — see
+    // getUpdatePoints), so the offset is not necessarily at the very end.
     let asof = getQueryParam('asof');
-    if (asof) asof = asof.replace(/ (\d{2}:\d{2})$/, '+$1');
+    if (asof) asof = asof.replace(/ (\d{2}:\d{2})(#\d+)?$/, '+$1$2');
 
     if (!leagueId) {
         renderErrorScreen(container, {
@@ -85,10 +87,17 @@ export async function renderLeaguePage() {
             // fixed the clock and broke the date: local midnight in Israel is
             // the previous evening in UTC, so a viewer west of Greenwich saw
             // the league open a day early.
+            // A point value is "<iso>" or "<iso>#n"; only the instant is a date.
             effectiveLastModified = isInitial
                 ? (params.IssueDate ? String(params.IssueDate).slice(0, 10) : null)
-                : asof;
+                : parsePointValue(asof).stamp;
         }
+
+        // A link to the NEWEST point (the latest match, picked from the Historical
+        // view) shows exactly the current table — "a newer version is available"
+        // would be false there, so the note says so instead.
+        const isLatestPoint = isHistorical && !isInitial
+            && viewMatches.length === timeline.filter(m => m.updatedAt).length;
 
         const title = leagueId; // always the full league name (id), never the short LeagueTitle
         document.title = (isHistorical ? 'Historical — ' : '') + title + ' — Shabi Israel';
@@ -103,7 +112,9 @@ export async function renderLeaguePage() {
                 omitStartDate: true,
                 historicalNote: isInitial
                     ? 'Initial version — before any match was played'
-                    : isHistorical
+                    : isLatestPoint
+                        ? 'Historical version — same as the current table'
+                        : isHistorical
                         ? 'Historical version — a newer version is available'
                         : undefined,
             },

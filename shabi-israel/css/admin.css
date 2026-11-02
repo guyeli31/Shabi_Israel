@@ -2475,6 +2475,76 @@ table.font-large { font-size: var(--fs-093); }
     color: var(--lt-all-text);
 }
 
+/* ---- League Type picker (Add League) ----
+   A select whose value is the league-type pill plus "(what it ranks by)" —
+   see mountLeagueTypePicker in leagueManager.js. The button wears the
+   `.form-group select` skin (border, surface, focus ring) and the card's
+   input padding, so it sits in the column like every other field. */
+.lt-picker { position: relative; }
+.lt-picker-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    width: 100%;
+    box-sizing: border-box;
+    padding: var(--input-pad-y, var(--space-sm)) var(--input-pad-x, var(--space-md));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: var(--fs-085);
+    line-height: 1.6;
+    text-align: left;
+    cursor: pointer;
+}
+.lt-picker-btn:focus-visible,
+.lt-picker-btn[aria-expanded="true"] {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-accent-light);
+}
+.lt-picker-value {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    flex: 1;
+    min-width: 0;
+}
+.lt-picker-caret { color: var(--color-text-muted); font-size: 0.8em; }
+/* Smaller than a table's pill so the field keeps the height of its neighbours. */
+.lt-picker .league-type-pill { font-size: 0.85em; padding: 0 0.75em; }
+.lt-picker-desc { color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lt-picker-list {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+    font-size: var(--fs-085);
+}
+.lt-picker-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.45em 0.7em;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+.lt-picker-list li:hover,
+.lt-picker-list li:focus {
+    outline: none;
+    background: var(--color-accent-light);
+}
+.lt-picker-list li[aria-selected="true"] .lt-picker-desc { color: var(--color-text); }
+
 /* ---- Status pill (mirrors components.css for admin page) ---- */
 /* `1em` — twin of .league-type-pill above; see components.css. */
 .status-pill {

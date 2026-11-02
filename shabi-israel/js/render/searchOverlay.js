@@ -326,14 +326,30 @@ function openOverlay(srcInput) {
 
 let lastCloseTs = 0;
 let savedScrollY = 0;
+
+/**
+ * Swallow the ghost click of a tap that just removed the layer under the finger
+ * (see the capture-phase click listener in installSearchOverlay). The sheet
+ * calls it on close; anything else that disappears on a pointer event — the
+ * pinned search bar's ✕ — must call it too, or the tap's click lands on
+ * whatever the vanished layer was covering.
+ */
+export function suppressGhostClick() {
+    lastCloseTs = Date.now();
+}
 function closeOverlay() {
     if (!sheet || sheet.hidden) return;
     sheetInput.blur();                 // dismiss the keyboard → viewport restores
     sheet.hidden = true;
-    lastCloseTs = Date.now();          // guard against a ghost-click reopen (below)
+    suppressGhostClick();              // the tap's click must not reach the page (below)
     document.documentElement.classList.remove('search-sheet-open');
     document.body.style.top = '';
-    window.scrollTo(0, savedScrollY);  // restore the exact pre-open scroll position
+    // Restore the exact pre-open scroll position — INSTANTLY. <html> carries
+    // `scroll-behavior: smooth`, which turned a plain scrollTo into a ~470ms
+    // animation from the top: the page visibly jumped up and slid back after
+    // every pick, and for that half second whatever sat at the top of the page
+    // (the breadcrumbs' Home link) was under the finger.
+    window.scrollTo({ top: savedScrollY, behavior: 'instant' });
     untrackViewport?.();
     untrackViewport = null;
     currentAdapter = null;
@@ -360,14 +376,23 @@ export function installSearchOverlay() {
     // handlers (e.g. the What-If combo's open-on-click) never fire — the sheet
     // is the only thing that opens. Then open it.
     document.addEventListener('click', (e) => {
+        // The "ghost click" of the tap that closed the sheet. A result is picked
+        // on pointerup and the ✕ / scrim close on pointerdown — both hide the
+        // sheet BEFORE the tap's synthesized click is dispatched, and
+        // preventDefault on a pointer event does not cancel that click. So it
+        // lands on whatever page element was under the finger: a field there
+        // re-opened the sheet, and on the admin's Add League form a pick from
+        // the preset list landed on "‹ Back to Leagues" and left the form.
+        // Swallowed for a beat, whatever it hits.
+        if (Date.now() - lastCloseTs < 500) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
         const input = e.target.closest?.('.app-search-input');
         if (!input || !usesSheet(input)) return;
         e.preventDefault();
         e.stopPropagation();
-        // Ignore the "ghost click" that fires right after a close-tap: closing
-        // on pointerdown hides the sheet, then the tap's synthesized click can
-        // land on the field underneath and re-open. Swallow opens for a beat.
-        if (Date.now() - lastCloseTs < 500) return;
         input.blur();
         openOverlay(input);
     }, true);

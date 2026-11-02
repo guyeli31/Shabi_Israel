@@ -477,7 +477,6 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
         csvText: null,        // set by the importer; overrides round-robin generation
         importOverrides: [],  // technical results decided in the import preview
         uploadedFlags: [],    // flag codes uploaded from this form — see wireUploadFlagPanel
-        sourceLeagueName: null // Sync's Source League Name, inherited from the loaded preset
     };
 
     // Flag dropdowns are only useful if they offer the codes already in use —
@@ -502,25 +501,31 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
                         <div class="ac-field">
                             <input type="text" id="preset-league" class="app-search-input" placeholder="Search a league to copy…" autocomplete="off">
                         </div>
-                        <button class="btn btn-secondary btn-sm" id="apply-preset-btn">Load Preset</button>
+                        <button class="btn btn-secondary btn-sm" id="apply-preset-btn" disabled title="Pick a league from the list first">Load Preset</button>
                     </div>
                     <label class="preset-opt">
                         <input type="checkbox" id="preset-include-players" checked>
                         <span>Also copy its players (with flags &amp; retired state)</span>
                     </label>
-                    <small class="form-hint">Copies type, duration, entry fee, match length, medals &amp; prizes, and its Sync Source League Name — so a recurring league doesn't have to be re-typed. The name, the issue date and the match results always stay yours to set.</small>
+                    <small class="form-hint">Pick a league, then Load Preset. Copies type, In Leaderboard, duration, entry fee, match length, medals &amp; prizes, and its Sync Source League Name — so a recurring league doesn't have to be re-typed. The name, the issue date and the match results always stay yours to set.</small>
                 </div>
                 <div class="form-group">
                     <label for="new-league-name">League Name</label>
                     <input type="text" id="new-league-name" placeholder="e.g. Shabi Israel - May 2026">
                 </div>
                 <div class="form-group">
-                    <label for="new-league-type">League Type</label>
-                    <select id="new-league-type">
+                    <label id="new-league-type-label">League Type</label>
+                    <select id="new-league-type" hidden>
                         <option value="doubling">Doubling (Win Rate)</option>
                         <option value="regular">Regular (Wins only)</option>
                         <option value="ubc">UBC (PR Wins + Points)</option>
                     </select>
+                    <div class="lt-picker" id="new-league-type-picker"></div>
+                </div>
+                <div class="form-group">
+                    <label for="new-source-name">Sync Source League Name</label>
+                    <input type="text" id="new-source-name" placeholder="Filled by Load Preset — leave empty for none" autocomplete="off">
+                    <small class="form-hint">The league's name on the External Source site, used by Sync. Load Preset copies it from the preset league.</small>
                 </div>
                 <div class="add-league-row">
                     <div class="form-group">
@@ -754,7 +759,7 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
     async function loadDraftIntoForm(d) {
         const p = d.params || {};
         document.getElementById('new-league-name').value = d.id;
-        document.getElementById('new-league-type').value = p.LeagueType || 'doubling';
+        setLeagueType(p.LeagueType);
         if (p.IssueDate) document.getElementById('new-issue-date').value = p.IssueDate;
         document.getElementById('new-entry-fee').value = p.EntryFee ?? 0;
         document.getElementById('new-match-length').value = p.MatchLength || 7;
@@ -773,7 +778,9 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
         // date is in — otherwise they settle on the empty-date defaults.
         document.getElementById('new-issue-date').dispatchEvent(new Event('change'));
         document.getElementById('new-duration-mode').dispatchEvent(new Event('change'));
-        if (p.IssueDate) document.getElementById('new-in-leaderboard').checked = p.InLeaderboard !== false;
+        // Through the toggle's own choice, not `.checked`: a checkbox written
+        // directly is overwritten by the next date change, which re-derives it.
+        if (p.IssueDate) leaderboardToggle.setChoice(p.InLeaderboard !== false);
 
         // Match data: a ManualEntry league's CSV is a generated round-robin, not
         // an imported file — carrying it as `csvText` would freeze that draw and
@@ -781,9 +788,7 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
         // save, exactly as it was the first time.
         state.importOverrides = d.overrides || [];
         state.csvText = (d.csvText && !p.ManualEntry) ? d.csvText : null;
-        // Not a form field, so it has to be carried by hand — otherwise
-        // re-saving the draft would stage it without the inherited name.
-        state.sourceLeagueName = p.SourceLeagueName || null;
+        document.getElementById('new-source-name').value = p.SourceLeagueName || '';
 
         const flags = p.CustomFlags || {};
         const retired = new Set(p.RetiredPlayers || []);
@@ -826,6 +831,17 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
     const presetIds = new Set(displayOrder.map(t => t.replace(' - ', ' ')));
     const presetInput = document.getElementById('preset-league');
     const presetMeta = new Map(); // id → {running, leagueType}
+    const presetBtn = document.getElementById('apply-preset-btn');
+    // The league PICKED from the list — what Load Preset reads, rather than the
+    // field's text. `browseOnOpen` empties the text whenever the field is
+    // entered, so the text is not the choice; and Load Preset is enabled only
+    // while there IS a choice, so it cannot be pressed on a half-typed name.
+    let presetChoice = null;
+    const setPresetChoice = (id) => {
+        presetChoice = id && presetIds.has(id) ? id : null;
+        presetBtn.disabled = !presetChoice;
+        presetBtn.title = presetChoice ? '' : 'Pick a league from the list first';
+    };
     const presetField = mountCombobox(presetInput, {
         suggest: async (query) => {
             const q = (query || '').trim().toLowerCase();
@@ -877,10 +893,19 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
         // not a query being refined — so re-entering the field browses the whole
         // list again instead of filtering to the one league already in it.
         browseOnOpen: true,
-        onSelect: () => {},     // fills the field; the Load Preset button reads it
+        onSelect: setPresetChoice,  // fills the field and arms Load Preset
     });
+    // Typing is not picking: a hand-edited name disarms the button until a
+    // league is chosen from the list again.
+    presetInput.addEventListener('input', () => setPresetChoice(null));
 
-    wireLeaderboardToggle(
+    const setLeagueType = mountLeagueTypePicker(
+        document.getElementById('new-league-type'),
+        document.getElementById('new-league-type-picker'),
+        'new-league-type-label'
+    );
+
+    const leaderboardToggle = wireLeaderboardToggle(
         document.getElementById('new-issue-date'),
         document.getElementById('new-in-leaderboard'),
         document.getElementById('new-in-leaderboard')?.closest('.form-group')?.querySelector('.leaderboard-hint')
@@ -895,17 +920,14 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
     // pure friction. Deliberately NOT copied: the name (it's the unique id), the
     // issue date, and any match data — those are what makes the new league new.
     document.getElementById('apply-preset-btn').addEventListener('click', async () => {
-        const sourceId = presetInput.value.trim();
+        // The button is disabled without a choice; this holds if a click lands anyway.
+        const sourceId = presetChoice;
         if (!sourceId) {
-            showMsg('add-msg', 'Search for a league to copy from first.', 'error');
-            return;
-        }
-        if (!presetIds.has(sourceId)) {
-            showMsg('add-msg', `No league named "${esc(sourceId)}". Pick one from the list.`, 'error');
+            showMsg('add-msg', 'Pick a league to copy from the list first.', 'error');
             return;
         }
         const withPlayers = document.getElementById('preset-include-players').checked;
-        const btn = document.getElementById('apply-preset-btn');
+        const btn = presetBtn;
         btn.disabled = true;
         try {
             // Prefer this league's staged (unpublished) params, exactly as Edit
@@ -914,7 +936,12 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
             const stagedParams = getStagedContent(T.leagueParams(sourceId));
             if (stagedParams) { try { params = JSON.parse(stagedParams); } catch { /* keep published */ } }
 
-            document.getElementById('new-league-type').value = params.LeagueType || 'doubling';
+            setLeagueType(params.LeagueType);
+            // In Leaderboard is part of "the same league again" too — a UBC
+            // league kept out of the Annual Leaderboard stays out next month.
+            // Only a DATED preset's flag is a choice: a dateless league is
+            // forced out (no month column), which says nothing about the next.
+            if (params.IssueDate) leaderboardToggle.setChoice(params.InLeaderboard !== false);
             document.getElementById('new-entry-fee').value = params.EntryFee ?? 0;
             document.getElementById('new-match-length').value = params.MatchLength || 7;
             document.getElementById('new-gold-count').value = params.GoldCount ?? 1;
@@ -948,8 +975,10 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
             if (!sourceName) sourceName = params.SourceLeagueName || null;
             // A lookup failure must not cost the admin the rest of the preset.
             if (!sourceName) sourceName = await fetchSourceLeagueName(sourceId).catch(() => null);
-            state.sourceLeagueName = sourceName;
-            const sourceNote = sourceName ? ` Source League Name "${esc(sourceName)}" will be set for Sync.` : '';
+            document.getElementById('new-source-name').value = sourceName || '';
+            const sourceNote = sourceName
+                ? ` Sync Source League Name "${esc(sourceName)}" copied.`
+                : ' The preset has no Sync Source League Name.';
 
             let playerNote = '';
             if (withPlayers) {
@@ -979,7 +1008,7 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
         } catch (err) {
             showMsg('add-msg', `Could not load preset: ${err.message}`, 'error');
         } finally {
-            btn.disabled = false;
+            setPresetChoice(presetChoice);
         }
     });
 
@@ -1299,7 +1328,7 @@ async function renderAddLeagueForm(container, displayOrder, draftId = null) {
             players: state.players,
             csvText: state.csvText,
             overrides: state.importOverrides,
-            sourceLeagueName: state.sourceLeagueName,
+            sourceLeagueName: document.getElementById('new-source-name').value.trim() || null,
             // Flags uploaded for THIS league travel with it — read out of the
             // queue here, BEFORE removeGroup below can drop the ones a previous
             // save already folded into the draft's group.
@@ -1702,7 +1731,7 @@ function wireDirtySave(scope, saveBtn, isValid = () => true) {
  * refuses at publish time. Instead the toggle disables itself and says why.
  */
 function wireLeaderboardToggle(dateEl, toggleEl, hintEl, defaultOn = true) {
-    if (!dateEl || !toggleEl) return;
+    if (!dateEl || !toggleEl) return { setChoice() {} };
     // Null until the admin touches the toggle themselves, so a date typed in
     // AFTER the form loaded lands on the intended default (a normal monthly
     // league is in) rather than staying stuck off just because the toggle was
@@ -1722,6 +1751,87 @@ function wireLeaderboardToggle(dateEl, toggleEl, hintEl, defaultOn = true) {
     dateEl.addEventListener('change', sync);
     toggleEl.addEventListener('change', () => { userChoice = toggleEl.checked; sync(); });
     sync();
+    // A choice made FOR the admin (a loaded preset or draft) — held exactly like
+    // one they clicked, so it survives the date being set afterwards. Writing
+    // `.checked` instead lasts only until the next sync, which re-derives it:
+    // a preset from a league kept out of the leaderboard came back switched on.
+    return { setChoice(on) { userChoice = !!on; sync(); } };
+}
+
+const LEAGUE_TYPE_DESCRIPTIONS = { doubling: 'Win Rate', regular: 'Wins only', ubc: 'PR Wins + Points' };
+
+/**
+ * The League Type picker: a select whose value reads as the league-type PILL
+ * (the same `.league-type-pill` every league table shows) followed by what the
+ * type ranks by in parentheses. A native <select> can only hold plain text, so
+ * the real select stays in the form, hidden, as the value everything else
+ * reads; this draws it and writes back to it. Returns `setLeagueType(type)` —
+ * set the value through it, so the drawn value follows.
+ */
+function mountLeagueTypePicker(select, host, labelId) {
+    const known = v => (LEAGUE_TYPE_LABELS[v] ? v : 'doubling');
+    const valueHtml = v => `<span class="league-type-pill type-${esc(v)}">${esc(LEAGUE_TYPE_LABELS[v])}</span>`
+        + `<span class="lt-picker-desc">(${esc(LEAGUE_TYPE_DESCRIPTIONS[v] || '')})</span>`;
+    const values = [...select.options].map(o => o.value);
+    host.innerHTML = `
+        <button type="button" class="lt-picker-btn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="${esc(labelId)}"></button>
+        <ul class="lt-picker-list" role="listbox" aria-labelledby="${esc(labelId)}" hidden>
+            ${values.map(v => `<li role="option" tabindex="-1" data-value="${esc(v)}">${valueHtml(v)}</li>`).join('')}
+        </ul>`;
+    const btn = host.querySelector('.lt-picker-btn');
+    const list = host.querySelector('.lt-picker-list');
+    const items = () => [...list.querySelectorAll('li[data-value]')];
+
+    const paint = () => {
+        btn.innerHTML = `<span class="lt-picker-value">${valueHtml(known(select.value))}</span>`
+            + `<span class="lt-picker-caret" aria-hidden="true">&#9662;</span>`;
+        for (const li of items()) li.setAttribute('aria-selected', String(li.dataset.value === select.value));
+    };
+    const outside = (e) => { if (!host.contains(e.target)) setOpen(false); };
+    function setOpen(on) {
+        list.hidden = !on;
+        btn.setAttribute('aria-expanded', String(on));
+        if (on) {
+            document.addEventListener('pointerdown', outside, true);
+            (items().find(li => li.dataset.value === select.value) || items()[0]).focus();
+        } else {
+            document.removeEventListener('pointerdown', outside, true);
+        }
+    }
+    const pick = (v) => {
+        setOpen(false);
+        btn.focus();
+        if (v === select.value) return;
+        select.value = v;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    btn.addEventListener('click', () => setOpen(list.hidden));
+    btn.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setOpen(true); }
+    });
+    list.addEventListener('click', (e) => {
+        const li = e.target.closest('li[data-value]');
+        if (li) pick(li.dataset.value);
+    });
+    list.addEventListener('keydown', (e) => {
+        const all = items();
+        const i = all.indexOf(document.activeElement);
+        if (e.key === 'ArrowDown') { e.preventDefault(); all[Math.min(i + 1, all.length - 1)].focus(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); all[Math.max(i - 1, 0)].focus(); }
+        else if (e.key === 'Home') { e.preventDefault(); all[0].focus(); }
+        else if (e.key === 'End') { e.preventDefault(); all[all.length - 1].focus(); }
+        else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (i >= 0) pick(all[i].dataset.value); }
+        else if (e.key === 'Escape') { e.preventDefault(); setOpen(false); btn.focus(); }
+        else if (e.key === 'Tab') setOpen(false);
+    });
+    select.addEventListener('change', paint);
+    paint();
+
+    return (type) => {
+        select.value = known(type);
+        paint();
+    };
 }
 
 function renderEditLeagueForm(container, leagueId, params, players, displayOrder, openSubtab) {

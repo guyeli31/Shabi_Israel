@@ -3756,6 +3756,21 @@ function buildLuckGapSeries(matches) {
     return out;
 }
 
+/**
+ * The label of a "this league" histogram row. `played` counts what the TABLE
+ * counts (technical results included — they decide standings), but a
+ * technical result carries no PR or luck and a draw has no winner, so neither
+ * is a bar on the chart. Showing only played/total read as "every match is
+ * drawn here" on a league with technical results; the plotted count is named
+ * beside it whenever the two differ.
+ */
+function leagueRowLabel(plotted, { playedMatches, totalMatches }) {
+    if (plotted === playedMatches) return `League &mdash; all matches (${playedMatches}/${totalMatches})`;
+    const excluded = playedMatches - plotted;
+    const why = `${excluded} played match${excluded === 1 ? '' : 'es'} not plotted: a technical result has no PR or luck figures, and a draw has no winner.`;
+    return `<span title="${why}">League &mdash; all matches (${plotted} plotted &middot; ${playedMatches}/${totalMatches} played)</span>`;
+}
+
 /** One entry per league match: x = PR of the loser minus PR of the winner (no colour). */
 function buildGeneralAdvantageSeries(liveMatches) {
     return liveMatches
@@ -4177,7 +4192,7 @@ function renderPrCorrelationSection(ctx) {
     generalPanel.innerHTML = `
         <div class="dash-controls corr-controls">
             <div class="corr-controls-top">
-                <label>League &mdash; all matches (${generalMatchStats.playedMatches}/${generalMatchStats.totalMatches})</label>
+                <label>${leagueRowLabel(generalSeries.length, generalMatchStats)}</label>
                 <span class="corr-gaussian-stats"></span>
                 <div class="corr-shift-group">
                     <button class="corr-gaussian-toggle" type="button" disabled data-track="PR distribution: Gaussian fit — this league" title="Overlays a fitted normal (Gaussian) curve on this histogram, using this data's own mean and standard deviation &mdash; a visual reference only, not a claim that the data is actually normally distributed.">Gaussian fit</button>
@@ -4843,7 +4858,7 @@ function renderLeagueLuckSection(ctx) {
     const stats = computeMatchStats(rankings, ctx.allPlayersSet.size);
     sharedBound = boundOf(leagueRows);
     const leagueRow = mountRow({
-        labelHtml: `League &mdash; all matches (${stats.playedMatches}/${stats.totalMatches})`,
+        labelHtml: leagueRowLabel(leagueRows.length, stats),
         getRows: () => leagueRows,
         getId: () => 'this league',
     });

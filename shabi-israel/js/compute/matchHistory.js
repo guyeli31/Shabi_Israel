@@ -239,8 +239,13 @@ function orderTimeline(timeline) {
         .map(x => x.m);
 }
 
-/** `"<iso>"` or `"<iso>#<n>"` → the instant plus which match within it. */
-function parsePointValue(value) {
+/**
+ * `"<iso>"` or `"<iso>#<n>"` → the instant plus which match within it.
+ * Exported because a point VALUE is not a date: anything that shows a point as
+ * a date (the league table's "Last updated") must show `stamp`, never the value
+ * — the raw value printed "2026-11-01T21:54:52.386+00:00#2" on the live site.
+ */
+export function parsePointValue(value) {
     const s = String(value);
     const hash = s.lastIndexOf('#');
     if (hash === -1) return { stamp: s, ordinal: null };

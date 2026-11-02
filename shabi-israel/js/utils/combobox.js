@@ -131,7 +131,7 @@
  *      ON a name that grew. `onViewportResize` is that second signal.
  */
 
-import { registerSearchAdapter, isTouchDevice, trackVisualViewport } from '../render/searchOverlay.js';
+import { registerSearchAdapter, isTouchDevice, trackVisualViewport, suppressGhostClick } from '../render/searchOverlay.js';
 import { searchFlagHtml } from './helpers.js';
 
 /**
@@ -853,6 +853,9 @@ export function mountSearchField(input, opts = {}) {
             });
             doneBtn.addEventListener('pointerdown', (e) => {
                 e.preventDefault();
+                // The bar vanishes now, and the tap's click would land on the
+                // page it was covering (the header, at the top of the screen).
+                suppressGhostClick();
                 unpin(true);
             });
 
